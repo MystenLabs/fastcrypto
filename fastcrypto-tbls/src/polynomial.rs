@@ -32,14 +32,16 @@ pub type PublicPoly<C> = Poly<C>;
 
 impl<C: GroupElement> Poly<C> {
     /// Returns an upper bound for the degree of the polynomial.
-    /// The returned number is equal to the size of the underlying coefficient vector - 1.
+    /// The returned number is equal to the size of the underlying coefficient vector - 1,
+    /// and in case some of the leading elements are zero, the actual degree will be smaller.
+    /// See also [Poly::degree].
     pub fn degree_bound(&self) -> usize {
         // e.g. c_0 + c_1 * x + c_2 * x^2 + c_3 * x^3
         // ^ 4 coefficients correspond to a 3rd degree poly
         self.0.len() - 1
     }
 
-    /// Returns the degree of the polynomial, ignoring leading zero coefficients.
+    /// Returns the degree of the polynomial.
     pub fn degree(&self) -> usize {
         self.0.iter().rposition(|&c| c != C::zero()).unwrap_or(0)
     }
@@ -339,25 +341,23 @@ impl<C: Scalar> Poly<C> {
         if points.is_empty() || !points.iter().map(|p| p.index).all_unique() {
             return Err(FastCryptoError::InvalidInput);
         }
-        let indices: Vec<C> = points.iter().map(|e| to_scalar(e.index)).collect_vec();
+        let x: Vec<C> = points.iter().map(|e| to_scalar(e.index)).collect_vec();
 
         // Compute the full numerator polynomial: (x - x_1)(x - x_2)...(x - x_t)
         let mut full_numerator = Poly::one();
-        for &x_i in indices.iter() {
-            full_numerator *= MonicLinear(-x_i);
+        for x_i in &x {
+            full_numerator *= MonicLinear(-*x_i);
         }
 
         Ok(Poly::sum(points.iter().enumerate().map(|(j, p_j)| {
-            let x_j = indices[j];
             let denominator = C::product(
-                indices
-                    .iter()
-                    .filter(|&&x_i| x_i != x_j)
-                    .map(|x_i| x_j - x_i),
+                x.iter()
+                    .enumerate()
+                    .filter(|(i, _)| *i != j)
+                    .map(|(_, x_i)| x[j] - x_i),
             );
-            // Safe since x_j is one of the roots of full_numerator.
-            let numerator = div_exact(&full_numerator, &MonicLinear(-x_j));
-            numerator * &(p_j.value / denominator).unwrap()
+            // Safe since (x - x[j]) divides full_numerator per definition
+            div_exact(&full_numerator, &MonicLinear(-x[j])) * &(p_j.value / denominator).unwrap()
         })))
     }
 
@@ -503,13 +503,9 @@ impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
 
 /// Assuming that `d` divides `n` exactly, return the quotient `n / d`.
 fn div_exact<C: Scalar>(n: &Poly<C>, d: &MonicLinear<C>) -> Poly<C> {
-    if d.0 == C::zero() {
-        panic!("Division by zero");
-    }
     if n.is_zero() {
         return Poly::zero();
     }
-
     let mut result = n.0[1..].to_vec();
     for i in (0..result.len() - 1).rev() {
         result[i] = result[i] - result[i + 1] * d.0;
