@@ -43,9 +43,8 @@ impl<C: GroupElement> Poly<C> {
     }
 
     fn reduce(&mut self) {
-        while self.0.len() > 1 && self.0.last() == Some(&C::zero()) {
-            self.0.pop();
-        }
+        let degree = self.degree();
+        self.0.truncate(degree + 1);
     }
 }
 
