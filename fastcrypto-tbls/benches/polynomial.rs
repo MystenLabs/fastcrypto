@@ -107,7 +107,7 @@ mod polynomial_benches {
 
     criterion_group! {
         name = polynomial_benches;
-        config = Criterion::default().sample_size(10);
+        config = Criterion::default();
         targets = polynomials, rs_decoder,
     }
 }

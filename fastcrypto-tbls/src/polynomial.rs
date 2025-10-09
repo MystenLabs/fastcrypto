@@ -31,20 +31,22 @@ pub type PublicPoly<C> = Poly<C>;
 /// Vector related operations.
 
 impl<C: GroupElement> Poly<C> {
-    /// Returns the degree of the polynomial
+    /// Returns an upper bound for the degree of the polynomial.
+    /// The returned number is equal to the size of the underlying coefficient vector - 1.
     pub fn degree_bound(&self) -> usize {
         // e.g. c_0 + c_1 * x + c_2 * x^2 + c_3 * x^3
         // ^ 4 coefficients correspond to a 3rd degree poly
         self.0.len() - 1
     }
 
+    /// Returns the degree of the polynomial, ignoring leading zero coefficients.
     pub fn degree(&self) -> usize {
         self.0.iter().rposition(|&c| c != C::zero()).unwrap_or(0)
     }
 
+    /// Removes leading zero coefficients.
     fn reduce(&mut self) {
-        let degree = self.degree();
-        self.0.truncate(degree + 1);
+        self.0.truncate(self.degree() + 1);
     }
 }
 
@@ -79,7 +81,7 @@ impl<C: Scalar> Mul<&Poly<C>> for &Poly<C> {
         if self.is_zero() || rhs.is_zero() {
             return Poly::zero();
         }
-        let mut result = vec![C::zero(); self.degree_bound() + rhs.degree_bound() + 1];
+        let mut result = vec![C::zero(); self.degree() + rhs.degree() + 1];
         for (i, a) in self.0.iter().enumerate() {
             for (j, b) in rhs.0.iter().enumerate() {
                 result[i + j] += *a * *b;
@@ -483,7 +485,7 @@ impl<C: Scalar> Mul<&Monomial<C>> for &Poly<C> {
 }
 
 /// Represents a monic linear polynomial of the form x + c.
-struct MonicLinear<C>(C);
+pub(crate) struct MonicLinear<C>(pub C);
 
 impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
     fn mul_assign(&mut self, rhs: MonicLinear<C>) {

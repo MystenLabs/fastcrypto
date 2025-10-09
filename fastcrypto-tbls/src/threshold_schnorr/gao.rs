@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::polynomial::{Eval, Poly};
+use crate::polynomial::{Eval, MonicLinear, Poly};
 use crate::threshold_schnorr::S;
 use crate::types::ShareIndex;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
@@ -24,12 +24,10 @@ impl RSDecoder {
     /// Create a new Gao decoder with the given evaluation points `a` and message length `k`.
     pub fn new(a: Vec<ShareIndex>, k: usize) -> Self {
         assert!(k < a.len(), "Message length must be less than block length");
-        let g0 = a
-            .iter()
-            .map(|ai| S::from(ai.get() as u128))
-            .fold(Poly::one(), |acc, ai| {
-                &acc * &Poly::from(vec![-ai, S::generator()])
-            });
+        let mut g0 = Poly::one();
+        for ai in &a {
+            g0 *= MonicLinear(-S::from(ai.get() as u128));
+        }
         Self { g0, a, k }
     }
 
