@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::mem::swap;
-use std::ops::{Add, AddAssign, Div, Mul, MulAssign, SubAssign};
+use std::ops::{Add, AddAssign, Mul, MulAssign, SubAssign};
 
 /// Types
 
@@ -354,7 +354,7 @@ impl<C: Scalar> Poly<C> {
                     .map(|x_i| x_j - x_i),
             );
             // Safe since x_j is one of the roots of full_numerator.
-            let numerator = &full_numerator / &MonicLinear(-x_j);
+            let numerator = div_exact(&full_numerator, &MonicLinear(-x_j));
             numerator * &(p_j.value / denominator).unwrap()
         })))
     }
@@ -499,21 +499,18 @@ impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
     }
 }
 
-impl<C: Scalar> Div<&MonicLinear<C>> for &Poly<C> {
-    type Output = Poly<C>;
-
-    fn div(self, rhs: &MonicLinear<C>) -> Poly<C> {
-        if rhs.0 == C::zero() {
-            panic!("Division by zero");
-        }
-        if self.is_zero() {
-            return Poly::zero();
-        }
-
-        let mut result = self.0[1..].to_vec();
-        for i in (0..result.len() - 1).rev() {
-            result[i] = result[i] - result[i + 1] * rhs.0;
-        }
-        Poly::from(result)
+/// Assuming that `d` divides `n` exactly, return the quotient `n / d`.
+fn div_exact<C: Scalar>(n: &Poly<C>, d: &MonicLinear<C>) -> Poly<C> {
+    if d.0 == C::zero() {
+        panic!("Division by zero");
     }
+    if n.is_zero() {
+        return Poly::zero();
+    }
+
+    let mut result = n.0[1..].to_vec();
+    for i in (0..result.len() - 1).rev() {
+        result[i] = result[i] - result[i + 1] * d.0;
+    }
+    Poly::from(result)
 }
