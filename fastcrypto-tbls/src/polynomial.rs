@@ -47,12 +47,7 @@ impl<C: GroupElement> Poly<C> {
 
 impl<C: GroupElement> From<Vec<C>> for Poly<C> {
     fn from(c: Vec<C>) -> Self {
-        if c.is_empty() {
-            return Self::zero();
-        }
-        let mut p = Self(c);
-        p.reduce();
-        p
+        Self(c)
     }
 }
 
@@ -63,7 +58,6 @@ impl<C: GroupElement> AddAssign<&Self> for Poly<C> {
         if self.0.len() < other.0.len() {
             self.0.extend_from_slice(&other.0[self.0.len()..]);
         }
-        self.reduce();
     }
 }
 
@@ -71,7 +65,7 @@ impl<C: Scalar> Mul<&C> for Poly<C> {
     type Output = Poly<C>;
 
     fn mul(self, rhs: &C) -> Self::Output {
-        Poly::from(self.0.into_iter().map(|c| c * rhs).collect_vec())
+        Poly(self.0.into_iter().map(|c| c * rhs).collect())
     }
 }
 
@@ -109,7 +103,6 @@ impl<C: GroupElement> SubAssign<Poly<C>> for Poly<C> {
         for (a, b) in self.0.iter_mut().zip(&rhs.0) {
             *a -= *b;
         }
-        self.reduce();
     }
 }
 
@@ -122,7 +115,7 @@ impl<C: GroupElement> Poly<C> {
     }
 
     pub(crate) fn is_zero(&self) -> bool {
-        self.0 == vec![C::zero()]
+        self.0.iter().all(|&c| c == C::zero())
     }
 
     pub fn one() -> Self {
@@ -343,6 +336,7 @@ impl<C: Scalar> Poly<C> {
         }
         let indices: Vec<C> = points.iter().map(|e| to_scalar(e.index)).collect_vec();
 
+        // Compute the full numerator polynomial: (x - x_1)(x - x_2)...(x - x_t)
         let mut full_numerator = Poly::one();
         for &x_i in indices.iter() {
             full_numerator *= MonicLinear(-x_i);
@@ -356,7 +350,8 @@ impl<C: Scalar> Poly<C> {
                     .filter(|&&x_i| x_i != x_j)
                     .map(|x_i| x_j - x_i),
             );
-            let numerator = &full_numerator / MonicLinear(-x_j);
+            // Safe since x_j is one of the roots of full_numerator.
+            let numerator = &full_numerator / &MonicLinear(-x_j);
             numerator * &(p_j.value / denominator).unwrap()
         })))
     }
@@ -398,6 +393,7 @@ impl<C: Scalar> Poly<C> {
             let tmp = divider(remainder.lead());
             quotient += &tmp;
             remainder -= divisor * &tmp;
+            remainder.reduce();
         }
         Ok((quotient, remainder))
     }
@@ -417,8 +413,11 @@ impl<C: Scalar> Poly<C> {
         while r.0.degree() >= degree_bound && !r.1.is_zero() {
             let (q, r_new) = r.0.div_rem(&r.1)?;
             r = (r.1, r_new);
+            r.0.reduce();
+
             t.0 -= &q * &t.1;
             s.0 -= &q * &s.1;
+
             swap(&mut t.0, &mut t.1);
             swap(&mut s.0, &mut s.1);
         }
@@ -461,7 +460,6 @@ impl<C: GroupElement> AddAssign<&Monomial<C>> for Poly<C> {
             self.0.resize(rhs.degree + 1, C::zero());
         }
         self.0[rhs.degree] += rhs.coefficient;
-        self.reduce();
     }
 }
 
@@ -480,6 +478,7 @@ impl<C: Scalar> Mul<&Monomial<C>> for &Poly<C> {
     }
 }
 
+/// Represents a monic linear polynomial of the form x + c.
 struct MonicLinear<C>(C);
 
 impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
@@ -496,21 +495,21 @@ impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
     }
 }
 
-impl<C: Scalar> Div<MonicLinear<C>> for &Poly<C> {
+impl<C: Scalar> Div<&MonicLinear<C>> for &Poly<C> {
     type Output = Poly<C>;
 
-    fn div(self, rhs: MonicLinear<C>) -> Poly<C> {
+    fn div(self, rhs: &MonicLinear<C>) -> Poly<C> {
         if rhs.0 == C::zero() {
             panic!("Division by zero");
         }
         if self.is_zero() {
             return Poly::zero();
         }
-        let mut result = self.0.clone();
-        for i in (0..self.0.len()).rev().skip(1) {
+
+        let mut result = self.0[1..].to_vec();
+        for i in (0..result.len() - 1).rev() {
             result[i] = result[i] - result[i + 1] * rhs.0;
         }
-        result.remove(0);
         Poly::from(result)
     }
 }
