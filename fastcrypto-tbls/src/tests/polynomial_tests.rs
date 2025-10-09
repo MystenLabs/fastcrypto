@@ -176,26 +176,26 @@ mod scalar_tests {
         assert_eq!(lhs, a);
     }
 
-    // #[test]
-    // fn test_extended_gcd<S: Scalar>() {
-    //     let mut rng = thread_rng();
-    //     let degree_a = 8;
-    //     let degree_b = 5;
-    //     let a = crate::polynomial::Poly::from(
-    //         iter::from_fn(|| Some(S::rand(&mut rng)))
-    //             .take(degree_a + 1)
-    //             .collect_vec(),
-    //     );
-    //     let b = crate::polynomial::Poly::from(
-    //         iter::from_fn(|| Some(S::rand(&mut rng)))
-    //             .take(degree_b + 1)
-    //             .collect_vec(),
-    //     );
-    //
-    //     let (g, x, y) = Poly::extended_gcd(&a, &b).unwrap();
-    //
-    //     assert_eq!(&x * &a + &(&y * &b), g);
-    // }
+    #[test]
+    fn test_extended_gcd<S: Scalar>() {
+        let mut rng = thread_rng();
+        let degree_a = 8;
+        let degree_b = 5;
+        let a = crate::polynomial::Poly::from(
+            iter::from_fn(|| Some(S::rand(&mut rng)))
+                .take(degree_a + 1)
+                .collect_vec(),
+        );
+        let b = crate::polynomial::Poly::from(
+            iter::from_fn(|| Some(S::rand(&mut rng)))
+                .take(degree_b + 1)
+                .collect_vec(),
+        );
+
+        let (g, x, y) = Poly::extended_gcd(&a, &b).unwrap();
+
+        assert_eq!(&x * &a + &(&y * &b), g);
+    }
 
     #[instantiate_tests(<RistrettoScalar>)]
     mod ristretto_scalar {}

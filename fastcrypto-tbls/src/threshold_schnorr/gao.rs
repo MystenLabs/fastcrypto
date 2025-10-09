@@ -71,7 +71,7 @@ impl RSDecoder {
         )?;
 
         // Step 2: Partial GCD
-        let (g, v) = Poly::partial_extended_gcd(
+        let (g, _, v) = Poly::partial_extended_gcd(
             &self.g0,
             &g1,
             (self.message_length() + self.block_length()) / 2,

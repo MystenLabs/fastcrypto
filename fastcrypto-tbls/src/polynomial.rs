@@ -409,17 +409,24 @@ impl<C: Scalar> Poly<C> {
         &self,
         other: &Poly<C>,
         degree_bound: usize,
-    ) -> FastCryptoResult<(Poly<C>, Poly<C>)> {
+    ) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
         let mut r = (self.clone(), other.clone());
+        let mut s = (Poly::one(), Poly::zero());
         let mut t = (Poly::zero(), Poly::one());
 
         while r.0.degree() >= degree_bound && !r.1.is_zero() {
             let (q, r_new) = r.0.div_rem(&r.1)?;
             r = (r.1, r_new);
             t.0 -= &q * &t.1;
+            s.0 -= &q * &s.1;
             swap(&mut t.0, &mut t.1);
+            swap(&mut s.0, &mut s.1);
         }
-        Ok((r.0, t.0))
+        Ok((r.0, s.0, t.0))
+    }
+
+    pub fn extended_gcd(&self, other: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
+        self.partial_extended_gcd(other, 0)
     }
 }
 
@@ -481,7 +488,7 @@ impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
             *self = Poly::zero();
             return;
         }
-        self.0.push(self.0.last().unwrap().clone());
+        self.0.push(*self.0.last().unwrap());
         for i in (1..self.0.len() - 1).rev() {
             self.0[i] = self.0[i] * rhs.0 + self.0[i - 1];
         }
@@ -501,7 +508,7 @@ impl<C: Scalar> Div<MonicLinear<C>> for &Poly<C> {
         }
         let mut result = self.0.clone();
         for i in (0..self.0.len()).rev().skip(1) {
-            result[i] = result[i] - &(result[i + 1] * rhs.0);
+            result[i] = result[i] - result[i + 1] * rhs.0;
         }
         result.remove(0);
         Poly::from(result)
