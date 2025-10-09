@@ -9,6 +9,37 @@ use std::num::NonZeroU16;
 
 mod polynomial_benches {
     use super::*;
+    use fastcrypto_tbls::threshold_schnorr::gao::RSDecoder;
+    use fastcrypto_tbls::threshold_schnorr::S;
+    use fastcrypto_tbls::types::ShareIndex;
+    use itertools::Itertools;
+
+    fn rs_decoder(c: &mut Criterion) {
+        const SIZES: [usize; 4] = [128, 256, 512, 1024];
+
+        for n in SIZES {
+            let k = n / 3;
+            let a = (1..=n)
+                .map(|i| ShareIndex::new(i as u16).unwrap())
+                .collect_vec();
+            let decoder = RSDecoder::new(a.clone(), k);
+
+            let message: Vec<S> = (0..k).map(|i| S::from((i * 10) as u128)).collect();
+            let code_word = decoder.encode(message.clone()).unwrap();
+
+            // Introduce errors
+            let mut received = code_word.clone();
+            received[4] = S::from(20u128); // Error at position 4
+            received[2] = S::from(200u128); // Error at position 2
+
+            let mut rs_decoder: BenchmarkGroup<_> = c.benchmark_group("RS Decoder");
+            rs_decoder.bench_function(format!("n={}, k={}", n, k).as_str(), |b| {
+                b.iter(|| {
+                    decoder.decode(&received).unwrap();
+                })
+            });
+        }
+    }
 
     fn polynomials(c: &mut Criterion) {
         const SIZES: [usize; 7] = [128, 256, 512, 1024, 2048, 4096, 8192];
@@ -76,8 +107,8 @@ mod polynomial_benches {
 
     criterion_group! {
         name = polynomial_benches;
-        config = Criterion::default();
-        targets = polynomials,
+        config = Criterion::default().sample_size(10);
+        targets = polynomials, rs_decoder,
     }
 }
 

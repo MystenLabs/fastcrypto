@@ -71,7 +71,7 @@ impl RSDecoder {
         )?;
 
         // Step 2: Partial GCD
-        let (g, _, v) = Poly::partial_extended_gcd(
+        let (g, v) = Poly::partial_extended_gcd(
             &self.g0,
             &g1,
             (self.message_length() + self.block_length()) / 2,
@@ -87,8 +87,7 @@ impl RSDecoder {
 
     /// Encode the message using the Reed-Solomon code defined by the evaluation points `a`.
     /// Returns an error if the message length is wrong.
-    #[cfg(test)]
-    fn encode(&self, message: Vec<S>) -> FastCryptoResult<Vec<S>> {
+    pub fn encode(&self, message: Vec<S>) -> FastCryptoResult<Vec<S>> {
         if message.len() != self.message_length() {
             return Err(FastCryptoError::InputLengthWrong(self.message_length()));
         }

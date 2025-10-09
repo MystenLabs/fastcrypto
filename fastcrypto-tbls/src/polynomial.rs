@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::mem::swap;
-use std::ops::{Add, AddAssign, Mul, SubAssign};
+use std::ops::{Add, AddAssign, Div, Mul, MulAssign, SubAssign};
 
 /// Types
 
@@ -343,6 +343,11 @@ impl<C: Scalar> Poly<C> {
         }
         let indices: Vec<C> = points.iter().map(|e| to_scalar(e.index)).collect_vec();
 
+        let mut full_numerator = Poly::one();
+        for &x_i in indices.iter() {
+            full_numerator *= MonicLinear(-x_i);
+        }
+
         Ok(Poly::sum(points.iter().enumerate().map(|(j, p_j)| {
             let x_j = indices[j];
             let denominator = C::product(
@@ -350,16 +355,9 @@ impl<C: Scalar> Poly<C> {
                     .iter()
                     .filter(|&&x_i| x_i != x_j)
                     .map(|x_i| x_j - x_i),
-            )
-            .inverse();
-            let numerator = Poly::product(
-                indices
-                    .iter()
-                    .enumerate()
-                    .filter(|(i, _)| i != &j)
-                    .map(|(_, &x_i)| Poly::from(vec![-x_i, C::generator()])),
-            ) * &p_j.value;
-            numerator * &denominator.expect("Denominator is never zero")
+            );
+            let numerator = &full_numerator / MonicLinear(-x_j);
+            numerator * &(p_j.value / denominator).unwrap()
         })))
     }
 
@@ -411,30 +409,17 @@ impl<C: Scalar> Poly<C> {
         &self,
         other: &Poly<C>,
         degree_bound: usize,
-    ) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
+    ) -> FastCryptoResult<(Poly<C>, Poly<C>)> {
         let mut r = (self.clone(), other.clone());
-        let mut s = (Poly::one(), Poly::zero());
         let mut t = (Poly::zero(), Poly::one());
 
         while r.0.degree() >= degree_bound && !r.1.is_zero() {
             let (q, r_new) = r.0.div_rem(&r.1)?;
             r = (r.1, r_new);
-
-            s.0 -= &q * &s.1;
             t.0 -= &q * &t.1;
-
-            swap(&mut s.0, &mut s.1);
             swap(&mut t.0, &mut t.1);
         }
-        Ok((r.0, s.0, t.0))
-    }
-
-    pub fn extended_gcd(&self, other: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
-        self.partial_extended_gcd(other, 0)
-    }
-
-    fn product(terms: impl Iterator<Item = Poly<C>>) -> Poly<C> {
-        terms.fold(Poly::one(), |acc, x| &acc * &x)
+        Ok((r.0, t.0))
     }
 }
 
@@ -484,6 +469,41 @@ impl<C: Scalar> Mul<&Monomial<C>> for &Poly<C> {
         for (i, coefficient) in self.0.iter().enumerate() {
             result[i + rhs.degree] = *coefficient * rhs.coefficient;
         }
+        Poly::from(result)
+    }
+}
+
+struct MonicLinear<C>(C);
+
+impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
+    fn mul_assign(&mut self, rhs: MonicLinear<C>) {
+        if rhs.0 == C::zero() || self.is_zero() {
+            *self = Poly::zero();
+            return;
+        }
+        self.0.push(self.0.last().unwrap().clone());
+        for i in (1..self.0.len() - 1).rev() {
+            self.0[i] = self.0[i] * rhs.0 + self.0[i - 1];
+        }
+        self.0[0] = self.0[0] * rhs.0;
+    }
+}
+
+impl<C: Scalar> Div<MonicLinear<C>> for &Poly<C> {
+    type Output = Poly<C>;
+
+    fn div(self, rhs: MonicLinear<C>) -> Poly<C> {
+        if rhs.0 == C::zero() {
+            panic!("Division by zero");
+        }
+        if self.is_zero() {
+            return Poly::zero();
+        }
+        let mut result = self.0.clone();
+        for i in (0..self.0.len()).rev().skip(1) {
+            result[i] = result[i] - &(result[i + 1] * rhs.0);
+        }
+        result.remove(0);
         Poly::from(result)
     }
 }
