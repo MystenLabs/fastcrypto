@@ -53,7 +53,7 @@ impl<C: GroupElement> Poly<C> {
     }
 }
 
-impl<C: GroupElement> From<Vec<C>> for Poly<C> {
+impl<C> From<Vec<C>> for Poly<C> {
     fn from(c: Vec<C>) -> Self {
         Self(c)
     }
