@@ -5,6 +5,7 @@
 // modified for our needs.
 //
 
+use crate::types;
 use crate::types::{IndexedValue, ShareIndex};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
@@ -136,7 +137,7 @@ impl<C: GroupElement> Poly<C> {
     /// Evaluates the polynomial at the specified value.
     pub fn eval(&self, i: ShareIndex) -> Eval<C> {
         // Use Horner's Method to evaluate the polynomial.
-        let xi: C::ScalarType = to_scalar(i);
+        let xi: C::ScalarType = types::to_scalar(i);
         let res = self
             .0
             .iter()
@@ -262,6 +263,10 @@ impl<C: GroupElement> Poly<C> {
         &self.0
     }
 
+    pub fn to_vec(self) -> Vec<C> {
+        self.0
+    }
+
     fn sum(terms: impl Iterator<Item = Poly<C>>) -> Poly<C> {
         terms.fold(Poly::zero(), |acc, x| acc + &x)
     }
@@ -312,12 +317,12 @@ impl<C: Scalar> Poly<C> {
         if !points.iter().map(|p| p.index).all_unique() {
             return Err(FastCryptoError::InvalidInput);
         }
-        let x: C = to_scalar(index);
+        let x: C = types::to_scalar(index);
 
         // Convert indices to scalars for interpolation.
         let indices = points
             .iter()
-            .map(|e| to_scalar(e.index))
+            .map(|p| types::to_scalar(p.index))
             .collect::<Vec<_>>();
 
         let value = C::sum(indices.iter().enumerate().map(|(j, x_j)| {
@@ -341,7 +346,10 @@ impl<C: Scalar> Poly<C> {
         if points.is_empty() || !points.iter().map(|p| p.index).all_unique() {
             return Err(FastCryptoError::InvalidInput);
         }
-        let x: Vec<C> = points.iter().map(|e| to_scalar(e.index)).collect_vec();
+        let x: Vec<C> = points
+            .iter()
+            .map(|e| types::to_scalar(e.index))
+            .collect_vec();
 
         // Compute the full numerator polynomial: (x - x_1)(x - x_2)...(x - x_t)
         let mut full_numerator = Poly::one();
@@ -449,11 +457,6 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
     }
 }
 
-#[inline]
-fn to_scalar<C: Scalar>(index: ShareIndex) -> C {
-    C::from(index.get() as u128)
-}
-
 /// This represents a monomial, e.g., 3 * x^2, where 3 is the coefficient and 2 is the degree.
 struct Monomial<C> {
     coefficient: C,
@@ -501,7 +504,7 @@ impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
     }
 }
 
-/// Assuming that `d` divides `n` exactly, return the quotient `n / d`.
+/// Assuming that `d` divides `n` exactly (or, that `d.0` is a root in `n`), return the quotient `n / d`.
 fn div_exact<C: Scalar>(n: &Poly<C>, d: &MonicLinear<C>) -> Poly<C> {
     if n.is_zero() {
         return Poly::zero();

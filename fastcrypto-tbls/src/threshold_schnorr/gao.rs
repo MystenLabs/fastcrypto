@@ -3,9 +3,8 @@
 
 use crate::polynomial::{Eval, MonicLinear, Poly};
 use crate::threshold_schnorr::S;
-use crate::types::ShareIndex;
+use crate::types::{to_scalar, ShareIndex};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::GroupElement;
 use itertools::Itertools;
 
 /// Decoder for Reed-Solomon codes.
@@ -26,7 +25,7 @@ impl RSDecoder {
         assert!(k < a.len(), "Message length must be less than block length");
         let mut g0 = Poly::one();
         for ai in &a {
-            g0 *= MonicLinear(-S::from(ai.get() as u128));
+            g0 *= MonicLinear(-to_scalar::<S>(ai));
         }
         Self { g0, a, k }
     }
@@ -61,10 +60,7 @@ impl RSDecoder {
                 .a
                 .iter()
                 .zip(code_word)
-                .map(|(index, value)| Eval {
-                    index: *index,
-                    value: *value,
-                })
+                .map(|(&index, &value)| Eval { index, value })
                 .collect_vec(),
         )?;
 
@@ -77,7 +73,7 @@ impl RSDecoder {
 
         // Step 3: Long division
         let (f1, r) = g.div_rem(&v)?;
-        if !r.is_zero() || f1.degree_bound() >= self.k {
+        if !r.is_zero() || f1.degree() >= self.k {
             return Err(FastCryptoError::TooManyErrors((self.distance() - 1) / 2));
         }
         Ok(f1)
@@ -90,14 +86,14 @@ impl RSDecoder {
             return Err(FastCryptoError::InputLengthWrong(self.message_length()));
         }
         let f = Poly::from(message);
-        Ok(self.a.iter().map(|ai| f.eval(*ai).value).collect_vec())
+        Ok(self.a.iter().map(|&ai| f.eval(ai).value).collect_vec())
     }
 
     /// Try to correct the input and return the decoded message.
     /// Returns an error if the input length is wrong or if there are too many errors to correct.
     pub fn decode(&self, input: &[S]) -> FastCryptoResult<Vec<S>> {
-        let mut f1 = self.compute_message_polynomial(input)?.as_vec().clone();
-        f1.resize(self.k, S::zero());
+        let mut f1 = self.compute_message_polynomial(input)?.to_vec();
+        f1.truncate(self.k);
         Ok(f1)
     }
 }

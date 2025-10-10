@@ -169,7 +169,7 @@ mod scalar_tests {
         );
 
         let (q, r) = a.div_rem(&b).unwrap();
-        assert!(r.degree_bound() < b.degree_bound());
+        assert!(r.degree() < b.degree());
 
         let mut lhs = &q * &b;
         lhs += &r;
