@@ -6,7 +6,7 @@
 //
 
 use crate::types;
-use crate::types::{IndexedValue, ShareIndex};
+use crate::types::{to_scalar, IndexedValue, ShareIndex};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
@@ -137,7 +137,7 @@ impl<C: GroupElement> Poly<C> {
     /// Evaluates the polynomial at the specified value.
     pub fn eval(&self, i: ShareIndex) -> Eval<C> {
         // Use Horner's Method to evaluate the polynomial.
-        let xi: C::ScalarType = types::to_scalar(i);
+        let xi: C::ScalarType = to_scalar(i);
         let res = self
             .0
             .iter()
@@ -268,7 +268,7 @@ impl<C: GroupElement> Poly<C> {
     }
 
     fn sum(terms: impl Iterator<Item = Poly<C>>) -> Poly<C> {
-        terms.fold(Poly::zero(), |acc, x| acc + &x)
+        terms.fold(Poly::zero(), |sum, term| sum + &term)
     }
 }
 
@@ -317,12 +317,12 @@ impl<C: Scalar> Poly<C> {
         if !points.iter().map(|p| p.index).all_unique() {
             return Err(FastCryptoError::InvalidInput);
         }
-        let x: C = types::to_scalar(index);
+        let x: C = to_scalar(index);
 
         // Convert indices to scalars for interpolation.
         let indices = points
             .iter()
-            .map(|p| types::to_scalar(p.index))
+            .map(|p| to_scalar(p.index))
             .collect::<Vec<_>>();
 
         let value = C::sum(indices.iter().enumerate().map(|(j, x_j)| {
