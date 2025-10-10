@@ -173,7 +173,7 @@ mod scalar_tests {
 
         let mut lhs = &q * &b;
         lhs += &r;
-        assert_eq!(lhs, a);
+        assert!(poly_eq(&lhs, &a));
     }
 
     #[test]
@@ -194,7 +194,7 @@ mod scalar_tests {
 
         let (g, x, y) = Poly::extended_gcd(&a, &b).unwrap();
 
-        assert_eq!(&x * &a + &(&y * &b), g);
+        assert!(poly_eq(&(&x * &a + &(&y * &b)), &g));
     }
 
     #[instantiate_tests(<RistrettoScalar>)]

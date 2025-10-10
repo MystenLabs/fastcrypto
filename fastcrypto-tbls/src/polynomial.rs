@@ -431,7 +431,7 @@ impl<C: Scalar> Poly<C> {
     }
 
     pub fn extended_gcd(&self, other: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
-        self.partial_extended_gcd(other, 0)
+        self.partial_extended_gcd(other, 1)
     }
 }
 
@@ -511,4 +511,9 @@ fn div_exact<C: Scalar>(n: &Poly<C>, d: &MonicLinear<C>) -> Poly<C> {
         result[i] = result[i] - result[i + 1] * d.0;
     }
     Poly::from(result)
+}
+
+#[cfg(test)]
+pub(crate) fn poly_eq<C: GroupElement>(a: &Poly<C>, b: &Poly<C>) -> bool {
+    a.0[..(a.degree() + 1)] == b.0[..(b.degree() + 1)]
 }
