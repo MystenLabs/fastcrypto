@@ -71,7 +71,7 @@ pub trait ThresholdBls {
         partial_sigs: impl Iterator<Item = impl Borrow<PartialSignature<Self::Signature>>>,
         rng: &mut R,
     ) -> FastCryptoResult<()> {
-        assert!(vss_pk.degree() > 0 || !msg.is_empty());
+        assert!(vss_pk.degree_bound() > 0 || !msg.is_empty());
         let (evals_as_scalars, points): (Vec<_>, Vec<_>) = partial_sigs
             .map(|sig| {
                 let sig = sig.borrow();
@@ -83,7 +83,7 @@ pub trait ThresholdBls {
         }
         let rs = get_random_scalars::<Self::Private, R>(points.len(), rng);
         // TODO: should we cache it instead? that would replace t-wide msm with w-wide msm.
-        let coeffs = batch_coefficients(&rs, &evals_as_scalars, vss_pk.degree());
+        let coeffs = batch_coefficients(&rs, &evals_as_scalars, vss_pk.degree_bound());
         let pk = Self::Public::multi_scalar_mul(&coeffs, vss_pk.as_vec()).expect("sizes match");
         let aggregated_sig = Self::Signature::multi_scalar_mul(&rs, &points).expect("sizes match");
 

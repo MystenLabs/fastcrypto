@@ -621,7 +621,7 @@ fn create_message_generates_valid_message() {
 
     assert_eq!(msg.sender, 1);
     assert_eq!(msg.encrypted_shares.len(), 4);
-    assert_eq!(msg.vss_pk.degree(), 2);
+    assert_eq!(msg.vss_pk.degree_bound(), 2);
 }
 
 #[test]
