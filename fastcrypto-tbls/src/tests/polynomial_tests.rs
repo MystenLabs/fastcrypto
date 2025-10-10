@@ -22,7 +22,7 @@ mod scalar_tests {
     use itertools::Itertools;
 
     #[test]
-    fn test_degree<S: Scalar>() {
+    fn test_degree_bound<S: Scalar>() {
         let s: usize = 5;
         let p = Poly::<S>::rand(s as u16, &mut thread_rng());
         assert_eq!(p.degree_bound(), s);
@@ -195,6 +195,17 @@ mod scalar_tests {
         let (g, x, y) = Poly::extended_gcd(&a, &b).unwrap();
 
         assert!(poly_eq(&(&x * &a + &(&y * &b)), &g));
+    }
+
+    #[test]
+    fn test_degree<S: Scalar>() {
+        let coefficients = [1, 2, 3, 0, 0].iter().map(|&x| S::from(x)).collect_vec();
+        let mut a = crate::polynomial::Poly::from(coefficients);
+        assert_eq!(a.degree(), 2);
+        assert_eq!(a.degree_bound(), 4);
+        a.reduce();
+        assert_eq!(a.degree(), 2);
+        assert_eq!(a.degree_bound(), 2);
     }
 
     #[instantiate_tests(<RistrettoScalar>)]

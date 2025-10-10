@@ -48,7 +48,7 @@ impl<C: GroupElement> Poly<C> {
     }
 
     /// Removes leading zero coefficients.
-    fn reduce(&mut self) {
+    pub(crate) fn reduce(&mut self) {
         self.0.truncate(self.degree() + 1);
     }
 }
