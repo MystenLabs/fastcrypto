@@ -311,12 +311,12 @@
 <a href=#311 id=311 data-nosnippet>311</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidMessage);
 <a href=#312 id=312 data-nosnippet>312</a>        };
 <a href=#313 id=313 data-nosnippet>313</a>
-<a href=#314 id=314 data-nosnippet>314</a>        <span class="kw">if </span><span class="self">self</span>.t <span class="kw">as </span>usize != msg.vss_pk.degree() + <span class="number">1 </span>{
+<a href=#314 id=314 data-nosnippet>314</a>        <span class="kw">if </span><span class="self">self</span>.t <span class="kw">as </span>usize != msg.vss_pk.degree_bound() + <span class="number">1 </span>{
 <a href=#315 id=315 data-nosnippet>315</a>            <span class="macro">warn!</span>(
 <a href=#316 id=316 data-nosnippet>316</a>                <span class="string">"DKG: Message sanity check failed for id {}, expected degree={}, got {}"</span>,
 <a href=#317 id=317 data-nosnippet>317</a>                msg.sender,
 <a href=#318 id=318 data-nosnippet>318</a>                <span class="self">self</span>.t - <span class="number">1</span>,
-<a href=#319 id=319 data-nosnippet>319</a>                msg.vss_pk.degree()
+<a href=#319 id=319 data-nosnippet>319</a>                msg.vss_pk.degree_bound()
 <a href=#320 id=320 data-nosnippet>320</a>            );
 <a href=#321 id=321 data-nosnippet>321</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidMessage);
 <a href=#322 id=322 data-nosnippet>322</a>        }
