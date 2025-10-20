@@ -4,8 +4,9 @@
 use crate::polynomial::{Eval, PublicPoly};
 use crate::tbls;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing};
+use fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing, Scalar};
 use serde::{Deserialize, Serialize};
+use std::borrow::Borrow;
 use std::num::NonZeroU16;
 
 /// Implementation of [ThresholdBls] for BLS12-381-min-sig. A variant for BLS12-381-min-pk can be
@@ -82,4 +83,9 @@ impl<A> UnindexedValues<A> {
             .collect();
         Ok(values)
     }
+}
+
+#[inline]
+pub(crate) fn to_scalar<C: Scalar>(index: impl Borrow<ShareIndex>) -> C {
+    C::from(index.borrow().get() as u128)
 }

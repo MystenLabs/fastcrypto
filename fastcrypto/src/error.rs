@@ -56,6 +56,10 @@ pub enum FastCryptoError {
     #[error("Out of presigs in the iterator, please create new presigs")]
     OutOfPresigs,
 
+    /// Error in error decoding because there are too many errors to correct.
+    #[error("Too many errors to correct in error decoding. Up to {0} errors can be corrected.")]
+    TooManyErrors(usize),
+
     /// General cryptographic error.
     #[error("General cryptographic error: {0}")]
     GeneralError(String),

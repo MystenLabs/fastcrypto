@@ -311,12 +311,12 @@ where
             return Err(FastCryptoError::InvalidMessage);
         };
 
-        if self.t as usize != msg.vss_pk.degree() + 1 {
+        if self.t as usize != msg.vss_pk.degree_bound() + 1 {
             warn!(
                 "DKG: Message sanity check failed for id {}, expected degree={}, got {}",
                 msg.sender,
                 self.t - 1,
-                msg.vss_pk.degree()
+                msg.vss_pk.degree_bound()
             );
             return Err(FastCryptoError::InvalidMessage);
         }

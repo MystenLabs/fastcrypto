@@ -47,7 +47,7 @@ pub fn verify_poly_evals<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     poly: &Poly<G>,
     rng: &mut R,
 ) -> FastCryptoResult<()> {
-    assert!(poly.degree() > 0);
+    assert!(poly.degree_bound() > 0);
     if evals.is_empty() {
         return Ok(());
     }
@@ -59,7 +59,7 @@ pub fn verify_poly_evals<G: GroupElement + MultiScalarMul, R: AllowedRng>(
         .iter()
         .map(|e| G::ScalarType::from(e.index.get().into()))
         .collect::<Vec<_>>();
-    let coeffs = batch_coefficients(&rs, &evals_as_scalars, poly.degree());
+    let coeffs = batch_coefficients(&rs, &evals_as_scalars, poly.degree_bound());
     let rhs = G::multi_scalar_mul(&coeffs, poly.as_vec()).expect("sizes match");
 
     if lhs != rhs {
