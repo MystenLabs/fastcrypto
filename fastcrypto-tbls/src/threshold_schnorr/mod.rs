@@ -161,7 +161,7 @@ mod tests {
         }
 
         // The first t dealers form the certificate and are the ones whose outputs will be used to create the final shares.
-        let certificate = vec![PartyId::from(1u8), PartyId::from(3u8), PartyId::from(4u8)];
+        let certificate = [PartyId::from(1u8), PartyId::from(3u8), PartyId::from(4u8)];
 
         // Now, each party has collected their outputs from all dealers. We use the first t outputs to create the final shares for signing.
         // Each party should still keep the outputs from all dealers until the end of the epoch to handle complaints.
@@ -172,7 +172,7 @@ mod tests {
                     node.id,
                     avss::ReceiverOutput::sum(
                         t,
-                        &image(&dkg_outputs.get(&node.id).unwrap(), certificate.iter()),
+                        &image(dkg_outputs.get(&node.id).unwrap(), certificate.iter()),
                     )
                     .unwrap(),
                 )
@@ -303,10 +303,7 @@ mod tests {
         // Map from each party to the ordered list of outputs it has received.
         // Here, each party will act as dealer multiple times -- once per share they have.
         let mut dkg_outputs_after_rotation =
-            HashMap::<PartyId, HashMap<ShareIndex, avss::ReceiverOutput>>::new();
-        for node in nodes.iter() {
-            dkg_outputs_after_rotation.insert(node.id, HashMap::new());
-        }
+            HashMap::<(PartyId, ShareIndex), avss::ReceiverOutput>::new();
         let mut messages = HashMap::<(PartyId, ShareIndex), avss::Message>::new();
         for dealer_id in nodes.node_ids_iter() {
             for share_index in nodes.share_ids_of(dealer_id).unwrap() {
@@ -354,40 +351,35 @@ mod tests {
                 // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
                 receivers.iter().for_each(|receiver| {
                     let output = assert_valid(receiver.process_message(&message).unwrap());
-                    dkg_outputs_after_rotation
-                        .get_mut(&receiver.id())
-                        .unwrap()
-                        .insert(share_index, output);
+                    dkg_outputs_after_rotation.insert((receiver.id(), share_index), output);
                 });
             }
         }
 
+        // The first t dealers (counted by weight) form the certificate and are the ones whose outputs will be used to create the final shares.
         let certificate_after_rotation =
-            vec![PartyId::from(2u8), PartyId::from(3u8), PartyId::from(5u8)];
+            [PartyId::from(2u8), PartyId::from(3u8), PartyId::from(5u8)];
         let share_indices_in_cert = certificate_after_rotation
             .iter()
             .flat_map(|id| nodes.share_ids_of(*id).unwrap())
             .collect_vec();
 
-        // Now, each party has collected their outputs from all dealers.
-        // We use the first t outputs to create the final shares.
+        // Now, each party has collected their outputs from all dealers and can form their new shares from the ones in the certificate.
         let merged_shares_after_rotation = nodes
             .iter()
             .map(|receiver| {
                 let shares_from_cert = share_indices_in_cert
                     .iter()
-                    .flat_map(|index| {
+                    .flat_map(|&index| {
                         dkg_outputs_after_rotation
-                            .get(&receiver.id)
-                            .unwrap()
-                            .get(index)
+                            .get(&(receiver.id, index))
                             .unwrap()
                             .my_shares
                             .shares
                             .iter()
-                            .map(|e| Eval {
-                                index: *index,
-                                value: e.value.clone(),
+                            .map(move |e| Eval {
+                                index,
+                                value: e.value,
                             })
                     })
                     .collect_vec();
@@ -402,11 +394,13 @@ mod tests {
                     })
                     .collect_vec();
 
-                let final_share = avss::ReceiverOutput {
-                    my_shares: avss::SharesForNode { shares },
-                    commitments: Vec::new(), // TODO: Combine commitments also
-                };
-                (receiver.id, final_share)
+                (
+                    receiver.id,
+                    avss::ReceiverOutput {
+                        my_shares: avss::SharesForNode { shares },
+                        commitments: Vec::new(), // TODO: Combine commitments also
+                    },
+                )
             })
             .collect::<HashMap<_, _>>();
 
