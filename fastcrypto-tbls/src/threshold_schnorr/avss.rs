@@ -407,33 +407,29 @@ impl ReceiverOutput {
         let mut shares = outputs[0].clone();
 
         for output in &outputs[1..] {
-            shares
+            for (a, b) in shares
                 .my_shares
                 .shares
                 .iter_mut()
                 .zip(&output.my_shares.shares)
-                .for_each(|(a, b)| {
-                    if b.index != a.index {
-                        panic!("Commitments do not match");
-                    }
-                    *a = Eval {
-                        index: a.index,
-                        value: a.value + b.value,
-                    }
-                });
-            shares
-                .commitments
-                .iter_mut()
-                .zip(&output.commitments)
-                .for_each(|(a, b)| {
-                    if b.index != a.index {
-                        panic!("Commitments do not match");
-                    }
-                    *a = Eval {
-                        index: a.index,
-                        value: a.value + b.value,
-                    }
-                })
+            {
+                if b.index != a.index {
+                    return Err(InvalidInput);
+                }
+                *a = Eval {
+                    index: a.index,
+                    value: a.value + b.value,
+                }
+            }
+            for (a, b) in shares.commitments.iter_mut().zip(&output.commitments) {
+                if b.index != a.index {
+                    return Err(InvalidInput);
+                }
+                *a = Eval {
+                    index: a.index,
+                    value: a.value + b.value,
+                }
+            }
         }
         Ok(shares)
     }
