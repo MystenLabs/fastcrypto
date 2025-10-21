@@ -85,7 +85,7 @@ pub fn get_oidc_url(
             OIDCProvider::Credenza3 => format!("https://accounts.credenza3.com/oauth2/authorize?client_id={}&response_type=token&scope=openid+profile+email+phone&redirect_uri={}&nonce={}&state=state", client_id, redirect_url, nonce),
             OIDCProvider::Onefc => format!("https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/oauth2/v2.0/authorize?client_id={}&scope=openid&response_type=id_token&redirect_uri={}&nonce={}", client_id, redirect_url, nonce),
             OIDCProvider::Arden => format!("https://api.arden.cc/auth/authorize?client_id={}&scope=openid&response_type=id_token&redirect_uri={}&nonce={}", client_id, redirect_url, nonce),
-
+            OIDCProvider::EveFrontier => format!("https://auth.evefrontier.com/oauth2/authorize?client_id={}&response_type=id_token&scope=openid&redirect_uri={}&nonce={}", client_id, redirect_url, nonce),
             OIDCProvider::AwsTenant((region, tenant_id)) => format!("https://{}.auth.{}.amazoncognito.com/login?response_type=token&client_id={}&redirect_uri={}&nonce={}", tenant_id, region, client_id, redirect_url, nonce),
             // this URL is only useful if CLI testing from Sui is needed, can ignore if a frontend test plan is in place
             _ => return Err(FastCryptoError::InvalidInput)
