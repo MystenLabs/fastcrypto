@@ -18,9 +18,9 @@ use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
 use crate::threshold_schnorr::Extensions::Encryption;
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::ShareIndex;
-use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
+use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::Scalar;
+use fastcrypto::groups::{GroupElement, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -121,6 +121,10 @@ impl SharesForNode {
 
         Ok(Self { shares })
     }
+
+    pub fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
+        self.shares.iter().find(|s| s.index == index)
+    }
 }
 
 impl BCSSerialized for SharesForNode {}
@@ -219,6 +223,10 @@ impl Receiver {
             t,
             nodes,
         }
+    }
+
+    pub fn id(&self) -> PartyId {
+        self.id
     }
 
     /// 2. Each receiver processes the message, verifies and decrypts its shares.
@@ -372,13 +380,72 @@ impl Receiver {
     }
 }
 
+pub fn compute_joint_verification_key(f: u16, messages: &[Message]) -> FastCryptoResult<G> {
+    if messages.len() != (f + 1) as usize {
+        return Err(InputLengthWrong((f + 1) as usize));
+    }
+    Ok(G::sum(messages.iter().map(|m| *m.feldman_commitment.c0())))
+}
+
+impl ReceiverOutput {
+    fn weight(&self) -> usize {
+        self.my_shares.weight()
+    }
+
+    /// Combine multiple outputs from different dealers into a single output.
+    pub fn combine(t: u16, outputs: &[Self]) -> FastCryptoResult<Self> {
+        // The same f+1 dealers are needed for all parties to ensure uniqueness and that at least one honest dealers secret is included in the key.
+        if outputs.len() != t as usize {
+            return Err(InputLengthWrong(t as usize));
+        }
+
+        // Sanity check: All outputs must have the same weight.
+        if !outputs.iter().map(|output| output.weight()).all_equal() {
+            return Err(InvalidInput);
+        }
+
+        let mut shares = outputs[0].clone();
+
+        for output in &outputs[1..] {
+            shares
+                .my_shares
+                .shares
+                .iter_mut()
+                .zip(&output.my_shares.shares)
+                .for_each(|(a, b)| {
+                    if b.index != a.index {
+                        panic!("Commitments do not match");
+                    }
+                    *a = Eval {
+                        index: a.index,
+                        value: a.value + b.value,
+                    }
+                });
+            shares
+                .commitments
+                .iter_mut()
+                .zip(&output.commitments)
+                .for_each(|(a, b)| {
+                    if b.index != a.index {
+                        panic!("Commitments do not match");
+                    }
+                    *a = Eval {
+                        index: a.index,
+                        value: a.value + b.value,
+                    }
+                })
+        }
+        Ok(shares)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ecies_v1;
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
-    use crate::nodes::{Node, Nodes};
+    use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::Poly;
-    use crate::threshold_schnorr::avss::SharesForNode;
+    use crate::threshold_schnorr::avss::{compute_joint_verification_key, SharesForNode};
     use crate::threshold_schnorr::avss::{Dealer, Message, Receiver};
     use crate::threshold_schnorr::avss::{ProcessedMessage, ReceiverOutput};
     use crate::threshold_schnorr::bcs::BCSSerialized;
@@ -690,6 +757,93 @@ mod tests {
                 feldman_commitment: commitment,
             })
         }
+    }
+
+    #[test]
+    fn test_dkg_simple() {
+        // No complaints, all honest. All have weight 1
+        let t = 3;
+        let f = 2;
+        let n = 7;
+
+        let mut rng = rand::thread_rng();
+        let sks = (0..n)
+            .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
+            .collect::<Vec<_>>();
+        let nodes = Nodes::new(
+            sks.iter()
+                .enumerate()
+                .map(|(id, sk)| Node {
+                    id: id as u16,
+                    pk: PublicKey::from_private_key(sk),
+                    weight: 1,
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+
+        // Map from each party to the ordered list of outputs it has received
+        let mut outputs = HashMap::<PartyId, Vec<ReceiverOutput>>::new();
+        for node in nodes.iter() {
+            outputs.insert(node.id, Vec::new());
+        }
+
+        let mut messages = Vec::new();
+
+        // Each node acts as dealer in the DKG
+        for node in nodes.iter() {
+            let sid = format!("dkg-test-session-{}", node.id).into_bytes();
+            let dealer: Dealer = Dealer::new(None, nodes.clone(), t, f, sid.clone()).unwrap();
+            let receivers = sks
+                .iter()
+                .enumerate()
+                .map(|(id, enc_secret_key)| {
+                    Receiver::new(
+                        nodes.clone(),
+                        id as u16,
+                        t,
+                        sid.clone(),
+                        None,
+                        enc_secret_key.clone(),
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            // Each dealer creates a message
+            let message = dealer.create_message(&mut rng).unwrap();
+            messages.push(message.clone());
+
+            // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
+            receivers.iter().for_each(|receiver| {
+                let output = assert_valid(receiver.process_message(&message).unwrap());
+                outputs.get_mut(&receiver.id()).unwrap().push(output);
+            });
+
+            // TODO: Create certificate and post it on TOB
+        }
+
+        // Now, each party has collected their outputs from all dealers.
+        // We use the first f + 1 outputs seen on-chain to create the final shares.
+        let mut final_shares = HashMap::<PartyId, ReceiverOutput>::new();
+        for node in nodes.iter() {
+            let my_outputs = outputs.get(&node.id).unwrap();
+            let final_share = ReceiverOutput::combine(t, &my_outputs[..t as usize]).unwrap();
+            final_shares.insert(node.id, final_share.clone());
+
+            // Each party now has their final shares
+            println!("Node {} final shares: {:?}", node.id, final_share);
+        }
+
+        // We may now compute the joint verification key from the commitments of the first t dealers.
+        let vk = compute_joint_verification_key(f, &messages[..t as usize]).unwrap();
+
+        // For testing, we can recover the secret key from t shares and check that the secret key matches the verification key.
+        let shares = final_shares
+            .values()
+            .flat_map(|output| output.my_shares.shares.clone())
+            .collect_vec();
+        let sk = Poly::recover_c0(t, shares[..t as usize].iter()).unwrap();
+        assert_eq!(G::generator() * sk, vk);
     }
 
     fn assert_valid(processed_message: ProcessedMessage) -> ReceiverOutput {

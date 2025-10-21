@@ -73,18 +73,286 @@ impl Display for Extensions {
 
 #[cfg(test)]
 mod tests {
+    use crate::ecies_v1;
+    use crate::ecies_v1::PublicKey;
+    use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::{Eval, Poly};
-    use crate::threshold_schnorr::batch_avss::{ReceiverOutput, ShareBatch, SharesForNode};
+    use crate::threshold_schnorr::avss::compute_joint_verification_key;
+    use crate::threshold_schnorr::batch_avss::{ShareBatch, SharesForNode};
     use crate::threshold_schnorr::key_derivation::derive_verifying_key;
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
-    use crate::threshold_schnorr::{avss, G, S};
+    use crate::threshold_schnorr::{avss, batch_avss, EG, G, S};
     use crate::types::ShareIndex;
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use std::array;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_e2e() {
+        // No complaints, all honest. All have weight 1
+        let t = 3;
+        let f = 2;
+        let n = 7;
+
+        const BATCH_SIZE: usize = 10;
+
+        let mut rng = rand::thread_rng();
+        let sks = (0..n)
+            .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
+            .collect::<Vec<_>>();
+        let nodes = Nodes::new(
+            sks.iter()
+                .enumerate()
+                .map(|(id, sk)| Node {
+                    id: id as u16,
+                    pk: PublicKey::from_private_key(sk),
+                    weight: 1,
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+
+        //
+        // DKG
+        //
+
+        // Map from each party to the ordered list of outputs it has received
+        let mut dkg_outputs = HashMap::<PartyId, Vec<avss::ReceiverOutput>>::new();
+        for node in nodes.iter() {
+            dkg_outputs.insert(node.id, Vec::new());
+        }
+        let mut messages = Vec::new();
+        for node in nodes.iter() {
+            let sid = format!("dkg-test-session-{}", node.id).into_bytes();
+            let dealer: avss::Dealer =
+                avss::Dealer::new(None, nodes.clone(), t, f, sid.clone()).unwrap();
+            let receivers = sks
+                .iter()
+                .enumerate()
+                .map(|(id, enc_secret_key)| {
+                    avss::Receiver::new(
+                        nodes.clone(),
+                        id as u16,
+                        t,
+                        sid.clone(),
+                        None,
+                        enc_secret_key.clone(),
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            // Each dealer creates a message
+            let message = dealer.create_message(&mut rng).unwrap();
+            messages.push(message.clone());
+
+            // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
+            receivers.iter().for_each(|receiver| {
+                let output = assert_valid(receiver.process_message(&message).unwrap());
+                dkg_outputs.get_mut(&receiver.id()).unwrap().push(output);
+            });
+
+            // TODO: Create certificate and post it on TOB
+        }
+
+        // Now, each party has collected their outputs from all dealers.
+        // We use the first t outputs to create the final shares.
+        let mut final_shares = HashMap::<PartyId, avss::ReceiverOutput>::new();
+        for node in nodes.iter() {
+            let my_outputs = dkg_outputs.get(&node.id).unwrap();
+            let final_share = avss::ReceiverOutput::combine(t, &my_outputs[..t as usize]).unwrap();
+            final_shares.insert(node.id, final_share.clone());
+
+            // Each party now has their final shares
+            println!("Node {} final shares: {:?}", node.id, final_share);
+        }
+
+        // We may now compute the joint verification key from the commitments of the first t dealers.
+        let vk = compute_joint_verification_key(f, &messages[..t as usize]).unwrap();
+
+        // For testing, we now recover the secret key from t shares and check that the secret key matches the verification key.
+        // In practice, the parties should never do this...
+        let shares = final_shares
+            .values()
+            .flat_map(|output| output.my_shares.shares.clone())
+            .collect_vec();
+        let sk = Poly::recover_c0(t, shares[..t as usize].iter()).unwrap();
+        assert_eq!(G::generator() * sk, vk);
+
+        //
+        // PRESIGNING
+        //
+
+        let mut presigning_outputs =
+            HashMap::<PartyId, Vec<batch_avss::ReceiverOutput<BATCH_SIZE>>>::new();
+        for node in nodes.iter() {
+            presigning_outputs.insert(node.id, Vec::new());
+        }
+        for node in nodes.iter() {
+            let sid = format!("presig-test-session-{}", node.id).into_bytes();
+            let dealer: batch_avss::Dealer<BATCH_SIZE> =
+                batch_avss::Dealer::new(nodes.clone(), t, f, sid.clone(), &mut rng).unwrap();
+            let receivers = sks
+                .iter()
+                .enumerate()
+                .map(|(id, enc_secret_key)| {
+                    batch_avss::Receiver::<BATCH_SIZE>::new(
+                        nodes.clone(),
+                        id as u16,
+                        t,
+                        sid.clone(),
+                        enc_secret_key.clone(),
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            // Each dealer creates a message
+            let message = dealer.create_message(&mut rng).unwrap();
+
+            // Each receiver processes the message.
+            // In this case, we assume all are honest and there are no complaints.
+            receivers.iter().for_each(|receiver| {
+                let output = assert_valid_batch(receiver.process_message(&message).unwrap());
+                presigning_outputs
+                    .get_mut(&receiver.id())
+                    .unwrap()
+                    .push(output);
+            });
+        }
+
+        // Each party can process their presigs
+        let mut presigs = presigning_outputs
+            .into_iter()
+            .map(|(id, outputs)| {
+                (
+                    id,
+                    Presignatures::<BATCH_SIZE>::new(
+                        &nodes.share_ids_of(id).unwrap(),
+                        outputs,
+                        f as usize,
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
+        //
+        // SIGNING
+        //
+
+        let message = b"Hello, world!";
+
+        // Mock a value from the random beacon
+        let beacon_value = S::rand(&mut rng);
+
+        // Each party generates their partial signatures
+        let partial_signatures = nodes
+            .iter()
+            .map(|node| {
+                generate_partial_signatures(
+                    message,
+                    presigs.get_mut(&node.id).unwrap(),
+                    &beacon_value,
+                    &final_shares.get(&node.id).unwrap().my_shares,
+                    &vk,
+                    None,
+                )
+                .unwrap()
+            })
+            .collect_vec();
+
+        // Aggregate partial signatures
+        let signature = aggregate_signatures(
+            message,
+            &partial_signatures[0].0, // All public parts are equal, so we just take the first
+            &beacon_value,
+            &partial_signatures
+                .iter()
+                .flat_map(|(_, s)| s.clone())
+                .collect_vec(),
+            t,
+            &vk,
+            None,
+        )
+        .unwrap();
+
+        // Check that this produced a valid signature
+        SchnorrPublicKey::try_from(&vk)
+            .unwrap()
+            .verify(message, &signature)
+            .unwrap();
+
+        //
+        // KEY ROTATION
+        //
+
+        // Map from each party to the ordered list of outputs it has received
+        let mut dkg_outputs_after_rotation = HashMap::<PartyId, Vec<avss::ReceiverOutput>>::new();
+        for node in nodes.iter() {
+            dkg_outputs_after_rotation.insert(node.id, Vec::new());
+        }
+
+        // Now, each party acts as a dealer once per share they have.
+        for node in nodes.iter() {
+            for share_index in nodes.share_ids_of(node.id).unwrap() {
+                let sid = format!("key-rotation-test-session-{}", share_index).into_bytes();
+
+                // Each dealer uses their existing share as the secret to reshare
+                let secret = final_shares.get(&node.id).unwrap().my_shares.share_for_index(share_index).unwrap().value;
+                let dealer: avss::Dealer =
+                    avss::Dealer::new(Some(secret), nodes.clone(), t, f, sid.clone()).unwrap();
+
+                let receivers = sks
+                    .iter()
+                    .enumerate()
+                    .map(|(id, enc_secret_key)| {
+                        let commitment = final_shares
+                            .get(&(id as u16))
+                            .unwrap().commitments.iter().find(|c| c.index == share_index).unwrap().value;
+                        avss::Receiver::new(
+                            nodes.clone(),
+                            id as u16,
+                            t,
+                            sid.clone(),
+                            Some(commitment),
+                            enc_secret_key.clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+
+                // Each dealer creates a message
+                let message = dealer.create_message(&mut rng).unwrap();
+
+                // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
+                receivers.iter().for_each(|receiver| {
+                    let output = assert_valid(receiver.process_message(&message).unwrap());
+                    dkg_outputs_after_rotation.get_mut(&node.id).unwrap().push(output);
+                });
+            }
+        }
+
+    }
+
+    fn assert_valid_batch<const N: usize>(
+        processed_message: batch_avss::ProcessedMessage<N>,
+    ) -> batch_avss::ReceiverOutput<N> {
+        if let batch_avss::ProcessedMessage::Valid(output) = processed_message {
+            output
+        } else {
+            panic!("Expected valid message");
+        }
+    }
+
+    fn assert_valid(processed_message: avss::ProcessedMessage) -> avss::ReceiverOutput {
+        if let avss::ProcessedMessage::Valid(output) = processed_message {
+            output
+        } else {
+            panic!("Expected valid message");
+        }
+    }
 
     #[test]
     fn test_signing() {
@@ -122,7 +390,7 @@ mod tests {
                 let index = ShareIndex::new(i + 1).unwrap();
                 (0..n)
                     .map(|j| {
-                        ReceiverOutput {
+                        batch_avss::ReceiverOutput {
                             my_shares: SharesForNode {
                                 batches: vec![ShareBatch {
                                     index,
@@ -245,7 +513,7 @@ mod tests {
                 let index = ShareIndex::new(i + 1).unwrap();
                 (0..n)
                     .map(|j| {
-                        ReceiverOutput {
+                        batch_avss::ReceiverOutput {
                             my_shares: SharesForNode {
                                 batches: vec![ShareBatch {
                                     index,

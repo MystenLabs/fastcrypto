@@ -321,6 +321,10 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         }
     }
 
+    pub fn id(&self) -> PartyId {
+        self.id
+    }
+
     /// 2. Each receiver processes the message, verifies and decrypts its shares.
     ///
     /// If this works, the receiver can store the shares and contribute a signature on the message to a certificate.

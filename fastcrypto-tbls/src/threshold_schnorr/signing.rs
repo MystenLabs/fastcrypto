@@ -47,6 +47,7 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
     // If it doesn't, we negate the secret nonce to get a new nonce R' = -R with an even Y.
     // Since only the X coordinate of R is included in the signature, we don't need to change R, but we must negate the presigs.
     if !r_g.has_even_y()? {
+        println!("Negating presig due to odd Y coordinate in R");
         for presig in &mut secret_presigs {
             *presig = -*presig;
         }
