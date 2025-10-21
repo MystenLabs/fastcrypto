@@ -399,12 +399,15 @@ impl ReceiverOutput {
             return Err(InputLengthWrong(t as usize));
         }
 
-        // Sanity check: All outputs must have the same weight.
-        if !outputs.iter().map(|output| output.weight()).all_equal() {
+        // Sanity check: Threshold cannot be zero and all outputs must have the same weight.
+        if t == 0 || !outputs.iter().map(|output| output.weight()).all_equal() {
             return Err(InvalidInput);
         }
 
         let mut shares = outputs[0].clone();
+        if outputs.len() == 1 {
+            return Ok(shares);
+        }
 
         for output in &outputs[1..] {
             for (a, b) in shares
