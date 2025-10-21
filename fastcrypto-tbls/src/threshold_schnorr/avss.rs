@@ -61,7 +61,7 @@ pub enum ProcessedMessage {
 }
 
 /// The output of a receiver: The shares for each nonce + commitments for the next round.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReceiverOutput {
     pub my_shares: SharesForNode,
 
