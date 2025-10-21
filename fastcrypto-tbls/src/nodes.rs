@@ -110,6 +110,11 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         (1..=self.total_weight).map(|i| ShareIndex::new(i).expect("nonzero"))
     }
 
+    /// Get an iterator on the node ids.
+    pub fn node_ids_iter(&self) -> impl Iterator<Item = PartyId> + '_ {
+        self.nodes.iter().map(|n| n.id)
+    }
+
     /// Get the node corresponding to a share id.
     pub fn share_id_to_node(&self, share_id: &ShareIndex) -> FastCryptoResult<&Node<G>> {
         let nonzero_node_id = self
