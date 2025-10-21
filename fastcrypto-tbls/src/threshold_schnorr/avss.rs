@@ -416,19 +416,13 @@ impl ReceiverOutput {
                 if b.index != a.index {
                     return Err(InvalidInput);
                 }
-                *a = Eval {
-                    index: a.index,
-                    value: a.value + b.value,
-                }
+                a.value += b.value;
             }
             for (a, b) in shares.commitments.iter_mut().zip(&output.commitments) {
                 if b.index != a.index {
                     return Err(InvalidInput);
                 }
-                *a = Eval {
-                    index: a.index,
-                    value: a.value + b.value,
-                }
+                a.value += b.value;
             }
         }
         Ok(shares)
