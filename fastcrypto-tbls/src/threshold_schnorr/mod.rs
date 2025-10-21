@@ -165,13 +165,19 @@ mod tests {
 
         // Now, each party has collected their outputs from all dealers. We use the first t outputs to create the final shares for signing.
         // Each party should still keep the outputs from all dealers until the end of the epoch to handle complaints.
-        let mut merged_shares = HashMap::<PartyId, avss::ReceiverOutput>::new();
-        for node in nodes.iter() {
-            let my_outputs = dkg_outputs.get(&node.id).unwrap();
-            let final_share =
-                avss::ReceiverOutput::sum(t, &image(&my_outputs, certificate.iter())).unwrap();
-            merged_shares.insert(node.id, final_share.clone());
-        }
+        let merged_shares = nodes
+            .iter()
+            .map(|node| {
+                (
+                    node.id,
+                    avss::ReceiverOutput::sum(
+                        t,
+                        &image(&dkg_outputs.get(&node.id).unwrap(), certificate.iter()),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect::<HashMap<_, _>>();
 
         // We may now compute the joint verification key from the commitments of the first t dealers.
         let vk =
@@ -363,43 +369,46 @@ mod tests {
             .flat_map(|id| nodes.share_ids_of(*id).unwrap())
             .collect_vec();
 
-        //
-        // // Now, each party has collected their outputs from all dealers.
-        // // We use the first t outputs to create the final shares.
-        let mut merged_shares_after_rotation = HashMap::<PartyId, avss::ReceiverOutput>::new();
-        for receiver in nodes.iter() {
-            let shares_from_cert = share_indices_in_cert
-                .iter()
-                .flat_map(|index| {
-                    dkg_outputs_after_rotation
-                        .get(&receiver.id)
-                        .unwrap()
-                        .get(index)
-                        .unwrap()
-                        .my_shares
-                        .shares
-                        .iter()
-                        .map(|e| Eval {
-                            index: *index,
-                            value: e.value.clone(),
-                        })
-                })
-                .collect_vec();
+        // Now, each party has collected their outputs from all dealers.
+        // We use the first t outputs to create the final shares.
+        let merged_shares_after_rotation = nodes
+            .iter()
+            .map(|receiver| {
+                let shares_from_cert = share_indices_in_cert
+                    .iter()
+                    .flat_map(|index| {
+                        dkg_outputs_after_rotation
+                            .get(&receiver.id)
+                            .unwrap()
+                            .get(index)
+                            .unwrap()
+                            .my_shares
+                            .shares
+                            .iter()
+                            .map(|e| Eval {
+                                index: *index,
+                                value: e.value.clone(),
+                            })
+                    })
+                    .collect_vec();
 
-            let mut my_shares = Vec::new();
-            for share_index in nodes.share_ids_of(receiver.id).unwrap() {
-                let share = Poly::recover_c0(t, shares_from_cert.iter()).unwrap();
-                my_shares.push(Eval {
-                    index: share_index,
-                    value: share,
-                });
-            }
-            let final_share = avss::ReceiverOutput {
-                my_shares: avss::SharesForNode { shares: my_shares },
-                commitments: Vec::new(), // TODO: Combine commitments also
-            };
-            merged_shares_after_rotation.insert(receiver.id, final_share);
-        }
+                let shares = nodes
+                    .share_ids_of(receiver.id)
+                    .unwrap()
+                    .iter()
+                    .map(|&index| Eval {
+                        index,
+                        value: Poly::recover_c0(t, shares_from_cert.iter()).unwrap(),
+                    })
+                    .collect_vec();
+
+                let final_share = avss::ReceiverOutput {
+                    my_shares: avss::SharesForNode { shares },
+                    commitments: Vec::new(), // TODO: Combine commitments also
+                };
+                (receiver.id, final_share)
+            })
+            .collect::<HashMap<_, _>>();
 
         // For testing, we now recover the secret key from t shares and check that the secret key matches the verification key.
         // In practice, the parties should never do this...

@@ -373,34 +373,6 @@ impl Receiver {
     }
 }
 
-// pub fn combine(nodes: &Nodes<EG>, t: u16, outputs: &[ReceiverOutput], given_indices: &[ShareIndex], my_share_indices: &[ShareIndex]) -> FastCryptoResult<ReceiverOutput> {
-//     // The same f+1 dealers are needed for all parties to ensure uniqueness and that at least one honest dealers secret is included in the key.
-//     if outputs.len() != t as usize {
-//         return Err(InputLengthWrong(t as usize));
-//     }
-//
-//     // Sanity check: All outputs must have the same weight.
-//     if !outputs.iter().map(|output| output.weight()).all_equal() {
-//         return Err(InvalidInput);
-//     }
-//
-//     let my_shares = my_share_indices
-//         .into_iter()
-//         .map(|&index| {
-//             let evaluations = given_indices
-//                 .iter()
-//                 .map(|share_index| outputs.)
-//                 .collect_vec();
-//             Poly::interpolate_at_index(index, &evaluations).unwrap()
-//         })
-//         .collect_vec();
-//
-//     Ok(ReceiverOutput {
-//         my_shares,
-//         commitments: vec![], // TODO...
-//     })
-// }
-
 pub fn compute_commitments(nodes: &Nodes<EG>, message: &Message) -> Vec<Eval<G>> {
     nodes
         .share_ids_iter()
