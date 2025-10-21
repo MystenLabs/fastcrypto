@@ -272,7 +272,7 @@ impl Receiver {
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
                 my_shares,
-                commitments: self.compute_commitments(message),
+                commitments: compute_commitments(&self.nodes, message),
             })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
@@ -354,15 +354,8 @@ impl Receiver {
 
         Ok(ReceiverOutput {
             my_shares,
-            commitments: self.compute_commitments(message),
+            commitments: compute_commitments(&self.nodes, message),
         })
-    }
-
-    fn compute_commitments(&self, message: &Message) -> Vec<Eval<G>> {
-        self.nodes
-            .share_ids_iter()
-            .map(|index| message.feldman_commitment.eval(index))
-            .collect()
     }
 
     pub fn my_indices(&self) -> Vec<ShareIndex> {
@@ -380,6 +373,41 @@ impl Receiver {
     }
 }
 
+// pub fn combine(nodes: &Nodes<EG>, t: u16, outputs: &[ReceiverOutput], given_indices: &[ShareIndex], my_share_indices: &[ShareIndex]) -> FastCryptoResult<ReceiverOutput> {
+//     // The same f+1 dealers are needed for all parties to ensure uniqueness and that at least one honest dealers secret is included in the key.
+//     if outputs.len() != t as usize {
+//         return Err(InputLengthWrong(t as usize));
+//     }
+//
+//     // Sanity check: All outputs must have the same weight.
+//     if !outputs.iter().map(|output| output.weight()).all_equal() {
+//         return Err(InvalidInput);
+//     }
+//
+//     let my_shares = my_share_indices
+//         .into_iter()
+//         .map(|&index| {
+//             let evaluations = given_indices
+//                 .iter()
+//                 .map(|share_index| outputs.)
+//                 .collect_vec();
+//             Poly::interpolate_at_index(index, &evaluations).unwrap()
+//         })
+//         .collect_vec();
+//
+//     Ok(ReceiverOutput {
+//         my_shares,
+//         commitments: vec![], // TODO...
+//     })
+// }
+
+pub fn compute_commitments(nodes: &Nodes<EG>, message: &Message) -> Vec<Eval<G>> {
+    nodes
+        .share_ids_iter()
+        .map(|index| message.feldman_commitment.eval(index))
+        .collect()
+}
+
 pub fn compute_joint_verification_key(f: u16, messages: &[Message]) -> FastCryptoResult<G> {
     if messages.len() != (f + 1) as usize {
         return Err(InputLengthWrong((f + 1) as usize));
@@ -392,9 +420,9 @@ impl ReceiverOutput {
         self.my_shares.weight()
     }
 
-    /// Combine multiple outputs from different dealers into a single output.
-    pub fn combine(t: u16, outputs: &[Self]) -> FastCryptoResult<Self> {
-        // The same f+1 dealers are needed for all parties to ensure uniqueness and that at least one honest dealers secret is included in the key.
+    /// Combine multiple outputs from different dealers into a single output by summing
+    pub fn sum(t: u16, outputs: &[Self]) -> FastCryptoResult<Self> {
+        // The same t dealers are needed for all parties to ensure uniqueness and that at least one honest dealers secret is included in the key.
         if outputs.len() != t as usize {
             return Err(InputLengthWrong(t as usize));
         }
@@ -827,7 +855,7 @@ mod tests {
         let mut final_shares = HashMap::<PartyId, ReceiverOutput>::new();
         for node in nodes.iter() {
             let my_outputs = outputs.get(&node.id).unwrap();
-            let final_share = ReceiverOutput::combine(t, &my_outputs[..t as usize]).unwrap();
+            let final_share = ReceiverOutput::sum(t, &my_outputs[..t as usize]).unwrap();
             final_shares.insert(node.id, final_share.clone());
 
             // Each party now has their final shares
