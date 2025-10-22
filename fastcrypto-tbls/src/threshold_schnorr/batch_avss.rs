@@ -791,7 +791,7 @@ mod tests {
                 .collect_vec();
 
             // Modify the first share of the first receiver to simulate a cheating dealer
-            pk_and_msgs[0].1[7] += 1;
+            pk_and_msgs[0].1[7] ^= 1;
 
             let ciphertext = MultiRecipientEncryption::encrypt(
                 &pk_and_msgs,
