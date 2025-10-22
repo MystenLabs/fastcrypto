@@ -436,6 +436,10 @@ impl ReceiverOutput {
     /// Interpolate shares from multiple outputs to create new shares for the given indices.
     /// This is used after key rotation where each party shares their shares from the previous round as the new secret.
     /// After collecting t such shares from different parties, new shares for the given indices can be created using this function.
+    ///
+    /// The `outputs` parameter is a list of `(ReceiverOutput, ShareIndex)` tuples, where each
+    /// `ReceiverOutput` corresponds to the output of an AVSS instance and the `ShareIndex`
+    /// indicates which share from the previous round the AVSS instance was sharing.
     pub fn finalize_key_rotation(
         t: u16,
         my_indices: &[ShareIndex],
