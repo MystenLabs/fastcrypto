@@ -404,13 +404,13 @@ impl ReceiverOutput {
             return Err(InvalidInput);
         }
 
-        let mut shares = outputs[0].clone();
+        let mut sum = outputs[0].clone();
         if outputs.len() == 1 {
-            return Ok(shares);
+            return Ok(sum);
         }
 
         for output in &outputs[1..] {
-            for (a, b) in shares
+            for (a, b) in sum
                 .my_shares
                 .shares
                 .iter_mut()
@@ -421,14 +421,14 @@ impl ReceiverOutput {
                 }
                 a.value += b.value;
             }
-            for (a, b) in shares.commitments.iter_mut().zip(&output.commitments) {
+            for (a, b) in sum.commitments.iter_mut().zip(&output.commitments) {
                 if b.index != a.index {
                     return Err(InvalidInput);
                 }
                 a.value += b.value;
             }
         }
-        Ok(shares)
+        Ok(sum)
     }
 }
 
