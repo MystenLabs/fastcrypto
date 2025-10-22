@@ -170,7 +170,7 @@ mod tests {
             .map(|node| {
                 (
                     node.id,
-                    avss::ReceiverOutput::sum(
+                    avss::ReceiverOutput::finalize_dkg(
                         t,
                         &image(dkg_outputs.get(&node.id).unwrap(), dkg_cert.iter()),
                     )
@@ -386,7 +386,7 @@ mod tests {
                     .collect_vec();
                 (
                     receiver_id,
-                    avss::ReceiverOutput::interpolate_after_resharing(
+                    avss::ReceiverOutput::finalize_key_rotation(
                         t,
                         &nodes.share_ids_of(receiver_id).unwrap(),
                         &my_shares_from_cert,

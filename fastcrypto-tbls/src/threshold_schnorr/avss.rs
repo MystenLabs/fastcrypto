@@ -395,7 +395,7 @@ impl ReceiverOutput {
 
     /// Combine multiple outputs from different dealers into a single output by summing.
     /// This is used after a successful AVSS used for DKG to combine the shares from multiple dealers into a single share for each party.
-    pub fn sum(t: u16, outputs: &[Self]) -> FastCryptoResult<Self> {
+    pub fn finalize_dkg(t: u16, outputs: &[Self]) -> FastCryptoResult<Self> {
         // The same t dealers are needed for all parties to ensure uniqueness and that at least one honest dealers secret is included in the key.
         if outputs.len() != t as usize {
             return Err(InputLengthWrong(t as usize));
@@ -436,7 +436,7 @@ impl ReceiverOutput {
     /// Interpolate shares from multiple outputs to create new shares for the given indices.
     /// This is used after key rotation where each party shares their shares from the previous round as the new secret.
     /// After collecting t such shares from different parties, new shares for the given indices can be created using this function.
-    pub fn interpolate_after_resharing(
+    pub fn finalize_key_rotation(
         t: u16,
         my_share_indices: &[ShareIndex],
         shares_to_use: &[(Self, ShareIndex)],
@@ -858,7 +858,7 @@ mod tests {
         let mut final_shares = HashMap::<PartyId, ReceiverOutput>::new();
         for node in nodes.iter() {
             let my_outputs = outputs.get(&node.id).unwrap();
-            let final_share = ReceiverOutput::sum(t, &my_outputs[..t as usize]).unwrap();
+            let final_share = ReceiverOutput::finalize_dkg(t, &my_outputs[..t as usize]).unwrap();
             final_shares.insert(node.id, final_share.clone());
 
             // Each party now has their final shares
