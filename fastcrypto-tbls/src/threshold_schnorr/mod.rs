@@ -161,7 +161,7 @@ mod tests {
         }
 
         // The first t dealers form the certificate and are the ones whose outputs will be used to create the final shares.
-        let certificate = [PartyId::from(1u8), PartyId::from(3u8), PartyId::from(4u8)];
+        let dkg_cert = [PartyId::from(1u8), PartyId::from(3u8), PartyId::from(4u8)];
 
         // Now, each party has collected their outputs from all dealers. We use the first t outputs to create the final shares for signing.
         // Each party should still keep the outputs from all dealers until the end of the epoch to handle complaints.
@@ -172,7 +172,7 @@ mod tests {
                     node.id,
                     avss::ReceiverOutput::sum(
                         t,
-                        &image(dkg_outputs.get(&node.id).unwrap(), certificate.iter()),
+                        &image(dkg_outputs.get(&node.id).unwrap(), dkg_cert.iter()),
                     )
                     .unwrap(),
                 )
@@ -180,8 +180,7 @@ mod tests {
             .collect::<HashMap<_, _>>();
 
         // We may now compute the joint verification key from the commitments of the first t dealers.
-        let vk =
-            compute_joint_verification_key(f, &sublist(&messages, certificate.iter())).unwrap();
+        let vk = compute_joint_verification_key(f, &sublist(&messages, dkg_cert.iter())).unwrap();
 
         // For testing, we now recover the secret key from t shares and check that the secret key matches the verification key.
         // In practice, the parties should never do this...
@@ -275,6 +274,12 @@ mod tests {
             })
             .collect_vec();
 
+        // The public parts should all be the same
+        assert!(partial_signatures
+            .iter()
+            .map(|partial_signature| partial_signature.0)
+            .all_equal());
+
         // Aggregate partial signatures
         let signature = aggregate_signatures(
             message,
@@ -357,49 +362,36 @@ mod tests {
         }
 
         // The first t dealers (counted by weight) form the certificate and are the ones whose outputs will be used to create the final shares.
-        let certificate_after_rotation =
-            [PartyId::from(2u8), PartyId::from(3u8), PartyId::from(5u8)];
-        let share_indices_in_cert = certificate_after_rotation
+        let key_rotation_cert = [PartyId::from(2u8), PartyId::from(3u8), PartyId::from(5u8)];
+        let share_indices_in_cert = key_rotation_cert
             .iter()
             .flat_map(|id| nodes.share_ids_of(*id).unwrap())
             .collect_vec();
 
         // Now, each party has collected their outputs from all dealers and can form their new shares from the ones in the certificate.
         let merged_shares_after_rotation = nodes
-            .iter()
-            .map(|receiver| {
-                let shares_from_cert = share_indices_in_cert
+            .node_ids_iter()
+            .map(|receiver_id| {
+                let my_shares_from_cert = share_indices_in_cert
                     .iter()
-                    .flat_map(|&index| {
-                        dkg_outputs_after_rotation
-                            .get(&(receiver.id, index))
-                            .unwrap()
-                            .my_shares
-                            .shares
-                            .iter()
-                            .map(move |e| Eval {
-                                index,
-                                value: e.value,
-                            })
+                    .map(|&index| {
+                        (
+                            dkg_outputs_after_rotation
+                                .get(&(receiver_id, index))
+                                .unwrap()
+                                .clone(),
+                            index,
+                        )
                     })
                     .collect_vec();
-
-                let shares = nodes
-                    .share_ids_of(receiver.id)
-                    .unwrap()
-                    .iter()
-                    .map(|&index| Eval {
-                        index,
-                        value: Poly::recover_c0(t, shares_from_cert.iter()).unwrap(),
-                    })
-                    .collect_vec();
-
                 (
-                    receiver.id,
-                    avss::ReceiverOutput {
-                        my_shares: avss::SharesForNode { shares },
-                        commitments: Vec::new(), // TODO: Combine commitments also
-                    },
+                    receiver_id,
+                    avss::ReceiverOutput::interpolate_after_resharing(
+                        t,
+                        &nodes.share_ids_of(receiver_id).unwrap(),
+                        &my_shares_from_cert,
+                    )
+                    .unwrap(),
                 )
             })
             .collect::<HashMap<_, _>>();

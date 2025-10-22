@@ -24,6 +24,7 @@ use fastcrypto::groups::{GroupElement, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tap::TapFallible;
 use tracing::warn;
 
@@ -392,7 +393,8 @@ impl ReceiverOutput {
         self.my_shares.weight()
     }
 
-    /// Combine multiple outputs from different dealers into a single output by summing
+    /// Combine multiple outputs from different dealers into a single output by summing.
+    /// This is used after a successful AVSS used for DKG to combine the shares from multiple dealers into a single share for each party.
     pub fn sum(t: u16, outputs: &[Self]) -> FastCryptoResult<Self> {
         // The same t dealers are needed for all parties to ensure uniqueness and that at least one honest dealers secret is included in the key.
         if outputs.len() != t as usize {
@@ -429,6 +431,42 @@ impl ReceiverOutput {
             }
         }
         Ok(sum)
+    }
+
+    /// Interpolate shares from multiple outputs to create new shares for the given indices.
+    /// This is used after key rotation where each party shares their shares from the previous round as the new secret.
+    /// After collecting t such shares from different parties, new shares for the given indices can be created using this function.
+    pub fn interpolate_after_resharing(
+        t: u16,
+        my_share_indices: &[ShareIndex],
+        shares_to_use: &[(Self, ShareIndex)],
+    ) -> FastCryptoResult<Self> {
+        if shares_to_use.len() != t as usize {
+            return Err(InputLengthWrong(t as usize));
+        }
+
+        let shares_to_use = shares_to_use
+            .iter()
+            .flat_map(|(output, index)| {
+                output.my_shares.shares.iter().map(move |e| Eval {
+                    index: *index,
+                    value: e.value,
+                })
+            })
+            .collect_vec();
+
+        let shares = my_share_indices
+            .iter()
+            .map(|&index| Eval {
+                index,
+                value: Poly::recover_c0(t, shares_to_use.iter()).unwrap(),
+            })
+            .collect_vec();
+
+        Ok(Self {
+            my_shares: SharesForNode { shares },
+            commitments: Vec::new(), // TODO: Combine commitments also
+        })
     }
 }
 
