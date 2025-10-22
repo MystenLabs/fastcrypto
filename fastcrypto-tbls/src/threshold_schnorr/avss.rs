@@ -438,14 +438,14 @@ impl ReceiverOutput {
     /// After collecting t such shares from different parties, new shares for the given indices can be created using this function.
     pub fn finalize_key_rotation(
         t: u16,
-        my_share_indices: &[ShareIndex],
-        shares_to_use: &[(Self, ShareIndex)],
+        my_indices: &[ShareIndex],
+        outputs: &[(Self, ShareIndex)],
     ) -> FastCryptoResult<Self> {
-        if shares_to_use.len() != t as usize {
+        if outputs.len() != t as usize {
             return Err(InputLengthWrong(t as usize));
         }
 
-        let shares_to_use = shares_to_use
+        let shares_to_use = outputs
             .iter()
             .flat_map(|(output, index)| {
                 output.my_shares.shares.iter().map(move |e| Eval {
@@ -455,7 +455,7 @@ impl ReceiverOutput {
             })
             .collect_vec();
 
-        let shares = my_share_indices
+        let shares = my_indices
             .iter()
             .map(|&index| Eval {
                 index,
