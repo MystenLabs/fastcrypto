@@ -8,6 +8,7 @@ use fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing, Sc
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::num::NonZeroU16;
+use std::ops::Add;
 
 /// Implementation of [ThresholdBls] for BLS12-381-min-sig. A variant for BLS12-381-min-pk can be
 /// defined in a similar way if needed in the future.
@@ -88,4 +89,17 @@ impl<A> UnindexedValues<A> {
 #[inline]
 pub(crate) fn to_scalar<C: Scalar>(index: impl Borrow<ShareIndex>) -> C {
     C::from(index.borrow().get() as u128)
+}
+
+/// Helper function to add two evaluations.
+/// Panics if the indices are not equal.
+pub fn sum<S>((a, b): (&Eval<S>, &Eval<S>)) -> Eval<S>
+where
+    for<'b> &'b S: Add<&'b S, Output = S>,
+{
+    assert_eq!(a.index, b.index);
+    Eval {
+        value: &a.value + &b.value,
+        index: a.index,
+    }
 }

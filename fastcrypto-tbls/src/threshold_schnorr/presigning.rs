@@ -57,10 +57,8 @@ impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
         let si_height = avss_outputs.len() - f;
 
         // There is one secret presigning output per share index (weight) for this party.
-        let secret = my_indices
-            .iter()
-            .enumerate()
-            .map(|(i, _index)| {
+        let secret = (0..my_indices.len())
+            .map(|i| {
                 let rho = avss_outputs
                     .iter()
                     .map(|output| output.my_shares.batches[i].shares.to_vec())
