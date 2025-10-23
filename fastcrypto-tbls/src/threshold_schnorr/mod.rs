@@ -310,6 +310,7 @@ mod tests {
         let mut dkg_outputs_after_rotation =
             HashMap::<(PartyId, ShareIndex), avss::ReceiverOutput>::new();
         let mut messages = HashMap::<(PartyId, ShareIndex), avss::Message>::new();
+
         for dealer_id in nodes.node_ids_iter() {
             for share_index in nodes.share_ids_of(dealer_id).unwrap() {
                 let sid =

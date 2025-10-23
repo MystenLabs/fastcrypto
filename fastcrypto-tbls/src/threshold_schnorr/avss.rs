@@ -272,7 +272,7 @@ impl Receiver {
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
                 my_shares,
-                commitments: compute_commitments(&self.nodes, message),
+                commitments: compute_commitments(self.nodes.share_ids_iter(), message),
             })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
@@ -354,7 +354,7 @@ impl Receiver {
 
         Ok(ReceiverOutput {
             my_shares,
-            commitments: compute_commitments(&self.nodes, message),
+            commitments: compute_commitments(self.nodes.share_ids_iter(), message),
         })
     }
 
@@ -373,9 +373,11 @@ impl Receiver {
     }
 }
 
-pub fn compute_commitments(nodes: &Nodes<EG>, message: &Message) -> Vec<Eval<G>> {
-    nodes
-        .share_ids_iter()
+pub fn compute_commitments(
+    indices: impl Iterator<Item = ShareIndex>,
+    message: &Message,
+) -> Vec<Eval<G>> {
+    indices
         .map(|index| message.feldman_commitment.eval(index))
         .collect()
 }
@@ -447,28 +449,44 @@ impl ReceiverOutput {
         if outputs.len() != t as usize {
             return Err(InputLengthWrong(t as usize));
         }
+        if outputs.is_empty() {
+            return Err(InvalidInput);
+        }
 
-        let shares_to_use = outputs
-            .iter()
-            .flat_map(|value| {
-                value.value.my_shares.shares.iter().map(move |e| Eval {
-                    index: value.index,
-                    value: e.value,
-                })
-            })
-            .collect_vec();
-
+        // Construct the set of shares to use from my outputs
         let shares = my_indices
             .iter()
-            .map(|&index| Eval {
-                index,
-                value: Poly::recover_c0(t, shares_to_use.iter()).unwrap(),
+            .map(|&index| {
+                let shares = outputs.iter().map(|output| Eval {
+                    index: output.index,
+                    value: output
+                        .value
+                        .my_shares
+                        .share_for_index(index)
+                        .unwrap()
+                        .clone()
+                        .value,
+                });
+                let value = Poly::recover_c0(t, shares).unwrap();
+                Eval { index, value }
             })
             .collect();
 
+        // let all_indices = outputs[0].value.0.commitments.iter().map(|c| c.index).collect_vec();
+        // let feldman_commitment = Poly::from((0..t).map(|index| {
+        //     let shares = outputs.iter().map(|value|
+        //         Eval {
+        //             index: value.index,
+        //             value: value.value.1.feldman_commitment.coefficient(index as usize).clone(),
+        //         }).collect_vec();
+        //     Poly::<G>::recover_c0_msm(t, shares.iter()).unwrap()
+        // }).collect_vec());
+        //
+        // let commitments = all_indices.iter().map(|index| feldman_commitment.eval(*index)).collect();
+
         Ok(Self {
             my_shares: SharesForNode { shares },
-            commitments: Vec::new(), // TODO: Combine commitments also
+            commitments: Vec::new(),
         })
     }
 }
