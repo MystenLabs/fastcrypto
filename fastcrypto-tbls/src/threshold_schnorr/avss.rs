@@ -25,7 +25,6 @@ use fastcrypto::groups::{GroupElement, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::ops::Add;
 use tap::TapFallible;
 use tracing::warn;
 
@@ -122,10 +121,6 @@ impl SharesForNode {
             .collect_vec();
 
         Ok(Self { shares })
-    }
-
-    pub fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
-        self.shares.iter().find(|s| s.index == index)
     }
 }
 
@@ -394,6 +389,14 @@ impl ReceiverOutput {
         self.my_shares.weight()
     }
 
+    pub fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
+        self.my_shares.shares.iter().find(|s| s.index == index)
+    }
+
+    pub fn commitment_for_index(&self, index: ShareIndex) -> Option<&Eval<G>> {
+        self.commitments.iter().find(|c| c.index == index)
+    }
+
     /// Combine multiple outputs from different dealers into a single output by summing.
     /// This is used after a successful AVSS used for DKG to combine the shares from multiple dealers into a single share for each party.
     /// Panics if the given `ReceiverOutput`s are not compatible (same weight, same indices, same number of commitments)
@@ -440,6 +443,7 @@ impl ReceiverOutput {
     pub fn complete_key_rotation(
         t: u16,
         my_indices: &[ShareIndex],
+        all_indices: impl Iterator<Item = ShareIndex>,
         outputs: &[IndexedValue<Self>],
     ) -> FastCryptoResult<Self> {
         if outputs.len() != t as usize {
@@ -449,52 +453,32 @@ impl ReceiverOutput {
             return Err(InvalidInput);
         }
 
-        // Construct the set of shares to use from my outputs
         let shares = my_indices
             .iter()
-            .map(|&index| {
-                let shares = outputs.iter().map(|output| Eval {
-                    index: output.index,
-                    value: output
-                        .value
-                        .my_shares
-                        .share_for_index(index)
-                        .unwrap()
-                        .clone()
-                        .value,
-                });
-                Eval {
-                    index,
-                    value: Poly::recover_c0(t, shares).unwrap(),
-                }
+            .map(|&index| Eval {
+                index,
+                value: Poly::recover_c0(
+                    t,
+                    outputs.iter().map(|output| Eval {
+                        index: output.index,
+                        value: output.value.share_for_index(index).unwrap().clone().value,
+                    }),
+                )
+                .unwrap(),
             })
             .collect();
 
-        // Alternatively, give this as a parameter
-        let all_indices = outputs[0]
-            .value
-            .commitments
-            .iter()
-            .map(|c| c.index)
-            .collect_vec();
-
         let commitments = all_indices
-            .iter()
-            .map(|&index| {
-                let shares = outputs.iter().map(|output| Eval {
-                    index: output.index,
-                    value: output
-                        .value
-                        .commitments
-                        .iter()
-                        .find(|c| c.index == index)
-                        .unwrap()
-                        .value,
-                });
-                Eval {
-                    index,
-                    value: Poly::recover_c0_msm(t, shares).unwrap(),
-                }
+            .map(|index| Eval {
+                index,
+                value: Poly::recover_c0_msm(
+                    t,
+                    outputs.iter().map(|output| Eval {
+                        index: output.index,
+                        value: output.value.commitment_for_index(index).unwrap().value,
+                    }),
+                )
+                .unwrap(),
             })
             .collect_vec();
 

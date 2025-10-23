@@ -322,7 +322,6 @@ mod tests {
                 let secret = merged_shares
                     .get(&dealer_id)
                     .unwrap()
-                    .my_shares
                     .share_for_index(share_index)
                     .unwrap()
                     .value;
@@ -390,6 +389,7 @@ mod tests {
                     avss::ReceiverOutput::complete_key_rotation(
                         t,
                         &nodes.share_ids_of(receiver_id).unwrap(),
+                        nodes.share_ids_iter(),
                         &my_shares_from_cert,
                     )
                     .unwrap(),
@@ -411,7 +411,6 @@ mod tests {
         let secret_1 = merged_shares
             .get(&0)
             .unwrap()
-            .my_shares
             .share_for_index(commitment_1.index)
             .unwrap()
             .value;
