@@ -173,7 +173,7 @@ mod tests {
                     node.id,
                     avss::ReceiverOutput::complete_dkg(
                         t,
-                        &image(dkg_outputs.get(&node.id).unwrap(), dkg_cert.iter()),
+                        image(dkg_outputs.get(&node.id).unwrap(), dkg_cert.iter()),
                     )
                     .unwrap(),
                 )

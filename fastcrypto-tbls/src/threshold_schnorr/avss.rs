@@ -17,6 +17,7 @@ use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
 use crate::threshold_schnorr::Extensions::Encryption;
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
+use crate::types;
 use crate::types::{IndexedValue, ShareIndex};
 use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
@@ -24,6 +25,7 @@ use fastcrypto::groups::{GroupElement, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use std::ops::Add;
 use tap::TapFallible;
 use tracing::warn;
 
@@ -394,42 +396,38 @@ impl ReceiverOutput {
 
     /// Combine multiple outputs from different dealers into a single output by summing.
     /// This is used after a successful AVSS used for DKG to combine the shares from multiple dealers into a single share for each party.
-    pub fn complete_dkg(t: u16, outputs: &[Self]) -> FastCryptoResult<Self> {
+    /// Panics if the given `ReceiverOutput`s are not compatible (same weight, same indices, same number of commitments)
+    pub fn complete_dkg(t: u16, outputs: Vec<Self>) -> FastCryptoResult<Self> {
         // The same t dealers are needed for all parties to ensure uniqueness and that at least one honest dealers secret is included in the key.
         if outputs.len() != t as usize {
             return Err(InputLengthWrong(t as usize));
         }
 
         // Sanity check: Threshold cannot be zero and all outputs must have the same weight.
-        if t == 0 || !outputs.iter().map(|output| output.weight()).all_equal() {
-            return Err(InvalidInput);
-        }
+        assert!(outputs.iter().map(|output| output.weight()).all_equal());
 
-        let mut sum = outputs[0].clone();
-        if outputs.len() == 1 {
-            return Ok(sum);
-        }
-
-        for output in &outputs[1..] {
-            for (a, b) in sum
-                .my_shares
-                .shares
-                .iter_mut()
-                .zip_eq(&output.my_shares.shares)
-            {
-                if b.index != a.index {
-                    return Err(InvalidInput);
+        Ok(outputs
+            .into_iter()
+            .reduce(|acc, output| {
+                let shares = acc
+                    .my_shares
+                    .shares
+                    .iter()
+                    .zip_eq(&output.my_shares.shares)
+                    .map(types::sum)
+                    .collect_vec();
+                let commitments = acc
+                    .commitments
+                    .iter()
+                    .zip_eq(&output.commitments)
+                    .map(types::sum)
+                    .collect_vec();
+                ReceiverOutput {
+                    my_shares: SharesForNode { shares },
+                    commitments,
                 }
-                a.value += b.value;
-            }
-            for (a, b) in sum.commitments.iter_mut().zip_eq(&output.commitments) {
-                if b.index != a.index {
-                    return Err(InvalidInput);
-                }
-                a.value += b.value;
-            }
-        }
-        Ok(sum)
+            })
+            .expect("Should not be empty"))
     }
 
     /// Interpolate shares from multiple outputs to create new shares for the given indices.
@@ -895,7 +893,8 @@ mod tests {
         let mut final_shares = HashMap::<PartyId, ReceiverOutput>::new();
         for node in nodes.iter() {
             let my_outputs = outputs.get(&node.id).unwrap();
-            let final_share = ReceiverOutput::complete_dkg(t, &my_outputs[..t as usize]).unwrap();
+            let final_share =
+                ReceiverOutput::complete_dkg(t, my_outputs[..t as usize].to_vec()).unwrap();
             final_shares.insert(node.id, final_share.clone());
 
             // Each party now has their final shares
