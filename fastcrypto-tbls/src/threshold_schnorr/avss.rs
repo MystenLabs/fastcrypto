@@ -273,7 +273,7 @@ impl Receiver {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
                 my_shares,
                 commitments: self.compute_commitments(message),
-                vk: message.feldman_commitment.c0().clone(),
+                vk: *message.feldman_commitment.c0(),
             })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
@@ -356,7 +356,7 @@ impl Receiver {
         Ok(ReceiverOutput {
             my_shares,
             commitments: self.compute_commitments(message),
-            vk: message.feldman_commitment.c0().clone(),
+            vk: *message.feldman_commitment.c0(),
         })
     }
 
@@ -406,7 +406,9 @@ impl ReceiverOutput {
         }
 
         // Sanity check: Threshold cannot be zero and all outputs must have the same weight.
-        assert!(outputs.iter().map(|output| output.weight()).all_equal());
+        if outputs.is_empty() || !outputs.iter().map(|output| output.weight()).all_equal() {
+            return Err(InvalidInput);
+        }
 
         Ok(outputs
             .into_iter()

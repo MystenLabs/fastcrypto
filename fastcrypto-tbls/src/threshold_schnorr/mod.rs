@@ -181,7 +181,7 @@ mod tests {
 
         // All receivers should now have the same verifying key
         assert!(merged_shares.values().map(|output| output.vk).all_equal());
-        let vk = merged_shares.get(&0).unwrap().vk.clone();
+        let vk = merged_shares.get(&0).unwrap().vk;
 
         // For testing, we now recover the secret key from t shares and check that the secret key matches the verification key.
         // In practice, the parties should never do this...
@@ -397,8 +397,8 @@ mod tests {
             })
             .collect::<HashMap<_, _>>();
 
-        // The verifying key should be the same
-        for (_, output) in merged_shares_after_rotation.iter() {
+        // The verifying key should be the same as  before
+        for output in merged_shares_after_rotation.values() {
             assert_eq!(output.vk, vk);
         }
 
