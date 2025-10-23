@@ -272,7 +272,7 @@ impl Receiver {
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
                 my_shares,
-                commitments: compute_commitments(self.nodes.share_ids_iter(), message),
+                commitments: self.compute_commitments(message),
             })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
@@ -354,8 +354,15 @@ impl Receiver {
 
         Ok(ReceiverOutput {
             my_shares,
-            commitments: compute_commitments(self.nodes.share_ids_iter(), message),
+            commitments: self.compute_commitments(message),
         })
+    }
+
+    fn compute_commitments(&self, message: &Message) -> Vec<Eval<G>> {
+        self.nodes
+            .share_ids_iter()
+            .map(|index| message.feldman_commitment.eval(index))
+            .collect()
     }
 
     pub fn my_indices(&self) -> Vec<ShareIndex> {
@@ -371,15 +378,6 @@ impl Receiver {
     fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
     }
-}
-
-pub fn compute_commitments(
-    indices: impl Iterator<Item = ShareIndex>,
-    message: &Message,
-) -> Vec<Eval<G>> {
-    indices
-        .map(|index| message.feldman_commitment.eval(index))
-        .collect()
 }
 
 pub fn compute_joint_vk_after_dkg(f: u16, messages: &[Message]) -> FastCryptoResult<G> {
