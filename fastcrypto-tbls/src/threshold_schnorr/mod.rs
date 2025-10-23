@@ -77,13 +77,13 @@ mod tests {
     use crate::ecies_v1::PublicKey;
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::{Eval, Poly};
-    use crate::threshold_schnorr::avss::compute_joint_verification_key;
+    use crate::threshold_schnorr::avss::compute_joint_vk_after_dkg;
     use crate::threshold_schnorr::batch_avss::{ShareBatch, SharesForNode};
     use crate::threshold_schnorr::key_derivation::derive_verifying_key;
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
     use crate::threshold_schnorr::{avss, batch_avss, EG, G, S};
-    use crate::types::ShareIndex;
+    use crate::types::{IndexedValue, ShareIndex};
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
@@ -170,7 +170,7 @@ mod tests {
             .map(|node| {
                 (
                     node.id,
-                    avss::ReceiverOutput::finalize_dkg(
+                    avss::ReceiverOutput::complete_dkg(
                         t,
                         &image(dkg_outputs.get(&node.id).unwrap(), dkg_cert.iter()),
                     )
@@ -180,7 +180,7 @@ mod tests {
             .collect::<HashMap<_, _>>();
 
         // We may now compute the joint verification key from the commitments of the first t dealers.
-        let vk = compute_joint_verification_key(f, &sublist(&messages, dkg_cert.iter())).unwrap();
+        let vk = compute_joint_vk_after_dkg(f, &sublist(&messages, dkg_cert.iter())).unwrap();
 
         // For testing, we now recover the secret key from t shares and check that the secret key matches the verification key.
         // In practice, the parties should never do this...
@@ -374,19 +374,17 @@ mod tests {
             .map(|receiver_id| {
                 let my_shares_from_cert = share_indices_in_cert
                     .iter()
-                    .map(|&index| {
-                        (
-                            dkg_outputs_after_rotation
-                                .get(&(receiver_id, index))
-                                .unwrap()
-                                .clone(),
-                            index,
-                        )
+                    .map(|&index| IndexedValue {
+                        index,
+                        value: dkg_outputs_after_rotation
+                            .get(&(receiver_id, index))
+                            .unwrap()
+                            .clone(),
                     })
                     .collect_vec();
                 (
                     receiver_id,
-                    avss::ReceiverOutput::finalize_key_rotation(
+                    avss::ReceiverOutput::complete_key_rotation(
                         t,
                         &nodes.share_ids_of(receiver_id).unwrap(),
                         &my_shares_from_cert,

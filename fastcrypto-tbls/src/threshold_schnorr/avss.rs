@@ -17,14 +17,13 @@ use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
 use crate::threshold_schnorr::Extensions::Encryption;
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
-use crate::types::ShareIndex;
+use crate::types::{IndexedValue, ShareIndex};
 use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use tap::TapFallible;
 use tracing::warn;
 
@@ -381,7 +380,7 @@ pub fn compute_commitments(nodes: &Nodes<EG>, message: &Message) -> Vec<Eval<G>>
         .collect()
 }
 
-pub fn compute_joint_verification_key(f: u16, messages: &[Message]) -> FastCryptoResult<G> {
+pub fn compute_joint_vk_after_dkg(f: u16, messages: &[Message]) -> FastCryptoResult<G> {
     if messages.len() != (f + 1) as usize {
         return Err(InputLengthWrong((f + 1) as usize));
     }
@@ -395,7 +394,7 @@ impl ReceiverOutput {
 
     /// Combine multiple outputs from different dealers into a single output by summing.
     /// This is used after a successful AVSS used for DKG to combine the shares from multiple dealers into a single share for each party.
-    pub fn finalize_dkg(t: u16, outputs: &[Self]) -> FastCryptoResult<Self> {
+    pub fn complete_dkg(t: u16, outputs: &[Self]) -> FastCryptoResult<Self> {
         // The same t dealers are needed for all parties to ensure uniqueness and that at least one honest dealers secret is included in the key.
         if outputs.len() != t as usize {
             return Err(InputLengthWrong(t as usize));
@@ -416,14 +415,14 @@ impl ReceiverOutput {
                 .my_shares
                 .shares
                 .iter_mut()
-                .zip(&output.my_shares.shares)
+                .zip_eq(&output.my_shares.shares)
             {
                 if b.index != a.index {
                     return Err(InvalidInput);
                 }
                 a.value += b.value;
             }
-            for (a, b) in sum.commitments.iter_mut().zip(&output.commitments) {
+            for (a, b) in sum.commitments.iter_mut().zip_eq(&output.commitments) {
                 if b.index != a.index {
                     return Err(InvalidInput);
                 }
@@ -437,13 +436,13 @@ impl ReceiverOutput {
     /// This is used after key rotation where each party shares their shares from the previous round as the new secret.
     /// After collecting t such shares from different parties, new shares for the given indices can be created using this function.
     ///
-    /// The `outputs` parameter is a list of `(ReceiverOutput, ShareIndex)` tuples, where each
-    /// `ReceiverOutput` corresponds to the output of an AVSS instance and the `ShareIndex`
-    /// indicates which share from the previous round the AVSS instance was sharing.
-    pub fn finalize_key_rotation(
+    /// The `outputs` parameter is a list of `IndexedValue`, where each `value` is the output of an
+    /// AVSS instance and the corresponding `index` indicates which share from the previous round
+    /// the AVSS instance was sharing.
+    pub fn complete_key_rotation(
         t: u16,
         my_indices: &[ShareIndex],
-        outputs: &[(Self, ShareIndex)],
+        outputs: &[IndexedValue<Self>],
     ) -> FastCryptoResult<Self> {
         if outputs.len() != t as usize {
             return Err(InputLengthWrong(t as usize));
@@ -451,9 +450,9 @@ impl ReceiverOutput {
 
         let shares_to_use = outputs
             .iter()
-            .flat_map(|(output, index)| {
-                output.my_shares.shares.iter().map(move |e| Eval {
-                    index: *index,
+            .flat_map(|value| {
+                value.value.my_shares.shares.iter().map(move |e| Eval {
+                    index: value.index,
                     value: e.value,
                 })
             })
@@ -465,7 +464,7 @@ impl ReceiverOutput {
                 index,
                 value: Poly::recover_c0(t, shares_to_use.iter()).unwrap(),
             })
-            .collect_vec();
+            .collect();
 
         Ok(Self {
             my_shares: SharesForNode { shares },
@@ -480,7 +479,7 @@ mod tests {
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::Poly;
-    use crate::threshold_schnorr::avss::{compute_joint_verification_key, SharesForNode};
+    use crate::threshold_schnorr::avss::{compute_joint_vk_after_dkg, SharesForNode};
     use crate::threshold_schnorr::avss::{Dealer, Message, Receiver};
     use crate::threshold_schnorr::avss::{ProcessedMessage, ReceiverOutput};
     use crate::threshold_schnorr::bcs::BCSSerialized;
@@ -862,7 +861,7 @@ mod tests {
         let mut final_shares = HashMap::<PartyId, ReceiverOutput>::new();
         for node in nodes.iter() {
             let my_outputs = outputs.get(&node.id).unwrap();
-            let final_share = ReceiverOutput::finalize_dkg(t, &my_outputs[..t as usize]).unwrap();
+            let final_share = ReceiverOutput::complete_dkg(t, &my_outputs[..t as usize]).unwrap();
             final_shares.insert(node.id, final_share.clone());
 
             // Each party now has their final shares
@@ -870,7 +869,7 @@ mod tests {
         }
 
         // We may now compute the joint verification key from the commitments of the first t dealers.
-        let vk = compute_joint_verification_key(f, &messages[..t as usize]).unwrap();
+        let vk = compute_joint_vk_after_dkg(f, &messages[..t as usize]).unwrap();
 
         // For testing, we can recover the secret key from t shares and check that the secret key matches the verification key.
         let shares = final_shares
