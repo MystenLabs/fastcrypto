@@ -472,21 +472,22 @@ impl ReceiverOutput {
             })
             .collect();
 
-        // let all_indices = outputs[0].value.0.commitments.iter().map(|c| c.index).collect_vec();
-        // let feldman_commitment = Poly::from((0..t).map(|index| {
-        //     let shares = outputs.iter().map(|value|
-        //         Eval {
-        //             index: value.index,
-        //             value: value.value.1.feldman_commitment.coefficient(index as usize).clone(),
-        //         }).collect_vec();
-        //     Poly::<G>::recover_c0_msm(t, shares.iter()).unwrap()
-        // }).collect_vec());
-        //
-        // let commitments = all_indices.iter().map(|index| feldman_commitment.eval(*index)).collect();
+        let all_indices = outputs[0].value.commitments.iter().map(|c| c.index).collect_vec();
+        let commitments = all_indices.iter().map(|&index| {
+            let shares = outputs.iter().map(|output|
+                Eval {
+                    index: output.index.clone(),
+                    value: output.value.commitments[index.get() as usize - 1].value.clone(),
+                });
+            Eval {
+                index,
+                value: Poly::<G>::recover_c0_msm(t, shares).unwrap()
+            }
+        }).collect_vec();
 
         Ok(Self {
             my_shares: SharesForNode { shares },
-            commitments: Vec::new(),
+            commitments,
         })
     }
 }

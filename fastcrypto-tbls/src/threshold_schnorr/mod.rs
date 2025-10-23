@@ -403,6 +403,19 @@ mod tests {
             .collect_vec();
         let sk = Poly::recover_c0(t, shares[0..t as usize].iter()).unwrap();
         assert_eq!(G::generator() * sk, vk);
+
+        // Check commitments on the reshared secret from the first dealer
+        let commitment_1 = merged_shares
+            .get(&0)
+            .unwrap().commitments[0].clone();
+        let secret_1 = merged_shares
+            .get(&0)
+            .unwrap()
+            .my_shares
+            .share_for_index(commitment_1.index)
+            .unwrap()
+            .value;
+        assert_eq!(G::generator() * secret_1, commitment_1.value);
     }
 
     fn sublist<'a, T: Clone, I: Clone + 'a>(
