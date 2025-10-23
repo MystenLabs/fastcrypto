@@ -121,11 +121,12 @@ mod tests {
         // DKG
         //
 
-        // Map from each party to the ordered list of outputs it has received
+        // Map from each party to the outputs it has received
         let mut dkg_outputs = HashMap::<PartyId, HashMap<PartyId, avss::ReceiverOutput>>::new();
-        for node in nodes.iter() {
-            dkg_outputs.insert(node.id, HashMap::new());
-        }
+        nodes.node_ids_iter().for_each(|id| {
+            dkg_outputs.insert(id, HashMap::new());
+        });
+
         let mut messages = Vec::new();
         for dealer_id in nodes.node_ids_iter() {
             let sid = format!("dkg-test-session-{}", dealer_id).into_bytes();
@@ -187,8 +188,8 @@ mod tests {
         let shares = merged_shares
             .values()
             .flat_map(|output| output.my_shares.shares.clone())
-            .collect_vec();
-        let sk = Poly::recover_c0(t, shares[0..t as usize].iter()).unwrap();
+            .take(t as usize);
+        let sk = Poly::recover_c0(t, shares).unwrap();
         assert_eq!(G::generator() * sk, vk);
 
         //
@@ -198,11 +199,12 @@ mod tests {
         // Generate a batch of nonces for each party
         let mut presigning_outputs =
             HashMap::<PartyId, Vec<batch_avss::ReceiverOutput<BATCH_SIZE>>>::new();
-        for node in nodes.iter() {
-            presigning_outputs.insert(node.id, Vec::new());
-        }
-        for node_id in nodes.node_ids_iter() {
-            let sid = format!("presig-test-session-{}", node_id).into_bytes();
+        nodes.node_ids_iter().for_each(|id| {
+            presigning_outputs.insert(id, Vec::new());
+        });
+
+        for dealer_id in nodes.node_ids_iter() {
+            let sid = format!("presig-test-session-{}", dealer_id).into_bytes();
             let dealer: batch_avss::Dealer<BATCH_SIZE> =
                 batch_avss::Dealer::new(nodes.clone(), t, f, sid.clone(), &mut rng).unwrap();
             let receivers = sks
@@ -400,12 +402,12 @@ mod tests {
         let shares = merged_shares_after_rotation
             .values()
             .flat_map(|output| output.my_shares.shares.clone())
-            .collect_vec();
-        let sk = Poly::recover_c0(t, shares[0..t as usize].iter()).unwrap();
+            .take(t as usize);
+        let sk = Poly::recover_c0(t, shares).unwrap();
         assert_eq!(G::generator() * sk, vk);
 
         // Check commitments on the reshared secret from the first dealer
-        let commitment_1 = merged_shares.get(&0).unwrap().commitments[0].clone();
+        let commitment_1 = merged_shares.get(&0).unwrap().commitments.first().unwrap();
         let secret_1 = merged_shares
             .get(&0)
             .unwrap()
@@ -414,6 +416,58 @@ mod tests {
             .unwrap()
             .value;
         assert_eq!(G::generator() * secret_1, commitment_1.value);
+
+        //
+        // SIGNING (again)
+        //
+
+        let message_2 = b"Hello again, world!";
+
+        // Mock a value from the random beacon
+        let beacon_value = S::rand(&mut rng);
+
+        // Each party generates their partial signatures
+        let partial_signatures = nodes
+            .iter()
+            .map(|node| {
+                generate_partial_signatures(
+                    message_2,
+                    presigs.get_mut(&node.id).unwrap(),
+                    &beacon_value,
+                    &merged_shares.get(&node.id).unwrap().my_shares,
+                    &vk,
+                    None,
+                )
+                .unwrap()
+            })
+            .collect_vec();
+
+        // The public parts should all be the same
+        assert!(partial_signatures
+            .iter()
+            .map(|partial_signature| partial_signature.0)
+            .all_equal());
+
+        // Aggregate partial signatures
+        let signature_2 = aggregate_signatures(
+            message_2,
+            &partial_signatures[0].0, // All public parts are equal, so we just take the first
+            &beacon_value,
+            &partial_signatures
+                .iter()
+                .flat_map(|(_, s)| s.clone())
+                .collect_vec(),
+            t,
+            &vk,
+            None,
+        )
+        .unwrap();
+
+        // Check that this produced a valid signature
+        SchnorrPublicKey::try_from(&vk)
+            .unwrap()
+            .verify(message_2, &signature_2)
+            .unwrap();
     }
 
     fn sublist<'a, T: Clone, I: Clone + 'a>(
