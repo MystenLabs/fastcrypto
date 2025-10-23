@@ -57,32 +57,30 @@
 <a href=#57 id=57 data-nosnippet>57</a>        <span class="kw">let </span>si_height = avss_outputs.len() - f;
 <a href=#58 id=58 data-nosnippet>58</a>
 <a href=#59 id=59 data-nosnippet>59</a>        <span class="comment">// There is one secret presigning output per share index (weight) for this party.
-<a href=#60 id=60 data-nosnippet>60</a>        </span><span class="kw">let </span>secret = my_indices
-<a href=#61 id=61 data-nosnippet>61</a>            .iter()
-<a href=#62 id=62 data-nosnippet>62</a>            .enumerate()
-<a href=#63 id=63 data-nosnippet>63</a>            .map(|(i, _index)| {
-<a href=#64 id=64 data-nosnippet>64</a>                <span class="kw">let </span>rho = avss_outputs
-<a href=#65 id=65 data-nosnippet>65</a>                    .iter()
-<a href=#66 id=66 data-nosnippet>66</a>                    .map(|output| output.my_shares.batches[i].shares.to_vec())
-<a href=#67 id=67 data-nosnippet>67</a>                    .collect();
-<a href=#68 id=68 data-nosnippet>68</a>                LazyPascalMatrixMultiplier::new(si_height, rho)
-<a href=#69 id=69 data-nosnippet>69</a>            })
-<a href=#70 id=70 data-nosnippet>70</a>            .collect_vec();
-<a href=#71 id=71 data-nosnippet>71</a>
-<a href=#72 id=72 data-nosnippet>72</a>        <span class="kw">let </span>public = LazyPascalMatrixMultiplier::new(
-<a href=#73 id=73 data-nosnippet>73</a>            si_height,
-<a href=#74 id=74 data-nosnippet>74</a>            avss_outputs
-<a href=#75 id=75 data-nosnippet>75</a>                .iter()
-<a href=#76 id=76 data-nosnippet>76</a>                .map(|output| output.public_keys.to_vec())
-<a href=#77 id=77 data-nosnippet>77</a>                .collect(),
-<a href=#78 id=78 data-nosnippet>78</a>        );
+<a href=#60 id=60 data-nosnippet>60</a>        </span><span class="kw">let </span>secret = (<span class="number">0</span>..my_indices.len())
+<a href=#61 id=61 data-nosnippet>61</a>            .map(|i| {
+<a href=#62 id=62 data-nosnippet>62</a>                <span class="kw">let </span>rho = avss_outputs
+<a href=#63 id=63 data-nosnippet>63</a>                    .iter()
+<a href=#64 id=64 data-nosnippet>64</a>                    .map(|output| output.my_shares.batches[i].shares.to_vec())
+<a href=#65 id=65 data-nosnippet>65</a>                    .collect();
+<a href=#66 id=66 data-nosnippet>66</a>                LazyPascalMatrixMultiplier::new(si_height, rho)
+<a href=#67 id=67 data-nosnippet>67</a>            })
+<a href=#68 id=68 data-nosnippet>68</a>            .collect_vec();
+<a href=#69 id=69 data-nosnippet>69</a>
+<a href=#70 id=70 data-nosnippet>70</a>        <span class="kw">let </span>public = LazyPascalMatrixMultiplier::new(
+<a href=#71 id=71 data-nosnippet>71</a>            si_height,
+<a href=#72 id=72 data-nosnippet>72</a>            avss_outputs
+<a href=#73 id=73 data-nosnippet>73</a>                .iter()
+<a href=#74 id=74 data-nosnippet>74</a>                .map(|output| output.public_keys.to_vec())
+<a href=#75 id=75 data-nosnippet>75</a>                .collect(),
+<a href=#76 id=76 data-nosnippet>76</a>        );
+<a href=#77 id=77 data-nosnippet>77</a>
+<a href=#78 id=78 data-nosnippet>78</a>        <span class="macro">assert_eq!</span>(secret[<span class="number">0</span>].len(), public.len());
 <a href=#79 id=79 data-nosnippet>79</a>
-<a href=#80 id=80 data-nosnippet>80</a>        <span class="macro">assert_eq!</span>(secret[<span class="number">0</span>].len(), public.len());
-<a href=#81 id=81 data-nosnippet>81</a>
-<a href=#82 id=82 data-nosnippet>82</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
-<a href=#83 id=83 data-nosnippet>83</a>            secret,
-<a href=#84 id=84 data-nosnippet>84</a>            public,
-<a href=#85 id=85 data-nosnippet>85</a>            index: <span class="number">0</span>,
-<a href=#86 id=86 data-nosnippet>86</a>        })
-<a href=#87 id=87 data-nosnippet>87</a>    }
-<a href=#88 id=88 data-nosnippet>88</a>}</code></pre></div></section></main></body></html>
+<a href=#80 id=80 data-nosnippet>80</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+<a href=#81 id=81 data-nosnippet>81</a>            secret,
+<a href=#82 id=82 data-nosnippet>82</a>            public,
+<a href=#83 id=83 data-nosnippet>83</a>            index: <span class="number">0</span>,
+<a href=#84 id=84 data-nosnippet>84</a>        })
+<a href=#85 id=85 data-nosnippet>85</a>    }
+<a href=#86 id=86 data-nosnippet>86</a>}</code></pre></div></section></main></body></html>
