@@ -467,23 +467,40 @@ impl ReceiverOutput {
                         .clone()
                         .value,
                 });
-                let value = Poly::recover_c0(t, shares).unwrap();
-                Eval { index, value }
+                Eval {
+                    index,
+                    value: Poly::recover_c0(t, shares).unwrap(),
+                }
             })
             .collect();
 
-        let all_indices = outputs[0].value.commitments.iter().map(|c| c.index).collect_vec();
-        let commitments = all_indices.iter().map(|&index| {
-            let shares = outputs.iter().map(|output|
-                Eval {
-                    index: output.index.clone(),
-                    value: output.value.commitments[index.get() as usize - 1].value.clone(),
+        // Alternatively, give this as a parameter
+        let all_indices = outputs[0]
+            .value
+            .commitments
+            .iter()
+            .map(|c| c.index)
+            .collect_vec();
+
+        let commitments = all_indices
+            .iter()
+            .map(|&index| {
+                let shares = outputs.iter().map(|output| Eval {
+                    index: output.index,
+                    value: output
+                        .value
+                        .commitments
+                        .iter()
+                        .find(|c| c.index == index)
+                        .unwrap()
+                        .value,
                 });
-            Eval {
-                index,
-                value: Poly::<G>::recover_c0_msm(t, shares).unwrap()
-            }
-        }).collect_vec();
+                Eval {
+                    index,
+                    value: Poly::recover_c0_msm(t, shares).unwrap(),
+                }
+            })
+            .collect_vec();
 
         Ok(Self {
             my_shares: SharesForNode { shares },

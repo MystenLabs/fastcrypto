@@ -405,9 +405,7 @@ mod tests {
         assert_eq!(G::generator() * sk, vk);
 
         // Check commitments on the reshared secret from the first dealer
-        let commitment_1 = merged_shares
-            .get(&0)
-            .unwrap().commitments[0].clone();
+        let commitment_1 = merged_shares.get(&0).unwrap().commitments[0].clone();
         let secret_1 = merged_shares
             .get(&0)
             .unwrap()
