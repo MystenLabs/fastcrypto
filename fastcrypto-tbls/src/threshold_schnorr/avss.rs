@@ -21,7 +21,7 @@ use crate::types;
 use crate::types::{IndexedValue, ShareIndex};
 use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{GroupElement, Scalar};
+use fastcrypto::groups::Scalar;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -68,6 +68,9 @@ pub struct ReceiverOutput {
 
     /// The commitments to the polynomials will be used for key rotation.
     pub commitments: Vec<Eval<G>>,
+
+    /// The public key corresponding to the secret the dealer is sharing.
+    pub vk: G,
 }
 
 /// All the shares given to a node. One share per the node's weight.
@@ -270,6 +273,7 @@ impl Receiver {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
                 my_shares,
                 commitments: self.compute_commitments(message),
+                vk: message.feldman_commitment.c0().clone(),
             })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
@@ -352,6 +356,7 @@ impl Receiver {
         Ok(ReceiverOutput {
             my_shares,
             commitments: self.compute_commitments(message),
+            vk: message.feldman_commitment.c0().clone(),
         })
     }
 
@@ -377,13 +382,6 @@ impl Receiver {
     }
 }
 
-pub fn compute_joint_vk_after_dkg(f: u16, messages: &[Message]) -> FastCryptoResult<G> {
-    if messages.len() != (f + 1) as usize {
-        return Err(InputLengthWrong((f + 1) as usize));
-    }
-    Ok(G::sum(messages.iter().map(|m| *m.feldman_commitment.c0())))
-}
-
 impl ReceiverOutput {
     fn weight(&self) -> usize {
         self.my_shares.weight()
@@ -400,6 +398,7 @@ impl ReceiverOutput {
     /// Combine multiple outputs from different dealers into a single output by summing.
     /// This is used after a successful AVSS used for DKG to combine the shares from multiple dealers into a single share for each party.
     /// Panics if the given `ReceiverOutput`s are not compatible (same weight, same indices, same number of commitments)
+    /// Returns the combined output + the joint verifying key
     pub fn complete_dkg(t: u16, outputs: Vec<Self>) -> FastCryptoResult<Self> {
         // The same t dealers are needed for all parties to ensure uniqueness and that at least one honest dealers secret is included in the key.
         if outputs.len() != t as usize {
@@ -428,6 +427,7 @@ impl ReceiverOutput {
                 ReceiverOutput {
                     my_shares: SharesForNode { shares },
                     commitments,
+                    vk: acc.vk + output.vk,
                 }
             })
             .expect("Should not be empty"))
@@ -482,9 +482,19 @@ impl ReceiverOutput {
             })
             .collect_vec();
 
+        // TODO: This will not change, so perhaps it's not meaningful to compute it again, except for a sanity check?
+        let vk = Poly::recover_c0_msm(
+            t,
+            outputs.iter().map(|output| Eval {
+                index: output.index,
+                value: output.value.vk,
+            }),
+        )?;
+
         Ok(Self {
             my_shares: SharesForNode { shares },
             commitments,
+            vk,
         })
     }
 }
@@ -495,7 +505,7 @@ mod tests {
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::Poly;
-    use crate::threshold_schnorr::avss::{compute_joint_vk_after_dkg, SharesForNode};
+    use crate::threshold_schnorr::avss::SharesForNode;
     use crate::threshold_schnorr::avss::{Dealer, Message, Receiver};
     use crate::threshold_schnorr::avss::{ProcessedMessage, ReceiverOutput};
     use crate::threshold_schnorr::bcs::BCSSerialized;
@@ -886,7 +896,7 @@ mod tests {
         }
 
         // We may now compute the joint verification key from the commitments of the first t dealers.
-        let vk = compute_joint_vk_after_dkg(f, &messages[..t as usize]).unwrap();
+        let vk = final_shares.get(&0).unwrap().vk;
 
         // For testing, we can recover the secret key from t shares and check that the secret key matches the verification key.
         let shares = final_shares

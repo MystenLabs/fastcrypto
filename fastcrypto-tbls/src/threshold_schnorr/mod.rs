@@ -77,7 +77,6 @@ mod tests {
     use crate::ecies_v1::PublicKey;
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::{Eval, Poly};
-    use crate::threshold_schnorr::avss::compute_joint_vk_after_dkg;
     use crate::threshold_schnorr::batch_avss::{ShareBatch, SharesForNode};
     use crate::threshold_schnorr::key_derivation::derive_verifying_key;
     use crate::threshold_schnorr::presigning::Presignatures;
@@ -180,8 +179,9 @@ mod tests {
             })
             .collect::<HashMap<_, _>>();
 
-        // We may now compute the joint verification key from the commitments of the first t dealers.
-        let vk = compute_joint_vk_after_dkg(f, &sublist(&messages, dkg_cert.iter())).unwrap();
+        // All receivers should now have the same verifying key
+        assert!(merged_shares.values().map(|output| output.vk).all_equal());
+        let vk = merged_shares.get(&0).unwrap().vk.clone();
 
         // For testing, we now recover the secret key from t shares and check that the secret key matches the verification key.
         // In practice, the parties should never do this...
@@ -397,6 +397,11 @@ mod tests {
             })
             .collect::<HashMap<_, _>>();
 
+        // The verifying key should be the same
+        for (_, output) in merged_shares_after_rotation.iter() {
+            assert_eq!(output.vk, vk);
+        }
+
         // For testing, we now recover the secret key from t shares and check that the secret key matches the verification key.
         // In practice, the parties should never do this...
         let shares = merged_shares_after_rotation
@@ -467,18 +472,6 @@ mod tests {
             .unwrap()
             .verify(message_2, &signature_2)
             .unwrap();
-    }
-
-    fn sublist<'a, T: Clone, I: Clone + 'a>(
-        list: &[T],
-        indices: impl Iterator<Item = &'a I>,
-    ) -> Vec<T>
-    where
-        usize: From<I>,
-    {
-        indices
-            .map(|i| list[usize::from(i.clone())].clone())
-            .collect()
     }
 
     fn image<'a, T: Clone, I: Eq + Hash + 'a>(
