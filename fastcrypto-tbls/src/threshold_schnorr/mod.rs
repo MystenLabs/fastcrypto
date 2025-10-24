@@ -205,9 +205,10 @@ mod tests {
             presigning_outputs.insert(id, Vec::new());
         });
 
+        // Each dealer generates a batch of presigs per share they control.
         for dealer_id in nodes.node_ids_iter() {
-            for share_index in nodes.share_ids_of(dealer_id).unwrap() {
-                let sid = format!("presig-test-session-{}", share_index).into_bytes();
+            for (i, _) in nodes.share_ids_of(dealer_id).unwrap().iter().enumerate() {
+                let sid = format!("presig-test-session-{}-{}", dealer_id, i).into_bytes();
                 let dealer: batch_avss::Dealer<BATCH_SIZE> =
                     batch_avss::Dealer::new(nodes.clone(), t, f, sid.clone(), &mut rng).unwrap();
                 let receivers = sks
@@ -368,7 +369,7 @@ mod tests {
         }
 
         // The first t dealers (counted by weight) form the certificate and are the ones whose outputs will be used to create the final shares.
-        let key_rotation_cert = [PartyId::from(0u8), PartyId::from(2u8)];
+        let key_rotation_cert = [PartyId::from(1u8), PartyId::from(2u8)];
         let share_indices_in_cert = key_rotation_cert
             .iter()
             .flat_map(|id| nodes.share_ids_of(*id).unwrap())
@@ -394,7 +395,10 @@ mod tests {
                         t,
                         &nodes.share_ids_of(receiver_id).unwrap(),
                         nodes.share_ids_iter(),
-                        &my_shares_from_cert,
+                        &my_shares_from_cert
+                            .into_iter()
+                            .take(t as usize)
+                            .collect_vec(),
                     )
                     .unwrap(),
                 )
