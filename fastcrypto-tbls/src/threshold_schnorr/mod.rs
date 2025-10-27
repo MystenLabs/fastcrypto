@@ -93,10 +93,11 @@ mod tests {
 
     #[test]
     fn test_e2e() {
-        // No complaints, all honest. All have weight 1
+        // No complaints, all honest
         let t = 3;
         let f = 2;
-        let n = 7;
+        let weights = [1, 2, 2, 2];
+        let n = weights.len();
 
         const BATCH_SIZE: usize = 10;
 
@@ -107,10 +108,11 @@ mod tests {
         let nodes = Nodes::new(
             sks.iter()
                 .enumerate()
-                .map(|(id, sk)| Node {
+                .zip(weights)
+                .map(|((id, sk), weight)| Node {
                     id: id as u16,
                     pk: PublicKey::from_private_key(sk),
-                    weight: 1,
+                    weight,
                 })
                 .collect::<Vec<_>>(),
         )
@@ -161,7 +163,7 @@ mod tests {
         }
 
         // The first t dealers form the certificate and are the ones whose outputs will be used to create the final shares.
-        let dkg_cert = [PartyId::from(1u8), PartyId::from(3u8), PartyId::from(4u8)];
+        let dkg_cert = [PartyId::from(1u8), PartyId::from(2u8)];
 
         // Now, each party has collected their outputs from all dealers. We use the first t outputs to create the final shares for signing.
         // Each party should still keep the outputs from all dealers until the end of the epoch to handle complaints.
@@ -171,7 +173,7 @@ mod tests {
                 (
                     node.id,
                     avss::ReceiverOutput::complete_dkg(
-                        t,
+                        dkg_cert.len() as u16,
                         image(dkg_outputs.get(&node.id).unwrap(), dkg_cert.iter()),
                     )
                     .unwrap(),
@@ -196,43 +198,46 @@ mod tests {
         // PRESIGNING
         //
 
-        // Generate a batch of nonces for each party
+        // Generate a batch of nonces for each party's share
         let mut presigning_outputs =
             HashMap::<PartyId, Vec<batch_avss::ReceiverOutput<BATCH_SIZE>>>::new();
         nodes.node_ids_iter().for_each(|id| {
             presigning_outputs.insert(id, Vec::new());
         });
 
+        // Each dealer generates a batch of presigs per share they control.
         for dealer_id in nodes.node_ids_iter() {
-            let sid = format!("presig-test-session-{}", dealer_id).into_bytes();
-            let dealer: batch_avss::Dealer<BATCH_SIZE> =
-                batch_avss::Dealer::new(nodes.clone(), t, f, sid.clone(), &mut rng).unwrap();
-            let receivers = sks
-                .iter()
-                .enumerate()
-                .map(|(id, enc_secret_key)| {
-                    batch_avss::Receiver::<BATCH_SIZE>::new(
-                        nodes.clone(),
-                        id as u16,
-                        t,
-                        sid.clone(),
-                        enc_secret_key.clone(),
-                    )
-                })
-                .collect::<Vec<_>>();
+            for (i, _) in nodes.share_ids_of(dealer_id).unwrap().iter().enumerate() {
+                let sid = format!("presig-test-session-{}-{}", dealer_id, i).into_bytes();
+                let dealer: batch_avss::Dealer<BATCH_SIZE> =
+                    batch_avss::Dealer::new(nodes.clone(), t, f, sid.clone(), &mut rng).unwrap();
+                let receivers = sks
+                    .iter()
+                    .enumerate()
+                    .map(|(id, enc_secret_key)| {
+                        batch_avss::Receiver::<BATCH_SIZE>::new(
+                            nodes.clone(),
+                            id as u16,
+                            t,
+                            sid.clone(),
+                            enc_secret_key.clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
 
-            // Each dealer creates a message
-            let message = dealer.create_message(&mut rng).unwrap();
+                // Each dealer creates a message
+                let message = dealer.create_message(&mut rng).unwrap();
 
-            // Each receiver processes the message.
-            // In this case, we assume all are honest and there are no complaints.
-            receivers.iter().for_each(|receiver| {
-                let output = assert_valid_batch(receiver.process_message(&message).unwrap());
-                presigning_outputs
-                    .get_mut(&receiver.id())
-                    .unwrap()
-                    .push(output);
-            });
+                // Each receiver processes the message.
+                // In this case, we assume all are honest and there are no complaints.
+                receivers.iter().for_each(|receiver| {
+                    let output = assert_valid_batch(receiver.process_message(&message).unwrap());
+                    presigning_outputs
+                        .get_mut(&receiver.id())
+                        .unwrap()
+                        .push(output);
+                });
+            }
         }
 
         // Each party can process their presigs locally from the secret shared nonces
@@ -364,7 +369,7 @@ mod tests {
         }
 
         // The first t dealers (counted by weight) form the certificate and are the ones whose outputs will be used to create the final shares.
-        let key_rotation_cert = [PartyId::from(2u8), PartyId::from(3u8), PartyId::from(5u8)];
+        let key_rotation_cert = [PartyId::from(1u8), PartyId::from(2u8)];
         let share_indices_in_cert = key_rotation_cert
             .iter()
             .flat_map(|id| nodes.share_ids_of(*id).unwrap())
@@ -390,7 +395,10 @@ mod tests {
                         t,
                         &nodes.share_ids_of(receiver_id).unwrap(),
                         nodes.share_ids_iter(),
-                        &my_shares_from_cert,
+                        &my_shares_from_cert
+                            .into_iter()
+                            .take(t as usize)
+                            .collect_vec(),
                     )
                     .unwrap(),
                 )
