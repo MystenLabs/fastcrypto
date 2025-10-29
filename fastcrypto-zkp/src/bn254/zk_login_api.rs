@@ -340,7 +340,7 @@ pub fn verify_zk_login(
         FastCryptoError::GeneralError("Invalid Base64 encoded jwk modulus".to_string())
     })?;
 
-    // Calculat all inputs hash and passed to the verification function.
+    // Calculate all inputs hash and passed to the verification function.
     match verify_zk_login_proof_with_fixed_vk(
         env,
         &input.get_proof().as_arkworks()?,
