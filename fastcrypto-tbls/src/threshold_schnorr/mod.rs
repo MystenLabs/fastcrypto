@@ -394,8 +394,8 @@ mod tests {
                     receiver_id,
                     avss::ReceiverOutput::complete_key_rotation(
                         t,
-                        &nodes.share_ids_of(receiver_id).unwrap(),
-                        nodes.share_ids_iter(),
+                        receiver_id,
+                        &nodes,
                         &my_shares_from_cert
                             .into_iter()
                             .take(t as usize)

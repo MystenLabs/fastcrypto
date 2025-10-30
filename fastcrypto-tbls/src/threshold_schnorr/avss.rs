@@ -456,8 +456,8 @@ impl ReceiverOutput {
     /// the AVSS instance was sharing.
     pub fn complete_key_rotation(
         t: u16,
-        my_indices: &[ShareIndex],
-        all_indices: impl Iterator<Item = ShareIndex>,
+        my_id: PartyId,
+        nodes: &Nodes<EG>,
         outputs: &[IndexedValue<Self>],
     ) -> FastCryptoResult<Self> {
         if outputs.len() != t as usize {
@@ -466,6 +466,8 @@ impl ReceiverOutput {
         if outputs.is_empty() {
             return Err(InvalidInput);
         }
+
+        let my_indices = nodes.share_ids_of(my_id)?;
 
         let shares = my_indices
             .iter()
@@ -482,7 +484,8 @@ impl ReceiverOutput {
             })
             .collect();
 
-        let commitments = all_indices
+        let commitments = nodes
+            .share_ids_iter()
             .map(|index| Eval {
                 index,
                 value: Poly::recover_c0_msm(
@@ -913,9 +916,6 @@ mod tests {
             )
             .unwrap();
             final_shares.insert(node.id, final_share.clone());
-
-            // Each party now has their final shares
-            println!("Node {} final shares: {:?}", node.id, final_share);
         }
 
         // We may now compute the joint verification key from the commitments of the first t dealers.
