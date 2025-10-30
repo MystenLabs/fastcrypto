@@ -20,7 +20,7 @@ use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types;
 use crate::types::{IndexedValue, ShareIndex};
 use fastcrypto::error::FastCryptoError::{
-    InputLengthWrong, InputTooShort, InvalidInput, InvalidMessage, NotEnoughWeight,
+    InputLengthWrong, InvalidInput, InvalidMessage, NotEnoughWeight,
 };
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::Scalar;
@@ -406,21 +406,19 @@ impl ReceiverOutput {
     pub fn complete_dkg(
         t: u16,
         nodes: &Nodes<EG>,
-        outputs: &HashMap<PartyId, Self>,
+        outputs: HashMap<PartyId, Self>,
     ) -> FastCryptoResult<Self> {
         let weights = outputs
-            .iter()
-            .map(|(party_id, _)| nodes.weight_of(*party_id))
+            .keys()
+            .map(|party_id| nodes.weight_of(*party_id))
             .collect::<FastCryptoResult<Vec<_>>>()?;
         if weights.iter().sum::<u16>() < t {
             return Err(NotEnoughWeight(t as usize));
         }
 
-        // Sanity check: Threshold cannot be zero and all outputs must have the same weight.
-        let outputs = outputs
-            .into_iter()
-            .map(|(_, output)| output.clone())
-            .collect_vec();
+        let outputs = outputs.into_values().collect_vec();
+
+        // Sanity check: Outputs cannot be empty and all outputs must have the same weight.
         if outputs.is_empty() || !outputs.iter().map(|output| output.weight()).all_equal() {
             return Err(InvalidInput);
         }
@@ -912,7 +910,7 @@ mod tests {
             let final_share = ReceiverOutput::complete_dkg(
                 t,
                 &nodes,
-                &restrict(&my_outputs, cert.clone().into_iter()),
+                restrict(my_outputs, cert.clone().into_iter()),
             )
             .unwrap();
             final_shares.insert(node.id, final_share.clone());

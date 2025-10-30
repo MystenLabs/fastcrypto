@@ -175,7 +175,7 @@ mod tests {
                     avss::ReceiverOutput::complete_dkg(
                         t,
                         &nodes,
-                        dkg_outputs.get(&node.id).unwrap(),
+                        restrict(dkg_outputs.get(&node.id).unwrap(), dkg_cert.into_iter()),
                     )
                     .unwrap(),
                 )
