@@ -503,7 +503,7 @@ mod tests {
 
     /// Restrict a `HashMap` to a given set of keys.
     /// Panics if the given subset is not a subset of the maps' keys.
-    pub(crate) fn restrict<'a, T: Clone, I: Eq + Hash + 'a>(
+    pub(crate) fn restrict<T: Clone, I: Eq + Hash>(
         map: &HashMap<I, T>,
         keys_subset: impl Iterator<Item = I>,
     ) -> HashMap<I, T>
