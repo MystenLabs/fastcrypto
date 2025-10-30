@@ -162,8 +162,15 @@ mod tests {
             });
         }
 
-        // The first t dealers form the certificate and are the ones whose outputs will be used to create the final shares.
+        // The dealers to form the certificate should have weight >= t, and are the ones whose outputs will be used to create the final shares.
         let dkg_cert = [PartyId::from(1u8), PartyId::from(2u8)];
+        assert!(
+            dkg_cert
+                .iter()
+                .map(|party| nodes.weight_of(*party).unwrap())
+                .sum::<u16>()
+                >= t
+        );
 
         // Now, each party has collected their outputs from all dealers. We use the first t outputs to create the final shares for signing.
         // Each party should still keep the outputs from all dealers until the end of the epoch to handle complaints.
@@ -172,10 +179,10 @@ mod tests {
             .map(|node| {
                 (
                     node.id,
-                    avss::ReceiverOutput::complete_dkg(
-                        dkg_cert.len() as u16,
-                        image(dkg_outputs.get(&node.id).unwrap(), dkg_cert.iter()),
-                    )
+                    avss::ReceiverOutput::complete_dkg(image(
+                        dkg_outputs.get(&node.id).unwrap(),
+                        dkg_cert.iter(),
+                    ))
                     .unwrap(),
                 )
             })

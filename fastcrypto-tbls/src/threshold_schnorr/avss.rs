@@ -396,15 +396,11 @@ impl ReceiverOutput {
     }
 
     /// Combine multiple outputs from different dealers into a single output by summing.
+    /// It is up to the caller to ensure that the weight of the dealers the outputs comes from is sufficiently large.
     /// This is used after a successful AVSS used for DKG to combine the shares from multiple dealers into a single share for each party.
     /// Panics if the given `ReceiverOutput`s are not compatible (same weight, same indices, same number of commitments)
     /// Returns the combined output + the joint verifying key
-    pub fn complete_dkg(t: u16, outputs: Vec<Self>) -> FastCryptoResult<Self> {
-        // The same t dealers are needed for all parties to ensure uniqueness and that at least one honest dealers secret is included in the key.
-        if outputs.len() != t as usize {
-            return Err(InputLengthWrong(t as usize));
-        }
-
+    pub fn complete_dkg(outputs: Vec<Self>) -> FastCryptoResult<Self> {
         // Sanity check: Threshold cannot be zero and all outputs must have the same weight.
         if outputs.is_empty() || !outputs.iter().map(|output| output.weight()).all_equal() {
             return Err(InvalidInput);
@@ -885,12 +881,12 @@ mod tests {
         }
 
         // Now, each party has collected their outputs from all dealers.
-        // We use the first f + 1 outputs seen on-chain to create the final shares.
+        // We use the first t outputs seen on-chain to create the final shares.
         let mut final_shares = HashMap::<PartyId, ReceiverOutput>::new();
         for node in nodes.iter() {
             let my_outputs = outputs.get(&node.id).unwrap();
             let final_share =
-                ReceiverOutput::complete_dkg(t, my_outputs[..t as usize].to_vec()).unwrap();
+                ReceiverOutput::complete_dkg(my_outputs[..t as usize].to_vec()).unwrap();
             final_shares.insert(node.id, final_share.clone());
 
             // Each party now has their final shares
