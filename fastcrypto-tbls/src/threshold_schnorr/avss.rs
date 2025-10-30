@@ -407,11 +407,7 @@ impl ReceiverOutput {
         nodes: &Nodes<EG>,
         outputs: HashMap<PartyId, Self>,
     ) -> FastCryptoResult<Self> {
-        let weights = outputs
-            .keys()
-            .map(|party_id| nodes.weight_of(*party_id))
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        if weights.iter().sum::<u16>() < t {
+        if nodes.total_weight_of(outputs.keys())? < t {
             return Err(NotEnoughWeight(t as usize));
         }
 
