@@ -399,7 +399,6 @@ impl ReceiverOutput {
     }
 
     /// Combine multiple outputs from different dealers into a single output by summing.
-    /// The outputs are given as a tupler, (weight, output).
     /// This is used after a successful AVSS used for DKG to combine the shares from multiple dealers into a single share for each party.
     /// Panics if the given `ReceiverOutput`s are not compatible (same weight, same indices, same number of commitments)
     /// Returns the combined output + the joint verifying key
@@ -902,7 +901,7 @@ mod tests {
         }
 
         // Now, each party has collected their outputs from all dealers.
-        // We use the first t outputs seen on-chain to create the final shares.
+        // We use the first t outputs seen on-chain (because all dealers have weight 1) to create the final shares.
         let mut final_shares = HashMap::<PartyId, ReceiverOutput>::new();
         let cert = vec![0, 1, 2];
         for node in nodes.iter() {

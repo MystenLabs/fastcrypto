@@ -165,7 +165,7 @@ mod tests {
         // The dealers to form the certificate should have weight >= t, and are the ones whose outputs will be used to create the final shares.
         let dkg_cert = [PartyId::from(1u8), PartyId::from(2u8)];
 
-        // Now, each party has collected their outputs from all dealers. We use the first t outputs to create the final shares for signing.
+        // Now, each party has collected their outputs from all dealers. We use the output from the dealers in dkg_cert create the final shares for signing.
         // Each party should still keep the outputs from all dealers until the end of the epoch to handle complaints.
         let merged_shares = nodes
             .iter()
