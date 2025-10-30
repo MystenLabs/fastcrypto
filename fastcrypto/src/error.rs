@@ -60,6 +60,10 @@ pub enum FastCryptoError {
     #[error("Too many errors to correct in error decoding. Up to {0} errors can be corrected.")]
     TooManyErrors(usize),
 
+    /// The inputs given does not have enough weight.
+    #[error("Total weight of inputs to small. Should give at least {0}.")]
+    NotEnoughWeight(usize),
+
     /// General cryptographic error.
     #[error("General cryptographic error: {0}")]
     GeneralError(String),

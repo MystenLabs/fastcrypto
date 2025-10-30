@@ -19,12 +19,15 @@ use crate::threshold_schnorr::Extensions::Encryption;
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types;
 use crate::types::{IndexedValue, ShareIndex};
-use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, InvalidMessage};
+use fastcrypto::error::FastCryptoError::{
+    InputLengthWrong, InputTooShort, InvalidInput, InvalidMessage, NotEnoughWeight,
+};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::Scalar;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tap::TapFallible;
 use tracing::warn;
 
@@ -396,12 +399,28 @@ impl ReceiverOutput {
     }
 
     /// Combine multiple outputs from different dealers into a single output by summing.
-    /// It is up to the caller to ensure that the weight of the dealers the outputs comes from is sufficiently large.
+    /// The outputs are given as a tupler, (weight, output).
     /// This is used after a successful AVSS used for DKG to combine the shares from multiple dealers into a single share for each party.
     /// Panics if the given `ReceiverOutput`s are not compatible (same weight, same indices, same number of commitments)
     /// Returns the combined output + the joint verifying key
-    pub fn complete_dkg(outputs: Vec<Self>) -> FastCryptoResult<Self> {
+    pub fn complete_dkg(
+        t: u16,
+        nodes: &Nodes<EG>,
+        outputs: &HashMap<PartyId, Self>,
+    ) -> FastCryptoResult<Self> {
+        let weights = outputs
+            .iter()
+            .map(|(party_id, _)| nodes.weight_of(*party_id))
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+        if weights.iter().sum::<u16>() < t {
+            return Err(NotEnoughWeight(t as usize));
+        }
+
         // Sanity check: Threshold cannot be zero and all outputs must have the same weight.
+        let outputs = outputs
+            .into_iter()
+            .map(|(_, output)| output.clone())
+            .collect_vec();
         if outputs.is_empty() || !outputs.iter().map(|output| output.weight()).all_equal() {
             return Err(InvalidInput);
         }
@@ -508,6 +527,7 @@ mod tests {
     use crate::threshold_schnorr::avss::{ProcessedMessage, ReceiverOutput};
     use crate::threshold_schnorr::bcs::BCSSerialized;
     use crate::threshold_schnorr::complaint::Complaint;
+    use crate::threshold_schnorr::tests::restrict;
     use crate::threshold_schnorr::Extensions::Encryption;
     use crate::threshold_schnorr::{EG, G, S};
     use fastcrypto::error::FastCryptoResult;
@@ -840,10 +860,10 @@ mod tests {
         )
         .unwrap();
 
-        // Map from each party to the ordered list of outputs it has received
-        let mut outputs = HashMap::<PartyId, Vec<ReceiverOutput>>::new();
+        // Map from each party to the list of outputs it has received
+        let mut outputs = HashMap::<PartyId, HashMap<PartyId, ReceiverOutput>>::new();
         for node in nodes.iter() {
-            outputs.insert(node.id, Vec::new());
+            outputs.insert(node.id, HashMap::new());
         }
 
         let mut messages = Vec::new();
@@ -874,7 +894,10 @@ mod tests {
             // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
             receivers.iter().for_each(|receiver| {
                 let output = assert_valid(receiver.process_message(&message).unwrap());
-                outputs.get_mut(&receiver.id()).unwrap().push(output);
+                outputs
+                    .get_mut(&receiver.id())
+                    .unwrap()
+                    .insert(node.id, output);
             });
 
             // TODO: Create certificate and post it on TOB
@@ -883,10 +906,15 @@ mod tests {
         // Now, each party has collected their outputs from all dealers.
         // We use the first t outputs seen on-chain to create the final shares.
         let mut final_shares = HashMap::<PartyId, ReceiverOutput>::new();
+        let cert = vec![0, 1, 2];
         for node in nodes.iter() {
             let my_outputs = outputs.get(&node.id).unwrap();
-            let final_share =
-                ReceiverOutput::complete_dkg(my_outputs[..t as usize].to_vec()).unwrap();
+            let final_share = ReceiverOutput::complete_dkg(
+                t,
+                &nodes,
+                &restrict(&my_outputs, cert.clone().into_iter()),
+            )
+            .unwrap();
             final_shares.insert(node.id, final_share.clone());
 
             // Each party now has their final shares

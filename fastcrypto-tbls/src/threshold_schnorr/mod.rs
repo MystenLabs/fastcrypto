@@ -164,13 +164,6 @@ mod tests {
 
         // The dealers to form the certificate should have weight >= t, and are the ones whose outputs will be used to create the final shares.
         let dkg_cert = [PartyId::from(1u8), PartyId::from(2u8)];
-        assert!(
-            dkg_cert
-                .iter()
-                .map(|party| nodes.weight_of(*party).unwrap())
-                .sum::<u16>()
-                >= t
-        );
 
         // Now, each party has collected their outputs from all dealers. We use the first t outputs to create the final shares for signing.
         // Each party should still keep the outputs from all dealers until the end of the epoch to handle complaints.
@@ -179,10 +172,11 @@ mod tests {
             .map(|node| {
                 (
                     node.id,
-                    avss::ReceiverOutput::complete_dkg(image(
+                    avss::ReceiverOutput::complete_dkg(
+                        t,
+                        &nodes,
                         dkg_outputs.get(&node.id).unwrap(),
-                        dkg_cert.iter(),
-                    ))
+                    )
                     .unwrap(),
                 )
             })
@@ -489,16 +483,6 @@ mod tests {
             .unwrap();
     }
 
-    fn image<'a, T: Clone, I: Eq + Hash + 'a>(
-        map: &HashMap<I, T>,
-        indices: impl Iterator<Item = &'a I>,
-    ) -> Vec<T>
-    where
-        usize: From<I>,
-    {
-        indices.map(|i| map.get(i).unwrap().clone()).collect()
-    }
-
     fn assert_valid_batch<const N: usize>(
         processed_message: batch_avss::ProcessedMessage<N>,
     ) -> batch_avss::ReceiverOutput<N> {
@@ -515,6 +499,23 @@ mod tests {
         } else {
             panic!("Expected valid message");
         }
+    }
+
+    /// Restrict a `HashMap` to a given set of keys.
+    /// Panics if the given subset is not a subset of the maps' keys.
+    pub(crate) fn restrict<'a, T: Clone, I: Eq + Hash + 'a>(
+        map: &HashMap<I, T>,
+        keys_subset: impl Iterator<Item = I>,
+    ) -> HashMap<I, T>
+    where
+        usize: From<I>,
+    {
+        keys_subset
+            .map(|i| {
+                let value = map.get(&i).unwrap().clone();
+                (i, value)
+            })
+            .collect()
     }
 
     #[test]
