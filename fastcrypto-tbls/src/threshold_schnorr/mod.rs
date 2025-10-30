@@ -162,10 +162,10 @@ mod tests {
             });
         }
 
-        // The first t dealers form the certificate and are the ones whose outputs will be used to create the final shares.
+        // The dealers to form the certificate should have weight >= t, and are the ones whose outputs will be used to create the final shares.
         let dkg_cert = [PartyId::from(1u8), PartyId::from(2u8)];
 
-        // Now, each party has collected their outputs from all dealers. We use the first t outputs to create the final shares for signing.
+        // Now, each party has collected their outputs from all dealers. We use the output from the dealers in dkg_cert create the final shares for signing.
         // Each party should still keep the outputs from all dealers until the end of the epoch to handle complaints.
         let merged_shares = nodes
             .iter()
@@ -173,8 +173,9 @@ mod tests {
                 (
                     node.id,
                     avss::ReceiverOutput::complete_dkg(
-                        dkg_cert.len() as u16,
-                        image(dkg_outputs.get(&node.id).unwrap(), dkg_cert.iter()),
+                        t,
+                        &nodes,
+                        restrict(dkg_outputs.get(&node.id).unwrap(), dkg_cert.into_iter()),
                     )
                     .unwrap(),
                 )
@@ -393,8 +394,8 @@ mod tests {
                     receiver_id,
                     avss::ReceiverOutput::complete_key_rotation(
                         t,
-                        &nodes.share_ids_of(receiver_id).unwrap(),
-                        nodes.share_ids_iter(),
+                        receiver_id,
+                        &nodes,
                         &my_shares_from_cert
                             .into_iter()
                             .take(t as usize)
@@ -482,16 +483,6 @@ mod tests {
             .unwrap();
     }
 
-    fn image<'a, T: Clone, I: Eq + Hash + 'a>(
-        map: &HashMap<I, T>,
-        indices: impl Iterator<Item = &'a I>,
-    ) -> Vec<T>
-    where
-        usize: From<I>,
-    {
-        indices.map(|i| map.get(i).unwrap().clone()).collect()
-    }
-
     fn assert_valid_batch<const N: usize>(
         processed_message: batch_avss::ProcessedMessage<N>,
     ) -> batch_avss::ReceiverOutput<N> {
@@ -508,6 +499,23 @@ mod tests {
         } else {
             panic!("Expected valid message");
         }
+    }
+
+    /// Restrict a `HashMap` to a given set of keys.
+    /// Panics if the given subset is not a subset of the maps' keys.
+    pub(crate) fn restrict<T: Clone, I: Eq + Hash>(
+        map: &HashMap<I, T>,
+        keys_subset: impl Iterator<Item = I>,
+    ) -> HashMap<I, T>
+    where
+        usize: From<I>,
+    {
+        keys_subset
+            .map(|i| {
+                let value = map.get(&i).unwrap().clone();
+                (i, value)
+            })
+            .collect()
     }
 
     #[test]
