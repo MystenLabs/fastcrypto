@@ -401,7 +401,7 @@ impl ReceiverOutput {
     /// Combine multiple outputs from different dealers into a single output by summing.
     /// This is used after a successful AVSS used for DKG to combine the shares from multiple dealers into a single share for each party.
     /// Panics if the given `ReceiverOutput`s are not compatible (same weight, same indices, same number of commitments)
-    /// Returns the combined output + the joint verifying key
+    /// Returns the combined output, including the joint verifying key
     pub fn complete_dkg(
         t: u16,
         nodes: &Nodes<EG>,
