@@ -475,6 +475,10 @@ async fn test_get_jwks() {
         // OIDCProvider::Arden, // TODO: disabling until the service is up again
         OIDCProvider::EveFrontier,
         OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), //Trace
+        OIDCProvider::AwsTenant((
+            "ap-southeast-1".to_string(),
+            "ap-southeast-1_2QQPyQXDz".to_string(),
+        )), // Decot
     ] {
         let res = fetch_jwks(&p, &client, true).await;
         assert!(res.is_ok());
