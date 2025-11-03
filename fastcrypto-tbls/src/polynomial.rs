@@ -5,7 +5,6 @@
 // modified for our needs.
 //
 
-use crate::types;
 use crate::types::{to_scalar, IndexedValue, ShareIndex};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
@@ -500,7 +499,7 @@ impl<C: Scalar> Monomial<C> {
     fn divider(self) -> impl Fn(&Monomial<C>) -> Monomial<C> {
         let inverse = self.coefficient.inverse().unwrap();
         move |p: &Monomial<C>| Monomial {
-            coefficient: p.coefficient * &inverse,
+            coefficient: p.coefficient * inverse,
             degree: p.degree - self.degree,
         }
     }
