@@ -369,16 +369,14 @@ pub mod schnorr {
     impl TryFrom<Scalar> for SchnorrPrivateKey {
         type Error = FastCryptoError;
 
-        fn try_from(value: Scalar) -> Result<Self, Self::Error> {
+        fn try_from(mut value: Scalar) -> Result<Self, Self::Error> {
             if value.is_zero() {
                 return Err(FastCryptoError::InvalidInput);
             }
 
             // Ensure that the corresponding public key has an even y-coordinate. Otherwise, flip the sign of the scalar.
-            let value = if (ProjectivePoint::generator() * value).has_even_y()? {
-                value
-            } else {
-                -value
+            if !(ProjectivePoint::generator() * value).has_even_y()? {
+                value = -value
             };
 
             Ok(SchnorrPrivateKey(value))
@@ -480,10 +478,7 @@ pub mod schnorr {
             )
             .expect("Fixed size inputs");
 
-            if expected.is_zero()
-                || !expected.has_even_y()?
-                || r != &expected.x_as_be_bytes().expect("Not infinity")
-            {
+            if expected.is_zero() || !expected.has_even_y()? || r != &expected.x_as_be_bytes()? {
                 return Err(FastCryptoError::InvalidSignature);
             }
             Ok(())

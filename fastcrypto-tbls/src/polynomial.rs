@@ -372,10 +372,7 @@ impl<C: Scalar> Poly<C> {
             .collect_vec();
 
         // Compute the full numerator polynomial: (x - x_1)(x - x_2)...(x - x_t)
-        let mut full_numerator = Poly::one();
-        for x_i in &x {
-            full_numerator *= MonicLinear(-*x_i);
-        }
+        let full_numerator = PolyFromRoots::new(&x);
 
         Ok(Poly::sum(points.iter().enumerate().map(|(j, p_j)| {
             let denominator = C::product(
@@ -385,7 +382,7 @@ impl<C: Scalar> Poly<C> {
                     .map(|(_, x_i)| x[j] - x_i),
             );
             // Safe since (x - x[j]) divides full_numerator per definition
-            div_exact(&full_numerator, &MonicLinear(-x[j])) * &(p_j.value / denominator).unwrap()
+            full_numerator.except(&x[j]) * &(p_j.value / denominator).unwrap()
         })))
     }
 
@@ -414,17 +411,11 @@ impl<C: Scalar> Poly<C> {
         let mut remainder = self.clone();
         let mut quotient = Self::zero();
 
-        let lead_inverse = divisor.lead().coefficient.inverse()?;
-
         // Function to divide a term by the leading term of the divisor.
-        // This panics if the degree of the given term is less than that of the divisor.
-        let divider = |p: Monomial<C>| Monomial {
-            coefficient: p.coefficient * lead_inverse,
-            degree: p.degree - divisor.degree(),
-        };
+        let divider = divisor.lead().divider();
 
         while !remainder.is_zero() && remainder.degree() >= divisor.degree() {
-            let tmp = divider(remainder.lead());
+            let tmp = divider(&remainder.lead());
             quotient += &tmp;
             remainder -= divisor * &tmp;
             remainder.reduce();
@@ -507,6 +498,17 @@ impl<C: Scalar> Mul<&Monomial<C>> for &Poly<C> {
     }
 }
 
+impl<C: Scalar> Monomial<C> {
+    /// Returns a closure which on input `x` computes the division `x / self`.
+    /// Panics if the degree of `x` is smaller than `self` or if `self` is zero.
+    fn divider(self) -> impl Fn(&Monomial<C>) -> Monomial<C> {
+        move |p: &Monomial<C>| Monomial {
+            coefficient: p.coefficient * self.coefficient.inverse().unwrap(),
+            degree: p.degree - self.degree,
+        }
+    }
+}
+
 /// Represents a monic linear polynomial of the form x + c.
 pub(crate) struct MonicLinear<C>(pub C);
 
@@ -524,16 +526,30 @@ impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
     }
 }
 
-/// Assuming that `d` divides `n` exactly (or, that `d.0` is a root in `n`), return the quotient `n / d`.
-fn div_exact<C: Scalar>(n: &Poly<C>, d: &MonicLinear<C>) -> Poly<C> {
-    if n.is_zero() {
-        return Poly::zero();
+/// This represents a polynomial of the form (x-a1)(x-a2)...(x-an) with an efficient way to compute
+/// the same product with a single missing factor.
+struct PolyFromRoots<C> {
+    polynomial: Poly<C>,
+}
+
+impl<C: Scalar> PolyFromRoots<C> {
+    fn new(roots: &[C]) -> Self {
+        let mut polynomial = Poly::one();
+        for root in roots {
+            polynomial *= MonicLinear(-*root);
+        }
+        Self { polynomial }
     }
-    let mut result = n.0[1..].to_vec();
-    for i in (0..result.len() - 1).rev() {
-        result[i] = result[i] - result[i + 1] * d.0;
+
+    /// Return the polynomial with the same roots as `self` but except the given `root`.
+    /// It is up to the caller to check that the given root is indeed a root of `self`.
+    fn except(&self, root: &C) -> Poly<C> {
+        let mut result = self.polynomial.0[1..].to_vec();
+        for i in (0..result.len() - 1).rev() {
+            result[i] = result[i] + result[i + 1] * root;
+        }
+        Poly::from(result)
     }
-    Poly::from(result)
 }
 
 #[cfg(test)]
