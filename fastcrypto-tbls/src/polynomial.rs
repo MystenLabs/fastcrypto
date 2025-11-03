@@ -16,7 +16,7 @@ use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::mem::swap;
 use std::num::NonZeroU16;
-use std::ops::{Add, AddAssign, Index, Mul, MulAssign, SubAssign};
+use std::ops::{Add, AddAssign, Index, Div, Mul, MulAssign, SubAssign};
 
 /// Types
 
@@ -366,13 +366,13 @@ impl<C: Scalar> Poly<C> {
         if points.is_empty() || !points.iter().map(|p| p.index).all_unique() {
             return Err(FastCryptoError::InvalidInput);
         }
-        let x: Vec<C> = points
-            .iter()
-            .map(|e| types::to_scalar(e.index))
-            .collect_vec();
+        let x: Vec<C> = points.iter().map(|e| to_scalar(e.index)).collect_vec();
 
         // Compute the full numerator polynomial: (x - x_1)(x - x_2)...(x - x_t)
-        let full_numerator = PolyFromRoots::new(&x);
+        let mut full_numerator = Poly::one();
+        for xj in &x {
+            full_numerator *= MonicLinear(-*xj);
+        }
 
         Ok(Poly::sum(points.iter().enumerate().map(|(j, p_j)| {
             let denominator = C::product(
@@ -381,7 +381,7 @@ impl<C: Scalar> Poly<C> {
                     .filter(|(i, _)| *i != j)
                     .map(|(_, x_i)| x[j] - x_i),
             );
-            full_numerator.except(&x[j]) * &(p_j.value / denominator).unwrap()
+            (&full_numerator / MonicLinear(-x[j])) * &(p_j.value / denominator).unwrap()
         })))
     }
 
@@ -530,29 +530,13 @@ impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
     }
 }
 
-/// This represents a polynomial of the form (x-c1)(x-c2)...(x-cn) with an efficient way to compute
-/// the same product with a single missing factor.
-struct PolyFromRoots<C> {
-    polynomial: Poly<C>,
-}
+impl<C: Scalar> Div<MonicLinear<C>> for &Poly<C> {
+    type Output = Poly<C>;
 
-impl<C: Scalar> PolyFromRoots<C> {
-    fn new(roots: &[C]) -> Self {
-        let mut polynomial = Poly::one();
-        for root in roots {
-            polynomial *= MonicLinear(-*root);
-        }
-        Self { polynomial }
-    }
-
-    /// Return the polynomial with the same roots as `self` but except the given `root`.
-    /// It is up to the caller to check that the given root is indeed a root of `self`
-    /// (equivalently, that `x - root` divides `self`).
-    /// Otherwise, the result will not be correct.
-    fn except(&self, root: &C) -> Poly<C> {
-        let mut result = self.polynomial.0[1..].to_vec();
+    fn div(self, rhs: MonicLinear<C>) -> Self::Output {
+        let mut result = self.0[1..].to_vec();
         for i in (0..result.len() - 1).rev() {
-            result[i] = result[i] + result[i + 1] * root;
+            result[i] = result[i] - result[i + 1] * rhs.0;
         }
         Poly::from(result)
     }
