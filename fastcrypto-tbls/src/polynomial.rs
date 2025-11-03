@@ -381,7 +381,6 @@ impl<C: Scalar> Poly<C> {
                     .filter(|(i, _)| *i != j)
                     .map(|(_, x_i)| x[j] - x_i),
             );
-            // Safe since (x - x[j]) divides full_numerator per definition
             full_numerator.except(&x[j]) * &(p_j.value / denominator).unwrap()
         })))
     }
@@ -390,10 +389,7 @@ impl<C: Scalar> Poly<C> {
     /// If the polynomial is zero, returns a monomial with coefficient zero and degree zero.
     fn lead(&self) -> Monomial<C> {
         if self.is_zero() {
-            return Monomial {
-                coefficient: C::zero(),
-                degree: 0,
-            };
+            return Monomial::zero();
         }
         let degree = self.degree();
         Monomial {
@@ -468,7 +464,7 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
     }
 }
 
-/// This represents a monomial, e.g., 3 * x^2, where 3 is the coefficient and 2 is the degree.
+/// This represents a monomial, e.g., 3x^2, where 3 is the coefficient and 2 is the degree.
 struct Monomial<C> {
     coefficient: C,
     degree: usize,
@@ -502,9 +498,17 @@ impl<C: Scalar> Monomial<C> {
     /// Returns a closure which on input `x` computes the division `x / self`.
     /// Panics if the degree of `x` is smaller than `self` or if `self` is zero.
     fn divider(self) -> impl Fn(&Monomial<C>) -> Monomial<C> {
+        let inverse = self.coefficient.inverse().unwrap();
         move |p: &Monomial<C>| Monomial {
-            coefficient: p.coefficient * self.coefficient.inverse().unwrap(),
+            coefficient: p.coefficient * &inverse,
             degree: p.degree - self.degree,
+        }
+    }
+
+    fn zero() -> Self {
+        Monomial {
+            coefficient: C::zero(),
+            degree: 0,
         }
     }
 }
@@ -526,7 +530,7 @@ impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
     }
 }
 
-/// This represents a polynomial of the form (x-a1)(x-a2)...(x-an) with an efficient way to compute
+/// This represents a polynomial of the form (x-c1)(x-c2)...(x-cn) with an efficient way to compute
 /// the same product with a single missing factor.
 struct PolyFromRoots<C> {
     polynomial: Poly<C>,
@@ -542,7 +546,9 @@ impl<C: Scalar> PolyFromRoots<C> {
     }
 
     /// Return the polynomial with the same roots as `self` but except the given `root`.
-    /// It is up to the caller to check that the given root is indeed a root of `self`.
+    /// It is up to the caller to check that the given root is indeed a root of `self`
+    /// (equivalently, that `x - root` divides `self`).
+    /// Otherwise, the result will not be correct.
     fn except(&self, root: &C) -> Poly<C> {
         let mut result = self.polynomial.0[1..].to_vec();
         for i in (0..result.len() - 1).rev() {
