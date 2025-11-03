@@ -370,8 +370,8 @@ impl<C: Scalar> Poly<C> {
 
         // Compute the full numerator polynomial: (x - x_1)(x - x_2)...(x - x_t)
         let mut full_numerator = Poly::one();
-        for xj in &x {
-            full_numerator *= MonicLinear(-*xj);
+        for x_j in &x {
+            full_numerator *= MonicLinear(-*x_j);
         }
 
         Ok(Poly::sum(points.iter().enumerate().map(|(j, p_j)| {
