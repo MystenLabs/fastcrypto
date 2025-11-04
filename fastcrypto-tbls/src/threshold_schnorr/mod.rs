@@ -48,6 +48,9 @@ pub type S = <G as GroupElement>::ScalarType;
 /// The group used for multi-recipient encryption. Any group that has a secure hash-to-group can be used here.
 type EG = RistrettoPoint;
 
+/// An address on the Sui network.
+pub type Address = [u8; 32];
+
 /// Helper function to create a random oracle from a session ID.
 fn random_oracle_from_sid(sid: &[u8]) -> RandomOracle {
     RandomOracle::new(&Hex::encode(sid))
@@ -710,7 +713,7 @@ mod tests {
         let message = b"Hello, world!";
 
         let beacon_value = S::rand(&mut rng);
-
+        let address = [7u8; 32];
         let partial_signatures = presigning
             .iter_mut()
             .enumerate()
@@ -724,7 +727,7 @@ mod tests {
                     &beacon_value,
                     &my_shares,
                     &vk_element,
-                    Some(7),
+                    Some(&address),
                 )
                 .unwrap()
             })
@@ -746,12 +749,12 @@ mod tests {
                 .collect_vec(),
             t,
             &vk_element,
-            Some(7),
+            Some(&address),
         )
         .unwrap();
 
         // Check that this produced a valid signature
-        derive_verifying_key(&vk_element, 7)
+        derive_verifying_key(&vk_element, &address)
             .verify(message, &signature)
             .unwrap();
     }
