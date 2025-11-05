@@ -1,1 +1,0 @@
-searchState.loadedDescShard("encode_cli", 0, "Decode a base64 string into hex string.\nDecode a hex string into base64 string.\nReturns the argument unchanged.\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.\nCalls <code>U::from(self)</code>.")

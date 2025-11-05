@@ -1,1 +1,0 @@
-searchState.loadedDescShard("fastcrypto_derive", 0, "This crate contains the <code>SilentDebug</code> and <code>SilentDisplay</code> …\nExtend implementations of Add, Sub, Mul…\nDerive the <code>SilentDebug</code> trait, which is an implementation …\nDerive the <code>SilentDisplay</code> trait, which is an implementation …")
