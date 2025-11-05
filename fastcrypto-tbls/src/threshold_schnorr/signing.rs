@@ -4,7 +4,7 @@
 use crate::polynomial::{Eval, Poly};
 use crate::threshold_schnorr::key_derivation::{compute_tweak, derive_verifying_key_internal};
 use crate::threshold_schnorr::presigning::Presignatures;
-use crate::threshold_schnorr::{avss, G, S};
+use crate::threshold_schnorr::{avss, Address, G, S};
 use fastcrypto::error::FastCryptoError::{InputTooShort, OutOfPresigs};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::secp256k1::schnorr::{
@@ -31,7 +31,7 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
     beacon_value: &S,
     my_signing_key_shares: &avss::SharesForNode,
     verifying_key: &G,
-    derivation_index: Option<u64>,
+    derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
     // TODO: Each output from an instance of Presigning has a unique index. Perhaps this is needed for coordination?
     let (_, mut secret_presigs, public_presig) = presignatures.next().ok_or(OutOfPresigs)?;
@@ -53,8 +53,8 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
     }
 
     // If a derivation index is provided, derive a new verifying key (and implicitly also signing key) for this index.
-    let verifying_key = if let Some(index) = derivation_index {
-        derive_verifying_key_internal(verifying_key, index)
+    let verifying_key = if let Some(address) = derivation_address {
+        derive_verifying_key_internal(verifying_key, address)
     } else {
         *verifying_key
     };
@@ -107,7 +107,7 @@ pub fn aggregate_signatures(
     partial_signatures: &[Eval<S>],
     threshold: u16,
     verifying_key: &G,
-    derivation_index: Option<u64>,
+    derivation_address: Option<&Address>,
 ) -> FastCryptoResult<SchnorrSignature> {
     if partial_signatures.len() < threshold as usize {
         return Err(InputTooShort(threshold as usize));
@@ -139,9 +139,9 @@ pub fn aggregate_signatures(
     };
 
     // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
-    let verifying_key = if let Some(index) = derivation_index {
-        let tweak = compute_tweak(verifying_key, index);
-        let derived_vk = derive_verifying_key_internal(verifying_key, index);
+    let verifying_key = if let Some(address) = derivation_address {
+        let tweak = compute_tweak(verifying_key, address);
+        let derived_vk = derive_verifying_key_internal(verifying_key, address);
         if derived_vk.has_even_y()? {
             s += tweak * bip0340_hash(&r_g, &derived_vk, message)?;
         } else {
