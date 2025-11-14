@@ -46,7 +46,7 @@ pub type G = groups::secp256k1::ProjectivePoint;
 pub type S = <G as GroupElement>::ScalarType;
 
 /// The group used for multi-recipient encryption. Any group that has a secure hash-to-group can be used here.
-pub type EG = RistrettoPoint;
+type EG = RistrettoPoint;
 
 /// An address on the Sui network.
 pub type Address = [u8; 32];
