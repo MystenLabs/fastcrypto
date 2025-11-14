@@ -150,6 +150,44 @@ impl<C: GroupElement> Poly<C> {
         }
     }
 
+    /// Evaluate the polynomial for all x in the range [1,...,m].
+    /// If m is sufficiently larger than the degree, this is faster than just evaluating at each point.
+    ///
+    /// This is based on an algorithm in section 4.6.4 of Knuth's "The Art of Computer Programming".
+    pub fn eval_range(&self, m: u16) -> Vec<Eval<C>> {
+        // If the degree is larger than the range, just evaulate
+        if self.degree() >= m as usize {
+            return (1..=m)
+                .map(|i| self.eval(ShareIndex::new(i).unwrap()))
+                .collect();
+        }
+
+        // Compute initial values (see exercise 7 in 4.6.4 of TAOCP
+        let mut y = (0..=self.degree())
+            .map(|i| self.eval(ShareIndex::new(1 + i as u16).unwrap()).value)
+            .collect_vec();
+        for k in 1..=self.degree() {
+            for j in (k..=self.degree()).rev() {
+                y[j] = y[j] - y[j - 1];
+            }
+        }
+
+        let mut evaluations = vec![Eval {
+            index: ShareIndex::new(1).unwrap(),
+            value: y[0],
+        }];
+        for i in 2..=m {
+            for j in 0..self.degree() {
+                y[j] = y[j] + y[j + 1]
+            }
+            evaluations.push(Eval {
+                index: ShareIndex::new(i).unwrap(),
+                value: y[0],
+            })
+        }
+        evaluations
+    }
+
     // Multiply using u128 if possible, otherwise just convert one element to the group element and return the other.
     pub(crate) fn fast_mult(x: u128, y: u128) -> Either<(C::ScalarType, u128), u128> {
         if x.leading_zeros() >= (128 - y.leading_zeros()) {
