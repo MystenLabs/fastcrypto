@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::mem::swap;
-use std::num::{NonZero, NonZeroU16};
+use std::num::NonZeroU16;
 use std::ops::{Add, AddAssign, Mul, MulAssign, SubAssign};
 
 /// Types
