@@ -543,7 +543,7 @@ pub(crate) fn poly_eq<C: GroupElement>(a: &Poly<C>, b: &Poly<C>) -> bool {
 /// This can evaluate a polynomial at points in an arithmetic progression, e.g., x0, x0+h, x0+2h, ...
 /// This is generally faster when evaluating more points than the degree of the polynomial.
 /// The algorithm used is from section 4.6.4 in Knuth's "Art of Computer Programming".
-pub struct PolynomialEvaluator<C> {
+struct PolynomialEvaluator<C> {
     state: Vec<C>,
     first: bool,
     index: NonZeroU16,
