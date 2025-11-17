@@ -9,6 +9,7 @@ use std::num::NonZeroU16;
 
 mod polynomial_benches {
     use super::*;
+    use fastcrypto::groups::bls12381::Scalar;
     use fastcrypto_tbls::threshold_schnorr::gao::RSDecoder;
     use fastcrypto_tbls::threshold_schnorr::S;
     use fastcrypto_tbls::types::ShareIndex;
@@ -105,10 +106,32 @@ mod polynomial_benches {
         }
     }
 
+    fn interpolate(c: &mut Criterion) {
+        let t = 300;
+        let mut rng = thread_rng();
+        let polynomial: Poly<Scalar> = Poly::rand(t - 1, &mut rng);
+
+        let points = (1..=t)
+            .map(|i| polynomial.eval(NonZeroU16::new(i).unwrap()))
+            .collect_vec();
+
+        c.bench_function(format!("interpolate t={t}").as_str(), |b| {
+            b.iter(|| {
+                let _ = Poly::interpolate(&points).unwrap();
+            })
+        });
+
+        c.bench_function(format!("interpolate at index t={t}").as_str(), |b| {
+            b.iter(|| {
+                let _ = Poly::interpolate_at_index(NonZeroU16::new(7).unwrap(), &points).unwrap();
+            })
+        });
+    }
+
     criterion_group! {
         name = polynomial_benches;
         config = Criterion::default();
-        targets = polynomials, rs_decoder,
+        targets = polynomials, rs_decoder, interpolate
     }
 }
 
