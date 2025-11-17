@@ -153,11 +153,13 @@ impl<C: GroupElement> Poly<C> {
 
     /// Evaluate the polynomial for all x in the range [1,...,m].
     /// If m is sufficiently larger than the degree, this is faster than just evaluating at each point.
-    /// Returns an [InvalidInput] error if `1 + self.degree()` overflows as u16.
-    /// If `m` is `u16::MAX`, only the first `m-1` evaluations will be returned.
+    /// Returns an [InvalidInput] error if `1 + self.degree()` overflows as an u16 or if `m` is `u16::MAX`.
     ///
     /// This is based on an algorithm in section 4.6.4 of Knuth's "The Art of Computer Programming".
     pub fn eval_range(&self, m: u16) -> FastCryptoResult<EvalRange<C>> {
+        if m == u16::MAX {
+            return Err(FastCryptoError::InvalidInput);
+        }
         Ok(EvalRange(
             PolynomialEvaluator::new(
                 self,
