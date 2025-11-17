@@ -294,229 +294,228 @@
 <a href=#294 id=294 data-nosnippet>294</a>    <span class="doccomment">/// Commits the scalar polynomial to the group and returns a polynomial over
 <a href=#295 id=295 data-nosnippet>295</a>    /// the group.
 <a href=#296 id=296 data-nosnippet>296</a>    </span><span class="kw">pub fn </span>commit&lt;P: GroupElement&lt;ScalarType = C&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Poly&lt;P&gt; {
-<a href=#297 id=297 data-nosnippet>297</a>        <span class="kw">let </span>commits = <span class="self">self
-<a href=#298 id=298 data-nosnippet>298</a>            </span>.<span class="number">0
-<a href=#299 id=299 data-nosnippet>299</a>            </span>.iter()
-<a href=#300 id=300 data-nosnippet>300</a>            .map(|c| P::generator() * c)
-<a href=#301 id=301 data-nosnippet>301</a>            .collect::&lt;Vec&lt;P&gt;&gt;();
-<a href=#302 id=302 data-nosnippet>302</a>
-<a href=#303 id=303 data-nosnippet>303</a>        Poly::&lt;P&gt;::from(commits)
-<a href=#304 id=304 data-nosnippet>304</a>    }
-<a href=#305 id=305 data-nosnippet>305</a>
-<a href=#306 id=306 data-nosnippet>306</a>    <span class="doccomment">/// Given a set of shares with unique indices, compute what the value of the interpolated polynomial is at the given index.
-<a href=#307 id=307 data-nosnippet>307</a>    /// Returns an error if the input is invalid (e.g., empty or duplicate indices).
-<a href=#308 id=308 data-nosnippet>308</a>    ///
-<a href=#309 id=309 data-nosnippet>309</a>    /// This is faster than first recovering the polynomial and then evaluating it at the given index.
-<a href=#310 id=310 data-nosnippet>310</a>    </span><span class="kw">pub fn </span>interpolate_at_index(
-<a href=#311 id=311 data-nosnippet>311</a>        index: ShareIndex,
-<a href=#312 id=312 data-nosnippet>312</a>        points: <span class="kw-2">&amp;</span>[Eval&lt;C&gt;],
-<a href=#313 id=313 data-nosnippet>313</a>    ) -&gt; FastCryptoResult&lt;Eval&lt;C&gt;&gt; {
-<a href=#314 id=314 data-nosnippet>314</a>        <span class="kw">if </span>points.is_empty() {
-<a href=#315 id=315 data-nosnippet>315</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
-<a href=#316 id=316 data-nosnippet>316</a>        }
-<a href=#317 id=317 data-nosnippet>317</a>        <span class="kw">if </span>!points.iter().map(|p| p.index).all_unique() {
-<a href=#318 id=318 data-nosnippet>318</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
-<a href=#319 id=319 data-nosnippet>319</a>        }
-<a href=#320 id=320 data-nosnippet>320</a>        <span class="kw">let </span>x: C = to_scalar(index);
-<a href=#321 id=321 data-nosnippet>321</a>
-<a href=#322 id=322 data-nosnippet>322</a>        <span class="comment">// Convert indices to scalars for interpolation.
-<a href=#323 id=323 data-nosnippet>323</a>        </span><span class="kw">let </span>indices = points
-<a href=#324 id=324 data-nosnippet>324</a>            .iter()
-<a href=#325 id=325 data-nosnippet>325</a>            .map(|p| to_scalar(p.index))
-<a href=#326 id=326 data-nosnippet>326</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#327 id=327 data-nosnippet>327</a>
-<a href=#328 id=328 data-nosnippet>328</a>        <span class="kw">let </span>value = C::sum(indices.iter().enumerate().map(|(j, x_j)| {
-<a href=#329 id=329 data-nosnippet>329</a>            points[j].value
-<a href=#330 id=330 data-nosnippet>330</a>                * C::product(
-<a href=#331 id=331 data-nosnippet>331</a>                    indices
-<a href=#332 id=332 data-nosnippet>332</a>                        .iter()
-<a href=#333 id=333 data-nosnippet>333</a>                        .filter(|x_i| <span class="kw-2">*</span>x_i != x_j)
-<a href=#334 id=334 data-nosnippet>334</a>                        .map(|x_i| ((x - x_i) / (<span class="kw-2">*</span>x_j - x_i)).expect(<span class="string">"Divisor is never zero"</span>)),
-<a href=#335 id=335 data-nosnippet>335</a>                )
-<a href=#336 id=336 data-nosnippet>336</a>        }));
-<a href=#337 id=337 data-nosnippet>337</a>
-<a href=#338 id=338 data-nosnippet>338</a>        <span class="prelude-val">Ok</span>(Eval { index, value })
-<a href=#339 id=339 data-nosnippet>339</a>    }
-<a href=#340 id=340 data-nosnippet>340</a>
-<a href=#341 id=341 data-nosnippet>341</a>    <span class="doccomment">/// Given a set of shares with unique indices, compute the polynomial that
-<a href=#342 id=342 data-nosnippet>342</a>    /// goes through all the points. The degree of the resulting polynomial is
-<a href=#343 id=343 data-nosnippet>343</a>    /// at most `points.len() - 1`.
-<a href=#344 id=344 data-nosnippet>344</a>    /// Returns an error if the input is invalid (e.g., empty or duplicate indices).
-<a href=#345 id=345 data-nosnippet>345</a>    </span><span class="kw">pub fn </span>interpolate(points: <span class="kw-2">&amp;</span>[Eval&lt;C&gt;]) -&gt; FastCryptoResult&lt;Poly&lt;C&gt;&gt; {
-<a href=#346 id=346 data-nosnippet>346</a>        <span class="kw">if </span>points.is_empty() || !points.iter().map(|p| p.index).all_unique() {
-<a href=#347 id=347 data-nosnippet>347</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
-<a href=#348 id=348 data-nosnippet>348</a>        }
-<a href=#349 id=349 data-nosnippet>349</a>        <span class="kw">let </span>x: Vec&lt;C&gt; = points
-<a href=#350 id=350 data-nosnippet>350</a>            .iter()
-<a href=#351 id=351 data-nosnippet>351</a>            .map(|e| types::to_scalar(e.index))
-<a href=#352 id=352 data-nosnippet>352</a>            .collect_vec();
-<a href=#353 id=353 data-nosnippet>353</a>
-<a href=#354 id=354 data-nosnippet>354</a>        <span class="comment">// Compute the full numerator polynomial: (x - x_1)(x - x_2)...(x - x_t)
-<a href=#355 id=355 data-nosnippet>355</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>full_numerator = Poly::one();
-<a href=#356 id=356 data-nosnippet>356</a>        <span class="kw">for </span>x_i <span class="kw">in </span><span class="kw-2">&amp;</span>x {
-<a href=#357 id=357 data-nosnippet>357</a>            full_numerator <span class="kw-2">*</span>= MonicLinear(-<span class="kw-2">*</span>x_i);
-<a href=#358 id=358 data-nosnippet>358</a>        }
-<a href=#359 id=359 data-nosnippet>359</a>
-<a href=#360 id=360 data-nosnippet>360</a>        <span class="prelude-val">Ok</span>(Poly::sum(points.iter().enumerate().map(|(j, p_j)| {
-<a href=#361 id=361 data-nosnippet>361</a>            <span class="kw">let </span>denominator = C::product(
-<a href=#362 id=362 data-nosnippet>362</a>                x.iter()
-<a href=#363 id=363 data-nosnippet>363</a>                    .enumerate()
-<a href=#364 id=364 data-nosnippet>364</a>                    .filter(|(i, <span class="kw">_</span>)| <span class="kw-2">*</span>i != j)
-<a href=#365 id=365 data-nosnippet>365</a>                    .map(|(<span class="kw">_</span>, x_i)| x[j] - x_i),
-<a href=#366 id=366 data-nosnippet>366</a>            );
-<a href=#367 id=367 data-nosnippet>367</a>            <span class="comment">// Safe since (x - x[j]) divides full_numerator per definition
-<a href=#368 id=368 data-nosnippet>368</a>            </span>div_exact(<span class="kw-2">&amp;</span>full_numerator, <span class="kw-2">&amp;</span>MonicLinear(-x[j])) * <span class="kw-2">&amp;</span>(p_j.value / denominator).unwrap()
-<a href=#369 id=369 data-nosnippet>369</a>        })))
-<a href=#370 id=370 data-nosnippet>370</a>    }
-<a href=#371 id=371 data-nosnippet>371</a>
-<a href=#372 id=372 data-nosnippet>372</a>    <span class="doccomment">/// Returns the leading term of the polynomial.
-<a href=#373 id=373 data-nosnippet>373</a>    /// If the polynomial is zero, returns a monomial with coefficient zero and degree zero.
-<a href=#374 id=374 data-nosnippet>374</a>    </span><span class="kw">fn </span>lead(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Monomial&lt;C&gt; {
-<a href=#375 id=375 data-nosnippet>375</a>        <span class="kw">if </span><span class="self">self</span>.is_zero() {
-<a href=#376 id=376 data-nosnippet>376</a>            <span class="kw">return </span>Monomial {
-<a href=#377 id=377 data-nosnippet>377</a>                coefficient: C::zero(),
-<a href=#378 id=378 data-nosnippet>378</a>                degree: <span class="number">0</span>,
-<a href=#379 id=379 data-nosnippet>379</a>            };
-<a href=#380 id=380 data-nosnippet>380</a>        }
-<a href=#381 id=381 data-nosnippet>381</a>        <span class="kw">let </span>degree = <span class="self">self</span>.degree();
-<a href=#382 id=382 data-nosnippet>382</a>        Monomial {
-<a href=#383 id=383 data-nosnippet>383</a>            coefficient: <span class="self">self</span>.<span class="number">0</span>[degree],
-<a href=#384 id=384 data-nosnippet>384</a>            degree,
-<a href=#385 id=385 data-nosnippet>385</a>        }
-<a href=#386 id=386 data-nosnippet>386</a>    }
-<a href=#387 id=387 data-nosnippet>387</a>
-<a href=#388 id=388 data-nosnippet>388</a>    <span class="doccomment">/// Divide self by divisor, returning the quotient and remainder.
-<a href=#389 id=389 data-nosnippet>389</a>    /// Returns an error if divisor is zero.
-<a href=#390 id=390 data-nosnippet>390</a>    </span><span class="kw">pub fn </span>div_rem(<span class="kw-2">&amp;</span><span class="self">self</span>, divisor: <span class="kw-2">&amp;</span>Poly&lt;C&gt;) -&gt; FastCryptoResult&lt;(Poly&lt;C&gt;, Poly&lt;C&gt;)&gt; {
-<a href=#391 id=391 data-nosnippet>391</a>        <span class="kw">if </span>divisor.is_zero() {
-<a href=#392 id=392 data-nosnippet>392</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
-<a href=#393 id=393 data-nosnippet>393</a>        }
-<a href=#394 id=394 data-nosnippet>394</a>        <span class="kw">let </span><span class="kw-2">mut </span>remainder = <span class="self">self</span>.clone();
-<a href=#395 id=395 data-nosnippet>395</a>        <span class="kw">let </span><span class="kw-2">mut </span>quotient = <span class="self">Self</span>::zero();
-<a href=#396 id=396 data-nosnippet>396</a>
-<a href=#397 id=397 data-nosnippet>397</a>        <span class="kw">let </span>lead_inverse = divisor.lead().coefficient.inverse()<span class="question-mark">?</span>;
-<a href=#398 id=398 data-nosnippet>398</a>
-<a href=#399 id=399 data-nosnippet>399</a>        <span class="comment">// Function to divide a term by the leading term of the divisor.
-<a href=#400 id=400 data-nosnippet>400</a>        // This panics if the degree of the given term is less than that of the divisor.
-<a href=#401 id=401 data-nosnippet>401</a>        </span><span class="kw">let </span>divider = |p: Monomial&lt;C&gt;| Monomial {
-<a href=#402 id=402 data-nosnippet>402</a>            coefficient: p.coefficient * lead_inverse,
-<a href=#403 id=403 data-nosnippet>403</a>            degree: p.degree - divisor.degree(),
-<a href=#404 id=404 data-nosnippet>404</a>        };
-<a href=#405 id=405 data-nosnippet>405</a>
-<a href=#406 id=406 data-nosnippet>406</a>        <span class="kw">while </span>!remainder.is_zero() &amp;&amp; remainder.degree() &gt;= divisor.degree() {
-<a href=#407 id=407 data-nosnippet>407</a>            <span class="kw">let </span>tmp = divider(remainder.lead());
-<a href=#408 id=408 data-nosnippet>408</a>            quotient += <span class="kw-2">&amp;</span>tmp;
-<a href=#409 id=409 data-nosnippet>409</a>            remainder -= divisor * <span class="kw-2">&amp;</span>tmp;
-<a href=#410 id=410 data-nosnippet>410</a>            remainder.reduce();
-<a href=#411 id=411 data-nosnippet>411</a>        }
-<a href=#412 id=412 data-nosnippet>412</a>        <span class="prelude-val">Ok</span>((quotient, remainder))
-<a href=#413 id=413 data-nosnippet>413</a>    }
-<a href=#414 id=414 data-nosnippet>414</a>
-<a href=#415 id=415 data-nosnippet>415</a>    <span class="doccomment">/// Compute the extended GCD of two polynomials.
-<a href=#416 id=416 data-nosnippet>416</a>    /// Returns (g, x, y, s, t) such that g = self * x + other * y.
-<a href=#417 id=417 data-nosnippet>417</a>    /// The loop stops when the degree of g is less than degree_bound.
-<a href=#418 id=418 data-nosnippet>418</a>    </span><span class="kw">pub fn </span>partial_extended_gcd(
-<a href=#419 id=419 data-nosnippet>419</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#420 id=420 data-nosnippet>420</a>        other: <span class="kw-2">&amp;</span>Poly&lt;C&gt;,
-<a href=#421 id=421 data-nosnippet>421</a>        degree_bound: usize,
-<a href=#422 id=422 data-nosnippet>422</a>    ) -&gt; FastCryptoResult&lt;(Poly&lt;C&gt;, Poly&lt;C&gt;, Poly&lt;C&gt;)&gt; {
-<a href=#423 id=423 data-nosnippet>423</a>        <span class="kw">let </span><span class="kw-2">mut </span>r = (<span class="self">self</span>.clone(), other.clone());
-<a href=#424 id=424 data-nosnippet>424</a>        <span class="kw">let </span><span class="kw-2">mut </span>s = (Poly::one(), Poly::zero());
-<a href=#425 id=425 data-nosnippet>425</a>        <span class="kw">let </span><span class="kw-2">mut </span>t = (Poly::zero(), Poly::one());
-<a href=#426 id=426 data-nosnippet>426</a>
-<a href=#427 id=427 data-nosnippet>427</a>        <span class="kw">while </span>r.<span class="number">0</span>.degree() &gt;= degree_bound &amp;&amp; !r.<span class="number">1</span>.is_zero() {
-<a href=#428 id=428 data-nosnippet>428</a>            <span class="kw">let </span>(q, r_new) = r.<span class="number">0</span>.div_rem(<span class="kw-2">&amp;</span>r.<span class="number">1</span>)<span class="question-mark">?</span>;
-<a href=#429 id=429 data-nosnippet>429</a>            r = (r.<span class="number">1</span>, r_new);
-<a href=#430 id=430 data-nosnippet>430</a>            r.<span class="number">0</span>.reduce();
-<a href=#431 id=431 data-nosnippet>431</a>
-<a href=#432 id=432 data-nosnippet>432</a>            t.<span class="number">0 </span>-= <span class="kw-2">&amp;</span>q * <span class="kw-2">&amp;</span>t.<span class="number">1</span>;
-<a href=#433 id=433 data-nosnippet>433</a>            s.<span class="number">0 </span>-= <span class="kw-2">&amp;</span>q * <span class="kw-2">&amp;</span>s.<span class="number">1</span>;
-<a href=#434 id=434 data-nosnippet>434</a>
-<a href=#435 id=435 data-nosnippet>435</a>            swap(<span class="kw-2">&amp;mut </span>t.<span class="number">0</span>, <span class="kw-2">&amp;mut </span>t.<span class="number">1</span>);
-<a href=#436 id=436 data-nosnippet>436</a>            swap(<span class="kw-2">&amp;mut </span>s.<span class="number">0</span>, <span class="kw-2">&amp;mut </span>s.<span class="number">1</span>);
-<a href=#437 id=437 data-nosnippet>437</a>        }
-<a href=#438 id=438 data-nosnippet>438</a>        <span class="prelude-val">Ok</span>((r.<span class="number">0</span>, s.<span class="number">0</span>, t.<span class="number">0</span>))
-<a href=#439 id=439 data-nosnippet>439</a>    }
-<a href=#440 id=440 data-nosnippet>440</a>
-<a href=#441 id=441 data-nosnippet>441</a>    <span class="kw">pub fn </span>extended_gcd(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Poly&lt;C&gt;) -&gt; FastCryptoResult&lt;(Poly&lt;C&gt;, Poly&lt;C&gt;, Poly&lt;C&gt;)&gt; {
-<a href=#442 id=442 data-nosnippet>442</a>        <span class="self">self</span>.partial_extended_gcd(other, <span class="number">1</span>)
-<a href=#443 id=443 data-nosnippet>443</a>    }
-<a href=#444 id=444 data-nosnippet>444</a>}
-<a href=#445 id=445 data-nosnippet>445</a>
-<a href=#446 id=446 data-nosnippet>446</a><span class="kw">impl</span>&lt;C: GroupElement + MultiScalarMul&gt; Poly&lt;C&gt; {
-<a href=#447 id=447 data-nosnippet>447</a>    <span class="doccomment">/// Given exactly `t` polynomial evaluations, it will recover the polynomial's
-<a href=#448 id=448 data-nosnippet>448</a>    /// constant term.
-<a href=#449 id=449 data-nosnippet>449</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>recover_c0_msm(
-<a href=#450 id=450 data-nosnippet>450</a>        t: u16,
-<a href=#451 id=451 data-nosnippet>451</a>        shares: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;Eval&lt;C&gt;&gt;&gt; + Clone,
-<a href=#452 id=452 data-nosnippet>452</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;C, FastCryptoError&gt; {
-<a href=#453 id=453 data-nosnippet>453</a>        <span class="kw">let </span>coeffs = <span class="self">Self</span>::get_lagrange_coefficients_for_c0(t, shares.clone())<span class="question-mark">?</span>;
-<a href=#454 id=454 data-nosnippet>454</a>        <span class="kw">let </span>plain_shares = shares.map(|s| s.borrow().value).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#455 id=455 data-nosnippet>455</a>        <span class="kw">let </span>res = C::multi_scalar_mul(<span class="kw-2">&amp;</span>coeffs, <span class="kw-2">&amp;</span>plain_shares).expect(<span class="string">"sizes match"</span>);
-<a href=#456 id=456 data-nosnippet>456</a>        <span class="prelude-val">Ok</span>(res)
-<a href=#457 id=457 data-nosnippet>457</a>    }
-<a href=#458 id=458 data-nosnippet>458</a>}
-<a href=#459 id=459 data-nosnippet>459</a>
-<a href=#460 id=460 data-nosnippet>460</a><span class="doccomment">/// This represents a monomial, e.g., 3 * x^2, where 3 is the coefficient and 2 is the degree.
-<a href=#461 id=461 data-nosnippet>461</a></span><span class="kw">struct </span>Monomial&lt;C&gt; {
-<a href=#462 id=462 data-nosnippet>462</a>    coefficient: C,
-<a href=#463 id=463 data-nosnippet>463</a>    degree: usize,
-<a href=#464 id=464 data-nosnippet>464</a>}
-<a href=#465 id=465 data-nosnippet>465</a>
-<a href=#466 id=466 data-nosnippet>466</a><span class="kw">impl</span>&lt;C: GroupElement&gt; AddAssign&lt;<span class="kw-2">&amp;</span>Monomial&lt;C&gt;&gt; <span class="kw">for </span>Poly&lt;C&gt; {
-<a href=#467 id=467 data-nosnippet>467</a>    <span class="kw">fn </span>add_assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rhs: <span class="kw-2">&amp;</span>Monomial&lt;C&gt;) {
-<a href=#468 id=468 data-nosnippet>468</a>        <span class="kw">if </span><span class="self">self</span>.<span class="number">0</span>.len() &lt;= rhs.degree {
-<a href=#469 id=469 data-nosnippet>469</a>            <span class="self">self</span>.<span class="number">0</span>.resize(rhs.degree + <span class="number">1</span>, C::zero());
-<a href=#470 id=470 data-nosnippet>470</a>        }
-<a href=#471 id=471 data-nosnippet>471</a>        <span class="self">self</span>.<span class="number">0</span>[rhs.degree] += rhs.coefficient;
-<a href=#472 id=472 data-nosnippet>472</a>    }
-<a href=#473 id=473 data-nosnippet>473</a>}
-<a href=#474 id=474 data-nosnippet>474</a>
-<a href=#475 id=475 data-nosnippet>475</a><span class="kw">impl</span>&lt;C: Scalar&gt; Mul&lt;<span class="kw-2">&amp;</span>Monomial&lt;C&gt;&gt; <span class="kw">for </span><span class="kw-2">&amp;</span>Poly&lt;C&gt; {
-<a href=#476 id=476 data-nosnippet>476</a>    <span class="kw">type </span>Output = Poly&lt;C&gt;;
-<a href=#477 id=477 data-nosnippet>477</a>
-<a href=#478 id=478 data-nosnippet>478</a>    <span class="kw">fn </span>mul(<span class="self">self</span>, rhs: <span class="kw-2">&amp;</span>Monomial&lt;C&gt;) -&gt; Poly&lt;C&gt; {
-<a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">if </span>rhs.coefficient == C::zero() {
-<a href=#480 id=480 data-nosnippet>480</a>            <span class="kw">return </span>Poly::zero();
-<a href=#481 id=481 data-nosnippet>481</a>        }
-<a href=#482 id=482 data-nosnippet>482</a>        <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="macro">vec!</span>[C::zero(); <span class="self">self</span>.degree_bound() + rhs.degree + <span class="number">1</span>];
-<a href=#483 id=483 data-nosnippet>483</a>        <span class="kw">for </span>(i, coefficient) <span class="kw">in </span><span class="self">self</span>.<span class="number">0</span>.iter().enumerate() {
-<a href=#484 id=484 data-nosnippet>484</a>            result[i + rhs.degree] = <span class="kw-2">*</span>coefficient * rhs.coefficient;
-<a href=#485 id=485 data-nosnippet>485</a>        }
-<a href=#486 id=486 data-nosnippet>486</a>        Poly::from(result)
-<a href=#487 id=487 data-nosnippet>487</a>    }
-<a href=#488 id=488 data-nosnippet>488</a>}
-<a href=#489 id=489 data-nosnippet>489</a>
-<a href=#490 id=490 data-nosnippet>490</a><span class="doccomment">/// Represents a monic linear polynomial of the form x + c.
-<a href=#491 id=491 data-nosnippet>491</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>MonicLinear&lt;C&gt;(<span class="kw">pub </span>C);
-<a href=#492 id=492 data-nosnippet>492</a>
-<a href=#493 id=493 data-nosnippet>493</a><span class="kw">impl</span>&lt;C: Scalar&gt; MulAssign&lt;MonicLinear&lt;C&gt;&gt; <span class="kw">for </span>Poly&lt;C&gt; {
-<a href=#494 id=494 data-nosnippet>494</a>    <span class="kw">fn </span>mul_assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rhs: MonicLinear&lt;C&gt;) {
-<a href=#495 id=495 data-nosnippet>495</a>        <span class="kw">if </span>rhs.<span class="number">0 </span>== C::zero() || <span class="self">self</span>.is_zero() {
-<a href=#496 id=496 data-nosnippet>496</a>            <span class="kw-2">*</span><span class="self">self </span>= Poly::zero();
-<a href=#497 id=497 data-nosnippet>497</a>            <span class="kw">return</span>;
-<a href=#498 id=498 data-nosnippet>498</a>        }
-<a href=#499 id=499 data-nosnippet>499</a>        <span class="self">self</span>.<span class="number">0</span>.push(<span class="kw-2">*</span><span class="self">self</span>.<span class="number">0</span>.last().unwrap());
-<a href=#500 id=500 data-nosnippet>500</a>        <span class="kw">for </span>i <span class="kw">in </span>(<span class="number">1</span>..<span class="self">self</span>.<span class="number">0</span>.len() - <span class="number">1</span>).rev() {
-<a href=#501 id=501 data-nosnippet>501</a>            <span class="self">self</span>.<span class="number">0</span>[i] = <span class="self">self</span>.<span class="number">0</span>[i] * rhs.<span class="number">0 </span>+ <span class="self">self</span>.<span class="number">0</span>[i - <span class="number">1</span>];
-<a href=#502 id=502 data-nosnippet>502</a>        }
-<a href=#503 id=503 data-nosnippet>503</a>        <span class="self">self</span>.<span class="number">0</span>[<span class="number">0</span>] = <span class="self">self</span>.<span class="number">0</span>[<span class="number">0</span>] * rhs.<span class="number">0</span>;
-<a href=#504 id=504 data-nosnippet>504</a>    }
-<a href=#505 id=505 data-nosnippet>505</a>}
-<a href=#506 id=506 data-nosnippet>506</a>
-<a href=#507 id=507 data-nosnippet>507</a><span class="doccomment">/// Assuming that `d` divides `n` exactly (or, that `d.0` is a root in `n`), return the quotient `n / d`.
-<a href=#508 id=508 data-nosnippet>508</a></span><span class="kw">fn </span>div_exact&lt;C: Scalar&gt;(n: <span class="kw-2">&amp;</span>Poly&lt;C&gt;, d: <span class="kw-2">&amp;</span>MonicLinear&lt;C&gt;) -&gt; Poly&lt;C&gt; {
-<a href=#509 id=509 data-nosnippet>509</a>    <span class="kw">if </span>n.is_zero() {
-<a href=#510 id=510 data-nosnippet>510</a>        <span class="kw">return </span>Poly::zero();
-<a href=#511 id=511 data-nosnippet>511</a>    }
-<a href=#512 id=512 data-nosnippet>512</a>    <span class="kw">let </span><span class="kw-2">mut </span>result = n.<span class="number">0</span>[<span class="number">1</span>..].to_vec();
-<a href=#513 id=513 data-nosnippet>513</a>    <span class="kw">for </span>i <span class="kw">in </span>(<span class="number">0</span>..result.len() - <span class="number">1</span>).rev() {
-<a href=#514 id=514 data-nosnippet>514</a>        result[i] = result[i] - result[i + <span class="number">1</span>] * d.<span class="number">0</span>;
-<a href=#515 id=515 data-nosnippet>515</a>    }
-<a href=#516 id=516 data-nosnippet>516</a>    Poly::from(result)
-<a href=#517 id=517 data-nosnippet>517</a>}
-<a href=#518 id=518 data-nosnippet>518</a>
-<a href=#519 id=519 data-nosnippet>519</a><span class="attr">#[cfg(test)]
-<a href=#520 id=520 data-nosnippet>520</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>poly_eq&lt;C: GroupElement&gt;(a: <span class="kw-2">&amp;</span>Poly&lt;C&gt;, b: <span class="kw-2">&amp;</span>Poly&lt;C&gt;) -&gt; bool {
-<a href=#521 id=521 data-nosnippet>521</a>    a.<span class="number">0</span>[..(a.degree() + <span class="number">1</span>)] == b.<span class="number">0</span>[..(b.degree() + <span class="number">1</span>)]
-<a href=#522 id=522 data-nosnippet>522</a>}</code></pre></div></section></main></body></html>
+<a href=#297 id=297 data-nosnippet>297</a>        <span class="self">self</span>.<span class="number">0
+<a href=#298 id=298 data-nosnippet>298</a>            </span>.iter()
+<a href=#299 id=299 data-nosnippet>299</a>            .map(|c| P::generator() * c)
+<a href=#300 id=300 data-nosnippet>300</a>            .collect_vec()
+<a href=#301 id=301 data-nosnippet>301</a>            .into()
+<a href=#302 id=302 data-nosnippet>302</a>    }
+<a href=#303 id=303 data-nosnippet>303</a>
+<a href=#304 id=304 data-nosnippet>304</a>    <span class="doccomment">/// Given a set of shares with unique indices, compute what the value of the interpolated polynomial is at the given index.
+<a href=#305 id=305 data-nosnippet>305</a>    /// Returns an error if the input is invalid (e.g., empty or duplicate indices).
+<a href=#306 id=306 data-nosnippet>306</a>    ///
+<a href=#307 id=307 data-nosnippet>307</a>    /// This is faster than first recovering the polynomial and then evaluating it at the given index.
+<a href=#308 id=308 data-nosnippet>308</a>    </span><span class="kw">pub fn </span>interpolate_at_index(
+<a href=#309 id=309 data-nosnippet>309</a>        index: ShareIndex,
+<a href=#310 id=310 data-nosnippet>310</a>        points: <span class="kw-2">&amp;</span>[Eval&lt;C&gt;],
+<a href=#311 id=311 data-nosnippet>311</a>    ) -&gt; FastCryptoResult&lt;Eval&lt;C&gt;&gt; {
+<a href=#312 id=312 data-nosnippet>312</a>        <span class="kw">if </span>points.is_empty() {
+<a href=#313 id=313 data-nosnippet>313</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+<a href=#314 id=314 data-nosnippet>314</a>        }
+<a href=#315 id=315 data-nosnippet>315</a>        <span class="kw">if </span>!points.iter().map(|p| p.index).all_unique() {
+<a href=#316 id=316 data-nosnippet>316</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+<a href=#317 id=317 data-nosnippet>317</a>        }
+<a href=#318 id=318 data-nosnippet>318</a>        <span class="kw">let </span>x: C = to_scalar(index);
+<a href=#319 id=319 data-nosnippet>319</a>
+<a href=#320 id=320 data-nosnippet>320</a>        <span class="comment">// Convert indices to scalars for interpolation.
+<a href=#321 id=321 data-nosnippet>321</a>        </span><span class="kw">let </span>indices = points
+<a href=#322 id=322 data-nosnippet>322</a>            .iter()
+<a href=#323 id=323 data-nosnippet>323</a>            .map(|p| to_scalar(p.index))
+<a href=#324 id=324 data-nosnippet>324</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#325 id=325 data-nosnippet>325</a>
+<a href=#326 id=326 data-nosnippet>326</a>        <span class="kw">let </span>value = C::sum(indices.iter().enumerate().map(|(j, x_j)| {
+<a href=#327 id=327 data-nosnippet>327</a>            <span class="kw">let </span>numerator = C::product(indices.iter().filter(|x_i| <span class="kw-2">*</span>x_i != x_j).map(|x_i| x - x_i));
+<a href=#328 id=328 data-nosnippet>328</a>            <span class="kw">let </span>denominator = C::product(
+<a href=#329 id=329 data-nosnippet>329</a>                indices
+<a href=#330 id=330 data-nosnippet>330</a>                    .iter()
+<a href=#331 id=331 data-nosnippet>331</a>                    .filter(|x_i| <span class="kw-2">*</span>x_i != x_j)
+<a href=#332 id=332 data-nosnippet>332</a>                    .map(|x_i| <span class="kw-2">*</span>x_j - x_i),
+<a href=#333 id=333 data-nosnippet>333</a>            );
+<a href=#334 id=334 data-nosnippet>334</a>            points[j].value * (numerator / denominator).unwrap()
+<a href=#335 id=335 data-nosnippet>335</a>        }));
+<a href=#336 id=336 data-nosnippet>336</a>
+<a href=#337 id=337 data-nosnippet>337</a>        <span class="prelude-val">Ok</span>(Eval { index, value })
+<a href=#338 id=338 data-nosnippet>338</a>    }
+<a href=#339 id=339 data-nosnippet>339</a>
+<a href=#340 id=340 data-nosnippet>340</a>    <span class="doccomment">/// Given a set of shares with unique indices, compute the polynomial that
+<a href=#341 id=341 data-nosnippet>341</a>    /// goes through all the points. The degree of the resulting polynomial is
+<a href=#342 id=342 data-nosnippet>342</a>    /// at most `points.len() - 1`.
+<a href=#343 id=343 data-nosnippet>343</a>    /// Returns an error if the input is invalid (e.g., empty or duplicate indices).
+<a href=#344 id=344 data-nosnippet>344</a>    </span><span class="kw">pub fn </span>interpolate(points: <span class="kw-2">&amp;</span>[Eval&lt;C&gt;]) -&gt; FastCryptoResult&lt;Poly&lt;C&gt;&gt; {
+<a href=#345 id=345 data-nosnippet>345</a>        <span class="kw">if </span>points.is_empty() || !points.iter().map(|p| p.index).all_unique() {
+<a href=#346 id=346 data-nosnippet>346</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+<a href=#347 id=347 data-nosnippet>347</a>        }
+<a href=#348 id=348 data-nosnippet>348</a>        <span class="kw">let </span>x: Vec&lt;C&gt; = points
+<a href=#349 id=349 data-nosnippet>349</a>            .iter()
+<a href=#350 id=350 data-nosnippet>350</a>            .map(|e| types::to_scalar(e.index))
+<a href=#351 id=351 data-nosnippet>351</a>            .collect_vec();
+<a href=#352 id=352 data-nosnippet>352</a>
+<a href=#353 id=353 data-nosnippet>353</a>        <span class="comment">// Compute the full numerator polynomial: (x - x_1)(x - x_2)...(x - x_t)
+<a href=#354 id=354 data-nosnippet>354</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>full_numerator = Poly::one();
+<a href=#355 id=355 data-nosnippet>355</a>        <span class="kw">for </span>x_i <span class="kw">in </span><span class="kw-2">&amp;</span>x {
+<a href=#356 id=356 data-nosnippet>356</a>            full_numerator <span class="kw-2">*</span>= MonicLinear(-<span class="kw-2">*</span>x_i);
+<a href=#357 id=357 data-nosnippet>357</a>        }
+<a href=#358 id=358 data-nosnippet>358</a>
+<a href=#359 id=359 data-nosnippet>359</a>        <span class="prelude-val">Ok</span>(Poly::sum(points.iter().enumerate().map(|(j, p_j)| {
+<a href=#360 id=360 data-nosnippet>360</a>            <span class="kw">let </span>denominator = C::product(
+<a href=#361 id=361 data-nosnippet>361</a>                x.iter()
+<a href=#362 id=362 data-nosnippet>362</a>                    .enumerate()
+<a href=#363 id=363 data-nosnippet>363</a>                    .filter(|(i, <span class="kw">_</span>)| <span class="kw-2">*</span>i != j)
+<a href=#364 id=364 data-nosnippet>364</a>                    .map(|(<span class="kw">_</span>, x_i)| x[j] - x_i),
+<a href=#365 id=365 data-nosnippet>365</a>            );
+<a href=#366 id=366 data-nosnippet>366</a>            <span class="comment">// Safe since (x - x[j]) divides full_numerator per definition
+<a href=#367 id=367 data-nosnippet>367</a>            </span>div_exact(<span class="kw-2">&amp;</span>full_numerator, <span class="kw-2">&amp;</span>MonicLinear(-x[j])) * <span class="kw-2">&amp;</span>(p_j.value / denominator).unwrap()
+<a href=#368 id=368 data-nosnippet>368</a>        })))
+<a href=#369 id=369 data-nosnippet>369</a>    }
+<a href=#370 id=370 data-nosnippet>370</a>
+<a href=#371 id=371 data-nosnippet>371</a>    <span class="doccomment">/// Returns the leading term of the polynomial.
+<a href=#372 id=372 data-nosnippet>372</a>    /// If the polynomial is zero, returns a monomial with coefficient zero and degree zero.
+<a href=#373 id=373 data-nosnippet>373</a>    </span><span class="kw">fn </span>lead(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Monomial&lt;C&gt; {
+<a href=#374 id=374 data-nosnippet>374</a>        <span class="kw">if </span><span class="self">self</span>.is_zero() {
+<a href=#375 id=375 data-nosnippet>375</a>            <span class="kw">return </span>Monomial {
+<a href=#376 id=376 data-nosnippet>376</a>                coefficient: C::zero(),
+<a href=#377 id=377 data-nosnippet>377</a>                degree: <span class="number">0</span>,
+<a href=#378 id=378 data-nosnippet>378</a>            };
+<a href=#379 id=379 data-nosnippet>379</a>        }
+<a href=#380 id=380 data-nosnippet>380</a>        <span class="kw">let </span>degree = <span class="self">self</span>.degree();
+<a href=#381 id=381 data-nosnippet>381</a>        Monomial {
+<a href=#382 id=382 data-nosnippet>382</a>            coefficient: <span class="self">self</span>.<span class="number">0</span>[degree],
+<a href=#383 id=383 data-nosnippet>383</a>            degree,
+<a href=#384 id=384 data-nosnippet>384</a>        }
+<a href=#385 id=385 data-nosnippet>385</a>    }
+<a href=#386 id=386 data-nosnippet>386</a>
+<a href=#387 id=387 data-nosnippet>387</a>    <span class="doccomment">/// Divide self by divisor, returning the quotient and remainder.
+<a href=#388 id=388 data-nosnippet>388</a>    /// Returns an error if divisor is zero.
+<a href=#389 id=389 data-nosnippet>389</a>    </span><span class="kw">pub fn </span>div_rem(<span class="kw-2">&amp;</span><span class="self">self</span>, divisor: <span class="kw-2">&amp;</span>Poly&lt;C&gt;) -&gt; FastCryptoResult&lt;(Poly&lt;C&gt;, Poly&lt;C&gt;)&gt; {
+<a href=#390 id=390 data-nosnippet>390</a>        <span class="kw">if </span>divisor.is_zero() {
+<a href=#391 id=391 data-nosnippet>391</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+<a href=#392 id=392 data-nosnippet>392</a>        }
+<a href=#393 id=393 data-nosnippet>393</a>        <span class="kw">let </span><span class="kw-2">mut </span>remainder = <span class="self">self</span>.clone();
+<a href=#394 id=394 data-nosnippet>394</a>        <span class="kw">let </span><span class="kw-2">mut </span>quotient = <span class="self">Self</span>::zero();
+<a href=#395 id=395 data-nosnippet>395</a>
+<a href=#396 id=396 data-nosnippet>396</a>        <span class="kw">let </span>lead_inverse = divisor.lead().coefficient.inverse()<span class="question-mark">?</span>;
+<a href=#397 id=397 data-nosnippet>397</a>
+<a href=#398 id=398 data-nosnippet>398</a>        <span class="comment">// Function to divide a term by the leading term of the divisor.
+<a href=#399 id=399 data-nosnippet>399</a>        // This panics if the degree of the given term is less than that of the divisor.
+<a href=#400 id=400 data-nosnippet>400</a>        </span><span class="kw">let </span>divider = |p: Monomial&lt;C&gt;| Monomial {
+<a href=#401 id=401 data-nosnippet>401</a>            coefficient: p.coefficient * lead_inverse,
+<a href=#402 id=402 data-nosnippet>402</a>            degree: p.degree - divisor.degree(),
+<a href=#403 id=403 data-nosnippet>403</a>        };
+<a href=#404 id=404 data-nosnippet>404</a>
+<a href=#405 id=405 data-nosnippet>405</a>        <span class="kw">while </span>!remainder.is_zero() &amp;&amp; remainder.degree() &gt;= divisor.degree() {
+<a href=#406 id=406 data-nosnippet>406</a>            <span class="kw">let </span>tmp = divider(remainder.lead());
+<a href=#407 id=407 data-nosnippet>407</a>            quotient += <span class="kw-2">&amp;</span>tmp;
+<a href=#408 id=408 data-nosnippet>408</a>            remainder -= divisor * <span class="kw-2">&amp;</span>tmp;
+<a href=#409 id=409 data-nosnippet>409</a>            remainder.reduce();
+<a href=#410 id=410 data-nosnippet>410</a>        }
+<a href=#411 id=411 data-nosnippet>411</a>        <span class="prelude-val">Ok</span>((quotient, remainder))
+<a href=#412 id=412 data-nosnippet>412</a>    }
+<a href=#413 id=413 data-nosnippet>413</a>
+<a href=#414 id=414 data-nosnippet>414</a>    <span class="doccomment">/// Compute the extended GCD of two polynomials.
+<a href=#415 id=415 data-nosnippet>415</a>    /// Returns (g, x, y, s, t) such that g = self * x + other * y.
+<a href=#416 id=416 data-nosnippet>416</a>    /// The loop stops when the degree of g is less than degree_bound.
+<a href=#417 id=417 data-nosnippet>417</a>    </span><span class="kw">pub fn </span>partial_extended_gcd(
+<a href=#418 id=418 data-nosnippet>418</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#419 id=419 data-nosnippet>419</a>        other: <span class="kw-2">&amp;</span>Poly&lt;C&gt;,
+<a href=#420 id=420 data-nosnippet>420</a>        degree_bound: usize,
+<a href=#421 id=421 data-nosnippet>421</a>    ) -&gt; FastCryptoResult&lt;(Poly&lt;C&gt;, Poly&lt;C&gt;, Poly&lt;C&gt;)&gt; {
+<a href=#422 id=422 data-nosnippet>422</a>        <span class="kw">let </span><span class="kw-2">mut </span>r = (<span class="self">self</span>.clone(), other.clone());
+<a href=#423 id=423 data-nosnippet>423</a>        <span class="kw">let </span><span class="kw-2">mut </span>s = (Poly::one(), Poly::zero());
+<a href=#424 id=424 data-nosnippet>424</a>        <span class="kw">let </span><span class="kw-2">mut </span>t = (Poly::zero(), Poly::one());
+<a href=#425 id=425 data-nosnippet>425</a>
+<a href=#426 id=426 data-nosnippet>426</a>        <span class="kw">while </span>r.<span class="number">0</span>.degree() &gt;= degree_bound &amp;&amp; !r.<span class="number">1</span>.is_zero() {
+<a href=#427 id=427 data-nosnippet>427</a>            <span class="kw">let </span>(q, r_new) = r.<span class="number">0</span>.div_rem(<span class="kw-2">&amp;</span>r.<span class="number">1</span>)<span class="question-mark">?</span>;
+<a href=#428 id=428 data-nosnippet>428</a>            r = (r.<span class="number">1</span>, r_new);
+<a href=#429 id=429 data-nosnippet>429</a>            r.<span class="number">0</span>.reduce();
+<a href=#430 id=430 data-nosnippet>430</a>
+<a href=#431 id=431 data-nosnippet>431</a>            t.<span class="number">0 </span>-= <span class="kw-2">&amp;</span>q * <span class="kw-2">&amp;</span>t.<span class="number">1</span>;
+<a href=#432 id=432 data-nosnippet>432</a>            s.<span class="number">0 </span>-= <span class="kw-2">&amp;</span>q * <span class="kw-2">&amp;</span>s.<span class="number">1</span>;
+<a href=#433 id=433 data-nosnippet>433</a>
+<a href=#434 id=434 data-nosnippet>434</a>            swap(<span class="kw-2">&amp;mut </span>t.<span class="number">0</span>, <span class="kw-2">&amp;mut </span>t.<span class="number">1</span>);
+<a href=#435 id=435 data-nosnippet>435</a>            swap(<span class="kw-2">&amp;mut </span>s.<span class="number">0</span>, <span class="kw-2">&amp;mut </span>s.<span class="number">1</span>);
+<a href=#436 id=436 data-nosnippet>436</a>        }
+<a href=#437 id=437 data-nosnippet>437</a>        <span class="prelude-val">Ok</span>((r.<span class="number">0</span>, s.<span class="number">0</span>, t.<span class="number">0</span>))
+<a href=#438 id=438 data-nosnippet>438</a>    }
+<a href=#439 id=439 data-nosnippet>439</a>
+<a href=#440 id=440 data-nosnippet>440</a>    <span class="kw">pub fn </span>extended_gcd(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Poly&lt;C&gt;) -&gt; FastCryptoResult&lt;(Poly&lt;C&gt;, Poly&lt;C&gt;, Poly&lt;C&gt;)&gt; {
+<a href=#441 id=441 data-nosnippet>441</a>        <span class="self">self</span>.partial_extended_gcd(other, <span class="number">1</span>)
+<a href=#442 id=442 data-nosnippet>442</a>    }
+<a href=#443 id=443 data-nosnippet>443</a>}
+<a href=#444 id=444 data-nosnippet>444</a>
+<a href=#445 id=445 data-nosnippet>445</a><span class="kw">impl</span>&lt;C: GroupElement + MultiScalarMul&gt; Poly&lt;C&gt; {
+<a href=#446 id=446 data-nosnippet>446</a>    <span class="doccomment">/// Given exactly `t` polynomial evaluations, it will recover the polynomial's
+<a href=#447 id=447 data-nosnippet>447</a>    /// constant term.
+<a href=#448 id=448 data-nosnippet>448</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>recover_c0_msm(
+<a href=#449 id=449 data-nosnippet>449</a>        t: u16,
+<a href=#450 id=450 data-nosnippet>450</a>        shares: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;Eval&lt;C&gt;&gt;&gt; + Clone,
+<a href=#451 id=451 data-nosnippet>451</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;C, FastCryptoError&gt; {
+<a href=#452 id=452 data-nosnippet>452</a>        <span class="kw">let </span>coeffs = <span class="self">Self</span>::get_lagrange_coefficients_for_c0(t, shares.clone())<span class="question-mark">?</span>;
+<a href=#453 id=453 data-nosnippet>453</a>        <span class="kw">let </span>plain_shares = shares.map(|s| s.borrow().value).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#454 id=454 data-nosnippet>454</a>        <span class="kw">let </span>res = C::multi_scalar_mul(<span class="kw-2">&amp;</span>coeffs, <span class="kw-2">&amp;</span>plain_shares).expect(<span class="string">"sizes match"</span>);
+<a href=#455 id=455 data-nosnippet>455</a>        <span class="prelude-val">Ok</span>(res)
+<a href=#456 id=456 data-nosnippet>456</a>    }
+<a href=#457 id=457 data-nosnippet>457</a>}
+<a href=#458 id=458 data-nosnippet>458</a>
+<a href=#459 id=459 data-nosnippet>459</a><span class="doccomment">/// This represents a monomial, e.g., 3 * x^2, where 3 is the coefficient and 2 is the degree.
+<a href=#460 id=460 data-nosnippet>460</a></span><span class="kw">struct </span>Monomial&lt;C&gt; {
+<a href=#461 id=461 data-nosnippet>461</a>    coefficient: C,
+<a href=#462 id=462 data-nosnippet>462</a>    degree: usize,
+<a href=#463 id=463 data-nosnippet>463</a>}
+<a href=#464 id=464 data-nosnippet>464</a>
+<a href=#465 id=465 data-nosnippet>465</a><span class="kw">impl</span>&lt;C: GroupElement&gt; AddAssign&lt;<span class="kw-2">&amp;</span>Monomial&lt;C&gt;&gt; <span class="kw">for </span>Poly&lt;C&gt; {
+<a href=#466 id=466 data-nosnippet>466</a>    <span class="kw">fn </span>add_assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rhs: <span class="kw-2">&amp;</span>Monomial&lt;C&gt;) {
+<a href=#467 id=467 data-nosnippet>467</a>        <span class="kw">if </span><span class="self">self</span>.<span class="number">0</span>.len() &lt;= rhs.degree {
+<a href=#468 id=468 data-nosnippet>468</a>            <span class="self">self</span>.<span class="number">0</span>.resize(rhs.degree + <span class="number">1</span>, C::zero());
+<a href=#469 id=469 data-nosnippet>469</a>        }
+<a href=#470 id=470 data-nosnippet>470</a>        <span class="self">self</span>.<span class="number">0</span>[rhs.degree] += rhs.coefficient;
+<a href=#471 id=471 data-nosnippet>471</a>    }
+<a href=#472 id=472 data-nosnippet>472</a>}
+<a href=#473 id=473 data-nosnippet>473</a>
+<a href=#474 id=474 data-nosnippet>474</a><span class="kw">impl</span>&lt;C: Scalar&gt; Mul&lt;<span class="kw-2">&amp;</span>Monomial&lt;C&gt;&gt; <span class="kw">for </span><span class="kw-2">&amp;</span>Poly&lt;C&gt; {
+<a href=#475 id=475 data-nosnippet>475</a>    <span class="kw">type </span>Output = Poly&lt;C&gt;;
+<a href=#476 id=476 data-nosnippet>476</a>
+<a href=#477 id=477 data-nosnippet>477</a>    <span class="kw">fn </span>mul(<span class="self">self</span>, rhs: <span class="kw-2">&amp;</span>Monomial&lt;C&gt;) -&gt; Poly&lt;C&gt; {
+<a href=#478 id=478 data-nosnippet>478</a>        <span class="kw">if </span>rhs.coefficient == C::zero() {
+<a href=#479 id=479 data-nosnippet>479</a>            <span class="kw">return </span>Poly::zero();
+<a href=#480 id=480 data-nosnippet>480</a>        }
+<a href=#481 id=481 data-nosnippet>481</a>        <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="macro">vec!</span>[C::zero(); <span class="self">self</span>.degree_bound() + rhs.degree + <span class="number">1</span>];
+<a href=#482 id=482 data-nosnippet>482</a>        <span class="kw">for </span>(i, coefficient) <span class="kw">in </span><span class="self">self</span>.<span class="number">0</span>.iter().enumerate() {
+<a href=#483 id=483 data-nosnippet>483</a>            result[i + rhs.degree] = <span class="kw-2">*</span>coefficient * rhs.coefficient;
+<a href=#484 id=484 data-nosnippet>484</a>        }
+<a href=#485 id=485 data-nosnippet>485</a>        Poly::from(result)
+<a href=#486 id=486 data-nosnippet>486</a>    }
+<a href=#487 id=487 data-nosnippet>487</a>}
+<a href=#488 id=488 data-nosnippet>488</a>
+<a href=#489 id=489 data-nosnippet>489</a><span class="doccomment">/// Represents a monic linear polynomial of the form x + c.
+<a href=#490 id=490 data-nosnippet>490</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>MonicLinear&lt;C&gt;(<span class="kw">pub </span>C);
+<a href=#491 id=491 data-nosnippet>491</a>
+<a href=#492 id=492 data-nosnippet>492</a><span class="kw">impl</span>&lt;C: Scalar&gt; MulAssign&lt;MonicLinear&lt;C&gt;&gt; <span class="kw">for </span>Poly&lt;C&gt; {
+<a href=#493 id=493 data-nosnippet>493</a>    <span class="kw">fn </span>mul_assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rhs: MonicLinear&lt;C&gt;) {
+<a href=#494 id=494 data-nosnippet>494</a>        <span class="kw">if </span>rhs.<span class="number">0 </span>== C::zero() || <span class="self">self</span>.is_zero() {
+<a href=#495 id=495 data-nosnippet>495</a>            <span class="kw-2">*</span><span class="self">self </span>= Poly::zero();
+<a href=#496 id=496 data-nosnippet>496</a>            <span class="kw">return</span>;
+<a href=#497 id=497 data-nosnippet>497</a>        }
+<a href=#498 id=498 data-nosnippet>498</a>        <span class="self">self</span>.<span class="number">0</span>.push(<span class="kw-2">*</span><span class="self">self</span>.<span class="number">0</span>.last().unwrap());
+<a href=#499 id=499 data-nosnippet>499</a>        <span class="kw">for </span>i <span class="kw">in </span>(<span class="number">1</span>..<span class="self">self</span>.<span class="number">0</span>.len() - <span class="number">1</span>).rev() {
+<a href=#500 id=500 data-nosnippet>500</a>            <span class="self">self</span>.<span class="number">0</span>[i] = <span class="self">self</span>.<span class="number">0</span>[i] * rhs.<span class="number">0 </span>+ <span class="self">self</span>.<span class="number">0</span>[i - <span class="number">1</span>];
+<a href=#501 id=501 data-nosnippet>501</a>        }
+<a href=#502 id=502 data-nosnippet>502</a>        <span class="self">self</span>.<span class="number">0</span>[<span class="number">0</span>] = <span class="self">self</span>.<span class="number">0</span>[<span class="number">0</span>] * rhs.<span class="number">0</span>;
+<a href=#503 id=503 data-nosnippet>503</a>    }
+<a href=#504 id=504 data-nosnippet>504</a>}
+<a href=#505 id=505 data-nosnippet>505</a>
+<a href=#506 id=506 data-nosnippet>506</a><span class="doccomment">/// Assuming that `d` divides `n` exactly (or, that `d.0` is a root in `n`), return the quotient `n / d`.
+<a href=#507 id=507 data-nosnippet>507</a></span><span class="kw">fn </span>div_exact&lt;C: Scalar&gt;(n: <span class="kw-2">&amp;</span>Poly&lt;C&gt;, d: <span class="kw-2">&amp;</span>MonicLinear&lt;C&gt;) -&gt; Poly&lt;C&gt; {
+<a href=#508 id=508 data-nosnippet>508</a>    <span class="kw">if </span>n.is_zero() {
+<a href=#509 id=509 data-nosnippet>509</a>        <span class="kw">return </span>Poly::zero();
+<a href=#510 id=510 data-nosnippet>510</a>    }
+<a href=#511 id=511 data-nosnippet>511</a>    <span class="kw">let </span><span class="kw-2">mut </span>result = n.<span class="number">0</span>[<span class="number">1</span>..].to_vec();
+<a href=#512 id=512 data-nosnippet>512</a>    <span class="kw">for </span>i <span class="kw">in </span>(<span class="number">0</span>..result.len() - <span class="number">1</span>).rev() {
+<a href=#513 id=513 data-nosnippet>513</a>        result[i] = result[i] - result[i + <span class="number">1</span>] * d.<span class="number">0</span>;
+<a href=#514 id=514 data-nosnippet>514</a>    }
+<a href=#515 id=515 data-nosnippet>515</a>    Poly::from(result)
+<a href=#516 id=516 data-nosnippet>516</a>}
+<a href=#517 id=517 data-nosnippet>517</a>
+<a href=#518 id=518 data-nosnippet>518</a><span class="attr">#[cfg(test)]
+<a href=#519 id=519 data-nosnippet>519</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>poly_eq&lt;C: GroupElement&gt;(a: <span class="kw-2">&amp;</span>Poly&lt;C&gt;, b: <span class="kw-2">&amp;</span>Poly&lt;C&gt;) -&gt; bool {
+<a href=#520 id=520 data-nosnippet>520</a>    a.<span class="number">0</span>[..(a.degree() + <span class="number">1</span>)] == b.<span class="number">0</span>[..(b.degree() + <span class="number">1</span>)]
+<a href=#521 id=521 data-nosnippet>521</a>}</code></pre></div></section></main></body></html>
