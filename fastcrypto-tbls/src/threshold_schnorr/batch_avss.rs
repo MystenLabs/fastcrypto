@@ -246,7 +246,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
         let blinding_commit = G::generator() * blinding_poly.c0();
 
         // Compute all evaluations of all polynomials
-        let evaluations = polynomials.each_ref().map(|p| {
+        let shares_for_polynomial = polynomials.each_ref().map(|p| {
             p.eval_range(self.nodes.total_weight())
                 .expect("Weight is sufficiently small")
         });
@@ -264,9 +264,9 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
                             .into_iter()
                             .map(|index| ShareBatch {
                                 index,
-                                shares: evaluations
+                                shares: shares_for_polynomial
                                     .each_ref()
-                                    .map(|e| e[index.get() as usize - 1].value),
+                                    .map(|shares| shares[index].clone().value),
                                 blinding_share: blinding_poly.eval(index).value,
                             })
                             .collect_vec(),

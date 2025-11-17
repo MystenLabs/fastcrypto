@@ -16,7 +16,7 @@ use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::mem::swap;
 use std::num::NonZeroU16;
-use std::ops::{Add, AddAssign, Mul, MulAssign, SubAssign};
+use std::ops::{Add, AddAssign, Index, Mul, MulAssign, SubAssign};
 
 /// Types
 
@@ -157,14 +157,16 @@ impl<C: GroupElement> Poly<C> {
     /// If `m` is `u16::MAX`, only the first `m-1` evaluations will be returned.
     ///
     /// This is based on an algorithm in section 4.6.4 of Knuth's "The Art of Computer Programming".
-    pub fn eval_range(&self, m: u16) -> FastCryptoResult<Vec<Eval<C>>> {
-        Ok(PolynomialEvaluator::new(
-            self,
-            NonZeroU16::new(1).unwrap(),
-            NonZeroU16::new(1).unwrap(),
-        )?
-        .take(m as usize)
-        .collect_vec())
+    pub fn eval_range(&self, m: u16) -> FastCryptoResult<EvalRange<C>> {
+        Ok(EvalRange(
+            PolynomialEvaluator::new(
+                self,
+                NonZeroU16::new(1).unwrap(),
+                NonZeroU16::new(1).unwrap(),
+            )?
+            .take(m as usize)
+            .collect_vec(),
+        ))
     }
 
     // Multiply using u128 if possible, otherwise just convert one element to the group element and return the other.
@@ -600,5 +602,28 @@ impl<C: GroupElement> Iterator for PolynomialEvaluator<C> {
             index: self.index,
             value: self.state[0],
         })
+    }
+}
+
+/// This holds the output of [Poly::eval_range].
+#[derive(Debug)]
+pub struct EvalRange<C>(Vec<Eval<C>>);
+
+impl<C> Index<ShareIndex> for EvalRange<C> {
+    type Output = Eval<C>;
+
+    fn index(&self, index: ShareIndex) -> &Self::Output {
+        // ShareIndex are counted from 1
+        &self.0[index.get() as usize - 1]
+    }
+}
+
+impl<C> EvalRange<C> {
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }

@@ -179,7 +179,7 @@ impl Dealer {
                     SharesForNode {
                         shares: share_ids
                             .into_iter()
-                            .map(|index| all_shares[index.get() as usize - 1].clone())
+                            .map(|index| all_shares[index].clone())
                             .collect_vec(),
                     }
                     .to_bytes(),
