@@ -208,6 +208,19 @@ mod scalar_tests {
         assert_eq!(a.degree_bound(), 2);
     }
 
+    #[test]
+    fn test_eval_range<S: Scalar>() {
+        let t = 10;
+        let n = 30;
+        let mut rng = rand::thread_rng();
+        let polynomial: Poly<S> = Poly::rand(t, &mut rng);
+        let evaluations = polynomial.eval_range(n).unwrap();
+        for i in 1..=n {
+            let index = ShareIndex::new(i).unwrap();
+            assert_eq!(evaluations[index], polynomial.eval(index));
+        }
+    }
+
     #[instantiate_tests(<RistrettoScalar>)]
     mod ristretto_scalar {}
 

@@ -15,7 +15,8 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::mem::swap;
-use std::ops::{Add, AddAssign, Mul, MulAssign, SubAssign};
+use std::num::NonZeroU16;
+use std::ops::{Add, AddAssign, Index, Mul, MulAssign, SubAssign};
 
 /// Types
 
@@ -148,6 +149,26 @@ impl<C: GroupElement> Poly<C> {
             index: i,
             value: res,
         }
+    }
+
+    /// Evaluate the polynomial for all x in the range [1,...,m].
+    /// If m is sufficiently larger than the degree, this is faster than just evaluating at each point.
+    /// Returns an [InvalidInput] error if `self.degree() >= u16::MAX` or if `m` is `0` or `u16::MAX`.
+    ///
+    /// This is based on an algorithm in section 4.6.4 of Knuth's "The Art of Computer Programming".
+    pub fn eval_range(&self, m: u16) -> FastCryptoResult<EvalRange<C>> {
+        if m == 0 || m == u16::MAX || self.degree() >= u16::MAX as usize {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        Ok(EvalRange(
+            PolynomialEvaluator::new(
+                self,
+                NonZeroU16::new(1).unwrap(),
+                NonZeroU16::new(1).unwrap(),
+            )?
+            .take(m as usize)
+            .collect_vec(),
+        ))
     }
 
     // Multiply using u128 if possible, otherwise just convert one element to the group element and return the other.
@@ -518,4 +539,82 @@ fn div_exact<C: Scalar>(n: &Poly<C>, d: &MonicLinear<C>) -> Poly<C> {
 #[cfg(test)]
 pub(crate) fn poly_eq<C: GroupElement>(a: &Poly<C>, b: &Poly<C>) -> bool {
     a.0[..(a.degree() + 1)] == b.0[..(b.degree() + 1)]
+}
+
+/// This can evaluate a polynomial at points in an arithmetic progression, e.g., x0, x0+h, x0+2h, ...
+/// This is generally faster when evaluating more points than the degree of the polynomial.
+/// The algorithm used is from section 4.6.4 in Knuth's "Art of Computer Programming".
+struct PolynomialEvaluator<C> {
+    state: Vec<C>,
+    first: bool,
+    index: NonZeroU16,
+    step: NonZeroU16,
+}
+
+impl<C: GroupElement> PolynomialEvaluator<C> {
+    /// Create a new evaluator.
+    /// Returns an [InvalidInput] error if `initial + step * polynomial.degree()` can not be represented as an u16.
+    /// Once created, calling [Self::next] will return the evaluation for the next element in the arithmetic progression until the input cannot be represented as an u16.
+    fn new(polynomial: &Poly<C>, initial: NonZeroU16, step: NonZeroU16) -> FastCryptoResult<Self> {
+        // Compute initial values (see exercise 7 in 4.6.4 of TAOCP)
+        let mut state = (0..=polynomial.degree())
+            .map(|i| {
+                u16::try_from(i)
+                    .ok()
+                    .and_then(|i| i.checked_mul(step.get()))
+                    .and_then(|istep| istep.checked_add(initial.get()))
+                    .and_then(NonZeroU16::new)
+                    .map(|x| polynomial.eval(x).value)
+                    .ok_or(FastCryptoError::InvalidInput)
+            })
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+
+        for k in 1..=polynomial.degree() {
+            for j in (k..=polynomial.degree()).rev() {
+                state[j] = state[j] - state[j - 1];
+            }
+        }
+
+        Ok(Self {
+            state,
+            first: true,
+            index: initial,
+            step,
+        })
+    }
+}
+
+impl<C: GroupElement> Iterator for PolynomialEvaluator<C> {
+    type Item = Eval<C>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.first {
+            self.first = false;
+        } else {
+            self.index = match self.index.checked_add(self.step.get()) {
+                Some(new_index) => new_index,
+                None => return None,
+            };
+            for j in 0..self.state.len() - 1 {
+                self.state[j] = self.state[j] + self.state[j + 1]
+            }
+        }
+        Some(Eval {
+            index: self.index,
+            value: self.state[0],
+        })
+    }
+}
+
+/// This holds the output of [Poly::eval_range].
+#[derive(Debug)]
+pub struct EvalRange<C>(Vec<Eval<C>>);
+
+impl<C> Index<ShareIndex> for EvalRange<C> {
+    type Output = Eval<C>;
+
+    fn index(&self, index: ShareIndex) -> &Self::Output {
+        // ShareIndex is counted from 1
+        &self.0[index.get() as usize - 1]
+    }
 }

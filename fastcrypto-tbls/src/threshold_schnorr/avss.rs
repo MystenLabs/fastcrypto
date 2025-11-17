@@ -165,6 +165,9 @@ impl Dealer {
         let secret = self.secret.unwrap_or(S::rand(rng));
         let polynomial = Poly::rand_fixed_c0(self.t - 1, secret, rng);
 
+        // Evaluate all shares
+        let all_shares = polynomial.eval_range(self.nodes.total_weight())?;
+
         // Encrypt all shares to the receivers
         let pk_and_msgs = self
             .nodes
@@ -176,7 +179,7 @@ impl Dealer {
                     SharesForNode {
                         shares: share_ids
                             .into_iter()
-                            .map(|index| polynomial.eval(index))
+                            .map(|index| all_shares[index].clone())
                             .collect_vec(),
                     }
                     .to_bytes(),
