@@ -15,7 +15,7 @@ use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::mem::swap;
 use std::num::NonZeroU16;
-use std::ops::{Add, AddAssign, Index, Div, Mul, MulAssign, SubAssign};
+use std::ops::{Add, AddAssign, Div, Index, Mul, MulAssign, SubAssign};
 
 /// Types
 
