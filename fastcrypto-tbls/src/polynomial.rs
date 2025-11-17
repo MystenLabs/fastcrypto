@@ -153,16 +153,17 @@ impl<C: GroupElement> Poly<C> {
 
     /// Evaluate the polynomial for all x in the range [1,...,m].
     /// If m is sufficiently larger than the degree, this is faster than just evaluating at each point.
-    /// Returns [InvalidInput] if `m` is too large to be contained in an `u16`.
+    /// Returns an [InvalidInput] error if `1 + self.degree()` overflows as u16.
+    /// If `m` is `u16::MAX`, only the first `m-1` evaluations will be returned.
     ///
     /// This is based on an algorithm in section 4.6.4 of Knuth's "The Art of Computer Programming".
-    pub fn eval_range(&self, m: usize) -> FastCryptoResult<Vec<Eval<C>>> {
+    pub fn eval_range(&self, m: u16) -> FastCryptoResult<Vec<Eval<C>>> {
         Ok(PolynomialEvaluator::new(
             self,
             NonZeroU16::new(1).unwrap(),
             NonZeroU16::new(1).unwrap(),
         )?
-        .take(m)
+        .take(m as usize)
         .collect_vec())
     }
 

@@ -9,7 +9,6 @@ use std::num::NonZeroU16;
 
 mod polynomial_benches {
     use super::*;
-    use fastcrypto::groups::bls12381::Scalar;
     use fastcrypto_tbls::threshold_schnorr::gao::RSDecoder;
     use fastcrypto_tbls::threshold_schnorr::S;
     use fastcrypto_tbls::types::ShareIndex;
@@ -74,9 +73,7 @@ mod polynomial_benches {
                 let vss_sk = Poly::<bls12381::Scalar>::rand(t as u16, &mut thread_rng());
                 shares_gen.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
                     b.iter(|| {
-                        (1u16..=(n as u16)).for_each(|i| {
-                            vss_sk.eval(NonZeroU16::new(i).unwrap());
-                        })
+                        let _ = vss_sk.eval_range(n as u16).unwrap();
                     })
                 });
             }
@@ -106,31 +103,10 @@ mod polynomial_benches {
         }
     }
 
-    fn sample_shares(c: &mut Criterion) {
-        let t = 300;
-        let n = 1000;
-        let mut rng = thread_rng();
-        let polynomial: Poly<Scalar> = Poly::rand(t - 1, &mut rng);
-
-        c.bench_function(format!("eval n={n}, t={t}").as_str(), |b| {
-            b.iter(|| {
-                let _ = (1..=n)
-                    .map(|i| polynomial.eval(NonZeroU16::new(i).unwrap()))
-                    .collect_vec();
-            })
-        });
-
-        c.bench_function(format!("eval_range n={n}, t={t}").as_str(), |b| {
-            b.iter(|| {
-                let _ = polynomial.eval_range(n as usize);
-            })
-        });
-    }
-
     criterion_group! {
         name = polynomial_benches;
         config = Criterion::default();
-        targets = polynomials, rs_decoder, sample_shares,
+        targets = polynomials, rs_decoder,
     }
 }
 

@@ -245,6 +245,12 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
         let blinding_poly = Poly::rand(self.t - 1, rng);
         let blinding_commit = G::generator() * blinding_poly.c0();
 
+        // Compute all evaluations of all polynomials
+        let evaluations = polynomials.each_ref().map(|p| {
+            p.eval_range(self.nodes.total_weight())
+                .expect("Weight is sufficiently small")
+        });
+
         // Encrypt all shares to the receivers
         let pk_and_msgs = self
             .nodes
@@ -258,7 +264,9 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
                             .into_iter()
                             .map(|index| ShareBatch {
                                 index,
-                                shares: polynomials.each_ref().map(|p_l| p_l.eval(index).value),
+                                shares: evaluations
+                                    .each_ref()
+                                    .map(|e| e[index.get() as usize - 1].value),
                                 blinding_share: blinding_poly.eval(index).value,
                             })
                             .collect_vec(),
