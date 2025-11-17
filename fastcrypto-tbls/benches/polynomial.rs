@@ -122,7 +122,7 @@ mod polynomial_benches {
 
         c.bench_function(format!("eval_range n={n}, t={t}").as_str(), |b| {
             b.iter(|| {
-                let _ = polynomial.eval_range(n);
+                let _ = polynomial.eval_range(n as usize);
             })
         });
     }
