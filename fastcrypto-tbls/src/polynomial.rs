@@ -9,7 +9,7 @@ use crate::types::{to_scalar, IndexedValue, ShareIndex};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::HashSet;
@@ -170,30 +170,25 @@ impl<C: GroupElement> Poly<C> {
         ))
     }
 
-    // Multiply using u128 if possible, otherwise just convert one element to the group element and return the other.
-    pub(crate) fn fast_mult(x: u128, y: u128) -> Either<(C::ScalarType, u128), u128> {
-        if x.leading_zeros() >= (128 - y.leading_zeros()) {
-            Either::Right(x * y)
+    /// Multiply x.1 with y using u128s if possible, otherwise convert x.1 to the group element and multiply.
+    /// Invariant: If res = fast_mult(x1, x2, y) then x.0 * x.1 * y = res.0 * res.1.
+    pub(crate) fn fast_mult(x: (C::ScalarType, u128), y: u128) -> (C::ScalarType, u128) {
+        if x.1.leading_zeros() >= (128 - y.leading_zeros()) {
+            (x.0, x.1 * y)
         } else {
-            Either::Left((C::ScalarType::from(x), y))
+            (x.0 * C::ScalarType::from(x.1), y)
         }
     }
 
-    /// Compute initial * \prod factors. If no initial is given, it is assumed to be one (`C::ScalarType::generator()`).
+    /// Compute initial * \prod factors.
     pub(crate) fn fast_product(
         initial: C::ScalarType,
         factors: impl Iterator<Item = u128>,
     ) -> C::ScalarType {
-        let (result, remaining) =
-            factors.fold((initial, 1u128), |(prev_acc, remaining), factor| {
-                debug_assert_ne!(factor, 0);
-                match Self::fast_mult(remaining, factor) {
-                    Either::Left((remaining_as_scalar, factor)) => {
-                        (prev_acc * remaining_as_scalar, factor)
-                    }
-                    Either::Right(new_remaining) => (prev_acc, new_remaining),
-                }
-            });
+        let (result, remaining) = factors.fold((initial, 1), |acc, factor| {
+            debug_assert_ne!(factor, 0);
+            Self::fast_mult(acc, factor)
+        });
         debug_assert_ne!(remaining, 0);
         result * C::ScalarType::from(remaining)
     }
@@ -201,7 +196,7 @@ impl<C: GroupElement> Poly<C> {
     fn get_lagrange_coefficients_for_c0(
         t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
-    ) -> FastCryptoResult<Vec<C::ScalarType>> {
+    ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {
         Self::get_lagrange_coefficients_for(0, t, shares)
     }
 
@@ -210,7 +205,7 @@ impl<C: GroupElement> Poly<C> {
         x: u128,
         t: u16,
         mut shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
-    ) -> FastCryptoResult<Vec<C::ScalarType>> {
+    ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {
         let mut ids_set = HashSet::new();
         let (shares_size_lower, shares_size_upper) = shares.size_hint();
         let indices = shares.try_fold(
@@ -234,29 +229,32 @@ impl<C: GroupElement> Poly<C> {
                 .map(|i| C::ScalarType::from(*i) - C::ScalarType::from(x)),
         );
 
-        Ok(indices
-            .iter()
-            .map(|i| {
-                let mut negative = false;
-                let mut denominator = Self::fast_product(
-                    C::ScalarType::from(*i) - C::ScalarType::from(x),
-                    indices.iter().filter(|j| *j != i).map(|j| {
-                        if i > j {
-                            negative = !negative;
-                            i - j
-                        } else {
-                            // i < j (but not equal)
-                            j - i
-                        }
-                    }),
-                );
-                if negative {
-                    denominator = -denominator;
-                }
-                // TODO: Consider returning full_numerator and dividing once outside instead of here per iteration.
-                (full_numerator / denominator).expect("safe since i != j")
-            })
-            .collect())
+        Ok((
+            full_numerator,
+            indices
+                .iter()
+                .map(|i| {
+                    let mut negative = false;
+                    let mut denominator = Self::fast_product(
+                        C::ScalarType::from(*i) - C::ScalarType::from(x),
+                        indices.iter().filter(|j| *j != i).map(|j| {
+                            if i > j {
+                                negative = !negative;
+                                i - j
+                            } else {
+                                // i < j (but not equal)
+                                j - i
+                            }
+                        }),
+                    );
+                    if negative {
+                        denominator = -denominator;
+                    }
+                    // TODO: Consider returning full_numerator and dividing once outside instead of here per iteration.
+                    denominator.inverse().expect("safe since i != j")
+                })
+                .collect(),
+        ))
     }
 
     /// Given exactly `t` polynomial evaluations, it will recover the polynomial's constant term.
@@ -267,7 +265,7 @@ impl<C: GroupElement> Poly<C> {
     ) -> FastCryptoResult<C> {
         let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares.clone())?;
         let plain_shares = shares.map(|s| s.borrow().value);
-        let res = C::sum(coeffs.iter().zip(plain_shares).map(|(c, s)| s * c));
+        let res = C::sum(coeffs.1.iter().zip(plain_shares).map(|(c, s)| s * c)) * coeffs.0;
         Ok(res)
     }
 
@@ -360,10 +358,11 @@ impl<C: Scalar> Poly<C> {
         )?;
         let value = C::sum(
             lagrange_coefficients
+                .1
                 .iter()
                 .zip(points.iter().map(|p| p.value))
                 .map(|(c, s)| s * c),
-        );
+        ) * lagrange_coefficients.0;
         Ok(Eval { index, value })
     }
 
@@ -375,22 +374,37 @@ impl<C: Scalar> Poly<C> {
         if points.is_empty() || !points.iter().map(|p| p.index).all_unique() {
             return Err(FastCryptoError::InvalidInput);
         }
-        let x: Vec<C> = points.iter().map(|e| to_scalar(e.index)).collect_vec();
 
         // Compute the full numerator polynomial: (x - x_1)(x - x_2)...(x - x_t)
         let mut full_numerator = Poly::one();
-        for x_j in &x {
-            full_numerator *= MonicLinear(-*x_j);
+        for point in points {
+            full_numerator *= MonicLinear(-to_scalar::<C>(point.index));
         }
 
-        Ok(Poly::sum(points.iter().enumerate().map(|(j, p_j)| {
-            let denominator = C::product(
-                x.iter()
+        Ok(Poly::sum(points.iter().enumerate().map(|(i, p_i)| {
+            let x_i = p_i.index.get() as u128;
+            let mut negative = false;
+            let mut denominator = Self::fast_product(
+                C::ScalarType::generator(),
+                points
+                    .iter()
                     .enumerate()
-                    .filter(|(i, _)| *i != j)
-                    .map(|(_, x_i)| x[j] - x_i),
+                    .filter(|(j, _)| *j != i)
+                    .map(|(_, p_j)| {
+                        let x_j = p_j.index.get() as u128;
+                        if x_i > x_j {
+                            negative = !negative;
+                            x_i - x_j
+                        } else {
+                            x_j - x_i
+                        }
+                    }),
             );
-            (&full_numerator / MonicLinear(-x[j])) * &(p_j.value / denominator).unwrap()
+            if negative {
+                denominator = -denominator;
+            }
+            (&full_numerator / MonicLinear(-to_scalar::<C>(p_i.index)))
+                * &(p_i.value / denominator).unwrap()
         })))
     }
 
@@ -468,7 +482,7 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
     ) -> Result<C, FastCryptoError> {
         let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares.clone())?;
         let plain_shares = shares.map(|s| s.borrow().value).collect::<Vec<_>>();
-        let res = C::multi_scalar_mul(&coeffs, &plain_shares).expect("sizes match");
+        let res = C::multi_scalar_mul(&coeffs.1, &plain_shares).expect("sizes match") * coeffs.0;
         Ok(res)
     }
 }
