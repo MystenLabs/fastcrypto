@@ -181,12 +181,11 @@ impl<C: GroupElement> Poly<C> {
 
     /// Compute initial * \prod factors. If no initial is given, it is assumed to be one (`C::ScalarType::generator()`).
     pub(crate) fn fast_product(
-        initial: Option<C::ScalarType>,
+        initial: C::ScalarType,
         factors: impl Iterator<Item = u128>,
     ) -> C::ScalarType {
-        let (result, remaining) = factors.fold(
-            (initial.unwrap_or(C::ScalarType::generator()), 1u128),
-            |(prev_acc, remaining), factor| {
+        let (result, remaining) =
+            factors.fold((initial, 1u128), |(prev_acc, remaining), factor| {
                 debug_assert_ne!(factor, 0);
                 match Self::fast_mult(remaining, factor) {
                     Either::Left((remaining_as_scalar, factor)) => {
@@ -194,8 +193,7 @@ impl<C: GroupElement> Poly<C> {
                     }
                     Either::Right(new_remaining) => (prev_acc, new_remaining),
                 }
-            },
-        );
+            });
         debug_assert_ne!(remaining, 0);
         result * C::ScalarType::from(remaining)
     }
@@ -241,7 +239,7 @@ impl<C: GroupElement> Poly<C> {
             .map(|i| {
                 let mut negative = false;
                 let mut denominator = Self::fast_product(
-                    Some(C::ScalarType::from(*i) - C::ScalarType::from(x)),
+                    C::ScalarType::from(*i) - C::ScalarType::from(x),
                     indices.iter().filter(|j| *j != i).map(|j| {
                         if i > j {
                             negative = !negative;
