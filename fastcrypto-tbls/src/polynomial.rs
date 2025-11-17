@@ -617,13 +617,3 @@ impl<C> Index<ShareIndex> for EvalRange<C> {
         &self.0[index.get() as usize - 1]
     }
 }
-
-impl<C> EvalRange<C> {
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}

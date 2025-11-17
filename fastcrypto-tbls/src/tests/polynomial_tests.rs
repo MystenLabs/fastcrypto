@@ -215,7 +215,6 @@ mod scalar_tests {
         let mut rng = rand::thread_rng();
         let polynomial: Poly<S> = Poly::rand(t, &mut rng);
         let evaluations = polynomial.eval_range(n).unwrap();
-        assert_eq!(evaluations.len(), n as usize);
         for i in 1..=n {
             let index = ShareIndex::new(i).unwrap();
             assert_eq!(evaluations[index], polynomial.eval(index));
