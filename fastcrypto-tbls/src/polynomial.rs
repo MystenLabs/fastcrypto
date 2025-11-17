@@ -179,8 +179,16 @@ impl<C: GroupElement> Poly<C> {
         }
     }
 
-    // Expects exactly t unique shares.
     fn get_lagrange_coefficients_for_c0(
+        t: u16,
+        shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
+    ) -> FastCryptoResult<Vec<C::ScalarType>> {
+        Self::get_lagrange_coefficients_for(0, t, shares)
+    }
+
+    // Expects exactly t unique shares.
+    fn get_lagrange_coefficients_for(
+        x: u128,
         t: u16,
         mut shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
     ) -> FastCryptoResult<Vec<C::ScalarType>> {
@@ -201,15 +209,18 @@ impl<C: GroupElement> Poly<C> {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        let full_numerator =
-            C::ScalarType::product(indices.iter().map(|i| C::ScalarType::from(*i)));
+        let full_numerator = C::ScalarType::product(
+            indices
+                .iter()
+                .map(|i| C::ScalarType::from(*i) - C::ScalarType::from(x)),
+        );
 
         Ok(indices
             .iter()
             .map(|i| {
                 let mut negative = false;
                 let (mut denominator, remaining) = indices.iter().filter(|j| *j != i).fold(
-                    (C::ScalarType::from(*i), 1u128),
+                    (C::ScalarType::from(*i) - C::ScalarType::from(x), 1u128),
                     |(prev_acc, remaining), j| {
                         let diff = if i > j {
                             negative = !negative;
@@ -326,34 +337,17 @@ impl<C: Scalar> Poly<C> {
     ///
     /// This is faster than first recovering the polynomial and then evaluating it at the given index.
     pub fn recover_at(index: ShareIndex, points: &[Eval<C>]) -> FastCryptoResult<Eval<C>> {
-        if points.is_empty() || !points.iter().map(|p| p.index).all_unique() {
-            return Err(FastCryptoError::InvalidInput);
-        }
-
-        // If we already know the point, just return that
-        if let Some(point) = points.iter().find(|e| e.index == index) {
-            return Ok(point.clone());
-        }
-
-        // Convert indices to scalars
-        let x: C = to_scalar(index);
-        let indices = points
-            .iter()
-            .map(|p| to_scalar(p.index))
-            .collect::<Vec<_>>();
-
-        let full_numerator = C::product(indices.iter().map(|x_i| x - x_i));
-        let value = full_numerator
-            * C::sum(indices.iter().enumerate().map(|(j, x_j)| {
-                let denominator = C::product(
-                    indices
-                        .iter()
-                        .filter(|x_i| *x_i != x_j)
-                        .map(|x_i| *x_j - x_i),
-                ) * (x - x_j);
-                (points[j].value / denominator).unwrap()
-            }));
-
+        let lagrange_coefficients = Self::get_lagrange_coefficients_for(
+            index.get() as u128,
+            points.len() as u16,
+            points.iter(),
+        )?;
+        let value = C::sum(
+            lagrange_coefficients
+                .iter()
+                .zip(points.iter().map(|p| p.value))
+                .map(|(c, s)| s * c),
+        );
         Ok(Eval { index, value })
     }
 
