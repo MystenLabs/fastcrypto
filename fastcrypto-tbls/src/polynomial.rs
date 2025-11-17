@@ -204,39 +204,39 @@ impl<C: GroupElement> Poly<C> {
         let full_numerator =
             C::ScalarType::product(indices.iter().map(|i| C::ScalarType::from(*i)));
 
-        let mut coeffs = Vec::new();
-        for i in &indices {
-            let mut negative = false;
-            let (mut denominator, remaining) = indices.iter().filter(|j| *j != i).fold(
-                (C::ScalarType::from(*i), 1u128),
-                |(prev_acc, remaining), j| {
-                    let diff = if i > j {
-                        negative = !negative;
-                        i - j
-                    } else {
-                        // i < j (but not equal)
-                        j - i
-                    };
-                    debug_assert_ne!(diff, 0);
-                    let either = Self::fast_mult(remaining, diff);
-                    match either {
-                        Either::Left((remaining_as_scalar, diff)) => {
-                            (prev_acc * remaining_as_scalar, diff)
+        Ok(indices
+            .iter()
+            .map(|i| {
+                let mut negative = false;
+                let (mut denominator, remaining) = indices.iter().filter(|j| *j != i).fold(
+                    (C::ScalarType::from(*i), 1u128),
+                    |(prev_acc, remaining), j| {
+                        let diff = if i > j {
+                            negative = !negative;
+                            i - j
+                        } else {
+                            // i < j (but not equal)
+                            j - i
+                        };
+                        debug_assert_ne!(diff, 0);
+                        let either = Self::fast_mult(remaining, diff);
+                        match either {
+                            Either::Left((remaining_as_scalar, diff)) => {
+                                (prev_acc * remaining_as_scalar, diff)
+                            }
+                            Either::Right(new_remaining) => (prev_acc, new_remaining),
                         }
-                        Either::Right(new_remaining) => (prev_acc, new_remaining),
-                    }
-                },
-            );
-            debug_assert_ne!(remaining, 0);
-            denominator = denominator * C::ScalarType::from(remaining);
-            if negative {
-                denominator = -denominator;
-            }
-            // TODO: Consider returning full_numerator and dividing once outside instead of here per iteration.
-            let coeff = full_numerator / denominator;
-            coeffs.push(coeff.expect("safe since i != j"));
-        }
-        Ok(coeffs)
+                    },
+                );
+                debug_assert_ne!(remaining, 0);
+                denominator = denominator * C::ScalarType::from(remaining);
+                if negative {
+                    denominator = -denominator;
+                }
+                // TODO: Consider returning full_numerator and dividing once outside instead of here per iteration.
+                (full_numerator / denominator).expect("safe since i != j")
+            })
+            .collect())
     }
 
     /// Given exactly `t` polynomial evaluations, it will recover the polynomial's constant term.
@@ -325,34 +325,34 @@ impl<C: Scalar> Poly<C> {
     /// Returns an error if the input is invalid (e.g., empty or duplicate indices).
     ///
     /// This is faster than first recovering the polynomial and then evaluating it at the given index.
-    pub fn interpolate_at_index(
-        index: ShareIndex,
-        points: &[Eval<C>],
-    ) -> FastCryptoResult<Eval<C>> {
-        if points.is_empty() {
+    pub fn recover_at(index: ShareIndex, points: &[Eval<C>]) -> FastCryptoResult<Eval<C>> {
+        if points.is_empty() || !points.iter().map(|p| p.index).all_unique() {
             return Err(FastCryptoError::InvalidInput);
         }
-        if !points.iter().map(|p| p.index).all_unique() {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        let x: C = to_scalar(index);
 
-        // Convert indices to scalars for interpolation.
+        // If we already know the point, just return that
+        if let Some(point) = points.iter().find(|e| e.index == index) {
+            return Ok(point.clone());
+        }
+
+        // Convert indices to scalars
+        let x: C = to_scalar(index);
         let indices = points
             .iter()
             .map(|p| to_scalar(p.index))
             .collect::<Vec<_>>();
 
-        let value = C::sum(indices.iter().enumerate().map(|(j, x_j)| {
-            let numerator = C::product(indices.iter().filter(|x_i| *x_i != x_j).map(|x_i| x - x_i));
-            let denominator = C::product(
-                indices
-                    .iter()
-                    .filter(|x_i| *x_i != x_j)
-                    .map(|x_i| *x_j - x_i),
-            );
-            points[j].value * (numerator / denominator).unwrap()
-        }));
+        let full_numerator = C::product(indices.iter().map(|x_i| x - x_i));
+        let value = full_numerator
+            * C::sum(indices.iter().enumerate().map(|(j, x_j)| {
+                let denominator = C::product(
+                    indices
+                        .iter()
+                        .filter(|x_i| *x_i != x_j)
+                        .map(|x_i| *x_j - x_i),
+                ) * (x - x_j);
+                (points[j].value / denominator).unwrap()
+            }));
 
         Ok(Eval { index, value })
     }

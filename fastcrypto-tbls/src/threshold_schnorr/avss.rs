@@ -122,7 +122,7 @@ impl SharesForNode {
                     .iter()
                     .flat_map(|share| share.shares.clone())
                     .collect_vec();
-                Poly::interpolate_at_index(index, &evaluations).unwrap()
+                Poly::recover_at(index, &evaluations).unwrap()
             })
             .collect_vec();
 
