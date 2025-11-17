@@ -294,13 +294,11 @@ impl<C: Scalar> Poly<C> {
     /// Commits the scalar polynomial to the group and returns a polynomial over
     /// the group.
     pub fn commit<P: GroupElement<ScalarType = C>>(&self) -> Poly<P> {
-        let commits = self
-            .0
+        self.0
             .iter()
             .map(|c| P::generator() * c)
-            .collect::<Vec<P>>();
-
-        Poly::<P>::from(commits)
+            .collect_vec()
+            .into()
     }
 
     /// Given a set of shares with unique indices, compute what the value of the interpolated polynomial is at the given index.
@@ -326,13 +324,14 @@ impl<C: Scalar> Poly<C> {
             .collect::<Vec<_>>();
 
         let value = C::sum(indices.iter().enumerate().map(|(j, x_j)| {
-            points[j].value
-                * C::product(
-                    indices
-                        .iter()
-                        .filter(|x_i| *x_i != x_j)
-                        .map(|x_i| ((x - x_i) / (*x_j - x_i)).expect("Divisor is never zero")),
-                )
+            let numerator = C::product(indices.iter().filter(|x_i| *x_i != x_j).map(|x_i| x - x_i));
+            let denominator = C::product(
+                indices
+                    .iter()
+                    .filter(|x_i| *x_i != x_j)
+                    .map(|x_i| *x_j - x_i),
+            );
+            points[j].value * (numerator / denominator).unwrap()
         }));
 
         Ok(Eval { index, value })
