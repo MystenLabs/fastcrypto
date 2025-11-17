@@ -179,6 +179,27 @@ impl<C: GroupElement> Poly<C> {
         }
     }
 
+    /// Compute initial * \prod factors. If no initial is given, it is assumed to be one (`C::ScalarType::generator()`).
+    pub(crate) fn fast_product(
+        initial: Option<C::ScalarType>,
+        factors: impl Iterator<Item = u128>,
+    ) -> C::ScalarType {
+        let (result, remaining) = factors.fold(
+            (initial.unwrap_or(C::ScalarType::generator()), 1u128),
+            |(prev_acc, remaining), factor| {
+                debug_assert_ne!(factor, 0);
+                match Self::fast_mult(remaining, factor) {
+                    Either::Left((remaining_as_scalar, factor)) => {
+                        (prev_acc * remaining_as_scalar, factor)
+                    }
+                    Either::Right(new_remaining) => (prev_acc, new_remaining),
+                }
+            },
+        );
+        debug_assert_ne!(remaining, 0);
+        result * C::ScalarType::from(remaining)
+    }
+
     fn get_lagrange_coefficients_for_c0(
         t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
@@ -219,28 +240,18 @@ impl<C: GroupElement> Poly<C> {
             .iter()
             .map(|i| {
                 let mut negative = false;
-                let (mut denominator, remaining) = indices.iter().filter(|j| *j != i).fold(
-                    (C::ScalarType::from(*i) - C::ScalarType::from(x), 1u128),
-                    |(prev_acc, remaining), j| {
-                        let diff = if i > j {
+                let mut denominator = Self::fast_product(
+                    Some(C::ScalarType::from(*i) - C::ScalarType::from(x)),
+                    indices.iter().filter(|j| *j != i).map(|j| {
+                        if i > j {
                             negative = !negative;
                             i - j
                         } else {
                             // i < j (but not equal)
                             j - i
-                        };
-                        debug_assert_ne!(diff, 0);
-                        let either = Self::fast_mult(remaining, diff);
-                        match either {
-                            Either::Left((remaining_as_scalar, diff)) => {
-                                (prev_acc * remaining_as_scalar, diff)
-                            }
-                            Either::Right(new_remaining) => (prev_acc, new_remaining),
                         }
-                    },
+                    }),
                 );
-                debug_assert_ne!(remaining, 0);
-                denominator = denominator * C::ScalarType::from(remaining);
                 if negative {
                     denominator = -denominator;
                 }
@@ -337,6 +348,13 @@ impl<C: Scalar> Poly<C> {
     ///
     /// This is faster than first recovering the polynomial and then evaluating it at the given index.
     pub fn recover_at(index: ShareIndex, points: &[Eval<C>]) -> FastCryptoResult<Eval<C>> {
+        // If the index we're looking for is already given, we can return that
+        if let Some(point) = points.iter().find(|p| p.index == index) {
+            return Ok(Eval {
+                index,
+                value: point.value,
+            });
+        }
         let lagrange_coefficients = Self::get_lagrange_coefficients_for(
             index.get() as u128,
             points.len() as u16,
