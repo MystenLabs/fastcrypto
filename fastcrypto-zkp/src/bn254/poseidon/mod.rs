@@ -50,7 +50,7 @@ pub fn poseidon(inputs: &[FieldElement]) -> Result<FieldElement, FastCryptoError
         return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
     // Instances of Poseidon and PoseidonConstants from neptune have different types depending on
-    // the number of inputs, so unfortunately we need to use a macro here.
+    // the number of inputs, so we need to use a macro here.
     let result = match inputs.len() {
         1 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U1),
         2 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U2),
@@ -88,21 +88,24 @@ pub fn poseidon_merkle_tree(inputs: &[FieldElement]) -> FastCryptoResult<FieldEl
     }
 }
 
-/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
+/// Calculate the Poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
 /// element assuming a little-endian encoding and must be 32 bytes long.
-/// The field elements are then hashed using the poseidon hash function ([poseidon_merkle_tree])
+///
+/// The field elements are hashed using the poseidon hash function ([poseidon])
 /// and the result is serialized as a little-endian integer (32 bytes).
 ///
-/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
-/// field size or is not exactly  32 bytes, an [InvalidInput] error is returned.
+/// If one of the inputs is in non-canonical form, e.g., it represents an integer greater than the
+/// field size or is not exactly 32 bytes, an [InvalidInput] error is returned.
 ///
 /// This function is used as an interface to the poseidon hash function in the sui-framework.
+///
+/// Note that this returns an error if no inputs are given or if more than 16 inputs are provided.
 pub fn poseidon_bytes(inputs: &[Vec<u8>]) -> FastCryptoResult<[u8; FIELD_ELEMENT_SIZE_IN_BYTES]> {
     let field_elements = inputs
         .iter()
         .map(|b| canonical_le_bytes_to_field_element(b))
         .collect::<Result<Vec<_>, _>>()?;
-    let output_as_field_element = poseidon_merkle_tree(&field_elements)?;
+    let output_as_field_element = poseidon(&field_elements)?;
     Ok(field_element_to_canonical_le_bytes(
         &output_as_field_element,
     ))
