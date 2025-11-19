@@ -401,7 +401,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         }
     }
 
-    /// 4. Upon receiving a complaint, a receiver verifies it and responds with a recovery package for the shares of the accuser.
+    /// 4. Upon receiving a complaint, a receiver verifies it and responds with its shares.
     pub fn handle_complaint(
         &self,
         message: &Message<BATCH_SIZE>,

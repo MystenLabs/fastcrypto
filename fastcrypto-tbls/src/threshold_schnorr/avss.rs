@@ -289,7 +289,7 @@ impl Receiver {
         }
     }
 
-    /// 4. Upon receiving a complaint, a receiver verifies it and responds with a recovery package for the shares of the accuser.
+    /// 4. Upon receiving a complaint, a receiver verifies it and responds with its shares.
     pub fn handle_complaint(
         &self,
         message: &Message,
@@ -315,8 +315,6 @@ impl Receiver {
         message: &Message,
         responses: Vec<ComplaintResponse<SharesForNode>>,
     ) -> FastCryptoResult<ReceiverOutput> {
-        // TODO: This fails if one of the responses has an invalid responder_id. We could probably just ignore those instead.
-
         // Sanity check that we have enough responses (by weight) to recover the shares.
         let total_response_weight = self
             .nodes
@@ -325,18 +323,28 @@ impl Receiver {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
 
-        let response_shares = responses
+        // Filter responses with invalid shares
+        let valid_responses = responses
             .into_iter()
-            .filter_map(|response| {
-                response
-                    .shares
-                    .verify(message)
-                    .ok()
-                    .map(|_| response.shares)
-            })
+            .filter(|response| response.shares.verify(message).is_ok())
             .collect_vec();
 
-        let my_shares = SharesForNode::recover(self.my_indices(), self.t, &response_shares)?;
+        // Compute the total weight of the valid responses
+        let valid_response_weight = self.nodes.total_weight_of(
+            valid_responses
+                .iter()
+                .map(|response| &response.responder_id),
+        )?;
+        if valid_response_weight < self.t {
+            return Err(FastCryptoError::InputTooShort(self.t as usize));
+        }
+
+        let valid_shares = valid_responses
+            .into_iter()
+            .map(|response| response.shares)
+            .collect_vec();
+
+        let my_shares = SharesForNode::recover(self.my_indices(), self.t, &valid_shares)?;
         my_shares.verify(message)?;
 
         Ok(ReceiverOutput {
