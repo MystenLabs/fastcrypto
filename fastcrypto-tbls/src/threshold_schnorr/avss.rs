@@ -303,7 +303,7 @@ impl Receiver {
         &self,
         message: &Message,
         complaint: &Complaint,
-        my_output: &ReceiverOutput,
+        my_output: &PartialOutput,
     ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
         complaint.check(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
