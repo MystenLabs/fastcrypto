@@ -126,7 +126,7 @@ mod tests {
         //
 
         // Map from each party to the outputs it has received
-        let mut dkg_outputs = HashMap::<PartyId, HashMap<PartyId, avss::ReceiverOutput>>::new();
+        let mut dkg_outputs = HashMap::<PartyId, HashMap<PartyId, avss::PartialOutput>>::new();
         nodes.node_ids_iter().for_each(|id| {
             dkg_outputs.insert(id, HashMap::new());
         });
@@ -319,7 +319,7 @@ mod tests {
         // Map from each party to the ordered list of outputs it has received.
         // Here, each party will act as dealer multiple times -- once per share they have.
         let mut dkg_outputs_after_rotation =
-            HashMap::<(PartyId, ShareIndex), avss::ReceiverOutput>::new();
+            HashMap::<(PartyId, ShareIndex), avss::PartialOutput>::new();
         let mut messages = HashMap::<(PartyId, ShareIndex), avss::Message>::new();
 
         for dealer_id in nodes.node_ids_iter() {
@@ -496,7 +496,7 @@ mod tests {
         }
     }
 
-    fn assert_valid(processed_message: avss::ProcessedMessage) -> avss::ReceiverOutput {
+    fn assert_valid(processed_message: avss::ProcessedMessage) -> avss::PartialOutput {
         if let avss::ProcessedMessage::Valid(output) = processed_message {
             output
         } else {

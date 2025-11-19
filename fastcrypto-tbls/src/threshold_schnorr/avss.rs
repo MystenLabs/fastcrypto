@@ -58,11 +58,21 @@ pub struct Message {
 /// The result of a [Receiver] processing a [Message]: Either valid shares or a complaint.
 #[allow(clippy::large_enum_variant)] // Clippy complains because ReceiverOutput can be very small if BATCH_SIZE is small.
 pub enum ProcessedMessage {
-    Valid(ReceiverOutput),
+    Valid(PartialOutput),
     Complaint(Complaint),
 }
 
-/// The output of a receiver: The shares for each nonce + commitments for the next round.
+/// The output of a receiver after a single instance of AVSS: The shares for each nonce + commitments for the next round.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PartialOutput {
+    pub my_shares: SharesForNode,
+
+    /// The commitments to the polynomials will be used for key rotation.
+    pub feldman_commitment: Poly<G>,
+}
+
+/// The output after combining multiple `PartialOutputs`,
+/// either using [PartialOutput::complete_dkg] or [PartialOutput::complete_key_rotation].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReceiverOutput {
     pub my_shares: SharesForNode,
@@ -274,10 +284,9 @@ impl Receiver {
             my_shares.verify(message)?;
             Ok(my_shares)
         }) {
-            Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
+            Ok(my_shares) => Ok(ProcessedMessage::Valid(PartialOutput {
                 my_shares,
-                commitments: self.compute_commitments(message),
-                vk: *message.feldman_commitment.c0(),
+                feldman_commitment: message.feldman_commitment.clone(),
             })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
@@ -294,7 +303,7 @@ impl Receiver {
         &self,
         message: &Message,
         complaint: &Complaint,
-        my_output: &ReceiverOutput,
+        my_output: &PartialOutput,
     ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
         complaint.check(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
@@ -314,7 +323,7 @@ impl Receiver {
         &self,
         message: &Message,
         responses: Vec<ComplaintResponse<SharesForNode>>,
-    ) -> FastCryptoResult<ReceiverOutput> {
+    ) -> FastCryptoResult<PartialOutput> {
         // Sanity check that we have enough responses (by weight) to recover the shares.
         let total_response_weight = self
             .nodes
@@ -347,18 +356,10 @@ impl Receiver {
         let my_shares = SharesForNode::recover(self.my_indices(), self.t, &valid_shares)?;
         my_shares.verify(message)?;
 
-        Ok(ReceiverOutput {
+        Ok(PartialOutput {
             my_shares,
-            commitments: self.compute_commitments(message),
-            vk: *message.feldman_commitment.c0(),
+            feldman_commitment: message.feldman_commitment.clone(),
         })
-    }
-
-    fn compute_commitments(&self, message: &Message) -> Vec<Eval<G>> {
-        self.nodes
-            .share_ids_iter()
-            .map(|index| message.feldman_commitment.eval(index))
-            .collect()
     }
 
     pub fn my_indices(&self) -> Vec<ShareIndex> {
@@ -377,10 +378,6 @@ impl Receiver {
 }
 
 impl ReceiverOutput {
-    fn weight(&self) -> usize {
-        self.my_shares.weight()
-    }
-
     pub fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
         self.my_shares.shares.iter().find(|s| s.index == index)
     }
@@ -396,7 +393,7 @@ impl ReceiverOutput {
     pub fn complete_dkg(
         t: u16,
         nodes: &Nodes<EG>,
-        outputs: HashMap<PartyId, Self>,
+        outputs: HashMap<PartyId, PartialOutput>,
     ) -> FastCryptoResult<Self> {
         if nodes.total_weight_of(outputs.keys())? < t {
             return Err(NotEnoughWeight(t as usize));
@@ -411,6 +408,7 @@ impl ReceiverOutput {
 
         Ok(outputs
             .into_iter()
+            .map(|output| output.into_receiver_output(nodes))
             .reduce(|acc, output| {
                 let shares = acc
                     .my_shares
@@ -445,7 +443,7 @@ impl ReceiverOutput {
         t: u16,
         my_id: PartyId,
         nodes: &Nodes<EG>,
-        outputs: &[IndexedValue<Self>],
+        outputs: &[IndexedValue<PartialOutput>],
     ) -> FastCryptoResult<Self> {
         if outputs.len() != t as usize {
             return Err(InputLengthWrong(t as usize));
@@ -455,6 +453,14 @@ impl ReceiverOutput {
         }
 
         let my_indices = nodes.share_ids_of(my_id)?;
+
+        let outputs = outputs
+            .iter()
+            .map(|output| Eval {
+                index: output.index,
+                value: output.clone().value.into_receiver_output(nodes),
+            })
+            .collect_vec();
 
         let shares = my_indices
             .iter()
@@ -503,15 +509,43 @@ impl ReceiverOutput {
     }
 }
 
+impl PartialOutput {
+    fn into_receiver_output(self, nodes: &Nodes<EG>) -> ReceiverOutput {
+        ReceiverOutput {
+            commitments: self.compute_all_commitments(
+                ShareIndex::new(nodes.total_weight()).expect("Weight is non-zero"),
+            ),
+            vk: self.feldman_commitment.into_c0(),
+            my_shares: self.my_shares,
+        }
+    }
+
+    fn compute_all_commitments(&self, to: ShareIndex) -> Vec<Eval<G>> {
+        self.feldman_commitment
+            .eval_range(to.get())
+            .unwrap()
+            .to_vec()
+    }
+
+    #[cfg(test)]
+    fn commitment_for_index(&self, index: ShareIndex) -> Eval<G> {
+        self.feldman_commitment.eval(index)
+    }
+
+    fn weight(&self) -> usize {
+        self.my_shares.weight()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ecies_v1;
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::Poly;
-    use crate::threshold_schnorr::avss::SharesForNode;
     use crate::threshold_schnorr::avss::{Dealer, Message, Receiver};
-    use crate::threshold_schnorr::avss::{ProcessedMessage, ReceiverOutput};
+    use crate::threshold_schnorr::avss::{PartialOutput, ProcessedMessage};
+    use crate::threshold_schnorr::avss::{ReceiverOutput, SharesForNode};
     use crate::threshold_schnorr::bcs::BCSSerialized;
     use crate::threshold_schnorr::complaint::Complaint;
     use crate::threshold_schnorr::tests::restrict;
@@ -661,7 +695,10 @@ mod tests {
                      nodes,
                      ..
                  }| {
-                    let commitment = all_shares.get(&id).unwrap().commitments[0].clone();
+                    let commitment = all_shares
+                        .get(&id)
+                        .unwrap()
+                        .commitment_for_index(secret.index);
                     assert_eq!(commitment.index, secret.index);
                     Receiver::new(
                         nodes,
@@ -851,7 +888,7 @@ mod tests {
         .unwrap();
 
         // Map from each party to the list of outputs it has received
-        let mut outputs = HashMap::<PartyId, HashMap<PartyId, ReceiverOutput>>::new();
+        let mut outputs = HashMap::<PartyId, HashMap<PartyId, PartialOutput>>::new();
         for node in nodes.iter() {
             outputs.insert(node.id, HashMap::new());
         }
@@ -920,7 +957,7 @@ mod tests {
         assert_eq!(G::generator() * sk, vk);
     }
 
-    fn assert_valid(processed_message: ProcessedMessage) -> ReceiverOutput {
+    fn assert_valid(processed_message: ProcessedMessage) -> PartialOutput {
         if let ProcessedMessage::Valid(output) = processed_message {
             output
         } else {

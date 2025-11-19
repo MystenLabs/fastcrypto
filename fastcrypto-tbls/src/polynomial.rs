@@ -268,6 +268,11 @@ impl<C: GroupElement> Poly<C> {
         &self.0[0]
     }
 
+    /// Consume the polynomial and return the constant term.
+    pub fn into_c0(self) -> C {
+        self.0[0]
+    }
+
     pub fn coefficient(&self, i: usize) -> &C {
         if i >= self.0.len() {
             panic!(
@@ -616,5 +621,12 @@ impl<C> Index<ShareIndex> for EvalRange<C> {
     fn index(&self, index: ShareIndex) -> &Self::Output {
         // ShareIndex is counted from 1
         &self.0[index.get() as usize - 1]
+    }
+}
+
+impl<C> EvalRange<C> {
+    /// Return all evaluations in this range as a vector, ordered by the indices.
+    pub fn to_vec(self) -> Vec<Eval<C>> {
+        self.0
     }
 }
