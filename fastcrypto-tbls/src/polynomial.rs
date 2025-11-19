@@ -623,3 +623,10 @@ impl<C> Index<ShareIndex> for EvalRange<C> {
         &self.0[index.get() as usize - 1]
     }
 }
+
+impl<C> EvalRange<C> {
+    /// Return all evaluations in this range as a vector, ordered by the indices.
+    pub fn to_vec(self) -> Vec<Eval<C>> {
+        self.0
+    }
+}

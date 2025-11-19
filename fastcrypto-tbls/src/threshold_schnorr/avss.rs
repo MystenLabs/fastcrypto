@@ -512,15 +512,22 @@ impl ReceiverOutput {
 impl PartialOutput {
     fn into_receiver_output(self, nodes: &Nodes<EG>) -> ReceiverOutput {
         ReceiverOutput {
-            commitments: nodes
-                .share_ids_iter()
-                .map(|id| self.commitment_for_index(id))
-                .collect_vec(),
+            commitments: self.compute_all_commitments(
+                ShareIndex::new(nodes.total_weight()).expect("Weight is non-zero"),
+            ),
             vk: self.feldman_commitment.into_c0(),
             my_shares: self.my_shares,
         }
     }
 
+    fn compute_all_commitments(&self, to: ShareIndex) -> Vec<Eval<G>> {
+        self.feldman_commitment
+            .eval_range(to.get())
+            .unwrap()
+            .to_vec()
+    }
+
+    #[cfg(test)]
     fn commitment_for_index(&self, index: ShareIndex) -> Eval<G> {
         self.feldman_commitment.eval(index)
     }
