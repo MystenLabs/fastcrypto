@@ -26,8 +26,6 @@ use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use std::array;
 use std::fmt::Debug;
-use tap::TapFallible;
-use tracing::warn;
 
 /// This represents a Dealer in the AVSS.
 /// There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
@@ -403,13 +401,13 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         }
     }
 
-    /// 4. Upon receiving a complaint, a receiver verifies it and responds with a recovery package for the shares of the accuser.
+    /// 4. Upon receiving a complaint, a receiver verifies it and responds with its shares.
     pub fn handle_complaint(
         &self,
         message: &Message<BATCH_SIZE>,
         complaint: &Complaint,
-        rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<ComplaintResponse> {
+        my_output: &ReceiverOutput<BATCH_SIZE>,
+    ) -> FastCryptoResult<ComplaintResponse<SharesForNode<BATCH_SIZE>>> {
         complaint.check(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
@@ -418,10 +416,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         )?;
         Ok(ComplaintResponse::create(
             self.id,
-            &message.ciphertext,
-            &self.enc_secret_key,
-            &self.random_oracle(),
-            rng,
+            my_output.my_shares.clone(),
         ))
     }
 
@@ -430,7 +425,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
     pub fn recover(
         &self,
         message: &Message<BATCH_SIZE>,
-        responses: &[ComplaintResponse],
+        responses: Vec<ComplaintResponse<SharesForNode<BATCH_SIZE>>>,
     ) -> FastCryptoResult<ReceiverOutput<BATCH_SIZE>> {
         // TODO: This fails if one of the responses has an invalid responder_id. We could probably just ignore those instead.
 
@@ -443,30 +438,13 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         }
 
         let response_shares = responses
-            .iter()
+            .into_iter()
             .filter_map(|response| {
-                self.nodes
-                    .node_id_to_node(response.responder_id)
-                    .and_then(|node| {
-                        response.decrypt_with_response(
-                            &self.random_oracle(),
-                            &node.pk,
-                            &message.ciphertext,
-                        )
-                    })
-                    .and_then(|shares: SharesForNode<BATCH_SIZE>| {
-                        // Verify the shares
-                        shares
-                            .verify(&self.random_oracle(), message)
-                            .map(|_| shares)
-                    })
-                    .tap_err(|_| {
-                        warn!(
-                            "Ignoring invalid recovery package from {}",
-                            response.responder_id
-                        )
-                    })
+                response
+                    .shares
+                    .verify(&self.random_oracle(), message)
                     .ok()
+                    .map(|_| response.shares)
             })
             .collect_vec();
 
@@ -736,9 +714,12 @@ mod tests {
         let responses = receivers
             .iter()
             .skip(1)
-            .map(|r| r.handle_complaint(&message, &complaint, &mut rng).unwrap())
+            .map(|r| {
+                r.handle_complaint(&message, &complaint, all_shares.get(&r.id).unwrap())
+                    .unwrap()
+            })
             .collect::<Vec<_>>();
-        let shares = receivers[0].recover(&message, &responses).unwrap();
+        let shares = receivers[0].recover(&message, responses).unwrap();
         all_shares.insert(receivers[0].id, shares);
 
         // Recover with the first f+1 shares, including the reconstructed

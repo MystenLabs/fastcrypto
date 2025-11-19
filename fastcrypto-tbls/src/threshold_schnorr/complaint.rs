@@ -8,7 +8,7 @@ use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::Extensions::{Encryption, Recovery};
 use crate::threshold_schnorr::EG;
-use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
+use fastcrypto::error::FastCryptoError::InvalidProof;
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
@@ -87,44 +87,18 @@ impl Complaint {
     }
 }
 
-/// A response to a complaint, containing a recovery package for the accuser.
+/// A response to a complaint, containing the responders shares.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ComplaintResponse {
+pub struct ComplaintResponse<S> {
     pub(crate) responder_id: PartyId,
-    pub(crate) recovery_package: RecoveryPackage<EG>,
+    pub(crate) shares: S,
 }
 
-impl ComplaintResponse {
-    pub(crate) fn create(
-        responder_id: PartyId,
-        ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
-        enc_secret_key: &ecies_v1::PrivateKey<EG>,
-        ro: &RandomOracle,
-        rng: &mut impl AllowedRng,
-    ) -> Self {
+impl<S> ComplaintResponse<S> {
+    pub(crate) fn create(responder_id: PartyId, shares: S) -> Self {
         ComplaintResponse {
             responder_id,
-            recovery_package: ciphertext.create_recovery_package(
-                enc_secret_key,
-                &ro.extend(&Recovery(responder_id).to_string()),
-                rng,
-            ),
+            shares,
         }
-    }
-
-    pub(crate) fn decrypt_with_response<T: for<'a> Deserialize<'a>>(
-        &self,
-        ro: &RandomOracle,
-        enc_pk: &ecies_v1::PublicKey<EG>,
-        ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
-    ) -> FastCryptoResult<T> {
-        let bytes = ciphertext.decrypt_with_recovery_package(
-            &self.recovery_package,
-            &ro.extend(&Recovery(self.responder_id).to_string()),
-            &ro.extend(&Encryption.to_string()),
-            enc_pk,
-            self.responder_id as usize,
-        )?;
-        bcs::from_bytes(&bytes).map_err(|_| InvalidInput)
     }
 }
