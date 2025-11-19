@@ -25,6 +25,16 @@ hex = "0.4.3"
 tap = { version = "1.0.1", features = [] }
 serde-big-array = "0.5.1"
 
+[dependencies.solver]
+path = "src/weight-reduction"
+optional = true
+
+[dependencies.num-rational]
+version = "0.4.2"
+features = ["std"]
+default-features = false
+optional = true
+
 [dev-dependencies]
 criterion = "0.5.1"
 generic-tests = "0.1.2"
@@ -49,3 +59,4 @@ harness = false
 [features]
 default = []
 experimental = []
+super-swiper = ["solver", "num-rational"]

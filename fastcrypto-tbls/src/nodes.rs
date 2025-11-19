@@ -221,4 +221,107 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             new_t,
         ))
     }
+
+    /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
+    /// This uses a more sophisticated algorithm that can find better reductions than the simple
+    /// divisor-based approach in `new_reduced`.
+    ///
+    /// # Note
+    /// This function requires the `super-swiper` feature to be enabled, and the weight-reduction
+    /// crate requires Rust edition 2024 (nightly toolchain). To enable:
+    /// 1. Use Rust nightly: `rustup toolchain install nightly`
+    /// 2. Build with: `cargo +nightly build --features super-swiper`
+    ///
+    /// # Parameters
+    /// - `nodes_vec`: Input nodes with weights
+    /// - `t`: Original threshold
+    /// - `alpha`: Ratio representing the adversarial weight fraction (e.g., 1/3 for 33% adversary)
+    /// - `beta`: Ratio representing the ticket target fraction (e.g., 1/2 for 50% threshold)
+    /// - `total_weight_lower_bound`: Minimum total weight after reduction
+    ///
+    /// # Returns
+    /// A tuple of (reduced Nodes, new threshold)
+    #[cfg(feature = "super-swiper")]
+    pub fn new_super_swiper_reduced(
+        nodes_vec: Vec<Node<G>>,
+        t: u16,
+        alpha: num_rational::Ratio<u64>,
+        beta: num_rational::Ratio<u64>,
+        total_weight_lower_bound: u16,
+    ) -> FastCryptoResult<(Self, u16)> {
+        let n = Self::new(nodes_vec)?;
+        assert!(total_weight_lower_bound <= n.total_weight && total_weight_lower_bound > 0);
+
+        // Extract weights from nodes, sorted in descending order (required by super_swiper)
+        let mut weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
+        // Sort in descending order as required by super_swiper
+        weights.sort_by(|a, b| b.cmp(a));
+
+        // Call super_swiper to get ticket assignments (which are the reduced weights)
+        let reduced_weights = {
+            use solver::solver::super_swiper;
+            super_swiper::solve(alpha, beta, &weights)
+        };
+
+        // Check if the reduction meets the lower bound
+        let new_total_weight: u64 = reduced_weights.iter().sum();
+        if new_total_weight < total_weight_lower_bound as u64 {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        // Map the reduced weights back to nodes
+        // Note: super_swiper returns weights in sorted order, but we need to map them back
+        // to the original node order. Since weights might have duplicates, we need to track
+        // the original indices.
+        
+        // Create a mapping: we need to match original weights to reduced weights
+        // Since super_swiper sorts weights, we need to track the original indices
+        let mut indexed_weights: Vec<(usize, u16)> = n
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, node)| (i, node.weight))
+            .collect();
+        
+        // Sort by weight descending to match super_swiper's output order
+        indexed_weights.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Create new nodes with reduced weights, preserving original order
+        let mut new_weights = vec![0u16; n.nodes.len()];
+        for (idx_in_sorted, (original_idx, _original_weight)) in indexed_weights.iter().enumerate() {
+            if idx_in_sorted < reduced_weights.len() {
+                new_weights[*original_idx] = reduced_weights[idx_in_sorted] as u16;
+            }
+        }
+
+        let nodes: Vec<Node<G>> = n
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, node)| Node {
+                id: node.id,
+                pk: node.pk.clone(),
+                weight: new_weights[i],
+            })
+            .collect();
+
+        let accumulated_weights = Self::get_accumulated_weights(&nodes);
+        let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
+        let total_weight = nodes.iter().map(|n| n.weight as u32).sum::<u32>() as u16;
+
+        // Calculate new threshold: scale proportionally
+        // new_t = ceil(t * new_total_weight / original_total_weight)
+        let new_t = ((t as u32 * new_total_weight as u32 + n.total_weight as u32 - 1)
+            / n.total_weight as u32) as u16;
+
+        Ok((
+            Self {
+                nodes,
+                total_weight,
+                accumulated_weights,
+                nodes_with_nonzero_weight,
+            },
+            new_t,
+        ))
+    }
 }
