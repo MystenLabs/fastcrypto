@@ -268,6 +268,11 @@ impl<C: GroupElement> Poly<C> {
         &self.0[0]
     }
 
+    /// Consume the polynomial and return the constant term.
+    pub fn into_c0(self) -> C {
+        self.0[0]
+    }
+
     pub fn coefficient(&self, i: usize) -> &C {
         if i >= self.0.len() {
             panic!(
