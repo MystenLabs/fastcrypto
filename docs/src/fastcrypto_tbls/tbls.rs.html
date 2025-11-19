@@ -8,7 +8,7 @@
 <a href=#8 id=8 data-nosnippet>8</a>
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::dl_verification::{batch_coefficients, get_random_scalars};
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::polynomial::Poly;
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::types::{IndexedValue, UnindexedValues};
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span><span class="kw">crate</span>::types::IndexedValue;
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>fastcrypto::groups::{GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>fastcrypto::traits::AllowedRng;
@@ -16,95 +16,94 @@
 <a href=#16 id=16 data-nosnippet>16</a>
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">pub type </span>Share&lt;S&gt; = IndexedValue&lt;S&gt;;
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">pub type </span>PartialSignature&lt;S&gt; = IndexedValue&lt;S&gt;;
-<a href=#19 id=19 data-nosnippet>19</a><span class="kw">pub type </span>UnindexedPartialSignatures&lt;S&gt; = UnindexedValues&lt;S&gt;;
-<a href=#20 id=20 data-nosnippet>20</a>
-<a href=#21 id=21 data-nosnippet>21</a><span class="doccomment">/// Trait [ThresholdBls] provides sign &amp; verify functions for standard and partial BLS signatures.
-<a href=#22 id=22 data-nosnippet>22</a></span><span class="kw">pub trait </span>ThresholdBls {
-<a href=#23 id=23 data-nosnippet>23</a>    <span class="kw">type </span>Private: Scalar;
-<a href=#24 id=24 data-nosnippet>24</a>    <span class="doccomment">/// `Public` represents the group over which the public keys are represented.
-<a href=#25 id=25 data-nosnippet>25</a>    </span><span class="kw">type </span>Public: GroupElement&lt;ScalarType = <span class="self">Self</span>::Private&gt; + MultiScalarMul;
-<a href=#26 id=26 data-nosnippet>26</a>    <span class="doccomment">/// `Signature` represents the group over which the signatures are represented.
-<a href=#27 id=27 data-nosnippet>27</a>    </span><span class="kw">type </span>Signature: GroupElement&lt;ScalarType = <span class="self">Self</span>::Private&gt; + HashToGroupElement + MultiScalarMul;
-<a href=#28 id=28 data-nosnippet>28</a>
-<a href=#29 id=29 data-nosnippet>29</a>    <span class="doccomment">/// Verify a signature on a given message. This is standard BLS signature verification
-<a href=#30 id=30 data-nosnippet>30</a>    /// over the used curve construction.
-<a href=#31 id=31 data-nosnippet>31</a>    </span><span class="kw">fn </span>verify(public: <span class="kw-2">&amp;</span><span class="self">Self</span>::Public, msg: <span class="kw-2">&amp;</span>[u8], sig: <span class="kw-2">&amp;</span><span class="self">Self</span>::Signature) -&gt; FastCryptoResult&lt;()&gt;;
-<a href=#32 id=32 data-nosnippet>32</a>
-<a href=#33 id=33 data-nosnippet>33</a>    <span class="doccomment">/// Sign a message using the private share/partial key.
-<a href=#34 id=34 data-nosnippet>34</a>    </span><span class="kw">fn </span>partial_sign(share: <span class="kw-2">&amp;</span>Share&lt;<span class="self">Self</span>::Private&gt;, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; PartialSignature&lt;<span class="self">Self</span>::Signature&gt; {
-<a href=#35 id=35 data-nosnippet>35</a>        <span class="self">Self</span>::partial_sign_batch(std::iter::once(share), msg)[<span class="number">0</span>].clone()
-<a href=#36 id=36 data-nosnippet>36</a>    }
-<a href=#37 id=37 data-nosnippet>37</a>
-<a href=#38 id=38 data-nosnippet>38</a>    <span class="doccomment">/// Sign a message using one of more private share/partial keys.
-<a href=#39 id=39 data-nosnippet>39</a>    </span><span class="kw">fn </span>partial_sign_batch(
-<a href=#40 id=40 data-nosnippet>40</a>        shares: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;Share&lt;<span class="self">Self</span>::Private&gt;&gt;&gt;,
-<a href=#41 id=41 data-nosnippet>41</a>        msg: <span class="kw-2">&amp;</span>[u8],
-<a href=#42 id=42 data-nosnippet>42</a>    ) -&gt; Vec&lt;PartialSignature&lt;<span class="self">Self</span>::Signature&gt;&gt; {
-<a href=#43 id=43 data-nosnippet>43</a>        <span class="kw">let </span>h = <span class="self">Self</span>::Signature::hash_to_group_element(msg);
-<a href=#44 id=44 data-nosnippet>44</a>        shares
-<a href=#45 id=45 data-nosnippet>45</a>            .map(|share| {
-<a href=#46 id=46 data-nosnippet>46</a>                <span class="kw">let </span>share = share.borrow();
-<a href=#47 id=47 data-nosnippet>47</a>                PartialSignature {
-<a href=#48 id=48 data-nosnippet>48</a>                    index: share.index,
-<a href=#49 id=49 data-nosnippet>49</a>                    value: h * share.value,
-<a href=#50 id=50 data-nosnippet>50</a>                }
-<a href=#51 id=51 data-nosnippet>51</a>            })
-<a href=#52 id=52 data-nosnippet>52</a>            .collect()
-<a href=#53 id=53 data-nosnippet>53</a>    }
-<a href=#54 id=54 data-nosnippet>54</a>
-<a href=#55 id=55 data-nosnippet>55</a>    <span class="doccomment">/// Verify a signature done by a partial key holder.
-<a href=#56 id=56 data-nosnippet>56</a>    </span><span class="kw">fn </span>partial_verify(
-<a href=#57 id=57 data-nosnippet>57</a>        vss_pk: <span class="kw-2">&amp;</span>Poly&lt;<span class="self">Self</span>::Public&gt;,
-<a href=#58 id=58 data-nosnippet>58</a>        msg: <span class="kw-2">&amp;</span>[u8],
-<a href=#59 id=59 data-nosnippet>59</a>        partial_sig: <span class="kw-2">&amp;</span>PartialSignature&lt;<span class="self">Self</span>::Signature&gt;,
-<a href=#60 id=60 data-nosnippet>60</a>    ) -&gt; FastCryptoResult&lt;()&gt; {
-<a href=#61 id=61 data-nosnippet>61</a>        <span class="kw">let </span>pk_i = vss_pk.eval(partial_sig.index);
-<a href=#62 id=62 data-nosnippet>62</a>        <span class="self">Self</span>::verify(<span class="kw-2">&amp;</span>pk_i.value, msg, <span class="kw-2">&amp;</span>partial_sig.value)
-<a href=#63 id=63 data-nosnippet>63</a>    }
-<a href=#64 id=64 data-nosnippet>64</a>
-<a href=#65 id=65 data-nosnippet>65</a>    <span class="doccomment">/// Verify a set of signatures done by a partial key holder.
-<a href=#66 id=66 data-nosnippet>66</a>    /// Randomly check if \sum r_i sig_i is a valid signature with public key \sum r_i p(i) G
-<a href=#67 id=67 data-nosnippet>67</a>    /// where r_i are random scalars, and p(i) are points on the polynomial.
-<a href=#68 id=68 data-nosnippet>68</a>    </span><span class="kw">fn </span>partial_verify_batch&lt;R: AllowedRng&gt;(
-<a href=#69 id=69 data-nosnippet>69</a>        vss_pk: <span class="kw-2">&amp;</span>Poly&lt;<span class="self">Self</span>::Public&gt;,
-<a href=#70 id=70 data-nosnippet>70</a>        msg: <span class="kw-2">&amp;</span>[u8],
-<a href=#71 id=71 data-nosnippet>71</a>        partial_sigs: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;PartialSignature&lt;<span class="self">Self</span>::Signature&gt;&gt;&gt;,
-<a href=#72 id=72 data-nosnippet>72</a>        rng: <span class="kw-2">&amp;mut </span>R,
-<a href=#73 id=73 data-nosnippet>73</a>    ) -&gt; FastCryptoResult&lt;()&gt; {
-<a href=#74 id=74 data-nosnippet>74</a>        <span class="macro">assert!</span>(vss_pk.degree_bound() &gt; <span class="number">0 </span>|| !msg.is_empty());
-<a href=#75 id=75 data-nosnippet>75</a>        <span class="kw">let </span>(evals_as_scalars, points): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) = partial_sigs
-<a href=#76 id=76 data-nosnippet>76</a>            .map(|sig| {
-<a href=#77 id=77 data-nosnippet>77</a>                <span class="kw">let </span>sig = sig.borrow();
-<a href=#78 id=78 data-nosnippet>78</a>                (<span class="self">Self</span>::Private::from(sig.index.get().into()), sig.value)
-<a href=#79 id=79 data-nosnippet>79</a>            })
-<a href=#80 id=80 data-nosnippet>80</a>            .unzip();
-<a href=#81 id=81 data-nosnippet>81</a>        <span class="kw">if </span>points.is_empty() {
-<a href=#82 id=82 data-nosnippet>82</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-<a href=#83 id=83 data-nosnippet>83</a>        }
-<a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">let </span>rs = get_random_scalars::&lt;<span class="self">Self</span>::Private, R&gt;(points.len(), rng);
-<a href=#85 id=85 data-nosnippet>85</a>        <span class="comment">// TODO: should we cache it instead? that would replace t-wide msm with w-wide msm.
-<a href=#86 id=86 data-nosnippet>86</a>        </span><span class="kw">let </span>coeffs = batch_coefficients(<span class="kw-2">&amp;</span>rs, <span class="kw-2">&amp;</span>evals_as_scalars, vss_pk.degree_bound());
-<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span>pk = <span class="self">Self</span>::Public::multi_scalar_mul(<span class="kw-2">&amp;</span>coeffs, vss_pk.as_vec()).expect(<span class="string">"sizes match"</span>);
-<a href=#88 id=88 data-nosnippet>88</a>        <span class="kw">let </span>aggregated_sig = <span class="self">Self</span>::Signature::multi_scalar_mul(<span class="kw-2">&amp;</span>rs, <span class="kw-2">&amp;</span>points).expect(<span class="string">"sizes match"</span>);
-<a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a>        <span class="self">Self</span>::verify(<span class="kw-2">&amp;</span>pk, msg, <span class="kw-2">&amp;</span>aggregated_sig)
-<a href=#91 id=91 data-nosnippet>91</a>    }
-<a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a>    <span class="doccomment">/// Interpolate partial signatures to recover the full signature.
-<a href=#94 id=94 data-nosnippet>94</a>    /// Uses the first `threshold` unique partials to interpolate the signature and the rest are
-<a href=#95 id=95 data-nosnippet>95</a>    /// ignored (thus if those partials are invalid, the resulting signature can still be valid).
-<a href=#96 id=96 data-nosnippet>96</a>    </span><span class="kw">fn </span>aggregate(
-<a href=#97 id=97 data-nosnippet>97</a>        threshold: u16,
-<a href=#98 id=98 data-nosnippet>98</a>        partials: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;PartialSignature&lt;<span class="self">Self</span>::Signature&gt;&gt;&gt; + Clone,
-<a href=#99 id=99 data-nosnippet>99</a>    ) -&gt; FastCryptoResult&lt;<span class="self">Self</span>::Signature&gt; {
-<a href=#100 id=100 data-nosnippet>100</a>        <span class="kw">let </span>unique_partials = partials
-<a href=#101 id=101 data-nosnippet>101</a>            .unique_by(|p| p.borrow().index)
-<a href=#102 id=102 data-nosnippet>102</a>            .take(threshold <span class="kw">as </span>usize);
-<a href=#103 id=103 data-nosnippet>103</a>        <span class="kw">if </span>unique_partials.clone().count() != threshold <span class="kw">as </span>usize {
-<a href=#104 id=104 data-nosnippet>104</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::NotEnoughInputs);
-<a href=#105 id=105 data-nosnippet>105</a>        }
-<a href=#106 id=106 data-nosnippet>106</a>        <span class="comment">// No conversion is required since PartialSignature&lt;S&gt; and Eval&lt;S&gt; are different aliases to
-<a href=#107 id=107 data-nosnippet>107</a>        // IndexedValue&lt;S&gt;.
-<a href=#108 id=108 data-nosnippet>108</a>        </span>Poly::&lt;<span class="self">Self</span>::Signature&gt;::recover_c0_msm(threshold, unique_partials)
-<a href=#109 id=109 data-nosnippet>109</a>    }
-<a href=#110 id=110 data-nosnippet>110</a>}</code></pre></div></section></main></body></html>
+<a href=#19 id=19 data-nosnippet>19</a>
+<a href=#20 id=20 data-nosnippet>20</a><span class="doccomment">/// Trait [ThresholdBls] provides sign &amp; verify functions for standard and partial BLS signatures.
+<a href=#21 id=21 data-nosnippet>21</a></span><span class="kw">pub trait </span>ThresholdBls {
+<a href=#22 id=22 data-nosnippet>22</a>    <span class="kw">type </span>Private: Scalar;
+<a href=#23 id=23 data-nosnippet>23</a>    <span class="doccomment">/// `Public` represents the group over which the public keys are represented.
+<a href=#24 id=24 data-nosnippet>24</a>    </span><span class="kw">type </span>Public: GroupElement&lt;ScalarType = <span class="self">Self</span>::Private&gt; + MultiScalarMul;
+<a href=#25 id=25 data-nosnippet>25</a>    <span class="doccomment">/// `Signature` represents the group over which the signatures are represented.
+<a href=#26 id=26 data-nosnippet>26</a>    </span><span class="kw">type </span>Signature: GroupElement&lt;ScalarType = <span class="self">Self</span>::Private&gt; + HashToGroupElement + MultiScalarMul;
+<a href=#27 id=27 data-nosnippet>27</a>
+<a href=#28 id=28 data-nosnippet>28</a>    <span class="doccomment">/// Verify a signature on a given message. This is standard BLS signature verification
+<a href=#29 id=29 data-nosnippet>29</a>    /// over the used curve construction.
+<a href=#30 id=30 data-nosnippet>30</a>    </span><span class="kw">fn </span>verify(public: <span class="kw-2">&amp;</span><span class="self">Self</span>::Public, msg: <span class="kw-2">&amp;</span>[u8], sig: <span class="kw-2">&amp;</span><span class="self">Self</span>::Signature) -&gt; FastCryptoResult&lt;()&gt;;
+<a href=#31 id=31 data-nosnippet>31</a>
+<a href=#32 id=32 data-nosnippet>32</a>    <span class="doccomment">/// Sign a message using the private share/partial key.
+<a href=#33 id=33 data-nosnippet>33</a>    </span><span class="kw">fn </span>partial_sign(share: <span class="kw-2">&amp;</span>Share&lt;<span class="self">Self</span>::Private&gt;, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; PartialSignature&lt;<span class="self">Self</span>::Signature&gt; {
+<a href=#34 id=34 data-nosnippet>34</a>        <span class="self">Self</span>::partial_sign_batch(std::iter::once(share), msg)[<span class="number">0</span>].clone()
+<a href=#35 id=35 data-nosnippet>35</a>    }
+<a href=#36 id=36 data-nosnippet>36</a>
+<a href=#37 id=37 data-nosnippet>37</a>    <span class="doccomment">/// Sign a message using one of more private share/partial keys.
+<a href=#38 id=38 data-nosnippet>38</a>    </span><span class="kw">fn </span>partial_sign_batch(
+<a href=#39 id=39 data-nosnippet>39</a>        shares: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;Share&lt;<span class="self">Self</span>::Private&gt;&gt;&gt;,
+<a href=#40 id=40 data-nosnippet>40</a>        msg: <span class="kw-2">&amp;</span>[u8],
+<a href=#41 id=41 data-nosnippet>41</a>    ) -&gt; Vec&lt;PartialSignature&lt;<span class="self">Self</span>::Signature&gt;&gt; {
+<a href=#42 id=42 data-nosnippet>42</a>        <span class="kw">let </span>h = <span class="self">Self</span>::Signature::hash_to_group_element(msg);
+<a href=#43 id=43 data-nosnippet>43</a>        shares
+<a href=#44 id=44 data-nosnippet>44</a>            .map(|share| {
+<a href=#45 id=45 data-nosnippet>45</a>                <span class="kw">let </span>share = share.borrow();
+<a href=#46 id=46 data-nosnippet>46</a>                PartialSignature {
+<a href=#47 id=47 data-nosnippet>47</a>                    index: share.index,
+<a href=#48 id=48 data-nosnippet>48</a>                    value: h * share.value,
+<a href=#49 id=49 data-nosnippet>49</a>                }
+<a href=#50 id=50 data-nosnippet>50</a>            })
+<a href=#51 id=51 data-nosnippet>51</a>            .collect()
+<a href=#52 id=52 data-nosnippet>52</a>    }
+<a href=#53 id=53 data-nosnippet>53</a>
+<a href=#54 id=54 data-nosnippet>54</a>    <span class="doccomment">/// Verify a signature done by a partial key holder.
+<a href=#55 id=55 data-nosnippet>55</a>    </span><span class="kw">fn </span>partial_verify(
+<a href=#56 id=56 data-nosnippet>56</a>        vss_pk: <span class="kw-2">&amp;</span>Poly&lt;<span class="self">Self</span>::Public&gt;,
+<a href=#57 id=57 data-nosnippet>57</a>        msg: <span class="kw-2">&amp;</span>[u8],
+<a href=#58 id=58 data-nosnippet>58</a>        partial_sig: <span class="kw-2">&amp;</span>PartialSignature&lt;<span class="self">Self</span>::Signature&gt;,
+<a href=#59 id=59 data-nosnippet>59</a>    ) -&gt; FastCryptoResult&lt;()&gt; {
+<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">let </span>pk_i = vss_pk.eval(partial_sig.index);
+<a href=#61 id=61 data-nosnippet>61</a>        <span class="self">Self</span>::verify(<span class="kw-2">&amp;</span>pk_i.value, msg, <span class="kw-2">&amp;</span>partial_sig.value)
+<a href=#62 id=62 data-nosnippet>62</a>    }
+<a href=#63 id=63 data-nosnippet>63</a>
+<a href=#64 id=64 data-nosnippet>64</a>    <span class="doccomment">/// Verify a set of signatures done by a partial key holder.
+<a href=#65 id=65 data-nosnippet>65</a>    /// Randomly check if \sum r_i sig_i is a valid signature with public key \sum r_i p(i) G
+<a href=#66 id=66 data-nosnippet>66</a>    /// where r_i are random scalars, and p(i) are points on the polynomial.
+<a href=#67 id=67 data-nosnippet>67</a>    </span><span class="kw">fn </span>partial_verify_batch&lt;R: AllowedRng&gt;(
+<a href=#68 id=68 data-nosnippet>68</a>        vss_pk: <span class="kw-2">&amp;</span>Poly&lt;<span class="self">Self</span>::Public&gt;,
+<a href=#69 id=69 data-nosnippet>69</a>        msg: <span class="kw-2">&amp;</span>[u8],
+<a href=#70 id=70 data-nosnippet>70</a>        partial_sigs: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;PartialSignature&lt;<span class="self">Self</span>::Signature&gt;&gt;&gt;,
+<a href=#71 id=71 data-nosnippet>71</a>        rng: <span class="kw-2">&amp;mut </span>R,
+<a href=#72 id=72 data-nosnippet>72</a>    ) -&gt; FastCryptoResult&lt;()&gt; {
+<a href=#73 id=73 data-nosnippet>73</a>        <span class="macro">assert!</span>(vss_pk.degree_bound() &gt; <span class="number">0 </span>|| !msg.is_empty());
+<a href=#74 id=74 data-nosnippet>74</a>        <span class="kw">let </span>(evals_as_scalars, points): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) = partial_sigs
+<a href=#75 id=75 data-nosnippet>75</a>            .map(|sig| {
+<a href=#76 id=76 data-nosnippet>76</a>                <span class="kw">let </span>sig = sig.borrow();
+<a href=#77 id=77 data-nosnippet>77</a>                (<span class="self">Self</span>::Private::from(sig.index.get().into()), sig.value)
+<a href=#78 id=78 data-nosnippet>78</a>            })
+<a href=#79 id=79 data-nosnippet>79</a>            .unzip();
+<a href=#80 id=80 data-nosnippet>80</a>        <span class="kw">if </span>points.is_empty() {
+<a href=#81 id=81 data-nosnippet>81</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+<a href=#82 id=82 data-nosnippet>82</a>        }
+<a href=#83 id=83 data-nosnippet>83</a>        <span class="kw">let </span>rs = get_random_scalars::&lt;<span class="self">Self</span>::Private, R&gt;(points.len(), rng);
+<a href=#84 id=84 data-nosnippet>84</a>        <span class="comment">// TODO: should we cache it instead? that would replace t-wide msm with w-wide msm.
+<a href=#85 id=85 data-nosnippet>85</a>        </span><span class="kw">let </span>coeffs = batch_coefficients(<span class="kw-2">&amp;</span>rs, <span class="kw-2">&amp;</span>evals_as_scalars, vss_pk.degree_bound());
+<a href=#86 id=86 data-nosnippet>86</a>        <span class="kw">let </span>pk = <span class="self">Self</span>::Public::multi_scalar_mul(<span class="kw-2">&amp;</span>coeffs, vss_pk.as_vec()).expect(<span class="string">"sizes match"</span>);
+<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span>aggregated_sig = <span class="self">Self</span>::Signature::multi_scalar_mul(<span class="kw-2">&amp;</span>rs, <span class="kw-2">&amp;</span>points).expect(<span class="string">"sizes match"</span>);
+<a href=#88 id=88 data-nosnippet>88</a>
+<a href=#89 id=89 data-nosnippet>89</a>        <span class="self">Self</span>::verify(<span class="kw-2">&amp;</span>pk, msg, <span class="kw-2">&amp;</span>aggregated_sig)
+<a href=#90 id=90 data-nosnippet>90</a>    }
+<a href=#91 id=91 data-nosnippet>91</a>
+<a href=#92 id=92 data-nosnippet>92</a>    <span class="doccomment">/// Interpolate partial signatures to recover the full signature.
+<a href=#93 id=93 data-nosnippet>93</a>    /// Uses the first `threshold` unique partials to interpolate the signature and the rest are
+<a href=#94 id=94 data-nosnippet>94</a>    /// ignored (thus if those partials are invalid, the resulting signature can still be valid).
+<a href=#95 id=95 data-nosnippet>95</a>    </span><span class="kw">fn </span>aggregate(
+<a href=#96 id=96 data-nosnippet>96</a>        threshold: u16,
+<a href=#97 id=97 data-nosnippet>97</a>        partials: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;PartialSignature&lt;<span class="self">Self</span>::Signature&gt;&gt;&gt; + Clone,
+<a href=#98 id=98 data-nosnippet>98</a>    ) -&gt; FastCryptoResult&lt;<span class="self">Self</span>::Signature&gt; {
+<a href=#99 id=99 data-nosnippet>99</a>        <span class="kw">let </span>unique_partials = partials
+<a href=#100 id=100 data-nosnippet>100</a>            .unique_by(|p| p.borrow().index)
+<a href=#101 id=101 data-nosnippet>101</a>            .take(threshold <span class="kw">as </span>usize);
+<a href=#102 id=102 data-nosnippet>102</a>        <span class="kw">if </span>unique_partials.clone().count() != threshold <span class="kw">as </span>usize {
+<a href=#103 id=103 data-nosnippet>103</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::NotEnoughInputs);
+<a href=#104 id=104 data-nosnippet>104</a>        }
+<a href=#105 id=105 data-nosnippet>105</a>        <span class="comment">// No conversion is required since PartialSignature&lt;S&gt; and Eval&lt;S&gt; are different aliases to
+<a href=#106 id=106 data-nosnippet>106</a>        // IndexedValue&lt;S&gt;.
+<a href=#107 id=107 data-nosnippet>107</a>        </span>Poly::&lt;<span class="self">Self</span>::Signature&gt;::recover_c0_msm(threshold, unique_partials)
+<a href=#108 id=108 data-nosnippet>108</a>    }
+<a href=#109 id=109 data-nosnippet>109</a>}</code></pre></div></section></main></body></html>
