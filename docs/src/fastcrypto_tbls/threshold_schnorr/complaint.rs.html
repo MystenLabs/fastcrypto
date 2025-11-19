@@ -8,7 +8,7 @@
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::threshold_schnorr::bcs::BCSSerialized;
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::threshold_schnorr::Extensions::{Encryption, Recovery};
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span><span class="kw">crate</span>::threshold_schnorr::EG;
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>fastcrypto::error::FastCryptoError::InvalidProof;
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>fastcrypto::error::FastCryptoResult;
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>fastcrypto::traits::AllowedRng;
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -87,44 +87,18 @@
 <a href=#87 id=87 data-nosnippet>87</a>    }
 <a href=#88 id=88 data-nosnippet>88</a>}
 <a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a><span class="doccomment">/// A response to a complaint, containing a recovery package for the accuser.
+<a href=#90 id=90 data-nosnippet>90</a><span class="doccomment">/// A response to a complaint, containing the responders shares.
 <a href=#91 id=91 data-nosnippet>91</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-<a href=#92 id=92 data-nosnippet>92</a></span><span class="kw">pub struct </span>ComplaintResponse {
+<a href=#92 id=92 data-nosnippet>92</a></span><span class="kw">pub struct </span>ComplaintResponse&lt;S&gt; {
 <a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) responder_id: PartyId,
-<a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) recovery_package: RecoveryPackage&lt;EG&gt;,
+<a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) shares: S,
 <a href=#95 id=95 data-nosnippet>95</a>}
 <a href=#96 id=96 data-nosnippet>96</a>
-<a href=#97 id=97 data-nosnippet>97</a><span class="kw">impl </span>ComplaintResponse {
-<a href=#98 id=98 data-nosnippet>98</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>create(
-<a href=#99 id=99 data-nosnippet>99</a>        responder_id: PartyId,
-<a href=#100 id=100 data-nosnippet>100</a>        ciphertext: <span class="kw-2">&amp;</span>ecies_v1::MultiRecipientEncryption&lt;EG&gt;,
-<a href=#101 id=101 data-nosnippet>101</a>        enc_secret_key: <span class="kw-2">&amp;</span>ecies_v1::PrivateKey&lt;EG&gt;,
-<a href=#102 id=102 data-nosnippet>102</a>        ro: <span class="kw-2">&amp;</span>RandomOracle,
-<a href=#103 id=103 data-nosnippet>103</a>        rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>AllowedRng,
-<a href=#104 id=104 data-nosnippet>104</a>    ) -&gt; <span class="self">Self </span>{
-<a href=#105 id=105 data-nosnippet>105</a>        ComplaintResponse {
-<a href=#106 id=106 data-nosnippet>106</a>            responder_id,
-<a href=#107 id=107 data-nosnippet>107</a>            recovery_package: ciphertext.create_recovery_package(
-<a href=#108 id=108 data-nosnippet>108</a>                enc_secret_key,
-<a href=#109 id=109 data-nosnippet>109</a>                <span class="kw-2">&amp;</span>ro.extend(<span class="kw-2">&amp;</span>Recovery(responder_id).to_string()),
-<a href=#110 id=110 data-nosnippet>110</a>                rng,
-<a href=#111 id=111 data-nosnippet>111</a>            ),
-<a href=#112 id=112 data-nosnippet>112</a>        }
-<a href=#113 id=113 data-nosnippet>113</a>    }
-<a href=#114 id=114 data-nosnippet>114</a>
-<a href=#115 id=115 data-nosnippet>115</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>decrypt_with_response&lt;T: <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Deserialize&lt;<span class="lifetime">'a</span>&gt;&gt;(
-<a href=#116 id=116 data-nosnippet>116</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#117 id=117 data-nosnippet>117</a>        ro: <span class="kw-2">&amp;</span>RandomOracle,
-<a href=#118 id=118 data-nosnippet>118</a>        enc_pk: <span class="kw-2">&amp;</span>ecies_v1::PublicKey&lt;EG&gt;,
-<a href=#119 id=119 data-nosnippet>119</a>        ciphertext: <span class="kw-2">&amp;</span>ecies_v1::MultiRecipientEncryption&lt;EG&gt;,
-<a href=#120 id=120 data-nosnippet>120</a>    ) -&gt; FastCryptoResult&lt;T&gt; {
-<a href=#121 id=121 data-nosnippet>121</a>        <span class="kw">let </span>bytes = ciphertext.decrypt_with_recovery_package(
-<a href=#122 id=122 data-nosnippet>122</a>            <span class="kw-2">&amp;</span><span class="self">self</span>.recovery_package,
-<a href=#123 id=123 data-nosnippet>123</a>            <span class="kw-2">&amp;</span>ro.extend(<span class="kw-2">&amp;</span>Recovery(<span class="self">self</span>.responder_id).to_string()),
-<a href=#124 id=124 data-nosnippet>124</a>            <span class="kw-2">&amp;</span>ro.extend(<span class="kw-2">&amp;</span>Encryption.to_string()),
-<a href=#125 id=125 data-nosnippet>125</a>            enc_pk,
-<a href=#126 id=126 data-nosnippet>126</a>            <span class="self">self</span>.responder_id <span class="kw">as </span>usize,
-<a href=#127 id=127 data-nosnippet>127</a>        )<span class="question-mark">?</span>;
-<a href=#128 id=128 data-nosnippet>128</a>        bcs::from_bytes(<span class="kw-2">&amp;</span>bytes).map_err(|<span class="kw">_</span>| InvalidInput)
-<a href=#129 id=129 data-nosnippet>129</a>    }
-<a href=#130 id=130 data-nosnippet>130</a>}</code></pre></div></section></main></body></html>
+<a href=#97 id=97 data-nosnippet>97</a><span class="kw">impl</span>&lt;S&gt; ComplaintResponse&lt;S&gt; {
+<a href=#98 id=98 data-nosnippet>98</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>create(responder_id: PartyId, shares: S) -&gt; <span class="self">Self </span>{
+<a href=#99 id=99 data-nosnippet>99</a>        ComplaintResponse {
+<a href=#100 id=100 data-nosnippet>100</a>            responder_id,
+<a href=#101 id=101 data-nosnippet>101</a>            shares,
+<a href=#102 id=102 data-nosnippet>102</a>        }
+<a href=#103 id=103 data-nosnippet>103</a>    }
+<a href=#104 id=104 data-nosnippet>104</a>}</code></pre></div></section></main></body></html>
