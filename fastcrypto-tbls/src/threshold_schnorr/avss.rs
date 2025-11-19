@@ -327,7 +327,13 @@ impl Receiver {
 
         let response_shares = responses
             .into_iter()
-            .map(|response| response.shares)
+            .filter_map(|response| {
+                response
+                    .shares
+                    .verify(message)
+                    .ok()
+                    .map(|_| response.shares)
+            })
             .collect_vec();
 
         let my_shares = SharesForNode::recover(self.my_indices(), self.t, &response_shares)?;

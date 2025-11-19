@@ -439,7 +439,13 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
 
         let response_shares = responses
             .into_iter()
-            .map(|response| response.shares)
+            .filter_map(|response| {
+                response
+                    .shares
+                    .verify(&self.random_oracle(), message)
+                    .ok()
+                    .map(|_| response.shares)
+            })
             .collect_vec();
 
         // Compute the total weight of the valid responses
