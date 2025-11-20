@@ -121,7 +121,7 @@ mod polynomial_benches {
 
         c.bench_function(format!("interpolate at index t={t}").as_str(), |b| {
             b.iter(|| {
-                let _ = Poly::interpolate_at_index(NonZeroU16::new(7).unwrap(), &points).unwrap();
+                let _ = Poly::recover_at(NonZeroU16::new(307).unwrap(), &points).unwrap();
             })
         });
     }
