@@ -12,7 +12,7 @@ use crate::serde_helpers::ToFromByteArray;
 /// Once pre-computation has been done, a scalar multiplication requires HEIGHT additions. Both `mul`
 /// and `double_mul` are constant time assuming the group operations for `G` are constant time.
 ///
-/// The algorithm used is the BGMW algorithm with base `2^WIDTH` and the basic digit set set to `0, ..., 2^WIDTH-1`.
+/// The algorithm used is the BGMW algorithm with base `2^WIDTH` and the basic digit set to `0, ..., 2^WIDTH-1`.
 ///
 /// This method is faster than the WindowedScalarMultiplier for a single multiplication, but it requires
 /// a larger number of precomputed points.

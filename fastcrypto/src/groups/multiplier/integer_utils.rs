@@ -51,7 +51,7 @@ pub(crate) fn div_ceil(numerator: usize, denominator: usize) -> usize {
     1 + ((numerator - 1) / denominator)
 }
 
-/// Get the integer represented by a given range of bits of a an integer represented by a little-endian
+/// Get the integer represented by a given range of bits of an integer represented by a little-endian
 /// byte array from start to end (exclusive). The `end` argument may be arbitrarily large, but if it
 /// is larger than 8*bytes.len(), the remaining bits of the byte array will be assumed to be zero.
 #[inline]
