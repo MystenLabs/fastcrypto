@@ -252,9 +252,12 @@ impl<C: GroupElement> Poly<C> {
         shares: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
     ) -> FastCryptoResult<C> {
         let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares.clone())?;
-        let plain_shares = shares.map(|s| s.borrow().value);
-        let res = C::sum(coeffs.1.iter().zip(plain_shares).map(|(c, s)| s * c)) * coeffs.0;
-        Ok(res)
+        Ok(C::sum(
+            shares
+                .map(|s| s.borrow().value)
+                .zip(coeffs.1)
+                .map(|(c, s)| c * s),
+        ) * coeffs.0)
     }
 
     /// Checks if a given share is valid.
