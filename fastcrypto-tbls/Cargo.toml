@@ -46,6 +46,10 @@ required-features = ["experimental"]
 name = "tbls"
 harness = false
 
+[[bench]]
+name = "avss"
+harness = false
+
 [features]
 default = []
 experimental = []
