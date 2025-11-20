@@ -403,7 +403,7 @@ impl ReceiverOutput {
         let outputs = outputs.into_values().collect_vec();
 
         // Sanity check: Outputs cannot be empty and all outputs must have the same weight.
-        if outputs.is_empty() || !outputs.iter().map(|output| output.weight()).all_equal() {
+        if !outputs.iter().map(|output| output.weight()).all_equal() {
             return Err(InvalidInput);
         }
 

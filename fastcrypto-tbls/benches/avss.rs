@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
-use fastcrypto::groups::{bls12381, ristretto255};
+use fastcrypto::groups::ristretto255;
 use fastcrypto_tbls::ecies_v1;
 use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
 use fastcrypto_tbls::threshold_schnorr::avss;
@@ -76,10 +76,7 @@ mod avss_benches {
     use fastcrypto_tbls::threshold_schnorr::avss::ProcessedMessage::Valid;
     use fastcrypto_tbls::threshold_schnorr::avss::{PartialOutput, ReceiverOutput};
     use itertools::Itertools;
-    use std::array::from_fn;
     use std::collections::HashMap;
-    use std::path::Component::ParentDir;
-    use tap::Conv;
 
     fn dkg(c: &mut Criterion) {
         const SIZES: [u16; 1] = [100];
@@ -119,7 +116,7 @@ mod avss_benches {
         }
 
         {
-            let mut verify: BenchmarkGroup<_> = c.benchmark_group("AVSS complete_dkg");
+            let mut verify: BenchmarkGroup<_> = c.benchmark_group("AVSS complete_*");
             for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
                 let w = total_w / n;
                 let total_w = w * n;
@@ -136,7 +133,7 @@ mod avss_benches {
                 )
                 .unwrap();
                 let dealers = (0..*n)
-                    .map(|id| setup_dealer(t, t - 1, w, &keys))
+                    .map(|_| setup_dealer(t, t - 1, w, &keys))
                     .collect_vec();
                 let r1 = setup_receiver(1, t, w, &keys);
                 let messages: HashMap<PartyId, avss::Message> = dealers
@@ -162,7 +159,7 @@ mod avss_benches {
                     .collect();
 
                 verify.bench_function(
-                    format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
+                    format!("DKG n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| ReceiverOutput::complete_dkg(t, &nodes, outputs.clone()).unwrap())
                     },
