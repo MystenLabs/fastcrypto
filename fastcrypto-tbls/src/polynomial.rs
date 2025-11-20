@@ -12,7 +12,6 @@ use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
-use std::collections::HashSet;
 use std::mem::swap;
 use std::num::NonZeroU16;
 use std::ops::{Add, AddAssign, Div, Index, Mul, MulAssign, SubAssign};
@@ -205,22 +204,10 @@ impl<C: GroupElement> Poly<C> {
     fn get_lagrange_coefficients_for(
         x: u128,
         t: u16,
-        mut shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
+        shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
     ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {
-        let mut ids_set = HashSet::new();
-        let (shares_size_lower, shares_size_upper) = shares.size_hint();
-        let indices = shares.try_fold(
-            Vec::with_capacity(shares_size_upper.unwrap_or(shares_size_lower)),
-            |mut vec, s| {
-                // Check for duplicates.
-                if !ids_set.insert(s.borrow().index) {
-                    return Err(FastCryptoError::InvalidInput); // expected unique ids
-                }
-                vec.push(s.borrow().index.get() as u128);
-                Ok(vec)
-            },
-        )?;
-        if indices.len() != t as usize || indices.contains(&x) {
+        let indices = shares.map(|s| s.borrow().index.get() as u128).collect_vec();
+        if !indices.iter().all_unique() || indices.len() != t as usize || indices.contains(&x) {
             return Err(FastCryptoError::InvalidInput);
         }
 
@@ -347,10 +334,7 @@ impl<C: Scalar> Poly<C> {
     pub fn recover_at(index: ShareIndex, points: &[Eval<C>]) -> FastCryptoResult<Eval<C>> {
         // If the index we're looking for is already given, we can return that
         if let Some(point) = points.iter().find(|p| p.index == index) {
-            return Ok(Eval {
-                index,
-                value: point.value,
-            });
+            return Ok(point.clone());
         }
         let lagrange_coefficients = Self::get_lagrange_coefficients_for(
             index.get() as u128,
