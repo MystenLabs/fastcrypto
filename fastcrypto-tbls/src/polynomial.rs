@@ -200,7 +200,8 @@ impl<C: GroupElement> Poly<C> {
         Self::get_lagrange_coefficients_for(0, t, shares)
     }
 
-    // Expects exactly t unique shares.
+    /// Expects exactly t unique shares.
+    /// Returns an error if x is one of the indices.
     fn get_lagrange_coefficients_for(
         x: u128,
         t: u16,
@@ -219,14 +220,15 @@ impl<C: GroupElement> Poly<C> {
                 Ok(vec)
             },
         )?;
-        if indices.len() != t as usize {
+        if indices.len() != t as usize || indices.contains(&x) {
             return Err(FastCryptoError::InvalidInput);
         }
 
+        let x_as_scalar = C::ScalarType::from(x);
         let full_numerator = C::ScalarType::product(
             indices
                 .iter()
-                .map(|i| C::ScalarType::from(*i) - C::ScalarType::from(x)),
+                .map(|i| C::ScalarType::from(*i) - x_as_scalar),
         );
 
         Ok((
@@ -236,7 +238,7 @@ impl<C: GroupElement> Poly<C> {
                 .map(|i| {
                     let mut negative = false;
                     let mut denominator = Self::fast_product(
-                        C::ScalarType::from(*i) - C::ScalarType::from(x),
+                        C::ScalarType::from(*i) - x_as_scalar,
                         indices.iter().filter(|j| *j != i).map(|j| {
                             if i > j {
                                 negative = !negative;
@@ -250,7 +252,6 @@ impl<C: GroupElement> Poly<C> {
                     if negative {
                         denominator = -denominator;
                     }
-                    // TODO: Consider returning full_numerator and dividing once outside instead of here per iteration.
                     denominator.inverse().expect("safe since i != j")
                 })
                 .collect(),
