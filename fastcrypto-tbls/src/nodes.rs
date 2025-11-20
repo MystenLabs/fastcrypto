@@ -243,13 +243,10 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     #[cfg(feature = "super-swiper")]
     pub fn new_super_swiper_reduced(
         nodes_vec: Vec<Node<G>>,
-        t: u16,
         alpha: num_rational::Ratio<u64>,
         beta: num_rational::Ratio<u64>,
-        total_weight_lower_bound: u16,
     ) -> FastCryptoResult<(Self, u16)> {
         let n = Self::new(nodes_vec)?;
-        assert!(total_weight_lower_bound <= n.total_weight && total_weight_lower_bound > 0);
 
         // Extract weights from nodes, sorted in descending order (required by super_swiper)
         let mut weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
@@ -264,9 +261,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
         // Check if the reduction meets the lower bound
         let new_total_weight: u64 = reduced_weights.iter().sum();
-        if new_total_weight < total_weight_lower_bound as u64 {
-            return Err(FastCryptoError::InvalidInput);
-        }
 
         // Map the reduced weights back to nodes
         // Note: super_swiper returns weights in sorted order, but we need to map them back
@@ -310,8 +304,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
         // Calculate new threshold: scale proportionally
         // new_t = ceil(t * new_total_weight / original_total_weight)
-        let new_t = ((t as u32 * new_total_weight as u32 + n.total_weight as u32 - 1)
-            / n.total_weight as u32) as u16;
+        let new_t = (*beta.numer() as u32 * new_total_weight as u32 / *beta.denom() as u32) as u16;
 
         Ok((
             Self {

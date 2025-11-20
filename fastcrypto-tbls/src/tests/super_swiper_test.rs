@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Stand-alone test file for Nodes::new_super_swiper_reduced function
-// Run with: cargo +nightly test --features super-swiper test_new_super_swiper_reduced_with_realistic_weights
+// Run with: cargo +nightly test --features super-swiper test_reference_weights -- --nocapture
 
 #[cfg(feature = "super-swiper")]
 mod tests {
@@ -80,14 +80,14 @@ mod tests {
     }
 
     #[test]
-    fn test_new_super_swiper_reduced_with_realistic_weights() {
+    fn test_reference_weights() {
         // Test with realistic validator weight distribution
         let sui_weights = load_sui_validator_weights();
         let scaled_weights = scale_weights_to_u16(&sui_weights);
         let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights);
         let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
         let original_total_weight = original_nodes.total_weight();
-        let t = ((original_total_weight as u32 * 2) / 3) as u16;
+        let t = ((original_total_weight as u32 * 5) / 16) as u16;
 
         let alpha = Ratio::new(5, 16); // 5/16 adversary
         let beta = Ratio::new(1, 3);  // 1/3 threshold
@@ -95,10 +95,8 @@ mod tests {
 
         let (reduced_nodes, new_t) = Nodes::new_super_swiper_reduced(
             nodes_vec,
-            t,
             alpha,
             beta,
-            total_weight_lower_bound,
         )
         .unwrap();
 
@@ -119,6 +117,62 @@ mod tests {
         // Verify reduction occurred
         assert!(reduced_nodes.total_weight() < original_total_weight);
         assert!(reduced_nodes.total_weight() >= total_weight_lower_bound);
+
+        // Verify threshold was adjusted correctly
+        assert!(new_t <= t);
+        assert!(new_t > 0);
+
+        // Verify all node IDs are preserved
+        assert_eq!(original_nodes.num_nodes(), reduced_nodes.num_nodes());
+        for (orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
+            assert_eq!(orig.id, red.id);
+            assert_eq!(orig.pk, red.pk);
+            assert!(red.weight <= orig.weight);
+        }
+    }
+
+    #[test]
+    fn test_more_weights() {
+        // Test with realistic validator weight distribution
+        let sui_weights = load_sui_validator_weights();
+        let scaled_weights = scale_weights_to_u16(&sui_weights);
+        let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights);
+        let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
+        let original_total_weight = original_nodes.total_weight();
+        
+        let alpha_numerator = 1;
+        let alpha_denominator = 3;
+        let beta_numerator = 10;
+        let beta_denominator = 29;
+        let alpha = Ratio::new(alpha_numerator, alpha_denominator);
+        let beta = Ratio::new(beta_numerator, beta_denominator);
+        
+        let t = (beta_numerator as u32 * original_total_weight as u32 / beta_denominator as u32) as u16;
+
+        let (reduced_nodes, new_t) = Nodes::new_super_swiper_reduced(
+            nodes_vec,
+            alpha,
+            beta,
+        )
+        .unwrap();
+
+        // Print the reduced weights
+        println!("\n=== Super Swiper Weight Reduction Results ===");
+        println!("Original total weight: {}", original_total_weight);
+        println!("Reduced total weight: {}", reduced_nodes.total_weight());
+        println!("Original threshold (t): {}", t);
+        println!("New threshold (new_t): {}", new_t);
+        println!("Reduction ratio: {:.2}%", (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0);
+        println!("\nReduced weights by node:");
+        for (orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
+            // println!("  Node {}: {} -> {}", orig.id, orig.weight, red.weight);
+            println!("{}", red.weight);
+        }
+        println!("\nTotal new weight: {}", reduced_nodes.total_weight());
+        println!("===================================\n");
+
+        // Verify reduction occurred
+        assert!(reduced_nodes.total_weight() < original_total_weight);
 
         // Verify threshold was adjusted correctly
         assert!(new_t <= t);
