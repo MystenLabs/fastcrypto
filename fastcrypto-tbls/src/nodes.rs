@@ -223,8 +223,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     }
 
     /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
-    /// This uses a more sophisticated algorithm that can find better reductions than the simple
-    /// divisor-based approach in `new_reduced`.
+    /// This uses the swiper algorithms from the `weight-reduction` directory.
     ///
     /// # Note
     /// This function requires the `super-swiper` feature to be enabled, and the weight-reduction

@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Stand-alone test file for Nodes::new_super_swiper_reduced function
-// Run with: cargo +nightly test --test super_swiper_test --features super-swiper
+// Run with: cargo +nightly test --features super-swiper test_new_super_swiper_reduced_with_realistic_weights
 
 #[cfg(feature = "super-swiper")]
 mod tests {
-    use fastcrypto_tbls::ecies_v1;
-    use fastcrypto_tbls::nodes::{Node, Nodes};
+    use crate::ecies_v1;
+    use crate::nodes::{Node, Nodes};
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
     use num_rational::Ratio;
@@ -36,7 +36,7 @@ mod tests {
 
     // Helper function to load Sui validator weights from sui_real_all.dat
     fn load_sui_validator_weights() -> Vec<u64> {
-        const WEIGHTS_DATA: &str = include_str!("../src/weight-reduction/data/sui_real_all.dat");
+        const WEIGHTS_DATA: &str = include_str!("../weight-reduction/data/sui_real_all.dat");
         WEIGHTS_DATA
             .lines()
             .map(|line| line.trim())
