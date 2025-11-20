@@ -28,6 +28,7 @@ use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::ops::Add;
 
 /// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
 #[allow(dead_code)]
@@ -402,34 +403,15 @@ impl ReceiverOutput {
         let outputs = outputs.into_values().collect_vec();
 
         // Sanity check: Outputs cannot be empty and all outputs must have the same weight.
-        if outputs.is_empty() || !outputs.iter().map(|output| output.weight()).all_equal() {
+        if !outputs.iter().map(|output| output.weight()).all_equal() {
             return Err(InvalidInput);
         }
 
-        Ok(outputs
+        outputs
             .into_iter()
-            .map(|output| output.into_receiver_output(nodes))
-            .reduce(|acc, output| {
-                let shares = acc
-                    .my_shares
-                    .shares
-                    .iter()
-                    .zip_eq(&output.my_shares.shares)
-                    .map(types::sum)
-                    .collect_vec();
-                let commitments = acc
-                    .commitments
-                    .iter()
-                    .zip_eq(&output.commitments)
-                    .map(types::sum)
-                    .collect_vec();
-                ReceiverOutput {
-                    my_shares: SharesForNode { shares },
-                    commitments,
-                    vk: acc.vk + output.vk,
-                }
-            })
-            .expect("Should not be empty"))
+            .reduce(|acc, output| acc + output)
+            .ok_or(InvalidInput)
+            .map(|o| o.into_receiver_output(nodes))
     }
 
     /// Interpolate shares from multiple outputs to create new shares for the given indices.
@@ -534,6 +516,24 @@ impl PartialOutput {
 
     fn weight(&self) -> usize {
         self.my_shares.weight()
+    }
+}
+
+impl Add<Self> for PartialOutput {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let shares = self
+            .my_shares
+            .shares
+            .iter()
+            .zip_eq(&rhs.my_shares.shares)
+            .map(types::sum)
+            .collect_vec();
+        Self {
+            my_shares: SharesForNode { shares },
+            feldman_commitment: self.feldman_commitment + &rhs.feldman_commitment,
+        }
     }
 }
 
