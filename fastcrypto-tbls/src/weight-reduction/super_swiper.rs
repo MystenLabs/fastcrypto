@@ -1,6 +1,5 @@
-use std::collections::BTreeSet;
-
-use super::util::swiper_common::{Tickets, generate_deltas};
+use std::collections::{BTreeSet, BinaryHeap};
+use std::cmp::Ordering;
 
 // Type alias for rational numbers used in weight reduction
 pub type Ratio = num_rational::Ratio<u64>;
@@ -118,6 +117,137 @@ impl DP {
   fn adv_tickets_target(&self) -> u64 {
     self.dp.capacity() as u64
   }
+}
+
+// Tickets data structure for managing ticket assignments
+#[derive(Debug, Clone)]
+struct Tickets {
+  tickets: Vec<u64>,
+  total: u64,
+}
+
+impl Tickets {
+  fn new() -> Self {
+    Self {
+      tickets: Vec::new(),
+      total: 0,
+    }
+  }
+
+  fn update(&mut self, index: usize) {
+    while index >= self.tickets.len() {
+      self.tickets.push(0);
+    }
+    self.tickets[index] += 1;
+    self.total += 1;
+  }
+
+  fn get(&self, index: usize) -> u64 {
+    match self.tickets.get(index) {
+      Some(&x) => x,
+      None => 0,
+    }
+  }
+
+  fn data(&self) -> &[u64] {
+    &self.tickets
+  }
+
+  fn extract_data(self) -> Vec<u64> {
+    self.tickets
+  }
+
+  fn total(&self) -> u64 {
+    self.total
+  }
+
+  #[cfg(test)]
+  fn from_vec(tickets: Vec<u64>) -> Self {
+    let total = tickets.iter().sum();
+    Self { tickets, total }
+  }
+}
+
+// Helper types for generating deltas
+#[derive(Eq, PartialEq)]
+struct QueueElement {
+  s: Ratio,
+  i: usize,
+}
+
+impl Ord for QueueElement {
+  fn cmp(&self, other: &Self) -> Ordering {
+    other.s.cmp(&self.s).then(other.i.cmp(&self.i))
+  }
+}
+
+impl PartialOrd for QueueElement {
+  fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    Some(self.cmp(other))
+  }
+}
+
+struct Generator<'a> {
+  weights: &'a [u64],
+  c: Ratio,
+  r: usize,
+  queue: BinaryHeap<QueueElement>,
+}
+
+impl<'a> Generator<'a> {
+  fn new(weights: &'a [u64], c: Ratio) -> Self {
+    assert!(!weights.is_empty());
+    debug_assert!(weights.is_sorted_by(|a, b| a >= b));
+    assert!(*weights.last().unwrap() > 0);
+    assert!(c >= 0.into());
+    assert!(c < 1.into());
+
+    let mut queue = BinaryHeap::new();
+    queue.push(QueueElement {
+      s: (Ratio::from_integer(1) - c)
+        / Ratio::from_integer(*weights.first().unwrap()),
+      i: 0,
+    });
+
+    Self {
+      weights,
+      c,
+      r: 0,
+      queue,
+    }
+  }
+}
+
+impl Iterator for Generator<'_> {
+  type Item = usize;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    let elem = self.queue.pop().unwrap();
+    let new_value = (elem.s * self.weights[elem.i] + self.c).to_integer();
+
+    self.queue.push(QueueElement {
+      s: (Ratio::from_integer(new_value + 1) - self.c)
+        / Ratio::from_integer(self.weights[elem.i]),
+      i: elem.i,
+    });
+    if (elem.i == self.r) && (self.r + 1 < self.weights.len()) {
+      self.r += 1;
+      self.queue.push(QueueElement {
+        s: (Ratio::from_integer(1) - self.c)
+          / Ratio::from_integer(self.weights[self.r]),
+        i: self.r,
+      });
+    }
+
+    Some(elem.i)
+  }
+}
+
+fn generate_deltas(
+  weights: &[u64],
+  c: Ratio,
+) -> impl Iterator<Item = usize> + use<'_> {
+  Generator::new(weights, c)
 }
 
 // Calculates the head indices for the current batch.
@@ -368,7 +498,7 @@ mod calc_dp_head_tests {
     tickets: &[u64],
   ) -> Option<DP> {
     let tickets =
-      crate::solver::util::swiper_common::Tickets::from_vec(tickets.to_vec());
+      Tickets::from_vec(tickets.to_vec());
 
     super::calc_dp_head(beta, weights, max_adv_weight, deltas, &tickets)
   }

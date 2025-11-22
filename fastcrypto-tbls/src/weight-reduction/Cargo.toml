@@ -3,6 +3,9 @@ name = "solver"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+path = "super_swiper.rs"
+
 [dependencies]
 anyhow = "1.0.97"
 clap = { version = "4.5.13", features = ["derive"] }

@@ -255,8 +255,8 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
         // Call super_swiper to get ticket assignments (which are the reduced weights)
         let reduced_weights = {
-            use solver::solver::super_swiper;
-            super_swiper::solve(alpha, beta, &weights)
+            use solver::solve;
+            solve(alpha, beta, &weights)
         };
 
         // Check if the reduction meets the lower bound
