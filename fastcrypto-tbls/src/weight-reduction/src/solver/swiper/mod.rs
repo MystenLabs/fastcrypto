@@ -4,7 +4,7 @@ mod knapsack;
 mod knapsack_test;
 
 use super::util::swiper_common;
-use crate::types::Ratio;
+use crate::solver::super_swiper::Ratio;
 use crate::util::basic::{
   calc_adv_tickets_target, calc_max_adv_weight_from_weights,
 };

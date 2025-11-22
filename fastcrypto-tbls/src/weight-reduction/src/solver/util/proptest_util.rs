@@ -1,4 +1,4 @@
-use crate::types::Ratio;
+use crate::solver::super_swiper::Ratio;
 use proptest::prelude::*;
 
 prop_compose! {

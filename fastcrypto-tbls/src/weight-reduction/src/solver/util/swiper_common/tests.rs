@@ -1,7 +1,7 @@
 #[rustfmt::skip]
 macro_rules! tests {
   ($solve_func:path) => {
-    use crate::types::Ratio;
+    use crate::solver::super_swiper::Ratio;
     use test_case::test_case;
 
     struct TestCase<'a> {

@@ -1,4 +1,4 @@
-use crate::types::Ratio;
+use crate::solver::super_swiper::Ratio;
 
 pub fn calc_max_adv_weight(alpha: Ratio, total_weight: u64) -> u64 {
   (alpha * total_weight).to_integer()

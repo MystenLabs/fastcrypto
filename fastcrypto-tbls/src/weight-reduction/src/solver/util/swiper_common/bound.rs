@@ -1,4 +1,4 @@
-use crate::types::Ratio;
+use crate::solver::super_swiper::Ratio;
 
 // Bound on the maximum total number of tickets that Swiper returns.
 // n: number of parties

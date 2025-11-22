@@ -1,11 +1,13 @@
 use std::collections::BTreeSet;
 
 use super::util::swiper_common::{Tickets, generate_deltas};
-use crate::types::Ratio;
 use crate::util::basic::{
   calc_adv_tickets_target, calc_max_adv_weight_from_weights,
 };
 use crate::util::knapsack::DP;
+
+// Type alias for rational numbers used in weight reduction
+pub type Ratio = num_rational::Ratio<u64>;
 
 // Calculates the head indices for the current batch.
 fn calc_indices_head(tickets_len: usize, deltas: &[usize]) -> Vec<usize> {
@@ -245,7 +247,7 @@ mod calc_indices_head_tail_tests {
 
 #[cfg(test)]
 mod calc_dp_head_tests {
-  use crate::types::Ratio;
+  use super::Ratio;
   use crate::util::knapsack::DP;
 
   fn calc_dp_head(
