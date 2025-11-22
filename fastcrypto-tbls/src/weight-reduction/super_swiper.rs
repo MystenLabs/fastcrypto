@@ -197,7 +197,7 @@ struct Generator<'a> {
 impl<'a> Generator<'a> {
   fn new(weights: &'a [u64], c: Ratio) -> Self {
     assert!(!weights.is_empty());
-    debug_assert!(weights.is_sorted_by(|a, b| a >= b));
+    debug_assert!(weights.windows(2).all(|w| w[0] >= w[1]));
     assert!(*weights.last().unwrap() > 0);
     assert!(c >= 0.into());
     assert!(c < 1.into());
@@ -246,7 +246,7 @@ impl Iterator for Generator<'_> {
 fn generate_deltas(
   weights: &[u64],
   c: Ratio,
-) -> impl Iterator<Item = usize> + use<'_> {
+) -> impl Iterator<Item = usize> + '_ {
   Generator::new(weights, c)
 }
 
@@ -345,7 +345,7 @@ fn process_batch_recursive(
   }
 
   // Number of tickets assignments in the left branch.
-  let left_branch_size = deltas.len().div_ceil(2);
+  let left_branch_size = (deltas.len() + 1) / 2;
 
   {
     let (deltas_left, deltas_apply) = deltas.split_at(left_branch_size - 1);
@@ -413,7 +413,7 @@ fn process_batch(
 }
 
 pub fn solve(alpha: Ratio, beta: Ratio, weights: &[u64]) -> Vec<u64> {
-  debug_assert!(weights.is_sorted_by(|a, b| a >= b));
+  debug_assert!(weights.windows(2).all(|w| w[0] >= w[1]));
 
   let max_adv_weight = calc_max_adv_weight_from_weights(alpha, weights);
 

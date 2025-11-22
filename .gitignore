@@ -11,3 +11,4 @@ fastcrypto-derive/Cargo.lock
 .idea
 /fastcrypto-tbls/src/weight-reduction/target
 /fastcrypto-tbls/src/weight-reduction/archive
+fastcrypto-tbls/src/weight-reduction/Cargo.lock
