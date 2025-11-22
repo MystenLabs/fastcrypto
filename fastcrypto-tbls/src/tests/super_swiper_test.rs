@@ -3,6 +3,7 @@
 
 // Stand-alone test file for Nodes::new_super_swiper_reduced function
 // Run with: cargo +nightly test --features super-swiper test_reference_weights -- --nocapture
+// Alt: clear && cargo +nightly test --package fastcrypto-tbls --lib --features super-swiper test_reference_weights -- --nocapture
 
 #[cfg(feature = "super-swiper")]
 mod tests {
