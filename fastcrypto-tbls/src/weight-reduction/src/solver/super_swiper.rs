@@ -1,13 +1,23 @@
 use std::collections::BTreeSet;
 
 use super::util::swiper_common::{Tickets, generate_deltas};
-use crate::util::basic::{
-  calc_adv_tickets_target, calc_max_adv_weight_from_weights,
-};
 use crate::util::knapsack::DP;
 
 // Type alias for rational numbers used in weight reduction
 pub type Ratio = num_rational::Ratio<u64>;
+
+// Helper functions for weight reduction calculations
+fn calc_max_adv_weight(alpha: Ratio, total_weight: u64) -> u64 {
+  (alpha * total_weight).to_integer()
+}
+
+fn calc_max_adv_weight_from_weights(alpha: Ratio, weights: &[u64]) -> u64 {
+  calc_max_adv_weight(alpha, weights.iter().sum::<u64>())
+}
+
+fn calc_adv_tickets_target(beta: Ratio, total_num_tickets: u64) -> u64 {
+  (beta * total_num_tickets).ceil().to_integer()
+}
 
 // Calculates the head indices for the current batch.
 fn calc_indices_head(tickets_len: usize, deltas: &[usize]) -> Vec<usize> {
