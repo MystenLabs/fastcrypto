@@ -9,3 +9,5 @@ fastcrypto-derive/Cargo.lock
 .DS_Store
 
 .idea
+/fastcrypto-tbls/src/weight-reduction/target
+/fastcrypto-tbls/src/weight-reduction/archive
