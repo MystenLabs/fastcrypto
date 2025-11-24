@@ -60,6 +60,6 @@ pub mod nodes_tests;
 #[path = "tests/nizk_tests.rs"]
 pub mod nizk_tests;
 
-#[cfg(all(test, feature = "super-swiper"))]
+#[cfg(test)]
 #[path = "tests/super_swiper_test.rs"]
 pub mod super_swiper_test;

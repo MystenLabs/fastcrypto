@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Stand-alone test file for Nodes::new_super_swiper_reduced function
-// Run with: clear && cargo test --package fastcrypto-tbls --lib --features super-swiper test_reference_weights -- --nocapture
+// Run with: clear && cargo test --package fastcrypto-tbls --lib test_reference_weights -- --nocapture
 
-#[cfg(feature = "super-swiper")]
 mod tests {
     use crate::ecies_v1;
     use crate::nodes::{Node, Nodes};

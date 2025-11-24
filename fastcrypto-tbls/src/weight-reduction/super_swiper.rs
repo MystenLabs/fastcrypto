@@ -488,19 +488,17 @@ mod calc_indices_head_tail_tests {
 
 #[cfg(test)]
 mod calc_dp_head_tests {
-  use super::{DP, Ratio};
+  use super::{calc_dp_head, DP, Ratio, Tickets};
 
-  fn calc_dp_head(
+  fn calc_dp_head_helper(
     beta: Ratio,
     weights: &[u64],
     max_adv_weight: u64,
     deltas: &[usize],
     tickets: &[u64],
   ) -> Option<DP> {
-    let tickets =
-      Tickets::from_vec(tickets.to_vec());
-
-    super::calc_dp_head(beta, weights, max_adv_weight, deltas, &tickets)
+    let tickets = Tickets::from_vec(tickets.to_vec());
+    calc_dp_head(beta, weights, max_adv_weight, deltas, &tickets)
   }
 
   #[test]
@@ -512,7 +510,7 @@ mod calc_dp_head_tests {
     let tickets = &[];
 
     let dp =
-      calc_dp_head(beta, weights, max_adv_weight, deltas, tickets).unwrap();
+      calc_dp_head_helper(beta, weights, max_adv_weight, deltas, tickets).unwrap();
 
     assert_eq!(0, dp.adversarial_tickets());
   }
@@ -526,7 +524,7 @@ mod calc_dp_head_tests {
     let tickets = &[3];
 
     assert!(
-      calc_dp_head(beta, weights, max_adv_weight, deltas, tickets).is_none()
+      calc_dp_head_helper(beta, weights, max_adv_weight, deltas, tickets).is_none()
     );
   }
 
@@ -539,7 +537,7 @@ mod calc_dp_head_tests {
     let tickets = &[2, 3, 9, 1];
 
     let dp =
-      calc_dp_head(beta, weights, max_adv_weight, deltas, tickets).unwrap();
+      calc_dp_head_helper(beta, weights, max_adv_weight, deltas, tickets).unwrap();
 
     assert_eq!(5, dp.adversarial_tickets());
   }

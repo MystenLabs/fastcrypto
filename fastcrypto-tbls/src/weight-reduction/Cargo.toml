@@ -19,7 +19,6 @@ num-rational = { version = "0.4.2", features = ["std"], default-features = false
 ahash = { version = "0.8.12", default-features = false }
 
 [dev-dependencies]
-proptest = "1.6.0"
 test-case = "3.3.1"
 
 [profile.release]

@@ -225,22 +225,13 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
     /// This uses the swiper algorithms from the `weight-reduction` directory.
     ///
-    /// # Note
-    /// This function requires the `super-swiper` feature to be enabled, and the weight-reduction
-    /// crate requires Rust edition 2024 (nightly toolchain). To enable:
-    /// 1. Use Rust nightly: `rustup toolchain install nightly`
-    /// 2. Build with: `cargo +nightly build --features super-swiper`
-    ///
     /// # Parameters
     /// - `nodes_vec`: Input nodes with weights
-    /// - `t`: Original threshold
     /// - `alpha`: Ratio representing the adversarial weight fraction (e.g., 1/3 for 33% adversary)
     /// - `beta`: Ratio representing the ticket target fraction (e.g., 1/2 for 50% threshold)
-    /// - `total_weight_lower_bound`: Minimum total weight after reduction
     ///
     /// # Returns
     /// A tuple of (reduced Nodes, new threshold)
-    #[cfg(feature = "super-swiper")]
     pub fn new_super_swiper_reduced(
         nodes_vec: Vec<Node<G>>,
         alpha: num_rational::Ratio<u64>,
