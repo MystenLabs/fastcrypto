@@ -7,16 +7,7 @@ edition = "2021"
 path = "super_swiper.rs"
 
 [dependencies]
-anyhow = "1.0.97"
-clap = { version = "4.5.13", features = ["derive"] }
-crossbeam-channel = "0.5.13"
-humantime = "2.2.0"
-mimalloc = "0.1.43"
 num-rational = { version = "0.4.2", features = ["std"], default-features = false }
-
-# Force ahash to a compatible version to avoid stdsimd feature issues with nightly
-# This ensures all transitive dependencies use a compatible version
-ahash = { version = "0.8.12", default-features = false }
 
 [dev-dependencies]
 test-case = "3.3.1"
