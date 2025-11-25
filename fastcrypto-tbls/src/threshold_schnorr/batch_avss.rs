@@ -167,12 +167,10 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
                         .iter()
                         .flat_map(|s| s.shares_for_secret(i).expect("Size checked above"))
                         .collect_vec();
-                    Poly::interpolate_at_index(index, &evaluations)
-                        .unwrap()
-                        .value
+                    Poly::recover_at(index, &evaluations).unwrap().value
                 });
 
-                let blinding_share = Poly::interpolate_at_index(
+                let blinding_share = Poly::recover_at(
                     index,
                     &other_shares
                         .iter()
