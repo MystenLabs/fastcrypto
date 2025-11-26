@@ -474,6 +474,7 @@ async fn test_get_jwks() {
         OIDCProvider::FanTV,
         // OIDCProvider::Arden, // TODO: disabling until the service is up again
         OIDCProvider::EveFrontier,
+        OIDCProvider::TestEveFrontier,
         OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), //Trace
         OIDCProvider::AwsTenant((
             "ap-southeast-1".to_string(),

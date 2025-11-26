@@ -124,6 +124,8 @@ pub enum OIDCProvider {
     Arden,
     /// https://auth.evefrontier.com/.well-known/jwks.json
     EveFrontier,
+    /// https://test.auth.evefrontier.com/.well-known/jwks.json
+    TestEveFrontier,
 }
 
 impl FromStr for OIDCProvider {
@@ -147,6 +149,7 @@ impl FromStr for OIDCProvider {
             "FanTV" => Ok(Self::FanTV),
             "Arden" => Ok(Self::Arden),
             "EveFrontier" => Ok(Self::EveFrontier),
+            "TestEveFrontier" => Ok(Self::TestEveFrontier),
             _ => {
                 let re = Regex::new(
                     r"AwsTenant-region:(?P<region>[^.]+)-tenant_id:(?P<tenant_id>[^/]+)",
@@ -183,6 +186,7 @@ impl Display for OIDCProvider {
             Self::FanTV => write!(f, "FanTV"),
             Self::Arden => write!(f, "Arden"),
             Self::EveFrontier => write!(f, "EveFrontier"),
+            Self::TestEveFrontier => write!(f, "TestEveFrontier"),
             Self::AwsTenant((region, tenant_id)) => {
                 write!(f, "AwsTenant-region:{}-tenant_id:{}", region, tenant_id)
             }
@@ -263,6 +267,10 @@ impl OIDCProvider {
             OIDCProvider::EveFrontier => ProviderConfig::new(
                 "auth.evefrontier.com",
                 "https://auth.evefrontier.com/.well-known/jwks.json"
+            ),
+            OIDCProvider::TestEveFrontier => ProviderConfig::new(
+                "test.auth.evefrontier.com",
+                "https://test.auth.evefrontier.com/.well-known/jwks.json"
             )
         }
     }
@@ -287,6 +295,7 @@ impl OIDCProvider {
             "https://accounts.fantv.world" => Ok(Self::FanTV),
             "https://oidc.arden.cc" => Ok(Self::Arden),
             "auth.evefrontier.com" => Ok(Self::EveFrontier),
+            "test.auth.evefrontier.com" => Ok(Self::TestEveFrontier),
             iss if match_micrsoft_iss_substring(iss) => Ok(Self::Microsoft),
             _ => match parse_aws_iss_substring(iss) {
                 Ok((region, tenant_id)) => {
