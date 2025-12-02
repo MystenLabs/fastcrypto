@@ -5,6 +5,7 @@
 // modified for our needs.
 //
 
+use crate::fast_mult::fast_product_of_differences;
 use crate::types::{to_scalar, IndexedValue, ShareIndex};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
@@ -169,29 +170,6 @@ impl<C: GroupElement> Poly<C> {
         ))
     }
 
-    /// Multiply x.1 with y using u128s if possible, otherwise convert x.1 to the group element and multiply.
-    /// Invariant: If res = fast_mult(x1, x2, y) then x.0 * x.1 * y = res.0 * res.1.
-    pub(crate) fn fast_mult(x: (C::ScalarType, u128), y: u128) -> (C::ScalarType, u128) {
-        if x.1.leading_zeros() >= (128 - y.leading_zeros()) {
-            (x.0, x.1 * y)
-        } else {
-            (x.0 * C::ScalarType::from(x.1), y)
-        }
-    }
-
-    /// Compute initial * \prod factors.
-    pub(crate) fn fast_product(
-        initial: C::ScalarType,
-        factors: impl Iterator<Item = u128>,
-    ) -> C::ScalarType {
-        let (result, remaining) = factors.fold((initial, 1), |acc, factor| {
-            debug_assert_ne!(factor, 0);
-            Self::fast_mult(acc, factor)
-        });
-        debug_assert_ne!(remaining, 0);
-        result * C::ScalarType::from(remaining)
-    }
-
     fn get_lagrange_coefficients_for_c0(
         t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
@@ -212,34 +190,21 @@ impl<C: GroupElement> Poly<C> {
         }
 
         let x_as_scalar = C::ScalarType::from(x);
-        let full_numerator = C::ScalarType::product(
-            indices
-                .iter()
-                .map(|i| C::ScalarType::from(*i) - x_as_scalar),
-        );
+        let full_numerator =
+            fast_product_of_differences(C::ScalarType::generator(), x, indices.iter());
 
         Ok((
             full_numerator,
             indices
                 .iter()
-                .map(|i| {
-                    let mut negative = false;
-                    let mut denominator = Self::fast_product(
-                        C::ScalarType::from(*i) - x_as_scalar,
-                        indices.iter().filter(|j| *j != i).map(|j| {
-                            if i > j {
-                                negative = !negative;
-                                i - j
-                            } else {
-                                // i < j (but not equal)
-                                j - i
-                            }
-                        }),
-                    );
-                    if negative {
-                        denominator = -denominator;
-                    }
-                    denominator.inverse().expect("safe since i != j")
+                .map(|&i| {
+                    fast_product_of_differences(
+                        C::ScalarType::from(i) - x_as_scalar,
+                        i,
+                        indices.iter().filter(|&j| *j != i),
+                    )
+                    .inverse()
+                    .expect("safe since i != j")
                 })
                 .collect(),
         ))
@@ -374,28 +339,16 @@ impl<C: Scalar> Poly<C> {
             full_numerator *= MonicLinear(-to_scalar::<C>(point.index));
         }
 
-        Ok(Poly::sum(points.iter().enumerate().map(|(i, p_i)| {
+        Ok(Poly::sum(points.iter().map(|p_i| {
             let x_i = p_i.index.get() as u128;
-            let mut negative = false;
-            let mut denominator = Self::fast_product(
+            let denominator = fast_product_of_differences(
                 C::ScalarType::generator(),
+                x_i,
                 points
                     .iter()
-                    .enumerate()
-                    .filter(|(j, _)| *j != i)
-                    .map(|(_, p_j)| {
-                        let x_j = p_j.index.get() as u128;
-                        if x_i > x_j {
-                            negative = !negative;
-                            x_i - x_j
-                        } else {
-                            x_j - x_i
-                        }
-                    }),
+                    .map(|p_j| p_j.index.get() as u128)
+                    .filter(|&x_j| x_j != x_i),
             );
-            if negative {
-                denominator = -denominator;
-            }
             (&full_numerator / MonicLinear(-to_scalar::<C>(p_i.index)))
                 * &(p_i.value / denominator).unwrap()
         })))
