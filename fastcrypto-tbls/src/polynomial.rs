@@ -192,7 +192,7 @@ impl<C: GroupElement> Poly<C> {
         result * C::ScalarType::from(remaining)
     }
 
-    fn get_lagrange_coefficients_for_c0(
+    pub(crate) fn get_lagrange_coefficients_for_c0(
         t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
     ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {

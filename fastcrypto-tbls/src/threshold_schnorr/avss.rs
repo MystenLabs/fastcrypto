@@ -23,7 +23,7 @@ use fastcrypto::error::FastCryptoError::{
     InputLengthWrong, InvalidInput, InvalidMessage, NotEnoughWeight,
 };
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::Scalar;
+use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -444,43 +444,51 @@ impl ReceiverOutput {
             })
             .collect_vec();
 
-        let shares = my_indices
+        let lagrange_coefficients: Vec<Vec<S>> = my_indices
             .iter()
-            .map(|&index| Eval {
-                index,
-                value: Poly::recover_c0(
+            .map(|&index| {
+                let coeffs = Poly::get_lagrange_coefficients_for_c0(
                     t,
                     outputs.iter().map(|output| Eval {
                         index: output.index,
-                        value: output.value.share_for_index(index).unwrap().clone().value,
+                        value: output.value.share_for_index(index).unwrap().value,
                     }),
                 )
-                .unwrap(),
+                .unwrap();
+                coeffs.1.iter().map(|s| s * coeffs.0).collect_vec() // Include denominator here
+            })
+            .collect_vec();
+
+        let shares = my_indices
+            .iter()
+            .zip(&lagrange_coefficients)
+            .map(|(&index, coeffs)| Eval {
+                index,
+                value: S::sum(outputs.iter().zip(coeffs).map(|(output, coeff)| {
+                    output.value.share_for_index(index).unwrap().clone().value * coeff
+                })),
             })
             .collect();
 
+        // TODO: use msm
         let commitments = nodes
             .share_ids_iter()
             .map(|index| Eval {
                 index,
-                value: Poly::recover_c0_msm(
-                    t,
-                    outputs.iter().map(|output| Eval {
-                        index: output.index,
-                        value: output.value.commitment_for_index(index).unwrap().value,
-                    }),
-                )
-                .unwrap(),
+                value: G::sum(outputs.iter().enumerate().zip(&lagrange_coefficients).map(
+                    |((i, output), coeffs)| {
+                        output.value.commitment_for_index(index).unwrap().value * coeffs[i]
+                    },
+                )),
             })
             .collect_vec();
 
-        // TODO: This will not change, so perhaps it's not meaningful to compute it again, except for a sanity check?
-        let vk = Poly::recover_c0_msm(
-            t,
-            outputs.iter().map(|output| Eval {
-                index: output.index,
-                value: output.value.vk,
-            }),
+        let vk = G::multi_scalar_mul(
+            &lagrange_coefficients[0],
+            outputs
+                .iter()
+                .map(|o| o.value.vk)
+                .collect_vec().as_slice(),
         )?;
 
         Ok(Self {

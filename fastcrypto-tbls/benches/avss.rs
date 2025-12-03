@@ -75,6 +75,7 @@ mod avss_benches {
     use super::*;
     use fastcrypto_tbls::threshold_schnorr::avss::ProcessedMessage::Valid;
     use fastcrypto_tbls::threshold_schnorr::avss::{PartialOutput, ReceiverOutput};
+    use fastcrypto_tbls::types::{IndexedValue, ShareIndex};
     use itertools::Itertools;
     use std::collections::HashMap;
 
@@ -116,7 +117,7 @@ mod avss_benches {
         }
 
         {
-            let mut verify: BenchmarkGroup<_> = c.benchmark_group("AVSS complete_*");
+            let mut verify: BenchmarkGroup<_> = c.benchmark_group("AVSS complete");
             for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
                 let w = total_w / n;
                 let total_w = w * n;
@@ -162,6 +163,57 @@ mod avss_benches {
                     format!("DKG n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| ReceiverOutput::complete_dkg(t, &nodes, outputs.clone()).unwrap())
+                    },
+                );
+
+                let dealers = (0..total_w)
+                    .map(|_| setup_dealer(t, t - 1, w, &keys))
+                    .collect_vec();
+                let r1 = setup_receiver(1, t, w, &keys);
+                let messages: HashMap<PartyId, avss::Message> = dealers
+                    .iter()
+                    .enumerate()
+                    .map(|(i, d)| {
+                        (
+                            PartyId::from(i as u16),
+                            d.create_message(&mut thread_rng()).unwrap(),
+                        )
+                    })
+                    .collect();
+
+                let outputs: HashMap<PartyId, PartialOutput> = messages
+                    .iter()
+                    .map(|(i, m)| {
+                        let output = r1.process_message(m).unwrap();
+                        if let Valid(o) = output {
+                            return (*i, o);
+                        }
+                        panic!()
+                    })
+                    .collect();
+
+                let outputs: Vec<IndexedValue<PartialOutput>> = outputs
+                    .iter()
+                    .map(|(i, o)| {
+                        IndexedValue {
+                            index: ShareIndex::new(*i + 1).unwrap(),
+                            value: o.clone(),
+                        }
+                        .clone()
+                    })
+                    .take(t as usize)
+                    .collect_vec();
+
+                verify.bench_function(
+                    format!(
+                        "Key Rotation n={}, total_weight={}, t={}, w={}",
+                        n, total_w, t, w
+                    )
+                    .as_str(),
+                    |b| {
+                        b.iter(|| {
+                            ReceiverOutput::complete_key_rotation(t, 1, &nodes, &outputs).unwrap()
+                        })
                     },
                 );
             }
