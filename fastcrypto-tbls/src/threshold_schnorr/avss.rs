@@ -434,7 +434,11 @@ impl ReceiverOutput {
             return Err(InvalidInput);
         }
 
+        println!("outputs: {}", outputs.len());
+
         let my_indices = nodes.share_ids_of(my_id)?;
+
+        println!("my_indices: {}", my_indices.len());
 
         let outputs = outputs
             .iter()
@@ -444,49 +448,52 @@ impl ReceiverOutput {
             })
             .collect_vec();
 
-        let lagrange_coefficients: Vec<Vec<S>> = my_indices
-            .iter()
-            .map(|&index| {
-                let coeffs = Poly::get_lagrange_coefficients_for_c0(
-                    t,
-                    outputs.iter().map(|output| Eval {
-                        index: output.index,
-                        value: output.value.share_for_index(index).unwrap().value,
-                    }),
-                )
-                .unwrap();
-                coeffs.1.iter().map(|s| s * coeffs.0).collect_vec() // Include denominator here
-            })
-            .collect_vec();
+        // We only need to compute the lagrange coefficients for one of the indices this party controls
+        let lagrange_coefficients: Vec<S> = Poly::get_lagrange_coefficients_for_c0(
+            t,
+            outputs.iter().map(|output| Eval {
+                index: output.index,
+                value: output.value.share_for_index(my_indices[0]).unwrap().value,
+            }),
+        )
+        .map(|c| c.1.iter().map(|s| s * c.0).collect_vec())
+        .unwrap();
 
-        let shares = my_indices
-            .iter()
-            .zip(&lagrange_coefficients)
-            .map(|(&index, coeffs)| Eval {
-                index,
-                value: S::sum(outputs.iter().zip(coeffs).map(|(output, coeff)| {
-                    output.value.share_for_index(index).unwrap().clone().value * coeff
-                })),
-            })
-            .collect();
+        println!("Lagrange coefficients: {}", lagrange_coefficients.len());
+
+        let shares =
+            my_indices
+                .iter()
+                .map(|&index| Eval {
+                    index,
+                    value: S::sum(outputs.iter().zip(&lagrange_coefficients).map(
+                        |(output, coeff)| {
+                            output.value.share_for_index(index).unwrap().clone().value * coeff
+                        },
+                    )),
+                })
+                .collect();
+
+        println!("Total weight: {}", nodes.share_ids_iter().count());
 
         let commitments = nodes
             .share_ids_iter()
             .map(|index| Eval {
                 index,
                 value: G::multi_scalar_mul(
-                    &lagrange_coefficients[0],
-                    &outputs.iter().map(|o| o.value.commitment_for_index(index).unwrap().value).collect_vec()
-                ).unwrap(),
+                    &lagrange_coefficients,
+                    &outputs
+                        .iter()
+                        .map(|o| o.value.commitment_for_index(index).unwrap().value)
+                        .collect_vec(),
+                )
+                .unwrap(),
             })
             .collect_vec();
 
         let vk = G::multi_scalar_mul(
-            &lagrange_coefficients[0],
-            outputs
-                .iter()
-                .map(|o| o.value.vk)
-                .collect_vec().as_slice(),
+            &lagrange_coefficients,
+            outputs.iter().map(|o| o.value.vk).collect_vec().as_slice(),
         )?;
 
         Ok(Self {
