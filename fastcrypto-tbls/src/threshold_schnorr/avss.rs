@@ -470,16 +470,14 @@ impl ReceiverOutput {
             })
             .collect();
 
-        // TODO: use msm
         let commitments = nodes
             .share_ids_iter()
             .map(|index| Eval {
                 index,
-                value: G::sum(outputs.iter().enumerate().zip(&lagrange_coefficients).map(
-                    |((i, output), coeffs)| {
-                        output.value.commitment_for_index(index).unwrap().value * coeffs[i]
-                    },
-                )),
+                value: G::multi_scalar_mul(
+                    &lagrange_coefficients[0],
+                    &outputs.iter().map(|o| o.value.commitment_for_index(index).unwrap().value).collect_vec()
+                ).unwrap(),
             })
             .collect_vec();
 
