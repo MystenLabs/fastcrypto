@@ -455,7 +455,10 @@ mod tests {
                     message_2,
                     presigs.get_mut(&node.id).unwrap(),
                     &beacon_value,
-                    &merged_shares.get(&node.id).unwrap().my_shares,
+                    &merged_shares_after_rotation
+                        .get(&node.id)
+                        .unwrap()
+                        .my_shares,
                     &vk,
                     None,
                 )
