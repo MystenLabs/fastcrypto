@@ -292,6 +292,15 @@ impl<C: GroupElement> Poly<C> {
         &self.0[i]
     }
 
+    /// Returns the i'th coefficient for this polynomial.
+    /// If i is larger than the degree, this just returns a zero.
+    pub fn safe_coefficient(&self, i: usize) -> C {
+        if i >= self.0.len() {
+            return C::zero();
+        }
+        self.0[i]
+    }
+
     /// Returns the coefficients of the polynomial.
     pub fn as_vec(&self) -> &Vec<C> {
         &self.0
@@ -477,6 +486,37 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
         let plain_shares = shares.map(|s| s.borrow().value).collect::<Vec<_>>();
         let res = C::multi_scalar_mul(&coeffs.1, &plain_shares).expect("sizes match") * coeffs.0;
         Ok(res)
+    }
+
+    pub fn multi_scalar_mul(
+        polynomials: &[Poly<C>],
+        scalars: &[C::ScalarType],
+    ) -> FastCryptoResult<Poly<C>> {
+        if polynomials.len() != scalars.len() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        if polynomials.is_empty() {
+            return Ok(Poly::zero());
+        }
+        let degree = polynomials
+            .iter()
+            .map(Poly::degree)
+            .max()
+            .expect("Is not empty");
+        Ok(Poly(
+            (0..=degree)
+                .map(|i| {
+                    C::multi_scalar_mul(
+                        scalars,
+                        &polynomials
+                            .iter()
+                            .map(|p| p.safe_coefficient(i))
+                            .collect_vec(),
+                    )
+                    .unwrap()
+                })
+                .collect_vec(),
+        ))
     }
 }
 

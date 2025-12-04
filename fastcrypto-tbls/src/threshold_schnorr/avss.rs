@@ -434,19 +434,7 @@ impl ReceiverOutput {
             return Err(InvalidInput);
         }
 
-        println!("outputs: {}", outputs.len());
-
         let my_indices = nodes.share_ids_of(my_id)?;
-
-        println!("my_indices: {}", my_indices.len());
-
-        let outputs = outputs
-            .iter()
-            .map(|output| Eval {
-                index: output.index,
-                value: output.clone().value.into_receiver_output(nodes),
-            })
-            .collect_vec();
 
         // We only need to compute the lagrange coefficients for one of the indices this party controls
         let lagrange_coefficients: Vec<S> = Poly::get_lagrange_coefficients_for_c0(
@@ -456,10 +444,19 @@ impl ReceiverOutput {
                 value: output.value.share_for_index(my_indices[0]).unwrap().value,
             }),
         )
-        .map(|c| c.1.iter().map(|s| s * c.0).collect_vec())
-        .unwrap();
+        .map(|c| c.1.iter().map(|s| s * c.0).collect_vec())?;
 
-        println!("Lagrange coefficients: {}", lagrange_coefficients.len());
+        let feldman_commitment = Poly::multi_scalar_mul(
+            &outputs
+                .iter()
+                .map(|output| output.value.feldman_commitment.clone())
+                .collect_vec(),
+            &lagrange_coefficients,
+        )?;
+
+        let commitments = feldman_commitment
+            .eval_range(nodes.total_weight())?
+            .to_vec();
 
         let shares =
             my_indices
@@ -474,26 +471,13 @@ impl ReceiverOutput {
                 })
                 .collect();
 
-        println!("Total weight: {}", nodes.share_ids_iter().count());
-
-        let commitments = nodes
-            .share_ids_iter()
-            .map(|index| Eval {
-                index,
-                value: G::multi_scalar_mul(
-                    &lagrange_coefficients,
-                    &outputs
-                        .iter()
-                        .map(|o| o.value.commitment_for_index(index).unwrap().value)
-                        .collect_vec(),
-                )
-                .unwrap(),
-            })
-            .collect_vec();
-
         let vk = G::multi_scalar_mul(
             &lagrange_coefficients,
-            outputs.iter().map(|o| o.value.vk).collect_vec().as_slice(),
+            outputs
+                .iter()
+                .map(|o| *o.value.feldman_commitment.c0())
+                .collect_vec()
+                .as_slice(),
         )?;
 
         Ok(Self {
@@ -525,6 +509,10 @@ impl PartialOutput {
     #[cfg(test)]
     fn commitment_for_index(&self, index: ShareIndex) -> Eval<G> {
         self.feldman_commitment.eval(index)
+    }
+
+    fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
+        self.my_shares.shares.iter().find(|s| s.index == index)
     }
 
     fn weight(&self) -> usize {
