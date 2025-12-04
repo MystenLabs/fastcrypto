@@ -488,6 +488,8 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
         Ok(res)
     }
 
+    /// Scale each of the polynomials with the corresponding scalar and compute the sum.
+    /// Returns an error if the two slices does not have the same length.
     pub fn multi_scalar_mul(
         polynomials: &[Poly<C>],
         scalars: &[C::ScalarType],
