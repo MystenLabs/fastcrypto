@@ -446,17 +446,15 @@ impl ReceiverOutput {
         )
         .map(|c| c.1.iter().map(|s| s * c.0).collect_vec())?;
 
-        let feldman_commitment = Poly::multi_scalar_mul(
+        let commitments = Poly::multi_scalar_mul(
             &outputs
                 .iter()
                 .map(|output| output.value.feldman_commitment.clone())
                 .collect_vec(),
             &lagrange_coefficients,
-        )?;
-
-        let commitments = feldman_commitment
-            .eval_range(nodes.total_weight())?
-            .to_vec();
+        )?
+        .eval_range(nodes.total_weight())?
+        .to_vec();
 
         let shares =
             my_indices

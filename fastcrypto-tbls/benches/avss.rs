@@ -79,9 +79,9 @@ mod avss_benches {
     use itertools::Itertools;
     use std::collections::HashMap;
 
-    fn dkg(c: &mut Criterion) {
+    fn avss(c: &mut Criterion) {
         const SIZES: [u16; 1] = [100];
-        const TOTAL_WEIGHTS: [u16; 4] = [500, 1000, 2000, 2500];
+        const TOTAL_WEIGHTS: [u16; 3] = [500, 1000, 1500];
 
         {
             let mut create: BenchmarkGroup<_> = c.benchmark_group("AVSS create_message");
@@ -223,7 +223,7 @@ mod avss_benches {
     criterion_group! {
         name = avss_benches;
         config = Criterion::default().sample_size(10);
-        targets = dkg,
+        targets = avss,
     }
 }
 
