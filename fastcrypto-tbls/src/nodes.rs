@@ -3,6 +3,7 @@
 
 use crate::ecies_v1;
 use crate::types::ShareIndex;
+use crate::weight_reduction_checks;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
@@ -222,89 +223,138 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         ))
     }
 
+
     /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
     /// This uses the swiper algorithms from the `weight-reduction` directory.
     ///
     /// # Parameters
     /// - `nodes_vec`: Input nodes with weights
-    /// - `alpha`: Ratio representing the adversarial weight fraction (e.g., 1/3 for 33% adversary)
-    /// - `beta`: Ratio representing the ticket target fraction (e.g., 1/2 for 50% threshold)
+    /// - `t`: Threshold value (not used directly, but kept for compatibility with new_reduced)
+    /// - `allowed_delta`: Not used, kept for compatibility with new_reduced
+    /// - `total_weight_upper_bound`: Upper bound for the total weight after reduction
     ///
     /// # Returns
     /// A tuple of (reduced Nodes, new threshold)
     pub fn new_super_swiper_reduced(
         nodes_vec: Vec<Node<G>>,
-        alpha: num_rational::Ratio<u64>,
-        beta: num_rational::Ratio<u64>,
+        _t: u16,
+        _allowed_delta: u16,
+        total_weight_upper_bound: u16,
     ) -> FastCryptoResult<(Self, u16)> {
         let n = Self::new(nodes_vec)?;
+        let original_total_weight = n.total_weight() as u64;
 
         // Extract weights from nodes, sorted in descending order (required by super_swiper)
         let mut weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
         // Sort in descending order as required by super_swiper
         weights.sort_by(|a, b| b.cmp(a));
 
-        // Call super_swiper to get ticket assignments (which are the reduced weights)
-        let reduced_weights = {
-            use solver::solve;
-            solve(alpha, beta, &weights)
-        };
-
-        // Check if the reduction meets the lower bound
-        let new_total_weight: u64 = reduced_weights.iter().sum();
-
-        // Map the reduced weights back to nodes
-        // Note: super_swiper returns weights in sorted order, but we need to map them back
-        // to the original node order. Since weights might have duplicates, we need to track
-        // the original indices.
+        // Set initial alpha = 1/3, beta = 34/100
+        let alpha = num_rational::Ratio::new(1u64, 3u64);
+        let mut beta_numer = 34u64;
+        let beta_denom = 100u64;
+        let mut beta = num_rational::Ratio::new(beta_numer, beta_denom);
         
-        // Create a mapping: we need to match original weights to reduced weights
-        // Since super_swiper sorts weights, we need to track the original indices
-        let mut indexed_weights: Vec<(usize, u16)> = n
-            .nodes
-            .iter()
-            .enumerate()
-            .map(|(i, node)| (i, node.weight))
-            .collect();
-        
-        // Sort by weight descending to match super_swiper's output order
-        indexed_weights.sort_by(|a, b| b.1.cmp(&a.1));
+        // Safety limit to prevent infinite loops
+        const MAX_BETA_ITERATIONS: u64 = 8; // From 34 to 41, that's 8 iterations
+        let mut iterations = 0;
 
-        // Create new nodes with reduced weights, preserving original order
-        let mut new_weights = vec![0u16; n.nodes.len()];
-        for (idx_in_sorted, (original_idx, _original_weight)) in indexed_weights.iter().enumerate() {
-            if idx_in_sorted < reduced_weights.len() {
-                new_weights[*original_idx] = reduced_weights[idx_in_sorted] as u16;
+        loop {
+            iterations += 1;
+            if iterations > MAX_BETA_ITERATIONS {
+                return Err(FastCryptoError::InvalidInput);
             }
+            
+            // Call super_swiper to get ticket assignments (which are the reduced weights)
+            let reduced_weights = {
+                use solver::solve;
+                solve(alpha, beta, &weights)
+            };
+
+            // Check if the reduction meets the upper bound
+            let new_total_weight: u64 = reduced_weights.iter().sum();
+            let new_total_weight_u16 = new_total_weight as u16;
+
+            // If reduced total > total-weight-upper-bound and beta <= 41/100, increase beta by 1/100 and repeat
+            if new_total_weight_u16 > total_weight_upper_bound && beta_numer <= 41 {
+                beta_numer += 1;
+                beta = num_rational::Ratio::new(beta_numer, beta_denom);
+                continue;
+            }
+
+            // If reduced total > total-weight-upper-bound then output failure
+            if new_total_weight_u16 > total_weight_upper_bound {
+                return Err(FastCryptoError::InvalidInput);
+            }
+
+            // Map the reduced weights back to nodes
+            let mut indexed_weights: Vec<(usize, u16)> = n
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(i, node)| (i, node.weight))
+                .collect();
+            
+            indexed_weights.sort_by(|a, b| b.1.cmp(&a.1));
+
+            let mut new_weights = vec![0u16; n.nodes.len()];
+            for (idx_in_sorted, (original_idx, _original_weight)) in indexed_weights.iter().enumerate() {
+                if idx_in_sorted < reduced_weights.len() {
+                    new_weights[*original_idx] = reduced_weights[idx_in_sorted] as u16;
+                }
+            }
+
+            let nodes: Vec<Node<G>> = n
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(i, node)| Node {
+                    id: node.id,
+                    pk: node.pk.clone(),
+                    weight: new_weights[i],
+                })
+                .collect();
+
+            // Prepare weights for validation
+            let original_weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
+            let reduced_weights: Vec<u64> = new_weights.iter().map(|&w| w as u64).collect();
+
+            // Validate weight reduction - if checks fail, try with higher beta
+            if weight_reduction_checks::validate_weight_reduction(
+                &original_weights,
+                &reduced_weights,
+                alpha,
+                beta,
+                original_total_weight,
+                new_total_weight,
+            ).is_err() {
+                // If checks fail and we can still increase beta, try again
+                if beta_numer < 41 {
+                    beta_numer += 1;
+                    beta = num_rational::Ratio::new(beta_numer, beta_denom);
+                    continue;
+                }
+                return Err(FastCryptoError::InvalidInput);
+            }
+
+            // These are required fields for the Nodes struct
+            let accumulated_weights = Self::get_accumulated_weights(&nodes);
+            let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
+            // Use new_total_weight_u16 instead of recalculating from nodes
+            let total_weight = new_total_weight_u16;
+
+            // Calculate new threshold
+            let new_t = (beta_numer as u32 * new_total_weight as u32 / beta_denom as u32) as u16;
+
+            return Ok((
+                Self {
+                    nodes,
+                    total_weight,
+                    accumulated_weights,
+                    nodes_with_nonzero_weight,
+                },
+                new_t,
+            ));
         }
-
-        let nodes: Vec<Node<G>> = n
-            .nodes
-            .iter()
-            .enumerate()
-            .map(|(i, node)| Node {
-                id: node.id,
-                pk: node.pk.clone(),
-                weight: new_weights[i],
-            })
-            .collect();
-
-        let accumulated_weights = Self::get_accumulated_weights(&nodes);
-        let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
-        let total_weight = nodes.iter().map(|n| n.weight as u32).sum::<u32>() as u16;
-
-        // Calculate new threshold: scale proportionally
-        // new_t = ceil(t * new_total_weight / original_total_weight)
-        let new_t = (*beta.numer() as u32 * new_total_weight as u32 / *beta.denom() as u32) as u16;
-
-        Ok((
-            Self {
-                nodes,
-                total_weight,
-                accumulated_weights,
-                nodes_with_nonzero_weight,
-            },
-            new_t,
-        ))
     }
 }
