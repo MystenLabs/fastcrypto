@@ -217,7 +217,7 @@ mod scalar_tests {
         let evaluations = polynomial.eval_range(n).unwrap();
         for i in 1..=n {
             let index = ShareIndex::new(i).unwrap();
-            assert_eq!(evaluations[index], polynomial.eval(index));
+            assert_eq!(evaluations.get_eval(index), polynomial.eval(index));
         }
     }
 

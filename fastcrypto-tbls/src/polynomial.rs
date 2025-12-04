@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::mem::swap;
 use std::num::NonZeroU16;
-use std::ops::{Add, AddAssign, Div, Index, Mul, MulAssign, SubAssign};
+use std::ops::{Add, AddAssign, Div, Mul, MulAssign, SubAssign};
 
 /// Types
 
@@ -674,18 +674,17 @@ impl<C: GroupElement> Iterator for PolynomialEvaluator<C> {
 #[derive(Debug)]
 pub struct EvalRange<C>(Vec<Eval<C>>);
 
-impl<C> Index<ShareIndex> for EvalRange<C> {
-    type Output = Eval<C>;
-
-    fn index(&self, index: ShareIndex) -> &Self::Output {
-        // ShareIndex is counted from 1
-        &self.0[index.get() as usize - 1]
-    }
-}
-
 impl<C> EvalRange<C> {
     /// Return all evaluations in this range as a vector, ordered by the indices.
     pub fn to_vec(self) -> Vec<Eval<C>> {
         self.0
+    }
+
+    /// Get the evaluation point for the given index. Panics if it is out of range.
+    pub fn get_eval(&self, index: ShareIndex) -> Eval<C>
+    where
+        C: Clone,
+    {
+        self.0[index.get() as usize - 1].clone()
     }
 }
