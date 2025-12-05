@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::mem::swap;
 use std::num::NonZeroU16;
-use std::ops::{Add, AddAssign, Div, Index, Mul, MulAssign, SubAssign};
+use std::ops::{Add, AddAssign, Div, Mul, MulAssign, SubAssign};
 
 /// Types
 
@@ -192,7 +192,7 @@ impl<C: GroupElement> Poly<C> {
         result * C::ScalarType::from(remaining)
     }
 
-    fn get_lagrange_coefficients_for_c0(
+    pub(crate) fn get_lagrange_coefficients_for_c0(
         t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
     ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {
@@ -290,6 +290,15 @@ impl<C: GroupElement> Poly<C> {
             );
         }
         &self.0[i]
+    }
+
+    /// Returns the i'th coefficient for this polynomial.
+    /// If i is larger than the degree, this just returns a zero.
+    pub fn safe_coefficient(&self, i: usize) -> C {
+        if i >= self.0.len() {
+            return C::zero();
+        }
+        self.0[i]
     }
 
     /// Returns the coefficients of the polynomial.
@@ -478,6 +487,39 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
         let res = C::multi_scalar_mul(&coeffs.1, &plain_shares).expect("sizes match") * coeffs.0;
         Ok(res)
     }
+
+    /// Scale each of the polynomials with the corresponding scalar and compute the sum.
+    /// Returns an error if the two slices does not have the same length.
+    pub fn multi_scalar_mul(
+        polynomials: &[Poly<C>],
+        scalars: &[C::ScalarType],
+    ) -> FastCryptoResult<Poly<C>> {
+        if polynomials.len() != scalars.len() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        if polynomials.is_empty() {
+            return Ok(Poly::zero());
+        }
+        let degree = polynomials
+            .iter()
+            .map(Poly::degree)
+            .max()
+            .expect("Is not empty");
+        Ok(Poly(
+            (0..=degree)
+                .map(|i| {
+                    C::multi_scalar_mul(
+                        scalars,
+                        &polynomials
+                            .iter()
+                            .map(|p| p.safe_coefficient(i))
+                            .collect_vec(),
+                    )
+                    .unwrap()
+                })
+                .collect_vec(),
+        ))
+    }
 }
 
 /// This represents a monomial, e.g., 3x^2, where 3 is the coefficient and 2 is the degree.
@@ -632,18 +674,17 @@ impl<C: GroupElement> Iterator for PolynomialEvaluator<C> {
 #[derive(Debug)]
 pub struct EvalRange<C>(Vec<Eval<C>>);
 
-impl<C> Index<ShareIndex> for EvalRange<C> {
-    type Output = Eval<C>;
-
-    fn index(&self, index: ShareIndex) -> &Self::Output {
-        // ShareIndex is counted from 1
-        &self.0[index.get() as usize - 1]
-    }
-}
-
 impl<C> EvalRange<C> {
     /// Return all evaluations in this range as a vector, ordered by the indices.
     pub fn to_vec(self) -> Vec<Eval<C>> {
         self.0
+    }
+
+    /// Get the evaluation point for the given index. Panics if it is out of range.
+    pub fn get_eval(&self, index: ShareIndex) -> Eval<C>
+    where
+        C: Clone,
+    {
+        self.0[index.get() as usize - 1].clone()
     }
 }

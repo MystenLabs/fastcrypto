@@ -262,7 +262,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
                                 index,
                                 shares: shares_for_polynomial
                                     .each_ref()
-                                    .map(|shares| shares[index].clone().value),
+                                    .map(|shares| shares.get_eval(index).value),
                                 blinding_share: blinding_poly.eval(index).value,
                             })
                             .collect_vec(),

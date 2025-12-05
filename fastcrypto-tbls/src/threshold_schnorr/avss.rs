@@ -23,7 +23,7 @@ use fastcrypto::error::FastCryptoError::{
     InputLengthWrong, InvalidInput, InvalidMessage, NotEnoughWeight,
 };
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::Scalar;
+use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -188,7 +188,7 @@ impl Dealer {
                     SharesForNode {
                         shares: share_ids
                             .into_iter()
-                            .map(|index| all_shares[index].clone())
+                            .map(|index| all_shares.get_eval(index))
                             .collect_vec(),
                     }
                     .to_bytes(),
@@ -436,51 +436,48 @@ impl ReceiverOutput {
 
         let my_indices = nodes.share_ids_of(my_id)?;
 
-        let outputs = outputs
-            .iter()
-            .map(|output| Eval {
-                index: output.index,
-                value: output.clone().value.into_receiver_output(nodes),
-            })
-            .collect_vec();
-
-        let shares = my_indices
-            .iter()
-            .map(|&index| Eval {
-                index,
-                value: Poly::recover_c0(
-                    t,
-                    outputs.iter().map(|output| Eval {
-                        index: output.index,
-                        value: output.value.share_for_index(index).unwrap().clone().value,
-                    }),
-                )
-                .unwrap(),
-            })
-            .collect();
-
-        let commitments = nodes
-            .share_ids_iter()
-            .map(|index| Eval {
-                index,
-                value: Poly::recover_c0_msm(
-                    t,
-                    outputs.iter().map(|output| Eval {
-                        index: output.index,
-                        value: output.value.commitment_for_index(index).unwrap().value,
-                    }),
-                )
-                .unwrap(),
-            })
-            .collect_vec();
-
-        // TODO: This will not change, so perhaps it's not meaningful to compute it again, except for a sanity check?
-        let vk = Poly::recover_c0_msm(
+        // We only need to compute the lagrange coefficients for one of the indices this party controls
+        let lagrange_coefficients: Vec<S> = Poly::get_lagrange_coefficients_for_c0(
             t,
             outputs.iter().map(|output| Eval {
                 index: output.index,
-                value: output.value.vk,
+                value: output.value.share_for_index(my_indices[0]).unwrap().value,
             }),
+        )
+        .map(|c| c.1.iter().map(|s| s * c.0).collect_vec())?;
+
+        let feldman_commitment = Poly::multi_scalar_mul(
+            &outputs
+                .iter()
+                .map(|output| output.value.feldman_commitment.clone())
+                .collect_vec(),
+            &lagrange_coefficients,
+        )?;
+
+        let commitments = feldman_commitment
+            .eval_range(nodes.total_weight())?
+            .to_vec();
+
+        let shares =
+            my_indices
+                .iter()
+                .map(|&index| Eval {
+                    index,
+                    value: S::sum(outputs.iter().zip(&lagrange_coefficients).map(
+                        |(output, coeff)| {
+                            output.value.share_for_index(index).unwrap().clone().value * coeff
+                        },
+                    )),
+                })
+                .collect();
+
+        let vk = G::multi_scalar_mul(
+            &lagrange_coefficients,
+            outputs
+                .iter()
+                .map(|o| *o.value.feldman_commitment.c0())
+                .collect_vec()
+                .as_slice(),
         )?;
 
         Ok(Self {
@@ -512,6 +509,10 @@ impl PartialOutput {
     #[cfg(test)]
     fn commitment_for_index(&self, index: ShareIndex) -> Eval<G> {
         self.feldman_commitment.eval(index)
+    }
+
+    fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
+        self.my_shares.shares.iter().find(|s| s.index == index)
     }
 
     fn weight(&self) -> usize {

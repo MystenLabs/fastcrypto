@@ -424,8 +424,13 @@ mod tests {
         assert_eq!(G::generator() * sk, vk);
 
         // Check commitments on the reshared secret from the first dealer
-        let commitment_1 = merged_shares.get(&0).unwrap().commitments.first().unwrap();
-        let secret_1 = merged_shares
+        let commitment_1 = merged_shares_after_rotation
+            .get(&0)
+            .unwrap()
+            .commitments
+            .first()
+            .unwrap();
+        let secret_1 = merged_shares_after_rotation
             .get(&0)
             .unwrap()
             .share_for_index(commitment_1.index)
@@ -450,7 +455,10 @@ mod tests {
                     message_2,
                     presigs.get_mut(&node.id).unwrap(),
                     &beacon_value,
-                    &merged_shares.get(&node.id).unwrap().my_shares,
+                    &merged_shares_after_rotation
+                        .get(&node.id)
+                        .unwrap()
+                        .my_shares,
                     &vk,
                     None,
                 )
