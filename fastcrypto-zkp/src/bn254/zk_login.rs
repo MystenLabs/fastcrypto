@@ -125,6 +125,8 @@ pub enum OIDCProvider {
     TestHuionepay,
 
     Huionepay,
+
+    Telegram,
 }
 
 impl FromStr for OIDCProvider {
@@ -147,6 +149,7 @@ impl FromStr for OIDCProvider {
             "Onefc" => Ok(Self::Onefc),
             "FanTV" => Ok(Self::FanTV),
             "Arden" => Ok(Self::Arden),
+            "Telegram" => Ok(Self::Telegram),
             "TestHuionepay" => Ok(Self::TestHuionepay),
             "Huionepay" => Ok(Self::Huionepay),
             _ => {
@@ -184,6 +187,7 @@ impl ToString for OIDCProvider {
             Self::Onefc => "Onefc".to_string(),
             Self::FanTV => "FanTV".to_string(),
             Self::Arden => "Arden".to_string(),
+            Self::Telegram => "Telegram".to_string(),
             Self::Huionepay => "Huionepay".to_string(),
             Self::TestHuionepay => "TestHuionepay".to_string(),
             Self::AwsTenant((region, tenant_id)) => {
@@ -263,6 +267,10 @@ impl OIDCProvider {
                 "https://oidc.arden.cc",
                 "https://api.arden.cc/auth/jwks",
             ),
+            OIDCProvider::Telegram => ProviderConfig::new(
+                "https://tg-accounts.onelabs.cc",
+                "https://tg-accounts.onelabs.cc/auth/jwks",
+            ),
             OIDCProvider::Huionepay => ProviderConfig::new(
                 "https://accounts.huionepay.com",
                 "https://salt.h-tech.io/get_keys",
@@ -288,6 +296,7 @@ impl OIDCProvider {
             "https://accounts.credenza3.com" => Ok(Self::Credenza3),
             "https://oauth2.playtron.one" => Ok(Self::Playtron),
             "https://auth.3dos.io" => Ok(Self::Threedos),
+            "https://tg-accounts.onelabs.cc" => Ok(Self::Telegram),
             "https://test.huionepay.com" => Ok(Self::TestHuionepay),
             "https://accounts.huionepay.com" => Ok(Self::Huionepay),
             "https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/v2.0/" => {
