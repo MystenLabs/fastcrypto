@@ -19,19 +19,19 @@ use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::groups::{GroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use std::array;
+use std::array::from_fn;
 use std::fmt::Debug;
 
 /// This represents a Dealer in the AVSS.
 /// There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
 #[allow(dead_code)]
-pub struct Dealer<const BATCH_SIZE: usize> {
-    secrets: [S; BATCH_SIZE],
+pub struct Dealer {
     t: u16,
     nodes: Nodes<EG>,
     sid: Vec<u8>,
@@ -39,7 +39,7 @@ pub struct Dealer<const BATCH_SIZE: usize> {
 
 /// This represents a Receiver in the AVSS who receives shares from the [Dealer].
 #[allow(dead_code)]
-pub struct Receiver<const BATCH_SIZE: usize> {
+pub struct Receiver {
     id: PartyId,
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
@@ -153,7 +153,7 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
     /// Recover the shares for this node.
     ///
     /// Fails if `other_shares` is empty or if the batch sizes of all shares in `other_shares` are not equal to the expected batch size.
-    fn recover(receiver: &Receiver<BATCH_SIZE>, other_shares: &[Self]) -> FastCryptoResult<Self> {
+    fn recover(receiver: &Receiver, other_shares: &[Self]) -> FastCryptoResult<Self> {
         if other_shares.is_empty() {
             return Err(InvalidInput);
         }
@@ -196,7 +196,7 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
 
 impl<const BATCH_SIZE: usize> BCSSerialized for SharesForNode<BATCH_SIZE> {}
 
-impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
+impl Dealer {
     /// Create a new dealer.
     ///
     /// `nodes` defines the set of receivers and their weights.
@@ -204,35 +204,21 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
     /// `f` is the maximum number of Byzantine parties counted by weight.
     /// `sid` is a session identifier that should be unique for each invocation, but the same for all parties.
     /// `rng` is a random number generator.
-    pub fn new(
-        nodes: Nodes<EG>,
-        t: u16,
-        f: u16,
-        sid: Vec<u8>,
-        rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<Self> {
+    pub fn new(nodes: Nodes<EG>, t: u16, f: u16, sid: Vec<u8>) -> FastCryptoResult<Self> {
         // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
         if t <= f || t + 2 * f > nodes.total_weight() {
             return Err(InvalidInput);
         }
 
-        let secrets = array::from_fn(|_| S::rand(rng));
-        Ok(Self {
-            secrets,
-            t,
-            nodes,
-            sid,
-        })
+        Ok(Self { t, nodes, sid })
     }
 
     /// 1. The Dealer generates shares for the secrets and broadcasts the encrypted shares.
-    pub fn create_message<Rng: AllowedRng>(
+    pub fn create_message<const BATCH_SIZE: usize, Rng: AllowedRng>(
         &self,
         rng: &mut Rng,
     ) -> FastCryptoResult<Message<BATCH_SIZE>> {
-        let polynomials = self
-            .secrets
-            .map(|c0| Poly::rand_fixed_c0(self.t - 1, c0, rng));
+        let polynomials = from_fn(|_| Poly::rand(self.t - 1, rng));
 
         // Compute the (full) public keys for all secrets
         let full_public_keys = polynomials.each_ref().map(|p| G::generator() * p.c0());
@@ -303,7 +289,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
     }
 }
 
-impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
+impl Receiver {
     /// Create a new receiver.
     ///
     /// `nodes` defines the set of receivers and what shares they should receive.
@@ -339,7 +325,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
     /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
     ///
     /// 3. When f+t signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
-    pub fn process_message(
+    pub fn process_message<const BATCH_SIZE: usize>(
         &self,
         message: &Message<BATCH_SIZE>,
     ) -> FastCryptoResult<ProcessedMessage<BATCH_SIZE>> {
@@ -400,7 +386,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
     }
 
     /// 4. Upon receiving a complaint, a receiver verifies it and responds with its shares.
-    pub fn handle_complaint(
+    pub fn handle_complaint<const BATCH_SIZE: usize>(
         &self,
         message: &Message<BATCH_SIZE>,
         complaint: &Complaint,
@@ -420,7 +406,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
 
     /// 5. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
     ///    Fails if there are not enough valid responses to recover the shares or if any of the responses come from an invalid party.
-    pub fn recover(
+    pub fn recover<const BATCH_SIZE: usize>(
         &self,
         message: &Message<BATCH_SIZE>,
         responses: Vec<ComplaintResponse<SharesForNode<BATCH_SIZE>>>,
@@ -519,6 +505,7 @@ mod tests {
     use fastcrypto::groups::GroupElement;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
+    use std::array::from_fn;
     use std::collections::HashMap;
 
     #[test]
@@ -546,8 +533,7 @@ mod tests {
         .unwrap();
 
         let sid = b"tbls test".to_vec();
-        let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(nodes.clone(), t, f, sid.clone(), &mut rng).unwrap();
+        let dealer: Dealer = Dealer::new(nodes.clone(), t, f, sid.clone()).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -557,7 +543,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let message = dealer.create_message(&mut rng).unwrap();
+        let message = dealer.create_message::<BATCH_SIZE, _>(&mut rng).unwrap();
 
         let all_shares = receivers
             .iter()
@@ -622,8 +608,7 @@ mod tests {
         .unwrap();
 
         let sid = b"tbls test".to_vec();
-        let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(nodes.clone(), t, f, sid.clone(), &mut rng).unwrap();
+        let dealer: Dealer = Dealer::new(nodes.clone(), t, f, sid.clone()).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -633,7 +618,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let message = dealer.create_message(&mut rng).unwrap();
+        let message = dealer.create_message::<BATCH_SIZE, _>(&mut rng).unwrap();
 
         let all_shares = receivers
             .iter()
@@ -685,8 +670,7 @@ mod tests {
 
         let sid = b"tbls test".to_vec();
 
-        let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(nodes.clone(), t, f, sid.clone(), &mut rng).unwrap();
+        let dealer: Dealer = Dealer::new(nodes.clone(), t, f, sid.clone()).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -696,7 +680,9 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let message = dealer.create_message_cheating(&mut rng).unwrap();
+        let message = dealer
+            .create_message_cheating::<BATCH_SIZE, _>(&mut rng)
+            .unwrap();
 
         let mut all_shares = receivers
             .iter()
@@ -741,15 +727,13 @@ mod tests {
         assert_eq!(secrets, secrets);
     }
 
-    impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
+    impl Dealer {
         /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares. This also returns the nonces to be secret shared along with their corresponding public keys.
-        pub fn create_message_cheating<Rng: AllowedRng>(
+        pub fn create_message_cheating<const BATCH_SIZE: usize, Rng: AllowedRng>(
             &self,
             rng: &mut Rng,
         ) -> FastCryptoResult<Message<BATCH_SIZE>> {
-            let polynomials = self
-                .secrets
-                .map(|c0| Poly::rand_fixed_c0(self.t - 1, c0, rng));
+            let polynomials = from_fn(|_| Poly::rand(self.t - 1, rng));
 
             // Compute the (full) public keys for all secrets
             let full_public_keys = polynomials.each_ref().map(|p| G::generator() * p.c0());

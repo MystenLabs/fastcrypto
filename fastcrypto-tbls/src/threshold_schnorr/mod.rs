@@ -213,13 +213,13 @@ mod tests {
         for dealer_id in nodes.node_ids_iter() {
             for (i, _) in nodes.share_ids_of(dealer_id).unwrap().iter().enumerate() {
                 let sid = format!("presig-test-session-{}-{}", dealer_id, i).into_bytes();
-                let dealer: batch_avss::Dealer<BATCH_SIZE> =
-                    batch_avss::Dealer::new(nodes.clone(), t, f, sid.clone(), &mut rng).unwrap();
+                let dealer: batch_avss::Dealer =
+                    batch_avss::Dealer::new(nodes.clone(), t, f, sid.clone()).unwrap();
                 let receivers = sks
                     .iter()
                     .enumerate()
                     .map(|(id, enc_secret_key)| {
-                        batch_avss::Receiver::<BATCH_SIZE>::new(
+                        batch_avss::Receiver::new(
                             nodes.clone(),
                             id as u16,
                             t,
