@@ -469,14 +469,18 @@ macro_rules! define_bls12381 {
             }
 
             fn private(self) -> Self::PrivKey {
-                BLS12381PrivateKey::from_bytes(self.private.as_ref()).unwrap()
+                self.private
             }
 
             #[cfg(feature = "copy_key")]
             fn copy(&self) -> Self {
+                // Note: The copy_key feature explicitly allows copying private keys for specific use cases.
+                // This reconstructs the private key from bytes, which should never fail for a valid keypair.
+                let private_bytes = self.private.as_ref();
                 BLS12381KeyPair {
                     public: self.public.clone(),
-                    private: BLS12381PrivateKey::from_bytes(self.private.as_ref()).unwrap(),
+                    private: BLS12381PrivateKey::from_bytes(private_bytes)
+                        .expect("KeyPair should always contain valid private key bytes"),
                 }
             }
 
