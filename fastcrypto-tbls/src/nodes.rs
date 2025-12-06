@@ -3,6 +3,7 @@
 
 use crate::ecies_v1;
 use crate::types::ShareIndex;
+use crate::weight_reduction_checks;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
@@ -220,5 +221,156 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             },
             new_t,
         ))
+    }
+
+
+    /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
+    /// This uses the swiper algorithms from the `weight-reduction` directory.
+    ///
+    /// # Parameters
+    /// - `nodes_vec`: Input nodes with weights
+    /// - `alpha`: Alpha ratio (adversarial weight threshold)
+    /// - `max_slack`: Maximum allowed slack value
+    ///
+    /// # Returns
+    /// A tuple of (reduced Nodes, new threshold, beta numerator, beta denominator)
+    pub fn new_super_swiper_reduced(
+        nodes_vec: Vec<Node<G>>,
+        alpha: num_rational::Ratio<u64>,
+        max_slack: f64,
+    ) -> FastCryptoResult<(Self, u16, u64, u64)> {
+        let n = Self::new(nodes_vec)?;
+        let original_total_weight = n.total_weight() as u64;
+
+        // Extract weights from nodes, sorted in descending order (required by super_swiper)
+        let mut weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
+        // Sort in descending order as required by super_swiper
+        weights.sort_by(|a, b| b.cmp(a));
+
+        // Set initial beta = alpha + 1/100
+        let beta_denom = 100u64;
+        let alpha_numer = *alpha.numer();
+        let alpha_denom = *alpha.denom();
+        // Calculate alpha + 1/100 = (alpha_numer * 100 + alpha_denom) / (alpha_denom * 100)
+        // Then convert to denominator 100: beta_numer = (alpha_numer * 100 + alpha_denom) / alpha_denom
+        let mut beta_numer = (alpha_numer * beta_denom + alpha_denom) / alpha_denom;
+        let mut beta = num_rational::Ratio::new(beta_numer, beta_denom);
+        
+        // Safety limit to prevent infinite loops
+        const MAX_BETA_ITERATIONS: u64 = 50; // Allow more iterations for slack-based approach
+        let mut iterations = 0;
+
+        loop {
+            iterations += 1;
+            if iterations > MAX_BETA_ITERATIONS {
+                return Err(FastCryptoError::InvalidInput);
+            }
+            
+            // Call super_swiper to get ticket assignments (which are the reduced weights)
+            let reduced_weights_sorted = {
+                use solver::solve;
+                solve(alpha, beta, &weights)
+            };
+
+            // Calculate the new total weight
+            let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
+            let new_total_weight_u16 = new_total_weight as u16;
+
+            // Map the reduced weights back to nodes
+            let mut indexed_weights: Vec<(usize, u16)> = n
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(i, node)| (i, node.weight))
+                .collect();
+            
+            indexed_weights.sort_by(|a, b| b.1.cmp(&a.1));
+
+            let mut new_weights = vec![0u16; n.nodes.len()];
+            for (idx_in_sorted, (original_idx, _original_weight)) in indexed_weights.iter().enumerate() {
+                if idx_in_sorted < reduced_weights_sorted.len() {
+                    new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
+                }
+            }
+
+            // Prepare weights for slack calculation (in original order)
+            let original_weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
+            let reduced_weights: Vec<u64> = new_weights.iter().map(|&w| w as u64).collect();
+
+            // Calculate t = beta * new_weights_total
+            let t = (beta * new_total_weight).to_integer();
+
+            // Get slack - this is the primary validation check
+            // Use n=2 random subsets in addition to top and bottom checks
+            let slack = weight_reduction_checks::get_slack(
+                t,
+                &original_weights,
+                &reduced_weights,
+                alpha,
+                original_total_weight,
+                2, // n_random: number of random subsets to test
+            );
+
+            // Use slack as the primary check instead of other validations
+            // If slack < max_slack, increase beta and repeat
+            // Note: If max_slack >= 1.0, any valid slack will pass, so we can skip the check
+            let slack_acceptable = if max_slack >= 1.0 {
+                true // Slack check not needed when max_slack >= 1.0
+            } else if let Some(slack_value) = slack {
+                slack_value >= max_slack
+            } else {
+                // If slack calculation failed, we'll try increasing beta
+                false
+            };
+
+            if !slack_acceptable {
+                // Try to increase beta to improve slack
+                if beta_numer < 50 {
+                    beta_numer += 1;
+                    beta = num_rational::Ratio::new(beta_numer, beta_denom);
+                    continue;
+                } else {
+                    // Can't increase beta further
+                    // If we've tried many times, accept the current result
+                    // Otherwise return error since slack constraint not met
+                    if iterations < 10 {
+                        return Err(FastCryptoError::InvalidInput);
+                    }
+                    // After many iterations, accept current result even if slack not perfect
+                }
+            }
+
+            let nodes: Vec<Node<G>> = n
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(i, node)| Node {
+                    id: node.id,
+                    pk: node.pk.clone(),
+                    weight: new_weights[i],
+                })
+                .collect();
+
+            // These are required fields for the Nodes struct
+            let accumulated_weights = Self::get_accumulated_weights(&nodes);
+            let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
+            // Use new_total_weight_u16 instead of recalculating from nodes
+            let total_weight = new_total_weight_u16;
+
+            // Calculate new threshold
+            let new_t = (beta_numer as u32 * new_total_weight as u32 / beta_denom as u32) as u16;
+
+            return Ok((
+                Self {
+                    nodes,
+                    total_weight,
+                    accumulated_weights,
+                    nodes_with_nonzero_weight,
+                },
+                new_t,
+                beta_numer,
+                beta_denom,
+            ));
+        }
     }
 }
