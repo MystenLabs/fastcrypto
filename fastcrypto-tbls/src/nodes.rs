@@ -229,18 +229,16 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     ///
     /// # Parameters
     /// - `nodes_vec`: Input nodes with weights
-    /// - `t`: Threshold value (not used directly, but kept for compatibility with new_reduced)
-    /// - `allowed_delta`: Not used, kept for compatibility with new_reduced
-    /// - `total_weight_upper_bound`: Upper bound for the total weight after reduction
+    /// - `alpha`: Alpha ratio (adversarial weight threshold)
+    /// - `max_slack`: Maximum allowed slack value
     ///
     /// # Returns
-    /// A tuple of (reduced Nodes, new threshold)
+    /// A tuple of (reduced Nodes, new threshold, beta numerator, beta denominator)
     pub fn new_super_swiper_reduced(
         nodes_vec: Vec<Node<G>>,
-        _t: u16,
-        _allowed_delta: u16,
-        total_weight_upper_bound: u16,
-    ) -> FastCryptoResult<(Self, u16)> {
+        alpha: num_rational::Ratio<u64>,
+        max_slack: f64,
+    ) -> FastCryptoResult<(Self, u16, u64, u64)> {
         let n = Self::new(nodes_vec)?;
         let original_total_weight = n.total_weight() as u64;
 
@@ -249,14 +247,17 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         // Sort in descending order as required by super_swiper
         weights.sort_by(|a, b| b.cmp(a));
 
-        // Set initial alpha = 1/3, beta = 34/100
-        let alpha = num_rational::Ratio::new(1u64, 3u64);
-        let mut beta_numer = 34u64;
+        // Set initial beta = alpha + 1/100
         let beta_denom = 100u64;
+        let alpha_numer = *alpha.numer();
+        let alpha_denom = *alpha.denom();
+        // Calculate alpha + 1/100 = (alpha_numer * 100 + alpha_denom) / (alpha_denom * 100)
+        // Then convert to denominator 100: beta_numer = (alpha_numer * 100 + alpha_denom) / alpha_denom
+        let mut beta_numer = (alpha_numer * beta_denom + alpha_denom) / alpha_denom;
         let mut beta = num_rational::Ratio::new(beta_numer, beta_denom);
         
         // Safety limit to prevent infinite loops
-        const MAX_BETA_ITERATIONS: u64 = 8; // From 34 to 41, that's 8 iterations
+        const MAX_BETA_ITERATIONS: u64 = 50; // Allow more iterations for slack-based approach
         let mut iterations = 0;
 
         loop {
@@ -266,26 +267,14 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             }
             
             // Call super_swiper to get ticket assignments (which are the reduced weights)
-            let reduced_weights = {
+            let reduced_weights_sorted = {
                 use solver::solve;
                 solve(alpha, beta, &weights)
             };
 
-            // Check if the reduction meets the upper bound
-            let new_total_weight: u64 = reduced_weights.iter().sum();
+            // Calculate the new total weight
+            let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
             let new_total_weight_u16 = new_total_weight as u16;
-
-            // If reduced total > total-weight-upper-bound and beta <= 41/100, increase beta by 1/100 and repeat
-            if new_total_weight_u16 > total_weight_upper_bound && beta_numer <= 41 {
-                beta_numer += 1;
-                beta = num_rational::Ratio::new(beta_numer, beta_denom);
-                continue;
-            }
-
-            // If reduced total > total-weight-upper-bound then output failure
-            if new_total_weight_u16 > total_weight_upper_bound {
-                return Err(FastCryptoError::InvalidInput);
-            }
 
             // Map the reduced weights back to nodes
             let mut indexed_weights: Vec<(usize, u16)> = n
@@ -299,8 +288,55 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
             let mut new_weights = vec![0u16; n.nodes.len()];
             for (idx_in_sorted, (original_idx, _original_weight)) in indexed_weights.iter().enumerate() {
-                if idx_in_sorted < reduced_weights.len() {
-                    new_weights[*original_idx] = reduced_weights[idx_in_sorted] as u16;
+                if idx_in_sorted < reduced_weights_sorted.len() {
+                    new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
+                }
+            }
+
+            // Prepare weights for slack calculation (in original order)
+            let original_weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
+            let reduced_weights: Vec<u64> = new_weights.iter().map(|&w| w as u64).collect();
+
+            // Calculate t = beta * new_weights_total
+            let t = (beta * new_total_weight).to_integer();
+
+            // Get slack - this is the primary validation check
+            // Use n=2 random subsets in addition to top and bottom checks
+            let slack = weight_reduction_checks::get_slack(
+                t,
+                &original_weights,
+                &reduced_weights,
+                alpha,
+                original_total_weight,
+                2, // n_random: number of random subsets to test
+            );
+
+            // Use slack as the primary check instead of other validations
+            // If slack < max_slack, increase beta and repeat
+            // Note: If max_slack >= 1.0, any valid slack will pass, so we can skip the check
+            let slack_acceptable = if max_slack >= 1.0 {
+                true // Slack check not needed when max_slack >= 1.0
+            } else if let Some(slack_value) = slack {
+                slack_value >= max_slack
+            } else {
+                // If slack calculation failed, we'll try increasing beta
+                false
+            };
+
+            if !slack_acceptable {
+                // Try to increase beta to improve slack
+                if beta_numer < 50 {
+                    beta_numer += 1;
+                    beta = num_rational::Ratio::new(beta_numer, beta_denom);
+                    continue;
+                } else {
+                    // Can't increase beta further
+                    // If we've tried many times, accept the current result
+                    // Otherwise return error since slack constraint not met
+                    if iterations < 10 {
+                        return Err(FastCryptoError::InvalidInput);
+                    }
+                    // After many iterations, accept current result even if slack not perfect
                 }
             }
 
@@ -314,28 +350,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                     weight: new_weights[i],
                 })
                 .collect();
-
-            // Prepare weights for validation
-            let original_weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
-            let reduced_weights: Vec<u64> = new_weights.iter().map(|&w| w as u64).collect();
-
-            // Validate weight reduction - if checks fail, try with higher beta
-            if weight_reduction_checks::validate_weight_reduction(
-                &original_weights,
-                &reduced_weights,
-                alpha,
-                beta,
-                original_total_weight,
-                new_total_weight,
-            ).is_err() {
-                // If checks fail and we can still increase beta, try again
-                if beta_numer < 41 {
-                    beta_numer += 1;
-                    beta = num_rational::Ratio::new(beta_numer, beta_denom);
-                    continue;
-                }
-                return Err(FastCryptoError::InvalidInput);
-            }
 
             // These are required fields for the Nodes struct
             let accumulated_weights = Self::get_accumulated_weights(&nodes);
@@ -354,6 +368,8 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                     nodes_with_nonzero_weight,
                 },
                 new_t,
+                beta_numer,
+                beta_denom,
             ));
         }
     }

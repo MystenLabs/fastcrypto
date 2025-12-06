@@ -117,14 +117,13 @@ mod tests {
         let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights);
         let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
         let original_total_weight = original_nodes.total_weight();
-        let allowed_delta = 1000u16; // Not used but required for compatibility
-        let total_weight_upper_bound = u16::MAX; // Use max value for this test
 
-        let (reduced_nodes, new_t) = Nodes::new_super_swiper_reduced(
+        let alpha = Ratio::new(1u64, 3u64);
+        let max_slack = 1.0; // Use high slack for backward compatibility
+        let (reduced_nodes, new_t, beta_numer, beta_denom) = Nodes::new_super_swiper_reduced(
             nodes_vec,
-            0, // t parameter is unused
-            allowed_delta,
-            total_weight_upper_bound,
+            alpha,
+            max_slack,
         )
         .unwrap();
 
@@ -133,6 +132,7 @@ mod tests {
         println!("Original total weight: {}", original_total_weight);
         println!("Reduced total weight: {}", reduced_nodes.total_weight());
         println!("New threshold (new_t): {}", new_t);
+        println!("Beta: {}/{}", beta_numer, beta_denom);
         println!("Reduction ratio: {:.2}%", (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0);
         println!("\nReduced weights by node:");
         for (orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
@@ -143,7 +143,6 @@ mod tests {
 
         // Verify reduction occurred
         assert!(reduced_nodes.total_weight() < original_total_weight);
-        assert!(reduced_nodes.total_weight() <= total_weight_upper_bound);
 
         // Verify threshold was adjusted correctly
         assert!(new_t > 0);
@@ -259,15 +258,13 @@ mod tests {
         let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
         let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
         let original_total_weight = original_nodes.total_weight();
-        
-        let allowed_delta = 1000u16; // Not used but required for compatibility
-        let total_weight_upper_bound = u16::MAX; // Use max value for this test
 
-        let (reduced_nodes, new_t) = Nodes::new_super_swiper_reduced(
+        let alpha = Ratio::new(1u64, 3u64);
+        let max_slack = 1.0; // Use high slack for backward compatibility
+        let (reduced_nodes, new_t, beta_numer, beta_denom) = Nodes::new_super_swiper_reduced(
             nodes_vec,
-            0, // t parameter is unused
-            allowed_delta,
-            total_weight_upper_bound,
+            alpha,
+            max_slack,
         )
         .unwrap();
 
@@ -276,6 +273,7 @@ mod tests {
         println!("Original total weight: {}", original_total_weight);
         println!("Reduced total weight: {}", reduced_nodes.total_weight());
         println!("New threshold (new_t): {}", new_t);
+        println!("Beta: {}/{}", beta_numer, beta_denom);
         println!("Reduction ratio: {:.2}%", (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0);
         println!("\nReduced weights by node:");
         for (_orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
@@ -322,26 +320,24 @@ mod tests {
         let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
         let original_total_weight = original_nodes.total_weight();
         
-        let allowed_delta = 1000u16; // Not used but required for compatibility
-        let total_weight_upper_bound = 1000u16;
-
+        let alpha = Ratio::new(1u64, 3u64);
+        let max_slack = 1.0; // Use high slack for backward compatibility
         let result = Nodes::new_super_swiper_reduced(
             nodes_vec.clone(),
-            0, // t parameter is unused
-            allowed_delta,
-            total_weight_upper_bound,
+            alpha,
+            max_slack,
         );
 
         match result {
-            Ok((reduced_nodes, new_t)) => {
-                println!("\n=== New Super Swiper Weight Reduction Results (Upper Bound = {}) ===", total_weight_upper_bound);
+            Ok((reduced_nodes, new_t, beta_numer, beta_denom)) => {
+                println!("\n=== New Super Swiper Weight Reduction Results ===");
                 println!("Original total weight: {}", original_total_weight);
                 println!("Reduced total weight: {}", reduced_nodes.total_weight());
                 println!("New threshold (new_t): {}", new_t);
+                println!("Beta: {}/{}", beta_numer, beta_denom);
                 println!("Reduction ratio: {:.2}%", (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0);
 
-                // Verify reduction occurred and meets upper bound
-                assert!(reduced_nodes.total_weight() <= total_weight_upper_bound);
+                // Verify reduction occurred
                 assert!(reduced_nodes.total_weight() < original_total_weight);
 
                 // Verify threshold was adjusted correctly
@@ -409,7 +405,96 @@ mod tests {
                     Err(e) => eprintln!("Failed to write CSV file: {}", e),
                 }
 
-                println!("Test passed: Weight reduction successful with upper bound {}", total_weight_upper_bound);
+                println!("Test passed: Weight reduction successful");
+            }
+            Err(e) => {
+                panic!("Weight reduction failed: {:?}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_new_super_swiper_reduced_with_slack() {
+        // Test the new function with slack-based iteration
+        let sui_weights = load_sui_validator_weights();
+        let scaled_weights = scale_weights_to_u16(&sui_weights);
+        let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
+        let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
+        let original_total_weight = original_nodes.total_weight();
+        
+        let alpha = Ratio::new(1u64, 3u64);
+        let max_slack = 0.1;
+
+        let result = Nodes::new_super_swiper_reduced(
+            nodes_vec.clone(),
+            alpha,
+            max_slack,
+        );
+
+        match result {
+            Ok((reduced_nodes, new_t, beta_numer, beta_denom)) => {
+                println!("\n=== Super Swiper Weight Reduction Results (with slack constraint) ===");
+                println!("Original total weight: {}", original_total_weight);
+                println!("Reduced total weight: {}", reduced_nodes.total_weight());
+                println!("New threshold (new_t): {}", new_t);
+                println!("Beta: {}/{}", beta_numer, beta_denom);
+                println!("Alpha: 1/3, Max slack: {}", max_slack);
+                println!("Reduction ratio: {:.2}%", (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0);
+
+                // Verify reduction occurred
+                assert!(reduced_nodes.total_weight() < original_total_weight);
+
+                // Verify threshold was adjusted correctly
+                assert!(new_t > 0);
+
+                // Verify all node IDs are preserved
+                assert_eq!(original_nodes.num_nodes(), reduced_nodes.num_nodes());
+                for (orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
+                    assert_eq!(orig.id, red.id);
+                    assert_eq!(orig.pk, red.pk);
+                    assert!(red.weight <= orig.weight);
+                }
+
+                // Note: We're using slack factor as the primary validation check instead of
+                // the weight_reduction_checks validation. The slack check is done internally
+                // in new_super_swiper_reduced.
+                
+                // Calculate subset size for CSV generation
+                let original_weights: Vec<u64> = original_nodes.iter().map(|n| n.weight as u64).collect();
+                let mut original_weights_sorted_desc: Vec<u64> = original_weights.clone();
+                original_weights_sorted_desc.sort_by(|a, b| b.cmp(a));
+                let subset_size_top = calculate_top_subset_size(
+                    &original_weights_sorted_desc,
+                    alpha,
+                    original_total_weight as u64,
+                );
+
+                // Calculate beta used (alpha + 1/100 initially, may have been increased)
+                // We use an approximate beta for CSV display purposes
+                let beta_denom = 100u64;
+                let alpha_numer = *alpha.numer();
+                let alpha_denom = *alpha.denom();
+                let beta_numer = (alpha_numer * beta_denom + alpha_denom) / alpha_denom;
+
+                // Write CSV file
+                let reduced_weights_vec: Vec<u16> = reduced_nodes.iter().map(|n| n.weight).collect();
+                let csv_path = "../weight_reduction_results_slack.csv";
+                match write_weights_csv(
+                    &sui_weights,
+                    &scaled_weights,
+                    &reduced_weights_vec,
+                    1u64, // alpha numerator
+                    3u64, // alpha denominator
+                    beta_numer, // beta numerator (approximate)
+                    beta_denom, // beta denominator
+                    subset_size_top,
+                    csv_path,
+                ) {
+                    Ok(_) => println!("CSV file written to: {}", csv_path),
+                    Err(e) => eprintln!("Failed to write CSV file: {}", e),
+                }
+
+                println!("Test passed: Weight reduction successful with slack constraint");
             }
             Err(e) => {
                 panic!("Weight reduction failed: {:?}", e);

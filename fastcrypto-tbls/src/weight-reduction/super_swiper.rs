@@ -106,6 +106,7 @@ impl DP {
   }
 
   // Returns the maximum achievable adversarial number of tickets.
+  #[cfg(test)]
   fn adversarial_tickets(&self) -> u64 {
     for (t, &w) in self.dp.iter().enumerate().rev() {
       if w != 0 {
