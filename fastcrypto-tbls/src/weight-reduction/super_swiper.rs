@@ -1,3 +1,8 @@
+  // The implementation of the algorithms presented in the paper
+  // Weight reduction in distributed protocols: new algorithms and analysis
+  // [paper](https://eprint.iacr.org/2025/1076).
+  // Adapted from: https://github.com/tolikzinovyev/weight-reduction
+
 use std::collections::{BTreeSet, BinaryHeap};
 use std::cmp::Ordering;
 
