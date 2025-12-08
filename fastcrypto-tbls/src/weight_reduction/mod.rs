@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 // The implementation of the algorithms presented in the paper
 // Weight reduction in distributed protocols: new algorithms and analysis
 // [paper](https://eprint.iacr.org/2025/1076).
@@ -474,7 +477,7 @@ mod calc_indices_head_tail_tests {
     };
     "first_last_index_updated"
   )]
-    fn all(mut test_case: TestCase) {
+    fn all(mut test_case: TestCase<'_>) {
         let mut ret = calc_indices_head(test_case.tickets_len, test_case.deltas);
         test_case.expected.sort_unstable();
         ret.sort_unstable();

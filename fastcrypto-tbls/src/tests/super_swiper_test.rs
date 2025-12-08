@@ -168,22 +168,26 @@ mod tests {
         // Note: check_top_nodes and check_bot_nodes are now done internally by new_super_swiper_reduced
     }
 
-    fn write_weights_csv(
-        sui_weights: &[u64],
-        scaled_weights: &[u16],
-        reduced_weights: &[u16],
+    struct CsvParams {
         alpha_numer: u64,
         alpha_denom: u64,
         beta_numer: u64,
         beta_denom: u64,
+    }
+
+    fn write_weights_csv(
+        sui_weights: &[u64],
+        scaled_weights: &[u16],
+        reduced_weights: &[u16],
+        params: CsvParams,
         subset_size: usize,
         filename: &str,
     ) -> std::io::Result<()> {
         let mut file = File::create(filename)?;
 
         // Write header with alpha and beta (using original values, not simplified)
-        writeln!(file, "alpha,{}/{}", alpha_numer, alpha_denom)?;
-        writeln!(file, "beta,{}/{}", beta_numer, beta_denom)?;
+        writeln!(file, "alpha,{}/{}", params.alpha_numer, params.alpha_denom)?;
+        writeln!(file, "beta,{}/{}", params.beta_numer, params.beta_denom)?;
         writeln!(file)?;
 
         // Calculate totals for percentage calculations
@@ -419,10 +423,12 @@ mod tests {
                     &sui_weights,
                     &scaled_weights,
                     &reduced_weights_vec,
-                    1u64,   // alpha numerator
-                    3u64,   // alpha denominator
-                    34u64,  // beta numerator (may have been increased, but we use initial)
-                    100u64, // beta denominator
+                    CsvParams {
+                        alpha_numer: 1u64,
+                        alpha_denom: 3u64,
+                        beta_numer: 34u64,  // may have been increased, but we use initial
+                        beta_denom: 100u64,
+                    },
                     subset_size_top,
                     csv_path,
                 ) {
@@ -509,10 +515,12 @@ mod tests {
                     &sui_weights,
                     &scaled_weights,
                     &reduced_weights_vec,
-                    1u64,       // alpha numerator
-                    3u64,       // alpha denominator
-                    beta_numer, // beta numerator (approximate)
-                    beta_denom, // beta denominator
+                    CsvParams {
+                        alpha_numer: 1u64,
+                        alpha_denom: 3u64,
+                        beta_numer, // approximate
+                        beta_denom,
+                    },
                     subset_size_top,
                     csv_path,
                 ) {
