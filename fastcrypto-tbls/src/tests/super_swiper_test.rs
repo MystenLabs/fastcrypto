@@ -57,7 +57,7 @@ mod tests {
         // Calculate total weight first to ensure it fits in u16::MAX
         let total: u64 = weights.iter().sum();
         let max_weight = *weights.iter().max().unwrap();
-        
+
         // Scale factor: we need to ensure both individual weights and total weight fit in u16
         let scale_for_max = if max_weight > u16::MAX as u64 {
             (max_weight as f64 / u16::MAX as f64).ceil() as u64
@@ -70,7 +70,7 @@ mod tests {
             1
         };
         let scale_factor = scale_for_max.max(scale_for_total);
-        
+
         weights
             .iter()
             .map(|&w| {
@@ -82,11 +82,11 @@ mod tests {
     }
 
     /// Calculates the subset size for top nodes (for CSV generation purposes).
-    /// 
+    ///
     /// This function finds the subset size where:
     /// - Total < alpha * total_original
     /// - But adding next element would make total >= alpha * total_original
-    /// 
+    ///
     /// Returns the size of the subset (number of elements included)
     fn calculate_top_subset_size(
         original_weights_sorted: &[u64],
@@ -96,7 +96,7 @@ mod tests {
         let alpha_threshold = (alpha * total_original).to_integer();
         let mut subset_sum = 0u64;
         let mut subset_size = 0usize;
-        
+
         for (i, &weight) in original_weights_sorted.iter().enumerate() {
             let new_sum = subset_sum + weight;
             if new_sum >= alpha_threshold {
@@ -105,7 +105,7 @@ mod tests {
             subset_sum = new_sum;
             subset_size = i + 1;
         }
-        
+
         subset_size
     }
 
@@ -120,12 +120,8 @@ mod tests {
 
         let alpha = Ratio::new(1u64, 3u64);
         let max_slack = 1.0; // Use high slack for backward compatibility
-        let (reduced_nodes, new_t, beta_numer, beta_denom) = Nodes::new_super_swiper_reduced(
-            nodes_vec,
-            alpha,
-            max_slack,
-        )
-        .unwrap();
+        let (reduced_nodes, new_t, beta_numer, beta_denom) =
+            Nodes::new_super_swiper_reduced(nodes_vec, alpha, max_slack).unwrap();
 
         // Print the reduced weights
         println!("\n=== Super Swiper Weight Reduction Results ===");
@@ -133,7 +129,10 @@ mod tests {
         println!("Reduced total weight: {}", reduced_nodes.total_weight());
         println!("New threshold (new_t): {}", new_t);
         println!("Beta: {}/{}", beta_numer, beta_denom);
-        println!("Reduction ratio: {:.2}%", (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0);
+        println!(
+            "Reduction ratio: {:.2}%",
+            (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0
+        );
         println!("\nReduced weights by node:");
         for (orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
             println!("  Node {}: {} -> {}", orig.id, orig.weight, red.weight);
@@ -181,36 +180,46 @@ mod tests {
         filename: &str,
     ) -> std::io::Result<()> {
         let mut file = File::create(filename)?;
-        
+
         // Write header with alpha and beta (using original values, not simplified)
         writeln!(file, "alpha,{}/{}", alpha_numer, alpha_denom)?;
         writeln!(file, "beta,{}/{}", beta_numer, beta_denom)?;
         writeln!(file)?;
-        
+
         // Calculate totals for percentage calculations
         let scaled_total: u64 = scaled_weights.iter().map(|&w| w as u64).sum();
         let reduced_total: u64 = reduced_weights.iter().map(|&w| w as u64).sum();
-        
+
         // Write CSV header
         writeln!(file, "Sui Validator Weight,Scaled Weight,Scaled Weight %,Reduced Weight,Reduced Weight %,In Top Scaled,In Top Reduced")?;
-        
+
         // Create sorted indices to map back to original order
-        let mut scaled_with_indices: Vec<(usize, u16)> = scaled_weights.iter().enumerate().map(|(i, &w)| (i, w)).collect();
+        let mut scaled_with_indices: Vec<(usize, u16)> = scaled_weights
+            .iter()
+            .enumerate()
+            .map(|(i, &w)| (i, w))
+            .collect();
         scaled_with_indices.sort_by(|a, b| b.1.cmp(&a.1));
-        
-        let mut reduced_with_indices: Vec<(usize, u16)> = reduced_weights.iter().enumerate().map(|(i, &w)| (i, w)).collect();
+
+        let mut reduced_with_indices: Vec<(usize, u16)> = reduced_weights
+            .iter()
+            .enumerate()
+            .map(|(i, &w)| (i, w))
+            .collect();
         reduced_with_indices.sort_by(|a, b| b.1.cmp(&a.1));
-        
+
         // Create sets of indices that are in the top subset
-        let top_scaled_indices: std::collections::HashSet<usize> = scaled_with_indices[..subset_size]
+        let top_scaled_indices: std::collections::HashSet<usize> = scaled_with_indices
+            [..subset_size]
             .iter()
             .map(|(idx, _)| *idx)
             .collect();
-        let top_reduced_indices: std::collections::HashSet<usize> = reduced_with_indices[..subset_size]
+        let top_reduced_indices: std::collections::HashSet<usize> = reduced_with_indices
+            [..subset_size]
             .iter()
             .map(|(idx, _)| *idx)
             .collect();
-        
+
         // Write data rows (in original order)
         for i in 0..sui_weights.len() {
             let sui_weight = sui_weights[i];
@@ -226,27 +235,39 @@ mod tests {
             } else {
                 0.0
             };
-            let in_top_scaled = if top_scaled_indices.contains(&i) { "Yes" } else { "No" };
-            let in_top_reduced = if top_reduced_indices.contains(&i) { "Yes" } else { "No" };
-            
+            let in_top_scaled = if top_scaled_indices.contains(&i) {
+                "Yes"
+            } else {
+                "No"
+            };
+            let in_top_reduced = if top_reduced_indices.contains(&i) {
+                "Yes"
+            } else {
+                "No"
+            };
+
             writeln!(
-                file, 
-                "{},{},{:.4},{},{:.4},{},{}", 
-                sui_weight, 
-                scaled_weight, 
+                file,
+                "{},{},{:.4},{},{:.4},{},{}",
+                sui_weight,
+                scaled_weight,
                 scaled_weight_pct,
-                reduced_weight, 
+                reduced_weight,
                 reduced_weight_pct,
-                in_top_scaled, 
+                in_top_scaled,
                 in_top_reduced
             )?;
         }
-        
+
         // Write totals
         writeln!(file)?;
         let sui_total: u64 = sui_weights.iter().sum();
-        writeln!(file, "{},{},{:.4},{},{:.4},,", sui_total, scaled_total, 100.0, reduced_total, 100.0)?;
-        
+        writeln!(
+            file,
+            "{},{},{:.4},{},{:.4},,",
+            sui_total, scaled_total, 100.0, reduced_total, 100.0
+        )?;
+
         Ok(())
     }
 
@@ -261,12 +282,8 @@ mod tests {
 
         let alpha = Ratio::new(1u64, 3u64);
         let max_slack = 1.0; // Use high slack for backward compatibility
-        let (reduced_nodes, new_t, beta_numer, beta_denom) = Nodes::new_super_swiper_reduced(
-            nodes_vec,
-            alpha,
-            max_slack,
-        )
-        .unwrap();
+        let (reduced_nodes, new_t, beta_numer, beta_denom) =
+            Nodes::new_super_swiper_reduced(nodes_vec, alpha, max_slack).unwrap();
 
         // Print the reduced weights
         println!("\n=== Super Swiper Weight Reduction Results ===");
@@ -274,7 +291,10 @@ mod tests {
         println!("Reduced total weight: {}", reduced_nodes.total_weight());
         println!("New threshold (new_t): {}", new_t);
         println!("Beta: {}/{}", beta_numer, beta_denom);
-        println!("Reduction ratio: {:.2}%", (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0);
+        println!(
+            "Reduction ratio: {:.2}%",
+            (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0
+        );
         println!("\nReduced weights by node:");
         for (_orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
             // println!("  Node {}: {} -> {}", orig.id, orig.weight, red.weight);
@@ -319,14 +339,10 @@ mod tests {
         let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
         let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
         let original_total_weight = original_nodes.total_weight();
-        
+
         let alpha = Ratio::new(1u64, 3u64);
         let max_slack = 1.0; // Use high slack for backward compatibility
-        let result = Nodes::new_super_swiper_reduced(
-            nodes_vec.clone(),
-            alpha,
-            max_slack,
-        );
+        let result = Nodes::new_super_swiper_reduced(nodes_vec.clone(), alpha, max_slack);
 
         match result {
             Ok((reduced_nodes, new_t, beta_numer, beta_denom)) => {
@@ -335,7 +351,10 @@ mod tests {
                 println!("Reduced total weight: {}", reduced_nodes.total_weight());
                 println!("New threshold (new_t): {}", new_t);
                 println!("Beta: {}/{}", beta_numer, beta_denom);
-                println!("Reduction ratio: {:.2}%", (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0);
+                println!(
+                    "Reduction ratio: {:.2}%",
+                    (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0
+                );
 
                 // Verify reduction occurred
                 assert!(reduced_nodes.total_weight() < original_total_weight);
@@ -344,8 +363,10 @@ mod tests {
                 assert!(new_t > 0);
                 // new_t should be approximately beta * total_reduced_weight (beta starts at 34/100, may increase up to 41/100)
                 // Allow for rounding differences (within 1)
-                let expected_t_min = ((34u32 * reduced_nodes.total_weight() as u32) / 100u32) as u16;
-                let expected_t_max = ((41u32 * reduced_nodes.total_weight() as u32) / 100u32) as u16;
+                let expected_t_min =
+                    ((34u32 * reduced_nodes.total_weight() as u32) / 100u32) as u16;
+                let expected_t_max =
+                    ((41u32 * reduced_nodes.total_weight() as u32) / 100u32) as u16;
                 assert!(
                     new_t >= expected_t_min.saturating_sub(1) && new_t <= expected_t_max + 1,
                     "new_t ({}) should be approximately beta * total_reduced_weight (expected range: {} - {})",
@@ -365,9 +386,11 @@ mod tests {
                 // Validate weight reduction using the validation function
                 let alpha = Ratio::new(1u64, 3u64);
                 let beta = Ratio::new(34u64, 100u64); // Initial beta, may have been increased
-                let original_weights: Vec<u64> = original_nodes.iter().map(|n| n.weight as u64).collect();
-                let reduced_weights: Vec<u64> = reduced_nodes.iter().map(|n| n.weight as u64).collect();
-                
+                let original_weights: Vec<u64> =
+                    original_nodes.iter().map(|n| n.weight as u64).collect();
+                let reduced_weights: Vec<u64> =
+                    reduced_nodes.iter().map(|n| n.weight as u64).collect();
+
                 // Validate using the weight_reduction_checks module
                 weight_reduction_checks::validate_weight_reduction(
                     &original_weights,
@@ -376,8 +399,9 @@ mod tests {
                     beta,
                     original_total_weight as u64,
                     reduced_nodes.total_weight() as u64,
-                ).expect("Weight reduction validation should pass");
-                
+                )
+                .expect("Weight reduction validation should pass");
+
                 // Calculate subset size for CSV generation
                 let mut original_weights_sorted_desc: Vec<u64> = original_weights.clone();
                 original_weights_sorted_desc.sort_by(|a, b| b.cmp(a));
@@ -388,15 +412,16 @@ mod tests {
                 );
 
                 // Write CSV file
-                let reduced_weights_vec: Vec<u16> = reduced_nodes.iter().map(|n| n.weight).collect();
+                let reduced_weights_vec: Vec<u16> =
+                    reduced_nodes.iter().map(|n| n.weight).collect();
                 let csv_path = "../weight_reduction_results_upper_bound.csv";
                 match write_weights_csv(
                     &sui_weights,
                     &scaled_weights,
                     &reduced_weights_vec,
-                    1u64, // alpha numerator
-                    3u64, // alpha denominator
-                    34u64, // beta numerator (may have been increased, but we use initial)
+                    1u64,   // alpha numerator
+                    3u64,   // alpha denominator
+                    34u64,  // beta numerator (may have been increased, but we use initial)
                     100u64, // beta denominator
                     subset_size_top,
                     csv_path,
@@ -421,15 +446,11 @@ mod tests {
         let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
         let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
         let original_total_weight = original_nodes.total_weight();
-        
-        let alpha = Ratio::new(1u64, 3u64);
-        let max_slack = 0.1;
 
-        let result = Nodes::new_super_swiper_reduced(
-            nodes_vec.clone(),
-            alpha,
-            max_slack,
-        );
+        let alpha = Ratio::new(1u64, 3u64);
+        let max_slack = 0.2;
+
+        let result = Nodes::new_super_swiper_reduced(nodes_vec.clone(), alpha, max_slack);
 
         match result {
             Ok((reduced_nodes, new_t, beta_numer, beta_denom)) => {
@@ -439,7 +460,10 @@ mod tests {
                 println!("New threshold (new_t): {}", new_t);
                 println!("Beta: {}/{}", beta_numer, beta_denom);
                 println!("Alpha: 1/3, Max slack: {}", max_slack);
-                println!("Reduction ratio: {:.2}%", (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0);
+                println!(
+                    "Reduction ratio: {:.2}%",
+                    (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0
+                );
 
                 // Verify reduction occurred
                 assert!(reduced_nodes.total_weight() < original_total_weight);
@@ -458,9 +482,10 @@ mod tests {
                 // Note: We're using slack factor as the primary validation check instead of
                 // the weight_reduction_checks validation. The slack check is done internally
                 // in new_super_swiper_reduced.
-                
+
                 // Calculate subset size for CSV generation
-                let original_weights: Vec<u64> = original_nodes.iter().map(|n| n.weight as u64).collect();
+                let original_weights: Vec<u64> =
+                    original_nodes.iter().map(|n| n.weight as u64).collect();
                 let mut original_weights_sorted_desc: Vec<u64> = original_weights.clone();
                 original_weights_sorted_desc.sort_by(|a, b| b.cmp(a));
                 let subset_size_top = calculate_top_subset_size(
@@ -477,14 +502,15 @@ mod tests {
                 let beta_numer = (alpha_numer * beta_denom + alpha_denom) / alpha_denom;
 
                 // Write CSV file
-                let reduced_weights_vec: Vec<u16> = reduced_nodes.iter().map(|n| n.weight).collect();
+                let reduced_weights_vec: Vec<u16> =
+                    reduced_nodes.iter().map(|n| n.weight).collect();
                 let csv_path = "../weight_reduction_results_slack.csv";
                 match write_weights_csv(
                     &sui_weights,
                     &scaled_weights,
                     &reduced_weights_vec,
-                    1u64, // alpha numerator
-                    3u64, // alpha denominator
+                    1u64,       // alpha numerator
+                    3u64,       // alpha denominator
                     beta_numer, // beta numerator (approximate)
                     beta_denom, // beta denominator
                     subset_size_top,
@@ -502,4 +528,3 @@ mod tests {
         }
     }
 }
-

@@ -5,7 +5,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use rand::Rng;
 
 /// Helper function to check top nodes property (returns Result instead of asserting)
-/// 
+///
 /// Checks that the top nodes (by weight) satisfy the alpha/beta property:
 /// 1. Takes original weights in sorted decreasing order
 /// 2. Computes the subset from left to right such that the total of the subset
@@ -29,7 +29,7 @@ pub fn check_top_nodes_internal(
     let alpha_threshold = (alpha * total_original).to_integer();
     let mut subset_sum = 0u64;
     let mut subset_size = 0usize;
-    
+
     for (i, &weight) in original_weights_sorted.iter().enumerate() {
         let new_sum = subset_sum + weight;
         if new_sum >= alpha_threshold {
@@ -38,31 +38,31 @@ pub fn check_top_nodes_internal(
         subset_sum = new_sum;
         subset_size = i + 1;
     }
-    
+
     // If subset is empty, that's okay - it means all weights are >= alpha threshold
     if subset_size == 0 {
         return Ok(());
     }
-    
+
     if subset_sum >= alpha_threshold {
         return Err(FastCryptoError::InvalidInput);
     }
-    
+
     if subset_size < original_weights_sorted.len() {
         let next_sum = subset_sum + original_weights_sorted[subset_size];
         if next_sum < alpha_threshold {
             return Err(FastCryptoError::InvalidInput);
         }
     }
-    
+
     let reduced_subset: &[u64] = &reduced_weights_sorted[..subset_size];
     let reduced_subset_sum: u64 = reduced_subset.iter().sum();
     let beta_threshold = (beta * total_reduced).to_integer();
-    
+
     if reduced_subset_sum >= beta_threshold {
         return Err(FastCryptoError::InvalidInput);
     }
-    
+
     if subset_size < reduced_weights_sorted.len() {
         let next_reduced_sum = reduced_subset_sum + reduced_weights_sorted[subset_size];
         if next_reduced_sum < beta_threshold {
@@ -72,12 +72,12 @@ pub fn check_top_nodes_internal(
             }
         }
     }
-    
+
     Ok(())
 }
 
 /// Helper function to check bottom nodes property (returns Result instead of asserting)
-/// 
+///
 /// Checks that the bottom nodes (by weight) satisfy the alpha/beta property:
 /// Similar to check_top_nodes_internal but considers weights from smallest to largest
 pub fn check_bot_nodes_internal(
@@ -95,7 +95,7 @@ pub fn check_bot_nodes_internal(
     let alpha_threshold = (alpha * total_original).to_integer();
     let mut subset_sum = 0u64;
     let mut subset_size = 0usize;
-    
+
     for (i, &weight) in original_weights_sorted.iter().enumerate() {
         let new_sum = subset_sum + weight;
         if new_sum >= alpha_threshold {
@@ -104,31 +104,31 @@ pub fn check_bot_nodes_internal(
         subset_sum = new_sum;
         subset_size = i + 1;
     }
-    
+
     // If subset is empty, that's okay - it means all weights are >= alpha threshold
     if subset_size == 0 {
         return Ok(());
     }
-    
+
     if subset_sum >= alpha_threshold {
         return Err(FastCryptoError::InvalidInput);
     }
-    
+
     if subset_size < original_weights_sorted.len() {
         let next_sum = subset_sum + original_weights_sorted[subset_size];
         if next_sum < alpha_threshold {
             return Err(FastCryptoError::InvalidInput);
         }
     }
-    
+
     let reduced_subset: &[u64] = &reduced_weights_sorted[..subset_size];
     let reduced_subset_sum: u64 = reduced_subset.iter().sum();
     let beta_threshold = (beta * total_reduced).to_integer();
-    
+
     if reduced_subset_sum >= beta_threshold {
         return Err(FastCryptoError::InvalidInput);
     }
-    
+
     if subset_size < reduced_weights_sorted.len() {
         let next_reduced_sum = reduced_subset_sum + reduced_weights_sorted[subset_size];
         if next_reduced_sum < beta_threshold {
@@ -138,15 +138,15 @@ pub fn check_bot_nodes_internal(
             }
         }
     }
-    
+
     Ok(())
 }
 
 /// Validates weight reduction by checking both top and bottom nodes properties.
-/// 
+///
 /// This function prepares sorted weights and validates that both the top nodes
 /// (largest weights) and bottom nodes (smallest weights) satisfy the alpha/beta property.
-/// 
+///
 /// # Parameters
 /// - `original_weights`: Original weights from nodes (unsorted)
 /// - `reduced_weights`: Reduced weights from nodes (unsorted)
@@ -154,7 +154,7 @@ pub fn check_bot_nodes_internal(
 /// - `beta`: Ratio representing the ticket target fraction
 /// - `total_original`: Total of original weights
 /// - `total_reduced`: Total of reduced weights
-/// 
+///
 /// # Returns
 /// `Ok(())` if both checks pass, `Err(InvalidInput)` otherwise
 pub fn validate_weight_reduction(
@@ -201,12 +201,12 @@ pub fn validate_weight_reduction(
 }
 
 /// Calculate slack for a given threshold t.
-/// 
+///
 /// Checks both top and bottom reduced weights to reach t, plus n random subsets,
 /// then calculates: slack = (w1 - alpha*old_weights_total)/w1
 /// where w1 is the sum of old weights corresponding to the subset.
 /// Returns the maximum slack from all checks.
-/// 
+///
 /// # Parameters
 /// - `t`: Threshold value (target sum of reduced weights)
 /// - `old_weights`: Original weights (in original node order)
@@ -214,7 +214,7 @@ pub fn validate_weight_reduction(
 /// - `alpha`: Alpha ratio
 /// - `old_weights_total`: Total of old weights
 /// - `n_random`: Number of random subsets to test (default: 2)
-/// 
+///
 /// # Returns
 /// The maximum slack value from all checks, or None if t cannot be reached
 pub fn get_slack(
@@ -234,7 +234,7 @@ pub fn get_slack(
         // Take reduced weights to reach t
         let mut reduced_sum = 0u64;
         let mut subset_indices = Vec::new();
-        
+
         for (idx, _old_w, red_w) in indexed {
             if reduced_sum >= t {
                 break;
@@ -250,7 +250,7 @@ pub fn get_slack(
 
         // Calculate w1 = sum of old weights corresponding to the subset
         let w1: u64 = subset_indices.iter().map(|&idx| old_weights[idx]).sum();
-        
+
         if w1 == 0 {
             return None;
         }
@@ -261,7 +261,7 @@ pub fn get_slack(
             // If w1 < alpha*old_weights_total, slack would be negative, skip this subset
             return None;
         }
-        
+
         let slack = (w1 - alpha_times_total) as f64 / alpha_times_total as f64;
         Some(slack)
     };
@@ -289,7 +289,7 @@ pub fn get_slack(
     // Generate n random subsets
     let mut slack_random = Vec::new();
     let mut rng = rand::thread_rng();
-    
+
     for _ in 0..n_random {
         // Create a random permutation of indices
         let mut indexed_random: Vec<(usize, u64, u64)> = old_weights
@@ -298,13 +298,13 @@ pub fn get_slack(
             .zip(reduced_weights.iter())
             .map(|((i, &old_w), &red_w)| (i, old_w, red_w))
             .collect();
-        
+
         // Shuffle randomly
         for i in 0..indexed_random.len() {
             let j = rng.gen_range(i..indexed_random.len());
             indexed_random.swap(i, j);
         }
-        
+
         // Calculate slack for this random ordering
         if let Some(slack) = calculate_slack_for_subset(&indexed_random) {
             slack_random.push(slack);

@@ -223,7 +223,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         ))
     }
 
-
     /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
     /// This uses the swiper algorithms from the `weight-reduction` directory.
     ///
@@ -255,7 +254,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         // Then convert to denominator 100: beta_numer = (alpha_numer * 100 + alpha_denom) / alpha_denom
         let mut beta_numer = (alpha_numer * beta_denom + alpha_denom) / alpha_denom;
         let mut beta = num_rational::Ratio::new(beta_numer, beta_denom);
-        
+
         // Safety limit to prevent infinite loops
         const MAX_BETA_ITERATIONS: u64 = 50; // Allow more iterations for slack-based approach
         let mut iterations = 0;
@@ -265,7 +264,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             if iterations > MAX_BETA_ITERATIONS {
                 return Err(FastCryptoError::InvalidInput);
             }
-            
+
             // Call super_swiper to get ticket assignments (which are the reduced weights)
             let reduced_weights_sorted = {
                 use solver::solve;
@@ -283,18 +282,21 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                 .enumerate()
                 .map(|(i, node)| (i, node.weight))
                 .collect();
-            
+
             indexed_weights.sort_by(|a, b| b.1.cmp(&a.1));
 
             let mut new_weights = vec![0u16; n.nodes.len()];
-            for (idx_in_sorted, (original_idx, _original_weight)) in indexed_weights.iter().enumerate() {
+            for (idx_in_sorted, (original_idx, _original_weight)) in
+                indexed_weights.iter().enumerate()
+            {
                 if idx_in_sorted < reduced_weights_sorted.len() {
                     new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
                 }
             }
 
             // Prepare weights for slack calculation (in original order)
-            let original_weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
+            let original_weights: Vec<u64> =
+                n.nodes.iter().map(|node| node.weight as u64).collect();
             let reduced_weights: Vec<u64> = new_weights.iter().map(|&w| w as u64).collect();
 
             // Calculate t = beta * new_weights_total
