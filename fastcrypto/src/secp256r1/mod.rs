@@ -411,7 +411,7 @@ impl Secp256r1KeyPair {
         let s = fr_arkworks_to_p256(&s).to_bytes();
         let r = fr_arkworks_to_p256(&r).to_bytes();
 
-        // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/mod) which is negligible.
+        // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
         let signature = Signature::from_scalars(r, s).expect("r or s is zero");
 
         // The parity of the y coordinate is needed for computing the recovery id.
