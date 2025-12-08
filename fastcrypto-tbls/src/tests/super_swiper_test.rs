@@ -14,7 +14,7 @@ mod tests {
     use rand::thread_rng;
     use serde::de::DeserializeOwned;
     use serde::Serialize;
-    use std::fs::File;
+    use std::fs::{self, File};
     use std::io::Write;
     use zeroize::Zeroize;
 
@@ -418,7 +418,10 @@ mod tests {
                 // Write CSV file
                 let reduced_weights_vec: Vec<u16> =
                     reduced_nodes.iter().map(|n| n.weight).collect();
-                let csv_path = "../weight_reduction_results_upper_bound.csv";
+                let csv_dir = "fastcrypto-tbls/src/weight-reduction/target";
+                let _ = fs::create_dir_all(csv_dir); // Ignore errors if directory already exists
+                let csv_path =
+                    "fastcrypto-tbls/src/weight-reduction/target/weight_reduction_results_upper_bound.csv";
                 match write_weights_csv(
                     &sui_weights,
                     &scaled_weights,
@@ -510,7 +513,9 @@ mod tests {
                 // Write CSV file
                 let reduced_weights_vec: Vec<u16> =
                     reduced_nodes.iter().map(|n| n.weight).collect();
-                let csv_path = "../weight_reduction_results_slack.csv";
+                let csv_dir = "fastcrypto-tbls/src/weight-reduction/target";
+                let _ = fs::create_dir_all(csv_dir); // Ignore errors if directory already exists
+                let csv_path = "fastcrypto-tbls/src/weight-reduction/target/weight_reduction_results_slack.csv";
                 match write_weights_csv(
                     &sui_weights,
                     &scaled_weights,
