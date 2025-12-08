@@ -16,8 +16,10 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
+use rand::thread_rng;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::marker::PhantomData;
 use tap::prelude::*;
 use tracing::{debug, error, info, warn};
 use zeroize::Zeroize;
@@ -943,5 +945,461 @@ where
     Complaint {
         accused_sender: 1,
         proof: pkg,
+    }
+}
+
+/// Party in the DKG protocol.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Observer<G: GroupElement, EG: GroupElement>
+where
+    EG::ScalarType: Zeroize,
+{
+    pub(crate) nodes: Nodes<EG>,
+    pub t: u16,
+    pub random_oracle: RandomOracle,
+    pub old_t: Option<u16>, // Used only for key rotation
+    g: PhantomData<G>,
+}
+
+/// [Output] is the final output of the DKG protocol in case it runs
+/// successfully. It can be used later with [ThresholdBls], see examples in tests.
+///
+/// If shares is None, the object can only be used for verifying (partial and full) signatures.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ObserverOutput<G: GroupElement, EG: GroupElement> {
+    pub nodes: Nodes<EG>,
+    pub vss_pk: Poly<G>,
+}
+
+/// An observer of a the DKG ceremony.
+///
+/// Can be instantiated with G1Curve or G2Curve.
+impl<G, EG> Observer<G, EG>
+where
+    G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
+    EG: GroupElement + Serialize + HashToGroupElement + DeserializeOwned,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
+{
+    /// 1. Create a new ECIES private key and send the public key to all parties.
+    /// 2. After *all* parties have sent their ECIES public keys, create the (same) set of nodes.
+
+    /// 3. Create a new Party instance with the ECIES private key and the set of nodes.
+    pub fn new(
+        nodes: Nodes<EG>,
+        t: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
+        random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
+    ) -> FastCryptoResult<Self> {
+        // Sanity check that the threshold makes sense (t <= n/2 since we later wait for 2t-1).
+        if t > (nodes.total_weight() / 2) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        Self::new_advanced(nodes, t, random_oracle, None)
+    }
+
+    /// Alternative to new(), to be used for:
+    /// - Any threshold t, useful in the sync setting.
+    /// - Passing old threshold for key rotation (should be set to None for DKG).
+    pub fn new_advanced(
+        nodes: Nodes<EG>,
+        t: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
+        random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
+        old_t: Option<u16>,          // Used only for key rotation
+    ) -> FastCryptoResult<Self> {
+        // Sanity check that the threshold makes sense.
+        if t > nodes.total_weight() || t == 0 || old_t.is_some_and(|ot| ot == 0) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        Ok(Self {
+            nodes,
+            t,
+            random_oracle,
+            old_t,
+            g: PhantomData,
+        })
+    }
+
+    /// The threshold needed to reconstruct the full key/signature.
+    pub fn t(&self) -> u16 {
+        self.t
+    }
+
+    // Sanity checks that can be done by any party on a received message.
+    fn sanity_check_message(&self, msg: &Message<G, EG>) -> FastCryptoResult<()> {
+        let node = self
+            .nodes
+            .node_id_to_node(msg.sender)
+            .tap_err(|_| {
+                warn!(
+                    "DKG: Message sanity check failed, invalid id {}",
+                    msg.sender
+                )
+            })
+            .map_err(|_| FastCryptoError::InvalidMessage)?;
+        if node.weight == 0 {
+            warn!(
+                "DKG: Message sanity check failed for id {}, zero weight",
+                msg.sender
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        };
+
+        if self.t as usize != msg.vss_pk.degree_bound() + 1 {
+            warn!(
+                "DKG: Message sanity check failed for id {}, expected degree={}, got {}",
+                msg.sender,
+                self.t - 1,
+                msg.vss_pk.degree_bound()
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        }
+
+        if *msg.vss_pk.c0() == G::zero() {
+            warn!(
+                "DKG: Message sanity check failed for id {}, zero c0",
+                msg.sender,
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        }
+
+        if self.nodes.num_nodes() != msg.encrypted_shares.len() {
+            warn!(
+                "DKG: Message sanity check failed for id {}, expected encrypted_shares.len={}, got {}",
+                msg.sender,
+                self.nodes.num_nodes(),
+                msg.encrypted_shares.len()
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        }
+
+        let encryption_ro = self.encryption_random_oracle(msg.sender);
+        msg.encrypted_shares
+            .verify(&encryption_ro)
+            .tap_err(|e| {
+                warn!("DKG: Message sanity check failed for id {}, verify with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}",
+                    msg.sender,
+                    encryption_ro,
+                    msg.encrypted_shares.ephemeral_key(),
+                    msg.encrypted_shares.proof(),
+                    e)
+            })
+            .map_err(|_| FastCryptoError::InvalidMessage)
+    }
+
+    /// 5. Process a message and create the second message to be broadcasted.
+    ///    The second message contains the list of complaints on invalid shares. In addition, it
+    ///    returns a set of valid shares (so far).
+    ///
+    ///    We split this function into two parts: process_message and merge, so that the caller can
+    ///    process messages concurrently and then merge the results.
+
+    ///    [process_message] processes a message and returns an intermediate object ProcessedMessage.
+    ///
+    ///    Returns error InvalidMessage if the message is invalid and should be ignored (note that we
+    ///    could count it as part of the f+1 messages we wait for, but it's also safe to ignore it
+    ///    and just wait for f+1 valid messages).
+    ///
+    ///    Assumptions: Called only once per sender (the high level protocol is responsible for deduplication).
+    pub fn process_message(&self, message: Message<G, EG>) -> FastCryptoResult<()> {
+        debug!(
+            "DKG: Processing message from party {} with vss pk c0 {:?}",
+            message.sender,
+            message.vss_pk.c0()
+        );
+        // Ignore if invalid (and other honest parties will ignore as well).
+        self.sanity_check_message(&message)
+    }
+
+    /// Alternative to process_message for a known vss.c0 public key, useful for key rotation.
+    pub fn process_message_and_check_pk(
+        &self,
+        message: Message<G, EG>,
+        partial_pk: &G,
+    ) -> FastCryptoResult<()> {
+        if message.vss_pk.c0() != partial_pk {
+            warn!(
+                "DKG: Processing message from party {} failed, invalid vss pk c0 {:?}, expected {:?}",
+                message.sender,
+                message.vss_pk.c0(),
+                partial_pk
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        };
+        self.process_message(message)
+    }
+
+    pub fn merge(
+        &self,
+        processed_messages: Vec<Message<G, EG>>,
+    ) -> FastCryptoResult<Vec<Message<G, EG>>> {
+        debug!("DKG: Trying to merge {} messages", processed_messages.len());
+        let filtered_messages = processed_messages
+            .into_iter()
+            .unique_by(|m| m.sender)
+            .collect_vec();
+        // Verify we have enough messages
+        let total_weight = filtered_messages
+            .iter()
+            .map(|m| {
+                self.nodes
+                    .node_id_to_node(m.sender)
+                    .expect("checked in process_message")
+                    .weight as u32
+            })
+            .sum::<u32>();
+        let required_t = self.old_t.unwrap_or(self.t);
+        if total_weight < (required_t as u32) {
+            debug!("Merge failed with total weight {total_weight}");
+            return Err(FastCryptoError::NotEnoughInputs);
+        }
+
+        info!("DKG: Merging messages with total weight {total_weight}");
+
+        // Log used parties.
+        let used_parties = filtered_messages
+            .iter()
+            .map(|m| m.sender.to_string())
+            .collect::<Vec<String>>()
+            .join(",");
+        debug!("DKG: Using messages from parties: {}", used_parties);
+
+        Ok(filtered_messages)
+    }
+
+    /// 7. Process all confirmations, check all complaints, and update the local set of
+    ///    valid shares accordingly.
+    ///
+    ///    Returns NotEnoughInputs if the threshold minimal_threshold is not met.
+    ///
+    ///    Assumptions: All parties use the same set of confirmations (and outputs from merge).
+    pub(crate) fn process_confirmations(
+        &self,
+        used_messages: &[Message<G, EG>],
+        confirmations: &[Confirmation<EG>],
+    ) -> FastCryptoResult<Vec<Message<G, EG>>> {
+        debug!("Processing {} confirmations", confirmations.len());
+        let required_threshold = 2 * (self.t as u32) - 1; // guarantee that at least t honest nodes have valid shares.
+
+        // Ignore confirmations with invalid sender or zero weights
+        let confirmations = confirmations
+            .iter()
+            .filter(|c| {
+                self.nodes
+                    .node_id_to_node(c.sender)
+                    .is_ok_and(|n| n.weight > 0)
+            })
+            .unique_by(|m| m.sender)
+            .collect::<Vec<_>>();
+        // Verify we have enough confirmations
+        let total_weight = confirmations
+            .iter()
+            .map(|c| {
+                self.nodes
+                    .node_id_to_node(c.sender)
+                    .expect("checked above")
+                    .weight as u32
+            })
+            .sum::<u32>();
+        if total_weight < required_threshold {
+            debug!("Processing confirmations failed with total weight {total_weight}");
+            return Err(FastCryptoError::NotEnoughInputs);
+        }
+
+        info!("DKG: Processing confirmations with total weight {total_weight}, expected {required_threshold}");
+
+        // Two hash maps for faster access in the main loop below.
+        let id_to_pk = self
+            .nodes
+            .iter()
+            .map(|n| (n.id, &n.pk))
+            .collect::<HashMap<_, _>>();
+        let id_to_m1 = used_messages
+            .iter()
+            .map(|m| (m.sender, m))
+            .collect::<HashMap<_, _>>();
+
+        let mut to_exclude = HashSet::new();
+        'outer: for m2 in confirmations {
+            'inner: for complaint in &m2.complaints {
+                let accused = complaint.accused_sender;
+                let accuser = m2.sender;
+                debug!("DKG: Checking complaint from {accuser} on {accused}");
+                let accuser_pk = id_to_pk
+                    .get(&accuser)
+                    .expect("checked above that accuser is valid id");
+                // If the claim refers to a non existing message, it's an invalid complaint.
+                let valid_complaint = match id_to_m1.get(&accused) {
+                    Some(related_m1) => Party::check_complaint_proof(
+                        &complaint.proof,
+                        accuser_pk,
+                        accuser,
+                        &self
+                            .nodes
+                            .share_ids_of(accuser)
+                            .expect("checked above the accuser is valid id"),
+                        &related_m1.vss_pk,
+                        &related_m1.encrypted_shares,
+                        &self.recovery_random_oracle(accuser, accused),
+                        &self.encryption_random_oracle(accused),
+                        &mut thread_rng(),
+                    )
+                    .is_ok(),
+                    None => false,
+                };
+                match valid_complaint {
+                    // Ignore accused from now on, and continue processing complaints from the
+                    // current accuser.
+                    true => {
+                        warn!("DKG: Processing confirmations excluded accused party {accused}");
+                        to_exclude.insert(accused);
+                        continue 'inner;
+                    }
+                    // Ignore the accuser from now on, including its other complaints (not critical
+                    // for security, just saves some work).
+                    false => {
+                        warn!("DKG: Processing confirmations excluded accuser {accuser}");
+                        to_exclude.insert(accuser);
+                        continue 'outer;
+                    }
+                }
+            }
+        }
+
+        let verified_messages = used_messages
+            .iter()
+            .filter(|m| !to_exclude.contains(&m.sender))
+            .cloned()
+            .collect_vec();
+        if verified_messages.is_empty() {
+            error!(
+                "DKG: No verified messages after processing complaints, this should never happen"
+            );
+            return Err(FastCryptoError::GeneralError(
+                "No verified messages after processing complaints".to_string(),
+            ));
+        }
+
+        // Log verified messages parties.
+        let used_parties = verified_messages
+            .iter()
+            .map(|m| m.sender.to_string())
+            .collect::<Vec<String>>()
+            .join(",");
+        debug!(
+            "DKG: Using verified messages from parties: {}",
+            used_parties
+        );
+
+        Ok(verified_messages)
+    }
+
+    /// 8. Aggregate the valid shares (as returned from the previous step) and the public key.
+    pub(crate) fn aggregate(&self, verified_messages: &[Message<G, EG>]) -> ObserverOutput<G, EG> {
+        debug!(
+            "Aggregating shares from {} verified messages",
+            verified_messages.len()
+        );
+
+        let vss_pk = verified_messages
+            .iter()
+            .fold(Poly::zero(), |acc, m| acc + &m.vss_pk);
+
+        ObserverOutput {
+            nodes: self.nodes.clone(),
+            vss_pk,
+        }
+    }
+
+    /// Execute the previous two steps together.
+    pub fn complete<R: AllowedRng>(
+        &self,
+        used_messages: &[Message<G, EG>],
+        confirmations: &[Confirmation<EG>],
+    ) -> FastCryptoResult<ObserverOutput<G, EG>> {
+        let verified_messages = self.process_confirmations(used_messages, confirmations)?;
+        Ok(self.aggregate(&verified_messages))
+    }
+
+    /// Alternative to complete() - Optimistic version that assumes all messages are valid and if
+    /// other parties received invalid shares, the higher level protocol will handle it.
+    pub fn complete_optimistic(
+        &self,
+        used_messages: &[Message<G, EG>],
+    ) -> FastCryptoResult<ObserverOutput<G, EG>> {
+        // Do not filter out any messages, assume all are valid.
+        Ok(self.aggregate(used_messages))
+    }
+
+    /// Alternative to complete() - Optimistic variant that interpolates the shares instead of
+    /// summing them, to be used for key rotation. Works only if all weights are 1.
+    pub fn complete_optimistic_key_rotation(
+        &self,
+        used_messages: &[Message<G, EG>],
+        // Mapping party id from new committee to its id in the previous committee
+        new_to_old_party_ids: &HashMap<PartyId, PartyId>,
+    ) -> FastCryptoResult<ObserverOutput<G, EG>> {
+        // Check that all weights are 1.
+        if self.nodes.iter().any(|n| n.weight != 1) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        // Check the mapping is valid: unique and all parties exist in the new committee.
+        if new_to_old_party_ids.values().collect::<HashSet<_>>().len() != new_to_old_party_ids.len()
+            || new_to_old_party_ids
+                .keys()
+                .any(|id| self.nodes.node_id_to_node(*id).is_err())
+        {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        // Do not filter out any message, assume all are valid.
+        let old_t = self.old_t.ok_or(FastCryptoError::InvalidInput)?;
+        if used_messages.len() != old_t as usize {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        let mut new_sender_to_old_share_id = HashMap::new();
+        for m in used_messages {
+            if !new_to_old_party_ids.contains_key(&m.sender) {
+                return Err(FastCryptoError::InvalidInput);
+            }
+            let old_share_id = new_to_old_party_ids
+                .get(&m.sender)
+                .expect("checked above that the sender is valid")
+                + 1; // +1 since the old party ids are 0-based.
+            new_sender_to_old_share_id
+                .insert(m.sender, ShareIndex::new(old_share_id).expect("nonzero"));
+        }
+
+        let vss_pk = (0..self.t)
+            .map(|i| {
+                let mut partial_keys = Vec::new();
+                for m in used_messages {
+                    let share = Share {
+                        index: *new_sender_to_old_share_id
+                            .get(&m.sender)
+                            .expect("checked above that the sender is valid"),
+                        value: *m.vss_pk.coefficient(i as usize),
+                    };
+                    partial_keys.push(share);
+                }
+                PublicPoly::<G>::recover_c0_msm(old_t, partial_keys.iter())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(ObserverOutput {
+            nodes: self.nodes.clone(),
+            vss_pk: vss_pk.into(),
+        })
+    }
+
+    fn encryption_random_oracle(&self, sender: PartyId) -> RandomOracle {
+        self.random_oracle.extend(&format!("encs {}", sender))
+    }
+
+    fn recovery_random_oracle(&self, accuser: PartyId, accused: PartyId) -> RandomOracle {
+        self.random_oracle.extend(&format!(
+            "recovery of {} received from {}",
+            accuser, accused
+        ))
     }
 }
