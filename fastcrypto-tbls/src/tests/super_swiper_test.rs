@@ -7,7 +7,7 @@
 mod tests {
     use crate::ecies_v1;
     use crate::nodes::{Node, Nodes};
-    use crate::weight_reduction_checks;
+    use crate::weight_reduction::weight_reduction_checks;
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
     use num_rational::Ratio;
@@ -38,7 +38,7 @@ mod tests {
 
     // Helper function to load Sui validator weights from sui_real_all.dat
     fn load_sui_validator_weights() -> Vec<u64> {
-        const WEIGHTS_DATA: &str = include_str!("../weight-reduction/data/sui_real_all.dat");
+        const WEIGHTS_DATA: &str = include_str!("../weight_reduction/data/sui_real_all.dat");
         WEIGHTS_DATA
             .lines()
             .map(|line| line.trim())

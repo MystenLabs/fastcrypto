@@ -6,6 +6,8 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, BinaryHeap};
 
+pub mod weight_reduction_checks;
+
 // Type alias for rational numbers used in weight reduction
 pub type Ratio = num_rational::Ratio<u64>;
 

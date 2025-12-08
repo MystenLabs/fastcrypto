@@ -3,7 +3,6 @@
 
 use crate::ecies_v1;
 use crate::types::ShareIndex;
-use crate::weight_reduction_checks;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
@@ -224,7 +223,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     }
 
     /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
-    /// This uses the swiper algorithms from the `weight-reduction` directory.
+    /// This uses the swiper algorithms from the `weight_reduction` directory.
     ///
     /// # Parameters
     /// - `nodes_vec`: Input nodes with weights
@@ -267,7 +266,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
             // Call super_swiper to get ticket assignments (which are the reduced weights)
             let reduced_weights_sorted = {
-                use solver::solve;
+                use crate::weight_reduction::solve;
                 solve(alpha, beta, &weights)
             };
 
@@ -304,7 +303,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
             // Get slack - this is the primary validation check
             // Use n=2 random subsets in addition to top and bottom checks
-            let slack = weight_reduction_checks::get_slack(
+            let slack = crate::weight_reduction::weight_reduction_checks::get_slack(
                 t,
                 &original_weights,
                 &reduced_weights,

@@ -22,7 +22,7 @@ pub mod random_oracle;
 pub mod tbls;
 pub mod threshold_schnorr;
 pub mod types;
-pub mod weight_reduction_checks;
+pub mod weight_reduction;
 
 // TODO: needs to use ecies_v1
 // #[cfg(any(test, feature = "experimental"))]
