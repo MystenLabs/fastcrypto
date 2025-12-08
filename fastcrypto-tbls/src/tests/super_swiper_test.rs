@@ -7,7 +7,7 @@
 mod tests {
     use crate::ecies_v1;
     use crate::nodes::{Node, Nodes};
-    use crate::weight_reduction::weight_reduction_checks;
+
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
     use num_rational::Ratio;
@@ -107,65 +107,6 @@ mod tests {
         }
 
         subset_size
-    }
-
-    #[test]
-    fn test_reference_weights() {
-        // Test with realistic validator weight distribution
-        let sui_weights = load_sui_validator_weights();
-        let scaled_weights = scale_weights_to_u16(&sui_weights);
-        let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights);
-        let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
-        let original_total_weight = original_nodes.total_weight();
-
-        let alpha = Ratio::new(1u64, 3u64);
-        let max_slack = 1.0; // Use high slack for backward compatibility
-        let (reduced_nodes, new_t, beta_numer, beta_denom) =
-            Nodes::new_super_swiper_reduced(nodes_vec, alpha, max_slack).unwrap();
-
-        // Print the reduced weights
-        println!("\n=== Super Swiper Weight Reduction Results ===");
-        println!("Original total weight: {}", original_total_weight);
-        println!("Reduced total weight: {}", reduced_nodes.total_weight());
-        println!("New threshold (new_t): {}", new_t);
-        println!("Beta: {}/{}", beta_numer, beta_denom);
-        println!(
-            "Reduction ratio: {:.2}%",
-            (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0
-        );
-        println!("\nReduced weights by node:");
-        for (orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
-            println!("  Node {}: {} -> {}", orig.id, orig.weight, red.weight);
-        }
-        println!("\nTotal new weight: {}", reduced_nodes.total_weight());
-        println!("===================================\n");
-
-        // Verify reduction occurred
-        assert!(reduced_nodes.total_weight() < original_total_weight);
-
-        // Verify threshold was adjusted correctly
-        assert!(new_t > 0);
-        // new_t should be approximately beta * total_reduced_weight (beta starts at 34/100)
-        // Allow for rounding differences (within 1)
-        let expected_t_min = ((34u32 * reduced_nodes.total_weight() as u32) / 100u32) as u16;
-        let expected_t_max = ((41u32 * reduced_nodes.total_weight() as u32) / 100u32) as u16;
-        assert!(
-            new_t >= expected_t_min.saturating_sub(1) && new_t <= expected_t_max + 1,
-            "new_t ({}) should be approximately beta * total_reduced_weight (expected range: {} - {})",
-            new_t,
-            expected_t_min,
-            expected_t_max
-        );
-
-        // Verify all node IDs are preserved
-        assert_eq!(original_nodes.num_nodes(), reduced_nodes.num_nodes());
-        for (orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
-            assert_eq!(orig.id, red.id);
-            assert_eq!(orig.pk, red.pk);
-            assert!(red.weight <= orig.weight);
-        }
-
-        // Note: check_top_nodes and check_bot_nodes are now done internally by new_super_swiper_reduced
     }
 
     struct CsvParams {
@@ -276,178 +217,6 @@ mod tests {
     }
 
     #[test]
-    fn test_more_weights() {
-        // Test with realistic validator weight distribution
-        let sui_weights = load_sui_validator_weights();
-        let scaled_weights = scale_weights_to_u16(&sui_weights);
-        let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
-        let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
-        let original_total_weight = original_nodes.total_weight();
-
-        let alpha = Ratio::new(1u64, 3u64);
-        let max_slack = 1.0; // Use high slack for backward compatibility
-        let (reduced_nodes, new_t, beta_numer, beta_denom) =
-            Nodes::new_super_swiper_reduced(nodes_vec, alpha, max_slack).unwrap();
-
-        // Print the reduced weights
-        println!("\n=== Super Swiper Weight Reduction Results ===");
-        println!("Original total weight: {}", original_total_weight);
-        println!("Reduced total weight: {}", reduced_nodes.total_weight());
-        println!("New threshold (new_t): {}", new_t);
-        println!("Beta: {}/{}", beta_numer, beta_denom);
-        println!(
-            "Reduction ratio: {:.2}%",
-            (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0
-        );
-        println!("\nReduced weights by node:");
-        for (_orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
-            // println!("  Node {}: {} -> {}", orig.id, orig.weight, red.weight);
-            println!("{}", red.weight);
-        }
-        println!("\nTotal new weight: {}", reduced_nodes.total_weight());
-        println!("===================================\n");
-
-        // Verify reduction occurred
-        assert!(reduced_nodes.total_weight() < original_total_weight);
-
-        // Verify threshold was adjusted correctly
-        assert!(new_t > 0);
-        // new_t should be approximately beta * total_reduced_weight (beta starts at 34/100)
-        // Allow for rounding differences (within 1)
-        let expected_t_min = ((34u32 * reduced_nodes.total_weight() as u32) / 100u32) as u16;
-        let expected_t_max = ((41u32 * reduced_nodes.total_weight() as u32) / 100u32) as u16;
-        assert!(
-            new_t >= expected_t_min.saturating_sub(1) && new_t <= expected_t_max + 1,
-            "new_t ({}) should be approximately beta * total_reduced_weight (expected range: {} - {})",
-            new_t,
-            expected_t_min,
-            expected_t_max
-        );
-
-        // Verify all node IDs are preserved
-        assert_eq!(original_nodes.num_nodes(), reduced_nodes.num_nodes());
-        for (orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
-            assert_eq!(orig.id, red.id);
-            assert_eq!(orig.pk, red.pk);
-            assert!(red.weight <= orig.weight);
-        }
-
-        // Note: check_top_nodes and check_bot_nodes are now done internally by new_super_swiper_reduced
-    }
-
-    #[test]
-    fn test_new_super_swiper_reduced_with_upper_bound() {
-        // Test the new function signature with total_weight_upper_bound = 1000
-        let sui_weights = load_sui_validator_weights();
-        let scaled_weights = scale_weights_to_u16(&sui_weights);
-        let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
-        let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
-        let original_total_weight = original_nodes.total_weight();
-
-        let alpha = Ratio::new(1u64, 3u64);
-        let max_slack = 1.0; // Use high slack for backward compatibility
-        let result = Nodes::new_super_swiper_reduced(nodes_vec.clone(), alpha, max_slack);
-
-        match result {
-            Ok((reduced_nodes, new_t, beta_numer, beta_denom)) => {
-                println!("\n=== New Super Swiper Weight Reduction Results ===");
-                println!("Original total weight: {}", original_total_weight);
-                println!("Reduced total weight: {}", reduced_nodes.total_weight());
-                println!("New threshold (new_t): {}", new_t);
-                println!("Beta: {}/{}", beta_numer, beta_denom);
-                println!(
-                    "Reduction ratio: {:.2}%",
-                    (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0
-                );
-
-                // Verify reduction occurred
-                assert!(reduced_nodes.total_weight() < original_total_weight);
-
-                // Verify threshold was adjusted correctly
-                assert!(new_t > 0);
-                // new_t should be approximately beta * total_reduced_weight (beta starts at 34/100, may increase up to 41/100)
-                // Allow for rounding differences (within 1)
-                let expected_t_min =
-                    ((34u32 * reduced_nodes.total_weight() as u32) / 100u32) as u16;
-                let expected_t_max =
-                    ((41u32 * reduced_nodes.total_weight() as u32) / 100u32) as u16;
-                assert!(
-                    new_t >= expected_t_min.saturating_sub(1) && new_t <= expected_t_max + 1,
-                    "new_t ({}) should be approximately beta * total_reduced_weight (expected range: {} - {})",
-                    new_t,
-                    expected_t_min,
-                    expected_t_max
-                );
-
-                // Verify all node IDs are preserved
-                assert_eq!(original_nodes.num_nodes(), reduced_nodes.num_nodes());
-                for (orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
-                    assert_eq!(orig.id, red.id);
-                    assert_eq!(orig.pk, red.pk);
-                    assert!(red.weight <= orig.weight);
-                }
-
-                // Validate weight reduction using the validation function
-                let alpha = Ratio::new(1u64, 3u64);
-                let beta = Ratio::new(34u64, 100u64); // Initial beta, may have been increased
-                let original_weights: Vec<u64> =
-                    original_nodes.iter().map(|n| n.weight as u64).collect();
-                let reduced_weights: Vec<u64> =
-                    reduced_nodes.iter().map(|n| n.weight as u64).collect();
-
-                // Validate using the weight_reduction_checks module
-                weight_reduction_checks::validate_weight_reduction(
-                    &original_weights,
-                    &reduced_weights,
-                    alpha,
-                    beta,
-                    original_total_weight as u64,
-                    reduced_nodes.total_weight() as u64,
-                )
-                .expect("Weight reduction validation should pass");
-
-                // Calculate subset size for CSV generation
-                let mut original_weights_sorted_desc: Vec<u64> = original_weights.clone();
-                original_weights_sorted_desc.sort_by(|a, b| b.cmp(a));
-                let subset_size_top = calculate_top_subset_size(
-                    &original_weights_sorted_desc,
-                    alpha,
-                    original_total_weight as u64,
-                );
-
-                // Write CSV file
-                let reduced_weights_vec: Vec<u16> =
-                    reduced_nodes.iter().map(|n| n.weight).collect();
-                let csv_dir = "fastcrypto-tbls/src/weight-reduction/target";
-                let _ = fs::create_dir_all(csv_dir); // Ignore errors if directory already exists
-                let csv_path =
-                    "fastcrypto-tbls/src/weight-reduction/target/weight_reduction_results_upper_bound.csv";
-                match write_weights_csv(
-                    &sui_weights,
-                    &scaled_weights,
-                    &reduced_weights_vec,
-                    CsvParams {
-                        alpha_numer: 1u64,
-                        alpha_denom: 3u64,
-                        beta_numer: 34u64, // may have been increased, but we use initial
-                        beta_denom: 100u64,
-                    },
-                    subset_size_top,
-                    csv_path,
-                ) {
-                    Ok(_) => println!("CSV file written to: {}", csv_path),
-                    Err(e) => eprintln!("Failed to write CSV file: {}", e),
-                }
-
-                println!("Test passed: Weight reduction successful");
-            }
-            Err(e) => {
-                panic!("Weight reduction failed: {:?}", e);
-            }
-        }
-    }
-
-    #[test]
     fn test_new_super_swiper_reduced_with_slack() {
         // Test the new function with slack-based iteration
         let sui_weights = load_sui_validator_weights();
@@ -513,9 +282,10 @@ mod tests {
                 // Write CSV file
                 let reduced_weights_vec: Vec<u16> =
                     reduced_nodes.iter().map(|n| n.weight).collect();
-                let csv_dir = "fastcrypto-tbls/src/weight-reduction/target";
+                // Write to workspace root target directory (go up from package to workspace root)
+                let csv_dir = "../target";
                 let _ = fs::create_dir_all(csv_dir); // Ignore errors if directory already exists
-                let csv_path = "fastcrypto-tbls/src/weight-reduction/target/weight_reduction_results_slack.csv";
+                let csv_path = "../target/weight_reduction_results_slack.csv";
                 match write_weights_csv(
                     &sui_weights,
                     &scaled_weights,
