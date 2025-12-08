@@ -426,7 +426,7 @@ mod tests {
                     CsvParams {
                         alpha_numer: 1u64,
                         alpha_denom: 3u64,
-                        beta_numer: 34u64,  // may have been increased, but we use initial
+                        beta_numer: 34u64, // may have been increased, but we use initial
                         beta_denom: 100u64,
                     },
                     subset_size_top,
