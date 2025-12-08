@@ -213,13 +213,13 @@
 <a href=#213 id=213 data-nosnippet>213</a>        </span><span class="kw">for </span>dealer_id <span class="kw">in </span>nodes.node_ids_iter() {
 <a href=#214 id=214 data-nosnippet>214</a>            <span class="kw">for </span>(i, <span class="kw">_</span>) <span class="kw">in </span>nodes.share_ids_of(dealer_id).unwrap().iter().enumerate() {
 <a href=#215 id=215 data-nosnippet>215</a>                <span class="kw">let </span>sid = <span class="macro">format!</span>(<span class="string">"presig-test-session-{}-{}"</span>, dealer_id, i).into_bytes();
-<a href=#216 id=216 data-nosnippet>216</a>                <span class="kw">let </span>dealer: batch_avss::Dealer&lt;BATCH_SIZE&gt; =
-<a href=#217 id=217 data-nosnippet>217</a>                    batch_avss::Dealer::new(nodes.clone(), t, f, sid.clone(), <span class="kw-2">&amp;mut </span>rng).unwrap();
+<a href=#216 id=216 data-nosnippet>216</a>                <span class="kw">let </span>dealer: batch_avss::Dealer =
+<a href=#217 id=217 data-nosnippet>217</a>                    batch_avss::Dealer::new(nodes.clone(), t, f, sid.clone()).unwrap();
 <a href=#218 id=218 data-nosnippet>218</a>                <span class="kw">let </span>receivers = sks
 <a href=#219 id=219 data-nosnippet>219</a>                    .iter()
 <a href=#220 id=220 data-nosnippet>220</a>                    .enumerate()
 <a href=#221 id=221 data-nosnippet>221</a>                    .map(|(id, enc_secret_key)| {
-<a href=#222 id=222 data-nosnippet>222</a>                        batch_avss::Receiver::&lt;BATCH_SIZE&gt;::new(
+<a href=#222 id=222 data-nosnippet>222</a>                        batch_avss::Receiver::new(
 <a href=#223 id=223 data-nosnippet>223</a>                            nodes.clone(),
 <a href=#224 id=224 data-nosnippet>224</a>                            id <span class="kw">as </span>u16,
 <a href=#225 id=225 data-nosnippet>225</a>                            t,
