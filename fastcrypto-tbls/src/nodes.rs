@@ -210,7 +210,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
         // U16 is safe here since the original total_weight is u16.
         let total_weight = nodes.iter().map(|n| n.weight).sum::<u16>();
-        let new_t = t / max_d + (t % max_d != 0) as u16;
+        let new_t = t.div_ceil(max_d);
         Ok((
             Self {
                 nodes,
