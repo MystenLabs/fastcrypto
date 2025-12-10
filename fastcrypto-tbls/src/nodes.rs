@@ -227,18 +227,25 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     ///
     /// # Parameters
     /// - `nodes_vec`: Input nodes with weights
-    /// - `alpha`: Alpha ratio (adversarial weight threshold)
+    /// - `t`: Threshold (adversarial weight threshold in absolute terms)
     /// - `max_slack`: Maximum allowed slack value
     ///
     /// # Returns
     /// A tuple of (reduced Nodes, new threshold, beta numerator, beta denominator)
     pub fn new_super_swiper_reduced(
         nodes_vec: Vec<Node<G>>,
-        alpha: num_rational::Ratio<u64>,
+        t: u16,
         max_slack: f64,
     ) -> FastCryptoResult<(Self, u16, u64, u64)> {
         let n = Self::new(nodes_vec)?;
         let original_total_weight = n.total_weight() as u64;
+
+        // Calculate alpha = t / total_old_weights
+        let alpha = if original_total_weight == 0 {
+            return Err(FastCryptoError::InvalidInput);
+        } else {
+            num_rational::Ratio::new(t as u64, original_total_weight)
+        };
 
         // Extract weights from nodes, sorted in descending order (required by super_swiper)
         let mut weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();

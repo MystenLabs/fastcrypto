@@ -225,19 +225,22 @@ mod tests {
         let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
         let original_total_weight = original_nodes.total_weight();
 
+        // Calculate t = alpha * total_old_weights, where alpha = 1/3
         let alpha = Ratio::new(1u64, 3u64);
+        let t = (alpha * original_total_weight as u64).to_integer() as u16;
         let max_slack = 0.2;
 
-        let result = Nodes::new_super_swiper_reduced(nodes_vec.clone(), alpha, max_slack);
+        let result = Nodes::new_super_swiper_reduced(nodes_vec.clone(), t, max_slack);
 
         match result {
             Ok((reduced_nodes, new_t, beta_numer, beta_denom)) => {
                 println!("\n=== Super Swiper Weight Reduction Results (with slack constraint) ===");
                 println!("Original total weight: {}", original_total_weight);
                 println!("Reduced total weight: {}", reduced_nodes.total_weight());
+                println!("Input threshold (t): {}", t);
                 println!("New threshold (new_t): {}", new_t);
                 println!("Beta: {}/{}", beta_numer, beta_denom);
-                println!("Alpha: 1/3, Max slack: {}", max_slack);
+                println!("Alpha (t/total): {}/{}, Max slack: {}", alpha.numer(), alpha.denom(), max_slack);
                 println!(
                     "Reduction ratio: {:.2}%",
                     (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0
