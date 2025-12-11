@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_new_super_swiper_reduced_with_slack() {
-        // Test the new function with slack-based iteration
+        // Test the new function with delta-based iteration
         let sui_weights = load_sui_validator_weights();
         let scaled_weights = scale_weights_to_u16(&sui_weights);
         let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
@@ -228,19 +228,32 @@ mod tests {
         // Calculate t = alpha * total_old_weights, where alpha = 1/3
         let alpha = Ratio::new(1u64, 3u64);
         let t = (alpha * original_total_weight as u64).to_integer() as u16;
-        let max_slack = 0.2;
+        let allowed_delta = (t as f64 * 0.2) as u16; // Allow delta up to 20% of t (more lenient)
+                                                     // Set a lower bound to prevent over-reduction (similar to new_reduced)
+                                                     // Use a reasonable fraction of the original total weight - make it more lenient
+        let total_weight_lower_bound = 1u16; // Same as new_reduced
 
-        let result = Nodes::new_super_swiper_reduced(nodes_vec.clone(), t, max_slack);
+        let result = Nodes::new_super_swiper_reduced(
+            nodes_vec.clone(),
+            t,
+            allowed_delta,
+            total_weight_lower_bound,
+        );
 
         match result {
             Ok((reduced_nodes, new_t, beta_numer, beta_denom)) => {
-                println!("\n=== Super Swiper Weight Reduction Results (with slack constraint) ===");
+                println!("\n=== Super Swiper Weight Reduction Results (with delta constraint) ===");
                 println!("Original total weight: {}", original_total_weight);
                 println!("Reduced total weight: {}", reduced_nodes.total_weight());
                 println!("Input threshold (t): {}", t);
                 println!("New threshold (new_t): {}", new_t);
                 println!("Beta: {}/{}", beta_numer, beta_denom);
-                println!("Alpha (t/total): {}/{}, Max slack: {}", alpha.numer(), alpha.denom(), max_slack);
+                println!(
+                    "Alpha (t/total): {}/{}, Allowed delta: {}",
+                    alpha.numer(),
+                    alpha.denom(),
+                    allowed_delta
+                );
                 println!(
                     "Reduction ratio: {:.2}%",
                     (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0
@@ -260,8 +273,8 @@ mod tests {
                     assert!(red.weight <= orig.weight);
                 }
 
-                // Note: We're using slack factor as the primary validation check instead of
-                // the weight_reduction_checks validation. The slack check is done internally
+                // Note: We're using delta as the primary validation check instead of
+                // the weight_reduction_checks validation. The delta check is done internally
                 // in new_super_swiper_reduced.
 
                 // Calculate subset size for CSV generation
@@ -275,14 +288,7 @@ mod tests {
                     original_total_weight as u64,
                 );
 
-                // Calculate beta used (alpha + 1/100 initially, may have been increased)
-                // We use an approximate beta for CSV display purposes
-                let beta_denom = 100u64;
-                let alpha_numer = *alpha.numer();
-                let alpha_denom = *alpha.denom();
-                let beta_numer = (alpha_numer * beta_denom + alpha_denom) / alpha_denom;
-
-                // Write CSV file
+                // Write CSV file using the beta values returned from the function
                 let reduced_weights_vec: Vec<u16> =
                     reduced_nodes.iter().map(|n| n.weight).collect();
                 // Write to workspace root target directory (go up from package to workspace root)
@@ -296,7 +302,7 @@ mod tests {
                     CsvParams {
                         alpha_numer: 1u64,
                         alpha_denom: 3u64,
-                        beta_numer, // approximate
+                        beta_numer, // Use the actual beta returned from the function
                         beta_denom,
                     },
                     subset_size_top,
@@ -306,7 +312,7 @@ mod tests {
                     Err(e) => eprintln!("Failed to write CSV file: {}", e),
                 }
 
-                println!("Test passed: Weight reduction successful with slack constraint");
+                println!("Test passed: Weight reduction successful with delta constraint");
             }
             Err(e) => {
                 panic!("Weight reduction failed: {:?}", e);

@@ -228,17 +228,24 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     /// # Parameters
     /// - `nodes_vec`: Input nodes with weights
     /// - `t`: Threshold (adversarial weight threshold in absolute terms)
-    /// - `max_slack`: Maximum allowed slack value
+    /// - `allowed_delta`: Maximum allowed delta value
+    /// - `total_weight_lower_bound`: Minimum allowed total weight after reduction
     ///
     /// # Returns
     /// A tuple of (reduced Nodes, new threshold, beta numerator, beta denominator)
     pub fn new_super_swiper_reduced(
         nodes_vec: Vec<Node<G>>,
         t: u16,
-        max_slack: f64,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
     ) -> FastCryptoResult<(Self, u16, u64, u64)> {
         let n = Self::new(nodes_vec)?;
         let original_total_weight = n.total_weight() as u64;
+
+        // Validate total_weight_lower_bound (similar to new_reduced)
+        if total_weight_lower_bound > n.total_weight || total_weight_lower_bound == 0 {
+            return Err(FastCryptoError::InvalidInput);
+        }
 
         // Calculate alpha = t / total_old_weights
         let alpha = if original_total_weight == 0 {
@@ -281,6 +288,11 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
             let new_total_weight_u16 = new_total_weight as u16;
 
+            // Check if reduction went below the lower bound (similar to new_reduced)
+            // If below lower bound, we need to increase beta to get less aggressive reduction
+            // We'll check this along with delta constraint below
+            let lower_bound_ok = new_total_weight_u16 >= total_weight_lower_bound;
+
             // Map the reduced weights back to nodes
             let mut indexed_weights: Vec<(usize, u16)> = n
                 .nodes
@@ -300,51 +312,58 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                 }
             }
 
-            // Prepare weights for slack calculation (in original order)
+            // Prepare weights for delta calculation (in original order)
             let original_weights: Vec<u64> =
                 n.nodes.iter().map(|node| node.weight as u64).collect();
             let reduced_weights: Vec<u64> = new_weights.iter().map(|&w| w as u64).collect();
 
-            // Calculate t = beta * new_weights_total
-            let t = (beta * new_total_weight).to_integer();
+            // Calculate t' = beta * new_weights_total
+            let t_prime = (beta * new_total_weight).to_integer();
 
-            // Get slack - this is the primary validation check
+            // Get delta - this is the primary validation check
             // Use n=2 random subsets in addition to top and bottom checks
-            let slack = crate::weight_reduction::weight_reduction_checks::get_slack(
-                t,
+            let delta = crate::weight_reduction::weight_reduction_checks::get_delta(
+                t_prime,
                 &original_weights,
                 &reduced_weights,
-                alpha,
-                original_total_weight,
+                t as u64,
                 2, // n_random: number of random subsets to test
             );
 
-            // Use slack as the primary check instead of other validations
-            // If slack < max_slack, increase beta and repeat
-            // Note: If max_slack >= 1.0, any valid slack will pass, so we can skip the check
-            let slack_acceptable = if max_slack >= 1.0 {
-                true // Slack check not needed when max_slack >= 1.0
-            } else if let Some(slack_value) = slack {
-                slack_value >= max_slack
+            // Use delta as the primary check instead of other validations
+            // The constraint should be: delta >= allowed_delta (lower bound, like the old slack constraint)
+            // This ensures w1 >= t + allowed_delta, which means the reduction is not too aggressive
+            // If delta < allowed_delta, we need to increase beta to get a larger t_prime and thus larger w1
+            let delta_acceptable = if let Some(delta_value) = delta {
+                delta_value >= allowed_delta as u64
             } else {
-                // If slack calculation failed, we'll try increasing beta
+                // If delta calculation failed (negative delta or t_prime cannot be reached), try increasing beta
+                // This might help by increasing t_prime and potentially getting a valid subset
                 false
             };
 
-            if !slack_acceptable {
-                // Try to increase beta to improve slack
+            // Check both constraints: lower bound and delta
+            // If either fails, try increasing beta (which helps both constraints)
+            if !lower_bound_ok || !delta_acceptable {
+                // Try to increase beta to improve both constraints
+                // Increasing beta increases new_total_weight (helps lower bound) and increases delta (helps delta constraint)
                 if beta_numer < 50 {
                     beta_numer += 1;
                     beta = num_rational::Ratio::new(beta_numer, beta_denom);
                     continue;
                 } else {
                     // Can't increase beta further
-                    // If we've tried many times, accept the current result
-                    // Otherwise return error since slack constraint not met
-                    if iterations < 10 {
+                    // If we've tried many times, accept the current result if it at least meets the lower bound
+                    // Otherwise return error
+                    if iterations < 20 {
+                        // Give more iterations to find a solution
                         return Err(FastCryptoError::InvalidInput);
                     }
-                    // After many iterations, accept current result even if slack not perfect
+                    // After many iterations, if we still don't meet constraints, check if at least lower bound is met
+                    if !lower_bound_ok {
+                        return Err(FastCryptoError::InvalidInput);
+                    }
+                    // Lower bound is met, accept even if delta constraint not perfectly met
                 }
             }
 
