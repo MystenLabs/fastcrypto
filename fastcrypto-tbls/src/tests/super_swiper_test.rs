@@ -228,9 +228,9 @@ mod tests {
         // Calculate t = alpha * total_old_weights, where alpha = 1/3
         let alpha = Ratio::new(1u64, 3u64);
         let t = (alpha * original_total_weight as u64).to_integer() as u16;
-        let allowed_delta = (t as f64 * 0.2) as u16; // Allow delta up to 20% of t (more lenient)
-                                                     // Set a lower bound to prevent over-reduction (similar to new_reduced)
-                                                     // Use a reasonable fraction of the original total weight - make it more lenient
+        let allowed_delta = (original_total_weight as f64 * 0.08) as u16; // Allow delta up to 8% of original total weight
+                                                                          // Set a lower bound to prevent over-reduction (similar to new_reduced)
+                                                                          // Use a reasonable fraction of the original total weight - make it more lenient
         let total_weight_lower_bound = 1u16; // Same as new_reduced
 
         let result = Nodes::new_super_swiper_reduced(
@@ -303,6 +303,111 @@ mod tests {
                         alpha_numer: 1u64,
                         alpha_denom: 3u64,
                         beta_numer, // Use the actual beta returned from the function
+                        beta_denom,
+                    },
+                    subset_size_top,
+                    csv_path,
+                ) {
+                    Ok(_) => println!("CSV file written to: {}", csv_path),
+                    Err(e) => eprintln!("Failed to write CSV file: {}", e),
+                }
+
+                println!("Test passed: Weight reduction successful with delta constraint");
+            }
+            Err(e) => {
+                panic!("Weight reduction failed: {:?}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_new_reduced_with_slack() {
+        // Test the new_reduced function with delta-based iteration
+        let sui_weights = load_sui_validator_weights();
+        let scaled_weights = scale_weights_to_u16(&sui_weights);
+        let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
+        let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
+        let original_total_weight = original_nodes.total_weight();
+
+        // Calculate t = alpha * total_old_weights, where alpha = 1/3
+        let alpha = Ratio::new(1u64, 3u64);
+        let t = (alpha * original_total_weight as u64).to_integer() as u16;
+        let allowed_delta = (original_total_weight as f64 * 0.08) as u16; // Allow delta up to 8% of original total weight
+                                                                          // Set a lower bound to prevent over-reduction
+        let total_weight_lower_bound = 1u16;
+
+        let result = Nodes::new_reduced(
+            nodes_vec.clone(),
+            t,
+            allowed_delta,
+            total_weight_lower_bound,
+        );
+
+        match result {
+            Ok((reduced_nodes, new_t)) => {
+                // Calculate beta manually: beta = new_t / new_total_weight
+                let new_total_weight = reduced_nodes.total_weight() as u64;
+                let beta = Ratio::new(new_t as u64, new_total_weight);
+                let beta_numer = *beta.numer();
+                let beta_denom = *beta.denom();
+
+                println!("\n=== Weight Reduction Results (new_reduced with delta constraint) ===");
+                println!("Original total weight: {}", original_total_weight);
+                println!("Reduced total weight: {}", reduced_nodes.total_weight());
+                println!("Input threshold (t): {}", t);
+                println!("New threshold (new_t): {}", new_t);
+                println!("Beta: {}/{}", beta_numer, beta_denom);
+                println!(
+                    "Alpha (t/total): {}/{}, Allowed delta: {}",
+                    alpha.numer(),
+                    alpha.denom(),
+                    allowed_delta
+                );
+                println!(
+                    "Reduction ratio: {:.2}%",
+                    (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0
+                );
+
+                // Verify reduction occurred
+                assert!(reduced_nodes.total_weight() < original_total_weight);
+
+                // Verify threshold was adjusted correctly
+                assert!(new_t > 0);
+
+                // Verify all node IDs are preserved
+                assert_eq!(original_nodes.num_nodes(), reduced_nodes.num_nodes());
+                for (orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
+                    assert_eq!(orig.id, red.id);
+                    assert_eq!(orig.pk, red.pk);
+                    assert!(red.weight <= orig.weight);
+                }
+
+                // Calculate subset size for CSV generation
+                let original_weights: Vec<u64> =
+                    original_nodes.iter().map(|n| n.weight as u64).collect();
+                let mut original_weights_sorted_desc: Vec<u64> = original_weights.clone();
+                original_weights_sorted_desc.sort_by(|a, b| b.cmp(a));
+                let subset_size_top = calculate_top_subset_size(
+                    &original_weights_sorted_desc,
+                    alpha,
+                    original_total_weight as u64,
+                );
+
+                // Write CSV file using the calculated beta values
+                let reduced_weights_vec: Vec<u16> =
+                    reduced_nodes.iter().map(|n| n.weight).collect();
+                // Write to workspace root target directory (go up from package to workspace root)
+                let csv_dir = "../target";
+                let _ = fs::create_dir_all(csv_dir); // Ignore errors if directory already exists
+                let csv_path = "../target/weight_reduction_results_new_reduced_slack.csv";
+                match write_weights_csv(
+                    &sui_weights,
+                    &scaled_weights,
+                    &reduced_weights_vec,
+                    CsvParams {
+                        alpha_numer: 1u64,
+                        alpha_denom: 3u64,
+                        beta_numer, // Use the calculated beta
                         beta_denom,
                     },
                     subset_size_top,
