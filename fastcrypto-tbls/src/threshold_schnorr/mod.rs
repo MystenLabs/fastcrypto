@@ -33,10 +33,10 @@ pub mod avss;
 pub mod batch_avss;
 mod bcs;
 pub mod complaint;
-pub mod gao;
 pub mod key_derivation;
 mod pascal_matrix;
 pub mod presigning;
+pub mod reed_solomon;
 pub mod signing;
 
 /// The group to use for the signing
