@@ -10,7 +10,7 @@ use std::num::NonZeroU16;
 mod polynomial_benches {
     use super::*;
     use fastcrypto::groups::bls12381::Scalar;
-    use fastcrypto_tbls::threshold_schnorr::gao::RSDecoder;
+    use fastcrypto_tbls::threshold_schnorr::reed_solomon::RSDecoder;
     use fastcrypto_tbls::threshold_schnorr::S;
     use fastcrypto_tbls::types::ShareIndex;
     use itertools::Itertools;
