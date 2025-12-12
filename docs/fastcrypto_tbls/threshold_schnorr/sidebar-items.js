@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["avss","batch_avss","complaint","gao","key_derivation","presigning","signing"],"type":["Address","G","S"]};
+window.SIDEBAR_ITEMS = {"mod":["avss","batch_avss","complaint","key_derivation","presigning","reed_solomon","signing"],"type":["Address","G","S"]};
