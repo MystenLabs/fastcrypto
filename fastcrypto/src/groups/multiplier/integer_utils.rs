@@ -90,7 +90,7 @@ pub fn get_bits_from_bytes(bytes: &[u8], start: usize, end: usize) -> usize {
     result
 }
 
-/// Return true iff the bit at the given index is set. The input is assumed to be infinetely padded
+/// Return true iff the bit at the given index is set. The input is assumed to be infinitely padded
 /// with zeros, so if the index is larger than the number of bits in the input, the function will
 /// return false.
 #[inline]
@@ -116,7 +116,7 @@ pub fn is_power_of_2(x: usize) -> bool {
     x & (x - 1) == 0
 }
 
-// We implement `ToLittleEndianByteArray` for `BigUint` in case it needs to be used as scalar for
+// We implement `ToLittleEndianBytes` for `BigUint` in case it needs to be used as scalar for
 // multi-scalar multiplication.
 impl ToLittleEndianBytes for BigUint {
     fn to_le_bytes(&self) -> Vec<u8> {
@@ -161,7 +161,7 @@ mod tests {
         let value: u128 = 123812341234567;
         let bytes = value.to_le_bytes();
 
-        // Is w = 8, the base 2^w expansion should be equal to the le bytes.
+        // If w = 8, the base 2^w expansion should be equal to the le bytes.
         let expansion = compute_base_2w_expansion(&bytes, 8);
         assert_eq!(
             bytes.to_vec(),
