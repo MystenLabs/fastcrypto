@@ -159,34 +159,50 @@ def save_to_dat_file(validators: List[Tuple[str, int]], filename: str) -> None:
 
 def main():
     """Main function to fetch all Sui validators' voting power."""
-    print("🚀 Fetching ALL Sui validators' voting power using GraphQL pagination...")
+    import sys
     
-    # Get current epoch
-    try:
-        result = subprocess.run([
-            'curl', '-s', '-X', 'POST',
-            '-H', 'Content-Type: application/json',
-            'https://graphql.mainnet.sui.io/graphql',
-            '-d', '{"query": "{ epoch { epochId } }"}'
-        ], capture_output=True, text=True, timeout=15)
-        
-        if result.returncode == 0:
-            response = json.loads(result.stdout)
-            current_epoch = response["data"]["epoch"]["epochId"]
-            print(f"📅 Current epoch: {current_epoch}")
-        else:
-            current_epoch = 930
-            print(f"⚠️  Using default epoch: {current_epoch}")
-    except:
-        current_epoch = 930
-        print(f"⚠️  Using default epoch: {current_epoch}")
+    # Get epoch from command line argument or use current epoch
+    if len(sys.argv) > 1:
+        try:
+            epoch = int(sys.argv[1])
+            print(f"🚀 Fetching Sui validators' voting power for epoch {epoch}...")
+        except ValueError:
+            print(f"❌ Invalid epoch: {sys.argv[1]}. Using current epoch instead.")
+            epoch = None
+    else:
+        epoch = None
+    
+    if epoch is None:
+        print("🚀 Fetching ALL Sui validators' voting power using GraphQL pagination...")
+        # Get current epoch
+        try:
+            result = subprocess.run([
+                'curl', '-s', '-X', 'POST',
+                '-H', 'Content-Type: application/json',
+                'https://graphql.mainnet.sui.io/graphql',
+                '-d', '{"query": "{ epoch { epochId } }"}'
+            ], capture_output=True, text=True, timeout=15)
+            
+            if result.returncode == 0:
+                response = json.loads(result.stdout)
+                epoch = response["data"]["epoch"]["epochId"]
+                print(f"📅 Current epoch: {epoch}")
+            else:
+                epoch = 930
+                print(f"⚠️  Using default epoch: {epoch}")
+        except:
+            epoch = 930
+            print(f"⚠️  Using default epoch: {epoch}")
     
     # Fetch all validators
-    validators = fetch_all_validators_with_pagination(current_epoch)
+    validators = fetch_all_validators_with_pagination(epoch)
     
     if validators:
-        # Save to .dat file
-        output_file = "data/sui_real_all_voting_power.dat"
+        # Save to .dat file with epoch in filename
+        if len(sys.argv) > 1:
+            output_file = f"data/sui_real_all_voting_power_epoch_{epoch}.dat"
+        else:
+            output_file = "data/sui_real_all_voting_power.dat"
         save_to_dat_file(validators, output_file)
         
         print(f"\n🎉 Successfully created complete Sui validator voting power data!")

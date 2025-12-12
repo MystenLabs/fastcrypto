@@ -52,10 +52,32 @@ mod tests {
     }
 
     // Helper function to load Sui validator voting power from sui_real_all_voting_power.dat
+    #[allow(dead_code)]
     fn load_sui_validator_voting_power() -> Vec<u64> {
         const WEIGHTS_DATA: &str =
-            include_str!("../weight_reduction/data/sui_real_all_voting_power.dat");
+            include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_974.dat");
         WEIGHTS_DATA
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                line.parse::<u64>()
+                    .unwrap_or_else(|_| panic!("Failed to parse voting power: {}", line))
+            })
+            .collect()
+    }
+
+    // Helper function to load Sui validator voting power for a specific epoch
+    fn load_sui_validator_voting_power_for_epoch(epoch: u64) -> Vec<u64> {
+        let weights_data = match epoch {
+            100 => include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_100.dat"),
+            200 => include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_200.dat"),
+            400 => include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_400.dat"),
+            800 => include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_800.dat"),
+            974 => include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_974.dat"),
+            _ => panic!("Unsupported epoch: {}", epoch),
+        };
+        weights_data
             .lines()
             .map(|line| line.trim())
             .filter(|line| !line.is_empty())
@@ -444,5 +466,105 @@ mod tests {
                 panic!("Weight reduction failed: {:?}", e);
             }
         }
+    }
+
+    #[test]
+    fn test_all_epochs_comparison() {
+        // Test both algorithms across all epochs and create a comparison chart
+        let epochs = vec![100, 200, 400, 800, 974];
+        let mut results: Vec<(u64, Option<u16>, Option<u16>)> = Vec::new();
+
+        println!("\n🔬 Testing weight reduction across multiple epochs...\n");
+
+        for epoch in epochs {
+            println!("📊 Processing epoch {}...", epoch);
+            let sui_weights = load_sui_validator_voting_power_for_epoch(epoch);
+            let scaled_weights = scale_weights_to_u16(&sui_weights);
+            let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
+            let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
+            let original_total_weight = original_nodes.total_weight();
+
+            // Calculate t = alpha * total_old_weights, where alpha = 1/3
+            let alpha = Ratio::new(1u64, 3u64);
+            let t = (alpha * original_total_weight as u64).to_integer() as u16;
+            let allowed_delta = (original_total_weight as f64 * 0.08) as u16;
+            let total_weight_lower_bound = 1u16;
+
+            // Test new_reduced
+            let new_reduced_result = Nodes::new_reduced(
+                nodes_vec.clone(),
+                t,
+                allowed_delta,
+                total_weight_lower_bound,
+            );
+
+            // Test new_super_swiper_reduced
+            let super_swiper_result = Nodes::new_super_swiper_reduced(
+                nodes_vec.clone(),
+                t,
+                allowed_delta,
+                total_weight_lower_bound,
+            );
+
+            let new_reduced_total = new_reduced_result
+                .ok()
+                .map(|(reduced_nodes, _)| reduced_nodes.total_weight());
+            let super_swiper_total = super_swiper_result
+                .ok()
+                .map(|(reduced_nodes, _, _, _)| reduced_nodes.total_weight());
+
+            results.push((epoch, new_reduced_total, super_swiper_total));
+
+            println!(
+                "  ✅ Epoch {}: new_reduced={:?}, super_swiper={:?}",
+                epoch, new_reduced_total, super_swiper_total
+            );
+        }
+
+        // Print comparison chart
+        let separator = "=".repeat(70);
+        println!("\n{}", separator);
+        println!("📈 WEIGHT REDUCTION COMPARISON CHART");
+        println!("{}", separator);
+        println!(
+            "{:<12} | {:<20} | {:<20}",
+            "Epoch", "new_reduced", "super_swiper"
+        );
+        println!(
+            "{}-+-{}-+-{}",
+            "-".repeat(12),
+            "-".repeat(20),
+            "-".repeat(20)
+        );
+        for (epoch, new_reduced, super_swiper) in &results {
+            let new_reduced_str = new_reduced
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let super_swiper_str = super_swiper
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            println!(
+                "{:<12} | {:<20} | {:<20}",
+                epoch, new_reduced_str, super_swiper_str
+            );
+        }
+        println!("{}", separator);
+        println!();
+
+        // Verify all tests passed
+        for (epoch, new_reduced, super_swiper) in &results {
+            assert!(
+                new_reduced.is_some(),
+                "new_reduced failed for epoch {}",
+                epoch
+            );
+            assert!(
+                super_swiper.is_some(),
+                "super_swiper failed for epoch {}",
+                epoch
+            );
+        }
+
+        println!("✅ All epochs processed successfully!");
     }
 }
