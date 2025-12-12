@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Stand-alone test file for Nodes::new_super_swiper_reduced function
-// Run with: clear && cargo test --package fastcrypto-tbls --lib test_reference_weights -- --nocapture
+// Run with: clear && cargo test --package fastcrypto-tbls --lib test_<> -- --nocapture
 
 mod tests {
     use crate::ecies_v1;
@@ -37,6 +37,7 @@ mod tests {
     }
 
     // Helper function to load Sui validator weights from sui_real_all.dat
+    #[allow(dead_code)]
     fn load_sui_validator_weights() -> Vec<u64> {
         const WEIGHTS_DATA: &str = include_str!("../weight_reduction/data/sui_real_all.dat");
         WEIGHTS_DATA
@@ -46,6 +47,21 @@ mod tests {
             .map(|line| {
                 line.parse::<u64>()
                     .unwrap_or_else(|_| panic!("Failed to parse weight: {}", line))
+            })
+            .collect()
+    }
+
+    // Helper function to load Sui validator voting power from sui_real_all_voting_power.dat
+    fn load_sui_validator_voting_power() -> Vec<u64> {
+        const WEIGHTS_DATA: &str =
+            include_str!("../weight_reduction/data/sui_real_all_voting_power.dat");
+        WEIGHTS_DATA
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                line.parse::<u64>()
+                    .unwrap_or_else(|_| panic!("Failed to parse voting power: {}", line))
             })
             .collect()
     }
@@ -219,7 +235,8 @@ mod tests {
     #[test]
     fn test_new_super_swiper_reduced_with_slack() {
         // Test the new function with delta-based iteration
-        let sui_weights = load_sui_validator_weights();
+        // let sui_weights = load_sui_validator_weights();
+        let sui_weights = load_sui_validator_voting_power();
         let scaled_weights = scale_weights_to_u16(&sui_weights);
         let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
         let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
@@ -294,7 +311,8 @@ mod tests {
                 // Write to workspace root target directory (go up from package to workspace root)
                 let csv_dir = "../target";
                 let _ = fs::create_dir_all(csv_dir); // Ignore errors if directory already exists
-                let csv_path = "../target/weight_reduction_results_slack.csv";
+                                                     // let csv_path = "../target/weight_reduction_results_slack.csv";
+                let csv_path = "../target/weight_reduction_results_voting_power_slack.csv";
                 match write_weights_csv(
                     &sui_weights,
                     &scaled_weights,
@@ -323,7 +341,8 @@ mod tests {
     #[test]
     fn test_new_reduced_with_slack() {
         // Test the new_reduced function with delta-based iteration
-        let sui_weights = load_sui_validator_weights();
+        // let sui_weights = load_sui_validator_weights();
+        let sui_weights = load_sui_validator_voting_power();
         let scaled_weights = scale_weights_to_u16(&sui_weights);
         let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
         let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
@@ -399,7 +418,9 @@ mod tests {
                 // Write to workspace root target directory (go up from package to workspace root)
                 let csv_dir = "../target";
                 let _ = fs::create_dir_all(csv_dir); // Ignore errors if directory already exists
-                let csv_path = "../target/weight_reduction_results_new_reduced_slack.csv";
+                                                     // let csv_path = "../target/weight_reduction_results_new_reduced_slack.csv";
+                let csv_path =
+                    "../target/weight_reduction_results_new_reduced_voting_power_slack.csv";
                 match write_weights_csv(
                     &sui_weights,
                     &scaled_weights,
