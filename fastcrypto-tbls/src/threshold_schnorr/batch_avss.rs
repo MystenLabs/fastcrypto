@@ -19,7 +19,7 @@ use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::groups::{GroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
