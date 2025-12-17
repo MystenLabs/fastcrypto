@@ -19,7 +19,7 @@ use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{GroupElement, MultiScalarMul};
+use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -214,9 +214,9 @@ impl Dealer {
     }
 
     /// 1. The Dealer generates shares for the secrets and broadcasts the encrypted shares.
-    pub fn create_message<const BATCH_SIZE: usize, Rng: AllowedRng>(
+    pub fn create_message<const BATCH_SIZE: usize>(
         &self,
-        rng: &mut Rng,
+        rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<Message<BATCH_SIZE>> {
         let polynomials = from_fn(|_| Poly::rand(self.t - 1, rng));
 
@@ -232,6 +232,7 @@ impl Dealer {
             p.eval_range(self.nodes.total_weight())
                 .expect("Weight is sufficiently small")
         });
+        let blinding_poly_evaluations = blinding_poly.eval_range(self.nodes.total_weight())?;
 
         // Encrypt all shares to the receivers
         let pk_and_msgs = self
@@ -249,7 +250,7 @@ impl Dealer {
                                 shares: shares_for_polynomial
                                     .each_ref()
                                     .map(|shares| shares.get_eval(index).value),
-                                blinding_share: blinding_poly.eval(index).value,
+                                blinding_share: blinding_poly_evaluations.get_eval(index).value,
                             })
                             .collect_vec(),
                     }
@@ -271,10 +272,10 @@ impl Dealer {
             &blinding_commit,
             &ciphertext,
         );
-        let mut response_polynomial = blinding_poly;
-        for (p_l, gamma_l) in polynomials.into_iter().zip(&challenge) {
-            response_polynomial += &(p_l * gamma_l);
-        }
+        let response_polynomial = polynomials
+            .into_iter()
+            .zip(&challenge)
+            .fold(blinding_poly, |acc, (p_l, gamma_l)| acc + &(p_l * gamma_l));
 
         Ok(Message {
             full_public_keys,
@@ -543,7 +544,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let message = dealer.create_message::<BATCH_SIZE, _>(&mut rng).unwrap();
+        let message = dealer.create_message::<BATCH_SIZE>(&mut rng).unwrap();
 
         let all_shares = receivers
             .iter()
@@ -618,7 +619,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let message = dealer.create_message::<BATCH_SIZE, _>(&mut rng).unwrap();
+        let message = dealer.create_message::<BATCH_SIZE>(&mut rng).unwrap();
 
         let all_shares = receivers
             .iter()
@@ -681,7 +682,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let message = dealer
-            .create_message_cheating::<BATCH_SIZE, _>(&mut rng)
+            .create_message_cheating::<BATCH_SIZE>(&mut rng)
             .unwrap();
 
         let mut all_shares = receivers
@@ -729,9 +730,9 @@ mod tests {
 
     impl Dealer {
         /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares. This also returns the nonces to be secret shared along with their corresponding public keys.
-        pub fn create_message_cheating<const BATCH_SIZE: usize, Rng: AllowedRng>(
+        pub fn create_message_cheating<const BATCH_SIZE: usize>(
             &self,
-            rng: &mut Rng,
+            rng: &mut impl AllowedRng,
         ) -> FastCryptoResult<Message<BATCH_SIZE>> {
             let polynomials = from_fn(|_| Poly::rand(self.t - 1, rng));
 
