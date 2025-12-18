@@ -248,8 +248,8 @@ impl Dealer {
                                 index,
                                 shares: shares_for_polynomial
                                     .each_ref()
-                                    .map(|shares| shares.get_eval(index).value),
-                                blinding_share: blinding_poly_evaluations.get_eval(index).value,
+                                    .map(|shares| shares[index]),
+                                blinding_share: blinding_poly_evaluations[index],
                             })
                             .collect_vec(),
                     }
@@ -276,10 +276,10 @@ impl Dealer {
         let response_polynomial = Poly::interpolate(
             &shares_for_polynomial
                 .into_iter()
-                .map(|s| s.take(self.t as usize))
+                .map(|s| s.take(self.t))
                 .zip_eq(&challenge)
                 .fold(
-                    blinding_poly_evaluations.take(self.t as usize),
+                    blinding_poly_evaluations.take(self.t),
                     |acc, (p_l, gamma_l)| acc + p_l * gamma_l,
                 )
                 .to_vec(),

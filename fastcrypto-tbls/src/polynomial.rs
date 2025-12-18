@@ -15,7 +15,7 @@ use std::borrow::Borrow;
 use std::iter::{once, repeat_with};
 use std::mem::swap;
 use std::num::NonZeroU16;
-use std::ops::{Add, AddAssign, Div, Mul, MulAssign, SubAssign};
+use std::ops::{Add, AddAssign, Div, Index, Mul, MulAssign, SubAssign};
 
 /// Types
 
@@ -621,11 +621,11 @@ pub(crate) struct PolynomialEvaluator<C> {
 
 impl<C: GroupElement> PolynomialEvaluator<C> {
     /// Create a new evaluator.
-    /// Returns an [InvalidInput] error if `initial + step * polynomial.degree()` can not be represented as an u16.
+    /// Returns an [InvalidInput] error if `initial + step * polynomial.degree()` cannot be represented as an u16.
     /// Once created, calling [Self::next] will return the evaluation for the next element in the arithmetic progression until the input cannot be represented as an u16.
     fn new(polynomial: &Poly<C>, initial: NonZeroU16, step: NonZeroU16) -> FastCryptoResult<Self> {
         // Compute initial values (see exercise 7 in 4.6.4 of TAOCP)
-        let mut state = (0..=polynomial.degree())
+        let points = (0..=polynomial.degree())
             .map(|i| {
                 u16::try_from(i)
                     .ok()
@@ -637,11 +637,7 @@ impl<C: GroupElement> PolynomialEvaluator<C> {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
-        for k in 1..=polynomial.degree() {
-            for j in (k..=polynomial.degree()).rev() {
-                state[j] = state[j] - state[j - 1];
-            }
-        }
+        let state = Self::compute_state(points);
 
         Ok(Self {
             state,
@@ -652,14 +648,8 @@ impl<C: GroupElement> PolynomialEvaluator<C> {
     }
 
     /// Given evaluations on 0, 1, ..., degree, this returns an evaluator on points 1, 2, ...
-    pub(crate) fn simple_from_evaluations(points: &[C]) -> PolynomialEvaluator<C> {
-        let degree = points.len() - 1;
-        let mut state = points.to_vec();
-        for k in 1..=degree {
-            for j in (k..=degree).rev() {
-                state[j] = state[j] - state[j - 1];
-            }
-        }
+    pub(crate) fn simple_from_evaluations(points: Vec<C>) -> PolynomialEvaluator<C> {
+        let mut state = Self::compute_state(points);
 
         // One iteration to skip zero
         for j in 0..state.len() - 1 {
@@ -672,6 +662,16 @@ impl<C: GroupElement> PolynomialEvaluator<C> {
             index: NonZeroU16::new(1).unwrap(),
             step: NonZeroU16::new(1).unwrap(),
         }
+    }
+
+    fn compute_state(points: Vec<C>) -> Vec<C> {
+        let mut state = points;
+        for k in 1..state.len() {
+            for j in (k..state.len()).rev() {
+                state[j] = state[j] - state[j - 1];
+            }
+        }
+        state
     }
 }
 
@@ -707,8 +707,8 @@ impl<C: Clone> EvalRange<C> {
         self.into_iter().collect_vec()
     }
 
-    pub fn take(self, n: usize) -> EvalRange<C> {
-        EvalRange(self.0.into_iter().take(n).collect_vec())
+    pub fn take(self, n: u16) -> EvalRange<C> {
+        EvalRange(self.0.into_iter().take(n as usize).collect_vec())
     }
 
     #[cfg(test)]
@@ -724,8 +724,16 @@ impl<C: Clone> EvalRange<C> {
     {
         Eval {
             index,
-            value: self.0[index.get() as usize - 1].clone(),
+            value: self[index].clone(),
         }
+    }
+}
+
+impl<C> Index<ShareIndex> for EvalRange<C> {
+    type Output = C;
+
+    fn index(&self, index: ShareIndex) -> &Self::Output {
+        &self.0[index.get() as usize - 1]
     }
 }
 
@@ -779,6 +787,6 @@ pub fn create_secret_sharing<C: Scalar>(
         .collect_vec();
 
     // Compute evaluations of the polynomial for 1, 2, ..., n using a simple Evaluator
-    let evaluator = PolynomialEvaluator::simple_from_evaluations(&evaluations_points);
+    let evaluator = PolynomialEvaluator::simple_from_evaluations(evaluations_points);
     EvalRange(evaluator.take(n as usize).map(|e| e.value).collect())
 }

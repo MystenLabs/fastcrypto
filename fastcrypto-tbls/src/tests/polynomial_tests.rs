@@ -242,7 +242,7 @@ mod scalar_tests {
             .map(|_| S::rand(&mut thread_rng()))
             .collect_vec();
 
-        let mut evaluator = PolynomialEvaluator::simple_from_evaluations(&points);
+        let mut evaluator = PolynomialEvaluator::simple_from_evaluations(points.clone());
 
         // Check that the evaluator matches the evaluation points used to define it
         for point in points.iter().skip(1) {
