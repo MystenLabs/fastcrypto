@@ -10,7 +10,7 @@
 
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
 use crate::nodes::{Nodes, PartyId};
-use crate::polynomial::{Eval, Poly};
+use crate::polynomial::{create_secret_sharing, Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
@@ -19,7 +19,7 @@ use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{GroupElement, MultiScalarMul};
+use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -218,21 +218,20 @@ impl Dealer {
         &self,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<Message<BATCH_SIZE>> {
-        let polynomials = from_fn(|_| Poly::rand(self.t - 1, rng));
+        let secrets = from_fn(|_| S::rand(rng));
 
         // Compute the (full) public keys for all secrets
-        let full_public_keys = polynomials.each_ref().map(|p| G::generator() * p.c0());
+        let full_public_keys = secrets.each_ref().map(|s| G::generator() * s);
 
         // "blinding" polynomial as defined in https://eprint.iacr.org/2023/536.pdf.
-        let blinding_poly = Poly::rand(self.t - 1, rng);
-        let blinding_commit = G::generator() * blinding_poly.c0();
+        let blinding_secret = S::rand(rng);
+        let blinding_poly_evaluations =
+            create_secret_sharing(rng, blinding_secret, self.t, self.nodes.total_weight());
+        let blinding_commit = G::generator() * blinding_secret;
 
         // Compute all evaluations of all polynomials
-        let shares_for_polynomial = polynomials.each_ref().map(|p| {
-            p.eval_range(self.nodes.total_weight())
-                .expect("Weight is sufficiently small")
-        });
-        let blinding_poly_evaluations = blinding_poly.eval_range(self.nodes.total_weight())?;
+        let shares_for_polynomial =
+            secrets.map(|s| create_secret_sharing(rng, s, self.t, self.nodes.total_weight()));
 
         // Encrypt all shares to the receivers
         let pk_and_msgs = self
@@ -272,10 +271,19 @@ impl Dealer {
             &blinding_commit,
             &ciphertext,
         );
-        let response_polynomial = polynomials
-            .into_iter()
-            .zip(&challenge)
-            .fold(blinding_poly, |acc, (p_l, gamma_l)| acc + &(p_l * gamma_l));
+
+        // Get the first t evaluations for the response polynomial and use these to compute the coefficients
+        let response_polynomial = Poly::interpolate(
+            &shares_for_polynomial
+                .into_iter()
+                .map(|s| s.take(self.t as usize))
+                .zip_eq(&challenge)
+                .fold(
+                    blinding_poly_evaluations.take(self.t as usize),
+                    |acc, (p_l, gamma_l)| acc + p_l * gamma_l,
+                )
+                .to_vec(),
+        )?;
 
         Ok(Message {
             full_public_keys,
@@ -585,8 +593,8 @@ mod tests {
     #[allow(clippy::single_match)]
     fn test_happy_path_non_equal_weights() {
         // No complaints, all honest
-        let t = 3;
-        let f = 2;
+        let t = 4;
+        let f = 3;
         let weights: Vec<u16> = vec![1, 2, 3, 4];
         const BATCH_SIZE: usize = 3;
 

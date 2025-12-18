@@ -200,10 +200,10 @@ mod scalar_tests {
     #[test]
     fn test_degree<S: Scalar>() {
         let coefficients = [1, 2, 3, 0, 0].iter().map(|&x| S::from(x)).collect_vec();
-        let mut a = crate::polynomial::Poly::from(coefficients);
+        let a = crate::polynomial::Poly::from(coefficients);
         assert_eq!(a.degree(), 2);
         assert_eq!(a.degree_bound(), 4);
-        a.reduce();
+        let a = a.into_reduced();
         assert_eq!(a.degree(), 2);
         assert_eq!(a.degree_bound(), 2);
     }
@@ -218,6 +218,81 @@ mod scalar_tests {
         for i in 1..=n {
             let index = ShareIndex::new(i).unwrap();
             assert_eq!(evaluations.get_eval(index), polynomial.eval(index));
+        }
+    }
+
+    #[test]
+    fn test_interpolate_consistency<S: Scalar>() {
+        let degree = 5;
+        let p = Poly::<S>::rand(degree, &mut thread_rng());
+
+        let evaluation_points = (1..2 * degree)
+            .map(|i| p.eval(crate::types::ShareIndex::new(i).unwrap()))
+            .collect_vec();
+        for t in degree + 1..2 * degree {
+            let interpolated_poly = Poly::interpolate(&evaluation_points[..t as usize]).unwrap();
+            assert_eq!(interpolated_poly, p);
+        }
+    }
+
+    #[test]
+    fn test_eval_from_points<S: Scalar>() {
+        let degree = 20;
+        let points = (0..=degree)
+            .map(|_| S::rand(&mut thread_rng()))
+            .collect_vec();
+
+        let mut evaluator = PolynomialEvaluator::simple_from_evaluations(&points);
+
+        // Check that the evaluator matches the evaluation points used to define it
+        for point in points.iter().skip(1) {
+            assert_eq!(evaluator.next().unwrap().value, *point);
+        }
+
+        // Compute the interpolated polynomial from the given points + one more (needed because we can't use the zero point for evaluations)
+        let mut interpolation_points = (1..=degree)
+            .map(|i| Eval {
+                index: NonZeroU16::new(i as u16).unwrap(),
+                value: points[i],
+            })
+            .collect_vec();
+        interpolation_points.push(evaluator.next().unwrap());
+        let q = Poly::interpolate(&interpolation_points).unwrap();
+
+        // Check that the interpolated polynomial matches the evaluation points used to create the evaluator
+        assert_eq!(q.degree(), degree);
+        for (i, point) in points.iter().enumerate().skip(1).take(degree) {
+            assert_eq!(q.eval(NonZeroU16::new(i as u16).unwrap()).value, *point)
+        }
+
+        // The constant term is the same
+        assert_eq!(*q.c0(), points[0]);
+
+        // Check that the evaluator and the interpolated polynomial match
+        for j in degree + 2..100 {
+            assert_eq!(
+                q.eval(NonZeroU16::new(j as u16).unwrap()).value,
+                evaluator.next().unwrap().value,
+            );
+        }
+    }
+
+    #[test]
+    fn test_create_secret_sharing<S: Scalar>() {
+        let secret = S::from(7u128);
+        let t = 10;
+        let n = 100;
+        let range = create_secret_sharing(&mut thread_rng(), secret, t, n);
+        assert_eq!(range.len(), n as usize);
+
+        for i in 0..89 {
+            let p =
+                Poly::interpolate(&range.clone().to_vec().as_slice()[i..(t as usize + i)]).unwrap();
+            assert_eq!(p.c0(), &secret);
+
+            let q = Poly::interpolate(&range.clone().to_vec().as_slice()[i..(t as usize + i - 1)])
+                .unwrap();
+            assert_ne!(q.c0(), &secret);
         }
     }
 
