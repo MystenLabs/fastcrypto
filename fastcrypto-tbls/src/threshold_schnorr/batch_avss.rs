@@ -108,7 +108,7 @@ impl<const BATCH_SIZE: usize> ShareBatch<BATCH_SIZE> {
             .iter()
             .zip(challenge)
             .fold(self.blinding_share, |acc, (r_l, gamma_l)| {
-                acc + (*r_l * gamma_l)
+                acc + r_l * gamma_l
             })
             != message.response_polynomial.eval(self.index).value
         {
