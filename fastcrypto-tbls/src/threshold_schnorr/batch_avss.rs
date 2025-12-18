@@ -106,7 +106,7 @@ impl<const BATCH_SIZE: usize> ShareBatch<BATCH_SIZE> {
         if self
             .shares
             .iter()
-            .zip(challenge)
+            .zip_eq(challenge)
             .fold(self.blinding_share, |acc, (r_l, gamma_l)| {
                 acc + r_l * gamma_l
             })
@@ -138,14 +138,9 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
         }))
     }
 
-    fn verify(
-        &self,
-        random_oracle: &RandomOracle,
-        message: &Message<BATCH_SIZE>,
-    ) -> FastCryptoResult<()> {
-        let challenge = compute_challenge_from_message(random_oracle, message);
+    fn verify(&self, message: &Message<BATCH_SIZE>, challenge: &[S]) -> FastCryptoResult<()> {
         for shares in &self.batches {
-            shares.verify(message, &challenge)?;
+            shares.verify(message, challenge)?;
         }
         Ok(())
     }
@@ -377,7 +372,7 @@ impl Receiver {
             if my_shares.weight() != self.my_weight() {
                 return Err(InvalidMessage);
             }
-            my_shares.verify(&self.random_oracle(), message)?;
+            my_shares.verify(message, &challenge)?;
             Ok(my_shares)
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
@@ -405,7 +400,12 @@ impl Receiver {
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
             &self.random_oracle(),
-            |shares: &SharesForNode<BATCH_SIZE>| shares.verify(&self.random_oracle(), message),
+            |shares: &SharesForNode<BATCH_SIZE>| {
+                shares.verify(
+                    message,
+                    &compute_challenge_from_message(&self.random_oracle(), message),
+                )
+            },
         )?;
         Ok(ComplaintResponse::create(
             self.id,
@@ -430,12 +430,13 @@ impl Receiver {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
 
+        let challenge = compute_challenge_from_message(&self.random_oracle(), message);
         let response_shares = responses
             .into_iter()
             .filter_map(|response| {
                 response
                     .shares
-                    .verify(&self.random_oracle(), message)
+                    .verify(message, &challenge)
                     .ok()
                     .map(|_| response.shares)
             })
@@ -451,7 +452,7 @@ impl Receiver {
         }
 
         let my_shares = SharesForNode::recover(self, &response_shares)?;
-        my_shares.verify(&self.random_oracle(), message)?;
+        my_shares.verify(message, &challenge)?;
 
         Ok(ReceiverOutput {
             my_shares,
@@ -791,7 +792,7 @@ mod tests {
                 &ciphertext,
             );
             let mut response_polynomial = blinding_poly;
-            for (p_l, gamma_l) in polynomials.into_iter().zip(&challenge) {
+            for (p_l, gamma_l) in polynomials.into_iter().zip_eq(&challenge) {
                 response_polynomial += &(p_l * gamma_l);
             }
 

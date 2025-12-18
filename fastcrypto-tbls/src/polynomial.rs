@@ -775,15 +775,19 @@ impl<C: GroupElement> Mul<&C::ScalarType> for EvalRange<C> {
 }
 
 /// Create `n` shares for a given secret such that `t` shares can reconstruct the secret.
-pub fn create_secret_sharing<C: Scalar>(
+/// Panics if t == 0 or t > n.
+pub(crate) fn create_secret_sharing<C: Scalar>(
     rng: &mut impl AllowedRng,
     secret: C,
     t: u16,
     n: u16,
 ) -> EvalRange<C> {
+    assert!(t > 0 && t <= n);
+
     // The first evaluation point (one zero) is given by the secret, and the remaining are random.
     let evaluations_points = once(secret)
-        .chain(repeat_with(|| C::rand(rng)).take(t as usize - 1))
+        .chain(repeat_with(|| C::rand(rng)))
+        .take(t as usize)
         .collect_vec();
 
     // Compute evaluations of the polynomial for 1, 2, ..., n using a simple Evaluator
