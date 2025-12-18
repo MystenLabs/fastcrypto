@@ -637,10 +637,8 @@ impl<C: GroupElement> PolynomialEvaluator<C> {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
-        let state = Self::compute_state(points);
-
         Ok(Self {
-            state,
+            state: Self::compute_state(points),
             first: true,
             index: initial,
             step,
@@ -652,9 +650,7 @@ impl<C: GroupElement> PolynomialEvaluator<C> {
         let mut state = Self::compute_state(points);
 
         // One iteration to skip zero
-        for j in 0..state.len() - 1 {
-            state[j] = state[j] + state[j + 1]
-        }
+        Self::iterate_state(&mut state);
 
         Self {
             state,
@@ -673,6 +669,12 @@ impl<C: GroupElement> PolynomialEvaluator<C> {
         }
         state
     }
+
+    fn iterate_state(state: &mut [C]) {
+        for j in 0..state.len() - 1 {
+            state[j] += state[j + 1]
+        }
+    }
 }
 
 impl<C: GroupElement> Iterator for PolynomialEvaluator<C> {
@@ -686,9 +688,7 @@ impl<C: GroupElement> Iterator for PolynomialEvaluator<C> {
                 Some(new_index) => new_index,
                 None => return None,
             };
-            for j in 0..self.state.len() - 1 {
-                self.state[j] = self.state[j] + self.state[j + 1]
-            }
+            Self::iterate_state(&mut self.state);
         }
         Some(Eval {
             index: self.index,
