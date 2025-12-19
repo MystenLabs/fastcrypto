@@ -67,7 +67,7 @@ impl<C: GroupElement> LazyPascalMatrixMultiplier<C> {
     /// Create a new lazy Pascal matrix iterator that will yield `height * columns.len()` elements.
     /// Panics if
     /// * `columns` is empty,
-    /// * if the columns are not all of the same length which is at least `height`,
+    /// * if the columns are not all of the same length that is at least `height`,
     /// * if `height` is zero.
     pub fn new(height: usize, columns: Vec<Vec<C>>) -> Self {
         assert!(!columns.is_empty());

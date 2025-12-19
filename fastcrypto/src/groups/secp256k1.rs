@@ -257,9 +257,9 @@ impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
 
 impl FiatShamirChallenge for Scalar {
     fn fiat_shamir_reduction_to_group_element(uniform_buffer: &[u8]) -> Self {
-        Scalar::from(Fr::from_be_bytes_mod_order(
-            &Sha3_512::digest(uniform_buffer).digest,
-        ))
+        // Ensure that we have enough bytes to avoid bias in the modular reduction.
+        assert!(uniform_buffer.len() >= 48);
+        Scalar::from(Fr::from_be_bytes_mod_order(uniform_buffer))
     }
 }
 

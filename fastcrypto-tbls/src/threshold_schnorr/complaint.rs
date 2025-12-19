@@ -42,7 +42,7 @@ impl Complaint {
 
         let Ok(shares) = S::from_bytes(&buffer) else {
             debug!(
-                "Complaint by party {} is valid: C complaint failed to deserialize shares",
+                "Complaint by party {} is valid: Failed to deserialize shares",
                 self.accuser_id
             );
             return Ok(());
