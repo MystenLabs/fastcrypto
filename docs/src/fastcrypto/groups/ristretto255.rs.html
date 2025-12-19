@@ -33,7 +33,7 @@
 <a href=#33 id=33 data-nosnippet>33</a></span><span class="kw">pub struct </span>RistrettoPoint(ExternalRistrettoPoint);
 <a href=#34 id=34 data-nosnippet>34</a>
 <a href=#35 id=35 data-nosnippet>35</a><span class="kw">impl </span>RistrettoPoint {
-<a href=#36 id=36 data-nosnippet>36</a>    <span class="doccomment">/// Construct a RistrettoPoint from the given data using an Ristretto-flavoured Elligator 2 map.
+<a href=#36 id=36 data-nosnippet>36</a>    <span class="doccomment">/// Construct a RistrettoPoint from the given data using a Ristretto-flavoured Elligator 2 map.
 <a href=#37 id=37 data-nosnippet>37</a>    /// If the input bytes are uniformly distributed, the resulting point will be uniformly
 <a href=#38 id=38 data-nosnippet>38</a>    /// distributed over the Ristretto group.
 <a href=#39 id=39 data-nosnippet>39</a>    </span><span class="kw">pub fn </span>from_uniform_bytes(bytes: <span class="kw-2">&amp;</span>[u8; <span class="number">64</span>]) -&gt; <span class="self">Self </span>{
