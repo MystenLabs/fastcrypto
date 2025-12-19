@@ -6,9 +6,9 @@
 //! [paper](https://eprint.iacr.org/2025/1076).
 //! Adapted from: https://github.com/tolikzinovyev/weight-reduction
 
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, BinaryHeap};
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 
 pub mod weight_reduction_checks;
 
@@ -68,7 +68,12 @@ impl DP {
             return None;
         }
 
-        let dp: Vec<_> = self.dp.iter().take(adv_tickets_target_usize).copied().collect();
+        let dp: Vec<_> = self
+            .dp
+            .iter()
+            .take(adv_tickets_target_usize)
+            .copied()
+            .collect();
 
         Some(DP {
             max_weight: self.max_weight,
@@ -166,7 +171,7 @@ impl Tickets {
         &self.tickets
     }
 
-    fn to_vec(self) -> Vec<u64> {
+    fn into_vec(self) -> Vec<u64> {
         self.tickets
     }
 
@@ -297,11 +302,9 @@ fn calc_dp_head(
     .unwrap();
 
     let indices_head = calc_indices_head(tickets.as_slice().len(), deltas);
-    let dp_head = indices_head
-        .into_iter()
-        .try_fold(dp_head, |dp, index| {
-            dp.apply(weights[index], tickets.get(index))
-        })?;
+    let dp_head = indices_head.into_iter().try_fold(dp_head, |dp, index| {
+        dp.apply(weights[index], tickets.get(index))
+    })?;
 
     Some(dp_head)
 }
@@ -318,12 +321,12 @@ fn apply(
 ) -> Option<DP> {
     let dp = dp_head.make_copy(adv_tickets_target)?;
 
-    let exclude_indices: BTreeSet<usize> = exclude_indices.iter().copied().collect();
+    let exclude_set: BTreeSet<usize> = exclude_indices.iter().copied().collect();
 
     let dp = add_indices
         .iter()
         .copied()
-        .filter(|index| !exclude_indices.contains(index))
+        .filter(|index| !exclude_set.contains(index))
         .try_fold(dp, |dp, index| dp.apply(weights[index], tickets.get(index)))?;
 
     Some(dp)
@@ -437,7 +440,7 @@ pub fn solve(alpha: Ratio, beta: Ratio, weights: &[u64]) -> Vec<u64> {
 
         let ret = process_batch(beta, weights, max_adv_weight, &deltas, &mut tickets);
         if ret {
-            return tickets.to_vec();
+            return tickets.into_vec();
         }
 
         batch_size *= 2;
