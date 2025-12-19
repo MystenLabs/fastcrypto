@@ -20,6 +20,7 @@ use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::hash::{HashFunction, Sha3_512};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -482,7 +483,8 @@ fn compute_challenge<const BATCH_SIZE: usize>(
     e: &MultiRecipientEncryption<EG>,
 ) -> [S; BATCH_SIZE] {
     let random_oracle = random_oracle.extend(&Challenge.to_string());
-    array::from_fn(|l| random_oracle.evaluate_to_group_element(&(l, c.to_vec(), c_prime, e)))
+    let inner_hash = Sha3_512::digest(bcs::to_bytes(&(c.to_vec(), c_prime, e)).unwrap()).digest;
+    array::from_fn(|l| random_oracle.evaluate_to_group_element(&(l, inner_hash.to_vec())))
 }
 
 fn compute_challenge_from_message<const BATCH_SIZE: usize>(
