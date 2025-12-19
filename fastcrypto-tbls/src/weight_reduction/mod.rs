@@ -1,13 +1,14 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// The implementation of the algorithms presented in the paper
-// Weight reduction in distributed protocols: new algorithms and analysis
-// [paper](https://eprint.iacr.org/2025/1076).
-// Adapted from: https://github.com/tolikzinovyev/weight-reduction
+//! The implementation of the algorithms presented in the paper
+//! Weight reduction in distributed protocols: new algorithms and analysis
+//! [paper](https://eprint.iacr.org/2025/1076).
+//! Adapted from: https://github.com/tolikzinovyev/weight-reduction
 
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, BinaryHeap};
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 
 pub mod weight_reduction_checks;
 
@@ -31,14 +32,15 @@ fn calc_adv_tickets_target(beta: Ratio, total_num_tickets: u64) -> u64 {
 #[derive(Debug)]
 struct DP {
     max_weight: u64,
+    adv_tickets_target: u64,
     dp: Vec<u64>,
 }
 
 impl DP {
-    // Create a knapsack dynamic programming data with configured max weight
-    // and adversarial tickets target. Returns None only when it's immediately
-    // clear we can achieve the adversarial tickets target -- if and only if
-    // adv_tickets_target = 0.
+    /// Create a knapsack dynamic programming data with configured max weight
+    /// and adversarial tickets target. Returns None only when it's immediately
+    /// clear we can achieve the adversarial tickets target -- if and only if
+    /// adv_tickets_target = 0.
     fn new(max_weight: u64, adv_tickets_target: u64) -> Option<DP> {
         if adv_tickets_target == 0 {
             return None;
@@ -47,66 +49,70 @@ impl DP {
         let mut dp = Vec::with_capacity(adv_tickets_target as usize);
         dp.push(0);
 
-        Some(DP { max_weight, dp })
-    }
-
-    // Create a copy of the data structure with a new configured adversarial
-    // tickets target. It must be less or equal to the previously configured
-    // adversarial tickets target. Returns None iff the new adversarial tickets
-    // target has already been achieved.
-    fn make_copy(&self, adv_tickets_target: u64) -> Option<DP> {
-        assert!(adv_tickets_target <= self.dp.capacity() as u64);
-
-        let adv_tickets_target = adv_tickets_target as usize;
-        if adv_tickets_target < self.dp.len() {
-            return None;
-        }
-
-        let mut dp = Vec::with_capacity(adv_tickets_target);
-        for &x in self.dp.iter().take(adv_tickets_target) {
-            dp.push(x);
-        }
-
         Some(DP {
-            max_weight: self.max_weight,
+            max_weight,
+            adv_tickets_target,
             dp,
         })
     }
 
-    // Apply an element with weight w and t tickets. Returns None iff
-    // the configured adversarial tickets target is achieved.
+    /// Create a copy of the data structure with a new configured adversarial
+    /// tickets target. It must be less or equal to the previously configured
+    /// adversarial tickets target. Returns None iff the new adversarial tickets
+    /// target has already been achieved.
+    fn make_copy(&self, adv_tickets_target: u64) -> Option<DP> {
+        assert!(adv_tickets_target <= self.adv_tickets_target);
+
+        let adv_tickets_target_usize = adv_tickets_target as usize;
+        if adv_tickets_target_usize < self.dp.len() {
+            return None;
+        }
+
+        let dp: Vec<_> = self.dp.iter().take(adv_tickets_target_usize).copied().collect();
+
+        Some(DP {
+            max_weight: self.max_weight,
+            adv_tickets_target,
+            dp,
+        })
+    }
+
+    /// Apply an element with weight w and t tickets. Returns None iff
+    /// the configured adversarial tickets target is achieved.
     fn apply(mut self, w: u64, t: u64) -> Option<DP> {
         assert!(w > 0);
 
         if (w > self.max_weight) || (t == 0) {
             return Some(self);
         }
-        let adv_tickets_target = self.dp.capacity();
+        let adv_tickets_target = self.adv_tickets_target as usize;
         if t as usize >= adv_tickets_target {
             return None;
         }
 
         for i in (1..self.dp.len()).rev() {
             if self.dp[i] != 0 {
-                let ww = self.dp[i] + w;
-                let tt = i + t as usize;
-                if ww <= self.max_weight {
-                    if tt >= adv_tickets_target {
+                let accumulated_weight = self.dp[i] + w;
+                let accumulated_tickets = i + t as usize;
+                if accumulated_weight <= self.max_weight {
+                    if accumulated_tickets >= adv_tickets_target {
                         return None;
                     }
-                    while self.dp.len() <= tt {
-                        self.dp.push(0);
+                    if self.dp.len() <= accumulated_tickets {
+                        self.dp.resize(accumulated_tickets + 1, 0);
                     }
-                    if (ww < self.dp[tt]) || (self.dp[tt] == 0) {
-                        self.dp[tt] = ww;
+                    if (accumulated_weight < self.dp[accumulated_tickets])
+                        || (self.dp[accumulated_tickets] == 0)
+                    {
+                        self.dp[accumulated_tickets] = accumulated_weight;
                     }
                 }
             }
         }
 
         let t = t as usize;
-        while self.dp.len() <= t {
-            self.dp.push(0);
+        if self.dp.len() <= t {
+            self.dp.resize(t + 1, 0);
         }
         if (w < self.dp[t]) || (self.dp[t] == 0) {
             self.dp[t] = w;
@@ -115,18 +121,17 @@ impl DP {
         Some(self)
     }
 
-    // Returns the maximum achievable adversarial number of tickets.
+    /// Returns the maximum achievable adversarial number of tickets.
     #[cfg(test)]
     fn adversarial_tickets(&self) -> u64 {
-        for (t, &w) in self.dp.iter().enumerate().rev() {
-            if w != 0 {
-                return t as u64;
-            }
-        }
-        0
+        self.dp
+            .iter()
+            .rposition(|&w| w != 0)
+            .map(|t| t as u64)
+            .unwrap_or(0)
     }
     fn adv_tickets_target(&self) -> u64 {
-        self.dp.capacity() as u64
+        self.adv_tickets_target
     }
 }
 
@@ -146,30 +151,33 @@ impl Tickets {
     }
 
     fn update(&mut self, index: usize) {
-        while index >= self.tickets.len() {
-            self.tickets.push(0);
+        if index >= self.tickets.len() {
+            self.tickets.resize(index + 1, 0);
         }
         self.tickets[index] += 1;
         self.total += 1;
     }
 
     fn get(&self, index: usize) -> u64 {
-        match self.tickets.get(index) {
-            Some(&x) => x,
-            None => 0,
-        }
+        self.tickets.get(index).copied().unwrap_or(0)
     }
 
-    fn data(&self) -> &[u64] {
+    fn as_slice(&self) -> &[u64] {
         &self.tickets
     }
 
-    fn extract_data(self) -> Vec<u64> {
+    fn to_vec(self) -> Vec<u64> {
         self.tickets
     }
 
     fn total(&self) -> u64 {
         self.total
+    }
+
+    fn update_many(&mut self, indices: &[usize]) {
+        for &index in indices {
+            self.update(index);
+        }
     }
 
     #[cfg(test)]
@@ -206,25 +214,33 @@ struct Generator<'a> {
 }
 
 impl<'a> Generator<'a> {
-    fn new(weights: &'a [u64], c: Ratio) -> Self {
-        assert!(!weights.is_empty());
+    fn new(weights: &'a [u64], c: Ratio) -> FastCryptoResult<Self> {
+        if weights.is_empty() {
+            return Err(FastCryptoError::InvalidInput);
+        }
         debug_assert!(weights.windows(2).all(|w| w[0] >= w[1]));
-        assert!(*weights.last().unwrap() > 0);
-        assert!(c >= 0.into());
-        assert!(c < 1.into());
+        if weights.last().copied().unwrap_or(0) == 0 {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        if c < 0.into() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        if c >= 1.into() {
+            return Err(FastCryptoError::InvalidInput);
+        }
 
         let mut queue = BinaryHeap::new();
         queue.push(QueueElement {
-            s: (Ratio::from_integer(1) - c) / Ratio::from_integer(*weights.first().unwrap()),
+            s: (Ratio::new(1, 1) - c) / Ratio::from_integer(*weights.first().unwrap()),
             i: 0,
         });
 
-        Self {
+        Ok(Self {
             weights,
             c,
             r: 0,
             queue,
-        }
+        })
     }
 }
 
@@ -243,7 +259,7 @@ impl Iterator for Generator<'_> {
         if (elem.i == self.r) && (self.r + 1 < self.weights.len()) {
             self.r += 1;
             self.queue.push(QueueElement {
-                s: (Ratio::from_integer(1) - self.c) / Ratio::from_integer(self.weights[self.r]),
+                s: (Ratio::new(1, 1) - self.c) / Ratio::from_integer(self.weights[self.r]),
                 i: self.r,
             });
         }
@@ -253,28 +269,20 @@ impl Iterator for Generator<'_> {
 }
 
 fn generate_deltas(weights: &[u64], c: Ratio) -> impl Iterator<Item = usize> + '_ {
-    Generator::new(weights, c)
+    Generator::new(weights, c).expect("Invalid input to generate_deltas")
 }
 
-// Calculates the head indices for the current batch.
+/// Calculates the head indices for the current batch.
 fn calc_indices_head(tickets_len: usize, deltas: &[usize]) -> Vec<usize> {
-    let mut indices_tail = deltas.to_vec();
-    indices_tail.sort_unstable_by(|a, b| b.cmp(a));
-    indices_tail.dedup();
-
-    let mut indices_head: Vec<_> = (0..tickets_len).collect();
-    for &index in &indices_tail {
-        if index < indices_head.len() {
-            indices_head.swap_remove(index);
-        }
-    }
-
-    indices_head
+    let exclude_indices: BTreeSet<usize> = deltas.iter().copied().collect();
+    (0..tickets_len)
+        .filter(|i| !exclude_indices.contains(i))
+        .collect()
 }
 
-// Calculates the DP data structure with indices applied that are not in `delta`s.
-// Returns None iff the DP head cannot be constructed which means
-// that the current batch should be skipped.
+/// Calculates the DP data structure with indices applied that are not in `delta`s.
+/// Returns None iff the DP head cannot be constructed which means
+/// that the current batch should be skipped.
 fn calc_dp_head(
     beta: Ratio,
     weights: &[u64],
@@ -282,22 +290,24 @@ fn calc_dp_head(
     deltas: &[usize],
     tickets: &Tickets,
 ) -> Option<DP> {
-    let mut dp_head = DP::new(
+    let dp_head = DP::new(
         max_adv_weight,
         calc_adv_tickets_target(beta, tickets.total() + deltas.len() as u64),
     )
     .unwrap();
 
-    let indices_head = calc_indices_head(tickets.data().len(), deltas);
-    for index in indices_head {
-        dp_head = dp_head.apply(weights[index], tickets.get(index))?;
-    }
+    let indices_head = calc_indices_head(tickets.as_slice().len(), deltas);
+    let dp_head = indices_head
+        .into_iter()
+        .try_fold(dp_head, |dp, index| {
+            dp.apply(weights[index], tickets.get(index))
+        })?;
 
     Some(dp_head)
 }
 
-// Apply those indices to dp_head that are in `add_indices` but not in
-// `exclude_indices`.
+/// Apply those indices to dp_head that are in `add_indices` but not in
+/// `exclude_indices`.
 fn apply(
     weights: &[u64],
     dp_head: &DP,
@@ -306,33 +316,26 @@ fn apply(
     add_indices: &[usize],
     exclude_indices: &[usize],
 ) -> Option<DP> {
-    let mut dp = dp_head.make_copy(adv_tickets_target)?;
+    let dp = dp_head.make_copy(adv_tickets_target)?;
 
-    let exclude_indices = exclude_indices.iter().copied().collect::<BTreeSet<_>>();
-    let add_indices = add_indices.iter().copied().collect::<BTreeSet<_>>();
+    let exclude_indices: BTreeSet<usize> = exclude_indices.iter().copied().collect();
 
-    for index in add_indices {
-        if !exclude_indices.contains(&index) {
-            dp = dp.apply(weights[index], tickets.get(index))?;
-        }
-    }
+    let dp = add_indices
+        .iter()
+        .copied()
+        .filter(|index| !exclude_indices.contains(index))
+        .try_fold(dp, |dp, index| dp.apply(weights[index], tickets.get(index)))?;
 
     Some(dp)
 }
 
-fn update_tickets(deltas: &[usize], tickets: &mut Tickets) {
-    for &index in deltas {
-        tickets.update(index);
-    }
-}
-
-// Apply `deltas` to provided `tickets`. If after applying 0 or more
-// deltas, a valid ticket assignment is found, returns true with
-// `tickets` containing the corresponding ticket assignment.
-// Otherwise, returns false with `tickets` containing
-// the new ticket assignment after applying all deltas.
-// `dp_head` must have all indices applied except those in `deltas` with data
-// in `tickets`.
+/// Apply `deltas` to provided `tickets`. If after applying 0 or more
+/// deltas, a valid ticket assignment is found, returns true with
+/// `tickets` containing the corresponding ticket assignment.
+/// Otherwise, returns false with `tickets` containing
+/// the new ticket assignment after applying all deltas.
+/// `dp_head` must have all indices applied except those in `deltas` with data
+/// in `tickets`.
 fn process_batch_recursive(
     beta: Ratio,
     weights: &[u64],
@@ -367,7 +370,7 @@ fn process_batch_recursive(
             }
         } else {
             // Apply the left deltas before continuing.
-            update_tickets(deltas_left, tickets);
+            tickets.update_many(deltas_left);
         }
         tickets.update(deltas_apply[0]);
     }
@@ -385,17 +388,17 @@ fn process_batch_recursive(
             process_batch_recursive(beta, weights, deltas_right, &dp, tickets)
         } else {
             // Apply the rest of the deltas before exiting.
-            update_tickets(deltas_right, tickets);
+            tickets.update_many(deltas_right);
             false
         }
     }
 }
 
-// Apply `deltas` to provided `tickets`. If after applying 0 or more
-// deltas a valid ticket assignment is found, returns true with
-// `tickets` containing the corresponding ticket assignment.
-// Otherwise, returns false with `tickets` containing
-// the new ticket assignment after applying all deltas.
+/// Apply `deltas` to provided `tickets`. If after applying 0 or more
+/// deltas a valid ticket assignment is found, returns true with
+/// `tickets` containing the corresponding ticket assignment.
+/// Otherwise, returns false with `tickets` containing
+/// the new ticket assignment after applying all deltas.
 fn process_batch(
     beta: Ratio,
     weights: &[u64],
@@ -405,7 +408,7 @@ fn process_batch(
 ) -> bool {
     let Some(dp_head) = calc_dp_head(beta, weights, max_adv_weight, deltas, tickets) else {
         // We are exiting early. Apply all of the deltas before that.
-        update_tickets(deltas, tickets);
+        tickets.update_many(deltas);
         return false;
     };
 
@@ -421,13 +424,20 @@ pub fn solve(alpha: Ratio, beta: Ratio, weights: &[u64]) -> Vec<u64> {
     let mut g = generate_deltas(weights, alpha);
 
     let mut batch_size: usize = 1;
+    // This loop terminates because:
+    // 1. The generator `g` is infinite (always produces deltas via the queue-based algorithm)
+    // 2. We use exponential backoff: batch_size doubles each iteration (1, 2, 4, 8, ...)
+    // 3. The algorithm is guaranteed to find a solution (by the paper's theoretical results)
+    // 4. Once batch_size is large enough to include all deltas needed for a valid solution,
+    //    `process_batch_recursive` will eventually return true when it successfully applies
+    //    all deltas in the batch without the adversary winning (see the empty deltas base case)
     loop {
         tickets.update(g.next().unwrap());
         let deltas: Vec<_> = (&mut g).take(batch_size - 1).collect();
 
         let ret = process_batch(beta, weights, max_adv_weight, &deltas, &mut tickets);
         if ret {
-            return tickets.extract_data();
+            return tickets.to_vec();
         }
 
         batch_size *= 2;
