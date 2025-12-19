@@ -7,7 +7,6 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{
     Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar as ScalarTrait,
 };
-use crate::hash::{HashFunction, Sha3_512};
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
