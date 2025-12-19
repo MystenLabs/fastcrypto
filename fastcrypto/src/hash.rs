@@ -249,7 +249,7 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
 /// For more information about the construction of ECMH and its security, see ["Elliptic Curve Multiset Hash" by J.
 /// Maitin-Shepard et al.](https://arxiv.org/abs/1601.06502).
 ///
-/// Under the hood, it uses an Ristretto-flavoured Elligator 2 map to map a Sha512 hash of the provided
+/// Under the hood, it uses a Ristretto-flavoured Elligator 2 map to map a Sha512 hash of the provided
 /// data into points in the Ristretto group, and Sha256 to construct a digest from a serialization of
 /// the resulting RistrettoPoint, so digests are 32 bytes long.
 #[derive(Default, Clone, Serialize, Deserialize)]
