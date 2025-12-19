@@ -26,7 +26,6 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use std::array;
-use std::array::from_fn;
 use std::fmt::Debug;
 
 /// This represents a Dealer in the AVSS.
@@ -214,7 +213,7 @@ impl Dealer {
         &self,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<Message<BATCH_SIZE>> {
-        let secrets = from_fn(|_| S::rand(rng));
+        let secrets = array::from_fn(|_| S::rand(rng));
 
         // Compute the (full) public keys for all secrets
         let full_public_keys = secrets.each_ref().map(|s| G::generator() * s);
