@@ -70,7 +70,7 @@ impl<
         let base_2w_expansion =
             integer_utils::compute_base_2w_expansion(&scalar_bytes, Self::WINDOW_WIDTH);
 
-        // Computer multiplication using the fixed-window method to ensure that it's constant time.
+        // Compute multiplication using the fixed-window method to ensure that it's constant time.
         let mut result: G = self.cache[base_2w_expansion[base_2w_expansion.len() - 1]].clone();
         for digit in base_2w_expansion.iter().rev().skip(1) {
             for _ in 1..=Self::WINDOW_WIDTH {
