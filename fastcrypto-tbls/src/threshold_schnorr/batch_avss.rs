@@ -517,7 +517,7 @@ mod tests {
     use fastcrypto::groups::GroupElement;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
-    use std::array::from_fn;
+    use std::array;
     use std::collections::HashMap;
 
     #[test]
@@ -745,7 +745,7 @@ mod tests {
             &self,
             rng: &mut impl AllowedRng,
         ) -> FastCryptoResult<Message<BATCH_SIZE>> {
-            let polynomials = from_fn(|_| Poly::rand(self.t - 1, rng));
+            let polynomials = array::from_fn(|_| Poly::rand(self.t - 1, rng));
 
             // Compute the (full) public keys for all secrets
             let full_public_keys = polynomials.each_ref().map(|p| G::generator() * p.c0());
