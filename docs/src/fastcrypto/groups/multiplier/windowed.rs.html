@@ -70,7 +70,7 @@
 <a href=#70 id=70 data-nosnippet>70</a>        <span class="kw">let </span>base_2w_expansion =
 <a href=#71 id=71 data-nosnippet>71</a>            integer_utils::compute_base_2w_expansion(<span class="kw-2">&amp;</span>scalar_bytes, <span class="self">Self</span>::WINDOW_WIDTH);
 <a href=#72 id=72 data-nosnippet>72</a>
-<a href=#73 id=73 data-nosnippet>73</a>        <span class="comment">// Computer multiplication using the fixed-window method to ensure that it's constant time.
+<a href=#73 id=73 data-nosnippet>73</a>        <span class="comment">// Compute multiplication using the fixed-window method to ensure that it's constant time.
 <a href=#74 id=74 data-nosnippet>74</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>result: G = <span class="self">self</span>.cache[base_2w_expansion[base_2w_expansion.len() - <span class="number">1</span>]].clone();
 <a href=#75 id=75 data-nosnippet>75</a>        <span class="kw">for </span>digit <span class="kw">in </span>base_2w_expansion.iter().rev().skip(<span class="number">1</span>) {
 <a href=#76 id=76 data-nosnippet>76</a>            <span class="kw">for _ in </span><span class="number">1</span>..=<span class="self">Self</span>::WINDOW_WIDTH {

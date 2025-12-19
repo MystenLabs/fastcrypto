@@ -90,7 +90,7 @@
 <a href=#90 id=90 data-nosnippet>90</a>    result
 <a href=#91 id=91 data-nosnippet>91</a>}
 <a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a><span class="doccomment">/// Return true iff the bit at the given index is set. The input is assumed to be infinetely padded
+<a href=#93 id=93 data-nosnippet>93</a><span class="doccomment">/// Return true iff the bit at the given index is set. The input is assumed to be infinitely padded
 <a href=#94 id=94 data-nosnippet>94</a>/// with zeros, so if the index is larger than the number of bits in the input, the function will
 <a href=#95 id=95 data-nosnippet>95</a>/// return false.
 <a href=#96 id=96 data-nosnippet>96</a></span><span class="attr">#[inline]
@@ -116,7 +116,7 @@
 <a href=#116 id=116 data-nosnippet>116</a>    x &amp; (x - <span class="number">1</span>) == <span class="number">0
 <a href=#117 id=117 data-nosnippet>117</a></span>}
 <a href=#118 id=118 data-nosnippet>118</a>
-<a href=#119 id=119 data-nosnippet>119</a><span class="comment">// We implement `ToLittleEndianByteArray` for `BigUint` in case it needs to be used as scalar for
+<a href=#119 id=119 data-nosnippet>119</a><span class="comment">// We implement `ToLittleEndianBytes` for `BigUint` in case it needs to be used as scalar for
 <a href=#120 id=120 data-nosnippet>120</a>// multi-scalar multiplication.
 <a href=#121 id=121 data-nosnippet>121</a></span><span class="kw">impl </span>ToLittleEndianBytes <span class="kw">for </span>BigUint {
 <a href=#122 id=122 data-nosnippet>122</a>    <span class="kw">fn </span>to_le_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
@@ -161,7 +161,7 @@
 <a href=#161 id=161 data-nosnippet>161</a>        <span class="kw">let </span>value: u128 = <span class="number">123812341234567</span>;
 <a href=#162 id=162 data-nosnippet>162</a>        <span class="kw">let </span>bytes = value.to_le_bytes();
 <a href=#163 id=163 data-nosnippet>163</a>
-<a href=#164 id=164 data-nosnippet>164</a>        <span class="comment">// Is w = 8, the base 2^w expansion should be equal to the le bytes.
+<a href=#164 id=164 data-nosnippet>164</a>        <span class="comment">// If w = 8, the base 2^w expansion should be equal to the le bytes.
 <a href=#165 id=165 data-nosnippet>165</a>        </span><span class="kw">let </span>expansion = compute_base_2w_expansion(<span class="kw-2">&amp;</span>bytes, <span class="number">8</span>);
 <a href=#166 id=166 data-nosnippet>166</a>        <span class="macro">assert_eq!</span>(
 <a href=#167 id=167 data-nosnippet>167</a>            bytes.to_vec(),
