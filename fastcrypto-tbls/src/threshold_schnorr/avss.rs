@@ -312,10 +312,10 @@ impl Receiver {
             &self.random_oracle(),
             |shares: &SharesForNode| shares.verify(message),
         )?;
-        Ok(ComplaintResponse::create(
-            self.id,
-            my_output.my_shares.clone(),
-        ))
+        Ok(ComplaintResponse {
+            responder_id: self.id,
+            shares: my_output.my_shares.clone(),
+        })
     }
 
     /// 5. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
