@@ -93,18 +93,12 @@ impl<C: GroupElement> Iterator for LazyPascalMatrixMultiplier<C> {
     type Item = C;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.current_vector.next() {
-            Some(v) => Some(v),
-            None => {
-                if self.buffers.is_empty() {
-                    None
-                } else {
-                    self.current_vector =
-                        LazyPascalVectorMultiplier::new(self.height, self.buffers.pop().unwrap());
-                    self.current_vector.next()
-                }
-            }
-        }
+        self.current_vector.next().or_else(|| {
+            self.buffers.pop().and_then(|v| {
+                self.current_vector = LazyPascalVectorMultiplier::new(self.height, v);
+                self.next()
+            })
+        })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
