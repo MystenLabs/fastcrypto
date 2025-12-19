@@ -37,7 +37,7 @@ pub(crate) fn fq_arkworks_to_p256(scalar: &ark_secp256r1::Fq) -> FieldBytes {
     p256::FieldBytes::from(bytes)
 }
 
-/// Convert an p256 affine point to an arkworks affine point.
+/// Convert a p256 affine point to an arkworks affine point.
 pub(crate) fn affine_pt_p256_to_projective_arkworks(
     point: &p256::AffinePoint,
 ) -> ark_secp256r1::Projective {

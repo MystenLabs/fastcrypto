@@ -23,14 +23,14 @@ use std::ops::{Add, Neg};
 #[cfg(test)]
 mod tests;
 
-/// This module implements a hash function for imaginary class groups whichtakes an arbitrary binary input and returns
+/// This module implements a hash function for imaginary class groups which takes an arbitrary binary input and returns
 /// an element in the class group. The output of the hash function is uniformly random on a large subset of the class
 /// group but not the entire class group.
 pub(crate) mod hash;
 
 /// Two quadratic forms may represent the same element in the class group, but each equivalence class contains exactly
-/// one reduced form. This module contains methods to reduce quadratic forms, which besides uniqness also ensures that
-/// the coefficients does not become too large.
+/// one reduced form. This module contains methods to reduce quadratic forms, which besides uniqueness also ensures that
+/// the coefficients do not become too large.
 pub(crate) mod reduction;
 
 /// Discriminants of quadratic forms are negative primes which is 1 mod 8. This module contains a type to represent

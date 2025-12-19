@@ -33,7 +33,7 @@ const RISTRETTO_SCALAR_BYTE_LENGTH: usize = 32;
 pub struct RistrettoPoint(ExternalRistrettoPoint);
 
 impl RistrettoPoint {
-    /// Construct a RistrettoPoint from the given data using an Ristretto-flavoured Elligator 2 map.
+    /// Construct a RistrettoPoint from the given data using a Ristretto-flavoured Elligator 2 map.
     /// If the input bytes are uniformly distributed, the resulting point will be uniformly
     /// distributed over the Ristretto group.
     pub fn from_uniform_bytes(bytes: &[u8; 64]) -> Self {
