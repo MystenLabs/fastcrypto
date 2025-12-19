@@ -339,6 +339,15 @@ fn apply(
 /// the new ticket assignment after applying all deltas.
 /// `dp_head` must have all indices applied except those in `deltas` with data
 /// in `tickets`.
+///
+/// # Recursion Depth Bound
+/// The recursion depth is bounded by O(log n) where n = `deltas.len()`, because:
+/// - Each recursive call splits `deltas` roughly in half
+/// - The base case is when `deltas.is_empty()`
+/// - Maximum depth is approximately log₂(n) + 1
+///
+/// Since `deltas` comes from `batch_size - 1` in `solve()`, and `batch_size` grows
+/// exponentially, the recursion depth grows logarithmically.
 fn process_batch_recursive(
     beta: Ratio,
     weights: &[u64],
@@ -358,42 +367,38 @@ fn process_batch_recursive(
     // Number of tickets assignments in the left branch.
     let left_branch_size = (deltas.len() + 1) / 2;
 
-    {
-        let (deltas_left, deltas_apply) = deltas.split_at(left_branch_size - 1);
-        if let Some(dp) = apply(
-            weights,
-            dp_head,
-            tickets,
-            calc_adv_tickets_target(beta, tickets.total() + deltas_left.len() as u64),
-            deltas_apply,
-            deltas_left,
-        ) {
-            if process_batch_recursive(beta, weights, deltas_left, &dp, tickets) {
-                return true;
-            }
-        } else {
-            // Apply the left deltas before continuing.
-            tickets.update_many(deltas_left);
+    let (deltas_left, deltas_apply) = deltas.split_at(left_branch_size - 1);
+    if let Some(dp) = apply(
+        weights,
+        dp_head,
+        tickets,
+        calc_adv_tickets_target(beta, tickets.total() + deltas_left.len() as u64),
+        deltas_apply,
+        deltas_left,
+    ) {
+        if process_batch_recursive(beta, weights, deltas_left, &dp, tickets) {
+            return true;
         }
-        tickets.update(deltas_apply[0]);
+    } else {
+        // Apply the left deltas before continuing.
+        tickets.update_many(deltas_left);
     }
+    tickets.update(deltas_apply[0]);
 
-    {
-        let (deltas_apply, deltas_right) = deltas.split_at(left_branch_size);
-        if let Some(dp) = apply(
-            weights,
-            dp_head,
-            tickets,
-            calc_adv_tickets_target(beta, tickets.total() + deltas_right.len() as u64),
-            deltas_apply,
-            deltas_right,
-        ) {
-            process_batch_recursive(beta, weights, deltas_right, &dp, tickets)
-        } else {
-            // Apply the rest of the deltas before exiting.
-            tickets.update_many(deltas_right);
-            false
-        }
+    let (deltas_apply, deltas_right) = deltas.split_at(left_branch_size);
+    if let Some(dp) = apply(
+        weights,
+        dp_head,
+        tickets,
+        calc_adv_tickets_target(beta, tickets.total() + deltas_right.len() as u64),
+        deltas_apply,
+        deltas_right,
+    ) {
+        process_batch_recursive(beta, weights, deltas_right, &dp, tickets)
+    } else {
+        // Apply the rest of the deltas before exiting.
+        tickets.update_many(deltas_right);
+        false
     }
 }
 
@@ -434,6 +439,13 @@ pub fn solve(alpha: Ratio, beta: Ratio, weights: &[u64]) -> Vec<u64> {
     // 4. Once batch_size is large enough to include all deltas needed for a valid solution,
     //    `process_batch_recursive` will eventually return true when it successfully applies
     //    all deltas in the batch without the adversary winning (see the empty deltas base case)
+    //
+    // # Overflow Safety
+    // The paper guarantees a solution with at most O(n) total tickets, where n = weights.len().
+    // Since we need at most n indices (one per weight) to form a solution, `batch_size` will
+    // never need to exceed n. We cap it at `weights.len()` to prevent overflow and ensure
+    // termination even in edge cases.
+    let max_batch_size = weights.len();
     loop {
         tickets.update(g.next().unwrap());
         let deltas: Vec<_> = (&mut g).take(batch_size - 1).collect();
@@ -443,7 +455,14 @@ pub fn solve(alpha: Ratio, beta: Ratio, weights: &[u64]) -> Vec<u64> {
             return tickets.into_vec();
         }
 
-        batch_size *= 2;
+        // Prevent overflow: cap batch_size at max_batch_size
+        if batch_size >= max_batch_size {
+            // If we've reached the maximum, continue with the same batch size
+            // This should not happen in practice due to the theoretical guarantees,
+            // but provides a safety net.
+            continue;
+        }
+        batch_size = (batch_size * 2).min(max_batch_size);
     }
 }
 
