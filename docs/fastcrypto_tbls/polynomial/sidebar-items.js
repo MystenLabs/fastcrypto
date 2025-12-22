@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["create_secret_sharing"],"struct":["EvalRange","Poly"],"type":["Eval","PrivatePoly","PublicPoly"]};
+window.SIDEBAR_ITEMS = {"struct":["EvalRange","Poly"],"type":["Eval","PrivatePoly","PublicPoly"]};

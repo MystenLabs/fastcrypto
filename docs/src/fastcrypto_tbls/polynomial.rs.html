@@ -775,18 +775,22 @@
 <a href=#775 id=775 data-nosnippet>775</a>}
 <a href=#776 id=776 data-nosnippet>776</a>
 <a href=#777 id=777 data-nosnippet>777</a><span class="doccomment">/// Create `n` shares for a given secret such that `t` shares can reconstruct the secret.
-<a href=#778 id=778 data-nosnippet>778</a></span><span class="kw">pub fn </span>create_secret_sharing&lt;C: Scalar&gt;(
-<a href=#779 id=779 data-nosnippet>779</a>    rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>AllowedRng,
-<a href=#780 id=780 data-nosnippet>780</a>    secret: C,
-<a href=#781 id=781 data-nosnippet>781</a>    t: u16,
-<a href=#782 id=782 data-nosnippet>782</a>    n: u16,
-<a href=#783 id=783 data-nosnippet>783</a>) -&gt; EvalRange&lt;C&gt; {
-<a href=#784 id=784 data-nosnippet>784</a>    <span class="comment">// The first evaluation point (one zero) is given by the secret, and the remaining are random.
-<a href=#785 id=785 data-nosnippet>785</a>    </span><span class="kw">let </span>evaluations_points = once(secret)
-<a href=#786 id=786 data-nosnippet>786</a>        .chain(repeat_with(|| C::rand(rng)).take(t <span class="kw">as </span>usize - <span class="number">1</span>))
-<a href=#787 id=787 data-nosnippet>787</a>        .collect_vec();
-<a href=#788 id=788 data-nosnippet>788</a>
-<a href=#789 id=789 data-nosnippet>789</a>    <span class="comment">// Compute evaluations of the polynomial for 1, 2, ..., n using a simple Evaluator
-<a href=#790 id=790 data-nosnippet>790</a>    </span><span class="kw">let </span>evaluator = PolynomialEvaluator::simple_from_evaluations(evaluations_points);
-<a href=#791 id=791 data-nosnippet>791</a>    EvalRange(evaluator.take(n <span class="kw">as </span>usize).map(|e| e.value).collect())
-<a href=#792 id=792 data-nosnippet>792</a>}</code></pre></div></section></main></body></html>
+<a href=#778 id=778 data-nosnippet>778</a>/// Panics if t == 0 or t &gt; n.
+<a href=#779 id=779 data-nosnippet>779</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>create_secret_sharing&lt;C: Scalar&gt;(
+<a href=#780 id=780 data-nosnippet>780</a>    rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>AllowedRng,
+<a href=#781 id=781 data-nosnippet>781</a>    secret: C,
+<a href=#782 id=782 data-nosnippet>782</a>    t: u16,
+<a href=#783 id=783 data-nosnippet>783</a>    n: u16,
+<a href=#784 id=784 data-nosnippet>784</a>) -&gt; EvalRange&lt;C&gt; {
+<a href=#785 id=785 data-nosnippet>785</a>    <span class="macro">assert!</span>(t &gt; <span class="number">0 </span>&amp;&amp; t &lt;= n);
+<a href=#786 id=786 data-nosnippet>786</a>
+<a href=#787 id=787 data-nosnippet>787</a>    <span class="comment">// The first evaluation point (one zero) is given by the secret, and the remaining are random.
+<a href=#788 id=788 data-nosnippet>788</a>    </span><span class="kw">let </span>evaluations_points = once(secret)
+<a href=#789 id=789 data-nosnippet>789</a>        .chain(repeat_with(|| C::rand(rng)))
+<a href=#790 id=790 data-nosnippet>790</a>        .take(t <span class="kw">as </span>usize)
+<a href=#791 id=791 data-nosnippet>791</a>        .collect_vec();
+<a href=#792 id=792 data-nosnippet>792</a>
+<a href=#793 id=793 data-nosnippet>793</a>    <span class="comment">// Compute evaluations of the polynomial for 1, 2, ..., n using a simple Evaluator
+<a href=#794 id=794 data-nosnippet>794</a>    </span><span class="kw">let </span>evaluator = PolynomialEvaluator::simple_from_evaluations(evaluations_points);
+<a href=#795 id=795 data-nosnippet>795</a>    EvalRange(evaluator.take(n <span class="kw">as </span>usize).map(|e| e.value).collect())
+<a href=#796 id=796 data-nosnippet>796</a>}</code></pre></div></section></main></body></html>
