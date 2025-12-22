@@ -67,7 +67,7 @@ impl<C: GroupElement> LazyPascalMatrixMultiplier<C> {
     /// Create a new lazy Pascal matrix iterator that will yield `height * columns.len()` elements.
     /// Panics if
     /// * `columns` is empty,
-    /// * if the columns are not all of the same length which is at least `height`,
+    /// * if the columns are not all of the same length that is at least `height`,
     /// * if `height` is zero.
     pub fn new(height: usize, columns: Vec<Vec<C>>) -> Self {
         assert!(!columns.is_empty());
@@ -93,18 +93,12 @@ impl<C: GroupElement> Iterator for LazyPascalMatrixMultiplier<C> {
     type Item = C;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.current_vector.next() {
-            Some(v) => Some(v),
-            None => {
-                if self.buffers.is_empty() {
-                    None
-                } else {
-                    self.current_vector =
-                        LazyPascalVectorMultiplier::new(self.height, self.buffers.pop().unwrap());
-                    self.current_vector.next()
-                }
-            }
-        }
+        self.current_vector.next().or_else(|| {
+            self.buffers.pop().and_then(|v| {
+                self.current_vector = LazyPascalVectorMultiplier::new(self.height, v);
+                self.next()
+            })
+        })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {

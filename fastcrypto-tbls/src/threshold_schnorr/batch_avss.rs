@@ -108,7 +108,7 @@ impl<const BATCH_SIZE: usize> ShareBatch<BATCH_SIZE> {
             .iter()
             .zip(challenge)
             .fold(self.blinding_share, |acc, (r_l, gamma_l)| {
-                acc + (*r_l * gamma_l)
+                acc + r_l * gamma_l
             })
             != message.response_polynomial.eval(self.index).value
         {
@@ -407,10 +407,10 @@ impl Receiver {
             &self.random_oracle(),
             |shares: &SharesForNode<BATCH_SIZE>| shares.verify(&self.random_oracle(), message),
         )?;
-        Ok(ComplaintResponse::create(
-            self.id,
-            my_output.my_shares.clone(),
-        ))
+        Ok(ComplaintResponse {
+            responder_id: self.id,
+            shares: my_output.my_shares.clone(),
+        })
     }
 
     /// 5. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
