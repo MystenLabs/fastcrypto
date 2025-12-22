@@ -396,16 +396,12 @@ impl Receiver {
         complaint: &Complaint,
         my_output: &ReceiverOutput<BATCH_SIZE>,
     ) -> FastCryptoResult<ComplaintResponse<SharesForNode<BATCH_SIZE>>> {
+        let challenge = compute_challenge_from_message(&self.random_oracle(), message);
         complaint.check(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
             &self.random_oracle(),
-            |shares: &SharesForNode<BATCH_SIZE>| {
-                shares.verify(
-                    message,
-                    &compute_challenge_from_message(&self.random_oracle(), message),
-                )
-            },
+            |shares: &SharesForNode<BATCH_SIZE>| shares.verify(message, &challenge),
         )?;
         Ok(ComplaintResponse::create(
             self.id,
