@@ -312,10 +312,10 @@
 <a href=#312 id=312 data-nosnippet>312</a>            <span class="kw-2">&amp;</span><span class="self">self</span>.random_oracle(),
 <a href=#313 id=313 data-nosnippet>313</a>            |shares: <span class="kw-2">&amp;</span>SharesForNode| shares.verify(message),
 <a href=#314 id=314 data-nosnippet>314</a>        )<span class="question-mark">?</span>;
-<a href=#315 id=315 data-nosnippet>315</a>        <span class="prelude-val">Ok</span>(ComplaintResponse::create(
-<a href=#316 id=316 data-nosnippet>316</a>            <span class="self">self</span>.id,
-<a href=#317 id=317 data-nosnippet>317</a>            my_output.my_shares.clone(),
-<a href=#318 id=318 data-nosnippet>318</a>        ))
+<a href=#315 id=315 data-nosnippet>315</a>        <span class="prelude-val">Ok</span>(ComplaintResponse {
+<a href=#316 id=316 data-nosnippet>316</a>            responder_id: <span class="self">self</span>.id,
+<a href=#317 id=317 data-nosnippet>317</a>            shares: my_output.my_shares.clone(),
+<a href=#318 id=318 data-nosnippet>318</a>        })
 <a href=#319 id=319 data-nosnippet>319</a>    }
 <a href=#320 id=320 data-nosnippet>320</a>
 <a href=#321 id=321 data-nosnippet>321</a>    <span class="doccomment">/// 5. Upon receiving t valid responses to a complaint, the accuser can recover its shares.

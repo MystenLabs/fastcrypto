@@ -108,7 +108,7 @@
 <a href=#108 id=108 data-nosnippet>108</a>            .iter()
 <a href=#109 id=109 data-nosnippet>109</a>            .zip(challenge)
 <a href=#110 id=110 data-nosnippet>110</a>            .fold(<span class="self">self</span>.blinding_share, |acc, (r_l, gamma_l)| {
-<a href=#111 id=111 data-nosnippet>111</a>                acc + (<span class="kw-2">*</span>r_l * gamma_l)
+<a href=#111 id=111 data-nosnippet>111</a>                acc + r_l * gamma_l
 <a href=#112 id=112 data-nosnippet>112</a>            })
 <a href=#113 id=113 data-nosnippet>113</a>            != message.response_polynomial.eval(<span class="self">self</span>.index).value
 <a href=#114 id=114 data-nosnippet>114</a>        {
@@ -407,10 +407,10 @@
 <a href=#407 id=407 data-nosnippet>407</a>            <span class="kw-2">&amp;</span><span class="self">self</span>.random_oracle(),
 <a href=#408 id=408 data-nosnippet>408</a>            |shares: <span class="kw-2">&amp;</span>SharesForNode&lt;BATCH_SIZE&gt;| shares.verify(<span class="kw-2">&amp;</span><span class="self">self</span>.random_oracle(), message),
 <a href=#409 id=409 data-nosnippet>409</a>        )<span class="question-mark">?</span>;
-<a href=#410 id=410 data-nosnippet>410</a>        <span class="prelude-val">Ok</span>(ComplaintResponse::create(
-<a href=#411 id=411 data-nosnippet>411</a>            <span class="self">self</span>.id,
-<a href=#412 id=412 data-nosnippet>412</a>            my_output.my_shares.clone(),
-<a href=#413 id=413 data-nosnippet>413</a>        ))
+<a href=#410 id=410 data-nosnippet>410</a>        <span class="prelude-val">Ok</span>(ComplaintResponse {
+<a href=#411 id=411 data-nosnippet>411</a>            responder_id: <span class="self">self</span>.id,
+<a href=#412 id=412 data-nosnippet>412</a>            shares: my_output.my_shares.clone(),
+<a href=#413 id=413 data-nosnippet>413</a>        })
 <a href=#414 id=414 data-nosnippet>414</a>    }
 <a href=#415 id=415 data-nosnippet>415</a>
 <a href=#416 id=416 data-nosnippet>416</a>    <span class="doccomment">/// 5. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
