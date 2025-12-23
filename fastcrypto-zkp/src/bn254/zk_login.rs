@@ -126,6 +126,12 @@ pub enum OIDCProvider {
     EveFrontier,
     /// https://test.auth.evefrontier.com/.well-known/jwks.json
     TestEveFrontier,
+    /// TestHuionepay
+    TestHuionepay,
+    /// Huionepay
+    Huionepay,
+    /// Telegram
+    Telegram,
 }
 
 impl FromStr for OIDCProvider {
@@ -150,6 +156,9 @@ impl FromStr for OIDCProvider {
             "Arden" => Ok(Self::Arden),
             "EveFrontier" => Ok(Self::EveFrontier),
             "TestEveFrontier" => Ok(Self::TestEveFrontier),
+            "Telegram" => Ok(Self::Telegram),
+            "TestHuionepay" => Ok(Self::TestHuionepay),
+            "Huionepay" => Ok(Self::Huionepay),
             _ => {
                 let re = Regex::new(
                     r"AwsTenant-region:(?P<region>[^.]+)-tenant_id:(?P<tenant_id>[^/]+)",
@@ -187,6 +196,9 @@ impl Display for OIDCProvider {
             Self::Arden => write!(f, "Arden"),
             Self::EveFrontier => write!(f, "EveFrontier"),
             Self::TestEveFrontier => write!(f, "TestEveFrontier"),
+            Self::Telegram => write!(f, "Telegram"),
+            Self::Huionepay => write!(f, "Huionepay"),
+            Self::TestHuionepay => write!(f, "TestHuionepay"),
             Self::AwsTenant((region, tenant_id)) => {
                 write!(f, "AwsTenant-region:{}-tenant_id:{}", region, tenant_id)
             }
@@ -264,15 +276,27 @@ impl OIDCProvider {
                 "https://oidc.arden.cc",
                 "https://api.arden.cc/auth/jwks",
             ),
-            OIDCProvider::EveFrontier => ProviderConfig::new(
+          OIDCProvider::EveFrontier => ProviderConfig::new(
                 "auth.evefrontier.com",
                 "https://auth.evefrontier.com/.well-known/jwks.json"
             ),
             OIDCProvider::TestEveFrontier => ProviderConfig::new(
                 "test.auth.evefrontier.com",
                 "https://test.auth.evefrontier.com/.well-known/jwks.json"
-            )
-        }
+            ),
+            OIDCProvider::Telegram => ProviderConfig::new(
+                "https://tg-accounts.onelabs.cc",
+                "https://tg-accounts.onelabs.cc/auth/jwks",
+            ),
+            OIDCProvider::Huionepay => ProviderConfig::new(
+                "https://accounts.huionepay.com",
+                "https://salt.h-tech.io/get_keys",
+            ),
+            OIDCProvider::TestHuionepay => ProviderConfig::new(
+                "https://test.huionepay.com",
+                "https://salt-api-testnet.huione.org/get_keys",
+            ),
+          }
     }
 
     /// Returns the OIDCProvider for the given iss string.
@@ -289,6 +313,9 @@ impl OIDCProvider {
             "https://accounts.credenza3.com" => Ok(Self::Credenza3),
             "https://oauth2.playtron.one" => Ok(Self::Playtron),
             "https://auth.3dos.io" => Ok(Self::Threedos),
+            "https://tg-accounts.onelabs.cc" => Ok(Self::Telegram),
+            "https://test.huionepay.com" => Ok(Self::TestHuionepay),
+            "https://accounts.huionepay.com" => Ok(Self::Huionepay),
             "https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/v2.0/" => {
                 Ok(Self::Onefc)
             }
