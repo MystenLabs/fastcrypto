@@ -110,6 +110,7 @@ impl<C: GroupElement> ExactSizeIterator for LazyPascalMatrixMultiplier<C> {}
 #[test]
 fn test_small_lazy_pascal_vector() {
     use fastcrypto::groups::bls12381::Scalar;
+    use itertools::Itertools;
 
     let expected = [
         vec![1, 1, 1, 1],
