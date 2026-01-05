@@ -123,7 +123,7 @@ fn test_small_lazy_pascal_vector() {
     for i in 0..5 {
         let mut x = vec![Scalar::from(0u128); 5];
         x[i] = Scalar::from(1u128);
-        let y = LazyPascalVectorMultiplier::new(4, x).collect::<Vec<_>>();
+        let y = LazyPascalVectorMultiplier::new(4, x).collect_vec();
         assert_eq!(
             y,
             expected[i]
@@ -137,6 +137,7 @@ fn test_small_lazy_pascal_vector() {
 #[test]
 fn test_small_lazy_pascal_matrix() {
     use fastcrypto::groups::bls12381::Scalar;
+    use itertools::Itertools;
 
     let expected = [vec![1, 3, 6, 10], vec![1, 2, 3, 4], vec![1, 1, 1, 1]];
 
@@ -163,6 +164,7 @@ fn test_small_lazy_pascal_matrix() {
 #[test]
 fn test_large_lazy_pascal_matrix() {
     use fastcrypto::groups::bls12381::Scalar;
+    use itertools::Itertools;
 
     let expected = [
         vec![1, 7, 28, 84, 210, 462, 924],
@@ -198,6 +200,7 @@ fn test_large_lazy_pascal_matrix() {
 fn random_test_vector() {
     use fastcrypto::groups::bls12381::Scalar;
     use fastcrypto::groups::Scalar as _;
+    use itertools::Itertools;
 
     // Full 7x7 Pascal matrix for comparison.
     let p7 = [

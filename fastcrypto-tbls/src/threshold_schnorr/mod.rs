@@ -85,7 +85,7 @@ mod tests {
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
     use crate::threshold_schnorr::{avss, batch_avss, EG, G, S};
-    use crate::types::{IndexedValue, ShareIndex};
+    use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
@@ -186,8 +186,7 @@ mod tests {
             .collect::<HashMap<_, _>>();
 
         // All receivers should now have the same verifying key
-        assert!(merged_shares.values().map(|output| output.vk).all_equal());
-        let vk = merged_shares.get(&0).unwrap().vk;
+        let vk = get_uniform_value(merged_shares.values().map(|output| output.vk)).unwrap();
 
         // For testing, we now recover the secret key from t shares and check that the secret key matches the verification key.
         // In practice, the parties should never do this...
@@ -281,15 +280,17 @@ mod tests {
             .collect_vec();
 
         // The public parts should all be the same
-        assert!(partial_signatures
-            .iter()
-            .map(|partial_signature| partial_signature.0)
-            .all_equal());
+        let public_presig = get_uniform_value(
+            partial_signatures
+                .iter()
+                .map(|partial_signature| partial_signature.0),
+        )
+        .unwrap();
 
         // Aggregate partial signatures
         let signature = aggregate_signatures(
             message,
-            &partial_signatures[0].0, // All public parts are equal, so we just take the first
+            &public_presig,
             &beacon_value,
             &partial_signatures
                 .iter()
@@ -462,15 +463,17 @@ mod tests {
             .collect_vec();
 
         // The public parts should all be the same
-        assert!(partial_signatures
-            .iter()
-            .map(|partial_signature| partial_signature.0)
-            .all_equal());
+        let public_presig = get_uniform_value(
+            partial_signatures
+                .iter()
+                .map(|partial_signature| partial_signature.0),
+        )
+        .unwrap();
 
         // Aggregate partial signatures
         let signature_2 = aggregate_signatures(
             message_2,
-            &partial_signatures[0].0, // All public parts are equal, so we just take the first
+            &public_presig,
             &beacon_value,
             &partial_signatures
                 .iter()
@@ -605,11 +608,12 @@ mod tests {
             })
             .collect_vec();
 
-        assert!(partial_signatures
-            .iter()
-            .map(|partial_signature| partial_signature.0)
-            .all_equal());
-        let public = partial_signatures[0].0;
+        let public = get_uniform_value(
+            partial_signatures
+                .iter()
+                .map(|partial_signature| partial_signature.0),
+        )
+        .unwrap();
 
         let signature = aggregate_signatures(
             message,
@@ -720,11 +724,12 @@ mod tests {
             })
             .collect_vec();
 
-        assert!(partial_signatures
-            .iter()
-            .map(|partial_signature| partial_signature.0)
-            .all_equal());
-        let public = partial_signatures[0].0;
+        let public = get_uniform_value(
+            partial_signatures
+                .iter()
+                .map(|partial_signature| partial_signature.0),
+        )
+        .unwrap();
 
         let signature = aggregate_signatures(
             message,
