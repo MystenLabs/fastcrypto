@@ -84,7 +84,10 @@ impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
                 .collect(),
         );
 
-        assert_eq!(get_uniform_value(secret.iter().map(LazyPascalMatrixMultiplier::len)).unwrap(), public.len());
+        assert_eq!(
+            get_uniform_value(secret.iter().map(LazyPascalMatrixMultiplier::len)).unwrap(),
+            public.len()
+        );
 
         Ok(Self {
             secret,

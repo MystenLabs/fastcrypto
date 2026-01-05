@@ -564,7 +564,7 @@ mod tests {
                     .map(|r| {
                         (
                             r.id,
-                            all_shares.get(&r.id).unwrap().my_shares.shares[0].batch[l], // Each receiver has a single batch (weight 1)
+                            all_shares.get(&r.id).unwrap().my_shares.shares[0].batch[l], // Each receiver has a single share (weight=1)
                         )
                     })
                     .collect_vec();
