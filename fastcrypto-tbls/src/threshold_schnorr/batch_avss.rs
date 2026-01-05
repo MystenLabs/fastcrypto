@@ -78,7 +78,7 @@ pub struct ReceiverOutput<const BATCH_SIZE: usize> {
 /// These can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharesForNode<const BATCH_SIZE: usize> {
-    pub batches: Vec<ShareBatch<BATCH_SIZE>>,
+    pub shares: Vec<ShareBatch<BATCH_SIZE>>,
 }
 
 /// A batch of shares for a single share index, containing shares for each secret and one for the "blinding" polynomial.
@@ -89,7 +89,7 @@ pub struct ShareBatch<const BATCH_SIZE: usize> {
 
     /// The shares for each secret.
     #[serde(with = "BigArray")]
-    pub shares: [S; BATCH_SIZE],
+    pub batch: [S; BATCH_SIZE],
 
     /// The share for the blinding polynomial.
     pub blinding_share: S,
@@ -98,13 +98,13 @@ pub struct ShareBatch<const BATCH_SIZE: usize> {
 impl<const BATCH_SIZE: usize> ShareBatch<BATCH_SIZE> {
     /// Verify a batch of shares using the given challenge.
     fn verify(&self, message: &Message<BATCH_SIZE>, challenge: &[S]) -> FastCryptoResult<()> {
-        if challenge.len() != self.shares.len() {
+        if challenge.len() != self.batch.len() {
             return Err(InvalidInput);
         }
 
         // Verify that r' + sum_l r_l * gamma_l == p''(i)
         if self
-            .shares
+            .batch
             .iter()
             .zip_eq(challenge)
             .fold(self.blinding_share, |acc, (r_l, gamma_l)| {
@@ -121,7 +121,7 @@ impl<const BATCH_SIZE: usize> ShareBatch<BATCH_SIZE> {
 impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
     /// Get the weight of this node (number of shares it has).
     pub fn weight(&self) -> usize {
-        self.batches.len()
+        self.shares.len()
     }
 
     /// Get all shares this node has for the <i>i</i>-th secret/nonce in the batch.
@@ -132,14 +132,14 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
         if i >= BATCH_SIZE {
             return Err(InvalidInput);
         }
-        Ok(self.batches.iter().map(move |share_batch| Eval {
+        Ok(self.shares.iter().map(move |share_batch| Eval {
             index: share_batch.index,
-            value: share_batch.shares[i],
+            value: share_batch.batch[i],
         }))
     }
 
     fn verify(&self, message: &Message<BATCH_SIZE>, challenge: &[S]) -> FastCryptoResult<()> {
-        for shares in &self.batches {
+        for shares in &self.shares {
             shares.verify(message, challenge)?;
         }
         Ok(())
@@ -169,7 +169,7 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
                     index,
                     &other_shares
                         .iter()
-                        .flat_map(|s| &s.batches)
+                        .flat_map(|s| &s.shares)
                         .map(|batch| Eval {
                             index: batch.index,
                             value: batch.blinding_share,
@@ -180,12 +180,12 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
 
                 Ok(ShareBatch {
                     index,
-                    shares,
+                    batch: shares,
                     blinding_share,
                 })
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
-        Ok(Self { batches })
+        Ok(Self { shares: batches })
     }
 }
 
@@ -237,13 +237,11 @@ impl Dealer {
                 (
                     pk,
                     SharesForNode {
-                        batches: share_ids
+                        shares: share_ids
                             .into_iter()
                             .map(|index| ShareBatch {
                                 index,
-                                shares: shares_for_polynomial
-                                    .each_ref()
-                                    .map(|shares| shares[index]),
+                                batch: shares_for_polynomial.each_ref().map(|shares| shares[index]),
                                 blinding_share: blinding_poly_evaluations[index],
                             })
                             .collect_vec(),
@@ -439,10 +437,7 @@ impl Receiver {
             .collect_vec();
 
         // Compute the total weight of the valid responses
-        let response_weight = response_shares
-            .iter()
-            .map(SharesForNode::weight)
-            .sum::<usize>();
+        let response_weight: usize = response_shares.iter().map(SharesForNode::weight).sum();
         if response_weight < self.t as usize {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
@@ -569,7 +564,7 @@ mod tests {
                     .map(|r| {
                         (
                             r.id,
-                            all_shares.get(&r.id).unwrap().my_shares.batches[0].shares[l], // Each receiver has a single batch (weight 1)
+                            all_shares.get(&r.id).unwrap().my_shares.shares[0].batch[l], // Each receiver has a single batch (weight 1)
                         )
                     })
                     .collect_vec();
@@ -632,7 +627,7 @@ mod tests {
             .flat_map(|receiver| {
                 assert_valid(receiver.process_message(&message).unwrap())
                     .my_shares
-                    .batches
+                    .shares
             })
             .collect::<Vec<_>>();
 
@@ -642,7 +637,7 @@ mod tests {
                     t,
                     all_shares.iter().take(t as usize).map(|s| Eval {
                         index: s.index,
-                        value: s.shares[l],
+                        value: s.batch[l],
                     }),
                 )
                 .unwrap()
@@ -718,7 +713,7 @@ mod tests {
             .map(|l| {
                 let shares = all_shares
                     .iter()
-                    .map(|(id, s)| (*id, s.my_shares.batches[0].shares[l]))
+                    .map(|(id, s)| (*id, s.my_shares.shares[0].batch[l]))
                     .collect::<Vec<_>>();
                 Poly::recover_c0(
                     t,
@@ -758,11 +753,11 @@ mod tests {
                     (
                         public_key,
                         SharesForNode {
-                            batches: share_ids
+                            shares: share_ids
                                 .into_iter()
                                 .map(|index| ShareBatch {
                                     index,
-                                    shares: polynomials.each_ref().map(|p_l| p_l.eval(index).value),
+                                    batch: polynomials.each_ref().map(|p_l| p_l.eval(index).value),
                                     blinding_share: blinding_poly.eval(index).value,
                                 })
                                 .collect_vec(),

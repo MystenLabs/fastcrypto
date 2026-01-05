@@ -4,8 +4,8 @@
 use crate::threshold_schnorr::batch_avss::ReceiverOutput;
 use crate::threshold_schnorr::pascal_matrix::LazyPascalMatrixMultiplier;
 use crate::threshold_schnorr::{G, S};
-use crate::types::ShareIndex;
-use fastcrypto::error::FastCryptoError::InputTooShort;
+use crate::types::get_uniform_value;
+use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
 
@@ -32,7 +32,8 @@ impl<const BATCH_SIZE: usize> Iterator for Presignatures<BATCH_SIZE> {
                 self.index += 1;
                 Some((self.index, s, p))
             }
-            _ => None,
+            (None, None) => None,
+            _ => unreachable!(),
         }
     }
 
@@ -46,32 +47,40 @@ impl<const BATCH_SIZE: usize> ExactSizeIterator for Presignatures<BATCH_SIZE> {}
 
 impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
     /// Based on the output of a batched AVSS from multiple dealers, create a presignature generator.
-    pub fn new(
-        my_indices: &[ShareIndex],
-        avss_outputs: Vec<ReceiverOutput<BATCH_SIZE>>,
-        f: usize,
-    ) -> FastCryptoResult<Self> {
-        if avss_outputs.len() < 2 * f + 1 {
-            return Err(InputTooShort(2 * f + 1));
+    ///
+    /// This iterator can yield `BATCH_SIZE * (outputs.len() - f)` presignatures.
+    ///
+    /// BATCH_SIZE must be larger than or equal to the `outputs.len() - f`.
+    pub fn new(outputs: Vec<ReceiverOutput<BATCH_SIZE>>, f: usize) -> FastCryptoResult<Self> {
+        if outputs.len() < 2 * f + 1 || BATCH_SIZE + f < outputs.len() {
+            return Err(InvalidInput);
         }
-        let si_height = avss_outputs.len() - f;
+        let height = outputs.len() - f; // > f + 1
 
-        // There is one secret presigning output per share index (weight) for this party.
-        let secret = (0..my_indices.len())
+        let my_weight =
+            get_uniform_value(outputs.iter().map(|o| o.my_shares.weight())).ok_or(InvalidInput)?;
+
+        // There is one secret presigning output per weight for this party.
+        let secret = (0..my_weight)
             .map(|i| {
-                let rho = avss_outputs
-                    .iter()
-                    .map(|output| output.my_shares.batches[i].shares.to_vec())
-                    .collect();
-                LazyPascalMatrixMultiplier::new(si_height, rho)
+                LazyPascalMatrixMultiplier::new(
+                    height,
+                    (0..BATCH_SIZE)
+                        .map(|j| {
+                            outputs
+                                .iter()
+                                .map(|o| o.my_shares.shares[i].batch[j])
+                                .collect()
+                        })
+                        .collect(),
+                )
             })
             .collect_vec();
 
         let public = LazyPascalMatrixMultiplier::new(
-            si_height,
-            avss_outputs
-                .iter()
-                .map(|output| output.public_keys.to_vec())
+            height,
+            (0..BATCH_SIZE)
+                .map(|i| outputs.iter().map(|o| o.public_keys[i]).collect())
                 .collect(),
         );
 

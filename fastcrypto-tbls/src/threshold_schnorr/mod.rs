@@ -250,12 +250,7 @@ mod tests {
             .map(|(id, outputs)| {
                 (
                     id,
-                    Presignatures::<BATCH_SIZE>::new(
-                        &nodes.share_ids_of(id).unwrap(),
-                        outputs,
-                        f as usize,
-                    )
-                    .unwrap(),
+                    Presignatures::<BATCH_SIZE>::new(outputs, f as usize).unwrap(),
                 )
             })
             .collect::<HashMap<_, _>>();
@@ -567,9 +562,9 @@ mod tests {
                     .map(|j| {
                         batch_avss::ReceiverOutput {
                             my_shares: SharesForNode {
-                                batches: vec![ShareBatch {
+                                shares: vec![ShareBatch {
                                     index,
-                                    shares: array::from_fn(|l| {
+                                    batch: array::from_fn(|l| {
                                         nonces_for_dealer[j as usize].2[l][i as usize]
                                     }),
                                     blinding_share: Default::default(), // Not used for this test
@@ -584,15 +579,7 @@ mod tests {
 
         let mut presigning = outputs
             .into_iter()
-            .enumerate()
-            .map(|(i, output)| {
-                Presignatures::new(
-                    &[ShareIndex::new((i + 1) as u16).unwrap()],
-                    output,
-                    f as usize,
-                )
-                .unwrap()
-            })
+            .map(|output| Presignatures::new(output, f as usize).unwrap())
             .collect_vec();
 
         let message = b"Hello, world!";
@@ -668,7 +655,7 @@ mod tests {
         let sk_shares = mock_shares(&mut rng, sk_element, t, n);
 
         // Mock nonce generation
-        const BATCH_SIZE: usize = 10;
+        const BATCH_SIZE: usize = 100;
         let nonces_for_dealer = (0..n)
             .map(|_| {
                 let nonces: [S; BATCH_SIZE] = array::from_fn(|_| S::rand(&mut rng));
@@ -690,9 +677,9 @@ mod tests {
                     .map(|j| {
                         batch_avss::ReceiverOutput {
                             my_shares: SharesForNode {
-                                batches: vec![ShareBatch {
+                                shares: vec![ShareBatch {
                                     index,
-                                    shares: array::from_fn(|l| {
+                                    batch: array::from_fn(|l| {
                                         nonces_for_dealer[j as usize].2[l][i as usize]
                                     }),
                                     blinding_share: Default::default(), // Not used for this test
@@ -707,15 +694,7 @@ mod tests {
 
         let mut presigning = outputs
             .into_iter()
-            .enumerate()
-            .map(|(i, output)| {
-                Presignatures::new(
-                    &[ShareIndex::new((i + 1) as u16).unwrap()],
-                    output,
-                    f as usize,
-                )
-                .unwrap()
-            })
+            .map(|output| Presignatures::new(output, f as usize).unwrap())
             .collect_vec();
 
         let message = b"Hello, world!";

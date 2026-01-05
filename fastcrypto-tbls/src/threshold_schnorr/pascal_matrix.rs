@@ -1,8 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::types::get_uniform_value;
 use fastcrypto::groups::GroupElement;
-use itertools::Itertools;
 
 /// Lazy evaluation of Pascal matrix-vector multiplication, returning one element at a time.
 /// Computing the next element takes O(h) group additions, where h is the height of the input column.
@@ -70,10 +70,8 @@ impl<C: GroupElement> LazyPascalMatrixMultiplier<C> {
     /// * if the columns are not all of the same length that is at least `height`,
     /// * if `height` is zero.
     pub fn new(height: usize, columns: Vec<Vec<C>>) -> Self {
-        assert!(!columns.is_empty());
-        assert!(columns.iter().map(|c| c.len()).all_equal());
+        let width = get_uniform_value(columns.iter().map(Vec::len)).unwrap();
 
-        let width = columns[0].len();
         assert!(height <= width && height > 0);
 
         let mut buffers = columns;
