@@ -48,7 +48,7 @@ impl<const BATCH_SIZE: usize> ExactSizeIterator for Presignatures<BATCH_SIZE> {}
 impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
     /// Based on the output of a batched AVSS from multiple dealers, create a presignature generator.
     ///
-    /// This iterator can yield `BATCH_SIZE * (outputs.len() - f)` presignatures.
+    /// This iterator can yield `(outputs.len() - f) * BATCH_SIZE` presignatures.
     ///
     /// BATCH_SIZE must be larger than or equal to the `outputs.len() - f`.
     pub fn new(outputs: Vec<ReceiverOutput<BATCH_SIZE>>, f: usize) -> FastCryptoResult<Self> {
@@ -84,7 +84,7 @@ impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
                 .collect(),
         );
 
-        assert_eq!(secret[0].len(), public.len());
+        assert_eq!(get_uniform_value(secret.iter().map(LazyPascalMatrixMultiplier::len)).unwrap(), public.len());
 
         Ok(Self {
             secret,
