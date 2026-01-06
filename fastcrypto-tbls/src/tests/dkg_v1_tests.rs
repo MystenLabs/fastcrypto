@@ -1037,17 +1037,8 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
 
     // Run DKG as observer:
 
-    // Sanity checks for all messages.
-    // As for the parties, an error here means that the message should be ignored
-    all_messages
-        .iter()
-        .for_each(|m| observer.process_message(m.clone()).unwrap());
-
-    // Filter messages to ensure that there is only one message per dealer
-    let filtered_messages = observer.merge(all_messages.clone()).unwrap();
-
     // Compute the observers output. The Observer has no shares but only the vss_pk
-    let obs_output = observer.complete_optimistic(&filtered_messages).unwrap();
+    let obs_output = observer.observe_dkg(all_messages).unwrap();
     assert_eq!(obs_output.vss_pk, o0.vss_pk);
 
     // Use the shares to sign the message.
@@ -1163,18 +1154,8 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
         .unwrap();
 
     // The Observer can process all messages.
-    // As for the Parties, an error here means that the message should be ignored - this should not happen here though.
-    all_messages
-        .iter()
-        .zip(expected_pks.iter())
-        .for_each(|(m, epk)| {
-            observer_2
-                .process_message_and_check_pk(m.clone(), epk)
-                .unwrap()
-        });
-    let filtered_messages_2 = observer_2.merge(all_messages.clone()).unwrap();
     let observer_output_2 = observer_2
-        .complete_optimistic_key_rotation(&filtered_messages_2, &new_sender_to_old_map)
+        .observe_key_rotation(all_messages, &expected_pks, &new_sender_to_old_map)
         .unwrap();
 
     assert!(no0.shares.is_some());

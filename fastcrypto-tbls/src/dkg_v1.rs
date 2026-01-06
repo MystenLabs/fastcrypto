@@ -1019,6 +1019,35 @@ where
         })
     }
 
+    /// Compute the output of a DKG protocol given all the dealer messages from the protocol.
+    /// If successful, return the ObserverOutput which contains the verifying key.
+    pub fn observe_dkg(
+        &self,
+        all_messages: Vec<Message<G, EG>>,
+    ) -> FastCryptoResult<ObserverOutput<G, EG>> {
+        all_messages
+            .iter()
+            .try_for_each(|m| self.process_message(m.clone()))?;
+        let filtered_messages = self.merge(all_messages)?;
+        self.complete_optimistic(&filtered_messages)
+    }
+
+    /// Compute the output of a key rotation protocol given all the dealer messages from the protocol.
+    /// If successful, return the ObserverOutput which contains the verifying key.
+    pub fn observe_key_rotation(
+        &self,
+        all_messages: Vec<Message<G, EG>>,
+        expected_pks: &[G],
+        new_to_old_party_ids: &HashMap<PartyId, PartyId>,
+    ) -> FastCryptoResult<ObserverOutput<G, EG>> {
+        all_messages
+            .iter()
+            .zip(expected_pks)
+            .try_for_each(|(m, epk)| self.process_message_and_check_pk(m.clone(), epk))?;
+        let filtered_messages = self.merge(all_messages)?;
+        self.complete_optimistic_key_rotation(&filtered_messages, new_to_old_party_ids)
+    }
+
     /// The threshold needed to reconstruct the full key/signature.
     pub fn t(&self) -> u16 {
         self.t
