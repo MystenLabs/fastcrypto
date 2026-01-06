@@ -123,8 +123,9 @@ mod batch_avss_benches {
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
                 let keys = generate_ecies_keys(*n);
-                let dealers: Vec<Dealer> =
-                    (0..total_w).map(|_| setup_dealer(t, t - 1, w, &keys)).collect();
+                let dealers: Vec<Dealer> = (0..total_w)
+                    .map(|_| setup_dealer(t, t - 1, w, &keys))
+                    .collect();
                 let r1 = setup_receiver(1, t, w, &keys);
                 let outputs = dealers
                     .iter()
@@ -134,16 +135,23 @@ mod batch_avss_benches {
                     })
                     .collect_vec();
 
-                complete.bench_function(format!("create/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(), |b| {
-                    b.iter(|| Presignatures::<BATCH_SIZE>::new(outputs.clone(), t as usize - 1).unwrap())
-                });
+                complete.bench_function(
+                    format!("create/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
+                    |b| {
+                        b.iter(|| {
+                            Presignatures::<BATCH_SIZE>::new(outputs.clone(), t as usize - 1)
+                                .unwrap()
+                        })
+                    },
+                );
 
                 let mut presignatures =
                     Presignatures::<BATCH_SIZE>::new(outputs.clone(), t as usize - 1).unwrap();
 
-                complete.bench_function(format!("next/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(), |b| {
-                    b.iter(|| presignatures.next().unwrap())
-                });
+                complete.bench_function(
+                    format!("next/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
+                    |b| b.iter(|| presignatures.next().unwrap()),
+                );
             }
         }
     }
