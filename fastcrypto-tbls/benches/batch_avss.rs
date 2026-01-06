@@ -70,8 +70,8 @@ mod batch_avss_benches {
     use itertools::Itertools;
 
     fn all_batch_avss(c: &mut Criterion) {
-        batch_avss::<350>(c);
-        batch_avss::<500>(c);
+        //batch_avss::<350>(c);
+        //batch_avss::<500>(c);
         batch_avss::<1000>(c);
     }
 
@@ -124,7 +124,7 @@ mod batch_avss_benches {
                 let t = total_w / 3 - 1;
                 let keys = generate_ecies_keys(*n);
                 let dealers: Vec<Dealer> =
-                    (0..*n).map(|_| setup_dealer(t, t - 1, w, &keys)).collect();
+                    (0..total_w).map(|_| setup_dealer(t, t - 1, w, &keys)).collect();
                 let r1 = setup_receiver(1, t, w, &keys);
                 let outputs = dealers
                     .iter()
@@ -134,20 +134,16 @@ mod batch_avss_benches {
                     })
                     .collect_vec();
 
-                let f = (n / 3 - 1) as usize;
-
-                complete.bench_function(
-                    format!("create/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| Presignatures::<BATCH_SIZE>::new(outputs.clone(), f).unwrap()),
-                );
+                complete.bench_function(format!("create/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(), |b| {
+                    b.iter(|| Presignatures::<BATCH_SIZE>::new(outputs.clone(), t as usize - 1).unwrap())
+                });
 
                 let mut presignatures =
-                    Presignatures::<BATCH_SIZE>::new(outputs.clone(), f).unwrap();
+                    Presignatures::<BATCH_SIZE>::new(outputs.clone(), t as usize - 1).unwrap();
 
-                complete.bench_function(
-                    format!("next/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| presignatures.next().unwrap()),
-                );
+                complete.bench_function(format!("next/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(), |b| {
+                    b.iter(|| presignatures.next().unwrap())
+                });
             }
         }
     }

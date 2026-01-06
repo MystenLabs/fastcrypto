@@ -55,7 +55,7 @@ impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
         if outputs.len() < 2 * f + 1 || BATCH_SIZE + f < outputs.len() {
             return Err(InvalidInput);
         }
-        let height = outputs.len() - f; // > f + 1
+        let height = outputs.len() - f; // >= f + 1
 
         let my_weight =
             get_uniform_value(outputs.iter().map(|o| o.my_shares.weight())).ok_or(InvalidInput)?;
