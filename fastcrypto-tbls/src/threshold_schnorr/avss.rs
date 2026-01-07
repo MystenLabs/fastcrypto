@@ -307,7 +307,9 @@ impl Receiver {
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
             &self.random_oracle(),
-            |shares: &SharesForNode| verify_shares(shares, &self.nodes, complaint.accuser_id, message)
+            |shares: &SharesForNode| {
+                verify_shares(shares, &self.nodes, complaint.accuser_id, message)
+            },
         )?;
         Ok(ComplaintResponse {
             responder_id: self.id,
@@ -382,8 +384,7 @@ fn verify_shares(
     receiver: PartyId,
     message: &Message,
 ) -> FastCryptoResult<()> {
-    if shares.weight() != nodes.weight_of(receiver)? as usize
-    {
+    if shares.weight() != nodes.weight_of(receiver)? as usize {
         return Err(InvalidMessage);
     }
     shares.verify(message)

@@ -56,7 +56,7 @@ impl Presignatures {
             return Err(InvalidInput);
         }
         let height = outputs.len() - f; // >= f + 1
-        let batch_size = outputs[0].my_shares.verify_batch_size()?;
+        let batch_size = outputs[0].my_shares.try_uniform_batch_size()?;
         if batch_size + f < outputs.len() {
             return Err(InvalidInput);
         }

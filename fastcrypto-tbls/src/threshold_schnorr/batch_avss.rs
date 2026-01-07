@@ -129,7 +129,7 @@ impl SharesForNode {
 
     /// If all shares have the same batch size, return that.
     /// Otherwise, return an InvalidInput error.
-    pub fn verify_batch_size(&self) -> FastCryptoResult<usize> {
+    pub fn try_uniform_batch_size(&self) -> FastCryptoResult<usize> {
         get_uniform_value(self.shares.iter().map(|s| s.batch_size())).ok_or(InvalidInput)
     }
 
@@ -138,7 +138,7 @@ impl SharesForNode {
         &self,
         i: usize,
     ) -> FastCryptoResult<impl Iterator<Item = Eval<S>> + '_> {
-        if i >= self.verify_batch_size()? {
+        if i >= self.try_uniform_batch_size()? {
             return Err(InvalidInput);
         }
         Ok(self.shares.iter().map(move |share_batch| Eval {
@@ -397,7 +397,7 @@ impl Receiver {
                 &my_shares,
                 &self.nodes,
                 self.id,
-                &message,
+                message,
                 &challenge,
                 self.batch_size,
             )?;
@@ -515,11 +515,11 @@ fn verify_shares(
     expected_batch_size: usize,
 ) -> FastCryptoResult<()> {
     if shares.weight() != nodes.weight_of(receiver)? as usize
-        || shares.verify_batch_size()? != expected_batch_size
+        || shares.try_uniform_batch_size()? != expected_batch_size
     {
         return Err(InvalidMessage);
     }
-    shares.verify(message, &challenge)
+    shares.verify(message, challenge)
 }
 
 fn compute_challenge(
