@@ -90,7 +90,6 @@ mod tests {
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
-    use std::array;
     use std::collections::HashMap;
     use std::hash::Hash;
 
@@ -202,8 +201,7 @@ mod tests {
         //
 
         // Generate a batch of nonces for each party's share
-        let mut presigning_outputs =
-            HashMap::<PartyId, Vec<batch_avss::ReceiverOutput<BATCH_SIZE>>>::new();
+        let mut presigning_outputs = HashMap::<PartyId, Vec<batch_avss::ReceiverOutput>>::new();
         nodes.node_ids_iter().for_each(|id| {
             presigning_outputs.insert(id, Vec::new());
         });
@@ -213,7 +211,7 @@ mod tests {
             for (i, _) in nodes.share_ids_of(dealer_id).unwrap().iter().enumerate() {
                 let sid = format!("presig-test-session-{}-{}", dealer_id, i).into_bytes();
                 let dealer: batch_avss::Dealer =
-                    batch_avss::Dealer::new(nodes.clone(), t, f, sid.clone()).unwrap();
+                    batch_avss::Dealer::new(nodes.clone(), t, f, sid.clone(), BATCH_SIZE).unwrap();
                 let receivers = sks
                     .iter()
                     .enumerate()
@@ -224,6 +222,7 @@ mod tests {
                             t,
                             sid.clone(),
                             enc_secret_key.clone(),
+                            BATCH_SIZE,
                         )
                     })
                     .collect::<Vec<_>>();
@@ -246,12 +245,7 @@ mod tests {
         // Each party can process their presigs locally from the secret shared nonces
         let mut presigs = presigning_outputs
             .into_iter()
-            .map(|(id, outputs)| {
-                (
-                    id,
-                    Presignatures::<BATCH_SIZE>::new(outputs, f as usize).unwrap(),
-                )
-            })
+            .map(|(id, outputs)| (id, Presignatures::new(outputs, f as usize).unwrap()))
             .collect::<HashMap<_, _>>();
 
         //
@@ -492,9 +486,9 @@ mod tests {
             .unwrap();
     }
 
-    fn assert_valid_batch<const N: usize>(
-        processed_message: batch_avss::ProcessedMessage<N>,
-    ) -> batch_avss::ReceiverOutput<N> {
+    fn assert_valid_batch(
+        processed_message: batch_avss::ProcessedMessage,
+    ) -> batch_avss::ReceiverOutput {
         if let batch_avss::ProcessedMessage::Valid(output) = processed_message {
             output
         } else {
@@ -543,17 +537,20 @@ mod tests {
         let sk_shares = mock_shares(&mut rng, sk_element, t, n);
 
         // Mock nonce generation
-        const BATCH_SIZE: usize = 10;
+        let batch_size: usize = 10;
         let nonces_for_dealer = (0..n)
             .map(|_| {
-                let nonces: [S; BATCH_SIZE] = array::from_fn(|_| S::rand(&mut rng));
-                let public_keys = nonces.map(|s| G::generator() * s);
-                let nonce_shares: [Vec<S>; BATCH_SIZE] = nonces.map(|nonce| {
-                    mock_shares(&mut rng, nonce, t, n)
-                        .iter()
-                        .map(|s| s.value)
-                        .collect_vec()
-                });
+                let nonces = (0..batch_size).map(|_| S::rand(&mut rng)).collect_vec();
+                let public_keys = nonces.iter().map(|s| G::generator() * s).collect_vec();
+                let nonce_shares: Vec<Vec<S>> = nonces
+                    .iter()
+                    .map(|&nonce| {
+                        mock_shares(&mut rng, nonce, t, n)
+                            .iter()
+                            .map(|s| s.value)
+                            .collect_vec()
+                    })
+                    .collect_vec();
                 (nonces, public_keys, nonce_shares)
             })
             .collect_vec();
@@ -567,13 +564,13 @@ mod tests {
                             my_shares: SharesForNode {
                                 shares: vec![ShareBatch {
                                     index,
-                                    batch: array::from_fn(|l| {
-                                        nonces_for_dealer[j as usize].2[l][i as usize]
-                                    }),
+                                    batch: (0..batch_size)
+                                        .map(|l| nonces_for_dealer[j as usize].2[l][i as usize])
+                                        .collect_vec(),
                                     blinding_share: Default::default(), // Not used for this test
                                 }],
                             },
-                            public_keys: nonces_for_dealer[j as usize].1,
+                            public_keys: nonces_for_dealer[j as usize].1.clone(),
                         }
                     })
                     .collect_vec()
@@ -659,17 +656,20 @@ mod tests {
         let sk_shares = mock_shares(&mut rng, sk_element, t, n);
 
         // Mock nonce generation
-        const BATCH_SIZE: usize = 100;
+        let batch_size: usize = 100;
         let nonces_for_dealer = (0..n)
             .map(|_| {
-                let nonces: [S; BATCH_SIZE] = array::from_fn(|_| S::rand(&mut rng));
-                let public_keys = nonces.map(|s| G::generator() * s);
-                let nonce_shares: [Vec<S>; BATCH_SIZE] = nonces.map(|nonce| {
-                    mock_shares(&mut rng, nonce, t, n)
-                        .iter()
-                        .map(|s| s.value)
-                        .collect_vec()
-                });
+                let nonces = (0..batch_size).map(|_| S::rand(&mut rng)).collect_vec();
+                let public_keys = nonces.iter().map(|s| G::generator() * s).collect_vec();
+                let nonce_shares: Vec<Vec<S>> = nonces
+                    .iter()
+                    .map(|&nonce| {
+                        mock_shares(&mut rng, nonce, t, n)
+                            .iter()
+                            .map(|s| s.value)
+                            .collect_vec()
+                    })
+                    .collect_vec();
                 (nonces, public_keys, nonce_shares)
             })
             .collect_vec();
@@ -683,13 +683,13 @@ mod tests {
                             my_shares: SharesForNode {
                                 shares: vec![ShareBatch {
                                     index,
-                                    batch: array::from_fn(|l| {
-                                        nonces_for_dealer[j as usize].2[l][i as usize]
-                                    }),
+                                    batch: (0..batch_size)
+                                        .map(|l| nonces_for_dealer[j as usize].2[l][i as usize])
+                                        .collect_vec(),
                                     blinding_share: Default::default(), // Not used for this test
                                 }],
                             },
-                            public_keys: nonces_for_dealer[j as usize].1,
+                            public_keys: nonces_for_dealer[j as usize].1.clone(),
                         }
                     })
                     .collect_vec()

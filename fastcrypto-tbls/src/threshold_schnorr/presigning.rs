@@ -10,13 +10,13 @@ use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
 
 /// An iterator that yields presigning tuples (i, t_i, p_i).
-pub struct Presignatures<const BATCH_SIZE: usize> {
+pub struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
     index: usize,
 }
 
-impl<const BATCH_SIZE: usize> Iterator for Presignatures<BATCH_SIZE> {
+impl Iterator for Presignatures {
     type Item = (usize, Vec<S>, G);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -43,19 +43,23 @@ impl<const BATCH_SIZE: usize> Iterator for Presignatures<BATCH_SIZE> {
     }
 }
 
-impl<const BATCH_SIZE: usize> ExactSizeIterator for Presignatures<BATCH_SIZE> {}
+impl ExactSizeIterator for Presignatures {}
 
-impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
+impl Presignatures {
     /// Based on the output of a batched AVSS from multiple dealers, create a presignature generator.
     ///
     /// This iterator can yield `(outputs.len() - f) * BATCH_SIZE` presignatures.
     ///
     /// BATCH_SIZE must be larger than or equal to the `outputs.len() - f`.
-    pub fn new(outputs: Vec<ReceiverOutput<BATCH_SIZE>>, f: usize) -> FastCryptoResult<Self> {
-        if outputs.len() < 2 * f + 1 || BATCH_SIZE + f < outputs.len() {
+    pub fn new(outputs: Vec<ReceiverOutput>, f: usize) -> FastCryptoResult<Self> {
+        if outputs.len() < 2 * f + 1 {
             return Err(InvalidInput);
         }
         let height = outputs.len() - f; // >= f + 1
+        let batch_size = outputs[0].my_shares.verify_batch_size()?;
+        if batch_size + f < outputs.len() {
+            return Err(InvalidInput);
+        }
 
         let my_weight =
             get_uniform_value(outputs.iter().map(|o| o.my_shares.weight())).ok_or(InvalidInput)?;
@@ -65,7 +69,7 @@ impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
             .map(|i| {
                 LazyPascalMatrixMultiplier::new(
                     height,
-                    (0..BATCH_SIZE)
+                    (0..batch_size)
                         .map(|j| {
                             outputs
                                 .iter()
@@ -79,7 +83,7 @@ impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
 
         let public = LazyPascalMatrixMultiplier::new(
             height,
-            (0..BATCH_SIZE)
+            (0..batch_size)
                 .map(|i| outputs.iter().map(|o| o.public_keys[i]).collect())
                 .collect(),
         );
