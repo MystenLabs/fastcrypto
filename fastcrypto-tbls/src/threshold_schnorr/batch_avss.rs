@@ -393,12 +393,14 @@ impl Receiver {
 
         match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
             // If there is an error in this scope, we create a complaint instead of returning an error
-            if my_shares.verify_batch_size()? != self.batch_size
-                || my_shares.weight() != self.my_weight()
-            {
-                return Err(InvalidMessage);
-            }
-            my_shares.verify(message, &challenge)?;
+            verify_shares(
+                &my_shares,
+                &self.nodes,
+                self.id,
+                &message,
+                &challenge,
+                self.batch_size,
+            )?;
             Ok(my_shares)
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
@@ -428,12 +430,14 @@ impl Receiver {
             &message.ciphertext,
             &self.random_oracle(),
             |shares: &SharesForNode| {
-                if shares.weight() != self.nodes.weight_of(complaint.accuser_id)? as usize
-                    || shares.verify_batch_size()? != self.batch_size
-                {
-                    return Err(InvalidMessage);
-                }
-                shares.verify(message, &challenge)
+                verify_shares(
+                    shares,
+                    &self.nodes,
+                    complaint.accuser_id,
+                    message,
+                    &challenge,
+                    self.batch_size,
+                )
             },
         )?;
         Ok(ComplaintResponse {
@@ -499,6 +503,23 @@ impl Receiver {
     fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
     }
+}
+
+/// Verify a set of shares receiver from a Dealer
+fn verify_shares(
+    shares: &SharesForNode,
+    nodes: &Nodes<EG>,
+    receiver: PartyId,
+    message: &Message,
+    challenge: &[S],
+    expected_batch_size: usize,
+) -> FastCryptoResult<()> {
+    if shares.weight() != nodes.weight_of(receiver)? as usize
+        || shares.verify_batch_size()? != expected_batch_size
+    {
+        return Err(InvalidMessage);
+    }
+    shares.verify(message, &challenge)
 }
 
 fn compute_challenge(

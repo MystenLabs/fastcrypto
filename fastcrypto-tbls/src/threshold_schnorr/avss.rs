@@ -279,10 +279,7 @@ impl Receiver {
         );
 
         match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
-            if my_shares.weight() != self.my_weight() {
-                return Err(InvalidInput);
-            }
-            my_shares.verify(message)?;
+            verify_shares(&my_shares, &self.nodes, self.id, message)?;
             Ok(my_shares)
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(PartialOutput {
@@ -310,12 +307,7 @@ impl Receiver {
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
             &self.random_oracle(),
-            |shares: &SharesForNode| {
-                if shares.weight() != self.nodes.weight_of(complaint.accuser_id)? as usize {
-                    return Err(InvalidMessage);
-                }
-                shares.verify(message)
-            },
+            |shares: &SharesForNode| verify_shares(shares, &self.nodes, complaint.accuser_id, message)
         )?;
         Ok(ComplaintResponse {
             responder_id: self.id,
@@ -381,6 +373,20 @@ impl Receiver {
     fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
     }
+}
+
+/// Verify a set of shares receiver from a Dealer
+fn verify_shares(
+    shares: &SharesForNode,
+    nodes: &Nodes<EG>,
+    receiver: PartyId,
+    message: &Message,
+) -> FastCryptoResult<()> {
+    if shares.weight() != nodes.weight_of(receiver)? as usize
+    {
+        return Err(InvalidMessage);
+    }
+    shares.verify(message)
 }
 
 impl ReceiverOutput {
