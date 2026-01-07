@@ -427,7 +427,14 @@ impl Receiver {
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
             &self.random_oracle(),
-            |shares: &SharesForNode| shares.verify(message, &challenge),
+            |shares: &SharesForNode| {
+                if shares.weight() != self.nodes.weight_of(complaint.accuser_id)? as usize
+                    || shares.verify_batch_size()? != self.batch_size
+                {
+                    return Err(InvalidMessage);
+                }
+                shares.verify(message, &challenge)
+            },
         )?;
         Ok(ComplaintResponse {
             responder_id: self.id,

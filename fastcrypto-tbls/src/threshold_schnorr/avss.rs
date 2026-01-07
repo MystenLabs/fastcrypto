@@ -310,7 +310,12 @@ impl Receiver {
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
             &self.random_oracle(),
-            |shares: &SharesForNode| shares.verify(message),
+            |shares: &SharesForNode| {
+                if shares.weight() != self.nodes.weight_of(complaint.accuser_id)? as usize {
+                    return Err(InvalidMessage);
+                }
+                shares.verify(message)
+            },
         )?;
         Ok(ComplaintResponse {
             responder_id: self.id,
