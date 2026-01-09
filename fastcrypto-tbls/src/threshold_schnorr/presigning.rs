@@ -48,11 +48,11 @@ impl ExactSizeIterator for Presignatures {}
 impl Presignatures {
     /// Based on the output of a batched AVSS from multiple dealers, create a presignature generator.
     ///
-    /// Each party must use the same outputs in the same order.
+    /// All parties must use the same outputs in the same order, and the output from a dealer with weight `w` should be equal to `batch_size_per_weight * w`.
     ///
     /// An InvalidInput error will be returned if:
     /// * The total weight of the dealers for the outputs is not at least 2f+1,
-    /// * The batch size of an output from a dealer with weight `w` is equal to `batch_size_per_weight * w`,
+    /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
     /// * or if batch_size_per_weight is zero.
     pub fn new(
         outputs: Vec<ReceiverOutput>,
@@ -77,8 +77,8 @@ impl Presignatures {
         }
 
         // This party's weight, aka it's number of shares
-        let my_weight =
-            get_uniform_value(outputs.iter().map(|o| o.my_shares.weight())).expect("Checked in batch_avss");
+        let my_weight = get_uniform_value(outputs.iter().map(|o| o.my_shares.weight()))
+            .expect("Checked in batch_avss");
 
         // There is one secret presigning output per shares for this party
         let secret = (0..my_weight)
