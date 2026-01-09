@@ -50,10 +50,10 @@ impl Presignatures {
     ///
     /// Each party must use the same outputs in the same order.
     ///
-    /// The total weight of the dealers the outputs are from should be at least 2f+1,
-    /// and the caller should check that the batch size of an output from a dealer with weight `w`
-    /// is equal to `batch_size_per_weight * w`.
-    /// If this is not the case, an InvalidInput error will be returned.
+    /// An InvalidInput error will be returned if:
+    /// * The total weight of the dealers for the outputs is not at least 2f+1,
+    /// * The batch size of an output from a dealer with weight `w` is equal to `batch_size_per_weight * w`,
+    /// * or if batch_size_per_weight is zero.
     pub fn new(
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: usize,
@@ -78,7 +78,7 @@ impl Presignatures {
 
         // This party's weight, aka it's number of shares
         let my_weight =
-            get_uniform_value(outputs.iter().map(|o| o.my_shares.weight())).ok_or(InvalidInput)?;
+            get_uniform_value(outputs.iter().map(|o| o.my_shares.weight())).expect("Checked in batch_avss");
 
         // There is one secret presigning output per shares for this party
         let secret = (0..my_weight)
