@@ -69,6 +69,7 @@ pub enum ProcessedMessage {
 pub struct ReceiverOutput {
     pub my_shares: SharesForNode,
     pub public_keys: Vec<G>,
+    pub batch_size: usize,
 }
 
 /// This represents a set of shares for a node. A total of <i>L</i> secrets/nonces are being shared,
@@ -92,12 +93,6 @@ pub struct ShareBatch {
 
     /// The share for the blinding polynomial.
     pub blinding_share: S,
-}
-
-impl ReceiverOutput {
-    pub fn batch_size(&self) -> usize {
-        self.my_shares.try_uniform_batch_size().unwrap()
-    }
 }
 
 impl ShareBatch {
@@ -140,17 +135,12 @@ impl SharesForNode {
     }
 
     /// Get all shares this node has for the <i>i</i>-th secret/nonce in the batch.
-    pub fn shares_for_secret(
-        &self,
-        i: usize,
-    ) -> FastCryptoResult<impl Iterator<Item = Eval<S>> + '_> {
-        if i >= self.try_uniform_batch_size()? {
-            return Err(InvalidInput);
-        }
-        Ok(self.shares.iter().map(move |share_batch| Eval {
+    /// This panics if `i` is larger than or equal to the batch size.
+    pub fn shares_for_secret(&self, i: usize) -> impl Iterator<Item = Eval<S>> + '_ {
+        self.shares.iter().map(move |share_batch| Eval {
             index: share_batch.index,
             value: share_batch.batch[i],
-        }))
+        })
     }
 
     fn verify(&self, message: &Message, challenge: &[S]) -> FastCryptoResult<()> {
@@ -176,7 +166,7 @@ impl SharesForNode {
                     .map(|i| {
                         let evaluations: Vec<Eval<S>> = other_shares
                             .iter()
-                            .flat_map(|s| s.shares_for_secret(i).expect("Size checked above"))
+                            .flat_map(|s| s.shares_for_secret(i))
                             .collect_vec();
                         Poly::recover_at(index, &evaluations).unwrap().value
                     })
@@ -409,6 +399,7 @@ impl Receiver {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
                 my_shares,
                 public_keys: full_public_keys.clone(),
+                batch_size: self.batch_size,
             })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
@@ -490,6 +481,7 @@ impl Receiver {
         Ok(ReceiverOutput {
             my_shares,
             public_keys: message.full_public_keys.clone(),
+            batch_size: self.batch_size,
         })
     }
 

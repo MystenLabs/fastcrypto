@@ -63,13 +63,12 @@ impl Presignatures {
             return Err(InvalidInput);
         }
 
-        // Each node should deal a batch sized proportional to their weight and the total weight of the outputs should be at least 2*f + 1
+        // Each node should deal a batch sized proportional to their weight, and the total weight of the outputs should be at least 2*f + 1
         let total_weight_of_outputs: usize = outputs
             .iter()
-            .map(ReceiverOutput::batch_size)
-            .map(|b| {
-                (b % batch_size_per_weight == 0)
-                    .then_some(b / batch_size_per_weight)
+            .map(|o| {
+                (o.batch_size % batch_size_per_weight == 0)
+                    .then_some(o.batch_size / batch_size_per_weight)
                     .ok_or(InvalidInput)
             })
             .sum::<FastCryptoResult<_>>()?;

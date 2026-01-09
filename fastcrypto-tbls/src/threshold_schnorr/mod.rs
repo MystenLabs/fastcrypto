@@ -581,6 +581,7 @@ mod tests {
                                 }],
                             },
                             public_keys: nonces_for_dealer[j as usize].1.clone(),
+                            batch_size,
                         }
                     })
                     .collect_vec()
@@ -700,6 +701,7 @@ mod tests {
                                 }],
                             },
                             public_keys: nonces_for_dealer[j as usize].1.clone(),
+                            batch_size,
                         }
                     })
                     .collect_vec()
