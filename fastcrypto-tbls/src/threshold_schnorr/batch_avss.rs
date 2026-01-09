@@ -94,6 +94,12 @@ pub struct ShareBatch {
     pub blinding_share: S,
 }
 
+impl ReceiverOutput {
+    pub fn batch_size(&self) -> usize {
+        self.my_shares.try_uniform_batch_size().unwrap()
+    }
+}
+
 impl ShareBatch {
     /// Verify a batch of shares using the given challenge.
     fn verify(&self, message: &Message, challenge: &[S]) -> FastCryptoResult<()> {

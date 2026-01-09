@@ -101,7 +101,7 @@ mod tests {
         let weights = [1, 2, 2, 2];
         let n = weights.len();
 
-        let batch_size: usize = 15;
+        let batch_size: usize = 10;
 
         let mut rng = rand::thread_rng();
         let sks = (0..n)

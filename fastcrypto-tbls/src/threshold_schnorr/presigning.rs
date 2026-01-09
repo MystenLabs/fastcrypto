@@ -48,7 +48,12 @@ impl ExactSizeIterator for Presignatures {}
 impl Presignatures {
     /// Based on the output of a batched AVSS from multiple dealers, create a presignature generator.
     ///
-    /// The total weight of the dealers the outputs are from should be at least 2f+1, and the batch size of an output from a dealer with weight `w` should be equal to `batch_size_per_weight * w`.
+    /// Each party must use the same outputs in the same order.
+    ///
+    /// The total weight of the dealers the outputs are from should be at least 2f+1,
+    /// and the caller should check that the batch size of an output from a dealer with weight `w`
+    /// is equal to `batch_size_per_weight * w`.
+    /// If this is not the case, an InvalidInput error will be returned.
     pub fn new(
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: usize,
@@ -58,20 +63,16 @@ impl Presignatures {
             return Err(InvalidInput);
         }
 
-        // Each node should deal a batch sized proportional to their weight
-        let batch_sizes = outputs
+        // Each node should deal a batch sized proportional to their weight and the total weight of the outputs should be at least 2*f + 1
+        let total_weight_of_outputs: usize = outputs
             .iter()
-            .map(|o| o.my_shares.try_uniform_batch_size())
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        if batch_sizes.iter().any(|&b| b % batch_size_per_weight != 0) {
-            return Err(InvalidInput);
-        }
-
-        // The total weight of the outputs should be at least 2*f + 1
-        let total_weight_of_outputs: usize = batch_sizes
-            .iter()
-            .map(|b| b / batch_size_per_weight)
-            .sum::<usize>();
+            .map(ReceiverOutput::batch_size)
+            .map(|b| {
+                (b % batch_size_per_weight == 0)
+                    .then_some(b / batch_size_per_weight)
+                    .ok_or(InvalidInput)
+            })
+            .sum::<FastCryptoResult<_>>()?;
         if total_weight_of_outputs < 2 * f + 1 {
             return Err(InvalidInput);
         }
@@ -116,7 +117,10 @@ impl Presignatures {
 
         // Sanity checks that the size of the multipliers matches the expected number of nonces that this presigning will give
         let expected_len = (total_weight_of_outputs - f) * batch_size_per_weight;
-        assert_eq!(get_uniform_value(secret.iter().map(|s| s.len())).unwrap(), expected_len);
+        assert_eq!(
+            get_uniform_value(secret.iter().map(|s| s.len())).unwrap(),
+            expected_len
+        );
         assert_eq!(public.len(), expected_len);
 
         Ok(Self {
