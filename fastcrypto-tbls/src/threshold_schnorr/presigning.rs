@@ -58,7 +58,7 @@ impl Presignatures {
             return Err(InvalidInput);
         }
 
-        // Each node should deal a batch size proportional to their weight
+        // Each node should deal a batch sized proportional to their weight
         let batch_sizes = outputs
             .iter()
             .map(|o| o.my_shares.try_uniform_batch_size())
@@ -76,10 +76,11 @@ impl Presignatures {
             return Err(InvalidInput);
         }
 
+        // This party's weight, aka it's number of shares
         let my_weight =
             get_uniform_value(outputs.iter().map(|o| o.my_shares.weight())).ok_or(InvalidInput)?;
 
-        // There is one secret presigning output per weight for this party.
+        // There is one secret presigning output per shares for this party
         let secret = (0..my_weight)
             .map(|i| {
                 LazyPascalMatrixMultiplier::new(
@@ -112,6 +113,11 @@ impl Presignatures {
                 })
                 .collect_vec(),
         );
+
+        // Sanity checks that the size of the multipliers matches the expected number of nonces that this presigning will give
+        let expected_len = (total_weight_of_outputs - f) * batch_size_per_weight;
+        assert_eq!(get_uniform_value(secret.iter().map(|s| s.len())).unwrap(), expected_len);
+        assert_eq!(public.len(), expected_len);
 
         Ok(Self {
             secret,
