@@ -68,11 +68,10 @@ impl Presignatures {
         }
 
         // The total weight of the outputs should be at least 2*f + 1
-        let output_weights = batch_sizes
+        let total_weight_of_outputs: usize = batch_sizes
             .iter()
             .map(|b| b / batch_size_per_weight)
-            .collect_vec();
-        let total_weight_of_outputs: usize = output_weights.iter().sum();
+            .sum::<usize>();
         if total_weight_of_outputs < 2 * f + 1 {
             return Err(InvalidInput);
         }
@@ -86,18 +85,18 @@ impl Presignatures {
                 LazyPascalMatrixMultiplier::new(
                     total_weight_of_outputs - f,
                     (0..batch_size_per_weight)
-                        .map(|k| {
+                        .map(|j| {
                             outputs
                                 .iter()
-                                .zip(output_weights.iter())
-                                .flat_map(|(o, &w)| {
-                                    (0..w).map(move |j| {
-                                        o.my_shares.shares[i].batch[j * batch_size_per_weight + k]
-                                    })
+                                .flat_map(|o| {
+                                    o.my_shares.shares[i]
+                                        .batch
+                                        .chunks(batch_size_per_weight)
+                                        .map(|c| c[j])
                                 })
-                                .collect_vec()
+                                .collect()
                         })
-                        .collect_vec(),
+                        .collect(),
                 )
             })
             .collect_vec();
@@ -105,25 +104,13 @@ impl Presignatures {
         let public = LazyPascalMatrixMultiplier::new(
             total_weight_of_outputs - f,
             (0..batch_size_per_weight)
-                .map(|k| {
+                .map(|j| {
                     outputs
                         .iter()
-                        .zip(output_weights.iter())
-                        .map(|(o, &w)| {
-                            (0..w)
-                                .map(move |j| o.public_keys[j * batch_size_per_weight + k])
-                                .collect_vec()
-                        })
-                        .flatten()
-                        .collect_vec()
+                        .flat_map(|o| o.public_keys.chunks(batch_size_per_weight).map(|c| c[j]))
+                        .collect()
                 })
                 .collect_vec(),
-        );
-
-        let expected_length = batch_size_per_weight * (total_weight_of_outputs - f);
-        assert_eq!(
-            get_uniform_value(secret.iter().map(LazyPascalMatrixMultiplier::len)).unwrap(),
-            expected_length
         );
 
         Ok(Self {

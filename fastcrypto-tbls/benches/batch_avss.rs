@@ -147,11 +147,15 @@ mod batch_avss_benches {
 
                 complete.bench_function(
                     format!("create/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| Presignatures::new(outputs.clone(), t as usize - 1).unwrap()),
+                    |b| {
+                        b.iter(|| {
+                            Presignatures::new(outputs.clone(), BATCH_SIZE, t as usize - 1).unwrap()
+                        })
+                    },
                 );
 
                 let mut presignatures =
-                    Presignatures::new(outputs.clone(), t as usize - 1).unwrap();
+                    Presignatures::new(outputs.clone(), BATCH_SIZE, t as usize - 1).unwrap();
 
                 complete.bench_function(
                     format!("next/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
