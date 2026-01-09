@@ -71,9 +71,7 @@ impl<C: GroupElement> LazyPascalMatrixMultiplier<C> {
     /// * if `height` is zero.
     pub fn new(height: usize, columns: Vec<Vec<C>>) -> Self {
         let width = get_uniform_value(columns.iter().map(Vec::len)).unwrap();
-
         assert!(height <= width && height > 0);
-
         let mut buffers = columns;
         Self {
             height,

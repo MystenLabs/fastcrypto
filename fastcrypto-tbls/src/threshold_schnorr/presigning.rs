@@ -48,16 +48,32 @@ impl ExactSizeIterator for Presignatures {}
 impl Presignatures {
     /// Based on the output of a batched AVSS from multiple dealers, create a presignature generator.
     ///
-    /// This iterator can yield `(outputs.len() - f) * BATCH_SIZE` presignatures.
-    ///
-    /// BATCH_SIZE must be larger than or equal to the `outputs.len() - f`.
-    pub fn new(outputs: Vec<ReceiverOutput>, f: usize) -> FastCryptoResult<Self> {
-        if outputs.len() < 2 * f + 1 {
+    /// The total weight of the dealers the outputs are from should be at least 2f+1, and the batch size of an output from a dealer with weight `w` should be equal to `batch_size_per_weight * w`.
+    pub fn new(
+        outputs: Vec<ReceiverOutput>,
+        batch_size_per_weight: usize,
+        f: usize,
+    ) -> FastCryptoResult<Self> {
+        if batch_size_per_weight == 0 {
             return Err(InvalidInput);
         }
-        let height = outputs.len() - f; // >= f + 1
-        let batch_size = outputs[0].my_shares.try_uniform_batch_size()?;
-        if batch_size + f < outputs.len() {
+
+        // Each node should deal a batch size proportional to their weight
+        let batch_sizes = outputs
+            .iter()
+            .map(|o| o.my_shares.try_uniform_batch_size())
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+        if batch_sizes.iter().any(|&b| b % batch_size_per_weight != 0) {
+            return Err(InvalidInput);
+        }
+
+        // The total weight of the outputs should be at least 2*f + 1
+        let output_weights = batch_sizes
+            .iter()
+            .map(|b| b / batch_size_per_weight)
+            .collect_vec();
+        let total_weight_of_outputs: usize = output_weights.iter().sum();
+        if total_weight_of_outputs < 2 * f + 1 {
             return Err(InvalidInput);
         }
 
@@ -68,29 +84,46 @@ impl Presignatures {
         let secret = (0..my_weight)
             .map(|i| {
                 LazyPascalMatrixMultiplier::new(
-                    height,
-                    (0..batch_size)
-                        .map(|j| {
+                    total_weight_of_outputs - f,
+                    (0..batch_size_per_weight)
+                        .map(|k| {
                             outputs
                                 .iter()
-                                .map(|o| o.my_shares.shares[i].batch[j])
-                                .collect()
+                                .zip(output_weights.iter())
+                                .flat_map(|(o, &w)| {
+                                    (0..w).map(move |j| {
+                                        o.my_shares.shares[i].batch[j * batch_size_per_weight + k]
+                                    })
+                                })
+                                .collect_vec()
                         })
-                        .collect(),
+                        .collect_vec(),
                 )
             })
             .collect_vec();
 
         let public = LazyPascalMatrixMultiplier::new(
-            height,
-            (0..batch_size)
-                .map(|i| outputs.iter().map(|o| o.public_keys[i]).collect())
-                .collect(),
+            total_weight_of_outputs - f,
+            (0..batch_size_per_weight)
+                .map(|k| {
+                    outputs
+                        .iter()
+                        .zip(output_weights.iter())
+                        .map(|(o, &w)| {
+                            (0..w)
+                                .map(move |j| o.public_keys[j * batch_size_per_weight + k])
+                                .collect_vec()
+                        })
+                        .flatten()
+                        .collect_vec()
+                })
+                .collect_vec(),
         );
 
+        let expected_length = batch_size_per_weight * (total_weight_of_outputs - f);
         assert_eq!(
             get_uniform_value(secret.iter().map(LazyPascalMatrixMultiplier::len)).unwrap(),
-            public.len()
+            expected_length
         );
 
         Ok(Self {

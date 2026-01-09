@@ -97,7 +97,7 @@ pub struct ShareBatch {
 impl ShareBatch {
     /// Verify a batch of shares using the given challenge.
     fn verify(&self, message: &Message, challenge: &[S]) -> FastCryptoResult<()> {
-        if challenge.len() != self.batch.len() {
+        if challenge.len() != self.batch_size() {
             return Err(InvalidInput);
         }
 
@@ -246,7 +246,7 @@ impl Dealer {
         let blinding_commit = G::generator() * blinding_secret;
 
         // Compute all evaluations of all polynomials
-        let shares_for_polynomial = secrets
+        let share_batches = secrets
             .iter()
             .map(|&s| create_secret_sharing(rng, s, self.t, self.nodes.total_weight()))
             .collect_vec();
@@ -264,10 +264,7 @@ impl Dealer {
                             .into_iter()
                             .map(|index| ShareBatch {
                                 index,
-                                batch: shares_for_polynomial
-                                    .iter()
-                                    .map(|shares| shares[index])
-                                    .collect(),
+                                batch: share_batches.iter().map(|shares| shares[index]).collect(),
                                 blinding_share: blinding_poly_evaluations[index],
                             })
                             .collect_vec(),
@@ -293,7 +290,7 @@ impl Dealer {
 
         // Get the first t evaluations for the response polynomial and use these to compute the coefficients
         let response_polynomial = Poly::interpolate(
-            &shares_for_polynomial
+            &share_batches
                 .into_iter()
                 .map(|s| s.take(self.t))
                 .zip_eq(&challenge)

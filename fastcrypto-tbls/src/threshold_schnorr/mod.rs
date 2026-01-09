@@ -101,7 +101,7 @@ mod tests {
         let weights = [1, 2, 2, 2];
         let n = weights.len();
 
-        const BATCH_SIZE: usize = 10;
+        let batch_size: usize = 15;
 
         let mut rng = rand::thread_rng();
         let sks = (0..n)
@@ -208,44 +208,54 @@ mod tests {
 
         // Each dealer generates a batch of presigs per share they control.
         for dealer_id in nodes.node_ids_iter() {
-            for (i, _) in nodes.share_ids_of(dealer_id).unwrap().iter().enumerate() {
-                let sid = format!("presig-test-session-{}-{}", dealer_id, i).into_bytes();
-                let dealer: batch_avss::Dealer =
-                    batch_avss::Dealer::new(nodes.clone(), t, f, sid.clone(), BATCH_SIZE).unwrap();
-                let receivers = sks
-                    .iter()
-                    .enumerate()
-                    .map(|(id, enc_secret_key)| {
-                        batch_avss::Receiver::new(
-                            nodes.clone(),
-                            id as u16,
-                            t,
-                            sid.clone(),
-                            enc_secret_key.clone(),
-                            BATCH_SIZE,
-                        )
-                    })
-                    .collect::<Vec<_>>();
+            let sid = format!("presig-test-session-{}", dealer_id).into_bytes();
+            let dealer_weight = nodes.weight_of(dealer_id).unwrap();
+            let dealer: batch_avss::Dealer = batch_avss::Dealer::new(
+                nodes.clone(),
+                t,
+                f,
+                sid.clone(),
+                batch_size * dealer_weight as usize,
+            )
+            .unwrap();
+            let receivers = sks
+                .iter()
+                .enumerate()
+                .map(|(id, enc_secret_key)| {
+                    batch_avss::Receiver::new(
+                        nodes.clone(),
+                        id as u16,
+                        t,
+                        sid.clone(),
+                        enc_secret_key.clone(),
+                        batch_size * dealer_weight as usize,
+                    )
+                })
+                .collect::<Vec<_>>();
 
-                // Each dealer creates a message
-                let message = dealer.create_message(&mut rng).unwrap();
+            // Each dealer creates a message
+            let message = dealer.create_message(&mut rng).unwrap();
 
-                // Each receiver processes the message.
-                // In this case, we assume all are honest and there are no complaints.
-                receivers.iter().for_each(|receiver| {
-                    let output = assert_valid_batch(receiver.process_message(&message).unwrap());
-                    presigning_outputs
-                        .get_mut(&receiver.id())
-                        .unwrap()
-                        .push(output);
-                });
-            }
+            // Each receiver processes the message.
+            // In this case, we assume all are honest and there are no complaints.
+            receivers.iter().for_each(|receiver| {
+                let output = assert_valid_batch(receiver.process_message(&message).unwrap());
+                presigning_outputs
+                    .get_mut(&receiver.id())
+                    .unwrap()
+                    .push(output);
+            });
         }
 
         // Each party can process their presigs locally from the secret shared nonces
         let mut presigs = presigning_outputs
             .into_iter()
-            .map(|(id, outputs)| (id, Presignatures::new(outputs, f as usize).unwrap()))
+            .map(|(id, outputs)| {
+                (
+                    id,
+                    Presignatures::new(outputs, batch_size, f as usize).unwrap(),
+                )
+            })
             .collect::<HashMap<_, _>>();
 
         //
@@ -579,7 +589,7 @@ mod tests {
 
         let mut presigning = outputs
             .into_iter()
-            .map(|output| Presignatures::new(output, f as usize).unwrap())
+            .map(|output| Presignatures::new(output, batch_size, f as usize).unwrap())
             .collect_vec();
 
         let message = b"Hello, world!";
@@ -698,7 +708,7 @@ mod tests {
 
         let mut presigning = outputs
             .into_iter()
-            .map(|output| Presignatures::new(output, f as usize).unwrap())
+            .map(|output| Presignatures::new(output, batch_size, f as usize).unwrap())
             .collect_vec();
 
         let message = b"Hello, world!";
