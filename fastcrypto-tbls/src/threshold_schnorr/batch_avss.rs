@@ -137,9 +137,9 @@ impl SharesForNode {
     /// Get all shares this node has for the <i>i</i>-th secret/nonce in the batch.
     /// This panics if `i` is larger than or equal to the batch size.
     pub fn shares_for_secret(&self, i: usize) -> impl Iterator<Item = Eval<S>> + '_ {
-        self.shares.iter().map(move |share_batch| Eval {
-            index: share_batch.index,
-            value: share_batch.batch[i],
+        self.shares.iter().map(move |s| Eval {
+            index: s.index,
+            value: s.batch[i],
         })
     }
 
