@@ -257,6 +257,10 @@ mod tests {
                 )
             })
             .collect::<HashMap<_, _>>();
+        assert_eq!(
+            presigs.get(&PartyId::from(1u8)).unwrap().len(),
+            batch_size * (weights.iter().sum::<u16>() as usize - f as usize)
+        );
 
         //
         // SIGNING
@@ -593,6 +597,8 @@ mod tests {
             .map(|output| Presignatures::new(output, batch_size, f as usize).unwrap())
             .collect_vec();
 
+        assert_eq!(presigning[0].len(), batch_size * (n - f) as usize);
+
         let message = b"Hello, world!";
 
         let beacon_value = S::rand(&mut rng);
@@ -712,6 +718,8 @@ mod tests {
             .into_iter()
             .map(|output| Presignatures::new(output, batch_size, f as usize).unwrap())
             .collect_vec();
+
+        assert_eq!(presigning[0].len(), batch_size * (n - f) as usize);
 
         let message = b"Hello, world!";
 

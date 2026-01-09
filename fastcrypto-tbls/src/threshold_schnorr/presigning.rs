@@ -64,14 +64,15 @@ impl Presignatures {
         }
 
         // Each node should deal a batch sized proportional to their weight, and the total weight of the outputs should be at least 2*f + 1
-        let total_weight_of_outputs: usize = outputs
+        let weights = outputs
             .iter()
             .map(|o| {
                 (o.batch_size % batch_size_per_weight == 0)
                     .then_some(o.batch_size / batch_size_per_weight)
                     .ok_or(InvalidInput)
             })
-            .sum::<FastCryptoResult<_>>()?;
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+        let total_weight_of_outputs: usize = weights.iter().sum();
         if total_weight_of_outputs < 2 * f + 1 {
             return Err(InvalidInput);
         }
@@ -89,11 +90,9 @@ impl Presignatures {
                         .map(|j| {
                             outputs
                                 .iter()
-                                .flat_map(|o| {
-                                    o.my_shares.shares[i]
-                                        .batch
-                                        .chunks(batch_size_per_weight)
-                                        .map(|c| c[j])
+                                .zip(weights.iter())
+                                .flat_map(|(o, w)| {
+                                    o.my_shares.shares[i].batch[j * w..(j + 1) * w].to_vec()
                                 })
                                 .collect()
                         })
@@ -108,7 +107,8 @@ impl Presignatures {
                 .map(|j| {
                     outputs
                         .iter()
-                        .flat_map(|o| o.public_keys.chunks(batch_size_per_weight).map(|c| c[j]))
+                        .zip(weights.iter())
+                        .flat_map(|(o, w)| o.public_keys[j * w..(j + 1) * w].to_vec())
                         .collect()
                 })
                 .collect_vec(),
