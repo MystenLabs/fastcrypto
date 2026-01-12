@@ -130,7 +130,7 @@ impl SharesForNode {
     /// If all shares have the same batch size, return that.
     /// Otherwise, return an InvalidInput error.
     pub fn try_uniform_batch_size(&self) -> FastCryptoResult<usize> {
-        get_uniform_value(self.shares.iter().map(|s| s.batch_size())).ok_or(InvalidInput)
+        get_uniform_value(self.shares.iter().map(ShareBatch::batch_size)).ok_or(InvalidInput)
     }
 
     /// Get all shares this node has for the <i>i</i>-th secret/nonce in the batch.
@@ -690,8 +690,15 @@ mod tests {
 
         let dealer_id = 2;
         let sid = b"tbls test".to_vec();
-        let dealer: Dealer =
-            Dealer::new(nodes.clone(), 0, t, f, sid.clone(), batch_size_per_weight).unwrap();
+        let dealer: Dealer = Dealer::new(
+            nodes.clone(),
+            dealer_id,
+            t,
+            f,
+            sid.clone(),
+            batch_size_per_weight,
+        )
+        .unwrap();
 
         let receivers = sks
             .into_iter()
