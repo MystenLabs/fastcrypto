@@ -56,19 +56,23 @@ impl Presignatures {
     /// * or if batch_size_per_weight is zero.
     pub fn new(
         outputs: Vec<ReceiverOutput>,
-        batch_size_per_weight: usize,
+        batch_size_per_weight: u16,
         f: usize,
     ) -> FastCryptoResult<Self> {
         if batch_size_per_weight == 0 {
             return Err(InvalidInput);
         }
 
-        // Each node should deal a batch sized proportional to their weight, and the total weight of the outputs should be at least 2*f + 1
+        // Each node should deal a batch sized proportional to their weight, and the total weight of the outputs should be at least t + f
         let weights = outputs
             .iter()
             .map(|o| {
-                (o.batch_size % batch_size_per_weight == 0)
-                    .then_some(o.batch_size / batch_size_per_weight)
+                let batch_size = o
+                    .my_shares
+                    .try_uniform_batch_size()
+                    .expect("Checked in batch_avss");
+                (batch_size % batch_size_per_weight as usize == 0)
+                    .then_some(batch_size / batch_size_per_weight as usize)
                     .ok_or(InvalidInput)
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
@@ -82,11 +86,11 @@ impl Presignatures {
             .expect("Checked in batch_avss");
 
         // There is one secret presigning output per shares for this party
-        let secret = (0..my_weight)
+        let secret = (0..my_weight as usize)
             .map(|i| {
                 LazyPascalMatrixMultiplier::new(
                     total_weight_of_outputs - f,
-                    (0..batch_size_per_weight)
+                    (0..batch_size_per_weight as usize)
                         .map(|j| {
                             outputs
                                 .iter()
@@ -103,7 +107,7 @@ impl Presignatures {
 
         let public = LazyPascalMatrixMultiplier::new(
             total_weight_of_outputs - f,
-            (0..batch_size_per_weight)
+            (0..batch_size_per_weight as usize)
                 .map(|j| {
                     outputs
                         .iter()
@@ -115,7 +119,7 @@ impl Presignatures {
         );
 
         // Sanity checks that the size of the multipliers matches the expected number of nonces that this presigning will give
-        let expected_len = (total_weight_of_outputs - f) * batch_size_per_weight;
+        let expected_len = (total_weight_of_outputs - f) * batch_size_per_weight as usize;
         assert_eq!(
             get_uniform_value(secret.iter().map(|s| s.len())).unwrap(),
             expected_len

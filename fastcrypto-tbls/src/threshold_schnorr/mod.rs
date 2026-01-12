@@ -101,7 +101,7 @@ mod tests {
         let weights = [1, 2, 2, 2];
         let n = weights.len();
 
-        let batch_size: usize = 10;
+        let batch_size_per_weight: u16 = 10;
 
         let mut rng = rand::thread_rng();
         let sks = (0..n)
@@ -209,13 +209,13 @@ mod tests {
         // Each dealer generates a batch of presigs per share they control.
         for dealer_id in nodes.node_ids_iter() {
             let sid = format!("presig-test-session-{}", dealer_id).into_bytes();
-            let dealer_weight = nodes.weight_of(dealer_id).unwrap();
             let dealer: batch_avss::Dealer = batch_avss::Dealer::new(
                 nodes.clone(),
+                dealer_id,
                 t,
                 f,
                 sid.clone(),
-                batch_size * dealer_weight as usize,
+                batch_size_per_weight,
             )
             .unwrap();
             let receivers = sks
@@ -225,11 +225,13 @@ mod tests {
                     batch_avss::Receiver::new(
                         nodes.clone(),
                         id as u16,
+                        dealer_id,
                         t,
                         sid.clone(),
                         enc_secret_key.clone(),
-                        batch_size * dealer_weight as usize,
+                        batch_size_per_weight,
                     )
+                    .unwrap()
                 })
                 .collect::<Vec<_>>();
 
@@ -241,7 +243,7 @@ mod tests {
             receivers.iter().for_each(|receiver| {
                 let output = assert_valid_batch(receiver.process_message(&message).unwrap());
                 presigning_outputs
-                    .get_mut(&receiver.id())
+                    .get_mut(&receiver.id)
                     .unwrap()
                     .push(output);
             });
@@ -253,13 +255,13 @@ mod tests {
             .map(|(id, outputs)| {
                 (
                     id,
-                    Presignatures::new(outputs, batch_size, f as usize).unwrap(),
+                    Presignatures::new(outputs, batch_size_per_weight, f as usize).unwrap(),
                 )
             })
             .collect::<HashMap<_, _>>();
         assert_eq!(
             presigs.get(&PartyId::from(1u8)).unwrap().len(),
-            batch_size * (weights.iter().sum::<u16>() as usize - f as usize)
+            batch_size_per_weight as usize * (weights.iter().sum::<u16>() as usize - f as usize)
         );
 
         //
@@ -551,10 +553,12 @@ mod tests {
         let sk_shares = mock_shares(&mut rng, sk_element, t, n);
 
         // Mock nonce generation
-        let batch_size: usize = 10;
+        let batch_size_per_weight: u16 = 10;
         let nonces_for_dealer = (0..n)
             .map(|_| {
-                let nonces = (0..batch_size).map(|_| S::rand(&mut rng)).collect_vec();
+                let nonces = (0..batch_size_per_weight)
+                    .map(|_| S::rand(&mut rng))
+                    .collect_vec();
                 let public_keys = nonces.iter().map(|s| G::generator() * s).collect_vec();
                 let nonce_shares: Vec<Vec<S>> = nonces
                     .iter()
@@ -578,14 +582,13 @@ mod tests {
                             my_shares: SharesForNode {
                                 shares: vec![ShareBatch {
                                     index,
-                                    batch: (0..batch_size)
+                                    batch: (0..batch_size_per_weight as usize)
                                         .map(|l| nonces_for_dealer[j as usize].2[l][i as usize])
                                         .collect_vec(),
                                     blinding_share: Default::default(), // Not used for this test
                                 }],
                             },
                             public_keys: nonces_for_dealer[j as usize].1.clone(),
-                            batch_size,
                         }
                     })
                     .collect_vec()
@@ -594,10 +597,13 @@ mod tests {
 
         let mut presigning = outputs
             .into_iter()
-            .map(|output| Presignatures::new(output, batch_size, f as usize).unwrap())
+            .map(|output| Presignatures::new(output, batch_size_per_weight, f as usize).unwrap())
             .collect_vec();
 
-        assert_eq!(presigning[0].len(), batch_size * (n - f) as usize);
+        assert_eq!(
+            presigning[0].len(),
+            batch_size_per_weight as usize * (n - f) as usize
+        );
 
         let message = b"Hello, world!";
 
@@ -673,10 +679,12 @@ mod tests {
         let sk_shares = mock_shares(&mut rng, sk_element, t, n);
 
         // Mock nonce generation
-        let batch_size: usize = 100;
+        let batch_size_per_weight: u16 = 100;
         let nonces_for_dealer = (0..n)
             .map(|_| {
-                let nonces = (0..batch_size).map(|_| S::rand(&mut rng)).collect_vec();
+                let nonces = (0..batch_size_per_weight)
+                    .map(|_| S::rand(&mut rng))
+                    .collect_vec();
                 let public_keys = nonces.iter().map(|s| G::generator() * s).collect_vec();
                 let nonce_shares: Vec<Vec<S>> = nonces
                     .iter()
@@ -694,20 +702,19 @@ mod tests {
         let outputs = (0..n)
             .map(|i| {
                 let index = ShareIndex::new(i + 1).unwrap();
-                (0..n)
+                (0..n as usize)
                     .map(|j| {
                         batch_avss::ReceiverOutput {
                             my_shares: SharesForNode {
                                 shares: vec![ShareBatch {
                                     index,
-                                    batch: (0..batch_size)
-                                        .map(|l| nonces_for_dealer[j as usize].2[l][i as usize])
+                                    batch: (0..batch_size_per_weight as usize)
+                                        .map(|l| nonces_for_dealer[j].2[l][i as usize])
                                         .collect_vec(),
                                     blinding_share: Default::default(), // Not used for this test
                                 }],
                             },
-                            public_keys: nonces_for_dealer[j as usize].1.clone(),
-                            batch_size,
+                            public_keys: nonces_for_dealer[j].1.clone(),
                         }
                     })
                     .collect_vec()
@@ -716,10 +723,13 @@ mod tests {
 
         let mut presigning = outputs
             .into_iter()
-            .map(|output| Presignatures::new(output, batch_size, f as usize).unwrap())
+            .map(|output| Presignatures::new(output, batch_size_per_weight, f as usize).unwrap())
             .collect_vec();
 
-        assert_eq!(presigning[0].len(), batch_size * (n - f) as usize);
+        assert_eq!(
+            presigning[0].len(),
+            batch_size_per_weight as usize * (n - f) as usize
+        );
 
         let message = b"Hello, world!";
 

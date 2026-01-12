@@ -40,7 +40,7 @@ pub struct Dealer {
 /// This represents a Receiver in the AVSS who receives shares from the [Dealer].
 #[allow(dead_code)]
 pub struct Receiver {
-    id: PartyId,
+    pub(crate) id: PartyId,
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
     sid: Vec<u8>,
@@ -69,7 +69,6 @@ pub enum ProcessedMessage {
 pub struct ReceiverOutput {
     pub my_shares: SharesForNode,
     pub public_keys: Vec<G>,
-    pub batch_size: usize,
 }
 
 /// This represents a set of shares for a node. A total of <i>L</i> secrets/nonces are being shared,
@@ -124,8 +123,8 @@ impl ShareBatch {
 
 impl SharesForNode {
     /// Get the weight of this node (number of shares it has).
-    pub fn weight(&self) -> usize {
-        self.shares.len()
+    pub fn weight(&self) -> u16 {
+        self.shares.len() as u16
     }
 
     /// If all shares have the same batch size, return that.
@@ -201,23 +200,31 @@ impl BCSSerialized for SharesForNode {}
 impl Dealer {
     /// Create a new dealer.
     ///
-    /// `nodes` defines the set of receivers and their weights.
-    /// `t` is the number of shares that are needed to reconstruct the full key/signature.
-    /// `f` is the maximum number of Byzantine parties counted by weight.
-    /// `sid` is a session identifier that should be unique for each invocation, but the same for all parties.
-    /// `rng` is a random number generator.
+    /// * `nodes` defines the set of receivers and their weights.
+    /// * `dealer_id` is the id of this dealer as a node.
+    /// * `t` is the number of shares that are needed to reconstruct the full key/signature.
+    /// * `f` is the maximum number of Byzantine parties counted by weight.
+    /// * `sid` is a session identifier that should be unique for each invocation, but the same for all parties.
+    /// * `batch_size_per_weight` is the number of secrets a dealer should deal per weight it has.
+    ///
+    /// Returns an `InvalidInput` error if
+    /// * t <= f or the total weight of the nodes is smaller than t + 2*f.
+    /// * the `dealer_id` is invalid (not part of `nodes`).
     pub fn new(
         nodes: Nodes<EG>,
+        dealer_id: PartyId,
         t: u16,
         f: u16,
         sid: Vec<u8>,
-        batch_size: usize,
+        batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
         // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
         if t <= f || t + 2 * f > nodes.total_weight() {
             return Err(InvalidInput);
         }
 
+        // Each dealer deals a number of nonces proportional to their weight.
+        let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
         Ok(Self {
             t,
             nodes,
@@ -313,29 +320,35 @@ impl Dealer {
 impl Receiver {
     /// Create a new receiver.
     ///
-    /// `nodes` defines the set of receivers and what shares they should receive.
-    /// `id` is the id of this receiver.
+    /// * `nodes` defines the set of receivers and what shares they should receive.
+    /// * `id` is the id of this receiver.
+    /// * `dealer_id` is the id of the dealer.
+    /// * `t` is the number of shares that are needed to reconstruct the full key/signature.
+    /// * `sid` is a session identifier that should be unique for each invocation, but the same for all parties.
+    /// * `enc_secret_key` is this Receivers' secret key for the distribution of nonces. The corresponding public key is defined in `nodes`.
+    /// * `batch_size_per_weight` is the number of secrets a dealer should deal per weight it has.
     ///
+    /// Returns an `InvalidInput` error if the `id` or `dealer_id` is invalid.
     pub fn new(
         nodes: Nodes<EG>,
         id: PartyId,
+        dealer_id: PartyId,
         t: u16,
         sid: Vec<u8>,
         enc_secret_key: PrivateKey<EG>,
-        batch_size: usize,
-    ) -> Self {
-        Self {
+        batch_size_per_weight: u16,
+    ) -> FastCryptoResult<Self> {
+        // The dealer is expected to deal a number of nonces proportional to it's weight
+        let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
+
+        Ok(Self {
             id,
             enc_secret_key,
             nodes,
             sid,
             t,
             batch_size,
-        }
-    }
-
-    pub fn id(&self) -> PartyId {
-        self.id
+        })
     }
 
     /// 2. Each receiver processes the message, verifies and decrypts its shares.
@@ -399,7 +412,6 @@ impl Receiver {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
                 my_shares,
                 public_keys: full_public_keys.clone(),
-                batch_size: self.batch_size,
             })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
@@ -470,8 +482,8 @@ impl Receiver {
             .collect_vec();
 
         // Compute the total weight of the valid responses
-        let response_weight: usize = response_shares.iter().map(SharesForNode::weight).sum();
-        if response_weight < self.t as usize {
+        let response_weight: u16 = response_shares.iter().map(SharesForNode::weight).sum();
+        if response_weight < self.t {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
 
@@ -481,7 +493,6 @@ impl Receiver {
         Ok(ReceiverOutput {
             my_shares,
             public_keys: message.full_public_keys.clone(),
-            batch_size: self.batch_size,
         })
     }
 
@@ -509,7 +520,7 @@ fn verify_shares(
     challenge: &[S],
     expected_batch_size: usize,
 ) -> FastCryptoResult<()> {
-    if shares.weight() != nodes.weight_of(receiver)? as usize
+    if shares.weight() != nodes.weight_of(receiver)?
         || shares.try_uniform_batch_size()? != expected_batch_size
     {
         return Err(InvalidMessage);
@@ -566,7 +577,7 @@ mod tests {
         let t = 3;
         let f = 2;
         let n = 7;
-        let batch_size: usize = 3;
+        let batch_size_per_weight = 3;
 
         let mut rng = rand::thread_rng();
         let sks = (0..n)
@@ -585,22 +596,33 @@ mod tests {
         .unwrap();
 
         let sid = b"tbls test".to_vec();
-        let dealer: Dealer = Dealer::new(nodes.clone(), t, f, sid.clone(), batch_size).unwrap();
+        let dealer_id = 0;
+        let dealer: Dealer = Dealer::new(
+            nodes.clone(),
+            dealer_id,
+            t,
+            f,
+            sid.clone(),
+            batch_size_per_weight,
+        )
+        .unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(i, secret_key)| {
+            .map(|(id, secret_key)| {
                 Receiver::new(
                     nodes.clone(),
-                    i as u16,
+                    id as u16,
+                    dealer_id,
                     t,
                     sid.clone(),
                     secret_key,
-                    batch_size,
+                    batch_size_per_weight,
                 )
+                .unwrap()
             })
-            .collect::<Vec<_>>();
+            .collect_vec();
 
         let message = dealer.create_message(&mut rng).unwrap();
 
@@ -614,14 +636,14 @@ mod tests {
             })
             .collect::<HashMap<_, _>>();
 
-        let secrets = (0..batch_size)
+        let secrets = (0..dealer.batch_size)
             .map(|l| {
                 let shares = receivers
                     .iter()
                     .map(|r| {
                         (
                             r.id,
-                            all_shares.get(&r.id).unwrap().my_shares.shares[0].batch[l], // Each receiver has a single share (weight=1)
+                            all_shares.get(&r.id).unwrap().my_shares.shares[0].batch[l], // Each receiver has a single share (weight=1 for all nodes)
                         )
                     })
                     .collect_vec();
@@ -646,7 +668,7 @@ mod tests {
         let t = 4;
         let f = 3;
         let weights: Vec<u16> = vec![1, 2, 3, 4];
-        const BATCH_SIZE: usize = 3;
+        let batch_size_per_weight = 3;
 
         let mut rng = rand::thread_rng();
         let sks = weights
@@ -662,12 +684,14 @@ mod tests {
                     pk: PublicKey::from_private_key(&sks[i]),
                     weight,
                 })
-                .collect::<Vec<_>>(),
+                .collect_vec(),
         )
         .unwrap();
 
+        let dealer_id = 2;
         let sid = b"tbls test".to_vec();
-        let dealer: Dealer = Dealer::new(nodes.clone(), t, f, sid.clone(), BATCH_SIZE).unwrap();
+        let dealer: Dealer =
+            Dealer::new(nodes.clone(), 0, t, f, sid.clone(), batch_size_per_weight).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -676,13 +700,15 @@ mod tests {
                 Receiver::new(
                     nodes.clone(),
                     i as u16,
+                    dealer_id,
                     t,
                     sid.clone(),
                     secret_key,
-                    BATCH_SIZE,
+                    batch_size_per_weight,
                 )
+                .unwrap()
             })
-            .collect::<Vec<_>>();
+            .collect_vec();
 
         let message = dealer.create_message(&mut rng).unwrap();
 
@@ -695,7 +721,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let secrets = (0..BATCH_SIZE)
+        let secrets = (0..dealer.batch_size)
             .map(|l| {
                 Poly::recover_c0(
                     t,
@@ -716,7 +742,7 @@ mod tests {
         let t = 3;
         let f = 2;
         let n = 7;
-        const BATCH_SIZE: usize = 3;
+        let batch_size_per_weight: u16 = 3;
 
         let mut rng = rand::thread_rng();
         let sks = (0..n)
@@ -736,20 +762,31 @@ mod tests {
 
         let sid = b"tbls test".to_vec();
 
-        let dealer: Dealer = Dealer::new(nodes.clone(), t, f, sid.clone(), BATCH_SIZE).unwrap();
+        let dealer_id = 1;
+        let dealer: Dealer = Dealer::new(
+            nodes.clone(),
+            dealer_id,
+            t,
+            f,
+            sid.clone(),
+            batch_size_per_weight,
+        )
+        .unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(i, secret_key)| {
+            .map(|(id, secret_key)| {
                 Receiver::new(
                     nodes.clone(),
-                    i as u16,
+                    id as u16,
+                    dealer_id,
                     t,
                     sid.clone(),
                     secret_key,
-                    BATCH_SIZE,
+                    batch_size_per_weight,
                 )
+                .unwrap()
             })
             .collect::<Vec<_>>();
 
@@ -778,7 +815,7 @@ mod tests {
         all_shares.insert(receivers[0].id, shares);
 
         // Recover with the first f+1 shares, including the reconstructed
-        let secrets = (0..BATCH_SIZE)
+        let secrets = (0..dealer.batch_size)
             .map(|l| {
                 let shares = all_shares
                     .iter()

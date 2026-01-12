@@ -28,7 +28,7 @@ pub fn setup_receiver(
     threshold: u16,
     weight: u16, // Per node
     keys: &[(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)],
-    batch_size: usize,
+    batch_size_per_weight: u16,
 ) -> batch_avss::Receiver {
     let nodes = keys
         .iter()
@@ -40,12 +40,14 @@ pub fn setup_receiver(
         .collect();
     batch_avss::Receiver::new(
         Nodes::new(nodes).unwrap(),
+        0,
         id,
         threshold,
         b"avss".to_vec(),
         keys.get(id as usize).unwrap().1.clone(),
-        batch_size,
+        batch_size_per_weight,
     )
+    .unwrap()
 }
 
 pub fn setup_dealer(
@@ -53,7 +55,7 @@ pub fn setup_dealer(
     f: u16,
     weight: u16, // Per node
     keys: &[(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)],
-    batch_size: usize,
+    batch_size_per_weight: u16,
 ) -> batch_avss::Dealer {
     let nodes = keys
         .iter()
@@ -65,10 +67,11 @@ pub fn setup_dealer(
         .collect();
     batch_avss::Dealer::new(
         Nodes::new(nodes).unwrap(),
+        0,
         threshold,
         f,
         b"avss".to_vec(),
-        batch_size,
+        batch_size_per_weight,
     )
     .unwrap()
 }
@@ -85,7 +88,7 @@ mod batch_avss_benches {
         batch_avss::<1000>(c);
     }
 
-    fn batch_avss<const BATCH_SIZE: usize>(c: &mut Criterion) {
+    fn batch_avss<const BATCH_SIZE: u16>(c: &mut Criterion) {
         const SIZES: [u16; 1] = [100];
         const TOTAL_WEIGHTS: [u16; 3] = [500, 1000, 1500];
 
