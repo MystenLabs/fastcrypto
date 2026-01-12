@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Implementation of an asynchronous verifiable secret sharing (AVSS) protocol to distribute secret shares for a batch of random nonces.
+//! The size of the batch is proportional to the [Dealer]'s weight.
 //!
 //! Before the protocol starts, the following setup is needed:
 //! * Each receiver has a encryption key pair (ECIES) and these public keys are known to all parties.
@@ -28,12 +29,13 @@ use std::fmt::Debug;
 use std::iter::repeat_with;
 
 /// This represents a Dealer in the AVSS.
-/// There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
+/// There is exactly one dealer who creates the shares and broadcasts the encrypted shares.
 #[allow(dead_code)]
 pub struct Dealer {
     t: u16,
     nodes: Nodes<EG>,
     sid: Vec<u8>,
+    /// The total number of nonces that this dealer should distribute.
     batch_size: usize,
 }
 
@@ -44,7 +46,8 @@ pub struct Receiver {
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
     sid: Vec<u8>,
-    t: u16, // The number of parties that are needed to reconstruct the full key/signature.
+    t: u16,
+    /// The total number of nonces that the receiver expects to receive from the dealer.
     batch_size: usize,
 }
 
@@ -130,6 +133,7 @@ impl SharesForNode {
     /// If all shares have the same batch size, return that.
     /// Otherwise, return an InvalidInput error.
     pub fn try_uniform_batch_size(&self) -> FastCryptoResult<usize> {
+        // TODO: Should we cache this? It's called twice per dealer -- once when verifying shares received from a dealer and then again during presigning.
         get_uniform_value(self.shares.iter().map(ShareBatch::batch_size)).ok_or(InvalidInput)
     }
 
@@ -163,7 +167,7 @@ impl SharesForNode {
             .map(|index| {
                 let batch = (0..receiver.batch_size)
                     .map(|i| {
-                        let evaluations: Vec<Eval<S>> = other_shares
+                        let evaluations = other_shares
                             .iter()
                             .flat_map(|s| s.shares_for_secret(i))
                             .collect_vec();
@@ -208,7 +212,7 @@ impl Dealer {
     /// * `batch_size_per_weight` is the number of secrets a dealer should deal per weight it has.
     ///
     /// Returns an `InvalidInput` error if
-    /// * t <= f or the total weight of the nodes is smaller than t + 2*f.
+    /// * t <= f or if the total weight of the nodes is smaller than t + 2*f.
     /// * the `dealer_id` is invalid (not part of `nodes`).
     pub fn new(
         nodes: Nodes<EG>,
@@ -218,7 +222,6 @@ impl Dealer {
         sid: Vec<u8>,
         batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
-        // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
         if t <= f || t + 2 * f > nodes.total_weight() {
             return Err(InvalidInput);
         }
@@ -243,15 +246,16 @@ impl Dealer {
         let full_public_keys = secrets.iter().map(|s| G::generator() * s).collect_vec();
 
         // "blinding" polynomial as defined in https://eprint.iacr.org/2023/536.pdf.
+        let total_weight = self.nodes.total_weight();
         let blinding_secret = S::rand(rng);
         let blinding_poly_evaluations =
-            create_secret_sharing(rng, blinding_secret, self.t, self.nodes.total_weight());
+            create_secret_sharing(rng, blinding_secret, self.t, total_weight);
         let blinding_commit = G::generator() * blinding_secret;
 
         // Compute all evaluations of all polynomials
         let share_batches = secrets
             .iter()
-            .map(|&s| create_secret_sharing(rng, s, self.t, self.nodes.total_weight()))
+            .map(|&s| create_secret_sharing(rng, s, self.t, total_weight))
             .collect_vec();
 
         // Encrypt all shares to the receivers
@@ -498,12 +502,6 @@ impl Receiver {
 
     pub fn my_indices(&self) -> Vec<ShareIndex> {
         self.nodes.share_ids_of(self.id).unwrap()
-    }
-
-    pub fn my_weight(&self) -> usize {
-        self.nodes
-            .total_weight_of(std::iter::once(&self.id))
-            .unwrap() as usize
     }
 
     fn random_oracle(&self) -> RandomOracle {
