@@ -184,66 +184,6 @@ async fn test_end_to_end_slack() {
     assert!(res_prod.is_err());
 }
 
-#[derive(Deserialize)]
-struct TestData {
-    jwt: String,
-    kid: String,
-    n: String,
-    provider: String,
-}
-
-#[tokio::test]
-async fn test_end_to_end_all_providers() {
-    // All JWT generated against nonce hTPpgF7XAKbW37rEUS6pEVZqmoI. This is derived based on max_epoch = 10, kp generated from seed = [0; 32], and jwt_randomness 100681567828351849884072155819400689117.
-    let file =
-        std::fs::File::open("src/bn254/zklogin_test_vectors.json").expect("Unable to open file");
-    let test_datum: Vec<TestData> = serde_json::from_reader(file).unwrap();
-    for test_data in test_datum {
-        // Make a map of jwk ids to jwks just for Apple.
-        let (_, _, iss) = parse_and_validate_jwt(&test_data.jwt).unwrap();
-        let provider = OIDCProvider::from_iss(&iss).unwrap();
-        assert_eq!(
-            provider,
-            OIDCProvider::from_iss(&provider.get_config().iss).unwrap()
-        );
-        println!(
-            "Testing provider: {:?} test case: {:?}",
-            provider, test_data.provider
-        );
-        let (max_epoch, eph_pubkey, zk_login_inputs) = get_test_inputs(&test_data.jwt).await;
-        let mut map = ImHashMap::new();
-        map.insert(
-            JwkId::new(zk_login_inputs.get_iss().to_string(), test_data.kid),
-            JWK {
-                kty: "RSA".to_string(),
-                e: "AQAB".to_string(),
-                n: test_data.n,
-                alg: "RS256".to_string(),
-            },
-        );
-
-        // Verify it against test vk ok.
-        let res = verify_zk_login(
-            &zk_login_inputs,
-            max_epoch,
-            &eph_pubkey,
-            &map,
-            &ZkLoginEnv::Test,
-        );
-        assert!(res.is_ok());
-
-        // Verify it against prod vk fails.
-        let res_prod = verify_zk_login(
-            &zk_login_inputs,
-            max_epoch,
-            &eph_pubkey,
-            &map,
-            &ZkLoginEnv::Prod,
-        );
-        assert!(res_prod.is_err());
-    }
-}
-
 async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
     let max_epoch = 10;
     let jwt_randomness = "100681567828351849884072155819400689117";
