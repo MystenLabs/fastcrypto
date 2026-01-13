@@ -228,6 +228,7 @@ impl Dealer {
 
         // Each dealer deals a number of nonces proportional to their weight.
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
+
         Ok(Self {
             t,
             nodes,
@@ -342,6 +343,9 @@ impl Receiver {
         enc_secret_key: PrivateKey<EG>,
         batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
+        // Check that the id is valid
+        let _ = nodes.node_id_to_node(id)?;
+
         // The dealer is expected to deal a number of nonces proportional to it's weight
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
 
