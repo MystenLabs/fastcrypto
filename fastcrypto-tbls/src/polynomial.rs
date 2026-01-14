@@ -153,23 +153,29 @@ impl<C: GroupElement> Poly<C> {
 
     /// Evaluate the polynomial for all x in the range [1,...,m].
     /// If m is sufficiently larger than the degree, this is faster than just evaluating at each point.
-    /// Returns an [InvalidInput] error if `self.degree() >= u16::MAX` or if `m` is `0` or `u16::MAX`.
     ///
     /// This is based on an algorithm in section 4.6.4 of Knuth's "The Art of Computer Programming".
-    pub fn eval_range(&self, m: u16) -> FastCryptoResult<EvalRange<C>> {
+    pub fn eval_range(&self, m: u16) -> EvalRange<C> {
+        // The PolynomialEvaluator can't handle m = 0, m = u16::MAX or self.degree() >= u16::MAX,
+        // so in those extreme cases, we just evaluate everything using Polynomial::eval.
         if m == 0 || m == u16::MAX || self.degree() >= u16::MAX as usize {
-            return Err(FastCryptoError::InvalidInput);
+            return EvalRange(
+                (1..m)
+                    .map(|i| self.eval(ShareIndex::new(i).unwrap()).value)
+                    .collect_vec(),
+            );
         }
-        Ok(EvalRange(
+        EvalRange(
             PolynomialEvaluator::new(
                 self,
                 NonZeroU16::new(1).unwrap(),
                 NonZeroU16::new(1).unwrap(),
-            )?
+            )
+            .expect("Checked above")
             .take(m as usize)
             .map(|e| e.value)
             .collect_vec(),
-        ))
+        )
     }
 
     /// Multiply x.1 with y using u128s if possible, otherwise convert x.1 to the group element and multiply.

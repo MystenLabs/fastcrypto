@@ -151,7 +151,7 @@ mod tests {
                 .collect::<Vec<_>>();
 
             // Each dealer creates a message
-            let message = dealer.create_message(&mut rng).unwrap();
+            let message = dealer.create_message(&mut rng);
             messages.push(message.clone());
 
             // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
@@ -367,7 +367,7 @@ mod tests {
                     .collect::<Vec<_>>();
 
                 // Each dealer creates a message
-                let message = dealer.create_message(&mut rng).unwrap();
+                let message = dealer.create_message(&mut rng);
                 messages.insert((dealer_id, share_index), message.clone());
 
                 // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
