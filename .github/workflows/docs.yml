@@ -11,6 +11,8 @@ on:
       - "Cargo.lock"
   workflow_dispatch:
 
+permissions:
+  contents: write
 
 jobs:
   docs:

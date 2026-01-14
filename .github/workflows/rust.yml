@@ -29,6 +29,9 @@ env:
   # Don't emit giant backtraces in the CI logs.
   RUST_BACKTRACE: short
 
+permissions:
+  contents: read
+
 jobs:
   license-check:
     name: license-check
