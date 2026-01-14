@@ -1,0 +1,28 @@
+name: ZK Login E2E Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'fastcrypto-zkp/src/bn254/**'
+      - 'fastcrypto-zkp/src/lib.rs'
+      - '.github/workflows/zklogin-e2e-tests.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  RUST_BACKTRACE: short
+
+jobs:
+  zklogin-e2e:
+    runs-on: ubuntu-ghcloud
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # pin@v3
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # pin@v1
+      - name: Run ZK Login E2E tests
+        run: cargo test --all-features zk_login_e2e
