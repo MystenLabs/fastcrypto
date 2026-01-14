@@ -10,6 +10,9 @@ on:
       - main
     types: [opened, reopened, synchronize]
 
+permissions:
+  contents: read
+
 jobs:
   coverage:
     name: Collect test coverage
@@ -29,7 +32,7 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Collect coverage data
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info -- --skip test_end_to_end_all_providers
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info -- --skip zk_login_e2e
       - name: Upload coverage data to codecov
         uses: codecov/codecov-action@v3
         with:
