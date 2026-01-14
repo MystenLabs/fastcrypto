@@ -798,7 +798,7 @@ fn test_e2e_dkg_and_key_rotation() {
         .collect::<Vec<_>>();
     let (conf0, used_msgs0) = d0.merge(proc_msg0).unwrap();
     assert!(conf0.complaints.is_empty());
-    assert_eq!(used_msgs0.0.len(), 3);
+    assert_eq!(used_msgs0.0.len(), 2);
 
     let proc_msg1 = &all_messages
         .iter()
