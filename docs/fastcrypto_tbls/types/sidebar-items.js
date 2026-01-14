@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["sum"],"struct":["IndexedValue","ThresholdBls12381MinSig"],"type":["PrivateBlsKey","PublicBlsKey","PublicVssKey","RawSignature","Share","ShareIndex","Signature"]};
+window.SIDEBAR_ITEMS = {"fn":["get_uniform_value","sum"],"struct":["IndexedValue","ThresholdBls12381MinSig"],"type":["PrivateBlsKey","PublicBlsKey","PublicVssKey","RawSignature","Share","ShareIndex","Signature"]};

@@ -25,9 +25,9 @@
 <a href=#25 id=25 data-nosnippet>25</a>/// Returns an `OutOfPresigs` error if the presignatures iterator is exhausted.
 <a href=#26 id=26 data-nosnippet>26</a>/// `GeneralOpaqueError` is returned if the generated nonce R is the identity element (should happen only with negligible probability).
 <a href=#27 id=27 data-nosnippet>27</a>/// `InvalidInput` is returned if the verifying key is the identity element.
-<a href=#28 id=28 data-nosnippet>28</a></span><span class="kw">pub fn </span>generate_partial_signatures&lt;<span class="kw">const </span>BATCH_SIZE: usize&gt;(
+<a href=#28 id=28 data-nosnippet>28</a></span><span class="kw">pub fn </span>generate_partial_signatures(
 <a href=#29 id=29 data-nosnippet>29</a>    message: <span class="kw-2">&amp;</span>[u8],
-<a href=#30 id=30 data-nosnippet>30</a>    presignatures: <span class="kw-2">&amp;mut </span>Presignatures&lt;BATCH_SIZE&gt;,
+<a href=#30 id=30 data-nosnippet>30</a>    presignatures: <span class="kw-2">&amp;mut </span>Presignatures,
 <a href=#31 id=31 data-nosnippet>31</a>    beacon_value: <span class="kw-2">&amp;</span>S,
 <a href=#32 id=32 data-nosnippet>32</a>    my_signing_key_shares: <span class="kw-2">&amp;</span>avss::SharesForNode,
 <a href=#33 id=33 data-nosnippet>33</a>    verifying_key: <span class="kw-2">&amp;</span>G,
