@@ -25,9 +25,9 @@ use itertools::Itertools;
 /// Returns an `OutOfPresigs` error if the presignatures iterator is exhausted.
 /// `GeneralOpaqueError` is returned if the generated nonce R is the identity element (should happen only with negligible probability).
 /// `InvalidInput` is returned if the verifying key is the identity element.
-pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
+pub fn generate_partial_signatures(
     message: &[u8],
-    presignatures: &mut Presignatures<BATCH_SIZE>,
+    presignatures: &mut Presignatures,
     beacon_value: &S,
     my_signing_key_shares: &avss::SharesForNode,
     verifying_key: &G,

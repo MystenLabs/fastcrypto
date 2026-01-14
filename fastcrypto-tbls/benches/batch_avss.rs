@@ -11,7 +11,7 @@ use rand::thread_rng;
 
 type EG = ristretto255::RistrettoPoint;
 
-fn generate_ecies_keys(
+pub fn generate_ecies_keys(
     n: u16,
 ) -> Vec<(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)> {
     (0..n)
@@ -25,9 +25,11 @@ fn generate_ecies_keys(
 
 pub fn setup_receiver(
     id: PartyId,
+    dealer_id: PartyId,
     threshold: u16,
     weight: u16, // Per node
     keys: &[(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)],
+    batch_size_per_weight: u16,
 ) -> batch_avss::Receiver {
     let nodes = keys
         .iter()
@@ -40,17 +42,22 @@ pub fn setup_receiver(
     batch_avss::Receiver::new(
         Nodes::new(nodes).unwrap(),
         id,
+        dealer_id,
         threshold,
         b"avss".to_vec(),
         keys.get(id as usize).unwrap().1.clone(),
+        batch_size_per_weight,
     )
+    .unwrap()
 }
 
 pub fn setup_dealer(
+    dealer_id: u16,
     threshold: u16,
     f: u16,
     weight: u16, // Per node
     keys: &[(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)],
+    batch_size_per_weight: u16,
 ) -> batch_avss::Dealer {
     let nodes = keys
         .iter()
@@ -60,56 +67,124 @@ pub fn setup_dealer(
             weight,
         })
         .collect();
-    batch_avss::Dealer::new(Nodes::new(nodes).unwrap(), threshold, f, b"avss".to_vec()).unwrap()
+    batch_avss::Dealer::new(
+        Nodes::new(nodes).unwrap(),
+        dealer_id,
+        threshold,
+        f,
+        b"avss".to_vec(),
+        batch_size_per_weight,
+    )
+    .unwrap()
 }
 
 mod batch_avss_benches {
     use super::*;
+    use fastcrypto_tbls::threshold_schnorr::batch_avss::Dealer;
+    use fastcrypto_tbls::threshold_schnorr::presigning::Presignatures;
+    use itertools::Itertools;
 
     fn all_batch_avss(c: &mut Criterion) {
-        batch_avss::<50>(c);
-        batch_avss::<100>(c);
-        batch_avss::<250>(c);
+        batch_avss(c, 1);
+        batch_avss(c, 10);
+        batch_avss(c, 25);
     }
 
-    fn batch_avss<const BATCH_SIZE: usize>(c: &mut Criterion) {
+    fn batch_avss(c: &mut Criterion, batch_size_per_weight: u16) {
         const SIZES: [u16; 1] = [100];
         const TOTAL_WEIGHTS: [u16; 3] = [500, 1000, 1500];
 
         {
             let mut create: BenchmarkGroup<_> = c.benchmark_group(format!(
-                "BATCH_AVSS (BATCH_SIZE = {BATCH_SIZE}) create_message"
+                "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) create_message"
             ));
             for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
                 let w = total_w / n;
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
                 let keys = generate_ecies_keys(*n);
-                let d0 = setup_dealer(t, t - 1, w, &keys);
+                let d0 = setup_dealer(0, t, t - 1, w, &keys, batch_size_per_weight);
                 create.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| d0.create_message::<BATCH_SIZE>(&mut thread_rng())),
+                    |b| b.iter(|| d0.create_message(&mut thread_rng())),
                 );
             }
         }
 
         {
-            let mut verify: BenchmarkGroup<_> = c.benchmark_group(format!(
-                "BATCH_AVSS (BATCH_SIZE = {BATCH_SIZE}) process_message"
+            let mut process: BenchmarkGroup<_> = c.benchmark_group(format!(
+                "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) process_message"
             ));
             for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
                 let w = total_w / n;
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
                 let keys = generate_ecies_keys(*n);
-                let d0 = setup_dealer(t, t - 1, w, &keys);
-                let r1 = setup_receiver(1, t, w, &keys);
-                let message = d0.create_message::<BATCH_SIZE>(&mut thread_rng()).unwrap();
+                let d0 = setup_dealer(0, t, t - 1, w, &keys, batch_size_per_weight);
+                let r1 = setup_receiver(1, 0, t, w, &keys, batch_size_per_weight);
+                let message = d0.create_message(&mut thread_rng()).unwrap();
 
-                verify.bench_function(
+                process.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| b.iter(|| r1.process_message(&message).unwrap()),
                 );
+            }
+        }
+        {
+            let mut complete: BenchmarkGroup<_> = c.benchmark_group(format!(
+                "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) presigning"
+            ));
+            for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
+                let w = total_w / n;
+                let total_w = w * n;
+                let t = total_w / 3 - 1;
+                let keys = generate_ecies_keys(*n);
+                let quorum = (2 * n / 3 + 1) as usize;
+                let dealers: Vec<Dealer> = (0..quorum)
+                    .map(|id| setup_dealer(id as u16, t, t - 1, w, &keys, batch_size_per_weight))
+                    .collect();
+                let outputs = dealers
+                    .iter()
+                    .enumerate()
+                    .map(|(dealer_id, d)| {
+                        let message = d.create_message(&mut thread_rng()).unwrap();
+                        let r =
+                            setup_receiver(1, dealer_id as u16, t, w, &keys, batch_size_per_weight);
+                        assert_valid_batch(r.process_message(&message).unwrap())
+                    })
+                    .collect_vec();
+
+                complete.bench_function(
+                    format!("create/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
+                    |b| {
+                        b.iter(|| {
+                            Presignatures::new(
+                                outputs.clone(),
+                                batch_size_per_weight,
+                                t as usize - 1,
+                            )
+                            .unwrap()
+                        })
+                    },
+                );
+
+                // Ensure that we have enough presignatures.
+                let presignatures = (0..1000)
+                    .map(|_| {
+                        Presignatures::new(outputs.clone(), batch_size_per_weight, t as usize - 1)
+                            .unwrap()
+                    })
+                    .collect_vec();
+
+                let mut presigs = presignatures.into_iter().flatten();
+
+                complete
+                    .bench_function(
+                        format!("next/n={}, total_weight={}, t={}, w={}", n, total_w, t, w)
+                            .as_str(),
+                        |b| b.iter(|| presigs.next().unwrap()),
+                    )
+                    .sample_size(10);
             }
         }
     }
@@ -122,3 +197,13 @@ mod batch_avss_benches {
 }
 
 criterion_main!(batch_avss_benches::batch_avss_benches);
+
+fn assert_valid_batch(
+    processed_message: batch_avss::ProcessedMessage,
+) -> batch_avss::ReceiverOutput {
+    if let batch_avss::ProcessedMessage::Valid(output) = processed_message {
+        output
+    } else {
+        panic!("Expected valid message");
+    }
+}

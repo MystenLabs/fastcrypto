@@ -107,7 +107,7 @@ mod avss_benches {
                 let keys = generate_ecies_keys(*n);
                 let d0 = setup_dealer(t, t - 1, w, &keys);
                 let r1 = setup_receiver(1, t, w, &keys);
-                let message = d0.create_message(&mut thread_rng()).unwrap();
+                let message = d0.create_message(&mut thread_rng());
 
                 verify.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
@@ -140,12 +140,7 @@ mod avss_benches {
                 let messages: HashMap<PartyId, avss::Message> = dealers
                     .iter()
                     .enumerate()
-                    .map(|(i, d)| {
-                        (
-                            PartyId::from(i as u16),
-                            d.create_message(&mut thread_rng()).unwrap(),
-                        )
-                    })
+                    .map(|(i, d)| (PartyId::from(i as u16), d.create_message(&mut thread_rng())))
                     .collect();
 
                 let outputs: HashMap<PartyId, PartialOutput> = messages
@@ -173,12 +168,7 @@ mod avss_benches {
                 let messages: HashMap<PartyId, avss::Message> = dealers
                     .iter()
                     .enumerate()
-                    .map(|(i, d)| {
-                        (
-                            PartyId::from(i as u16),
-                            d.create_message(&mut thread_rng()).unwrap(),
-                        )
-                    })
+                    .map(|(i, d)| (PartyId::from(i as u16), d.create_message(&mut thread_rng())))
                     .collect();
 
                 let outputs: HashMap<PartyId, PartialOutput> = messages

@@ -1,8 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::types::get_uniform_value;
 use fastcrypto::groups::GroupElement;
-use itertools::Itertools;
 
 /// Lazy evaluation of Pascal matrix-vector multiplication, returning one element at a time.
 /// Computing the next element takes O(h) group additions, where h is the height of the input column.
@@ -70,12 +70,8 @@ impl<C: GroupElement> LazyPascalMatrixMultiplier<C> {
     /// * if the columns are not all of the same length that is at least `height`,
     /// * if `height` is zero.
     pub fn new(height: usize, columns: Vec<Vec<C>>) -> Self {
-        assert!(!columns.is_empty());
-        assert!(columns.iter().map(|c| c.len()).all_equal());
-
-        let width = columns[0].len();
+        let width = get_uniform_value(columns.iter().map(Vec::len)).unwrap();
         assert!(height <= width && height > 0);
-
         let mut buffers = columns;
         Self {
             height,
@@ -112,6 +108,7 @@ impl<C: GroupElement> ExactSizeIterator for LazyPascalMatrixMultiplier<C> {}
 #[test]
 fn test_small_lazy_pascal_vector() {
     use fastcrypto::groups::bls12381::Scalar;
+    use itertools::Itertools;
 
     let expected = [
         vec![1, 1, 1, 1],
@@ -124,7 +121,7 @@ fn test_small_lazy_pascal_vector() {
     for i in 0..5 {
         let mut x = vec![Scalar::from(0u128); 5];
         x[i] = Scalar::from(1u128);
-        let y = LazyPascalVectorMultiplier::new(4, x).collect::<Vec<_>>();
+        let y = LazyPascalVectorMultiplier::new(4, x).collect_vec();
         assert_eq!(
             y,
             expected[i]
@@ -138,6 +135,7 @@ fn test_small_lazy_pascal_vector() {
 #[test]
 fn test_small_lazy_pascal_matrix() {
     use fastcrypto::groups::bls12381::Scalar;
+    use itertools::Itertools;
 
     let expected = [vec![1, 3, 6, 10], vec![1, 2, 3, 4], vec![1, 1, 1, 1]];
 
@@ -164,6 +162,7 @@ fn test_small_lazy_pascal_matrix() {
 #[test]
 fn test_large_lazy_pascal_matrix() {
     use fastcrypto::groups::bls12381::Scalar;
+    use itertools::Itertools;
 
     let expected = [
         vec![1, 7, 28, 84, 210, 462, 924],
@@ -199,6 +198,7 @@ fn test_large_lazy_pascal_matrix() {
 fn random_test_vector() {
     use fastcrypto::groups::bls12381::Scalar;
     use fastcrypto::groups::Scalar as _;
+    use itertools::Itertools;
 
     // Full 7x7 Pascal matrix for comparison.
     let p7 = [

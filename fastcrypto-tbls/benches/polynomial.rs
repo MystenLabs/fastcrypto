@@ -74,7 +74,7 @@ mod polynomial_benches {
                 let vss_sk = Poly::<bls12381::Scalar>::rand(t as u16, &mut thread_rng());
                 shares_gen.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
                     b.iter(|| {
-                        let _ = vss_sk.eval_range(n as u16).unwrap();
+                        let _ = vss_sk.eval_range(n as u16);
                     })
                 });
             }
