@@ -153,6 +153,7 @@ impl<C: GroupElement> Poly<C> {
 
     /// Evaluate the polynomial for all x in the range [1,...,m].
     /// If m is sufficiently larger than the degree, this is faster than just evaluating at each point.
+    /// If m == 0, the returned range will be empty.
     ///
     /// This is based on an algorithm in section 4.6.4 of Knuth's "The Art of Computer Programming".
     pub fn eval_range(&self, m: u16) -> EvalRange<C> {
