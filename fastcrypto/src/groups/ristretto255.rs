@@ -20,7 +20,7 @@ use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRis
 use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
 use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::{Identity, VartimeMultiscalarMul};
-use derive_more::{Add, Div, From, Neg, Sub};
+use derive_more::{Add, Div, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Add, Div, Mul};
 use zeroize::Zeroize;
@@ -29,7 +29,7 @@ const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
 const RISTRETTO_SCALAR_BYTE_LENGTH: usize = 32;
 
 /// Represents a point in the Ristretto group for Curve25519.
-#[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Add, Sub, Neg, GroupOpsExtend)]
 pub struct RistrettoPoint(ExternalRistrettoPoint);
 
 impl RistrettoPoint {
@@ -37,12 +37,7 @@ impl RistrettoPoint {
     /// If the input bytes are uniformly distributed, the resulting point will be uniformly
     /// distributed over the Ristretto group.
     pub fn from_uniform_bytes(bytes: &[u8; 64]) -> Self {
-        RistrettoPoint::from(ExternalRistrettoPoint::from_uniform_bytes(bytes))
-    }
-
-    /// Construct a RistrettoPoint from the given data using a given hash function.
-    pub fn map_to_point<H: HashFunction<64>>(bytes: &[u8]) -> Self {
-        Self::from_uniform_bytes(&H::digest(bytes).digest)
+        RistrettoPoint(ExternalRistrettoPoint::from_uniform_bytes(bytes))
     }
 }
 
@@ -81,7 +76,7 @@ impl Mul<RistrettoScalar> for RistrettoPoint {
     type Output = RistrettoPoint;
 
     fn mul(self, rhs: RistrettoScalar) -> RistrettoPoint {
-        RistrettoPoint::from(self.0 * rhs.0)
+        RistrettoPoint(self.0 * rhs.0)
     }
 }
 
@@ -89,34 +84,26 @@ impl GroupElement for RistrettoPoint {
     type ScalarType = RistrettoScalar;
 
     fn zero() -> RistrettoPoint {
-        RistrettoPoint::from(ExternalRistrettoPoint::identity())
+        RistrettoPoint(ExternalRistrettoPoint::identity())
     }
 
     fn generator() -> Self {
-        RistrettoPoint::from(RISTRETTO_BASEPOINT_POINT)
-    }
-}
-
-impl TryFrom<&[u8]> for RistrettoPoint {
-    type Error = FastCryptoError;
-
-    /// Decode a ristretto point in compressed binary form.
-    fn try_from(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        let point = ExternalCompressedRistrettoPoint::from_slice(bytes);
-        let decompressed_point = point.decompress().ok_or(FastCryptoError::InvalidInput)?;
-        Ok(RistrettoPoint::from(decompressed_point))
+        RistrettoPoint(RISTRETTO_BASEPOINT_POINT)
     }
 }
 
 impl HashToGroupElement for RistrettoPoint {
     fn hash_to_group_element(msg: &[u8]) -> Self {
-        RistrettoPoint::map_to_point::<Sha512>(msg)
+        Self::from_uniform_bytes(&Sha512::digest(msg).digest)
     }
 }
 
 impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
     fn from_byte_array(bytes: &[u8; RISTRETTO_POINT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
-        Self::try_from(bytes.as_slice())
+        ExternalCompressedRistrettoPoint::from_slice(bytes)
+            .decompress()
+            .map(RistrettoPoint)
+            .ok_or(FastCryptoError::InvalidInput)
     }
 
     fn to_byte_array(&self) -> [u8; RISTRETTO_POINT_BYTE_LENGTH] {
@@ -127,7 +114,7 @@ impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
 serialize_deserialize_with_to_from_byte_array!(RistrettoPoint);
 
 /// Represents a scalar.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, Div, GroupOpsExtend, Zeroize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Add, Sub, Neg, Div, GroupOpsExtend, Zeroize)]
 pub struct RistrettoScalar(ExternalRistrettoScalar);
 
 impl RistrettoScalar {
@@ -152,7 +139,7 @@ impl Mul<RistrettoScalar> for RistrettoScalar {
     type Output = RistrettoScalar;
 
     fn mul(self, rhs: RistrettoScalar) -> RistrettoScalar {
-        RistrettoScalar::from(self.0 * rhs.0)
+        RistrettoScalar(self.0 * rhs.0)
     }
 }
 
@@ -170,10 +157,10 @@ impl GroupElement for RistrettoScalar {
     type ScalarType = Self;
 
     fn zero() -> Self {
-        RistrettoScalar::from(ExternalRistrettoScalar::zero())
+        RistrettoScalar(ExternalRistrettoScalar::zero())
     }
     fn generator() -> Self {
-        RistrettoScalar::from(ExternalRistrettoScalar::one())
+        RistrettoScalar(ExternalRistrettoScalar::one())
     }
 }
 
@@ -186,7 +173,7 @@ impl Scalar for RistrettoScalar {
         if self.0 == ExternalRistrettoScalar::zero() {
             return Err(FastCryptoError::InvalidInput);
         }
-        Ok(RistrettoScalar::from(self.0.invert()))
+        Ok(RistrettoScalar(self.0.invert()))
     }
 }
 
