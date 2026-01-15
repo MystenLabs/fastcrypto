@@ -102,6 +102,7 @@ mod tests {
     use super::*;
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::secp256r1::{ProjectivePoint, Scalar};
+    use crate::ristretto255_tests::GROUP_ORDER_MINUS_ONE;
     use ark_ff::{BigInteger, PrimeField};
     use ark_secp256r1::Fr;
 
@@ -112,11 +113,6 @@ mod tests {
             RistrettoPoint::zero(),
         );
 
-        let group_order_minus_one = RistrettoScalar::from_byte_array(&[
-            236, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16,
-        ])
-        .unwrap();
         let scalars = [
             RistrettoScalar::from(0),
             RistrettoScalar::from(1),
@@ -125,7 +121,7 @@ mod tests {
             RistrettoScalar::from(123456),
             RistrettoScalar::from(123456789),
             RistrettoScalar::from(0xffffffffffffffff),
-            group_order_minus_one,
+            RistrettoScalar::from_byte_array(&GROUP_ORDER_MINUS_ONE).unwrap(),
         ];
 
         for scalar in scalars {

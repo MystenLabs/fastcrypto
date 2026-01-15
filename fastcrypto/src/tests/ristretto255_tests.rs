@@ -6,6 +6,15 @@ use crate::groups::ristretto255::RistrettoScalar;
 use crate::groups::{GroupElement, MultiScalarMul};
 use crate::serde_helpers::ToFromByteArray;
 
+pub(crate) const GROUP_ORDER: [u8; 32] = [
+    237, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 16,
+];
+pub(crate) const GROUP_ORDER_MINUS_ONE: [u8; 32] = [
+    236, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 16,
+];
+
 #[test]
 fn test_arithmetic() {
     // From https://ristretto.group/test_vectors/ristretto255.html
@@ -39,16 +48,8 @@ fn test_arithmetic() {
     assert!((RistrettoPoint::generator() / RistrettoScalar::zero()).is_err());
 
     // RistrettoScalar::from_byte_array should accept only canonical representations.
-    let group_order_as_bytes = [
-        237, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 16,
-    ];
-    assert!(RistrettoScalar::from_byte_array(&group_order_as_bytes).is_err());
-    let group_order_minus_one = [
-        236, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 16,
-    ];
-    assert!(RistrettoScalar::from_byte_array(&group_order_minus_one).is_ok());
+    assert!(RistrettoScalar::from_byte_array(&GROUP_ORDER).is_err());
+    assert!(RistrettoScalar::from_byte_array(&GROUP_ORDER_MINUS_ONE).is_ok());
 
     // Check that u128 is decoded correctly.
     let x: u128 = 2 << 66;
