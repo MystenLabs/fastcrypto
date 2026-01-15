@@ -15,14 +15,14 @@ use crate::{
     error::FastCryptoError, hash::HashFunction, serialize_deserialize_with_to_from_byte_array,
 };
 use curve25519_dalek_ng;
-use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT};
+use curve25519_dalek_ng::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRistrettoPoint;
 use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
 use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::{Identity, VartimeMultiscalarMul};
 use derive_more::{Add, Div, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul};
 use zeroize::Zeroize;
 
 const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
@@ -43,16 +43,6 @@ impl RistrettoPoint {
     /// Construct a RistrettoPoint from the given data using a given hash function.
     pub fn map_to_point<H: HashFunction<64>>(bytes: &[u8]) -> Self {
         Self::from_uniform_bytes(&H::digest(bytes).digest)
-    }
-
-    /// Return this point in compressed form.
-    pub fn compress(&self) -> [u8; 32] {
-        self.0.compress().0
-    }
-
-    /// Return this point in compressed form.
-    pub fn decompress(bytes: &[u8; 32]) -> Result<Self, FastCryptoError> {
-        RistrettoPoint::try_from(bytes.as_slice())
     }
 }
 
@@ -130,7 +120,7 @@ impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
     }
 
     fn to_byte_array(&self) -> [u8; RISTRETTO_POINT_BYTE_LENGTH] {
-        self.compress()
+        self.0.compress().0
     }
 }
 

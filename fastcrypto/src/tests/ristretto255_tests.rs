@@ -66,14 +66,6 @@ fn test_serialize_deserialize_element() {
 }
 
 #[test]
-fn test_compress_decompress() {
-    let p = RistrettoPoint::generator() + RistrettoPoint::generator();
-    let compressed = p.compress();
-    let decompressed: RistrettoPoint = RistrettoPoint::decompress(&compressed).unwrap();
-    assert_eq!(decompressed, p);
-}
-
-#[test]
 fn test_vectors() {
     // Test vectors from draft-irtf-cfrg-ristretto255-decaf448-03
     const VEC_MULGEN: [&str; 16] = [
@@ -171,7 +163,7 @@ fn test_vectors() {
         let actual =
             RistrettoPoint::from_uniform_bytes(&hex::decode(i).unwrap().try_into().unwrap());
         let expected = hex::decode(o).unwrap();
-        assert_eq!(expected, actual.compress());
+        assert_eq!(expected, actual.to_byte_array());
     }
 }
 
