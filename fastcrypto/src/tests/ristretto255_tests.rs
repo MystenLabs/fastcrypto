@@ -18,10 +18,11 @@ pub(crate) const GROUP_ORDER_MINUS_ONE: [u8; 32] = [
 #[test]
 fn test_arithmetic() {
     // From https://ristretto.group/test_vectors/ristretto255.html
-    let five_bp = RistrettoPoint::try_from(
-        hex::decode("e882b131016b52c1d3337080187cf768423efccbb517bb495ab812c4160ff44e")
+    let five_bp = RistrettoPoint::from_byte_array(
+        &hex::decode("e882b131016b52c1d3337080187cf768423efccbb517bb495ab812c4160ff44e")
             .unwrap()
-            .as_slice(),
+            .try_into()
+            .unwrap(),
     )
     .unwrap();
 
@@ -90,7 +91,9 @@ fn test_vectors() {
 
     for (i, item) in VEC_MULGEN.iter().enumerate() {
         let actual = RistrettoPoint::generator() * RistrettoScalar::from(i as u128);
-        let expected = RistrettoPoint::try_from(hex::decode(item).unwrap().as_slice()).unwrap();
+        let expected =
+            RistrettoPoint::from_byte_array(&hex::decode(item).unwrap().try_into().unwrap())
+                .unwrap();
         assert_eq!(expected, actual);
     }
 
@@ -132,7 +135,10 @@ fn test_vectors() {
     ];
 
     for item in VEC_INVALID.iter() {
-        assert!(RistrettoPoint::try_from(hex::decode(item).unwrap().as_slice()).is_err());
+        assert!(
+            RistrettoPoint::from_byte_array(&hex::decode(item).unwrap().try_into().unwrap())
+                .is_err()
+        );
     }
 
     const VEC_MAP: [(&str, &str); 11] = [
