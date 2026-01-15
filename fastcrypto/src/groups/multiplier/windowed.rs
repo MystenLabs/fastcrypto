@@ -256,6 +256,11 @@ mod tests {
             RistrettoPoint::zero(),
         );
 
+        let group_order_minus_one = RistrettoScalar::from_byte_array(&[
+            236, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16,
+        ])
+        .unwrap();
         let scalars = [
             RistrettoScalar::from(0),
             RistrettoScalar::from(1),
@@ -264,9 +269,7 @@ mod tests {
             RistrettoScalar::from(123456),
             RistrettoScalar::from(123456789),
             RistrettoScalar::from(0xffffffffffffffff),
-            RistrettoScalar::group_order(),
-            RistrettoScalar::group_order() - RistrettoScalar::from(1),
-            RistrettoScalar::group_order() + RistrettoScalar::from(1),
+            group_order_minus_one,
         ];
 
         for scalar in scalars {

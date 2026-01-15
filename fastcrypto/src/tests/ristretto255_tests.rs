@@ -38,18 +38,17 @@ fn test_arithmetic() {
 
     assert!((RistrettoPoint::generator() / RistrettoScalar::zero()).is_err());
 
-    // Test the order of the base point
-    assert_ne!(RistrettoPoint::zero(), g);
-    assert_eq!(RistrettoPoint::zero(), g * RistrettoScalar::group_order());
-
     // RistrettoScalar::from_byte_array should accept only canonical representations.
-    assert!(
-        RistrettoScalar::from_byte_array(&RistrettoScalar::group_order().to_byte_array()).is_err()
-    );
-    assert!(RistrettoScalar::from_byte_array(
-        &(RistrettoScalar::group_order() - RistrettoScalar::from(1)).to_byte_array()
-    )
-    .is_ok());
+    let group_order_as_bytes = [
+        237, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 16,
+    ];
+    assert!(RistrettoScalar::from_byte_array(&group_order_as_bytes).is_err());
+    let group_order_minus_one = [
+        236, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 16,
+    ];
+    assert!(RistrettoScalar::from_byte_array(&group_order_minus_one).is_ok());
 
     // Check that u128 is decoded correctly.
     let x: u128 = 2 << 66;

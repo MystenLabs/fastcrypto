@@ -22,7 +22,7 @@ use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::{Identity, VartimeMultiscalarMul};
 use derive_more::{Add, Div, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
-use std::ops::{Add, Div, Mul};
+use std::ops::{Add, Div, Mul, Sub};
 use zeroize::Zeroize;
 
 const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
@@ -141,11 +141,6 @@ serialize_deserialize_with_to_from_byte_array!(RistrettoPoint);
 pub struct RistrettoScalar(ExternalRistrettoScalar);
 
 impl RistrettoScalar {
-    /// The order of the base point.
-    pub fn group_order() -> RistrettoScalar {
-        RistrettoScalar(BASEPOINT_ORDER)
-    }
-
     /// Construct a [RistrettoScalar] by reducing a 64-byte little-endian integer modulo the group order.
     pub fn from_bytes_mod_order_wide(bytes: &[u8; 64]) -> Self {
         RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order_wide(bytes))
