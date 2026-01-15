@@ -108,7 +108,7 @@ pub mod ecvrf {
             let mut expanded_message = elliptic_curve::hash2curve::ExpandMsgXmd::<
                 <H as ReverseWrapper>::Variant,
             >::expand_message(
-                &[&self.0.compress(), alpha_string],
+                &[&self.0.to_byte_array(), alpha_string],
                 &[DST],
                 H::OUTPUT_SIZE,
             )
@@ -160,7 +160,9 @@ pub mod ecvrf {
         let mut hash = H::default();
         hash.update(SUITE_STRING);
         hash.update([0x02]); //challenge_generation_domain_separator_front
-        points.into_iter().for_each(|p| hash.update(p.compress()));
+        points
+            .into_iter()
+            .for_each(|p| hash.update(p.to_byte_array()));
         hash.update([0x00]); //challenge_generation_domain_separator_back
         let digest = hash.finalize();
 
@@ -195,7 +197,7 @@ pub mod ecvrf {
             // Follows section 5.1 of draft-irtf-cfrg-vrf-15.
 
             let h = self.pk.ecvrf_encode_to_curve(alpha_string);
-            let h_string = h.compress();
+            let h_string = h.to_byte_array();
             let gamma = h * self.sk.0;
             let k = self.sk.ecvrf_nonce_generation(&h_string);
 
@@ -265,7 +267,7 @@ pub mod ecvrf {
             let mut hash = H::default();
             hash.update(SUITE_STRING);
             hash.update([0x03]); // proof_to_hash_domain_separator_front
-            hash.update(self.gamma.compress());
+            hash.update(self.gamma.to_byte_array());
             hash.update([0x00]); // proof_to_hash_domain_separator_back
             hash.finalize().digest
         }

@@ -239,6 +239,7 @@ mod tests {
     use crate::groups::secp256r1::{ProjectivePoint, Scalar};
     use crate::groups::GroupElement;
     use crate::groups::Scalar as ScalarTrait;
+    use crate::ristretto255_tests::GROUP_ORDER_MINUS_ONE;
     use crate::serde_helpers::ToFromByteArray;
 
     use super::*;
@@ -264,9 +265,7 @@ mod tests {
             RistrettoScalar::from(123456),
             RistrettoScalar::from(123456789),
             RistrettoScalar::from(0xffffffffffffffff),
-            RistrettoScalar::group_order(),
-            RistrettoScalar::group_order() - RistrettoScalar::from(1),
-            RistrettoScalar::group_order() + RistrettoScalar::from(1),
+            RistrettoScalar::from_byte_array(&GROUP_ORDER_MINUS_ONE).unwrap(),
         ];
 
         for scalar in scalars {

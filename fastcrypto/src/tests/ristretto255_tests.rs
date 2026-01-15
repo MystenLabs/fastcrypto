@@ -6,6 +6,15 @@ use crate::groups::ristretto255::RistrettoScalar;
 use crate::groups::{GroupElement, MultiScalarMul};
 use crate::serde_helpers::ToFromByteArray;
 
+pub(crate) const GROUP_ORDER: [u8; 32] = [
+    237, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 16,
+];
+pub(crate) const GROUP_ORDER_MINUS_ONE: [u8; 32] = [
+    236, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 16,
+];
+
 #[test]
 fn test_arithmetic() {
     // From https://ristretto.group/test_vectors/ristretto255.html
@@ -38,18 +47,9 @@ fn test_arithmetic() {
 
     assert!((RistrettoPoint::generator() / RistrettoScalar::zero()).is_err());
 
-    // Test the order of the base point
-    assert_ne!(RistrettoPoint::zero(), g);
-    assert_eq!(RistrettoPoint::zero(), g * RistrettoScalar::group_order());
-
     // RistrettoScalar::from_byte_array should accept only canonical representations.
-    assert!(
-        RistrettoScalar::from_byte_array(&RistrettoScalar::group_order().to_byte_array()).is_err()
-    );
-    assert!(RistrettoScalar::from_byte_array(
-        &(RistrettoScalar::group_order() - RistrettoScalar::from(1)).to_byte_array()
-    )
-    .is_ok());
+    assert!(RistrettoScalar::from_byte_array(&GROUP_ORDER).is_err());
+    assert!(RistrettoScalar::from_byte_array(&GROUP_ORDER_MINUS_ONE).is_ok());
 
     // Check that u128 is decoded correctly.
     let x: u128 = 2 << 66;
@@ -64,14 +64,6 @@ fn test_serialize_deserialize_element() {
     let serialized = bincode::serialize(&p).unwrap();
     let deserialized: RistrettoPoint = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, p);
-}
-
-#[test]
-fn test_compress_decompress() {
-    let p = RistrettoPoint::generator() + RistrettoPoint::generator();
-    let compressed = p.compress();
-    let decompressed: RistrettoPoint = RistrettoPoint::decompress(&compressed).unwrap();
-    assert_eq!(decompressed, p);
 }
 
 #[test]
@@ -172,7 +164,7 @@ fn test_vectors() {
         let actual =
             RistrettoPoint::from_uniform_bytes(&hex::decode(i).unwrap().try_into().unwrap());
         let expected = hex::decode(o).unwrap();
-        assert_eq!(expected, actual.compress());
+        assert_eq!(expected, actual.to_byte_array());
     }
 }
 
