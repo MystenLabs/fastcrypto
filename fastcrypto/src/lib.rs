@@ -32,7 +32,7 @@ pub mod secp256r1_recoverable_tests;
 #[path = "tests/bls12381_tests.rs"]
 pub mod bls12381_tests;
 
-#[cfg(all(test, feature = "experimental"))]
+#[cfg(test)]
 #[path = "tests/bulletproofs_tests.rs"]
 pub mod bulletproofs_tests;
 
@@ -97,7 +97,6 @@ pub mod traits;
 #[cfg(feature = "aes")]
 pub mod aes;
 pub mod bls12381;
-#[cfg(feature = "experimental")]
 pub mod bulletproofs;
 pub mod ed25519;
 pub mod encoding;
