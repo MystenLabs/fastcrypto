@@ -4,6 +4,7 @@
 //! Implementations of the [ristretto255 group](https://www.ietf.org/archive/id/draft-irtf-cfrg-ristretto255-decaf448-03.html) which is a group of
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
+use crate::error::FastCryptoError::InvalidInput;
 use crate::error::FastCryptoResult;
 use crate::groups::{
     Doubling, FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Scalar,
@@ -14,13 +15,13 @@ use crate::traits::AllowedRng;
 use crate::{
     error::FastCryptoError, hash::HashFunction, serialize_deserialize_with_to_from_byte_array,
 };
-use curve25519_dalek_ng;
-use curve25519_dalek_ng::constants::RISTRETTO_BASEPOINT_POINT;
-use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRistrettoPoint;
-use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
-use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
-use curve25519_dalek_ng::traits::{Identity, VartimeMultiscalarMul};
-use derive_more::{Add, Div, Neg, Sub};
+use curve25519_dalek;
+use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+use curve25519_dalek::ristretto::CompressedRistretto as ExternalCompressedRistrettoPoint;
+use curve25519_dalek::ristretto::RistrettoPoint as ExternalRistrettoPoint;
+use curve25519_dalek::scalar::Scalar as ExternalRistrettoScalar;
+use curve25519_dalek::traits::{Identity, VartimeMultiscalarMul};
+use derive_more::{Add, Div, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Add, Div, Mul};
 use zeroize::Zeroize;
@@ -195,7 +196,8 @@ impl ToFromByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
     ) -> Result<Self, FastCryptoError> {
         Ok(RistrettoScalar(
             ExternalRistrettoScalar::from_canonical_bytes(*bytes)
-                .ok_or(FastCryptoError::InvalidInput)?,
+                .into_option()
+                .ok_or(InvalidInput)?,
         ))
     }
 
