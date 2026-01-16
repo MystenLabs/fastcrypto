@@ -121,17 +121,14 @@ impl AggregateRangeProof {
 
         let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(bits, values.len());
-        let mut prover_transcript = Transcript::new(&domain);
+        let mut prover_transcript = Transcript::new(domain);
 
         ExternalRangeProof::prove_multiple(
             &bp_gens,
             &pc_gens,
             &mut prover_transcript,
             values,
-            &blinding_factors
-                .iter()
-                .map(|b| b.0)
-                .collect::<Vec<_>>(),
+            &blinding_factors.iter().map(|b| b.0).collect::<Vec<_>>(),
             bits,
         )
         .map(|(proof, commitments)| Self { proof, commitments })

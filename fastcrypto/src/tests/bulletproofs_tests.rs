@@ -91,7 +91,8 @@ fn test_aggregated_range_proof_invalid() {
         &blindings,
         upper_bound,
         TEST_DOMAIN,
-    ).is_err());
+    )
+    .is_err());
 }
 
 use crate::groups::ristretto255::RistrettoScalar;
