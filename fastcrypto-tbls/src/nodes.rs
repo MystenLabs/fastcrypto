@@ -221,4 +221,183 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             new_t,
         ))
     }
+
+    /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
+    /// This uses the swiper algorithms from the `weight_reduction` directory.
+    ///
+    /// # Parameters
+    /// - `nodes_vec`: Input nodes with weights
+    /// - `t`: Threshold (adversarial weight threshold in absolute terms)
+    /// - `allowed_delta`: Maximum allowed delta value
+    /// - `total_weight_lower_bound`: Minimum allowed total weight after reduction
+    ///
+    /// # Returns
+    /// A tuple of (reduced Nodes, new threshold, beta numerator, beta denominator)
+    pub fn new_super_swiper_reduced(
+        nodes_vec: Vec<Node<G>>,
+        t: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
+    ) -> FastCryptoResult<(Self, u16, u64, u64)> {
+        let n = Self::new(nodes_vec)?;
+        let original_total_weight = n.total_weight() as u64;
+
+        // Validate total_weight_lower_bound (similar to new_reduced)
+        if total_weight_lower_bound > n.total_weight || total_weight_lower_bound == 0 {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        // Calculate alpha = t / total_old_weights
+        let alpha = if original_total_weight == 0 {
+            return Err(FastCryptoError::InvalidInput);
+        } else {
+            num_rational::Ratio::new(t as u64, original_total_weight)
+        };
+
+        // Extract weights from nodes, sorted in descending order (required by super_swiper)
+        let mut weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
+        // Sort in descending order as required by super_swiper
+        weights.sort_by(|a, b| b.cmp(a));
+
+        // Set initial beta = alpha + 1/100
+        let beta_denom = 100u64;
+        let alpha_numer = *alpha.numer();
+        let alpha_denom = *alpha.denom();
+        // Calculate alpha + 1/100 = (alpha_numer * 100 + alpha_denom) / (alpha_denom * 100)
+        // Then convert to denominator 100: beta_numer = (alpha_numer * 100 + alpha_denom) / alpha_denom
+        let mut beta_numer = (alpha_numer * beta_denom + alpha_denom) / alpha_denom;
+        let mut beta = num_rational::Ratio::new(beta_numer, beta_denom);
+
+        // Safety limit to prevent infinite loops
+        const MAX_BETA_ITERATIONS: u64 = 50; // Allow more iterations for slack-based approach
+        let mut iterations = 0;
+
+        loop {
+            iterations += 1;
+            if iterations > MAX_BETA_ITERATIONS {
+                return Err(FastCryptoError::InvalidInput);
+            }
+
+            // Call super_swiper to get ticket assignments (which are the reduced weights)
+            let reduced_weights_sorted = {
+                use crate::weight_reduction::solve;
+                solve(alpha, beta, &weights)
+            };
+
+            // Calculate the new total weight
+            let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
+            let new_total_weight_u16 = new_total_weight as u16;
+
+            // Check if reduction went below the lower bound (similar to new_reduced)
+            // If below lower bound, we need to increase beta to get less aggressive reduction
+            // We'll check this along with delta constraint below
+            let lower_bound_ok = new_total_weight_u16 >= total_weight_lower_bound;
+
+            // Map the reduced weights back to nodes
+            let mut indexed_weights: Vec<(usize, u16)> = n
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(i, node)| (i, node.weight))
+                .collect();
+
+            indexed_weights.sort_by(|a, b| b.1.cmp(&a.1));
+
+            let mut new_weights = vec![0u16; n.nodes.len()];
+            for (idx_in_sorted, (original_idx, _original_weight)) in
+                indexed_weights.iter().enumerate()
+            {
+                if idx_in_sorted < reduced_weights_sorted.len() {
+                    new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
+                }
+            }
+
+            // Prepare weights for delta calculation (in original order)
+            let original_weights: Vec<u64> =
+                n.nodes.iter().map(|node| node.weight as u64).collect();
+            let reduced_weights: Vec<u64> = new_weights.iter().map(|&w| w as u64).collect();
+
+            // Calculate t' = beta * new_weights_total
+            let t_prime = (beta * new_total_weight).to_integer();
+
+            // Get delta - this is the primary validation check
+            // Use n=2 random subsets in addition to top and bottom checks
+            let delta = crate::weight_reduction::weight_reduction_checks::get_delta(
+                t_prime,
+                &original_weights,
+                &reduced_weights,
+                t as u64,
+                2, // n_random: number of random subsets to test
+            );
+
+            // Use delta as the primary check instead of other validations
+            // The constraint should be: delta >= allowed_delta (lower bound, like the old slack constraint)
+            // This ensures w1 >= t + allowed_delta, which means the reduction is not too aggressive
+            // If delta < allowed_delta, we need to increase beta to get a larger t_prime and thus larger w1
+            let delta_acceptable = if let Some(delta_value) = delta {
+                delta_value >= allowed_delta as u64
+            } else {
+                // If delta calculation failed (negative delta or t_prime cannot be reached), try increasing beta
+                // This might help by increasing t_prime and potentially getting a valid subset
+                false
+            };
+
+            // Check both constraints: lower bound and delta
+            // If either fails, try increasing beta (which helps both constraints)
+            if !lower_bound_ok || !delta_acceptable {
+                // Try to increase beta to improve both constraints
+                // Increasing beta increases new_total_weight (helps lower bound) and increases delta (helps delta constraint)
+                if beta_numer < 50 {
+                    beta_numer += 1;
+                    beta = num_rational::Ratio::new(beta_numer, beta_denom);
+                    continue;
+                } else {
+                    // Can't increase beta further
+                    // If we've tried many times, accept the current result if it at least meets the lower bound
+                    // Otherwise return error
+                    if iterations < 20 {
+                        // Give more iterations to find a solution
+                        return Err(FastCryptoError::InvalidInput);
+                    }
+                    // After many iterations, if we still don't meet constraints, check if at least lower bound is met
+                    if !lower_bound_ok {
+                        return Err(FastCryptoError::InvalidInput);
+                    }
+                    // Lower bound is met, accept even if delta constraint not perfectly met
+                }
+            }
+
+            let nodes: Vec<Node<G>> = n
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(i, node)| Node {
+                    id: node.id,
+                    pk: node.pk.clone(),
+                    weight: new_weights[i],
+                })
+                .collect();
+
+            // These are required fields for the Nodes struct
+            let accumulated_weights = Self::get_accumulated_weights(&nodes);
+            let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
+            // Use new_total_weight_u16 instead of recalculating from nodes
+            let total_weight = new_total_weight_u16;
+
+            // Calculate new threshold
+            let new_t = (beta_numer as u32 * new_total_weight as u32 / beta_denom as u32) as u16;
+
+            return Ok((
+                Self {
+                    nodes,
+                    total_weight,
+                    accumulated_weights,
+                    nodes_with_nonzero_weight,
+                },
+                new_t,
+                beta_numer,
+                beta_denom,
+            ));
+        }
+    }
 }

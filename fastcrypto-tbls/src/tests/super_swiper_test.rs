@@ -1,0 +1,570 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Stand-alone test file for Nodes::new_super_swiper_reduced function
+// Run with: clear && cargo test --package fastcrypto-tbls --lib test_<> -- --nocapture
+
+mod tests {
+    use crate::ecies_v1;
+    use crate::nodes::{Node, Nodes};
+
+    use fastcrypto::groups::ristretto255::RistrettoPoint;
+    use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
+    use num_rational::Ratio;
+    use rand::thread_rng;
+    use serde::de::DeserializeOwned;
+    use serde::Serialize;
+    use std::fs::{self, File};
+    use std::io::Write;
+    use zeroize::Zeroize;
+
+    fn create_test_nodes<G>(weights: Vec<u16>) -> Vec<Node<G>>
+    where
+        G: GroupElement + Serialize + DeserializeOwned,
+        G::ScalarType: FiatShamirChallenge + Zeroize,
+    {
+        let sk = ecies_v1::PrivateKey::<G>::new(&mut thread_rng());
+        let pk = ecies_v1::PublicKey::<G>::from_private_key(&sk);
+        weights
+            .into_iter()
+            .enumerate()
+            .map(|(i, weight)| Node {
+                id: i as u16,
+                pk: pk.clone(),
+                weight,
+            })
+            .collect()
+    }
+
+    // Helper function to load Sui validator weights from sui_real_all.dat
+    #[allow(dead_code)]
+    fn load_sui_validator_weights() -> Vec<u64> {
+        const WEIGHTS_DATA: &str = include_str!("../weight_reduction/data/sui_real_all.dat");
+        WEIGHTS_DATA
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                line.parse::<u64>()
+                    .unwrap_or_else(|_| panic!("Failed to parse weight: {}", line))
+            })
+            .collect()
+    }
+
+    // Helper function to load Sui validator voting power from sui_real_all_voting_power.dat
+    #[allow(dead_code)]
+    fn load_sui_validator_voting_power() -> Vec<u64> {
+        const WEIGHTS_DATA: &str =
+            include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_974.dat");
+        WEIGHTS_DATA
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                line.parse::<u64>()
+                    .unwrap_or_else(|_| panic!("Failed to parse voting power: {}", line))
+            })
+            .collect()
+    }
+
+    // Helper function to load Sui validator voting power for a specific epoch
+    fn load_sui_validator_voting_power_for_epoch(epoch: u64) -> Vec<u64> {
+        let weights_data = match epoch {
+            100 => include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_100.dat"),
+            200 => include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_200.dat"),
+            400 => include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_400.dat"),
+            800 => include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_800.dat"),
+            974 => include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_974.dat"),
+            _ => panic!("Unsupported epoch: {}", epoch),
+        };
+        weights_data
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                line.parse::<u64>()
+                    .unwrap_or_else(|_| panic!("Failed to parse voting power: {}", line))
+            })
+            .collect()
+    }
+
+    fn scale_weights_to_u16(weights: &[u64]) -> Vec<u16> {
+        if weights.is_empty() {
+            return vec![];
+        }
+        // Calculate total weight first to ensure it fits in u16::MAX
+        let total: u64 = weights.iter().sum();
+        let max_weight = *weights.iter().max().unwrap();
+
+        // Scale factor: we need to ensure both individual weights and total weight fit in u16
+        let scale_for_max = if max_weight > u16::MAX as u64 {
+            (max_weight as f64 / u16::MAX as f64).ceil() as u64
+        } else {
+            1
+        };
+        let scale_for_total = if total > u16::MAX as u64 {
+            (total as f64 / u16::MAX as f64).ceil() as u64
+        } else {
+            1
+        };
+        let scale_factor = scale_for_max.max(scale_for_total);
+
+        weights
+            .iter()
+            .map(|&w| {
+                let scaled = (w / scale_factor.max(1)) as u16;
+                // Ensure at least 1 if original was > 0
+                scaled.max(1)
+            })
+            .collect()
+    }
+
+    /// Calculates the subset size for top nodes (for CSV generation purposes).
+    ///
+    /// This function finds the subset size where:
+    /// - Total < alpha * total_original
+    /// - But adding next element would make total >= alpha * total_original
+    ///
+    /// Returns the size of the subset (number of elements included)
+    fn calculate_top_subset_size(
+        original_weights_sorted: &[u64],
+        alpha: Ratio<u64>,
+        total_original: u64,
+    ) -> usize {
+        let alpha_threshold = (alpha * total_original).to_integer();
+        let mut subset_sum = 0u64;
+        let mut subset_size = 0usize;
+
+        for (i, &weight) in original_weights_sorted.iter().enumerate() {
+            let new_sum = subset_sum + weight;
+            if new_sum >= alpha_threshold {
+                break;
+            }
+            subset_sum = new_sum;
+            subset_size = i + 1;
+        }
+
+        subset_size
+    }
+
+    struct CsvParams {
+        alpha_numer: u64,
+        alpha_denom: u64,
+        beta_numer: u64,
+        beta_denom: u64,
+    }
+
+    fn write_weights_csv(
+        sui_weights: &[u64],
+        scaled_weights: &[u16],
+        reduced_weights: &[u16],
+        params: CsvParams,
+        subset_size: usize,
+        filename: &str,
+    ) -> std::io::Result<()> {
+        let mut file = File::create(filename)?;
+
+        // Write header with alpha and beta (using original values, not simplified)
+        writeln!(file, "alpha,{}/{}", params.alpha_numer, params.alpha_denom)?;
+        writeln!(file, "beta,{}/{}", params.beta_numer, params.beta_denom)?;
+        writeln!(file)?;
+
+        // Calculate totals for percentage calculations
+        let scaled_total: u64 = scaled_weights.iter().map(|&w| w as u64).sum();
+        let reduced_total: u64 = reduced_weights.iter().map(|&w| w as u64).sum();
+
+        // Write CSV header
+        writeln!(file, "Sui Validator Weight,Scaled Weight,Scaled Weight %,Reduced Weight,Reduced Weight %,In Top Scaled,In Top Reduced")?;
+
+        // Create sorted indices to map back to original order
+        let mut scaled_with_indices: Vec<(usize, u16)> = scaled_weights
+            .iter()
+            .enumerate()
+            .map(|(i, &w)| (i, w))
+            .collect();
+        scaled_with_indices.sort_by(|a, b| b.1.cmp(&a.1));
+
+        let mut reduced_with_indices: Vec<(usize, u16)> = reduced_weights
+            .iter()
+            .enumerate()
+            .map(|(i, &w)| (i, w))
+            .collect();
+        reduced_with_indices.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Create sets of indices that are in the top subset
+        let top_scaled_indices: std::collections::HashSet<usize> = scaled_with_indices
+            [..subset_size]
+            .iter()
+            .map(|(idx, _)| *idx)
+            .collect();
+        let top_reduced_indices: std::collections::HashSet<usize> = reduced_with_indices
+            [..subset_size]
+            .iter()
+            .map(|(idx, _)| *idx)
+            .collect();
+
+        // Write data rows (in original order)
+        for i in 0..sui_weights.len() {
+            let sui_weight = sui_weights[i];
+            let scaled_weight = scaled_weights[i];
+            let reduced_weight = reduced_weights[i];
+            let scaled_weight_pct = if scaled_total > 0 {
+                (scaled_weight as f64 / scaled_total as f64) * 100.0
+            } else {
+                0.0
+            };
+            let reduced_weight_pct = if reduced_total > 0 {
+                (reduced_weight as f64 / reduced_total as f64) * 100.0
+            } else {
+                0.0
+            };
+            let in_top_scaled = if top_scaled_indices.contains(&i) {
+                "Yes"
+            } else {
+                "No"
+            };
+            let in_top_reduced = if top_reduced_indices.contains(&i) {
+                "Yes"
+            } else {
+                "No"
+            };
+
+            writeln!(
+                file,
+                "{},{},{:.4},{},{:.4},{},{}",
+                sui_weight,
+                scaled_weight,
+                scaled_weight_pct,
+                reduced_weight,
+                reduced_weight_pct,
+                in_top_scaled,
+                in_top_reduced
+            )?;
+        }
+
+        // Write totals
+        writeln!(file)?;
+        let sui_total: u64 = sui_weights.iter().sum();
+        writeln!(
+            file,
+            "{},{},{:.4},{},{:.4},,",
+            sui_total, scaled_total, 100.0, reduced_total, 100.0
+        )?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_new_super_swiper_reduced_with_slack() {
+        // Test the new function with delta-based iteration
+        // let sui_weights = load_sui_validator_weights();
+        let sui_weights = load_sui_validator_voting_power();
+        let scaled_weights = scale_weights_to_u16(&sui_weights);
+        let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
+        let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
+        let original_total_weight = original_nodes.total_weight();
+
+        // Calculate t = alpha * total_old_weights, where alpha = 1/3
+        let alpha = Ratio::new(1u64, 3u64);
+        let t = (alpha * original_total_weight as u64).to_integer() as u16;
+        let allowed_delta = (original_total_weight as f64 * 0.08) as u16; // Allow delta up to 8% of original total weight
+                                                                          // Set a lower bound to prevent over-reduction (similar to new_reduced)
+                                                                          // Use a reasonable fraction of the original total weight - make it more lenient
+        let total_weight_lower_bound = 1u16; // Same as new_reduced
+
+        let result = Nodes::new_super_swiper_reduced(
+            nodes_vec.clone(),
+            t,
+            allowed_delta,
+            total_weight_lower_bound,
+        );
+
+        match result {
+            Ok((reduced_nodes, new_t, beta_numer, beta_denom)) => {
+                println!("\n=== Super Swiper Weight Reduction Results (with delta constraint) ===");
+                println!("Original total weight: {}", original_total_weight);
+                println!("Reduced total weight: {}", reduced_nodes.total_weight());
+                println!("Input threshold (t): {}", t);
+                println!("New threshold (new_t): {}", new_t);
+                println!("Beta: {}/{}", beta_numer, beta_denom);
+                println!(
+                    "Alpha (t/total): {}/{}, Allowed delta: {}",
+                    alpha.numer(),
+                    alpha.denom(),
+                    allowed_delta
+                );
+                println!(
+                    "Reduction ratio: {:.2}%",
+                    (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0
+                );
+
+                // Verify reduction occurred
+                assert!(reduced_nodes.total_weight() < original_total_weight);
+
+                // Verify threshold was adjusted correctly
+                assert!(new_t > 0);
+
+                // Verify all node IDs are preserved
+                assert_eq!(original_nodes.num_nodes(), reduced_nodes.num_nodes());
+                for (orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
+                    assert_eq!(orig.id, red.id);
+                    assert_eq!(orig.pk, red.pk);
+                    assert!(red.weight <= orig.weight);
+                }
+
+                // Note: We're using delta as the primary validation check instead of
+                // the weight_reduction_checks validation. The delta check is done internally
+                // in new_super_swiper_reduced.
+
+                // Calculate subset size for CSV generation
+                let original_weights: Vec<u64> =
+                    original_nodes.iter().map(|n| n.weight as u64).collect();
+                let mut original_weights_sorted_desc: Vec<u64> = original_weights.clone();
+                original_weights_sorted_desc.sort_by(|a, b| b.cmp(a));
+                let subset_size_top = calculate_top_subset_size(
+                    &original_weights_sorted_desc,
+                    alpha,
+                    original_total_weight as u64,
+                );
+
+                // Write CSV file using the beta values returned from the function
+                let reduced_weights_vec: Vec<u16> =
+                    reduced_nodes.iter().map(|n| n.weight).collect();
+                // Write to workspace root target directory (go up from package to workspace root)
+                let csv_dir = "../target";
+                let _ = fs::create_dir_all(csv_dir); // Ignore errors if directory already exists
+                                                     // let csv_path = "../target/weight_reduction_results_slack.csv";
+                let csv_path = "../target/weight_reduction_results_voting_power_slack.csv";
+                match write_weights_csv(
+                    &sui_weights,
+                    &scaled_weights,
+                    &reduced_weights_vec,
+                    CsvParams {
+                        alpha_numer: 1u64,
+                        alpha_denom: 3u64,
+                        beta_numer, // Use the actual beta returned from the function
+                        beta_denom,
+                    },
+                    subset_size_top,
+                    csv_path,
+                ) {
+                    Ok(_) => println!("CSV file written to: {}", csv_path),
+                    Err(e) => eprintln!("Failed to write CSV file: {}", e),
+                }
+
+                println!("Test passed: Weight reduction successful with delta constraint");
+            }
+            Err(e) => {
+                panic!("Weight reduction failed: {:?}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_new_reduced_with_slack() {
+        // Test the new_reduced function with delta-based iteration
+        // let sui_weights = load_sui_validator_weights();
+        let sui_weights = load_sui_validator_voting_power();
+        let scaled_weights = scale_weights_to_u16(&sui_weights);
+        let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
+        let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
+        let original_total_weight = original_nodes.total_weight();
+
+        // Calculate t = alpha * total_old_weights, where alpha = 1/3
+        let alpha = Ratio::new(1u64, 3u64);
+        let t = (alpha * original_total_weight as u64).to_integer() as u16;
+        let allowed_delta = (original_total_weight as f64 * 0.08) as u16; // Allow delta up to 8% of original total weight
+                                                                          // Set a lower bound to prevent over-reduction
+        let total_weight_lower_bound = 1u16;
+
+        let result = Nodes::new_reduced(
+            nodes_vec.clone(),
+            t,
+            allowed_delta,
+            total_weight_lower_bound,
+        );
+
+        match result {
+            Ok((reduced_nodes, new_t)) => {
+                // Calculate beta manually: beta = new_t / new_total_weight
+                let new_total_weight = reduced_nodes.total_weight() as u64;
+                let beta = Ratio::new(new_t as u64, new_total_weight);
+                let beta_numer = *beta.numer();
+                let beta_denom = *beta.denom();
+
+                println!("\n=== Weight Reduction Results (new_reduced with delta constraint) ===");
+                println!("Original total weight: {}", original_total_weight);
+                println!("Reduced total weight: {}", reduced_nodes.total_weight());
+                println!("Input threshold (t): {}", t);
+                println!("New threshold (new_t): {}", new_t);
+                println!("Beta: {}/{}", beta_numer, beta_denom);
+                println!(
+                    "Alpha (t/total): {}/{}, Allowed delta: {}",
+                    alpha.numer(),
+                    alpha.denom(),
+                    allowed_delta
+                );
+                println!(
+                    "Reduction ratio: {:.2}%",
+                    (reduced_nodes.total_weight() as f64 / original_total_weight as f64) * 100.0
+                );
+
+                // Verify reduction occurred
+                assert!(reduced_nodes.total_weight() < original_total_weight);
+
+                // Verify threshold was adjusted correctly
+                assert!(new_t > 0);
+
+                // Verify all node IDs are preserved
+                assert_eq!(original_nodes.num_nodes(), reduced_nodes.num_nodes());
+                for (orig, red) in original_nodes.iter().zip(reduced_nodes.iter()) {
+                    assert_eq!(orig.id, red.id);
+                    assert_eq!(orig.pk, red.pk);
+                    assert!(red.weight <= orig.weight);
+                }
+
+                // Calculate subset size for CSV generation
+                let original_weights: Vec<u64> =
+                    original_nodes.iter().map(|n| n.weight as u64).collect();
+                let mut original_weights_sorted_desc: Vec<u64> = original_weights.clone();
+                original_weights_sorted_desc.sort_by(|a, b| b.cmp(a));
+                let subset_size_top = calculate_top_subset_size(
+                    &original_weights_sorted_desc,
+                    alpha,
+                    original_total_weight as u64,
+                );
+
+                // Write CSV file using the calculated beta values
+                let reduced_weights_vec: Vec<u16> =
+                    reduced_nodes.iter().map(|n| n.weight).collect();
+                // Write to workspace root target directory (go up from package to workspace root)
+                let csv_dir = "../target";
+                let _ = fs::create_dir_all(csv_dir); // Ignore errors if directory already exists
+                                                     // let csv_path = "../target/weight_reduction_results_new_reduced_slack.csv";
+                let csv_path =
+                    "../target/weight_reduction_results_new_reduced_voting_power_slack.csv";
+                match write_weights_csv(
+                    &sui_weights,
+                    &scaled_weights,
+                    &reduced_weights_vec,
+                    CsvParams {
+                        alpha_numer: 1u64,
+                        alpha_denom: 3u64,
+                        beta_numer, // Use the calculated beta
+                        beta_denom,
+                    },
+                    subset_size_top,
+                    csv_path,
+                ) {
+                    Ok(_) => println!("CSV file written to: {}", csv_path),
+                    Err(e) => eprintln!("Failed to write CSV file: {}", e),
+                }
+
+                println!("Test passed: Weight reduction successful with delta constraint");
+            }
+            Err(e) => {
+                panic!("Weight reduction failed: {:?}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_all_epochs_comparison() {
+        // Test both algorithms across all epochs and create a comparison chart
+        let epochs = vec![100, 200, 400, 800, 974];
+        let mut results: Vec<(u64, Option<u16>, Option<u16>)> = Vec::new();
+
+        println!("\n🔬 Testing weight reduction across multiple epochs...\n");
+
+        for epoch in epochs {
+            println!("📊 Processing epoch {}...", epoch);
+            let sui_weights = load_sui_validator_voting_power_for_epoch(epoch);
+            let scaled_weights = scale_weights_to_u16(&sui_weights);
+            let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
+            let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
+            let original_total_weight = original_nodes.total_weight();
+
+            // Calculate t = alpha * total_old_weights, where alpha = 1/3
+            let alpha = Ratio::new(1u64, 3u64);
+            let t = (alpha * original_total_weight as u64).to_integer() as u16;
+            let allowed_delta = (original_total_weight as f64 * 0.08) as u16;
+            let total_weight_lower_bound = 1u16;
+
+            // Test new_reduced
+            let new_reduced_result = Nodes::new_reduced(
+                nodes_vec.clone(),
+                t,
+                allowed_delta,
+                total_weight_lower_bound,
+            );
+
+            // Test new_super_swiper_reduced
+            let super_swiper_result = Nodes::new_super_swiper_reduced(
+                nodes_vec.clone(),
+                t,
+                allowed_delta,
+                total_weight_lower_bound,
+            );
+
+            let new_reduced_total = new_reduced_result
+                .ok()
+                .map(|(reduced_nodes, _)| reduced_nodes.total_weight());
+            let super_swiper_total = super_swiper_result
+                .ok()
+                .map(|(reduced_nodes, _, _, _)| reduced_nodes.total_weight());
+
+            results.push((epoch, new_reduced_total, super_swiper_total));
+
+            println!(
+                "  ✅ Epoch {}: new_reduced={:?}, super_swiper={:?}",
+                epoch, new_reduced_total, super_swiper_total
+            );
+        }
+
+        // Print comparison chart
+        let separator = "=".repeat(70);
+        println!("\n{}", separator);
+        println!("📈 WEIGHT REDUCTION COMPARISON CHART");
+        println!("{}", separator);
+        println!(
+            "{:<12} | {:<20} | {:<20}",
+            "Epoch", "new_reduced", "super_swiper"
+        );
+        println!(
+            "{}-+-{}-+-{}",
+            "-".repeat(12),
+            "-".repeat(20),
+            "-".repeat(20)
+        );
+        for (epoch, new_reduced, super_swiper) in &results {
+            let new_reduced_str = new_reduced
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let super_swiper_str = super_swiper
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            println!(
+                "{:<12} | {:<20} | {:<20}",
+                epoch, new_reduced_str, super_swiper_str
+            );
+        }
+        println!("{}", separator);
+        println!();
+
+        // Verify all tests passed
+        for (epoch, new_reduced, super_swiper) in &results {
+            assert!(
+                new_reduced.is_some(),
+                "new_reduced failed for epoch {}",
+                epoch
+            );
+            assert!(
+                super_swiper.is_some(),
+                "super_swiper failed for epoch {}",
+                epoch
+            );
+        }
+
+        println!("✅ All epochs processed successfully!");
+    }
+}

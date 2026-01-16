@@ -22,6 +22,7 @@ pub mod random_oracle;
 pub mod tbls;
 pub mod threshold_schnorr;
 pub mod types;
+pub mod weight_reduction;
 
 // TODO: needs to use ecies_v1
 // #[cfg(any(test, feature = "experimental"))]
@@ -59,3 +60,7 @@ pub mod nodes_tests;
 #[cfg(test)]
 #[path = "tests/nizk_tests.rs"]
 pub mod nizk_tests;
+
+#[cfg(test)]
+#[path = "tests/super_swiper_test.rs"]
+pub mod super_swiper_test;
