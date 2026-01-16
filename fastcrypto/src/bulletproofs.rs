@@ -98,6 +98,7 @@ pub struct AggregateRangeProof {
 }
 
 impl AggregateRangeProof {
+    /// Fails if the number of values is different from the number of blinding factors or if this number is not a power of 2.
     pub fn prove_bit_length(
         values: &[u64],
         blinding_factors: &[RistrettoScalar],
@@ -111,7 +112,7 @@ impl AggregateRangeProof {
         }
 
         let pc_gens = PedersenGens::default();
-        let bp_gens = BulletproofGens::new(bits, 1);
+        let bp_gens = BulletproofGens::new(bits, values.len());
         let mut prover_transcript = Transcript::new(domain);
 
         ExternalRangeProof::prove_multiple(
@@ -136,7 +137,7 @@ impl AggregateRangeProof {
         }
 
         let pc_gens = PedersenGens::default();
-        let bp_gens = BulletproofGens::new(bits, 1);
+        let bp_gens = BulletproofGens::new(bits, self.commitments.len());
         let mut verifier_transcript = Transcript::new(domain);
 
         self.proof

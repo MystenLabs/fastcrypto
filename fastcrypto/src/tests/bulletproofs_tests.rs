@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::bulletproofs::RangeProof;
+use crate::bulletproofs::{AggregateRangeProof, RangeProof};
 
 ///
 /// Test Range Proofs
@@ -23,27 +23,6 @@ fn test_range_proof_valid() {
         .verify_bit_length(upper_bound, TEST_DOMAIN)
         .is_ok());
 }
-
-// #[test]
-// fn test_range_proof_invalid() {
-//     let upper_bound: usize = 64;
-//     let blinding = RistrettoScalar::from_byte_array(&[
-//         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-//         0, 1,
-//     ]).unwrap();
-//
-//     let (commitment, range_proof) =
-//         RangeProof::prove_bit_length(1u64, blinding, upper_bound, TEST_DOMAIN).unwrap();
-//
-//     let mut range_proof_bytes = range_proof.as_bytes().to_vec();
-//     // Change it a little
-//     range_proof_bytes[0] += 1;
-//     let invalid_range_proof = RangeProof::from_bytes(&range_proof_bytes[..]).unwrap();
-//
-//     assert!(invalid_range_proof
-//         .verify_bit_length(&commitment, upper_bound, TEST_DOMAIN)
-//         .is_err());
-// }
 
 #[test]
 fn test_handle_prove_invalid_upper_bound() {
@@ -75,6 +54,27 @@ fn test_handle_verify_invalid_upper_bound() {
     assert!(range_proof
         .verify_bit_length(invalid_upper_bound, TEST_DOMAIN)
         .is_err());
+}
+
+#[test]
+fn test_aggregated_range_proof_valid() {
+    let upper_bound: usize = 64;
+    let blindings = [
+        RistrettoScalar::from(7),
+        RistrettoScalar::from(11),
+        RistrettoScalar::from(13),
+        RistrettoScalar::from(17),
+    ];
+    let aggregated_range_proof = AggregateRangeProof::prove_bit_length(
+        &[1u64, 2u64, 3u64, 4u64],
+        &blindings,
+        upper_bound,
+        TEST_DOMAIN,
+    )
+    .unwrap();
+    assert!(aggregated_range_proof
+        .verify_bit_length(upper_bound, TEST_DOMAIN)
+        .is_ok());
 }
 
 use crate::groups::ristretto255::RistrettoScalar;
