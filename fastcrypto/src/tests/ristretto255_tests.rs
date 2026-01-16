@@ -3,8 +3,9 @@
 
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::ristretto255::RistrettoScalar;
-use crate::groups::{GroupElement, MultiScalarMul};
+use crate::groups::{GroupElement, HashToGroupElement, MultiScalarMul};
 use crate::serde_helpers::ToFromByteArray;
+use hex_literal::hex;
 
 pub(crate) const GROUP_ORDER: [u8; 32] = [
     237, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0, 0,
@@ -60,9 +61,45 @@ fn test_arithmetic() {
 }
 
 #[test]
+fn hash_regression_tests() {
+    let input = b"Random numbers should not be generated with a method chosen at random";
+    let expected_scalar = hex!("9f07ae34b44b42539e3c45be1da015e10369a454b3ffaec9a7bbe1086b6d170d");
+    let expected_point = hex!("baf5aa3b987469509a11b22d069be0731904af04889790cc6bd54d77afbf871d");
+    assert_eq!(
+        RistrettoScalar::hash_to_group_element(input)
+            .to_byte_array()
+            .to_vec(),
+        expected_scalar
+    );
+    assert_eq!(
+        RistrettoPoint::hash_to_group_element(input)
+            .to_byte_array()
+            .to_vec(),
+        expected_point
+    );
+
+    let other_input = b"Any one who considers arithmetical methods of producing random digits is, of course, in a state of sin";
+    assert_ne!(
+        RistrettoScalar::hash_to_group_element(other_input)
+            .to_byte_array()
+            .to_vec(),
+        expected_scalar
+    );
+    assert_ne!(
+        RistrettoPoint::hash_to_group_element(other_input)
+            .to_byte_array()
+            .to_vec(),
+        expected_point
+    );
+}
+
+#[test]
 fn test_serialize_deserialize_element() {
     let p = RistrettoPoint::generator() + RistrettoPoint::generator();
+    let expected =
+        hex!("6a493210f7499cd17fecb510ae0cea23a110e8d5b901f8acadd3095c73a3b919").to_vec();
     let serialized = bincode::serialize(&p).unwrap();
+    assert_eq!(expected, serialized);
     let deserialized: RistrettoPoint = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, p);
 }
