@@ -77,6 +77,23 @@ fn test_aggregated_range_proof_valid() {
         .is_ok());
 }
 
+#[test]
+fn test_aggregated_range_proof_invalid() {
+    let upper_bound: usize = 8;
+    let blindings = [
+        RistrettoScalar::from(7),
+        RistrettoScalar::from(11),
+        RistrettoScalar::from(13),
+        RistrettoScalar::from(17),
+    ];
+    assert!(AggregateRangeProof::prove_bit_length(
+        &[1u64, 2u64, 3u64, 256u64],
+        &blindings,
+        upper_bound,
+        TEST_DOMAIN,
+    ).is_err());
+}
+
 use crate::groups::ristretto255::RistrettoScalar;
 use crate::serde_helpers::ToFromByteArray;
 use proptest::arbitrary::Arbitrary;
