@@ -71,25 +71,26 @@ impl ZeroProof {
         let y = RistrettoScalar::rand(rng);
         let pk = pk_from_sk(sk);
 
-        let y_p = pk * &y;
-        let y_d = ciphertext.decryption_handle * &y;
-        let challenge = Self::challenge(ciphertext, &y_p, &y_d);
+        let y_p = pk * y;
+        let y_d = ciphertext.decryption_handle * y;
+        let challenge = Self::challenge(ciphertext, &pk, &y_p, &y_d);
         let z = sk * challenge + y;
         Self { y_p, y_d, z }
     }
 
     fn challenge(
         ciphertext: &Ciphertext,
+        pk: &RistrettoPoint,
         y_p: &RistrettoPoint,
         y_d: &RistrettoPoint,
     ) -> RistrettoScalar {
         RistrettoScalar::fiat_shamir_reduction_to_group_element(
-            &bcs::to_bytes(&(ciphertext, y_p, y_d)).unwrap(),
+            &bcs::to_bytes(&(ciphertext, pk, y_p, y_d)).unwrap(),
         )
     }
 
     pub fn verify(&self, ciphertext: &Ciphertext, pk: &RistrettoPoint) -> FastCryptoResult<()> {
-        let challenge = Self::challenge(ciphertext, &self.y_p, &self.y_d);
+        let challenge = Self::challenge(ciphertext, pk, &self.y_p, &self.y_d);
         if pk * self.z == *H * challenge + self.y_p
             && ciphertext.decryption_handle * self.z
                 == ciphertext.commitment.0 * challenge + self.y_d
@@ -124,12 +125,12 @@ impl EqualityProof {
         );
 
         let y = (
-            pk * &r.0,
+            pk * r.0,
             *G * r.1 + ciphertext.decryption_handle * r.0,
             *G * r.1 + *H * r.2,
         );
 
-        let challenge = Self::challenge(ciphertext, commitment, &y);
+        let challenge = Self::challenge(ciphertext, commitment, &pk, &y);
 
         let z = (
             challenge * sk + r.0,
@@ -143,20 +144,21 @@ impl EqualityProof {
     fn challenge(
         ciphertext: &Ciphertext,
         commitment: &PedersenCommitment,
+        pk: &RistrettoPoint,
         y: &(RistrettoPoint, RistrettoPoint, RistrettoPoint),
     ) -> RistrettoScalar {
         RistrettoScalar::fiat_shamir_reduction_to_group_element(
-            &bcs::to_bytes(&(ciphertext, commitment, y)).unwrap(),
+            &bcs::to_bytes(&(ciphertext, commitment, pk, y)).unwrap(),
         )
     }
 
-    fn verify(
+    pub fn verify(
         &self,
         ciphertext: &Ciphertext,
         commitment: &PedersenCommitment,
         pk: &RistrettoPoint,
     ) -> FastCryptoResult<()> {
-        let challenge = Self::challenge(ciphertext, commitment, &self.y);
+        let challenge = Self::challenge(ciphertext, commitment, pk, &self.y);
         if pk * self.z.0 == *H * challenge + self.y.0
             && *G * self.z.1 + ciphertext.decryption_handle * self.z.0
                 == ciphertext.commitment.0 * challenge + self.y.1
