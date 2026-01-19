@@ -31,21 +31,26 @@ pub fn pk_from_sk(sk: &RistrettoScalar) -> RistrettoPoint {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Ciphertext {
     commitment: PedersenCommitment,
-    blinding: Blinding,
     decryption_handle: RistrettoPoint,
 }
 
 impl Ciphertext {
-    pub fn encrypt(public_key: &RistrettoPoint, message: u32, rng: &mut impl AllowedRng) -> Self {
+    pub fn encrypt(
+        public_key: &RistrettoPoint,
+        message: u32,
+        rng: &mut impl AllowedRng,
+    ) -> (Self, Blinding) {
         let blinding = Blinding(RistrettoScalar::rand(rng));
-        Self {
-            decryption_handle: public_key * blinding.0,
-            commitment: PedersenCommitment::from_blinding(
-                &RistrettoScalar::from(message as u64),
-                &blinding,
-            ),
+        (
+            Self {
+                decryption_handle: public_key * blinding.0,
+                commitment: PedersenCommitment::from_blinding(
+                    &RistrettoScalar::from(message as u64),
+                    &blinding,
+                ),
+            },
             blinding,
-        }
+        )
     }
 
     pub fn decrypt(
@@ -177,6 +182,46 @@ impl EqualityProof {
     }
 }
 
+pub struct JointCiphertext {
+    commitment: PedersenCommitment,
+    decryption_handles: (RistrettoPoint, RistrettoPoint),
+}
+
+impl JointCiphertext {
+    pub fn encrypt(
+        pk1: &RistrettoPoint,
+        pk2: &RistrettoPoint,
+        message: u32,
+        rng: &mut impl AllowedRng,
+    ) -> (Self, Blinding) {
+        let blinding = Blinding(RistrettoScalar::rand(rng));
+        (
+            Self {
+                decryption_handles: (pk1 * blinding.0, pk2 * blinding.0),
+                commitment: PedersenCommitment::from_blinding(
+                    &RistrettoScalar::from(message as u64),
+                    &blinding,
+                ),
+            },
+            blinding,
+        )
+    }
+
+    pub fn first(&self) -> Ciphertext {
+        Ciphertext {
+            commitment: self.commitment.clone(),
+            decryption_handle: self.decryption_handles.0,
+        }
+    }
+
+    pub fn second(&self) -> Ciphertext {
+        Ciphertext {
+            commitment: self.commitment.clone(),
+            decryption_handle: self.decryption_handles.1,
+        }
+    }
+}
+
 /// Precompute discrete log table for use in decryption. This only needs to be computed once.
 pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u32> {
     let step = G.repeated_doubling(16);
@@ -193,7 +238,7 @@ pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u32> {
 fn test_round_trip() {
     let (pk, sk) = generate_keypair(&mut rand::thread_rng());
     let message = 1234567890u32;
-    let ciphertext = Ciphertext::encrypt(&pk, message, &mut rand::thread_rng());
+    let (ciphertext, _) = Ciphertext::encrypt(&pk, message, &mut rand::thread_rng());
 
     // This table can be reused, so it only has to be computed once
     let table = precompute_table();
@@ -203,7 +248,7 @@ fn test_round_trip() {
 #[test]
 fn test_zero_proof() {
     let (pk, sk) = generate_keypair(&mut rand::thread_rng());
-    let ciphertext = Ciphertext::encrypt(&pk, 0, &mut rand::thread_rng());
+    let (ciphertext, _) = Ciphertext::encrypt(&pk, 0, &mut rand::thread_rng());
     let proof = ZeroProof::prove(&ciphertext, &sk, &mut rand::thread_rng());
     proof.verify(&ciphertext, &pk).unwrap();
 }
@@ -213,7 +258,7 @@ fn test_equality_proof() {
     let value = 12345u32;
     let mut rng = rand::thread_rng();
     let (pk, sk) = generate_keypair(&mut rng);
-    let ciphertext = Ciphertext::encrypt(&pk, value, &mut rng);
+    let (ciphertext, _) = Ciphertext::encrypt(&pk, value, &mut rng);
     let (commitment, blinding) =
         PedersenCommitment::commit(&RistrettoScalar::from(value as u64), &mut rng);
     let proof = EqualityProof::prove(
@@ -233,18 +278,18 @@ fn encrypt_and_range_proof() {
     let bits = 32;
     let mut rng = rand::thread_rng();
     let (pk, sk) = generate_keypair(&mut rng);
-    let ciphertext = Ciphertext::encrypt(&pk, value, &mut rng);
+    let (ciphertext, blinding) = Ciphertext::encrypt(&pk, value, &mut rng);
     let domain = b"test";
     let range_proof = crate::bulletproofs::RangeProof::prove_with_blinding(
         value as u64,
-        ciphertext.blinding.clone(),
+        blinding.clone(),
         bits,
         domain,
         &mut rng,
     )
     .unwrap();
 
-    assert_eq!(&range_proof.blinding, &ciphertext.blinding);
+    assert_eq!(&range_proof.blinding, &blinding);
     assert_eq!(&range_proof.commitment, &ciphertext.commitment);
     assert!(range_proof
         .proof
