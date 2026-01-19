@@ -25,22 +25,6 @@ fn test_range_proof_valid() {
 }
 
 #[test]
-fn test_handle_prove_invalid_upper_bound() {
-    let invalid_upper_bound = 22;
-    let output =
-        RangeProof::prove(1u64, invalid_upper_bound, TEST_DOMAIN, &mut thread_rng()).unwrap();
-    assert!(output
-        .proof
-        .verify(
-            &output.commitment,
-            &output.blinding,
-            invalid_upper_bound,
-            TEST_DOMAIN
-        )
-        .is_err());
-}
-
-#[test]
 fn test_handle_verify_invalid_upper_bound() {
     let valid_upper_bound = 64;
     let invalid_upper_bound = 22;

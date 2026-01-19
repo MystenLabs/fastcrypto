@@ -226,3 +226,30 @@ fn test_equality_proof() {
     );
     proof.verify(&ciphertext, &commitment, &pk).unwrap();
 }
+
+#[test]
+fn encrypt_and_range_proof() {
+    let value = 1234u32;
+    let bits = 32;
+    let mut rng = rand::thread_rng();
+    let (pk, sk) = generate_keypair(&mut rng);
+    let ciphertext = Ciphertext::encrypt(&pk, value, &mut rng);
+    let domain = b"test";
+    let range_proof = crate::bulletproofs::RangeProof::prove_with_blinding(
+        value as u64,
+        ciphertext.blinding.clone(),
+        bits,
+        domain,
+        &mut rng,
+    )
+    .unwrap();
+
+    assert_eq!(&range_proof.blinding, &ciphertext.blinding);
+    assert_eq!(&range_proof.commitment, &ciphertext.commitment);
+    assert!(range_proof
+        .proof
+        .verify(&range_proof.commitment, &range_proof.blinding, bits, domain)
+        .is_ok());
+
+    assert_eq!(ciphertext.decrypt(&sk, &precompute_table()).unwrap(), value);
+}

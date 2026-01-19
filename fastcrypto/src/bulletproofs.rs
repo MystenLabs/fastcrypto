@@ -72,6 +72,22 @@ impl RangeProof {
         })
     }
 
+    pub fn prove_with_blinding(
+        value: u64,
+        blinding: Blinding,
+        bits: usize,
+        domain: &'static [u8],
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<RangeProofOutput> {
+        Self::prove_aggregated_with_blindings(&[value], vec![blinding], bits, domain, rng).map(
+            |value| RangeProofOutput {
+                proof: value.proof,
+                commitment: value.commitments[0].clone(),
+                blinding: value.blindings[0].clone(),
+            },
+        )
+    }
+
     /// Verifies that a range proof that the commitment is to an integer in the range [0, 2^bits).
     /// Function only works for bits = 8, 16, 32, 64.
     pub fn verify(
@@ -96,7 +112,7 @@ impl RangeProof {
         domain: &'static [u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<AggregateRangeProofOutput> {
-        Self::prove_aggregated_from_blindings(
+        Self::prove_aggregated_with_blindings(
             values,
             values
                 .iter()
@@ -108,7 +124,14 @@ impl RangeProof {
         )
     }
 
-    pub fn prove_aggregated_from_blindings(
+    /// Create a proof that all the given `values` are smaller than <i>2<sup>bits</sup></i> using the given blinding factors.
+    ///
+    /// Fails if
+    /// * any of the `values` are <i>not</i> smaller than <i>2<sup>bits</sup></i>,
+    /// * `values.len() != blindings.len()`,
+    /// * `values.len()` is not a power of 2,
+    /// * `bits` is not one of 8, 16, 32, 64.
+    pub fn prove_aggregated_with_blindings(
         values: &[u64],
         blindings: Vec<Blinding>,
         bits: usize,
@@ -116,6 +139,7 @@ impl RangeProof {
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<AggregateRangeProofOutput> {
         if values.iter().any(|v| v.ilog2() as usize >= bits)
+            || blindings.len() != values.len()
             || !values.len().is_power_of_two()
             || !(bits == 8 || bits == 16 || bits == 32 || bits == 64)
         {
