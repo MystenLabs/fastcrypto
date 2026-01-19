@@ -15,32 +15,22 @@ use serde::{Deserialize, Serialize};
 pub struct PedersenCommitment(pub(crate) RistrettoPoint);
 
 #[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Serialize, Deserialize)]
-pub struct BlindingFactor(pub(crate) RistrettoScalar);
+pub struct Blinding(pub(crate) RistrettoScalar);
 
 impl PedersenCommitment {
-    pub(crate) fn from_blinding_factor(
-        value: &RistrettoScalar,
-        blinding_factor: &RistrettoScalar,
-    ) -> Self {
+    pub(crate) fn from_blinding(value: &RistrettoScalar, blinding: &Blinding) -> Self {
         Self(RistrettoPoint(
-            PedersenGens::default().commit(value.0, blinding_factor.0),
+            PedersenGens::default().commit(value.0, blinding.0 .0),
         ))
     }
 
-    pub fn commit(value: &RistrettoScalar, rng: &mut impl AllowedRng) -> (Self, BlindingFactor) {
-        let blinding_factor = RistrettoScalar::rand(rng);
-        (
-            Self::from_blinding_factor(value, &blinding_factor),
-            BlindingFactor(blinding_factor),
-        )
+    pub fn commit(value: &RistrettoScalar, rng: &mut impl AllowedRng) -> (Self, Blinding) {
+        let blinding = Blinding(RistrettoScalar::rand(rng));
+        (Self::from_blinding(value, &blinding), blinding)
     }
 
-    pub fn verify(
-        &self,
-        value: &RistrettoScalar,
-        blinding_factor: &BlindingFactor,
-    ) -> FastCryptoResult<()> {
-        if RistrettoPoint(PedersenGens::default().commit(value.0, blinding_factor.0 .0)) == self.0 {
+    pub fn verify(&self, value: &RistrettoScalar, blinding: &Blinding) -> FastCryptoResult<()> {
+        if RistrettoPoint(PedersenGens::default().commit(value.0, blinding.0 .0)) == self.0 {
             Ok(())
         } else {
             Err(InvalidProof)

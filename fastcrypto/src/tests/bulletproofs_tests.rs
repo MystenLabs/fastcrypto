@@ -14,10 +14,10 @@ fn test_range_proof_valid() {
     let upper_bound: usize = 64;
     let output = RangeProof::prove(1u64, upper_bound, TEST_DOMAIN, &mut thread_rng()).unwrap();
     assert!(output
-        .range_proof
+        .proof
         .verify(
             &output.commitment,
-            &output.blinding_factor,
+            &output.blinding,
             upper_bound,
             TEST_DOMAIN
         )
@@ -30,10 +30,10 @@ fn test_handle_prove_invalid_upper_bound() {
     let output =
         RangeProof::prove(1u64, invalid_upper_bound, TEST_DOMAIN, &mut thread_rng()).unwrap();
     assert!(output
-        .range_proof
+        .proof
         .verify(
             &output.commitment,
-            &output.blinding_factor,
+            &output.blinding,
             invalid_upper_bound,
             TEST_DOMAIN
         )
@@ -47,10 +47,10 @@ fn test_handle_verify_invalid_upper_bound() {
     let output =
         RangeProof::prove(1u64, valid_upper_bound, TEST_DOMAIN, &mut thread_rng()).unwrap();
     assert!(output
-        .range_proof
+        .proof
         .verify(
             &output.commitment,
-            &output.blinding_factor,
+            &output.blinding,
             invalid_upper_bound,
             TEST_DOMAIN
         )

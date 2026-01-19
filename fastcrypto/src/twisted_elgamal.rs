@@ -5,7 +5,7 @@ use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
 use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
-use crate::pedersen::{BlindingFactor, PedersenCommitment};
+use crate::pedersen::{Blinding, PedersenCommitment};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use bulletproofs::PedersenGens;
@@ -31,18 +31,20 @@ pub fn pk_from_sk(sk: &RistrettoScalar) -> RistrettoPoint {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Ciphertext {
     commitment: PedersenCommitment,
+    blinding: Blinding,
     decryption_handle: RistrettoPoint,
 }
 
 impl Ciphertext {
     pub fn encrypt(public_key: &RistrettoPoint, message: u32, rng: &mut impl AllowedRng) -> Self {
-        let r = RistrettoScalar::rand(rng);
+        let blinding = Blinding(RistrettoScalar::rand(rng));
         Self {
-            commitment: PedersenCommitment::from_blinding_factor(
+            decryption_handle: public_key * blinding.0,
+            commitment: PedersenCommitment::from_blinding(
                 &RistrettoScalar::from(message as u64),
-                &r,
+                &blinding,
             ),
-            decryption_handle: public_key * r,
+            blinding,
         }
     }
 
@@ -116,7 +118,7 @@ impl EqualityProof {
         value: &RistrettoScalar,
         ciphertext: &Ciphertext,
         commitment: &PedersenCommitment,
-        blinding_factor: &BlindingFactor,
+        blinding: &Blinding,
         sk: &RistrettoScalar,
         rng: &mut impl AllowedRng,
     ) -> Self {
@@ -139,7 +141,7 @@ impl EqualityProof {
         let z = (
             challenge * sk + r.0,
             challenge * value + r.1,
-            challenge * blinding_factor.0 + r.2,
+            challenge * blinding.0 + r.2,
         );
 
         Self { y, z }
@@ -212,13 +214,13 @@ fn test_equality_proof() {
     let mut rng = rand::thread_rng();
     let (pk, sk) = generate_keypair(&mut rng);
     let ciphertext = Ciphertext::encrypt(&pk, value, &mut rng);
-    let (commitment, blinding_factor) =
+    let (commitment, blinding) =
         PedersenCommitment::commit(&RistrettoScalar::from(value as u64), &mut rng);
     let proof = EqualityProof::prove(
         &RistrettoScalar::from(value as u64),
         &ciphertext,
         &commitment,
-        &blinding_factor,
+        &blinding,
         &sk,
         &mut rng,
     );

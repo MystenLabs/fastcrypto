@@ -21,7 +21,7 @@ use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidPro
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::Scalar;
-use crate::pedersen::{BlindingFactor, PedersenCommitment};
+use crate::pedersen::{Blinding, PedersenCommitment};
 use crate::traits::AllowedRng;
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof as ExternalRangeProof};
 use merlin::Transcript;
@@ -34,25 +34,25 @@ pub struct RangeProof(ExternalRangeProof);
 /// The output of [RangeProof::prove].
 pub struct RangeProofOutput {
     /// The bulletproof range proof.
-    pub range_proof: RangeProof,
+    pub proof: RangeProof,
 
     /// A commitment to the value used in the range proof.
     pub commitment: PedersenCommitment,
 
     /// The blinding factor. The prover should keep this secret until the commitment needs to be revealed.
-    pub blinding_factor: BlindingFactor,
+    pub blinding: Blinding,
 }
 
 /// The output of [RangeProof::prove_aggregated].
 pub struct AggregateRangeProofOutput {
     /// The bulletproof range proof.
-    pub range_proof: RangeProof,
+    pub proof: RangeProof,
 
     /// Commitments to the value used in the range proof.
     pub commitments: Vec<PedersenCommitment>,
 
     /// The blinding factors. The prover should keep these secret until the commitment needs to be revealed.
-    pub blinding_factors: Vec<BlindingFactor>,
+    pub blindings: Vec<Blinding>,
 }
 
 impl RangeProof {
@@ -66,9 +66,9 @@ impl RangeProof {
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<RangeProofOutput> {
         Self::prove_aggregated(&[value], bits, domain, rng).map(|value| RangeProofOutput {
-            range_proof: value.range_proof,
+            proof: value.proof,
             commitment: value.commitments[0].clone(),
-            blinding_factor: value.blinding_factors[0].clone(),
+            blinding: value.blindings[0].clone(),
         })
     }
 
@@ -77,16 +77,11 @@ impl RangeProof {
     pub fn verify(
         &self,
         commitment: &PedersenCommitment,
-        blinding_factor: &BlindingFactor,
+        blinding: &Blinding,
         bits: usize,
         domain: &'static [u8],
     ) -> FastCryptoResult<()> {
-        self.verify_aggregated(
-            &[commitment.clone()],
-            &[blinding_factor.clone()],
-            bits,
-            domain,
-        )
+        self.verify_aggregated(&[commitment.clone()], &[blinding.clone()], bits, domain)
     }
 
     /// Create a proof that all the given `values` are smaller than <i>2<sup>bits</sup></i>.
@@ -101,6 +96,25 @@ impl RangeProof {
         domain: &'static [u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<AggregateRangeProofOutput> {
+        Self::prove_aggregated_from_blindings(
+            values,
+            values
+                .iter()
+                .map(|_| Blinding(RistrettoScalar::rand(rng)))
+                .collect::<Vec<_>>(),
+            bits,
+            domain,
+            rng,
+        )
+    }
+
+    pub fn prove_aggregated_from_blindings(
+        values: &[u64],
+        blindings: Vec<Blinding>,
+        bits: usize,
+        domain: &'static [u8],
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<AggregateRangeProofOutput> {
         if values.iter().any(|v| v.ilog2() as usize >= bits)
             || !values.len().is_power_of_two()
             || !(bits == 8 || bits == 16 || bits == 32 || bits == 64)
@@ -108,33 +122,29 @@ impl RangeProof {
             return Err(InvalidInput);
         }
 
-        let blinding_factors = values
-            .iter()
-            .map(|_| BlindingFactor(RistrettoScalar::rand(rng)))
-            .collect::<Vec<_>>();
-
         let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(bits, values.len());
         let mut prover_transcript = Transcript::new(domain);
 
+        // TODO: Can we avoid calculating the Pedersen commitments here if they are already available?
         ExternalRangeProof::prove_multiple_with_rng(
             &bp_gens,
             &pc_gens,
             &mut prover_transcript,
             values,
-            &blinding_factors.iter().map(|b| b.0 .0).collect::<Vec<_>>(),
+            &blindings.iter().map(|b| b.0 .0).collect::<Vec<_>>(),
             bits,
             rng,
         )
         .map(|(proof, commitments)| {
             AggregateRangeProofOutput {
-                range_proof: RangeProof(proof),
+                proof: RangeProof(proof),
                 // TODO: There's an unnecessary compression happening inside the external crate
                 commitments: commitments
                     .iter()
                     .map(|c| PedersenCommitment(RistrettoPoint(c.decompress().unwrap())))
                     .collect(),
-                blinding_factors,
+                blindings,
             }
         })
         .map_err(|_| GeneralOpaqueError)
@@ -145,7 +155,7 @@ impl RangeProof {
     pub fn verify_aggregated(
         &self,
         commitments: &[PedersenCommitment],
-        blinding_factor: &[BlindingFactor],
+        blindings: &[Blinding],
         bits: usize,
         domain: &'static [u8],
     ) -> FastCryptoResult<()> {
@@ -153,7 +163,7 @@ impl RangeProof {
             return Err(InvalidInput);
         }
 
-        if commitments.len() != blinding_factor.len() {
+        if commitments.len() != blindings.len() {
             return Err(InvalidInput);
         }
 
