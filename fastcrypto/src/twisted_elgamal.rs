@@ -1,12 +1,13 @@
-use crate::error::FastCryptoError::InvalidInput;
+use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
-use crate::groups::{Doubling, GroupElement, Scalar};
-use crate::pedersen::PedersenCommitment;
+use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, Scalar};
+use crate::pedersen::{BlindingFactor, PedersenCommitment};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use bulletproofs::PedersenGens;
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 lazy_static! {
@@ -15,11 +16,16 @@ lazy_static! {
 }
 
 pub fn generate_keypair(rng: &mut impl AllowedRng) -> (RistrettoPoint, RistrettoScalar) {
-    let private_key = RistrettoScalar::rand(rng);
-    let public_key = *H * private_key.inverse().unwrap();
-    (public_key, private_key)
+    let sk = RistrettoScalar::rand(rng);
+    (pk_from_sk(&sk), sk)
 }
 
+pub fn pk_from_sk(sk: &RistrettoScalar) -> RistrettoPoint {
+    *H * sk.inverse().unwrap()
+}
+
+// TODO: Encryptions of the same message can reuse commitments
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Ciphertext {
     commitment: PedersenCommitment,
     decryption_handle: RistrettoPoint,
@@ -53,6 +59,116 @@ impl Ciphertext {
     }
 }
 
+/// A proof that a given ciphertext is for the message 0.
+pub struct ZeroProof {
+    y_p: RistrettoPoint,
+    y_d: RistrettoPoint,
+    z: RistrettoScalar,
+}
+
+impl ZeroProof {
+    pub fn prove(ciphertext: &Ciphertext, sk: &RistrettoScalar, rng: &mut impl AllowedRng) -> Self {
+        let y = RistrettoScalar::rand(rng);
+        let pk = pk_from_sk(sk);
+
+        let y_p = pk * &y;
+        let y_d = ciphertext.decryption_handle * &y;
+        let challenge = Self::challenge(ciphertext, &y_p, &y_d);
+        let z = sk * challenge + y;
+        Self { y_p, y_d, z }
+    }
+
+    fn challenge(
+        ciphertext: &Ciphertext,
+        y_p: &RistrettoPoint,
+        y_d: &RistrettoPoint,
+    ) -> RistrettoScalar {
+        RistrettoScalar::fiat_shamir_reduction_to_group_element(
+            &bcs::to_bytes(&(ciphertext, y_p, y_d)).unwrap(),
+        )
+    }
+
+    pub fn verify(&self, ciphertext: &Ciphertext, pk: &RistrettoPoint) -> FastCryptoResult<()> {
+        let challenge = Self::challenge(ciphertext, &self.y_p, &self.y_d);
+        if pk * self.z == *H * challenge + self.y_p
+            && ciphertext.decryption_handle * self.z
+                == ciphertext.commitment.0 * challenge + self.y_d
+        {
+            Ok(())
+        } else {
+            Err(InvalidProof)
+        }
+    }
+}
+
+/// This represents a ZK proof that a ciphertext has the same message as the value of an other commitment.
+pub struct EqualityProof {
+    y: (RistrettoPoint, RistrettoPoint, RistrettoPoint),
+    z: (RistrettoScalar, RistrettoScalar, RistrettoScalar),
+}
+
+impl EqualityProof {
+    pub fn prove(
+        value: &RistrettoScalar,
+        ciphertext: &Ciphertext,
+        commitment: &PedersenCommitment,
+        blinding_factor: &BlindingFactor,
+        sk: &RistrettoScalar,
+        rng: &mut impl AllowedRng,
+    ) -> Self {
+        let pk = pk_from_sk(sk);
+        let r = (
+            RistrettoScalar::rand(rng),
+            RistrettoScalar::rand(rng),
+            RistrettoScalar::rand(rng),
+        );
+
+        let y = (
+            pk * &r.0,
+            *G * r.1 + ciphertext.decryption_handle * r.0,
+            *G * r.1 + *H * r.2,
+        );
+
+        let challenge = Self::challenge(ciphertext, commitment, &y);
+
+        let z = (
+            challenge * sk + r.0,
+            challenge * value + r.1,
+            challenge * blinding_factor.0 + r.2,
+        );
+
+        Self { y, z }
+    }
+
+    fn challenge(
+        ciphertext: &Ciphertext,
+        commitment: &PedersenCommitment,
+        y: &(RistrettoPoint, RistrettoPoint, RistrettoPoint),
+    ) -> RistrettoScalar {
+        RistrettoScalar::fiat_shamir_reduction_to_group_element(
+            &bcs::to_bytes(&(ciphertext, commitment, y)).unwrap(),
+        )
+    }
+
+    fn verify(
+        &self,
+        ciphertext: &Ciphertext,
+        commitment: &PedersenCommitment,
+        pk: &RistrettoPoint,
+    ) -> FastCryptoResult<()> {
+        let challenge = Self::challenge(ciphertext, commitment, &self.y);
+        if pk * self.z.0 == *H * challenge + self.y.0
+            && *G * self.z.1 + ciphertext.decryption_handle * self.z.0
+                == ciphertext.commitment.0 * challenge + self.y.1
+            && *G * self.z.1 + *H * self.z.2 == commitment.0 * challenge + self.y.2
+        {
+            Ok(())
+        } else {
+            Err(InvalidProof)
+        }
+    }
+}
+
 /// Precompute discrete log table for use in decryption. This only needs to be computed once.
 pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u32> {
     let step = G.repeated_doubling(16);
@@ -74,4 +190,31 @@ fn test_round_trip() {
     // This table can be reused, so it only has to be computed once
     let table = precompute_table();
     assert_eq!(ciphertext.decrypt(&sk, &table).unwrap(), message);
+}
+
+#[test]
+fn test_zero_proof() {
+    let (pk, sk) = generate_keypair(&mut rand::thread_rng());
+    let ciphertext = Ciphertext::encrypt(&pk, 0, &mut rand::thread_rng());
+    let proof = ZeroProof::prove(&ciphertext, &sk, &mut rand::thread_rng());
+    proof.verify(&ciphertext, &pk).unwrap();
+}
+
+#[test]
+fn test_equality_proof() {
+    let value = 12345u32;
+    let mut rng = rand::thread_rng();
+    let (pk, sk) = generate_keypair(&mut rng);
+    let ciphertext = Ciphertext::encrypt(&pk, value, &mut rng);
+    let (commitment, blinding_factor) =
+        PedersenCommitment::commit(&RistrettoScalar::from(value as u64), &mut rng);
+    let proof = EqualityProof::prove(
+        &RistrettoScalar::from(value as u64),
+        &ciphertext,
+        &commitment,
+        &blinding_factor,
+        &sk,
+        &mut rng,
+    );
+    proof.verify(&ciphertext, &commitment, &pk).unwrap();
 }
