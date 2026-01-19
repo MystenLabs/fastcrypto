@@ -122,8 +122,8 @@ impl EqualityProof {
     pub fn prove(
         value: &RistrettoScalar,
         ciphertext: &Ciphertext,
-        commitment: &PedersenCommitment,
-        blinding: &Blinding,
+        other_commitment: &PedersenCommitment,
+        other_blinding: &Blinding,
         sk: &RistrettoScalar,
         rng: &mut impl AllowedRng,
     ) -> Self {
@@ -141,12 +141,12 @@ impl EqualityProof {
             RistrettoPoint::multi_scalar_mul(&[r.1, r.2], &[*G, *H]).unwrap(),
         );
 
-        let challenge = Self::challenge(ciphertext, commitment, &pk, &y);
+        let challenge = Self::challenge(ciphertext, other_commitment, &pk, &y);
 
         let z = (
             challenge * sk + r.0,
             challenge * value + r.1,
-            challenge * blinding.0 + r.2,
+            challenge * other_blinding.0 + r.2,
         );
 
         Self { y, z }
@@ -154,26 +154,26 @@ impl EqualityProof {
 
     fn challenge(
         ciphertext: &Ciphertext,
-        commitment: &PedersenCommitment,
+        other_commitment: &PedersenCommitment,
         pk: &RistrettoPoint,
         y: &(RistrettoPoint, RistrettoPoint, RistrettoPoint),
     ) -> RistrettoScalar {
         RistrettoScalar::fiat_shamir_reduction_to_group_element(
-            &bcs::to_bytes(&(ciphertext, commitment, pk, y)).unwrap(),
+            &bcs::to_bytes(&(ciphertext, other_commitment, pk, y)).unwrap(),
         )
     }
 
     pub fn verify(
         &self,
         ciphertext: &Ciphertext,
-        commitment: &PedersenCommitment,
+        other_commitment: &PedersenCommitment,
         pk: &RistrettoPoint,
     ) -> FastCryptoResult<()> {
-        let challenge = Self::challenge(ciphertext, commitment, pk, &self.y);
+        let challenge = Self::challenge(ciphertext, other_commitment, pk, &self.y);
         if pk * self.z.0 == *H * challenge + self.y.0
             && *G * self.z.1 + ciphertext.decryption_handle * self.z.0
                 == ciphertext.commitment.0 * challenge + self.y.1
-            && *G * self.z.1 + *H * self.z.2 == commitment.0 * challenge + self.y.2
+            && *G * self.z.1 + *H * self.z.2 == other_commitment.0 * challenge + self.y.2
         {
             Ok(())
         } else {
@@ -259,17 +259,17 @@ fn test_equality_proof() {
     let mut rng = rand::thread_rng();
     let (pk, sk) = generate_keypair(&mut rng);
     let (ciphertext, _) = Ciphertext::encrypt(&pk, value, &mut rng);
-    let (commitment, blinding) =
+    let (other_commitment, blinding) =
         PedersenCommitment::commit(&RistrettoScalar::from(value as u64), &mut rng);
     let proof = EqualityProof::prove(
         &RistrettoScalar::from(value as u64),
         &ciphertext,
-        &commitment,
+        &other_commitment,
         &blinding,
         &sk,
         &mut rng,
     );
-    proof.verify(&ciphertext, &commitment, &pk).unwrap();
+    proof.verify(&ciphertext, &other_commitment, &pk).unwrap();
 }
 
 #[test]
