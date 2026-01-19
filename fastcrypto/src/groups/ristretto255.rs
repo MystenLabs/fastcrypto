@@ -27,12 +27,12 @@ use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Add, Div, Mul};
 use zeroize::Zeroize;
 
-const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
+pub(crate) const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
 const RISTRETTO_SCALAR_BYTE_LENGTH: usize = 32;
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Add, Sub, Neg, GroupOpsExtend)]
-pub struct RistrettoPoint(ExternalPoint);
+pub struct RistrettoPoint(pub(crate) ExternalPoint);
 
 impl RistrettoPoint {
     /// Construct a RistrettoPoint from the given data using a Ristretto-flavoured Elligator 2 map.
@@ -132,6 +132,12 @@ impl RistrettoScalar {
 
 impl From<u128> for RistrettoScalar {
     fn from(value: u128) -> RistrettoScalar {
+        RistrettoScalar(ExternalScalar::from(value))
+    }
+}
+
+impl From<u64> for RistrettoScalar {
+    fn from(value: u64) -> RistrettoScalar {
         RistrettoScalar(ExternalScalar::from(value))
     }
 }

@@ -13,143 +13,190 @@
 //! let upper_bound = 16;
 //! let mut blinding = RistrettoScalar::rand(&mut thread_rng());
 //! let range_proof =
-//!    RangeProof::prove_bit_length(value, blinding, upper_bound, b"MY_DOMAIN").unwrap();
+//!    RangeProof::prove_bit_length(value, upper_bound, blinding, b"MY_DOMAIN").unwrap();
 //! assert!(range_proof.verify_bit_length(upper_bound, b"MY_DOMAIN").is_ok());
 //! ```
 
 use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
-use crate::groups::ristretto255::RistrettoScalar;
+use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
+use crate::groups::Scalar;
+use crate::traits::AllowedRng;
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof as ExternalRangeProof};
-use curve25519_dalek::ristretto::CompressedRistretto;
+use derive_more::{Add, Sub};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-///
 /// Bulletproof Range Proofs
-///
-
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RangeProof {
-    proof: ExternalRangeProof,
-    commitment: CompressedRistretto,
+pub struct RangeProof(ExternalRangeProof);
+
+// TODO: We don't need to have this point in decompressed form in order to just verify the commitment, but it's convenient when using the homomorphic property.
+#[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Serialize, Deserialize)]
+pub struct PedersenCommitment(RistrettoPoint);
+
+#[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Serialize, Deserialize)]
+pub struct BlindingFactor(RistrettoScalar);
+
+// TODO: Do we need a PoK for a commitment?
+impl PedersenCommitment {
+    pub fn commit(value: &RistrettoScalar, rng: &mut impl AllowedRng) -> (Self, BlindingFactor) {
+        let blinding_factor = RistrettoScalar::rand(rng);
+        let commitment = RistrettoPoint(PedersenGens::default().commit(value.0, blinding_factor.0));
+        (Self(commitment), BlindingFactor(blinding_factor))
+    }
+
+    pub fn verify(
+        &self,
+        value: &RistrettoScalar,
+        blinding_factor: &BlindingFactor,
+    ) -> FastCryptoResult<()> {
+        if RistrettoPoint(PedersenGens::default().commit(value.0, blinding_factor.0 .0)) == self.0 {
+            Ok(())
+        } else {
+            Err(InvalidProof)
+        }
+    }
+}
+
+/// The output of [RangeProof::prove].
+pub struct RangeProofOutput {
+    /// The bulletproof range proof.
+    pub range_proof: RangeProof,
+
+    /// A commitment to the value used in the range proof.
+    pub commitment: PedersenCommitment,
+
+    /// The blinding factor. The prover should keep this secret until the commitment needs to be revealed.
+    pub blinding_factor: BlindingFactor,
+}
+
+/// The output of [RangeProof::prove_aggregated].
+pub struct AggregateRangeProofOutput {
+    /// The bulletproof range proof.
+    pub range_proof: RangeProof,
+
+    /// Commitments to the value used in the range proof.
+    pub commitments: Vec<PedersenCommitment>,
+
+    /// The blinding factors. The prover should keep these secret until the commitment needs to be revealed.
+    pub blinding_factors: Vec<BlindingFactor>,
 }
 
 impl RangeProof {
     /// Prove that the value is an unsigned integer with bit length bits, this is equivalent
     /// to proving that the value is an integer within the range [0, 2^bits).
-    /// Returns an `InvalidInput` error if bits is not one of 8, 16, 32, 64.
-    pub fn prove_bit_length(
+    /// Returns an `InvalidInput` error if `bits` is not one of 8, 16, 32, 64.
+    pub fn prove(
         value: u64,
-        blinding: RistrettoScalar,
         bits: usize,
         domain: &'static [u8],
-    ) -> FastCryptoResult<Self> {
-        // Although this is also checked in the bulletproofs library, we check again
-        // to avoid unexpected behaviour in the case of library updates
-        if !(bits == 8 || bits == 16 || bits == 32 || bits == 64) {
-            return Err(InvalidInput);
-        }
-
-        let pc_gens = PedersenGens::default();
-        let bp_gens = BulletproofGens::new(bits, 1);
-        let mut prover_transcript = Transcript::new(domain);
-
-        ExternalRangeProof::prove_single(
-            &bp_gens,
-            &pc_gens,
-            &mut prover_transcript,
-            value,
-            &blinding.0,
-            bits,
-        )
-        .map(|(proof, commitment)| Self { proof, commitment })
-        .map_err(|_| GeneralOpaqueError)
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<RangeProofOutput> {
+        Self::prove_aggregated(&[value], bits, domain, rng).map(|value| RangeProofOutput {
+            range_proof: value.range_proof,
+            commitment: value.commitments[0].clone(),
+            blinding_factor: value.blinding_factors[0].clone(),
+        })
     }
 
-    /// Verifies that a range proof that a value is an integer within the range [0, 2^bits).
+    /// Verifies that a range proof that the commitment is to an integer in the range [0, 2^bits).
     /// Function only works for bits = 8, 16, 32, 64.
-    pub fn verify_bit_length(&self, bits: usize, domain: &'static [u8]) -> FastCryptoResult<()> {
-        // Although this is also checked in the bulletproofs library, we check again
-        // to avoid unexpected behaviour in the case of library updates
-        if !(bits == 8 || bits == 16 || bits == 32 || bits == 64) {
-            return Err(InvalidInput);
-        }
-
-        let pc_gens = PedersenGens::default();
-        let bp_gens = BulletproofGens::new(bits, 1);
-        let mut verifier_transcript = Transcript::new(domain);
-
-        self.proof
-            .verify_single(
-                &bp_gens,
-                &pc_gens,
-                &mut verifier_transcript,
-                &self.commitment,
-                bits,
-            )
-            .map_err(|_| InvalidProof)
+    pub fn verify(
+        &self,
+        commitment: &PedersenCommitment,
+        blinding_factor: &BlindingFactor,
+        bits: usize,
+        domain: &'static [u8],
+    ) -> FastCryptoResult<()> {
+        self.verify_aggregated(
+            &[commitment.clone()],
+            &[blinding_factor.clone()],
+            bits,
+            domain,
+        )
     }
-}
 
-pub struct AggregateRangeProof {
-    proof: ExternalRangeProof,
-    commitments: Vec<CompressedRistretto>,
-}
-
-impl AggregateRangeProof {
     /// Create a proof that all the given `values` are smaller than <i>2<sup>bits</sup></i>.
     ///
     /// Fails if
     /// * any of the `values` are <i>not</i> smaller than <i>2<sup>bits</sup></i>,
-    /// * `values.len() != blinding_factors.len()`,
     /// * `values.len()` is not a power of 2,
     /// * `bits` is not one of 8, 16, 32, 64.
-    pub fn prove_bit_length(
+    pub fn prove_aggregated(
         values: &[u64],
-        blinding_factors: &[RistrettoScalar],
         bits: usize,
         domain: &'static [u8],
-    ) -> FastCryptoResult<Self> {
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<AggregateRangeProofOutput> {
         if values.iter().any(|v| v.ilog2() as usize >= bits)
-            || values.len() != blinding_factors.len()
             || !values.len().is_power_of_two()
             || !(bits == 8 || bits == 16 || bits == 32 || bits == 64)
         {
             return Err(InvalidInput);
         }
 
+        let blinding_factors = values
+            .iter()
+            .map(|_| BlindingFactor(RistrettoScalar::rand(rng)))
+            .collect::<Vec<_>>();
+
         let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(bits, values.len());
         let mut prover_transcript = Transcript::new(domain);
 
-        ExternalRangeProof::prove_multiple(
+        ExternalRangeProof::prove_multiple_with_rng(
             &bp_gens,
             &pc_gens,
             &mut prover_transcript,
             values,
-            &blinding_factors.iter().map(|b| b.0).collect::<Vec<_>>(),
+            &blinding_factors.iter().map(|b| b.0 .0).collect::<Vec<_>>(),
             bits,
+            rng,
         )
-        .map(|(proof, commitments)| Self { proof, commitments })
+        .map(|(proof, commitments)| {
+            AggregateRangeProofOutput {
+                range_proof: RangeProof(proof),
+                commitments: commitments
+                    .iter()
+                    .map(|c| PedersenCommitment(RistrettoPoint(c.decompress().unwrap())))
+                    .collect(),
+                blinding_factors,
+            }
+        })
         .map_err(|_| GeneralOpaqueError)
     }
 
-    pub fn verify_bit_length(&self, bits: usize, domain: &'static [u8]) -> FastCryptoResult<()> {
+    /// Verifies that a range proof that all commitments are too integers in the range [0, 2^bits).
+    /// Function only works for bits = 8, 16, 32, 64.
+    pub fn verify_aggregated(
+        &self,
+        commitments: &[PedersenCommitment],
+        blinding_factor: &[BlindingFactor],
+        bits: usize,
+        domain: &'static [u8],
+    ) -> FastCryptoResult<()> {
         if !(bits == 8 || bits == 16 || bits == 32 || bits == 64) {
             return Err(InvalidInput);
         }
 
+        if commitments.len() != blinding_factor.len() {
+            return Err(InvalidInput);
+        }
+
         let pc_gens = PedersenGens::default();
-        let bp_gens = BulletproofGens::new(bits, self.commitments.len());
+        let bp_gens = BulletproofGens::new(bits, commitments.len());
         let mut verifier_transcript = Transcript::new(domain);
 
-        self.proof
+        self.0
             .verify_multiple(
                 &bp_gens,
                 &pc_gens,
                 &mut verifier_transcript,
-                &self.commitments,
+                &commitments
+                    .iter()
+                    .map(|c| c.0 .0.compress())
+                    .collect::<Vec<_>>(),
                 bits,
             )
             .map_err(|_| InvalidProof)

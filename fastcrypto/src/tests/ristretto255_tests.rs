@@ -30,7 +30,7 @@ fn test_arithmetic() {
     // Test that different ways of computing [5]G gives the expected result
     let g = RistrettoPoint::generator();
 
-    let p1 = g * RistrettoScalar::from(5);
+    let p1 = g * RistrettoScalar::from(5u64);
     assert_eq!(five_bp, p1);
 
     let p2 = g + g + g + g + g + g - g;
@@ -41,10 +41,10 @@ fn test_arithmetic() {
     assert_eq!(five_bp, p3);
 
     let mut p4 = g;
-    p4 *= RistrettoScalar::from(5);
+    p4 *= RistrettoScalar::from(5u64);
     assert_eq!(five_bp, p4);
 
-    let p5 = g * (RistrettoScalar::from(7) - RistrettoScalar::from(2));
+    let p5 = g * (RistrettoScalar::from(7u64) - RistrettoScalar::from(2u64));
     assert_eq!(five_bp, p5);
 
     assert!((RistrettoPoint::generator() / RistrettoScalar::zero()).is_err());
@@ -56,8 +56,8 @@ fn test_arithmetic() {
     // Check that u128 is decoded correctly.
     let x: u128 = 2 << 66;
     let x_scalar = RistrettoScalar::from(x);
-    let in_u64 = x_scalar / RistrettoScalar::from(8);
-    assert_eq!(in_u64.unwrap(), RistrettoScalar::from(2 << 63));
+    let in_u64 = x_scalar / RistrettoScalar::from(8u64);
+    assert_eq!(in_u64.unwrap(), RistrettoScalar::from(2u64 << 63));
 }
 
 #[test]
@@ -216,18 +216,18 @@ fn test_multiscalar_mul() {
     let g = RistrettoPoint::generator();
     let h = RistrettoPoint::multi_scalar_mul(
         &[
-            RistrettoScalar::from(1),
-            RistrettoScalar::from(2),
-            RistrettoScalar::from(3),
+            RistrettoScalar::from(1u64),
+            RistrettoScalar::from(2u64),
+            RistrettoScalar::from(3u64),
         ],
         &[g, g, g],
     )
     .unwrap();
-    assert_eq!(g * RistrettoScalar::from(6), h);
+    assert_eq!(g * RistrettoScalar::from(6u64), h);
 
     // Invalid lengths
     assert!(RistrettoPoint::multi_scalar_mul(
-        &[RistrettoScalar::from(1), RistrettoScalar::from(2)],
+        &[RistrettoScalar::from(1u64), RistrettoScalar::from(2u64)],
         &[g, g, g]
     )
     .is_err());
