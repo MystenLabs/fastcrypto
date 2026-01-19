@@ -4,7 +4,7 @@
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
-use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, Scalar};
+use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
 use crate::pedersen::{BlindingFactor, PedersenCommitment};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -129,8 +129,9 @@ impl EqualityProof {
 
         let y = (
             pk * r.0,
-            *G * r.1 + ciphertext.decryption_handle * r.0,
-            *G * r.1 + *H * r.2,
+            RistrettoPoint::multi_scalar_mul(&[r.1, r.0], &[*G, ciphertext.decryption_handle])
+                .unwrap(),
+            RistrettoPoint::multi_scalar_mul(&[r.1, r.2], &[*G, *H]).unwrap(),
         );
 
         let challenge = Self::challenge(ciphertext, commitment, &pk, &y);

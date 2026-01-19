@@ -57,7 +57,7 @@ fn test_arithmetic() {
     let x: u128 = 2 << 66;
     let x_scalar = RistrettoScalar::from(x);
     let in_u64 = x_scalar / RistrettoScalar::from(8u64);
-    assert_eq!(in_u64.unwrap(), RistrettoScalar::from(2u64 << 63));
+    assert_eq!(in_u64.unwrap(), RistrettoScalar::from(2u128 << 63));
 }
 
 #[test]
