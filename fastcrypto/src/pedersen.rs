@@ -4,7 +4,7 @@
 use crate::error::FastCryptoError::InvalidProof;
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use crate::groups::{FiatShamirChallenge, Scalar};
+use crate::groups::Scalar;
 use crate::traits::AllowedRng;
 use bulletproofs::PedersenGens;
 use derive_more::{Add, Sub};
