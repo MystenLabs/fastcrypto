@@ -1,8 +1,11 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::bulletproofs::{PedersenCommitment, RangeProof};
+use crate::bulletproofs::RangeProof;
 use crate::groups::ristretto255::RistrettoScalar;
 use rand::thread_rng;
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+use crate::pedersen::PedersenCommitment;
 
 const TEST_DOMAIN: &[u8; 7] = b"NARWHAL";
 

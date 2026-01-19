@@ -106,12 +106,14 @@ pub mod hash;
 pub mod hmac;
 pub mod jwt_utils;
 pub mod merkle;
+pub mod pedersen;
 pub mod private_seed;
 pub mod rsa;
 pub mod secp256k1;
 pub mod secp256r1;
 pub mod serde_helpers;
 pub mod signature_service;
+pub mod twisted_elgamal;
 pub mod utils;
 pub mod vrf;
 

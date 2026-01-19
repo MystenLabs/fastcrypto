@@ -21,43 +21,15 @@ use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidPro
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::Scalar;
+use crate::pedersen::{BlindingFactor, PedersenCommitment};
 use crate::traits::AllowedRng;
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof as ExternalRangeProof};
-use derive_more::{Add, Sub};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
 /// Bulletproof Range Proofs
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RangeProof(ExternalRangeProof);
-
-// TODO: We don't need to have this point in decompressed form in order to just verify the commitment, but it's convenient when using the homomorphic property.
-#[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Serialize, Deserialize)]
-pub struct PedersenCommitment(RistrettoPoint);
-
-#[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Serialize, Deserialize)]
-pub struct BlindingFactor(RistrettoScalar);
-
-// TODO: Do we need a PoK for a commitment?
-impl PedersenCommitment {
-    pub fn commit(value: &RistrettoScalar, rng: &mut impl AllowedRng) -> (Self, BlindingFactor) {
-        let blinding_factor = RistrettoScalar::rand(rng);
-        let commitment = RistrettoPoint(PedersenGens::default().commit(value.0, blinding_factor.0));
-        (Self(commitment), BlindingFactor(blinding_factor))
-    }
-
-    pub fn verify(
-        &self,
-        value: &RistrettoScalar,
-        blinding_factor: &BlindingFactor,
-    ) -> FastCryptoResult<()> {
-        if RistrettoPoint(PedersenGens::default().commit(value.0, blinding_factor.0 .0)) == self.0 {
-            Ok(())
-        } else {
-            Err(InvalidProof)
-        }
-    }
-}
 
 /// The output of [RangeProof::prove].
 pub struct RangeProofOutput {
@@ -157,6 +129,7 @@ impl RangeProof {
         .map(|(proof, commitments)| {
             AggregateRangeProofOutput {
                 range_proof: RangeProof(proof),
+                // TODO: There's an unnecessary compression happening inside the external crate
                 commitments: commitments
                     .iter()
                     .map(|c| PedersenCommitment(RistrettoPoint(c.decompress().unwrap())))
