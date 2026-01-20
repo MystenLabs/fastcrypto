@@ -7,14 +7,13 @@
 //! ```rust
 //! # use fastcrypto::bulletproofs::*;
 //! use rand::{thread_rng, RngCore};
-//! use fastcrypto::groups::ristretto255::RistrettoScalar;
+//! # use fastcrypto::groups::ristretto255::RistrettoScalar;
 //! # use fastcrypto::groups::Scalar;
 //! let value = 300;
-//! let upper_bound = 16;
-//! let mut blinding = RistrettoScalar::rand(&mut thread_rng());
-//! let range_proof =
-//!    RangeProof::prove_bit_length(value, upper_bound, blinding, b"MY_DOMAIN").unwrap();
-//! assert!(range_proof.verify_bit_length(upper_bound, b"MY_DOMAIN").is_ok());
+//! let bits = 16;
+//! let output =
+//!    RangeProof::prove(value, bits, b"MY_DOMAIN", &mut thread_rng()).unwrap();
+//! assert!(output.proof.verify(&output.commitment, &output.blinding, bits, b"MY_DOMAIN").is_ok());
 //! ```
 
 use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidProof};
