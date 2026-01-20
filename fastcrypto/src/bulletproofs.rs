@@ -126,11 +126,10 @@ impl RangeProof {
     pub fn verify(
         &self,
         commitment: &PedersenCommitment,
-        blinding: &Blinding,
         range: &Range,
         domain: &'static [u8],
     ) -> FastCryptoResult<()> {
-        self.verify_aggregated(&[commitment.clone()], &[blinding.clone()], range, domain)
+        self.verify_aggregated(&[commitment.clone()], range, domain)
     }
 
     /// Create a proof that all the given `values` are in the given range.
@@ -210,14 +209,9 @@ impl RangeProof {
     pub fn verify_aggregated(
         &self,
         commitments: &[PedersenCommitment],
-        blindings: &[Blinding],
         range: &Range,
         domain: &'static [u8],
     ) -> FastCryptoResult<()> {
-        if commitments.len() != blindings.len() {
-            return Err(InvalidInput);
-        }
-
         let bits = range.upper_bound_in_bits() as usize;
         let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(bits, commitments.len());
