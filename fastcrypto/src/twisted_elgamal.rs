@@ -309,11 +309,7 @@ fn encrypt_and_range_proof() {
     assert_eq!(&range_proof.commitment, &ciphertext.commitment);
     assert!(range_proof
         .proof
-        .verify(
-            &range_proof.commitment,
-            &range,
-            domain
-        )
+        .verify(&range_proof.commitment, &range, domain)
         .is_ok());
 
     assert_eq!(ciphertext.decrypt(&sk, &precompute_table()).unwrap(), value);
