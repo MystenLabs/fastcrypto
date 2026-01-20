@@ -88,9 +88,8 @@ impl Range {
 }
 
 impl RangeProof {
-    /// Prove that the value is an unsigned integer with bit length bits, this is equivalent
-    /// to proving that the value is an integer within the range [0, 2^bits).
-    /// Returns an `InvalidInput` error if `bits` is not one of 8, 16, 32, 64.
+    /// Prove that the `value` is in the given range.
+    /// Returns an `InvalidInput` error if the value is not in range.
     pub fn prove(
         value: u64,
         range: &Range,
@@ -104,6 +103,9 @@ impl RangeProof {
         })
     }
 
+    /// Prove that the `value` is in the given range using the given commitment blinding.
+    /// This enables creating proofs for an existing commitment.
+    /// Returns an `InvalidInput` error if the value is not in range.
     pub fn prove_with_blinding(
         value: u64,
         blinding: Blinding,
@@ -120,8 +122,7 @@ impl RangeProof {
         )
     }
 
-    /// Verifies that a range proof that the commitment is to an integer in the range [0, 2^bits).
-    /// Function only works for bits = 8, 16, 32, 64.
+    /// Verifies a range proof: That the commitment is to a value in the given range.
     pub fn verify(
         &self,
         commitment: &PedersenCommitment,
@@ -132,12 +133,11 @@ impl RangeProof {
         self.verify_aggregated(&[commitment.clone()], &[blinding.clone()], range, domain)
     }
 
-    /// Create a proof that all the given `values` are smaller than <i>2<sup>bits</sup></i>.
+    /// Create a proof that all the given `values` are in the given range.
     ///
     /// Fails if
-    /// * any of the `values` are <i>not</i> smaller than <i>2<sup>bits</sup></i>,
+    /// * any of the `values` are <i>not</i> in the range,
     /// * `values.len()` is not a power of 2,
-    /// * `bits` is not one of 8, 16, 32, 64.
     pub fn prove_aggregated(
         values: &[u64],
         range: &Range,
@@ -156,13 +156,13 @@ impl RangeProof {
         )
     }
 
-    /// Create a proof that all the given `values` are smaller than <i>2<sup>bits</sup></i> using the given blinding factors.
+    /// Create a proof that all the given `values` are in the range using the given commitment blindings.
+    /// This enables creating proofs for existing commitments.
     ///
     /// Fails if
-    /// * any of the `values` are <i>not</i> smaller than <i>2<sup>bits</sup></i>,
+    /// * any of the `values` are <i>not</i> in the range.
     /// * `values.len() != blindings.len()`,
     /// * `values.len()` is not a power of 2,
-    /// * `bits` is not one of 8, 16, 32, 64.
     pub fn prove_aggregated_with_blindings(
         values: &[u64],
         blindings: Vec<Blinding>,
@@ -206,8 +206,7 @@ impl RangeProof {
         .map_err(|_| GeneralOpaqueError)
     }
 
-    /// Verifies that a range proof that all commitments are too integers in the range [0, 2^bits).
-    /// Function only works for bits = 8, 16, 32, 64.
+    /// Verifies that a range proof that all commitments are to values in the given `range`.
     pub fn verify_aggregated(
         &self,
         commitments: &[PedersenCommitment],
