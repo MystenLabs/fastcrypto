@@ -40,7 +40,7 @@ impl Ciphertext {
         message: u32,
         rng: &mut impl AllowedRng,
     ) -> (Self, Blinding) {
-        let blinding = Blinding(RistrettoScalar::rand(rng));
+        let blinding = Blinding::rand(rng);
         (
             Self {
                 decryption_handle: public_key * blinding.0,
@@ -208,7 +208,7 @@ impl JointCiphertext {
         message: u32,
         rng: &mut impl AllowedRng,
     ) -> (Self, Blinding) {
-        let blinding = Blinding(RistrettoScalar::rand(rng));
+        let blinding = Blinding::rand(rng);
         (
             Self {
                 decryption_handles: (pk1 * blinding.0, pk2 * blinding.0),

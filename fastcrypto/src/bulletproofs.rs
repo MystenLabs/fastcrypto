@@ -19,8 +19,7 @@
 
 use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
-use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use crate::groups::Scalar;
+use crate::groups::ristretto255::RistrettoPoint;
 use crate::pedersen::{Blinding, PedersenCommitment};
 use crate::traits::AllowedRng;
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof as ExternalRangeProof};
@@ -147,7 +146,7 @@ impl RangeProof {
             values,
             values
                 .iter()
-                .map(|_| Blinding(RistrettoScalar::rand(rng)))
+                .map(|_| Blinding::rand(rng))
                 .collect::<Vec<_>>(),
             range,
             domain,

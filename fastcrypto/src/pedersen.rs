@@ -25,7 +25,7 @@ impl PedersenCommitment {
     }
 
     pub fn commit(value: &RistrettoScalar, rng: &mut impl AllowedRng) -> (Self, Blinding) {
-        let blinding = Blinding(RistrettoScalar::rand(rng));
+        let blinding = Blinding::rand(rng);
         (Self::from_blinding(value, &blinding), blinding)
     }
 
@@ -35,6 +35,12 @@ impl PedersenCommitment {
         } else {
             Err(InvalidProof)
         }
+    }
+}
+
+impl Blinding {
+    pub fn rand(rng: &mut impl AllowedRng) -> Self {
+        Self(RistrettoScalar::rand(rng))
     }
 }
 
