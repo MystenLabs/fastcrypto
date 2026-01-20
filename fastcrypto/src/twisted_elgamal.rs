@@ -18,13 +18,16 @@ lazy_static! {
     static ref H: RistrettoPoint = RistrettoPoint(PedersenGens::default().B_blinding);
 }
 
-pub fn generate_keypair(rng: &mut impl AllowedRng) -> (RistrettoPoint, RistrettoScalar) {
-    let sk = RistrettoScalar::rand(rng);
+pub struct PublicKey(RistrettoPoint);
+pub struct PrivateKey(RistrettoScalar);
+
+pub fn generate_keypair(rng: &mut impl AllowedRng) -> (PublicKey, PrivateKey) {
+    let sk = PrivateKey(RistrettoScalar::rand(rng));
     (pk_from_sk(&sk), sk)
 }
 
-pub fn pk_from_sk(sk: &RistrettoScalar) -> RistrettoPoint {
-    *H * sk.inverse().unwrap()
+pub fn pk_from_sk(sk: &PrivateKey) -> PublicKey {
+    PublicKey(*H * sk.0.inverse().unwrap())
 }
 
 // TODO: Encryptions of the same message can reuse commitments
@@ -36,14 +39,14 @@ pub struct Ciphertext {
 
 impl Ciphertext {
     pub fn encrypt(
-        public_key: &RistrettoPoint,
+        public_key: &PublicKey,
         message: u32,
         rng: &mut impl AllowedRng,
     ) -> (Self, Blinding) {
         let blinding = Blinding::rand(rng);
         (
             Self {
-                decryption_handle: public_key * blinding.0,
+                decryption_handle: public_key.0 * blinding.0,
                 commitment: PedersenCommitment::from_blinding(
                     &RistrettoScalar::from(message as u64),
                     &blinding,
@@ -55,10 +58,10 @@ impl Ciphertext {
 
     pub fn decrypt(
         &self,
-        private_key: &RistrettoScalar,
+        private_key: &PrivateKey,
         table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u32>,
     ) -> FastCryptoResult<u32> {
-        let mut c = self.commitment.0 - self.decryption_handle * private_key;
+        let mut c = self.commitment.0 - self.decryption_handle * private_key.0;
         for x_low in 0..1u32 << 16 {
             if let Some(x_high) = table.get(&c.to_byte_array()) {
                 return Ok(x_low + (x_high << 16));
@@ -77,14 +80,14 @@ pub struct ZeroProof {
 }
 
 impl ZeroProof {
-    pub fn prove(ciphertext: &Ciphertext, sk: &RistrettoScalar, rng: &mut impl AllowedRng) -> Self {
+    pub fn prove(ciphertext: &Ciphertext, sk: &PrivateKey, rng: &mut impl AllowedRng) -> Self {
         let y = RistrettoScalar::rand(rng);
         let pk = pk_from_sk(sk);
 
-        let y_p = pk * y;
+        let y_p = pk.0 * y;
         let y_d = ciphertext.decryption_handle * y;
-        let challenge = Self::challenge(ciphertext, &pk, &y_p, &y_d);
-        let z = sk * challenge + y;
+        let challenge = Self::challenge(ciphertext, &pk.0, &y_p, &y_d);
+        let z = sk.0 * challenge + y;
         Self { y_p, y_d, z }
     }
 
@@ -99,9 +102,9 @@ impl ZeroProof {
         )
     }
 
-    pub fn verify(&self, ciphertext: &Ciphertext, pk: &RistrettoPoint) -> FastCryptoResult<()> {
-        let challenge = -Self::challenge(ciphertext, pk, &self.y_p, &self.y_d);
-        if RistrettoPoint::multi_scalar_mul(&[self.z, challenge], &[*pk, *H]).unwrap() == self.y_p
+    pub fn verify(&self, ciphertext: &Ciphertext, pk: &PublicKey) -> FastCryptoResult<()> {
+        let challenge = -Self::challenge(ciphertext, &pk.0, &self.y_p, &self.y_d);
+        if RistrettoPoint::multi_scalar_mul(&[self.z, challenge], &[pk.0, *H]).unwrap() == self.y_p
             && RistrettoPoint::multi_scalar_mul(
                 &[self.z, challenge],
                 &[ciphertext.decryption_handle, ciphertext.commitment.0],
@@ -128,7 +131,7 @@ impl EqualityProof {
         ciphertext: &Ciphertext,
         other_commitment: &PedersenCommitment,
         other_blinding: &Blinding,
-        sk: &RistrettoScalar,
+        sk: &PrivateKey,
         rng: &mut impl AllowedRng,
     ) -> Self {
         let pk = pk_from_sk(sk);
@@ -139,16 +142,16 @@ impl EqualityProof {
         );
 
         let y = (
-            pk * r.0,
+            &pk.0 * r.0,
             RistrettoPoint::multi_scalar_mul(&[r.1, r.0], &[*G, ciphertext.decryption_handle])
                 .unwrap(),
             RistrettoPoint::multi_scalar_mul(&[r.1, r.2], &[*G, *H]).unwrap(),
         );
 
-        let challenge = Self::challenge(ciphertext, other_commitment, &pk, &y);
+        let challenge = Self::challenge(ciphertext, other_commitment, &pk.0, &y);
 
         let z = (
-            challenge * sk + r.0,
+            challenge * sk.0 + r.0,
             challenge * value + r.1,
             challenge * other_blinding.0 + r.2,
         );
@@ -171,12 +174,12 @@ impl EqualityProof {
         &self,
         ciphertext: &Ciphertext,
         other_commitment: &PedersenCommitment,
-        pk: &RistrettoPoint,
+        pk: &PublicKey,
     ) -> FastCryptoResult<()> {
-        let challenge = -Self::challenge(ciphertext, other_commitment, pk, &self.y);
+        let challenge = -Self::challenge(ciphertext, other_commitment, &pk.0, &self.y);
         if self.y
             == (
-                RistrettoPoint::multi_scalar_mul(&[self.z.0, challenge], &[*pk, *H]).unwrap(),
+                RistrettoPoint::multi_scalar_mul(&[self.z.0, challenge], &[pk.0, *H]).unwrap(),
                 RistrettoPoint::multi_scalar_mul(
                     &[self.z.1, self.z.0, challenge],
                     &[*G, ciphertext.decryption_handle, ciphertext.commitment.0],
