@@ -311,7 +311,6 @@ fn encrypt_and_range_proof() {
         .proof
         .verify(
             &range_proof.commitment,
-            &range_proof.blinding,
             &range,
             domain
         )
