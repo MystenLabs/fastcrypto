@@ -100,10 +100,14 @@ impl ZeroProof {
     }
 
     pub fn verify(&self, ciphertext: &Ciphertext, pk: &RistrettoPoint) -> FastCryptoResult<()> {
-        let challenge = Self::challenge(ciphertext, pk, &self.y_p, &self.y_d);
-        if pk * self.z == *H * challenge + self.y_p
-            && ciphertext.decryption_handle * self.z
-                == ciphertext.commitment.0 * challenge + self.y_d
+        let challenge = -Self::challenge(ciphertext, pk, &self.y_p, &self.y_d);
+        if RistrettoPoint::multi_scalar_mul(&[self.z, challenge], &[*pk, *H]).unwrap() == self.y_p
+            && RistrettoPoint::multi_scalar_mul(
+                &[self.z, challenge],
+                &[ciphertext.decryption_handle, ciphertext.commitment.0],
+            )
+            .unwrap()
+                == self.y_d
         {
             Ok(())
         } else {
@@ -169,11 +173,21 @@ impl EqualityProof {
         other_commitment: &PedersenCommitment,
         pk: &RistrettoPoint,
     ) -> FastCryptoResult<()> {
-        let challenge = Self::challenge(ciphertext, other_commitment, pk, &self.y);
-        if pk * self.z.0 == *H * challenge + self.y.0
-            && *G * self.z.1 + ciphertext.decryption_handle * self.z.0
-                == ciphertext.commitment.0 * challenge + self.y.1
-            && *G * self.z.1 + *H * self.z.2 == other_commitment.0 * challenge + self.y.2
+        let challenge = -Self::challenge(ciphertext, other_commitment, pk, &self.y);
+        if self.y
+            == (
+                RistrettoPoint::multi_scalar_mul(&[self.z.0, challenge], &[*pk, *H]).unwrap(),
+                RistrettoPoint::multi_scalar_mul(
+                    &[self.z.1, self.z.0, challenge],
+                    &[*G, ciphertext.decryption_handle, ciphertext.commitment.0],
+                )
+                .unwrap(),
+                RistrettoPoint::multi_scalar_mul(
+                    &[self.z.1, self.z.2, challenge],
+                    &[*G, *H, other_commitment.0],
+                )
+                .unwrap(),
+            )
         {
             Ok(())
         } else {
