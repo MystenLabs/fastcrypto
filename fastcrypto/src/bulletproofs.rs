@@ -54,17 +54,39 @@ pub struct AggregateRangeProofOutput {
     pub blindings: Vec<Blinding>,
 }
 
+pub enum Range {
+    Bits8,
+    Bits16,
+    Bits32,
+    Bits64,
+}
+
+impl Range {
+    pub fn is_in_range(&self, value: &u64) -> bool {
+        value.ilog2() <= self.upper_bound_in_bits()
+    }
+
+    fn upper_bound_in_bits(&self) -> u32 {
+        match self {
+            Range::Bits8 => 8,
+            Range::Bits16 => 16,
+            Range::Bits32 => 32,
+            Range::Bits64 => 64,
+        }
+    }
+}
+
 impl RangeProof {
     /// Prove that the value is an unsigned integer with bit length bits, this is equivalent
     /// to proving that the value is an integer within the range [0, 2^bits).
     /// Returns an `InvalidInput` error if `bits` is not one of 8, 16, 32, 64.
     pub fn prove(
         value: u64,
-        bits: usize,
+        range: &Range,
         domain: &'static [u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<RangeProofOutput> {
-        Self::prove_aggregated(&[value], bits, domain, rng).map(|value| RangeProofOutput {
+        Self::prove_aggregated(&[value], range, domain, rng).map(|value| RangeProofOutput {
             proof: value.proof,
             commitment: value.commitments[0].clone(),
             blinding: value.blindings[0].clone(),
@@ -74,11 +96,11 @@ impl RangeProof {
     pub fn prove_with_blinding(
         value: u64,
         blinding: Blinding,
-        bits: usize,
+        range: &Range,
         domain: &'static [u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<RangeProofOutput> {
-        Self::prove_aggregated_with_blindings(&[value], vec![blinding], bits, domain, rng).map(
+        Self::prove_aggregated_with_blindings(&[value], vec![blinding], range, domain, rng).map(
             |value| RangeProofOutput {
                 proof: value.proof,
                 commitment: value.commitments[0].clone(),
@@ -93,10 +115,10 @@ impl RangeProof {
         &self,
         commitment: &PedersenCommitment,
         blinding: &Blinding,
-        bits: usize,
+        range: &Range,
         domain: &'static [u8],
     ) -> FastCryptoResult<()> {
-        self.verify_aggregated(&[commitment.clone()], &[blinding.clone()], bits, domain)
+        self.verify_aggregated(&[commitment.clone()], &[blinding.clone()], range, domain)
     }
 
     /// Create a proof that all the given `values` are smaller than <i>2<sup>bits</sup></i>.
@@ -107,7 +129,7 @@ impl RangeProof {
     /// * `bits` is not one of 8, 16, 32, 64.
     pub fn prove_aggregated(
         values: &[u64],
-        bits: usize,
+        range: &Range,
         domain: &'static [u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<AggregateRangeProofOutput> {
@@ -117,7 +139,7 @@ impl RangeProof {
                 .iter()
                 .map(|_| Blinding(RistrettoScalar::rand(rng)))
                 .collect::<Vec<_>>(),
-            bits,
+            range,
             domain,
             rng,
         )
@@ -133,18 +155,18 @@ impl RangeProof {
     pub fn prove_aggregated_with_blindings(
         values: &[u64],
         blindings: Vec<Blinding>,
-        bits: usize,
+        range: &Range,
         domain: &'static [u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<AggregateRangeProofOutput> {
-        if values.iter().any(|v| v.ilog2() as usize >= bits)
+        if values.iter().any(|v| !range.is_in_range(v))
             || blindings.len() != values.len()
             || !values.len().is_power_of_two()
-            || !(bits == 8 || bits == 16 || bits == 32 || bits == 64)
         {
             return Err(InvalidInput);
         }
 
+        let bits = range.upper_bound_in_bits() as usize;
         let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(bits, values.len());
         let mut prover_transcript = Transcript::new(domain);
@@ -179,17 +201,14 @@ impl RangeProof {
         &self,
         commitments: &[PedersenCommitment],
         blindings: &[Blinding],
-        bits: usize,
+        range: &Range,
         domain: &'static [u8],
     ) -> FastCryptoResult<()> {
-        if !(bits == 8 || bits == 16 || bits == 32 || bits == 64) {
-            return Err(InvalidInput);
-        }
-
         if commitments.len() != blindings.len() {
             return Err(InvalidInput);
         }
 
+        let bits = range.upper_bound_in_bits() as usize;
         let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(bits, commitments.len());
         let mut verifier_transcript = Transcript::new(domain);

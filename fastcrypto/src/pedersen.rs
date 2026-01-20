@@ -37,3 +37,38 @@ impl PedersenCommitment {
         }
     }
 }
+
+#[test]
+fn test_commitment() {
+    use crate::groups::GroupElement;
+
+    let mut rng = thread_rng();
+    let value_1 = RistrettoScalar::from(1u64);
+    let (commitment_1, bf_1) = PedersenCommitment::commit(&value_1, &mut rng);
+    assert!(commitment_1.verify(&value_1, &bf_1).is_ok());
+
+    let invalid_commitment = PedersenCommitment(commitment_1.0 + RistrettoPoint::generator());
+    assert!(invalid_commitment.verify(&value_1, &bf_1).is_err());
+
+    let invalid_bf = Blinding(bf_1.0 + RistrettoScalar::from(1u64));
+    assert!(commitment_1.verify(&value_1, &invalid_bf).is_err());
+
+    let invalid_value = value_1 + RistrettoScalar::from(1u64);
+    assert!(commitment_1.verify(&invalid_value, &bf_1).is_err());
+}
+
+#[test]
+fn test_additive_commitments() {
+    let mut rng = thread_rng();
+
+    let value_1 = RistrettoScalar::from(1u64);
+    let (commitment_1, bf_1) = PedersenCommitment::commit(&value_1, &mut rng);
+
+    let value_2 = RistrettoScalar::from(2u64);
+    let (commitment_2, bf_2) = PedersenCommitment::commit(&value_2, &mut rng);
+
+    let commitment_3 = commitment_1 + commitment_2;
+    let bf_3 = bf_1 + bf_2;
+    let expected_value = value_1 + value_2;
+    commitment_3.verify(&expected_value, &bf_3).unwrap();
+}

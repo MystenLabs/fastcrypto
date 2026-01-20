@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::bulletproofs::Range;
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
@@ -223,6 +224,8 @@ impl JointCiphertext {
 }
 
 /// Precompute discrete log table for use in decryption. This only needs to be computed once.
+///
+/// The table contains a mapping from integers <i>x</i> in the range <i>0, .., 2<sup>16</sup>-1</i> to Ristretto points <i>(2<sup>16</sup> x) G<i>.
 pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u32> {
     let step = G.repeated_doubling(16);
     let mut point = RistrettoPoint::zero();
@@ -275,7 +278,7 @@ fn test_equality_proof() {
 #[test]
 fn encrypt_and_range_proof() {
     let value = 1234u32;
-    let bits = 32;
+    let range = Range::Bits32;
     let mut rng = rand::thread_rng();
     let (pk, sk) = generate_keypair(&mut rng);
     let (ciphertext, blinding) = Ciphertext::encrypt(&pk, value, &mut rng);
@@ -283,7 +286,7 @@ fn encrypt_and_range_proof() {
     let range_proof = crate::bulletproofs::RangeProof::prove_with_blinding(
         value as u64,
         blinding.clone(),
-        bits,
+        &range,
         domain,
         &mut rng,
     )
@@ -293,7 +296,12 @@ fn encrypt_and_range_proof() {
     assert_eq!(&range_proof.commitment, &ciphertext.commitment);
     assert!(range_proof
         .proof
-        .verify(&range_proof.commitment, &range_proof.blinding, bits, domain)
+        .verify(
+            &range_proof.commitment,
+            &range_proof.blinding,
+            &range,
+            domain
+        )
         .is_ok());
 
     assert_eq!(ciphertext.decrypt(&sk, &precompute_table()).unwrap(), value);
