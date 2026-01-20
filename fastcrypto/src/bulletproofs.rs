@@ -254,6 +254,6 @@ fn test_range_proof_valid() {
     let output = RangeProof::prove(1u64, &range, b"NARWHAL", &mut thread_rng()).unwrap();
     assert!(output
         .proof
-        .verify(&output.commitment, &output.blinding, &range, b"NARWHAL")
+        .verify(&output.commitment, &range, b"NARWHAL")
         .is_ok());
 }
