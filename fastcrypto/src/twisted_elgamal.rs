@@ -196,22 +196,21 @@ impl EqualityProof {
     }
 }
 
-pub struct JointCiphertext {
+pub struct AggregateCiphertext {
     commitment: PedersenCommitment,
-    decryption_handles: (RistrettoPoint, RistrettoPoint),
+    decryption_handles: Vec<RistrettoPoint>,
 }
 
-impl JointCiphertext {
+impl AggregateCiphertext {
     pub fn encrypt(
-        pk1: &RistrettoPoint,
-        pk2: &RistrettoPoint,
+        pks: &[RistrettoPoint],
         message: u32,
         rng: &mut impl AllowedRng,
     ) -> (Self, Blinding) {
         let blinding = Blinding::rand(rng);
         (
             Self {
-                decryption_handles: (pk1 * blinding.0, pk2 * blinding.0),
+                decryption_handles: pks.iter().map(|pk| pk * blinding.0).collect(),
                 commitment: PedersenCommitment::from_blinding(
                     &RistrettoScalar::from(message as u64),
                     &blinding,
@@ -221,18 +220,14 @@ impl JointCiphertext {
         )
     }
 
-    pub fn first(&self) -> Ciphertext {
-        Ciphertext {
-            commitment: self.commitment.clone(),
-            decryption_handle: self.decryption_handles.0,
+    pub fn encryption(&self, index: usize) -> FastCryptoResult<Ciphertext> {
+        if index >= self.decryption_handles.len() {
+            return Err(InvalidInput);
         }
-    }
-
-    pub fn second(&self) -> Ciphertext {
-        Ciphertext {
+        Ok(Ciphertext {
             commitment: self.commitment.clone(),
-            decryption_handle: self.decryption_handles.1,
-        }
+            decryption_handle: self.decryption_handles[index],
+        })
     }
 }
 
