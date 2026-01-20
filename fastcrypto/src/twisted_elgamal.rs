@@ -142,7 +142,7 @@ impl EqualityProof {
         );
 
         let y = (
-            &pk.0 * r.0,
+            pk.0 * r.0,
             RistrettoPoint::multi_scalar_mul(&[r.1, r.0], &[*G, ciphertext.decryption_handle])
                 .unwrap(),
             RistrettoPoint::multi_scalar_mul(&[r.1, r.2], &[*G, *H]).unwrap(),
