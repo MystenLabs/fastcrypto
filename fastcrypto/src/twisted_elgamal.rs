@@ -199,12 +199,12 @@ impl EqualityProof {
     }
 }
 
-pub struct AggregateCiphertext {
+pub struct MultiRecipientEncryption {
     commitment: PedersenCommitment,
     decryption_handles: Vec<RistrettoPoint>,
 }
 
-impl AggregateCiphertext {
+impl MultiRecipientEncryption {
     pub fn encrypt(
         pks: &[RistrettoPoint],
         message: u32,
