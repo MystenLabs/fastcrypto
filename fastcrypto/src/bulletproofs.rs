@@ -7,13 +7,14 @@
 //! ```rust
 //! # use fastcrypto::bulletproofs::*;
 //! use rand::{thread_rng, RngCore};
+//! use fastcrypto::bulletproofs::Range::Bits16;
 //! # use fastcrypto::groups::ristretto255::RistrettoScalar;
 //! # use fastcrypto::groups::Scalar;
 //! let value = 300;
-//! let bits = 16;
+//! let range = Bits16;
 //! let output =
-//!    RangeProof::prove(value, bits, b"MY_DOMAIN", &mut thread_rng()).unwrap();
-//! assert!(output.proof.verify(&output.commitment, &output.blinding, bits, b"MY_DOMAIN").is_ok());
+//!    RangeProof::prove(value, &range, b"MY_DOMAIN", &mut thread_rng()).unwrap();
+//! assert!(output.proof.verify(&output.commitment, &output.blinding, &range, b"MY_DOMAIN").is_ok());
 //! ```
 
 use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidProof};
@@ -55,15 +56,25 @@ pub struct AggregateRangeProofOutput {
 }
 
 pub enum Range {
+    /// The range [0,...,2^8).
     Bits8,
+
+    /// The range [0,...,2^16).
     Bits16,
+
+    /// The range [0,...,2^32).
     Bits32,
+
+    /// The range [0,...,2^64).
     Bits64,
 }
 
 impl Range {
-    pub fn is_in_range(&self, value: &u64) -> bool {
-        value.ilog2() <= self.upper_bound_in_bits()
+    pub fn is_in_range(&self, value: u64) -> bool {
+        if value == 0 {
+            return true;
+        }
+        value.ilog2() < self.upper_bound_in_bits()
     }
 
     fn upper_bound_in_bits(&self) -> u32 {
@@ -159,7 +170,7 @@ impl RangeProof {
         domain: &'static [u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<AggregateRangeProofOutput> {
-        if values.iter().any(|v| !range.is_in_range(v))
+        if values.iter().any(|&v| !range.is_in_range(v))
             || blindings.len() != values.len()
             || !values.len().is_power_of_two()
         {
@@ -226,4 +237,30 @@ impl RangeProof {
             )
             .map_err(|_| InvalidProof)
     }
+}
+
+#[test]
+fn test_is_in_range() {
+    assert!(Range::Bits8.is_in_range(0));
+    assert!(Range::Bits8.is_in_range(255));
+    assert!(!Range::Bits8.is_in_range(256));
+    assert!(Range::Bits16.is_in_range(0));
+    assert!(Range::Bits16.is_in_range(65535));
+    assert!(!Range::Bits16.is_in_range(65536));
+    assert!(Range::Bits32.is_in_range(0));
+    assert!(Range::Bits32.is_in_range(4294967295));
+    assert!(!Range::Bits32.is_in_range(4294967296));
+    assert!(Range::Bits64.is_in_range(0));
+    assert!(Range::Bits64.is_in_range(u64::MAX));
+}
+
+#[test]
+fn test_range_proof_valid() {
+    use rand::thread_rng;
+    let range = Range::Bits32;
+    let output = RangeProof::prove(1u64, &range, b"NARWHAL", &mut thread_rng()).unwrap();
+    assert!(output
+        .proof
+        .verify(&output.commitment, &output.blinding, &range, b"NARWHAL")
+        .is_ok());
 }

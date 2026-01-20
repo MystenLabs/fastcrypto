@@ -32,10 +32,6 @@ pub mod secp256r1_recoverable_tests;
 #[path = "tests/bls12381_tests.rs"]
 pub mod bls12381_tests;
 
-#[cfg(test)]
-#[path = "tests/bulletproofs_tests.rs"]
-pub mod bulletproofs_tests;
-
 #[cfg(all(test, feature = "aes"))]
 #[path = "tests/aes_tests.rs"]
 pub mod aes_tests;

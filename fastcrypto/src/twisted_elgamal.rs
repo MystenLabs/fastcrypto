@@ -1,7 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bulletproofs::Range;
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
@@ -278,7 +277,7 @@ fn test_equality_proof() {
 #[test]
 fn encrypt_and_range_proof() {
     let value = 1234u32;
-    let range = Range::Bits32;
+    let range = crate::bulletproofs::Range::Bits32;
     let mut rng = rand::thread_rng();
     let (pk, sk) = generate_keypair(&mut rng);
     let (ciphertext, blinding) = Ciphertext::encrypt(&pk, value, &mut rng);
