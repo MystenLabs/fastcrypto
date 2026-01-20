@@ -241,14 +241,14 @@ impl RangeProof {
 #[test]
 fn test_is_in_range() {
     assert!(Range::Bits8.is_in_range(0));
-    assert!(Range::Bits8.is_in_range(255));
-    assert!(!Range::Bits8.is_in_range(256));
+    assert!(Range::Bits8.is_in_range(u8::MAX as u64));
+    assert!(!Range::Bits8.is_in_range(1 << 8));
     assert!(Range::Bits16.is_in_range(0));
-    assert!(Range::Bits16.is_in_range(65535));
-    assert!(!Range::Bits16.is_in_range(65536));
+    assert!(Range::Bits16.is_in_range(u16::MAX as u64));
+    assert!(!Range::Bits16.is_in_range(1 << 16));
     assert!(Range::Bits32.is_in_range(0));
-    assert!(Range::Bits32.is_in_range(4294967295));
-    assert!(!Range::Bits32.is_in_range(4294967296));
+    assert!(Range::Bits32.is_in_range(u32::MAX as u64));
+    assert!(!Range::Bits32.is_in_range(1 << 32));
     assert!(Range::Bits64.is_in_range(0));
     assert!(Range::Bits64.is_in_range(u64::MAX));
 }
