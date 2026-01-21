@@ -9,6 +9,7 @@ use crate::pedersen::{Blinding, PedersenCommitment};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use bulletproofs::PedersenGens;
+use derive_more::{Add, Mul, Sub};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -33,7 +34,7 @@ pub fn pk_from_sk(sk: &PrivateKey) -> PublicKey {
 }
 
 // TODO: Encryptions of the same message can reuse commitments
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Add, Sub, Mul, Serialize, Deserialize)]
 pub struct Ciphertext {
     commitment: PedersenCommitment,
     decryption_handle: RistrettoPoint,
@@ -326,4 +327,19 @@ fn encrypt_and_range_proof() {
         .is_ok());
 
     assert_eq!(ciphertext.decrypt(&sk, &precompute_table()).unwrap(), value);
+}
+
+#[test]
+fn linear_encryptions() {
+    let value_1 = 12u32;
+    let value_2 = 34u32;
+    let s = 7u32;
+    let (pk, sk) = generate_keypair(&mut rand::thread_rng());
+    let (ciphertext_1, _) = Ciphertext::encrypt(&pk, value_1, &mut rand::thread_rng());
+    let (ciphertext_2, _) = Ciphertext::encrypt(&pk, value_2, &mut rand::thread_rng());
+    let ciphertext_3 = ciphertext_1 + ciphertext_2 * RistrettoScalar::from(s as u64);
+    assert_eq!(
+        ciphertext_3.decrypt(&sk, &precompute_table()).unwrap(),
+        value_1 + value_2 * s
+    );
 }
