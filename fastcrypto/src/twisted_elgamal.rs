@@ -12,6 +12,7 @@ use bulletproofs::PedersenGens;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::iter::successors;
 
 lazy_static! {
     static ref G: RistrettoPoint = RistrettoPoint(PedersenGens::default().B);
@@ -59,12 +60,12 @@ impl Ciphertext {
     pub fn decrypt(
         &self,
         private_key: &PrivateKey,
-        table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u32>,
+        table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
     ) -> FastCryptoResult<u32> {
         let mut c = self.commitment.0 - self.decryption_handle * private_key.0;
-        for x_low in 0..1u32 << 16 {
-            if let Some(x_high) = table.get(&c.to_byte_array()) {
-                return Ok(x_low + (x_high << 16));
+        for x_low in 0..1 << 16 {
+            if let Some(&x_high) = table.get(&c.to_byte_array()) {
+                return Ok(x_low + ((x_high as u32) << 16));
             }
             c -= *G;
         }
@@ -236,16 +237,14 @@ impl MultiRecipientEncryption {
 
 /// Precompute discrete log table for use in decryption. This only needs to be computed once.
 ///
-/// The table contains a mapping from integers <i>x</i> in the range <i>0, .., 2<sup>16</sup>-1</i> to Ristretto points <i>(2<sup>16</sup> x) G<i>.
-pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u32> {
+/// The table contains a mapping from Ristretto points <i>(2<sup>16</sup> x) G<i> to <i>x</i> for all <i>x</i> in the range <i>0, .., 2<sup>16</sup>-1</i>.
+pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16> {
     let step = G.repeated_doubling(16);
-    let mut point = RistrettoPoint::zero();
-    let mut table = HashMap::with_capacity(1 << 16);
-    for x_high in 0..1 << 16 {
-        table.insert(point.to_byte_array(), x_high);
-        point += step;
-    }
-    table
+    successors(Some(RistrettoPoint::zero()), |p| Some(p + step))
+        .enumerate()
+        .map(|(i, p)| (p.to_byte_array(), i as u16))
+        .take(1 << 16)
+        .collect()
 }
 
 #[test]
