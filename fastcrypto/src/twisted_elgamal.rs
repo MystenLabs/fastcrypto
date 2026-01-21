@@ -19,6 +19,7 @@ lazy_static! {
     static ref H: RistrettoPoint = RistrettoPoint(PedersenGens::default().B_blinding);
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PublicKey(RistrettoPoint);
 pub struct PrivateKey(RistrettoScalar);
 
@@ -120,9 +121,14 @@ impl ZeroProof {
     }
 }
 
-/// This represents a ZK proof that a ciphertext has the same message as the value of an other commitment.
+/// This represents a ZK proof that two ciphertext are for the same message.
 pub struct EqualityProof {
-    y: (RistrettoPoint, RistrettoPoint, RistrettoPoint),
+    y: (
+        RistrettoPoint,
+        RistrettoPoint,
+        RistrettoPoint,
+        RistrettoPoint,
+    ),
     z: (RistrettoScalar, RistrettoScalar, RistrettoScalar),
 }
 
@@ -130,9 +136,10 @@ impl EqualityProof {
     pub fn prove(
         value: &RistrettoScalar,
         ciphertext: &Ciphertext,
-        other_commitment: &PedersenCommitment,
-        other_blinding: &Blinding,
         sk: &PrivateKey,
+        other_ciphertext: &Ciphertext,
+        other_blinding: &Blinding,
+        other_pk: &PublicKey,
         rng: &mut impl AllowedRng,
     ) -> Self {
         let pk = pk_from_sk(sk);
@@ -147,9 +154,10 @@ impl EqualityProof {
             RistrettoPoint::multi_scalar_mul(&[r.1, r.0], &[*G, ciphertext.decryption_handle])
                 .unwrap(),
             RistrettoPoint::multi_scalar_mul(&[r.1, r.2], &[*G, *H]).unwrap(),
+            other_pk.0 * r.2,
         );
 
-        let challenge = Self::challenge(ciphertext, other_commitment, &pk.0, &y);
+        let challenge = Self::challenge(ciphertext, &pk, other_ciphertext, &other_pk, &y);
 
         let z = (
             challenge * sk.0 + r.0,
@@ -162,22 +170,29 @@ impl EqualityProof {
 
     fn challenge(
         ciphertext: &Ciphertext,
-        other_commitment: &PedersenCommitment,
-        pk: &RistrettoPoint,
-        y: &(RistrettoPoint, RistrettoPoint, RistrettoPoint),
+        pk: &PublicKey,
+        other_ciphertext: &Ciphertext,
+        other_pk: &PublicKey,
+        y: &(
+            RistrettoPoint,
+            RistrettoPoint,
+            RistrettoPoint,
+            RistrettoPoint,
+        ),
     ) -> RistrettoScalar {
         RistrettoScalar::fiat_shamir_reduction_to_group_element(
-            &bcs::to_bytes(&(ciphertext, other_commitment, pk, y)).unwrap(),
+            &bcs::to_bytes(&(ciphertext, pk, other_ciphertext, other_pk, y)).unwrap(),
         )
     }
 
     pub fn verify(
         &self,
         ciphertext: &Ciphertext,
-        other_commitment: &PedersenCommitment,
         pk: &PublicKey,
+        other_ciphertext: &Ciphertext,
+        other_pk: &PublicKey,
     ) -> FastCryptoResult<()> {
-        let challenge = -Self::challenge(ciphertext, other_commitment, &pk.0, &self.y);
+        let challenge = -Self::challenge(ciphertext, &pk, other_ciphertext, &other_pk, &self.y);
         if self.y
             == (
                 RistrettoPoint::multi_scalar_mul(&[self.z.0, challenge], &[pk.0, *H]).unwrap(),
@@ -188,7 +203,12 @@ impl EqualityProof {
                 .unwrap(),
                 RistrettoPoint::multi_scalar_mul(
                     &[self.z.1, self.z.2, challenge],
-                    &[*G, *H, other_commitment.0],
+                    &[*G, *H, other_ciphertext.commitment.0],
+                )
+                .unwrap(),
+                RistrettoPoint::multi_scalar_mul(
+                    &[self.z.2, challenge],
+                    &[other_pk.0, other_ciphertext.decryption_handle],
                 )
                 .unwrap(),
             )
@@ -272,17 +292,21 @@ fn test_equality_proof() {
     let mut rng = rand::thread_rng();
     let (pk, sk) = generate_keypair(&mut rng);
     let (ciphertext, _) = Ciphertext::encrypt(&pk, value, &mut rng);
-    let (other_commitment, blinding) =
-        PedersenCommitment::commit(&RistrettoScalar::from(value as u64), &mut rng);
+
+    let (other_pk, _) = generate_keypair(&mut rng);
+    let (other_ciphertext, other_blinding) = Ciphertext::encrypt(&other_pk, value, &mut rng);
     let proof = EqualityProof::prove(
         &RistrettoScalar::from(value as u64),
         &ciphertext,
-        &other_commitment,
-        &blinding,
         &sk,
+        &other_ciphertext,
+        &other_blinding,
+        &other_pk,
         &mut rng,
     );
-    proof.verify(&ciphertext, &other_commitment, &pk).unwrap();
+    proof
+        .verify(&ciphertext, &pk, &other_ciphertext, &other_pk)
+        .unwrap();
 }
 
 #[test]
