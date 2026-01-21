@@ -237,7 +237,7 @@ impl MultiRecipientEncryption {
 
 /// Precompute discrete log table for use in decryption. This only needs to be computed once.
 ///
-/// The table contains a mapping from integers <i>x</i> in the range <i>0, .., 2<sup>16</sup>-1</i> to Ristretto points <i>(2<sup>16</sup> x) G<i>.
+/// The table contains a mapping from Ristretto points <i>(2<sup>16</sup> x) G<i> to <i>x</i> for all <i>x</i> in the range <i>0, .., 2<sup>16</sup>-1</i>.
 pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16> {
     let step = G.repeated_doubling(16);
     successors(Some(RistrettoPoint::zero()), |p| Some(p + step))
