@@ -157,7 +157,7 @@ impl EqualityProof {
             other_pk.0 * r.2,
         );
 
-        let challenge = Self::challenge(ciphertext, &pk, other_ciphertext, &other_pk, &y);
+        let challenge = Self::challenge(ciphertext, &pk, other_ciphertext, other_pk, &y);
 
         let z = (
             challenge * sk.0 + r.0,
@@ -192,7 +192,7 @@ impl EqualityProof {
         other_ciphertext: &Ciphertext,
         other_pk: &PublicKey,
     ) -> FastCryptoResult<()> {
-        let challenge = -Self::challenge(ciphertext, &pk, other_ciphertext, &other_pk, &self.y);
+        let challenge = -Self::challenge(ciphertext, pk, other_ciphertext, other_pk, &self.y);
         if self.y
             == (
                 RistrettoPoint::multi_scalar_mul(&[self.z.0, challenge], &[pk.0, *H]).unwrap(),
