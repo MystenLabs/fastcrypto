@@ -258,13 +258,13 @@
 <a href=#258 id=258 data-nosnippet>258</a>        );
 <a href=#259 id=259 data-nosnippet>259</a>
 <a href=#260 id=260 data-nosnippet>260</a>        <span class="kw">let </span>scalars = [
-<a href=#261 id=261 data-nosnippet>261</a>            RistrettoScalar::from(<span class="number">0</span>),
-<a href=#262 id=262 data-nosnippet>262</a>            RistrettoScalar::from(<span class="number">1</span>),
-<a href=#263 id=263 data-nosnippet>263</a>            RistrettoScalar::from(<span class="number">2</span>),
-<a href=#264 id=264 data-nosnippet>264</a>            RistrettoScalar::from(<span class="number">1234</span>),
-<a href=#265 id=265 data-nosnippet>265</a>            RistrettoScalar::from(<span class="number">123456</span>),
-<a href=#266 id=266 data-nosnippet>266</a>            RistrettoScalar::from(<span class="number">123456789</span>),
-<a href=#267 id=267 data-nosnippet>267</a>            RistrettoScalar::from(<span class="number">0xffffffffffffffff</span>),
+<a href=#261 id=261 data-nosnippet>261</a>            RistrettoScalar::from(<span class="number">0u64</span>),
+<a href=#262 id=262 data-nosnippet>262</a>            RistrettoScalar::from(<span class="number">1u64</span>),
+<a href=#263 id=263 data-nosnippet>263</a>            RistrettoScalar::from(<span class="number">2u64</span>),
+<a href=#264 id=264 data-nosnippet>264</a>            RistrettoScalar::from(<span class="number">1234u64</span>),
+<a href=#265 id=265 data-nosnippet>265</a>            RistrettoScalar::from(<span class="number">123456u64</span>),
+<a href=#266 id=266 data-nosnippet>266</a>            RistrettoScalar::from(<span class="number">123456789u64</span>),
+<a href=#267 id=267 data-nosnippet>267</a>            RistrettoScalar::from(<span class="number">0xffffffffffffffffu64</span>),
 <a href=#268 id=268 data-nosnippet>268</a>            RistrettoScalar::from_byte_array(<span class="kw-2">&amp;</span>GROUP_ORDER_MINUS_ONE).unwrap(),
 <a href=#269 id=269 data-nosnippet>269</a>        ];
 <a href=#270 id=270 data-nosnippet>270</a>
@@ -337,7 +337,7 @@
 <a href=#337 id=337 data-nosnippet>337</a>            RistrettoPoint::zero(),
 <a href=#338 id=338 data-nosnippet>338</a>        );
 <a href=#339 id=339 data-nosnippet>339</a>
-<a href=#340 id=340 data-nosnippet>340</a>        <span class="kw">let </span>other_point = RistrettoPoint::generator() * RistrettoScalar::from(<span class="number">3</span>);
+<a href=#340 id=340 data-nosnippet>340</a>        <span class="kw">let </span>other_point = RistrettoPoint::generator() * RistrettoScalar::from(<span class="number">3u64</span>);
 <a href=#341 id=341 data-nosnippet>341</a>
 <a href=#342 id=342 data-nosnippet>342</a>        <span class="kw">let </span>a = RistrettoScalar::rand(<span class="kw-2">&amp;mut </span>thread_rng());
 <a href=#343 id=343 data-nosnippet>343</a>        <span class="kw">let </span>b = RistrettoScalar::rand(<span class="kw-2">&amp;mut </span>thread_rng());
