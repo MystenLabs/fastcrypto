@@ -87,38 +87,23 @@ impl Range {
 }
 
 impl RangeProof {
-    /// Prove that the `value` is in the given range.
-    /// Returns an `InvalidInput` error if the value is not in range.
-    pub fn prove(
-        value: u64,
-        range: &Range,
-        domain: &'static [u8],
-        rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<RangeProofOutput> {
-        Self::prove_aggregated(&[value], range, domain, rng).map(|value| RangeProofOutput {
-            proof: value.proof,
-            commitment: value.commitments[0].clone(),
-            blinding: value.blindings[0].clone(),
-        })
-    }
-
     /// Prove that the `value` is in the given range using the given commitment blinding.
     /// This enables creating proofs for an existing commitment.
     /// Returns an `InvalidInput` error if the value is not in range.
-    pub fn prove_with_blinding(
+    pub fn prove(
         value: u64,
         blinding: Blinding,
         range: &Range,
         domain: &'static [u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<RangeProofOutput> {
-        Self::prove_aggregated_with_blindings(&[value], vec![blinding], range, domain, rng).map(
-            |value| RangeProofOutput {
+        Self::prove_aggregated(&[value], vec![blinding], range, domain, rng).map(|value| {
+            RangeProofOutput {
                 proof: value.proof,
                 commitment: value.commitments[0].clone(),
                 blinding: value.blindings[0].clone(),
-            },
-        )
+            }
+        })
     }
 
     /// Verifies a range proof: That the commitment is to a value in the given range.
@@ -131,29 +116,6 @@ impl RangeProof {
         self.verify_aggregated(&[commitment.clone()], range, domain)
     }
 
-    /// Create a proof that all the given `values` are in the given range.
-    ///
-    /// Fails if
-    /// * any of the `values` are <i>not</i> in the range,
-    /// * `values.len()` is not a power of 2,
-    pub fn prove_aggregated(
-        values: &[u64],
-        range: &Range,
-        domain: &'static [u8],
-        rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<AggregateRangeProofOutput> {
-        Self::prove_aggregated_with_blindings(
-            values,
-            values
-                .iter()
-                .map(|_| Blinding::rand(rng))
-                .collect::<Vec<_>>(),
-            range,
-            domain,
-            rng,
-        )
-    }
-
     /// Create a proof that all the given `values` are in the range using the given commitment blindings.
     /// This enables creating proofs for existing commitments.
     ///
@@ -161,7 +123,7 @@ impl RangeProof {
     /// * any of the `values` are <i>not</i> in the range.
     /// * `values.len() != blindings.len()`,
     /// * `values.len()` is not a power of 2,
-    pub fn prove_aggregated_with_blindings(
+    pub fn prove_aggregated(
         values: &[u64],
         blindings: Vec<Blinding>,
         range: &Range,
@@ -248,9 +210,10 @@ fn test_is_in_range() {
 
 #[test]
 fn test_range_proof_valid() {
-    use rand::thread_rng;
     let range = Range::Bits32;
-    let output = RangeProof::prove(1u64, &range, b"NARWHAL", &mut thread_rng()).unwrap();
+    let mut rng = rand::thread_rng();
+    let output =
+        RangeProof::prove(1u64, Blinding::rand(&mut rng), &range, b"NARWHAL", &mut rng).unwrap();
     assert!(output
         .proof
         .verify(&output.commitment, &range, b"NARWHAL")
