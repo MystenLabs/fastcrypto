@@ -6,14 +6,15 @@
 //! # Example
 //! ```rust
 //! # use fastcrypto::bulletproofs::*;
-//! use rand::{thread_rng, RngCore};
 //! # use fastcrypto::bulletproofs::Range::Bits16;
 //! # use fastcrypto::groups::ristretto255::RistrettoScalar;
 //! # use fastcrypto::groups::Scalar;
+//! use fastcrypto::pedersen::Blinding;
 //! let value = 300;
 //! let range = Bits16;
+//! let mut rng = rand::thread_rng();
 //! let output =
-//!    RangeProof::prove(value, &range, b"MY_DOMAIN", &mut thread_rng()).unwrap();
+//!    RangeProof::prove(value, Blinding::rand(&mut rng), &range, b"MY_DOMAIN", &mut rng).unwrap();
 //! assert!(output.proof.verify(&output.commitment, &range, b"MY_DOMAIN").is_ok());
 //! ```
 
