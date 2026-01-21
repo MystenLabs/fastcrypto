@@ -114,13 +114,13 @@ mod tests {
         );
 
         let scalars = [
-            RistrettoScalar::from(0),
-            RistrettoScalar::from(1),
-            RistrettoScalar::from(2),
-            RistrettoScalar::from(1234),
-            RistrettoScalar::from(123456),
-            RistrettoScalar::from(123456789),
-            RistrettoScalar::from(0xffffffffffffffff),
+            RistrettoScalar::from(0u64),
+            RistrettoScalar::from(1u64),
+            RistrettoScalar::from(2u64),
+            RistrettoScalar::from(1234u64),
+            RistrettoScalar::from(123456u64),
+            RistrettoScalar::from(123456789u64),
+            RistrettoScalar::from(0xffffffffffffffffu64),
             RistrettoScalar::from_byte_array(&GROUP_ORDER_MINUS_ONE).unwrap(),
         ];
 
