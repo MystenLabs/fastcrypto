@@ -18,7 +18,7 @@ pub struct PedersenCommitment(pub(crate) RistrettoPoint);
 pub struct Blinding(pub(crate) RistrettoScalar);
 
 impl PedersenCommitment {
-    pub(crate) fn from_blinding(value: &RistrettoScalar, blinding: &Blinding) -> Self {
+    pub fn from_blinding(value: &RistrettoScalar, blinding: &Blinding) -> Self {
         Self(RistrettoPoint(
             PedersenGens::default().commit(value.0, blinding.0 .0),
         ))

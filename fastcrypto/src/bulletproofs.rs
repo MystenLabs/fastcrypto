@@ -9,18 +9,19 @@
 //! # use fastcrypto::bulletproofs::Range::Bits16;
 //! # use fastcrypto::groups::ristretto255::RistrettoScalar;
 //! # use fastcrypto::groups::Scalar;
-//! use fastcrypto::pedersen::Blinding;
+//! use fastcrypto::pedersen::{Blinding, PedersenCommitment};
 //! let value = 300;
 //! let range = Bits16;
 //! let mut rng = rand::thread_rng();
-//! let output =
-//!    RangeProof::prove(value, Blinding::rand(&mut rng), &range, b"MY_DOMAIN", &mut rng).unwrap();
-//! assert!(output.proof.verify(&output.commitment, &range, b"MY_DOMAIN").is_ok());
+//! let blinding = Blinding::rand(&mut rng);
+//! let proof =
+//!    RangeProof::prove(value, &blinding, &range, b"MY_DOMAIN", &mut rng).unwrap();
+//! let commitment = PedersenCommitment::from_blinding(&RistrettoScalar::from(value), &blinding);
+//! assert!(proof.verify(&commitment, &range, b"MY_DOMAIN").is_ok());
 //! ```
 
 use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
-use crate::groups::ristretto255::RistrettoPoint;
 use crate::pedersen::{Blinding, PedersenCommitment};
 use crate::traits::AllowedRng;
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof as ExternalRangeProof};
@@ -30,30 +31,6 @@ use serde::{Deserialize, Serialize};
 /// Bulletproof Range Proofs
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RangeProof(ExternalRangeProof);
-
-/// The output of [RangeProof::prove].
-pub struct RangeProofOutput {
-    /// The bulletproof range proof.
-    pub proof: RangeProof,
-
-    /// A commitment to the value used in the range proof.
-    pub commitment: PedersenCommitment,
-
-    /// The blinding factor. The prover should keep this secret until the commitment needs to be revealed.
-    pub blinding: Blinding,
-}
-
-/// The output of [RangeProof::prove_aggregated].
-pub struct AggregateRangeProofOutput {
-    /// The bulletproof range proof.
-    pub proof: RangeProof,
-
-    /// Commitments to the value used in the range proof.
-    pub commitments: Vec<PedersenCommitment>,
-
-    /// The blinding factors. The prover should keep these secret until the commitment needs to be revealed.
-    pub blindings: Vec<Blinding>,
-}
 
 pub enum Range {
     /// The range [0,...,2^8).
@@ -93,18 +70,12 @@ impl RangeProof {
     /// Returns an `InvalidInput` error if the value is not in range.
     pub fn prove(
         value: u64,
-        blinding: Blinding,
+        blinding: &Blinding,
         range: &Range,
         domain: &'static [u8],
         rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<RangeProofOutput> {
-        Self::prove_aggregated(&[value], vec![blinding], range, domain, rng).map(|value| {
-            RangeProofOutput {
-                proof: value.proof,
-                commitment: value.commitments[0].clone(),
-                blinding: value.blindings[0].clone(),
-            }
-        })
+    ) -> FastCryptoResult<RangeProof> {
+        Self::prove_batch(&[value], &[blinding.clone()], range, domain, rng)
     }
 
     /// Verifies a range proof: That the commitment is to a value in the given range.
@@ -114,7 +85,7 @@ impl RangeProof {
         range: &Range,
         domain: &'static [u8],
     ) -> FastCryptoResult<()> {
-        self.verify_aggregated(&[commitment.clone()], range, domain)
+        self.verify_batch(&[commitment.clone()], range, domain)
     }
 
     /// Create a proof that all the given `values` are in the range using the given commitment blindings.
@@ -124,13 +95,13 @@ impl RangeProof {
     /// * any of the `values` are <i>not</i> in the range.
     /// * `values.len() != blindings.len()`,
     /// * `values.len()` is not a power of 2,
-    pub fn prove_aggregated(
+    pub fn prove_batch(
         values: &[u64],
-        blindings: Vec<Blinding>,
+        blindings: &[Blinding],
         range: &Range,
         domain: &'static [u8],
         rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<AggregateRangeProofOutput> {
+    ) -> FastCryptoResult<RangeProof> {
         if values.iter().any(|&v| !range.is_in_range(v))
             || blindings.len() != values.len()
             || !values.len().is_power_of_two()
@@ -143,7 +114,7 @@ impl RangeProof {
         let bp_gens = BulletproofGens::new(bits, values.len());
         let mut prover_transcript = Transcript::new(domain);
 
-        // TODO: Can we avoid calculating the Pedersen commitments here if they are already available?
+        // TODO: Can we avoid calculating the Pedersen commitments here?
         ExternalRangeProof::prove_multiple_with_rng(
             &bp_gens,
             &pc_gens,
@@ -153,22 +124,12 @@ impl RangeProof {
             bits,
             rng,
         )
-        .map(|(proof, commitments)| {
-            AggregateRangeProofOutput {
-                proof: RangeProof(proof),
-                // TODO: There's an unnecessary compression happening inside the external crate
-                commitments: commitments
-                    .iter()
-                    .map(|c| PedersenCommitment(RistrettoPoint(c.decompress().unwrap())))
-                    .collect(),
-                blindings,
-            }
-        })
+        .map(|(proof, _)| RangeProof(proof))
         .map_err(|_| GeneralOpaqueError)
     }
 
     /// Verifies that a range proof that all commitments are to values in the given `range`.
-    pub fn verify_aggregated(
+    pub fn verify_batch(
         &self,
         commitments: &[PedersenCommitment],
         range: &Range,
@@ -211,12 +172,14 @@ fn test_is_in_range() {
 
 #[test]
 fn test_range_proof_valid() {
+    use crate::groups::ristretto255::RistrettoScalar;
+
     let range = Range::Bits32;
     let mut rng = rand::thread_rng();
-    let output =
-        RangeProof::prove(1u64, Blinding::rand(&mut rng), &range, b"NARWHAL", &mut rng).unwrap();
-    assert!(output
-        .proof
-        .verify(&output.commitment, &range, b"NARWHAL")
-        .is_ok());
+    let blinding = Blinding::rand(&mut rng);
+
+    let value = 1u64;
+    let proof = RangeProof::prove(value, &blinding, &range, b"NARWHAL", &mut rng).unwrap();
+    let commitment = PedersenCommitment::from_blinding(&RistrettoScalar::from(value), &blinding);
+    assert!(proof.verify(&commitment, &range, b"NARWHAL").is_ok());
 }

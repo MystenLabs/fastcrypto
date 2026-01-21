@@ -294,20 +294,12 @@ fn encrypt_and_range_proof() {
     let (pk, sk) = generate_keypair(&mut rng);
     let (ciphertext, blinding) = Ciphertext::encrypt(&pk, value, &mut rng);
     let domain = b"test";
-    let range_proof = crate::bulletproofs::RangeProof::prove(
-        value as u64,
-        blinding.clone(),
-        &range,
-        domain,
-        &mut rng,
-    )
-    .unwrap();
+    let range_proof =
+        crate::bulletproofs::RangeProof::prove(value as u64, &blinding, &range, domain, &mut rng)
+            .unwrap();
 
-    assert_eq!(&range_proof.blinding, &blinding);
-    assert_eq!(&range_proof.commitment, &ciphertext.commitment);
     assert!(range_proof
-        .proof
-        .verify(&range_proof.commitment, &range, domain)
+        .verify(&ciphertext.commitment, &range, domain)
         .is_ok());
 
     assert_eq!(ciphertext.decrypt(&sk, &precompute_table()).unwrap(), value);
