@@ -17,7 +17,7 @@
 //! let proof =
 //!    RangeProof::prove(value, &blinding, &range, b"MY_DOMAIN", &mut rng).unwrap();
 //! let commitment = PedersenCommitment::from_blinding(&RistrettoScalar::from(value), &blinding);
-//! assert!(proof.verify(&commitment, &range, b"MY_DOMAIN").is_ok());
+//! assert!(proof.verify(&commitment, &range, b"MY_DOMAIN", &mut rng).is_ok());
 //! ```
 
 use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidProof};
