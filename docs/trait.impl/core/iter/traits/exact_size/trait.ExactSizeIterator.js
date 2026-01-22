@@ -1,5 +1,5 @@
 (function() {
-    var implementors = Object.fromEntries([["fastcrypto_tbls",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.92.0/core/iter/traits/exact_size/trait.ExactSizeIterator.html\" title=\"trait core::iter::traits::exact_size::ExactSizeIterator\">ExactSizeIterator</a> for <a class=\"struct\" href=\"fastcrypto_tbls/threshold_schnorr/presigning/struct.Presignatures.html\" title=\"struct fastcrypto_tbls::threshold_schnorr::presigning::Presignatures\">Presignatures</a>"]]]]);
+    var implementors = Object.fromEntries([["fastcrypto_tbls",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.93.0/core/iter/traits/exact_size/trait.ExactSizeIterator.html\" title=\"trait core::iter::traits::exact_size::ExactSizeIterator\">ExactSizeIterator</a> for <a class=\"struct\" href=\"fastcrypto_tbls/threshold_schnorr/presigning/struct.Presignatures.html\" title=\"struct fastcrypto_tbls::threshold_schnorr::presigning::Presignatures\">Presignatures</a>"]]]]);
     if (window.register_implementors) {
         window.register_implementors(implementors);
     } else {

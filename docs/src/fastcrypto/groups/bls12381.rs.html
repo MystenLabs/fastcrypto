@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/groups/bls12381.rs`."><title>bls12381.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0 (ded5c06cf 2025-12-08)" data-channel="1.92.0" data-search-js="search-d69d8955.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">fastcrypto/groups/</div>bls12381.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/groups/bls12381.rs`."><title>bls12381.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0 (254b59607 2026-01-19)" data-channel="1.93.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">fastcrypto/groups/</div>bls12381.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 <a href=#2 id=2 data-nosnippet>2</a>// SPDX-License-Identifier: Apache-2.0
 <a href=#3 id=3 data-nosnippet>3</a>
 <a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">use </span><span class="kw">crate</span>::bls12381::min_pk::DST_G2;
@@ -96,7 +96,7 @@
 <a href=#96 id=96 data-nosnippet>96</a></span><span class="kw">fn </span>size_in_bytes(scalar: <span class="kw-2">&amp;</span>blst_scalar) -&gt; usize {
 <a href=#97 id=97 data-nosnippet>97</a>    <span class="kw">let </span><span class="kw-2">mut </span>i = scalar.b.len();
 <a href=#98 id=98 data-nosnippet>98</a>    <span class="macro">debug_assert_eq!</span>(i, <span class="number">32</span>);
-<a href=#99 id=99 data-nosnippet>99</a>    <span class="kw">while </span>i != <span class="number">0 </span>&amp;&amp; scalar.b[i - <span class="number">1</span>] == <span class="number">0 </span>{
+<a href=#99 id=99 data-nosnippet>99</a>    <span class="kw">while </span><span class="macro">i !</span>= <span class="number">0 </span>&amp;&amp; scalar.b[i - <span class="number">1</span>] == <span class="number">0 </span>{
 <a href=#100 id=100 data-nosnippet>100</a>        i -= <span class="number">1</span>;
 <a href=#101 id=101 data-nosnippet>101</a>    }
 <a href=#102 id=102 data-nosnippet>102</a>    i
@@ -166,7 +166,7 @@
 <a href=#166 id=166 data-nosnippet>166</a>        </span><span class="kw">let </span>(scalars, points): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) = scalars
 <a href=#167 id=167 data-nosnippet>167</a>            .iter()
 <a href=#168 id=168 data-nosnippet>168</a>            .zip(points.iter())
-<a href=#169 id=169 data-nosnippet>169</a>            .filter(|(<span class="kw-2">&amp;</span>s, <span class="kw-2">&amp;</span>p)| s != Scalar::zero() &amp;&amp; p != <span class="self">Self</span>::zero())
+<a href=#169 id=169 data-nosnippet>169</a>            .filter(|(<span class="kw-2">&amp;</span>s, <span class="kw-2">&amp;</span>p)| <span class="macro">s !</span>= Scalar::zero() &amp;&amp; <span class="macro">p !</span>= <span class="self">Self</span>::zero())
 <a href=#170 id=170 data-nosnippet>170</a>            .map(|(<span class="kw-2">&amp;</span>s, <span class="kw-2">&amp;</span>p)| (s, p))
 <a href=#171 id=171 data-nosnippet>171</a>            .unzip();
 <a href=#172 id=172 data-nosnippet>172</a>        <span class="comment">// We already checked that scalars is not empty above so if it's empty here, it means
@@ -247,7 +247,7 @@
 <a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">let </span>(points_g1, points_g2): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) = points_g1
 <a href=#248 id=248 data-nosnippet>248</a>            .iter()
 <a href=#249 id=249 data-nosnippet>249</a>            .zip(points_g2.iter())
-<a href=#250 id=250 data-nosnippet>250</a>            .filter(|(<span class="kw-2">&amp;</span>g1, <span class="kw-2">&amp;</span>g2)| g1 != G1Element::zero() &amp;&amp; g2 != G2Element::zero())
+<a href=#250 id=250 data-nosnippet>250</a>            .filter(|(<span class="kw-2">&amp;</span>g1, <span class="kw-2">&amp;</span>g2)| <span class="macro">g1 !</span>= G1Element::zero() &amp;&amp; <span class="macro">g2 !</span>= G2Element::zero())
 <a href=#251 id=251 data-nosnippet>251</a>            .map(|(<span class="kw-2">&amp;</span>g1, <span class="kw-2">&amp;</span>g2)| (g1, g2))
 <a href=#252 id=252 data-nosnippet>252</a>            .unzip();
 <a href=#253 id=253 data-nosnippet>253</a>
@@ -519,7 +519,7 @@
 <a href=#519 id=519 data-nosnippet>519</a>        </span><span class="kw">let </span>(scalars, points): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) = scalars
 <a href=#520 id=520 data-nosnippet>520</a>            .iter()
 <a href=#521 id=521 data-nosnippet>521</a>            .zip(points.iter())
-<a href=#522 id=522 data-nosnippet>522</a>            .filter(|(<span class="kw-2">&amp;</span>s, <span class="kw-2">&amp;</span>p)| s != Scalar::zero() &amp;&amp; p != <span class="self">Self</span>::zero())
+<a href=#522 id=522 data-nosnippet>522</a>            .filter(|(<span class="kw-2">&amp;</span>s, <span class="kw-2">&amp;</span>p)| <span class="macro">s !</span>= Scalar::zero() &amp;&amp; <span class="macro">p !</span>= <span class="self">Self</span>::zero())
 <a href=#523 id=523 data-nosnippet>523</a>            .map(|(<span class="kw-2">&amp;</span>s, <span class="kw-2">&amp;</span>p)| (s, p))
 <a href=#524 id=524 data-nosnippet>524</a>            .unzip();
 <a href=#525 id=525 data-nosnippet>525</a>        <span class="comment">// We already checked that scalars is not empty above so if it's empty here, it means
@@ -685,7 +685,7 @@
 <a href=#685 id=685 data-nosnippet>685</a>        <span class="comment">// Compute n * x using repeated doubling (~ additive version of exponentiation by repeated squaring)
 <a href=#686 id=686 data-nosnippet>686</a>        </span><span class="kw">unsafe </span>{
 <a href=#687 id=687 data-nosnippet>687</a>            <span class="comment">// Keep going while n &gt; 1
-<a href=#688 id=688 data-nosnippet>688</a>            </span><span class="kw">while </span>n != blst_fr::default() &amp;&amp; n != BLST_FR_ONE {
+<a href=#688 id=688 data-nosnippet>688</a>            </span><span class="kw">while </span><span class="macro">n !</span>= blst_fr::default() &amp;&amp; <span class="macro">n !</span>= BLST_FR_ONE {
 <a href=#689 id=689 data-nosnippet>689</a>                <span class="kw">if </span>is_odd(<span class="kw-2">&amp;</span>n) {
 <a href=#690 id=690 data-nosnippet>690</a>                    blst_fr_sub(<span class="kw-2">&amp;mut </span>n, <span class="kw-2">&amp;</span>n, <span class="kw-2">&amp;</span>BLST_FR_ONE);
 <a href=#691 id=691 data-nosnippet>691</a>                    y <span class="kw-2">*</span>= x;
@@ -987,4 +987,5 @@
 <a href=#987 id=987 data-nosnippet>987</a>        <span class="number">11064306276430008309</span>,
 <a href=#988 id=988 data-nosnippet>988</a>        <span class="number">1739710354780652911</span>,
 <a href=#989 id=989 data-nosnippet>989</a>    ],
-<a href=#990 id=990 data-nosnippet>990</a>};</code></pre></div></section></main></body></html>
+<a href=#990 id=990 data-nosnippet>990</a>};
+</code></pre></div></section></main></body></html>
