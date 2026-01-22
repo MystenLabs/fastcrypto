@@ -5,6 +5,7 @@ use crate::dkg_v1::{
     create_fake_complaint, Confirmation, Message, Party, ProcessedMessage, DKG_MESSAGES_MAX_SIZE,
 };
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, PublicKey};
+use crate::nizk::DLNizk;
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::Poly;
 use crate::random_oracle::RandomOracle;
@@ -727,6 +728,7 @@ fn test_serialized_message_regression() {
         .map(|m| d0.process_message(m.clone(), &mut rng).unwrap())
         .collect::<Vec<_>>();
     let (conf0, _used_msgs0) = d0.merge(proc_msg0).unwrap();
+    let secret_nizk = d0.nizk_pop_of_secret(&mut rng);
 
     // fixed values below were generated using the next code:
     // println!("hex msg0: {:?}", hex::encode(bcs::to_bytes(&msg0).unwrap()));
@@ -737,8 +739,13 @@ fn test_serialized_message_regression() {
 
     let expected_msg0 = "000003acee6249d2cf89903c516b3a29410e25da2c7aea52d59e3c12397198397ce35c6a8fd64bda4963d2daac6adf2cf94d22061c663f859dbdc19af4aebb6657e5c8f565ec6f56464a6610d547d59147f06390922fd0b8a7e1aa1a89ac9b2370d90196cfd197b6a5af7bc932c4831541be2dc896e40b47592f4be223bcee68227c4cd19ef1083f2bdc89401f7afd68a46bed17ac2669c5a246737bcc4fde95fb44eee18b2c0175ce4f7bea9300e6f3d66d388c7df4919ffe8f95a919b3436b4938a2b1b5539bebf257db7185189bc0cdc98cbb3fd163a96b1d180bb5fa34d12693d18e07c2d5723d5c65ca3b25e75817fdbb0837d5985ef1c9af57492b74f7fd6f45f30bf6c176fba2e9df61e07114505984a4189b8c6eb585fcce4da3518b509893b6b2ae04078eb54aa79efff5358d4a6aac16bb15c1389eb863e40847703094ad79621e3992031409dab281803419b16b0ae98c8cc1e1fc58a8c78a3d4397b83914109c5e3a49d5e54c730cd81c2626abd0bde41f8c2b3cff521855361e5f4dcd8831787968259a34d70c6179eab5eb85abdc054ecc45c3fb8a5367de2f4c701d19466fcfbeab2180741e04969fa3600714728ae5c0cc03b027b85df69b2412f1dc61e165250de6e1bce717af1f2b55e070e4bc0317652d23f7ced9ac03b8260806419b3811e60da868a4a9937dff11b4936babda4114ecce78aa903f36fc937fde0ed6776175f38d8cc1d4f3e8284f6d723f6b02423a946c5021a520067a9e8b3698ca61e6c7d761435b0b3cbfd1d1edb19239aff4f39c4c5b5a89cae37073683d731d1e19b2252d569b1f09768aa406bd3fb05bba04f0d0062d607938a3b4be2ce35e9da880f69666fe99e5ed23afe7730f123578b417a8823f025bbfa89afbf9d78667c60195a1014848562feae33283b542f4515e3a8860afd7534278dd6d2a7db30d56754d98f13d9fd6c447060fc62cdf610a8ef2934a2baf2310c4a5918160c7e4499bbd56f081319cc62591ea5e12ee13b74b3bf23211523b0539d5b1f674203bdf34e5cba5fd18961edddf17a73c31f9b61eb7f781ccddf24f83a692414f0f587d2403e0a06efc86f8e27061bdcb4b959ab71524e1bfe3b85607a314734b992370ecad71b320c101525249fd661eb67b243b232d3caebc20cddf24a00fdf3ed45cadfe438b0846dc26765d10427d8334569a6f9226c3c80ad6f773401ab2bc1e4ff0883eed0a071d33255a0c30c6a0e69a3abc4a8719d6c18956c31cbcf8694b10969a36a308137d9dc2b7dede7272fe901f0445d476741050fe9ecb190204b2f427c8b19914e2c32a03554ea689c24cc839fb91ada2af6bfc0b740537005bdcd47b0708d79b3f4552b55823c170b35a99e75a2804a6d78f507cdae72d515e523501cd43ee13222e7ce1014c76eaae067b4f5c3147b3604e5c9b2ce83e7cb89960433f909631574986481426ccfd007a75a00a3cd0fcb0ca447cd4ec9799a244dfd4c21836776fd480183d4ec43d31af47d8761764855209d5c1bc1c8e2b26aa297370214a34d553e8abbb4bacde684237756a9b0118a34e190cc1dff7e447150187c4b0aa85cb1e3b2602520b29e5abef4dfaa238ad548059aeb0802c89943409c74c45b790c8edb88ef4ff0fff58866e1432ab2fdd8c18708d1af798fba0698b3a983a7ea381ecfa6ccc48cfb3b38f613117f75f1701ec92b3dfaa9ecad82301b84adb61be835c90011ef0b3cca4530f925fd4a871314266a0839db3dfb9beecc7bd8c46ae9a3a2cb1c0cfcd8e9b5044b6ef40857bc11296ebc50617966249a1e8ebf8bd44e31892806f0dc1d55b9d9e7cb56f54b7dd5e537b5d197fddb3cff267000cf72dc556b3e957de96f856c6c7cd926c00698fae41ed7c12541d7656cf15352fe249616205ed2fdb0fd12ba1ef04e13ef338f4bd379b4c5f0d2f2b6b7848f768b040a54fc1c846edd9456164e282e50bee9d3fc40907be6840139c476bd7cdb2441cd15ae7ac3d0e150d1ca5e8116373fe9d5c3e4d5596643d7aa497c2550be3007f16779719593e";
     let expected_conf0 = "00000103009242c26a0ef926f97ff4eb739a6ee2fed88efbacb79392cff978cad2b66a07c0b9e20333aad7a2fc1567a2b27b1b777e0fd52d8525ef903b43c828a5894d8f110479f0422ddd69a893fc4abce54dda795532de21303d072b164d601bac0d111b98db3bd4924d5ca3cf5c031f790ace67834ad4aa592cd93060b092e2db540e01e436182aad5d6ad21e458d0ee217970018a28cb7c0c7174e2d0667fd4093ad214c94169a53bd0a159c8cd62657efce03e215d31daec89a67ef79b34cfab0dca1a141e9fe2fd6d9b627c2bb8df63f4738e2a810b27bf6514162c89c641a7bee56358ff9624f087940b01ae54aaa06999016237bb392d54891e564925324dc4da99cd9f1145d50ba447c4b36eac8ff60caac14c94d5b595c6a830746b12fa34c9c026d4688a438c233e2bd93c124405f03ce1ce7de4b18a1caa5a6d6c5b386309b";
+    let expected_secret_nizk = "83f3139e1a8b28406dbbe5ed5ab5be260978701fb433de9676587c9de73b1940f28a24c048d8a92f544b64f1ee210a730060356940c6f009a3a10c8b6b960599c05df8b79f24902928f788bdc9eecc37ebe7fea028f50562096e4369831aa26b1b9273d5d75c0a7659af98c5e21cdb66c8b9b625621f9a8423f22218342f42ce";
     assert_eq!(hex::encode(bcs::to_bytes(&msg0).unwrap()), expected_msg0);
     assert_eq!(hex::encode(bcs::to_bytes(&conf0).unwrap()), expected_conf0);
+    assert_eq!(
+        hex::encode(bcs::to_bytes(&secret_nizk).unwrap()),
+        expected_secret_nizk
+    );
 }
 
 #[test]
@@ -785,16 +792,40 @@ fn test_e2e_dkg_and_key_rotation() {
     )
     .unwrap();
 
-    let msg0 = d0.create_message(&mut thread_rng()).unwrap();
-    let msg1 = d1.create_message(&mut thread_rng()).unwrap();
-    let msg2 = d2.create_message(&mut thread_rng()).unwrap();
+    // simple wrapper for a message and its nizk proof
+    #[derive(Clone)]
+    struct MessageWithNizk {
+        message: Message<G, EG>,
+        nizk: DLNizk<G>,
+    }
 
-    let all_messages = vec![msg0.clone(), msg1, msg0.clone(), msg2]; // duplicates should be ignored
+    let msg0 = MessageWithNizk {
+        message: d0.create_message(&mut thread_rng()).unwrap(),
+        nizk: d0.nizk_pop_of_secret(&mut thread_rng()),
+    };
+    let msg1 = MessageWithNizk {
+        message: d1.create_message(&mut thread_rng()).unwrap(),
+        nizk: d1.nizk_pop_of_secret(&mut thread_rng()),
+    };
+    let msg2 = MessageWithNizk {
+        message: d2.create_message(&mut thread_rng()).unwrap(),
+        nizk: d2.nizk_pop_of_secret(&mut thread_rng()),
+    };
+
+    let all_messages = vec![msg0, msg1, msg2]; // duplicates should be ignored
 
     // merge() should succeed and ignore duplicates and include 1 complaint
     let proc_msg0 = &all_messages
         .iter()
-        .map(|m| d0.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .map(|m| {
+            d0.process_message_with_checks(
+                m.message.clone(),
+                &None,
+                &Some(m.nizk.clone()),
+                &mut thread_rng(),
+            )
+            .unwrap()
+        })
         .collect::<Vec<_>>();
     let (conf0, used_msgs0) = d0.merge(proc_msg0).unwrap();
     assert!(conf0.complaints.is_empty());
@@ -802,13 +833,29 @@ fn test_e2e_dkg_and_key_rotation() {
 
     let proc_msg1 = &all_messages
         .iter()
-        .map(|m| d1.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .map(|m| {
+            d1.process_message_with_checks(
+                m.message.clone(),
+                &None,
+                &Some(m.nizk.clone()),
+                &mut thread_rng(),
+            )
+            .unwrap()
+        })
         .collect::<Vec<_>>();
     let (_, used_msgs1) = d1.merge(proc_msg1).unwrap();
 
     let proc_msg2 = &all_messages
         .iter()
-        .map(|m| d2.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .map(|m| {
+            d2.process_message_with_checks(
+                m.message.clone(),
+                &None,
+                &Some(m.nizk.clone()),
+                &mut thread_rng(),
+            )
+            .unwrap()
+        })
         .collect::<Vec<_>>();
     let (conf2, used_msgs2) = d2.merge(proc_msg2).unwrap();
     assert!(conf2.complaints.is_empty());
@@ -873,8 +920,14 @@ fn test_e2e_dkg_and_key_rotation() {
     )
     .unwrap();
 
-    let msg0 = nd0.create_message(&mut thread_rng()).unwrap();
-    let msg1 = nd1.create_message(&mut thread_rng()).unwrap();
+    let msg0 = MessageWithNizk {
+        message: nd0.create_message(&mut thread_rng()).unwrap(),
+        nizk: nd0.nizk_pop_of_secret(&mut thread_rng()),
+    };
+    let msg1 = MessageWithNizk {
+        message: nd1.create_message(&mut thread_rng()).unwrap(),
+        nizk: nd1.nizk_pop_of_secret(&mut thread_rng()),
+    };
 
     let expected_pks = [
         o0.vss_pk.eval(ShareIndex::new(2).unwrap()).value,
@@ -888,8 +941,13 @@ fn test_e2e_dkg_and_key_rotation() {
         .iter()
         .zip(expected_pks.iter())
         .map(|(m, epk)| {
-            nd0.process_message_and_check_pk(m.clone(), epk, &mut thread_rng())
-                .unwrap()
+            nd0.process_message_with_checks(
+                m.message.clone(),
+                &Some(epk.clone()),
+                &Some(m.nizk.clone()),
+                &mut thread_rng(),
+            )
+            .unwrap()
         })
         .collect::<Vec<_>>();
     let (conf0, used_msgs0) = nd0.merge(proc_msg0).unwrap();
@@ -900,8 +958,13 @@ fn test_e2e_dkg_and_key_rotation() {
         .iter()
         .zip(expected_pks.iter())
         .map(|(m, epk)| {
-            nd1.process_message_and_check_pk(m.clone(), epk, &mut thread_rng())
-                .unwrap()
+            nd1.process_message_with_checks(
+                m.message.clone(),
+                &Some(epk.clone()),
+                &Some(m.nizk.clone()),
+                &mut thread_rng(),
+            )
+            .unwrap()
         })
         .collect::<Vec<_>>();
     let (_, used_msgs1) = nd1.merge(proc_msg1).unwrap();
@@ -910,8 +973,13 @@ fn test_e2e_dkg_and_key_rotation() {
         .iter()
         .zip(expected_pks.iter())
         .map(|(m, epk)| {
-            nd2.process_message_and_check_pk(m.clone(), epk, &mut thread_rng())
-                .unwrap()
+            nd2.process_message_with_checks(
+                m.message.clone(),
+                &Some(epk.clone()),
+                &Some(m.nizk.clone()),
+                &mut thread_rng(),
+            )
+            .unwrap()
         })
         .collect::<Vec<_>>();
     let (conf2, used_msgs2) = nd2.merge(proc_msg2).unwrap();

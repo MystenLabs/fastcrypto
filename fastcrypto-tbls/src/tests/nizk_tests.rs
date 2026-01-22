@@ -20,46 +20,25 @@ mod point_tests {
         G::ScalarType: FiatShamirChallenge + DeserializeOwned,
     {
         // basic flow
-        let aux_data = [1, 2, 3];
         let x = G::ScalarType::rand(&mut thread_rng());
         let g_x = G::generator() * x;
-        let nizk = DLNizk::create(
-            &x,
-            &g_x,
-            &aux_data,
-            &RandomOracle::new("test"),
-            &mut thread_rng(),
-        );
+        let nizk = DLNizk::create(&x, &g_x, &RandomOracle::new("test"), &mut thread_rng());
+        assert!(nizk.verify(&g_x, &RandomOracle::new("test")).is_ok());
+        assert!(nizk.verify(&g_x, &RandomOracle::new("test2")).is_err());
         assert!(nizk
-            .verify(&g_x, &aux_data, &RandomOracle::new("test"))
-            .is_ok());
-        assert!(nizk
-            .verify(&g_x, &aux_data, &RandomOracle::new("test2"))
-            .is_err());
-        assert!(nizk
-            .verify(&G::generator(), &aux_data, &RandomOracle::new("test"))
-            .is_err());
-        assert!(nizk
-            .verify(&g_x, &[0, 0], &RandomOracle::new("test"))
+            .verify(&G::generator(), &RandomOracle::new("test"))
             .is_err());
 
         // x_g=inf should be rejected
         let zero = G::ScalarType::zero();
         let inf = G::zero();
         let g = G::generator();
-        let invalid_nizk = DLNizk::create(
-            &zero,
-            &inf,
-            &aux_data,
-            &RandomOracle::new("test"),
-            &mut thread_rng(),
-        );
+        let invalid_nizk =
+            DLNizk::create(&zero, &inf, &RandomOracle::new("test"), &mut thread_rng());
         assert!(invalid_nizk
-            .verify(&inf, &aux_data, &RandomOracle::new("test"))
+            .verify(&inf, &RandomOracle::new("test"))
             .is_err());
-        assert!(invalid_nizk
-            .verify(&g, &aux_data, &RandomOracle::new("test"))
-            .is_err());
+        assert!(invalid_nizk.verify(&g, &RandomOracle::new("test")).is_err());
 
         // serde
         let as_bytes = bcs::to_bytes(&nizk).unwrap();

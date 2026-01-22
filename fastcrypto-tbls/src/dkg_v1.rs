@@ -7,6 +7,7 @@
 
 use crate::dl_verification::verify_poly_evals;
 use crate::ecies_v1::{self, RecoveryPackage};
+use crate::nizk::DLNizk;
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly, PrivatePoly, PublicPoly};
 use crate::random_oracle::RandomOracle;
@@ -178,7 +179,7 @@ where
 
     /// Alternative to new(), to be used for:
     /// - Any threshold t, useful in the sync setting.
-    /// - Passing a secret/share for key rotation (should be set to None for DKG).
+    /// - Passing a secret/share for key rotation (should be set to None for DKG or by new parties).
     /// - Passing old threshold for key rotation (should be set to None for DKG).
     pub fn new_advanced<R: AllowedRng>(
         enc_sk: ecies_v1::PrivateKey<EG>,
@@ -457,22 +458,43 @@ where
         })
     }
 
-    /// Alternative to process_message for a known vss.c0 public key, useful for key rotation.
-    pub fn process_message_and_check_pk<R: AllowedRng>(
+    /// Alternative to process_message for additional checks:
+    /// - Expected vss.c0 public key, useful for key rotation.
+    /// - Knowledge of the shared secret, useful for high thresholds protocols.
+    pub fn process_message_with_checks<R: AllowedRng>(
         &self,
         message: Message<G, EG>,
-        partial_pk: &G,
+        partial_pk: &Option<G>,
+        secret_nizk: &Option<DLNizk<G>>,
         rng: &mut R,
-    ) -> FastCryptoResult<ProcessedMessage<G, EG>> {
-        if message.vss_pk.c0() != partial_pk {
-            warn!(
-                "DKG: Processing message from party {} failed, invalid vss pk c0 {:?}, expected {:?}",
-                message.sender,
-                message.vss_pk.c0(),
-                partial_pk
-            );
-            return Err(FastCryptoError::InvalidMessage);
+    ) -> FastCryptoResult<ProcessedMessage<G, EG>>
+    where
+        G::ScalarType: FiatShamirChallenge,
+    {
+        if let Some(partial_pk) = partial_pk {
+            if message.vss_pk.c0() != partial_pk {
+                warn!(
+                    "DKG: Processing message from party {} failed, invalid vss pk c0 {:?}, expected {:?}",
+                    message.sender,
+                    message.vss_pk.c0(),
+                    partial_pk
+                );
+                return Err(FastCryptoError::InvalidMessage);
+            }
         };
+        if let Some(secret_nizk) = secret_nizk {
+            secret_nizk
+                .verify(
+                    message.vss_pk.c0(),
+                    &self.nizk_pop_of_secret_random_oracle(message.sender),
+                )
+                .tap_err(|_| {
+                    warn!(
+                        "DKG: Processing message from party {} failed, invalid secret's nizk proof",
+                        message.sender
+                    )
+                })?;
+        }
         self.process_message(message, rng)
     }
 
@@ -919,6 +941,23 @@ where
             "recovery of {} received from {}",
             accuser, accused
         ))
+    }
+
+    fn nizk_pop_of_secret_random_oracle(&self, sender: PartyId) -> RandomOracle {
+        self.random_oracle
+            .extend(&format!("nizkpok of secret from {}", sender))
+    }
+
+    /// When the protocol is used in the sync setting with high thresholds, we need a dealer
+    /// to prove that it knows the shared secret.
+    /// The next function can be used to create such a proof.
+    pub fn nizk_pop_of_secret<R: AllowedRng>(&self, rng: &mut R) -> DLNizk<G>
+    where
+        G::ScalarType: FiatShamirChallenge,
+    {
+        let vss_pk = self.vss_sk.commit::<G>();
+        let ro = self.nizk_pop_of_secret_random_oracle(self.id);
+        DLNizk::create(self.vss_sk.c0(), &vss_pk.c0(), &ro, rng)
     }
 }
 
