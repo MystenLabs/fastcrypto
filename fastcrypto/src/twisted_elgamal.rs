@@ -36,7 +36,7 @@ pub fn pk_from_sk(sk: &PrivateKey) -> PublicKey {
 }
 
 // TODO: Encryptions of the same message can reuse commitments
-#[derive(Debug, Add, Sub, Mul, Serialize, Deserialize)]
+#[derive(Debug, Clone, Add, Sub, Mul, Serialize, Deserialize)]
 pub struct Ciphertext {
     commitment: PedersenCommitment,
     decryption_handle: RistrettoPoint,
@@ -344,4 +344,22 @@ fn linear_encryptions() {
         ciphertext_3.decrypt(&sk, &precompute_table()).unwrap(),
         value_1 + value_2 * s
     );
+}
+
+#[test]
+fn test_equality() {
+    let value = 123u32;
+    let (pk, sk) = generate_keypair(&mut rand::thread_rng());
+    let encryption_1 = Ciphertext::encrypt(&pk, value, &mut rand::thread_rng());
+    let encryption_2 = Ciphertext::encrypt(&pk, value, &mut rand::thread_rng());
+
+    let diff = encryption_1.0.clone() - encryption_2.0;
+    let proof = ZeroProof::prove(&diff, &sk, &mut rand::thread_rng());
+    assert!(proof.verify(&diff, &pk).is_ok());
+
+    let other_value = 1234u32;
+    let encryption_3 = Ciphertext::encrypt(&pk, other_value, &mut rand::thread_rng());
+    let other_diff = encryption_1.0 - encryption_3.0;
+    let other_proof = ZeroProof::prove(&other_diff, &sk, &mut rand::thread_rng());
+    assert!(other_proof.verify(&other_diff, &pk).is_err());
 }
