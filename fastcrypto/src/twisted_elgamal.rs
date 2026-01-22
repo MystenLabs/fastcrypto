@@ -22,6 +22,8 @@ lazy_static! {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PublicKey(RistrettoPoint);
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PrivateKey(RistrettoScalar);
 
 pub fn generate_keypair(rng: &mut impl AllowedRng) -> (PublicKey, PrivateKey) {
