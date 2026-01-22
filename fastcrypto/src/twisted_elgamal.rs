@@ -80,43 +80,40 @@ impl Ciphertext {
 /// A proof that a given ciphertext is for the message 0.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ZeroProof {
-    y_p: RistrettoPoint,
-    y_d: RistrettoPoint,
+    y: (RistrettoPoint, RistrettoPoint),
     z: RistrettoScalar,
 }
 
 impl ZeroProof {
     pub fn prove(ciphertext: &Ciphertext, sk: &PrivateKey, rng: &mut impl AllowedRng) -> Self {
-        let y = RistrettoScalar::rand(rng);
         let pk = pk_from_sk(sk);
-
-        let y_p = pk.0 * y;
-        let y_d = ciphertext.decryption_handle * y;
-        let challenge = Self::challenge(ciphertext, &pk.0, &y_p, &y_d);
-        let z = sk.0 * challenge + y;
-        Self { y_p, y_d, z }
+        let r = RistrettoScalar::rand(rng);
+        let y = (pk.0 * r, ciphertext.decryption_handle * r);
+        let challenge = Self::challenge(ciphertext, &pk, &y);
+        let z = sk.0 * challenge + r;
+        Self { y, z }
     }
 
     fn challenge(
         ciphertext: &Ciphertext,
-        pk: &RistrettoPoint,
-        y_p: &RistrettoPoint,
-        y_d: &RistrettoPoint,
+        pk: &PublicKey,
+        y: &(RistrettoPoint, RistrettoPoint),
     ) -> RistrettoScalar {
         RistrettoScalar::fiat_shamir_reduction_to_group_element(
-            &bcs::to_bytes(&(ciphertext, pk, y_p, y_d)).unwrap(),
+            &bcs::to_bytes(&(ciphertext, pk, y)).unwrap(),
         )
     }
 
     pub fn verify(&self, ciphertext: &Ciphertext, pk: &PublicKey) -> FastCryptoResult<()> {
-        let challenge = -Self::challenge(ciphertext, &pk.0, &self.y_p, &self.y_d);
-        if RistrettoPoint::multi_scalar_mul(&[self.z, challenge], &[pk.0, *H]).unwrap() == self.y_p
-            && RistrettoPoint::multi_scalar_mul(
+        let challenge = -Self::challenge(ciphertext, pk, &self.y);
+        if (
+            RistrettoPoint::multi_scalar_mul(&[self.z, challenge], &[pk.0, *H]).unwrap(),
+            RistrettoPoint::multi_scalar_mul(
                 &[self.z, challenge],
                 &[ciphertext.decryption_handle, ciphertext.commitment.0],
             )
-            .unwrap()
-                == self.y_d
+            .unwrap(),
+        ) == self.y
         {
             Ok(())
         } else {
