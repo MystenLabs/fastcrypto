@@ -78,6 +78,7 @@ impl Ciphertext {
 }
 
 /// A proof that a given ciphertext is for the message 0.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ZeroProof {
     y_p: RistrettoPoint,
     y_d: RistrettoPoint,
@@ -125,6 +126,7 @@ impl ZeroProof {
 }
 
 /// This represents a ZK proof that two ciphertext are for the same message.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct EqualityProof {
     y: (
         RistrettoPoint,
@@ -223,6 +225,7 @@ impl EqualityProof {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MultiRecipientEncryption {
     commitment: PedersenCommitment,
     decryption_handles: Vec<RistrettoPoint>,
