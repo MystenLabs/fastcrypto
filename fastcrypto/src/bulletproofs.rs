@@ -84,8 +84,9 @@ impl RangeProof {
         commitment: &PedersenCommitment,
         range: &Range,
         domain: &'static [u8],
+        rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
-        self.verify_batch(&[commitment.clone()], range, domain)
+        self.verify_batch(&[commitment.clone()], range, domain, rng)
     }
 
     /// Create a proof that all the given `values` are in the range using the given commitment blindings.
@@ -134,6 +135,7 @@ impl RangeProof {
         commitments: &[PedersenCommitment],
         range: &Range,
         domain: &'static [u8],
+        rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
         let bits = range.upper_bound_in_bits() as usize;
         let pc_gens = PedersenGens::default();
@@ -141,7 +143,7 @@ impl RangeProof {
         let mut verifier_transcript = Transcript::new(domain);
 
         self.0
-            .verify_multiple(
+            .verify_multiple_with_rng(
                 &bp_gens,
                 &pc_gens,
                 &mut verifier_transcript,
@@ -150,6 +152,7 @@ impl RangeProof {
                     .map(|c| c.0 .0.compress())
                     .collect::<Vec<_>>(),
                 bits,
+                rng,
             )
             .map_err(|_| InvalidProof)
     }
@@ -181,5 +184,7 @@ fn test_range_proof_valid() {
     let value = 1u64;
     let proof = RangeProof::prove(value, &blinding, &range, b"NARWHAL", &mut rng).unwrap();
     let commitment = PedersenCommitment::from_blinding(&RistrettoScalar::from(value), &blinding);
-    assert!(proof.verify(&commitment, &range, b"NARWHAL").is_ok());
+    assert!(proof
+        .verify(&commitment, &range, b"NARWHAL", &mut rng)
+        .is_ok());
 }

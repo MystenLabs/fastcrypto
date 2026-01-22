@@ -323,7 +323,7 @@ fn encrypt_and_range_proof() {
             .unwrap();
 
     assert!(range_proof
-        .verify(&ciphertext.commitment, &range, domain)
+        .verify(&ciphertext.commitment, &range, domain, &mut rng)
         .is_ok());
 
     assert_eq!(ciphertext.decrypt(&sk, &precompute_table()).unwrap(), value);
