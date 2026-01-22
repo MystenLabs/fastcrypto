@@ -957,7 +957,7 @@ where
     {
         let vss_pk = self.vss_sk.commit::<G>();
         let ro = self.nizk_pop_of_secret_random_oracle(self.id);
-        DLNizk::create(self.vss_sk.c0(), &vss_pk.c0(), &ro, rng)
+        DLNizk::create(self.vss_sk.c0(), vss_pk.c0(), &ro, rng)
     }
 }
 

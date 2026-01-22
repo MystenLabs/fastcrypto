@@ -943,7 +943,7 @@ fn test_e2e_dkg_and_key_rotation() {
         .map(|(m, epk)| {
             nd0.process_message_with_checks(
                 m.message.clone(),
-                &Some(epk.clone()),
+                &Some(*epk),
                 &Some(m.nizk.clone()),
                 &mut thread_rng(),
             )
@@ -960,7 +960,7 @@ fn test_e2e_dkg_and_key_rotation() {
         .map(|(m, epk)| {
             nd1.process_message_with_checks(
                 m.message.clone(),
-                &Some(epk.clone()),
+                &Some(*epk),
                 &Some(m.nizk.clone()),
                 &mut thread_rng(),
             )
@@ -975,7 +975,7 @@ fn test_e2e_dkg_and_key_rotation() {
         .map(|(m, epk)| {
             nd2.process_message_with_checks(
                 m.message.clone(),
-                &Some(epk.clone()),
+                &Some(*epk),
                 &Some(m.nizk.clone()),
                 &mut thread_rng(),
             )
