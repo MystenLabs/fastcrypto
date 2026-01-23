@@ -7,14 +7,14 @@
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::groups::Scalar;
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::traits::AllowedRng;
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>bulletproofs::PedersenGens;
-<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>derive_more::{Add, Sub};
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>derive_more::{Add, Mul, Sub};
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>serde::{Deserialize, Serialize};
 <a href=#12 id=12 data-nosnippet>12</a>
 <a href=#13 id=13 data-nosnippet>13</a><span class="comment">// TODO: We don't need to have this point in decompressed form in order to just verify the commitment, but it's convenient when using the homomorphic property.
-<a href=#14 id=14 data-nosnippet>14</a></span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Serialize, Deserialize)]
+<a href=#14 id=14 data-nosnippet>14</a></span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Mul, Serialize, Deserialize)]
 <a href=#15 id=15 data-nosnippet>15</a></span><span class="kw">pub struct </span>PedersenCommitment(<span class="kw">pub</span>(<span class="kw">crate</span>) RistrettoPoint);
 <a href=#16 id=16 data-nosnippet>16</a>
-<a href=#17 id=17 data-nosnippet>17</a><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Serialize, Deserialize)]
+<a href=#17 id=17 data-nosnippet>17</a><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Mul, Serialize, Deserialize)]
 <a href=#18 id=18 data-nosnippet>18</a></span><span class="kw">pub struct </span>Blinding(<span class="kw">pub</span>(<span class="kw">crate</span>) RistrettoScalar);
 <a href=#19 id=19 data-nosnippet>19</a>
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">impl </span>PedersenCommitment {
@@ -78,4 +78,20 @@
 <a href=#78 id=78 data-nosnippet>78</a>    <span class="kw">let </span>expected_value = value_1 + value_2;
 <a href=#79 id=79 data-nosnippet>79</a>    commitment_3.verify(<span class="kw-2">&amp;</span>expected_value, <span class="kw-2">&amp;</span>bf_3).unwrap();
 <a href=#80 id=80 data-nosnippet>80</a>}
+<a href=#81 id=81 data-nosnippet>81</a>
+<a href=#82 id=82 data-nosnippet>82</a><span class="attr">#[test]
+<a href=#83 id=83 data-nosnippet>83</a></span><span class="kw">fn </span>test_scaled_commitments() {
+<a href=#84 id=84 data-nosnippet>84</a>    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
+<a href=#85 id=85 data-nosnippet>85</a>
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">let </span>value_1 = RistrettoScalar::from(<span class="number">7u64</span>);
+<a href=#87 id=87 data-nosnippet>87</a>    <span class="kw">let </span>(commitment_1, bf_1) = PedersenCommitment::commit(<span class="kw-2">&amp;</span>value_1, <span class="kw-2">&amp;mut </span>rng);
+<a href=#88 id=88 data-nosnippet>88</a>
+<a href=#89 id=89 data-nosnippet>89</a>    <span class="kw">let </span>s = RistrettoScalar::from(<span class="number">5u64</span>);
+<a href=#90 id=90 data-nosnippet>90</a>
+<a href=#91 id=91 data-nosnippet>91</a>    <span class="kw">let </span>commitment_2 = commitment_1 * s;
+<a href=#92 id=92 data-nosnippet>92</a>    <span class="kw">let </span>bf_2 = bf_1 * s;
+<a href=#93 id=93 data-nosnippet>93</a>
+<a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">let </span>expected_value = value_1 * s;
+<a href=#95 id=95 data-nosnippet>95</a>    commitment_2.verify(<span class="kw-2">&amp;</span>expected_value, <span class="kw-2">&amp;</span>bf_2).unwrap();
+<a href=#96 id=96 data-nosnippet>96</a>}
 </code></pre></div></section></main></body></html>
