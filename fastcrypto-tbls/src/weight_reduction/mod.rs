@@ -65,17 +65,10 @@ impl DP {
             return None;
         }
 
-        let dp = self
-            .dp
-            .iter()
-            .take(adv_tickets_target as usize)
-            .copied()
-            .collect_vec();
-
         Some(DP {
             max_weight: self.max_weight,
             adv_tickets_target,
-            dp,
+            dp: self.dp.clone(),
         })
     }
 
@@ -252,8 +245,8 @@ fn generate_deltas(weights: &[u64], c: Ratio) -> impl Iterator<Item = usize> + '
 }
 
 /// Calculates the head indices for the current batch.
-fn indices_head(tickets_len: usize, deltas: &[usize]) -> Vec<usize> {
-    set_minus(0..tickets_len, deltas.iter()).collect_vec()
+fn indices_head(tickets_len: usize, deltas: &[usize]) -> impl Iterator<Item = usize> + '_ {
+    set_minus(0..tickets_len, deltas.iter())
 }
 
 /// Calculates the DP data structure with indices applied that are not in `delta`s.
@@ -266,18 +259,15 @@ fn dp_head(
     deltas: &[usize],
     tickets: &Tickets,
 ) -> Option<DP> {
-    let dp_head = DP::new(
-        max_adv_weight,
-        adv_tickets_target(beta, tickets.total + deltas.len() as u64),
-    )
-    .unwrap();
-
-    let indices_head = indices_head(tickets.tickets.len(), deltas);
-    let dp_head = indices_head.into_iter().try_fold(dp_head, |dp, index| {
-        dp.apply(weights[index], tickets[index])
-    })?;
-
-    Some(dp_head)
+    indices_head(tickets.tickets.len(), deltas)
+        .into_iter()
+        .try_fold(
+            DP::new(
+                max_adv_weight,
+                adv_tickets_target(beta, tickets.total + deltas.len() as u64),
+            )?,
+            |dp, index| dp.apply(weights[index], tickets[index]),
+        )
 }
 
 /// Apply those indices to dp_head that are in `add_indices` but not in
@@ -291,8 +281,8 @@ fn apply(
     exclude_indices: &[usize],
 ) -> Option<DP> {
     set_minus(add_indices.iter().copied(), exclude_indices.iter())
-        .try_fold(dp_head.make_copy(adv_tickets_target)?, |dp, index| {
-            dp.apply(weights[index], tickets[index])
+        .try_fold(dp_head.make_copy(adv_tickets_target)?, |dp, i| {
+            dp.apply(weights[i], tickets[i])
         })
 }
 
@@ -385,7 +375,6 @@ fn process_batch(
         tickets.update_many(deltas);
         return false;
     };
-
     process_batch_recursive(beta, weights, deltas, &dp_head, tickets)
 }
 
@@ -445,6 +434,7 @@ fn set_minus<'a, T: Ord + 'a>(
 #[cfg(test)]
 mod calc_indices_head_tail_tests {
     use super::indices_head;
+    use itertools::Itertools;
     use test_case::test_case;
 
     struct TestCase<'a> {
@@ -486,7 +476,7 @@ mod calc_indices_head_tail_tests {
     "first_last_index_updated"
   )]
     fn all(mut test_case: TestCase<'_>) {
-        let mut ret = indices_head(test_case.tickets_len, test_case.deltas);
+        let mut ret = indices_head(test_case.tickets_len, test_case.deltas).collect_vec();
         test_case.expected.sort_unstable();
         ret.sort_unstable();
         assert_eq!(test_case.expected, ret);

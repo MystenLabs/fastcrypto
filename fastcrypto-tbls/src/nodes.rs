@@ -3,9 +3,13 @@
 
 use crate::ecies_v1;
 use crate::types::ShareIndex;
+use crate::weight_reduction::solve;
+use crate::weight_reduction::weight_reduction_checks::get_delta;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
+use itertools::Itertools;
+use num_rational::Ratio;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -251,13 +255,18 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         let alpha = if original_total_weight == 0 {
             return Err(FastCryptoError::InvalidInput);
         } else {
-            num_rational::Ratio::new(t as u64, original_total_weight)
+            Ratio::new(t as u64, original_total_weight)
         };
 
         // Extract weights from nodes, sorted in descending order (required by super_swiper)
-        let mut weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
         // Sort in descending order as required by super_swiper
-        weights.sort_by(|a, b| b.cmp(a));
+        let weights_sorted = n
+            .nodes
+            .iter()
+            .map(|node| node.weight as u64)
+            .sorted()
+            .rev()
+            .collect_vec();
 
         // Set initial beta = alpha + 1/100
         let beta_denom = 100u64;
@@ -279,29 +288,25 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             }
 
             // Call super_swiper to get ticket assignments (which are the reduced weights)
-            let reduced_weights_sorted = {
-                use crate::weight_reduction::solve;
-                solve(alpha, beta, &weights)
-            };
+            let reduced_weights_sorted = solve(alpha, beta, &weights_sorted);
 
             // Calculate the new total weight
             let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
-            let new_total_weight_u16 = new_total_weight as u16;
 
             // Check if reduction went below the lower bound (similar to new_reduced)
             // If below lower bound, we need to increase beta to get less aggressive reduction
             // We'll check this along with delta constraint below
-            let lower_bound_ok = new_total_weight_u16 >= total_weight_lower_bound;
+            let lower_bound_ok = new_total_weight as u16 >= total_weight_lower_bound;
 
             // Map the reduced weights back to nodes
-            let mut indexed_weights: Vec<(usize, u16)> = n
+            let indexed_weights = n
                 .nodes
                 .iter()
                 .enumerate()
                 .map(|(i, node)| (i, node.weight))
-                .collect();
-
-            indexed_weights.sort_by(|a, b| b.1.cmp(&a.1));
+                .sorted_by_key(|(_, w)| *w)
+                .rev()
+                .collect_vec();
 
             let mut new_weights = vec![0u16; n.nodes.len()];
             for (idx_in_sorted, (original_idx, _original_weight)) in
@@ -313,16 +318,15 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             }
 
             // Prepare weights for delta calculation (in original order)
-            let original_weights: Vec<u64> =
-                n.nodes.iter().map(|node| node.weight as u64).collect();
-            let reduced_weights: Vec<u64> = new_weights.iter().map(|&w| w as u64).collect();
+            let original_weights = n.nodes.iter().map(|node| node.weight as u64).collect_vec();
+            let reduced_weights = new_weights.iter().copied().map(u64::from).collect_vec();
 
             // Calculate t' = beta * new_weights_total
             let t_prime = (beta * new_total_weight).to_integer();
 
             // Get delta - this is the primary validation check
             // Use n=2 random subsets in addition to top and bottom checks
-            let delta = crate::weight_reduction::weight_reduction_checks::get_delta(
+            let delta = get_delta(
                 t_prime,
                 &original_weights,
                 &reduced_weights,
@@ -367,22 +371,22 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                 }
             }
 
-            let nodes: Vec<Node<G>> = n
+            let nodes = n
                 .nodes
                 .iter()
-                .enumerate()
-                .map(|(i, node)| Node {
+                .zip(new_weights)
+                .map(|(node, weight)| Node {
                     id: node.id,
                     pk: node.pk.clone(),
-                    weight: new_weights[i],
+                    weight,
                 })
-                .collect();
+                .collect_vec();
 
             // These are required fields for the Nodes struct
             let accumulated_weights = Self::get_accumulated_weights(&nodes);
             let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
             // Use new_total_weight_u16 instead of recalculating from nodes
-            let total_weight = new_total_weight_u16;
+            let total_weight = new_total_weight as u16;
 
             // Calculate new threshold
             let new_t = (beta_numer as u32 * new_total_weight as u32 / beta_denom as u32) as u16;
