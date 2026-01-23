@@ -7,6 +7,7 @@
 //! Adapted from: https://github.com/tolikzinovyev/weight-reduction
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, BinaryHeap};
 
@@ -21,7 +22,7 @@ fn calc_max_adv_weight(alpha: Ratio, total_weight: u64) -> u64 {
 }
 
 fn calc_max_adv_weight_from_weights(alpha: Ratio, weights: &[u64]) -> u64 {
-    calc_max_adv_weight(alpha, weights.iter().sum::<u64>())
+    calc_max_adv_weight(alpha, weights.iter().sum())
 }
 
 fn calc_adv_tickets_target(beta: Ratio, total_num_tickets: u64) -> u64 {
@@ -45,14 +46,10 @@ impl DP {
         if adv_tickets_target == 0 {
             return None;
         }
-
-        let mut dp = Vec::with_capacity(adv_tickets_target as usize);
-        dp.push(0);
-
         Some(DP {
             max_weight,
             adv_tickets_target,
-            dp,
+            dp: vec![0],
         })
     }
 
@@ -63,17 +60,16 @@ impl DP {
     fn make_copy(&self, adv_tickets_target: u64) -> Option<DP> {
         assert!(adv_tickets_target <= self.adv_tickets_target);
 
-        let adv_tickets_target_usize = adv_tickets_target as usize;
-        if adv_tickets_target_usize < self.dp.len() {
+        if adv_tickets_target < self.dp.len() as u64 {
             return None;
         }
 
-        let dp: Vec<_> = self
+        let dp = self
             .dp
             .iter()
-            .take(adv_tickets_target_usize)
+            .take(adv_tickets_target as usize)
             .copied()
-            .collect();
+            .collect_vec();
 
         Some(DP {
             max_weight: self.max_weight,
@@ -135,9 +131,6 @@ impl DP {
             .map(|t| t as u64)
             .unwrap_or(0)
     }
-    fn adv_tickets_target(&self) -> u64 {
-        self.adv_tickets_target
-    }
 }
 
 // Tickets data structure for managing ticket assignments
@@ -173,10 +166,6 @@ impl Tickets {
 
     fn into_vec(self) -> Vec<u64> {
         self.tickets
-    }
-
-    fn total(&self) -> u64 {
-        self.total
     }
 
     fn update_many(&mut self, indices: &[usize]) {
@@ -220,25 +209,18 @@ struct Generator<'a> {
 
 impl<'a> Generator<'a> {
     fn new(weights: &'a [u64], c: Ratio) -> FastCryptoResult<Self> {
-        if weights.is_empty() {
-            return Err(FastCryptoError::InvalidInput);
-        }
         debug_assert!(weights.windows(2).all(|w| w[0] >= w[1]));
-        if weights.last().copied().unwrap_or(0) == 0 {
+        if weights.is_empty()
+            || weights.last().copied().unwrap_or(0) == 0
+            || c < 0.into()
+            || c >= 1.into()
+        {
             return Err(FastCryptoError::InvalidInput);
         }
-        if c < 0.into() {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        if c >= 1.into() {
-            return Err(FastCryptoError::InvalidInput);
-        }
-
-        let mut queue = BinaryHeap::new();
-        queue.push(QueueElement {
-            s: (Ratio::new(1, 1) - c) / Ratio::from_integer(*weights.first().unwrap()),
+        let queue = BinaryHeap::from([QueueElement {
+            s: (Ratio::from_integer(1) - c) / Ratio::from_integer(*weights.first().unwrap()),
             i: 0,
-        });
+        }]);
 
         Ok(Self {
             weights,
@@ -253,23 +235,22 @@ impl Iterator for Generator<'_> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let elem = self.queue.pop().unwrap();
-        let new_value = (elem.s * self.weights[elem.i] + self.c).to_integer();
+        let QueueElement { s, i } = self.queue.pop()?;
+        let new_value = (s * self.weights[i] + self.c).to_integer();
 
         self.queue.push(QueueElement {
-            s: (Ratio::from_integer(new_value + 1) - self.c)
-                / Ratio::from_integer(self.weights[elem.i]),
-            i: elem.i,
+            s: (Ratio::from_integer(new_value + 1) - self.c) / Ratio::from_integer(self.weights[i]),
+            i,
         });
-        if (elem.i == self.r) && (self.r + 1 < self.weights.len()) {
+        if i == self.r && self.r + 1 < self.weights.len() {
             self.r += 1;
             self.queue.push(QueueElement {
-                s: (Ratio::new(1, 1) - self.c) / Ratio::from_integer(self.weights[self.r]),
+                s: (Ratio::from_integer(1) - self.c) / Ratio::from_integer(self.weights[self.r]),
                 i: self.r,
             });
         }
 
-        Some(elem.i)
+        Some(i)
     }
 }
 
@@ -279,7 +260,7 @@ fn generate_deltas(weights: &[u64], c: Ratio) -> impl Iterator<Item = usize> + '
 
 /// Calculates the head indices for the current batch.
 fn calc_indices_head(tickets_len: usize, deltas: &[usize]) -> Vec<usize> {
-    let exclude_indices: BTreeSet<usize> = deltas.iter().copied().collect();
+    let exclude_indices = BTreeSet::from_iter(deltas.iter().copied());
     (0..tickets_len)
         .filter(|i| !exclude_indices.contains(i))
         .collect()
@@ -297,7 +278,7 @@ fn calc_dp_head(
 ) -> Option<DP> {
     let dp_head = DP::new(
         max_adv_weight,
-        calc_adv_tickets_target(beta, tickets.total() + deltas.len() as u64),
+        calc_adv_tickets_target(beta, tickets.total + deltas.len() as u64),
     )
     .unwrap();
 
@@ -321,7 +302,7 @@ fn apply(
 ) -> Option<DP> {
     let dp = dp_head.make_copy(adv_tickets_target)?;
 
-    let exclude_set: BTreeSet<usize> = exclude_indices.iter().copied().collect();
+    let exclude_set = BTreeSet::from_iter(exclude_indices.iter().copied());
 
     let dp = add_indices
         .iter()
@@ -359,8 +340,8 @@ fn process_batch_recursive(
         // All indices in `deltas` were successfully applied without the adversary
         // winning. We found a solution.
         // Sanity check: `dp_head` must have the right target.
-        let adv_tickets_target = calc_adv_tickets_target(beta, tickets.total());
-        assert!(dp_head.adv_tickets_target() == adv_tickets_target);
+        let adv_tickets_target = calc_adv_tickets_target(beta, tickets.total);
+        assert_eq!(dp_head.adv_tickets_target, adv_tickets_target);
         return true;
     }
 
@@ -372,7 +353,7 @@ fn process_batch_recursive(
         weights,
         dp_head,
         tickets,
-        calc_adv_tickets_target(beta, tickets.total() + deltas_left.len() as u64),
+        calc_adv_tickets_target(beta, tickets.total + deltas_left.len() as u64),
         deltas_apply,
         deltas_left,
     ) {
@@ -390,7 +371,7 @@ fn process_batch_recursive(
         weights,
         dp_head,
         tickets,
-        calc_adv_tickets_target(beta, tickets.total() + deltas_right.len() as u64),
+        calc_adv_tickets_target(beta, tickets.total + deltas_right.len() as u64),
         deltas_apply,
         deltas_right,
     ) {
