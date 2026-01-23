@@ -259,15 +259,13 @@ fn dp_head(
     deltas: &[usize],
     tickets: &Tickets,
 ) -> Option<DP> {
-    indices_head(tickets.tickets.len(), deltas)
-        .into_iter()
-        .try_fold(
-            DP::new(
-                max_adv_weight,
-                adv_tickets_target(beta, tickets.total + deltas.len() as u64),
-            )?,
-            |dp, index| dp.apply(weights[index], tickets[index]),
-        )
+    indices_head(tickets.tickets.len(), deltas).try_fold(
+        DP::new(
+            max_adv_weight,
+            adv_tickets_target(beta, tickets.total + deltas.len() as u64),
+        )?,
+        |dp, index| dp.apply(weights[index], tickets[index]),
+    )
 }
 
 /// Apply those indices to dp_head that are in `add_indices` but not in

@@ -280,13 +280,13 @@ mod tests {
         );
 
         match result {
-            Ok((reduced_nodes, new_t, beta_numer, beta_denom)) => {
+            Ok((reduced_nodes, new_t, beta)) => {
                 println!("\n=== Super Swiper Weight Reduction Results (with delta constraint) ===");
                 println!("Original total weight: {}", original_total_weight);
                 println!("Reduced total weight: {}", reduced_nodes.total_weight());
                 println!("Input threshold (t): {}", t);
                 println!("New threshold (new_t): {}", new_t);
-                println!("Beta: {}/{}", beta_numer, beta_denom);
+                println!("Beta: {}", beta);
                 println!(
                     "Alpha (t/total): {}/{}, Allowed delta: {}",
                     alpha.numer(),
@@ -342,8 +342,8 @@ mod tests {
                     CsvParams {
                         alpha_numer: 1u64,
                         alpha_denom: 3u64,
-                        beta_numer, // Use the actual beta returned from the function
-                        beta_denom,
+                        beta_numer: *beta.numer(), // Use the actual beta returned from the function
+                        beta_denom: *beta.denom(),
                     },
                     subset_size_top,
                     csv_path,
@@ -511,7 +511,7 @@ mod tests {
                 .map(|(reduced_nodes, _)| reduced_nodes.total_weight());
             let super_swiper_total = super_swiper_result
                 .ok()
-                .map(|(reduced_nodes, _, _, _)| reduced_nodes.total_weight());
+                .map(|(reduced_nodes, _, _)| reduced_nodes.total_weight());
 
             results.push((epoch, new_reduced_total, super_swiper_total));
 
