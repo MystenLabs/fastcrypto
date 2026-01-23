@@ -253,11 +253,7 @@ fn generate_deltas(weights: &[u64], c: Ratio) -> impl Iterator<Item = usize> + '
 
 /// Calculates the head indices for the current batch.
 fn indices_head(tickets_len: usize, deltas: &[usize]) -> Vec<usize> {
-    // TODO: This can be done in O(n) by using a bitmap.
-    let exclude_indices = BTreeSet::from_iter(deltas.iter().copied());
-    (0..tickets_len)
-        .filter(|i| !exclude_indices.contains(i))
-        .collect()
+    set_minus(0..tickets_len, deltas.iter()).collect_vec()
 }
 
 /// Calculates the DP data structure with indices applied that are not in `delta`s.
@@ -294,17 +290,10 @@ fn apply(
     add_indices: &[usize],
     exclude_indices: &[usize],
 ) -> Option<DP> {
-    let dp = dp_head.make_copy(adv_tickets_target)?;
-
-    let exclude_set = BTreeSet::from_iter(exclude_indices.iter().copied());
-
-    let dp = add_indices
-        .iter()
-        .copied()
-        .filter(|index| !exclude_set.contains(index))
-        .try_fold(dp, |dp, index| dp.apply(weights[index], tickets[index]))?;
-
-    Some(dp)
+    set_minus(add_indices.iter().copied(), exclude_indices.iter())
+        .try_fold(dp_head.make_copy(adv_tickets_target)?, |dp, index| {
+            dp.apply(weights[index], tickets[index])
+        })
 }
 
 /// Apply `deltas` to provided `tickets`. If after applying 0 or more
@@ -344,13 +333,13 @@ fn process_batch_recursive(
     // Number of tickets assignments in the left branch.
     let left_branch_size = (deltas.len() + 1) / 2;
 
-    let (deltas_left, deltas_apply) = deltas.split_at(left_branch_size - 1);
+    let deltas_left = &deltas[..left_branch_size - 1];
     if let Some(dp) = apply(
         weights,
         dp_head,
         tickets,
         adv_tickets_target(beta, tickets.total + deltas_left.len() as u64),
-        deltas_apply,
+        deltas,
         deltas_left,
     ) {
         if process_batch_recursive(beta, weights, deltas_left, &dp, tickets) {
@@ -360,15 +349,15 @@ fn process_batch_recursive(
         // Apply the left deltas before continuing.
         tickets.update_many(deltas_left);
     }
-    tickets.update(deltas_apply[0]);
+    tickets.update(deltas[left_branch_size - 1]);
 
-    let (deltas_apply, deltas_right) = deltas.split_at(left_branch_size);
+    let deltas_right = &deltas[left_branch_size..];
     if let Some(dp) = apply(
         weights,
         dp_head,
         tickets,
         adv_tickets_target(beta, tickets.total + deltas_right.len() as u64),
-        deltas_apply,
+        deltas,
         deltas_right,
     ) {
         process_batch_recursive(beta, weights, deltas_right, &dp, tickets)
@@ -436,12 +425,21 @@ pub fn solve(alpha: Ratio, beta: Ratio, weights: &[u64]) -> Vec<u64> {
     }
 }
 
-/// If `vector` is smaller than `size`, append zeros to match size.
+/// If `vector` is smaller than `size`, append default values to match size.
 /// Otherwise, do nothing.
-fn ensure_size(vector: &mut Vec<u64>, size: usize) {
+fn ensure_size<T: Clone + Default>(vector: &mut Vec<T>, size: usize) {
     if vector.len() < size {
-        vector.resize(size, 0);
+        vector.resize(size, T::default());
     }
+}
+
+/// Return all elements from `base` that is not in `to_exclude` in O(max(n log n, |base|)) time where `n = |to_exclude|`.
+fn set_minus<'a, T: Ord + 'a>(
+    base: impl Iterator<Item = T> + 'a,
+    to_exclude: impl Iterator<Item = &'a T>,
+) -> impl Iterator<Item = T> + 'a {
+    let excluded = to_exclude.into_iter().collect::<BTreeSet<_>>();
+    base.filter(move |i| !excluded.contains(i))
 }
 
 #[cfg(test)]
