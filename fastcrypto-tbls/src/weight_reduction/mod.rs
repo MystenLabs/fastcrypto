@@ -10,6 +10,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, BinaryHeap};
+use std::ops::Index;
 
 pub mod weight_reduction_checks;
 
@@ -17,15 +18,15 @@ pub mod weight_reduction_checks;
 pub type Ratio = num_rational::Ratio<u64>;
 
 // Helper functions for weight reduction calculations
-fn calc_max_adv_weight(alpha: Ratio, total_weight: u64) -> u64 {
+fn max_adv_weight(alpha: Ratio, total_weight: u64) -> u64 {
     (alpha * total_weight).to_integer()
 }
 
-fn calc_max_adv_weight_from_weights(alpha: Ratio, weights: &[u64]) -> u64 {
-    calc_max_adv_weight(alpha, weights.iter().sum())
+fn max_adv_weight_from_weights(alpha: Ratio, weights: &[u64]) -> u64 {
+    max_adv_weight(alpha, weights.iter().sum())
 }
 
-fn calc_adv_tickets_target(beta: Ratio, total_num_tickets: u64) -> u64 {
+fn adv_tickets_target(beta: Ratio, total_num_tickets: u64) -> u64 {
     (beta * total_num_tickets).ceil().to_integer()
 }
 
@@ -60,7 +61,7 @@ impl DP {
     fn make_copy(&self, adv_tickets_target: u64) -> Option<DP> {
         assert!(adv_tickets_target <= self.adv_tickets_target);
 
-        if adv_tickets_target < self.dp.len() as u64 {
+        if self.dp.len() > adv_tickets_target as usize {
             return None;
         }
 
@@ -83,11 +84,10 @@ impl DP {
     fn apply(mut self, w: u64, t: u64) -> Option<DP> {
         assert!(w > 0);
 
-        if (w > self.max_weight) || (t == 0) {
+        if w > self.max_weight || t == 0 {
             return Some(self);
         }
-        let adv_tickets_target = self.adv_tickets_target as usize;
-        if t as usize >= adv_tickets_target {
+        if t >= self.adv_tickets_target {
             return None;
         }
 
@@ -96,14 +96,12 @@ impl DP {
                 let accumulated_weight = self.dp[i] + w;
                 let accumulated_tickets = i + t as usize;
                 if accumulated_weight <= self.max_weight {
-                    if accumulated_tickets >= adv_tickets_target {
+                    if accumulated_tickets >= self.adv_tickets_target as usize {
                         return None;
                     }
-                    if self.dp.len() <= accumulated_tickets {
-                        self.dp.resize(accumulated_tickets + 1, 0);
-                    }
-                    if (accumulated_weight < self.dp[accumulated_tickets])
-                        || (self.dp[accumulated_tickets] == 0)
+                    ensure_size(&mut self.dp, accumulated_tickets + 1);
+                    if accumulated_weight < self.dp[accumulated_tickets]
+                        || self.dp[accumulated_tickets] == 0
                     {
                         self.dp[accumulated_tickets] = accumulated_weight;
                     }
@@ -112,10 +110,8 @@ impl DP {
         }
 
         let t = t as usize;
-        if self.dp.len() <= t {
-            self.dp.resize(t + 1, 0);
-        }
-        if (w < self.dp[t]) || (self.dp[t] == 0) {
+        ensure_size(&mut self.dp, t + 1);
+        if w < self.dp[t] || self.dp[t] == 0 {
             self.dp[t] = w;
         }
 
@@ -149,19 +145,9 @@ impl Tickets {
     }
 
     fn update(&mut self, index: usize) {
-        if index >= self.tickets.len() {
-            self.tickets.resize(index + 1, 0);
-        }
+        ensure_size(&mut self.tickets, index + 1);
         self.tickets[index] += 1;
         self.total += 1;
-    }
-
-    fn get(&self, index: usize) -> u64 {
-        self.tickets.get(index).copied().unwrap_or(0)
-    }
-
-    fn as_slice(&self) -> &[u64] {
-        &self.tickets
     }
 
     fn into_vec(self) -> Vec<u64> {
@@ -178,6 +164,13 @@ impl Tickets {
     fn from_vec(tickets: Vec<u64>) -> Self {
         let total = tickets.iter().sum();
         Self { tickets, total }
+    }
+}
+
+impl Index<usize> for Tickets {
+    type Output = u64;
+    fn index(&self, index: usize) -> &u64 {
+        self.tickets.get(index).unwrap_or(&0)
     }
 }
 
@@ -259,7 +252,8 @@ fn generate_deltas(weights: &[u64], c: Ratio) -> impl Iterator<Item = usize> + '
 }
 
 /// Calculates the head indices for the current batch.
-fn calc_indices_head(tickets_len: usize, deltas: &[usize]) -> Vec<usize> {
+fn indices_head(tickets_len: usize, deltas: &[usize]) -> Vec<usize> {
+    // TODO: This can be done in O(n) by using a bitmap.
     let exclude_indices = BTreeSet::from_iter(deltas.iter().copied());
     (0..tickets_len)
         .filter(|i| !exclude_indices.contains(i))
@@ -269,7 +263,7 @@ fn calc_indices_head(tickets_len: usize, deltas: &[usize]) -> Vec<usize> {
 /// Calculates the DP data structure with indices applied that are not in `delta`s.
 /// Returns None iff the DP head cannot be constructed which means
 /// that the current batch should be skipped.
-fn calc_dp_head(
+fn dp_head(
     beta: Ratio,
     weights: &[u64],
     max_adv_weight: u64,
@@ -278,13 +272,13 @@ fn calc_dp_head(
 ) -> Option<DP> {
     let dp_head = DP::new(
         max_adv_weight,
-        calc_adv_tickets_target(beta, tickets.total + deltas.len() as u64),
+        adv_tickets_target(beta, tickets.total + deltas.len() as u64),
     )
     .unwrap();
 
-    let indices_head = calc_indices_head(tickets.as_slice().len(), deltas);
+    let indices_head = indices_head(tickets.tickets.len(), deltas);
     let dp_head = indices_head.into_iter().try_fold(dp_head, |dp, index| {
-        dp.apply(weights[index], tickets.get(index))
+        dp.apply(weights[index], tickets[index])
     })?;
 
     Some(dp_head)
@@ -308,7 +302,7 @@ fn apply(
         .iter()
         .copied()
         .filter(|index| !exclude_set.contains(index))
-        .try_fold(dp, |dp, index| dp.apply(weights[index], tickets.get(index)))?;
+        .try_fold(dp, |dp, index| dp.apply(weights[index], tickets[index]))?;
 
     Some(dp)
 }
@@ -340,8 +334,10 @@ fn process_batch_recursive(
         // All indices in `deltas` were successfully applied without the adversary
         // winning. We found a solution.
         // Sanity check: `dp_head` must have the right target.
-        let adv_tickets_target = calc_adv_tickets_target(beta, tickets.total);
-        assert_eq!(dp_head.adv_tickets_target, adv_tickets_target);
+        assert_eq!(
+            dp_head.adv_tickets_target,
+            adv_tickets_target(beta, tickets.total)
+        );
         return true;
     }
 
@@ -353,7 +349,7 @@ fn process_batch_recursive(
         weights,
         dp_head,
         tickets,
-        calc_adv_tickets_target(beta, tickets.total + deltas_left.len() as u64),
+        adv_tickets_target(beta, tickets.total + deltas_left.len() as u64),
         deltas_apply,
         deltas_left,
     ) {
@@ -371,7 +367,7 @@ fn process_batch_recursive(
         weights,
         dp_head,
         tickets,
-        calc_adv_tickets_target(beta, tickets.total + deltas_right.len() as u64),
+        adv_tickets_target(beta, tickets.total + deltas_right.len() as u64),
         deltas_apply,
         deltas_right,
     ) {
@@ -395,7 +391,7 @@ fn process_batch(
     deltas: &[usize],
     tickets: &mut Tickets,
 ) -> bool {
-    let Some(dp_head) = calc_dp_head(beta, weights, max_adv_weight, deltas, tickets) else {
+    let Some(dp_head) = dp_head(beta, weights, max_adv_weight, deltas, tickets) else {
         // We are exiting early. Apply all of the deltas before that.
         tickets.update_many(deltas);
         return false;
@@ -407,7 +403,7 @@ fn process_batch(
 pub fn solve(alpha: Ratio, beta: Ratio, weights: &[u64]) -> Vec<u64> {
     debug_assert!(weights.windows(2).all(|w| w[0] >= w[1]));
 
-    let max_adv_weight = calc_max_adv_weight_from_weights(alpha, weights);
+    let max_adv_weight = max_adv_weight_from_weights(alpha, weights);
 
     let mut tickets = Tickets::new();
     let mut g = generate_deltas(weights, alpha);
@@ -429,27 +425,28 @@ pub fn solve(alpha: Ratio, beta: Ratio, weights: &[u64]) -> Vec<u64> {
     let max_batch_size = weights.len();
     loop {
         tickets.update(g.next().unwrap());
-        let deltas: Vec<_> = (&mut g).take(batch_size - 1).collect();
+        let deltas = (&mut g).take(batch_size - 1).collect_vec();
 
-        let ret = process_batch(beta, weights, max_adv_weight, &deltas, &mut tickets);
-        if ret {
+        if process_batch(beta, weights, max_adv_weight, &deltas, &mut tickets) {
             return tickets.into_vec();
         }
 
         // Prevent overflow: cap batch_size at max_batch_size
-        if batch_size >= max_batch_size {
-            // If we've reached the maximum, continue with the same batch size
-            // This should not happen in practice due to the theoretical guarantees,
-            // but provides a safety net.
-            continue;
-        }
         batch_size = (batch_size * 2).min(max_batch_size);
+    }
+}
+
+/// If `vector` is smaller than `size`, append zeros to match size.
+/// Otherwise, do nothing.
+fn ensure_size(vector: &mut Vec<u64>, size: usize) {
+    if vector.len() < size {
+        vector.resize(size, 0);
     }
 }
 
 #[cfg(test)]
 mod calc_indices_head_tail_tests {
-    use super::calc_indices_head;
+    use super::indices_head;
     use test_case::test_case;
 
     struct TestCase<'a> {
@@ -491,7 +488,7 @@ mod calc_indices_head_tail_tests {
     "first_last_index_updated"
   )]
     fn all(mut test_case: TestCase<'_>) {
-        let mut ret = calc_indices_head(test_case.tickets_len, test_case.deltas);
+        let mut ret = indices_head(test_case.tickets_len, test_case.deltas);
         test_case.expected.sort_unstable();
         ret.sort_unstable();
         assert_eq!(test_case.expected, ret);
@@ -500,7 +497,7 @@ mod calc_indices_head_tail_tests {
 
 #[cfg(test)]
 mod calc_dp_head_tests {
-    use super::{calc_dp_head, Ratio, Tickets, DP};
+    use super::{dp_head, solve, Ratio, Tickets, DP};
 
     fn calc_dp_head_helper(
         beta: Ratio,
@@ -510,7 +507,7 @@ mod calc_dp_head_tests {
         tickets: &[u64],
     ) -> Option<DP> {
         let tickets = Tickets::from_vec(tickets.to_vec());
-        calc_dp_head(beta, weights, max_adv_weight, deltas, &tickets)
+        dp_head(beta, weights, max_adv_weight, deltas, &tickets)
     }
 
     #[test]
@@ -548,5 +545,27 @@ mod calc_dp_head_tests {
         let dp = calc_dp_head_helper(beta, weights, max_adv_weight, deltas, tickets).unwrap();
 
         assert_eq!(5, dp.adversarial_tickets());
+    }
+
+    #[test]
+    fn test_reduction() {
+        let alpha = Ratio::new(1, 3);
+        let beta = Ratio::new(2, 5);
+        let weights = &[
+            391, 325, 286, 275, 255, 238, 235, 206, 206, 198, 193, 192, 192, 190, 188, 186, 186,
+            185, 185, 185, 175, 169, 158, 158, 158, 158, 158, 151, 151, 146, 145, 144, 118, 110,
+            98, 94, 89, 84, 76, 71, 71, 64, 63, 62, 62, 60, 59, 57, 57, 57, 54, 50, 50, 50, 49, 48,
+            48, 48, 48, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 45, 41, 40, 38, 38, 37,
+            37, 37, 37, 37, 37, 37, 37, 37, 37, 37, 37, 37, 37, 37, 37, 36, 36, 36, 36, 36, 36, 36,
+            36, 36, 36, 35, 35,
+        ];
+        let new_weights = solve(alpha, beta, weights);
+        let expected = vec![
+            7, 6, 5, 5, 5, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+            3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        ];
+        assert_eq!(expected, new_weights);
     }
 }
