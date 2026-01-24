@@ -1,10 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use crate::random_oracle::RandomOracle;
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
-use fastcrypto::traits::AllowedRng;
+use crate::traits::AllowedRng;
 use serde::{Deserialize, Deserializer, Serialize};
 use tracing::debug;
 
@@ -31,18 +31,31 @@ where
         random_oracle: &RandomOracle,
         rng: &mut R,
     ) -> Self {
+        Self::create_with_generator(x, &G::generator(), h, x_g, x_h, random_oracle, rng)
+    }
+
+    /// Create a new NIZKPoK for the DDH tuple [G, H=eG, xG, xH] using the given RNG and random oracle.
+    pub fn create_with_generator<R: AllowedRng>(
+        x: &G::ScalarType,
+        g: &G,
+        h: &G,
+        x_g: &G,
+        x_h: &G,
+        random_oracle: &RandomOracle,
+        rng: &mut R,
+    ) -> Self {
         let r = G::ScalarType::rand(rng);
-        let a = G::generator() * r;
+        let a = *g * r;
         let b = *h * r;
-        let challenge = Self::fiat_shamir_challenge(h, x_g, x_h, &a, &b, random_oracle);
+        let challenge = Self::fiat_shamir_challenge(g, h, x_g, x_h, &a, &b, random_oracle);
         let z = challenge * x + r;
         debug!("NIZK: Creating a proof for {h:?} {x_g:?} {x_h:?} with challenge {challenge:?}");
         DdhTupleNizk(a, b, z)
     }
 
-    /// Verify this NIZKPoK.
-    pub fn verify(
+    pub fn verify_with_generator(
         &self,
+        g: &G,
         h: &G,
         x_g: &G,
         x_h: &G,
@@ -52,13 +65,12 @@ where
             // We should never see this, but just in case
             return Err(FastCryptoError::InvalidProof);
         }
-        let challenge = Self::fiat_shamir_challenge(h, x_g, x_h, &self.0, &self.1, random_oracle);
+        let challenge =
+            Self::fiat_shamir_challenge(g, h, x_g, x_h, &self.0, &self.1, random_oracle);
         debug!("NIZK: Verifying a proof of {h:?} {x_g:?} {x_h:?} with challenge {challenge:?}");
         if !is_valid_relation(
             &self.0, // A
-            x_g,
-            &G::generator(),
-            &self.2, // z
+            x_g, g, &self.2, // z
             &challenge,
         ) || !is_valid_relation(
             &self.1, // B
@@ -71,8 +83,20 @@ where
         }
     }
 
+    /// Verify this NIZKPoK.
+    pub fn verify(
+        &self,
+        h: &G,
+        x_g: &G,
+        x_h: &G,
+        random_oracle: &RandomOracle,
+    ) -> FastCryptoResult<()> {
+        Self::verify_with_generator(self, &G::generator(), h, x_g, x_h, random_oracle)
+    }
+
     /// Returns the challenge for Fiat-Shamir.
     fn fiat_shamir_challenge(
+        g: &G,
         h: &G,
         x_g: &G,
         x_h: &G,
@@ -80,7 +104,7 @@ where
         b: &G,
         random_oracle: &RandomOracle,
     ) -> G::ScalarType {
-        let output = random_oracle.evaluate(&(G::generator(), h, x_g, x_h, a, b));
+        let output = random_oracle.evaluate(&(g, h, x_g, x_h, a, b));
         G::ScalarType::fiat_shamir_reduction_to_group_element(&output)
     }
 }

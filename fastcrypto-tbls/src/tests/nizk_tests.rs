@@ -1,11 +1,11 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::nizk::{DLNizk, DdhTupleNizk};
-use crate::random_oracle::RandomOracle;
 use fastcrypto::groups::bls12381::{G1Element, G2Element};
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
+use fastcrypto::nizk::{DLNizk, DdhTupleNizk};
+use fastcrypto::random_oracle::RandomOracle;
 use rand::thread_rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;

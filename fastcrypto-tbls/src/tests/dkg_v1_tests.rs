@@ -5,15 +5,15 @@ use crate::dkg_v1::{
     create_fake_complaint, Confirmation, Message, Party, ProcessedMessage, DKG_MESSAGES_MAX_SIZE,
 };
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, PublicKey};
-use crate::nizk::DLNizk;
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::Poly;
-use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
 use crate::types::{ShareIndex, ThresholdBls12381MinSig};
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::{G2Element, Scalar};
 use fastcrypto::groups::GroupElement;
+use fastcrypto::nizk::DLNizk;
+use fastcrypto::random_oracle::RandomOracle;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use rand::prelude::StdRng;

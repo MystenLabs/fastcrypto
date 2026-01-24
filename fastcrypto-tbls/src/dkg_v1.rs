@@ -7,14 +7,14 @@
 
 use crate::dl_verification::verify_poly_evals;
 use crate::ecies_v1::{self, RecoveryPackage};
-use crate::nizk::DLNizk;
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly, PrivatePoly, PublicPoly};
-use crate::random_oracle::RandomOracle;
 use crate::tbls::Share;
 use crate::types::ShareIndex;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul};
+use fastcrypto::nizk::DLNizk;
+use fastcrypto::random_oracle::RandomOracle;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};

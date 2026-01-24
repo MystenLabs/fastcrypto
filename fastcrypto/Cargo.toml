@@ -58,6 +58,7 @@ getrandom = {version = "0.2.15", features = ["js"], optional = true}
 bcs.workspace = true
 bulletproofs = "5.0.0"
 merlin = "3.0.0"
+tracing.workspace = true
 
 # Required for the unsecure signature and hash schemes
 twox-hash = { version = "1.6.3", optional = true }

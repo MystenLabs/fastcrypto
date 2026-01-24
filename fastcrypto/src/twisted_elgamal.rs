@@ -1,11 +1,13 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
+use crate::error::FastCryptoError::InvalidInput;
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
-use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
+use crate::groups::{Doubling, GroupElement, Scalar};
+use crate::nizk::DdhTupleNizk;
 use crate::pedersen::{Blinding, PedersenCommitment};
+use crate::random_oracle::RandomOracle;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use bulletproofs::PedersenGens;
@@ -26,13 +28,16 @@ pub struct PublicKey(RistrettoPoint);
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrivateKey(RistrettoScalar);
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ZeroProof(DdhTupleNizk<RistrettoPoint>);
+
 pub fn generate_keypair(rng: &mut impl AllowedRng) -> (PublicKey, PrivateKey) {
     let sk = PrivateKey(RistrettoScalar::rand(rng));
     (pk_from_sk(&sk), sk)
 }
 
 pub fn pk_from_sk(sk: &PrivateKey) -> PublicKey {
-    PublicKey(*H * sk.0.inverse().unwrap())
+    PublicKey(*H * sk.0)
 }
 
 // TODO: Encryptions of the same message can reuse commitments
@@ -66,7 +71,7 @@ impl Ciphertext {
         private_key: &PrivateKey,
         table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
     ) -> FastCryptoResult<u32> {
-        let mut c = self.commitment.0 - self.decryption_handle * private_key.0;
+        let mut c = self.commitment.0 - (self.decryption_handle / private_key.0).unwrap();
         for x_low in 0..1 << 16 {
             if let Some(&x_high) = table.get(&c.to_byte_array()) {
                 return Ok(x_low + ((x_high as u32) << 16));
@@ -75,150 +80,41 @@ impl Ciphertext {
         }
         Err(InvalidInput)
     }
-}
 
-/// A proof that a given ciphertext is for the message 0.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ZeroProof {
-    y: (RistrettoPoint, RistrettoPoint),
-    z: RistrettoScalar,
+    /// Create a PoK of a private key such that the given encryption is of the message 0.
+    pub fn zero_proof(
+        &self,
+        private_key: &PrivateKey,
+        random_oracle: &RandomOracle,
+        rng: &mut impl AllowedRng,
+    ) -> ZeroProof {
+        let pk = pk_from_sk(private_key);
+        ZeroProof(DdhTupleNizk::create_with_generator(
+            &private_key.0,
+            &*H,
+            &self.commitment.0,
+            &pk.0,
+            &self.decryption_handle,
+            random_oracle,
+            rng,
+        ))
+    }
 }
 
 impl ZeroProof {
-    pub fn prove(ciphertext: &Ciphertext, sk: &PrivateKey, rng: &mut impl AllowedRng) -> Self {
-        let pk = pk_from_sk(sk);
-        let r = RistrettoScalar::rand(rng);
-        let y = (pk.0 * r, ciphertext.decryption_handle * r);
-        let challenge = Self::challenge(ciphertext, &pk, &y);
-        let z = sk.0 * challenge + r;
-        Self { y, z }
-    }
-
-    fn challenge(
-        ciphertext: &Ciphertext,
-        pk: &PublicKey,
-        y: &(RistrettoPoint, RistrettoPoint),
-    ) -> RistrettoScalar {
-        RistrettoScalar::fiat_shamir_reduction_to_group_element(
-            &bcs::to_bytes(&(ciphertext, pk, y)).unwrap(),
-        )
-    }
-
-    pub fn verify(&self, ciphertext: &Ciphertext, pk: &PublicKey) -> FastCryptoResult<()> {
-        let challenge = -Self::challenge(ciphertext, pk, &self.y);
-        if (
-            RistrettoPoint::multi_scalar_mul(&[self.z, challenge], &[pk.0, *H]).unwrap(),
-            RistrettoPoint::multi_scalar_mul(
-                &[self.z, challenge],
-                &[ciphertext.decryption_handle, ciphertext.commitment.0],
-            )
-            .unwrap(),
-        ) == self.y
-        {
-            Ok(())
-        } else {
-            Err(InvalidProof)
-        }
-    }
-}
-
-/// This represents a ZK proof that two ciphertext are for the same message.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EqualityProof {
-    y: (
-        RistrettoPoint,
-        RistrettoPoint,
-        RistrettoPoint,
-        RistrettoPoint,
-    ),
-    z: (RistrettoScalar, RistrettoScalar, RistrettoScalar),
-}
-
-impl EqualityProof {
-    pub fn prove(
-        value: &RistrettoScalar,
-        ciphertext: &Ciphertext,
-        sk: &PrivateKey,
-        other_ciphertext: &Ciphertext,
-        other_blinding: &Blinding,
-        other_pk: &PublicKey,
-        rng: &mut impl AllowedRng,
-    ) -> Self {
-        let pk = pk_from_sk(sk);
-        let r = (
-            RistrettoScalar::rand(rng),
-            RistrettoScalar::rand(rng),
-            RistrettoScalar::rand(rng),
-        );
-
-        let y = (
-            pk.0 * r.0,
-            RistrettoPoint::multi_scalar_mul(&[r.1, r.0], &[*G, ciphertext.decryption_handle])
-                .unwrap(),
-            RistrettoPoint::multi_scalar_mul(&[r.1, r.2], &[*G, *H]).unwrap(),
-            other_pk.0 * r.2,
-        );
-
-        let challenge = Self::challenge(ciphertext, &pk, other_ciphertext, other_pk, &y);
-
-        let z = (
-            challenge * sk.0 + r.0,
-            challenge * value + r.1,
-            challenge * other_blinding.0 + r.2,
-        );
-
-        Self { y, z }
-    }
-
-    fn challenge(
-        ciphertext: &Ciphertext,
-        pk: &PublicKey,
-        other_ciphertext: &Ciphertext,
-        other_pk: &PublicKey,
-        y: &(
-            RistrettoPoint,
-            RistrettoPoint,
-            RistrettoPoint,
-            RistrettoPoint,
-        ),
-    ) -> RistrettoScalar {
-        RistrettoScalar::fiat_shamir_reduction_to_group_element(
-            &bcs::to_bytes(&(ciphertext, pk, other_ciphertext, other_pk, y)).unwrap(),
-        )
-    }
-
     pub fn verify(
         &self,
-        ciphertext: &Ciphertext,
+        encryption: &Ciphertext,
         pk: &PublicKey,
-        other_ciphertext: &Ciphertext,
-        other_pk: &PublicKey,
+        random_oracle: &RandomOracle,
     ) -> FastCryptoResult<()> {
-        let challenge = -Self::challenge(ciphertext, pk, other_ciphertext, other_pk, &self.y);
-        if self.y
-            == (
-                RistrettoPoint::multi_scalar_mul(&[self.z.0, challenge], &[pk.0, *H]).unwrap(),
-                RistrettoPoint::multi_scalar_mul(
-                    &[self.z.1, self.z.0, challenge],
-                    &[*G, ciphertext.decryption_handle, ciphertext.commitment.0],
-                )
-                .unwrap(),
-                RistrettoPoint::multi_scalar_mul(
-                    &[self.z.1, self.z.2, challenge],
-                    &[*G, *H, other_ciphertext.commitment.0],
-                )
-                .unwrap(),
-                RistrettoPoint::multi_scalar_mul(
-                    &[self.z.2, challenge],
-                    &[other_pk.0, other_ciphertext.decryption_handle],
-                )
-                .unwrap(),
-            )
-        {
-            Ok(())
-        } else {
-            Err(InvalidProof)
-        }
+        self.0.verify_with_generator(
+            &*H,
+            &encryption.commitment.0,
+            &pk.0,
+            &encryption.decryption_handle,
+            random_oracle,
+        )
     }
 }
 
@@ -283,33 +179,18 @@ fn test_round_trip() {
 
 #[test]
 fn test_zero_proof() {
-    let (pk, sk) = generate_keypair(&mut rand::thread_rng());
-    let (ciphertext, _) = Ciphertext::encrypt(&pk, 0, &mut rand::thread_rng());
-    let proof = ZeroProof::prove(&ciphertext, &sk, &mut rand::thread_rng());
-    proof.verify(&ciphertext, &pk).unwrap();
-}
-
-#[test]
-fn test_equality_proof() {
-    let value = 12345u32;
+    let random_oracle = RandomOracle::new("zero_proof_test");
     let mut rng = rand::thread_rng();
     let (pk, sk) = generate_keypair(&mut rng);
-    let (ciphertext, _) = Ciphertext::encrypt(&pk, value, &mut rng);
+    let (ciphertext, _) = Ciphertext::encrypt(&pk, 0, &mut rng);
+    let zero_proof = ciphertext.zero_proof(&sk, &random_oracle, &mut rng);
+    zero_proof.verify(&ciphertext, &pk, &random_oracle).unwrap();
 
-    let (other_pk, _) = generate_keypair(&mut rng);
-    let (other_ciphertext, other_blinding) = Ciphertext::encrypt(&other_pk, value, &mut rng);
-    let proof = EqualityProof::prove(
-        &RistrettoScalar::from(value as u64),
-        &ciphertext,
-        &sk,
-        &other_ciphertext,
-        &other_blinding,
-        &other_pk,
-        &mut rng,
-    );
-    proof
-        .verify(&ciphertext, &pk, &other_ciphertext, &other_pk)
-        .unwrap();
+    let (other_ciphertext, _) = Ciphertext::encrypt(&pk, 1, &mut rng);
+    let other_zero_proof = other_ciphertext.zero_proof(&sk, &random_oracle, &mut rng);
+    other_zero_proof
+        .verify(&ciphertext, &pk, &random_oracle)
+        .unwrap_err();
 }
 
 #[test]
@@ -354,12 +235,19 @@ fn test_equality() {
     let encryption_2 = Ciphertext::encrypt(&pk, value, &mut rand::thread_rng());
 
     let diff = encryption_1.0.clone() - encryption_2.0;
-    let proof = ZeroProof::prove(&diff, &sk, &mut rand::thread_rng());
-    assert!(proof.verify(&diff, &pk).is_ok());
+
+    let random_oracle = RandomOracle::new("zero_proof_test");
+    let mut rng = rand::thread_rng();
+
+    diff.zero_proof(&sk, &random_oracle, &mut rng)
+        .verify(&diff, &pk, &random_oracle)
+        .unwrap();
 
     let other_value = 1234u32;
     let encryption_3 = Ciphertext::encrypt(&pk, other_value, &mut rand::thread_rng());
     let other_diff = encryption_1.0 - encryption_3.0;
-    let other_proof = ZeroProof::prove(&other_diff, &sk, &mut rand::thread_rng());
-    assert!(other_proof.verify(&other_diff, &pk).is_err());
+    other_diff
+        .zero_proof(&sk, &random_oracle, &mut rng)
+        .verify(&other_diff, &pk, &random_oracle)
+        .unwrap_err();
 }
