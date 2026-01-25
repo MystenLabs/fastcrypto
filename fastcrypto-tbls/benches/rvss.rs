@@ -6,16 +6,15 @@ use rand::thread_rng;
 
 mod rvss_benches {
     use super::*;
-    use fastcrypto::groups::{ristretto255, GroupElement, Scalar};
-    use fastcrypto_tbls::rvss::{Gadget, RVSS};
+    use fastcrypto::groups::{GroupElement, Scalar as GScalar};
+    use fastcrypto_tbls::rvss::{Gadget, Point, Scalar, RVSS};
     use itertools::Itertools;
 
     fn exps(c: &mut Criterion) {
         let mut create: BenchmarkGroup<_> = c.benchmark_group("ops");
         {
-            let x = ristretto255::RistrettoPoint::generator()
-                * ristretto255::RistrettoScalar::rand(&mut thread_rng());
-            let y = ristretto255::RistrettoScalar::rand(&mut thread_rng());
+            let x = Point::generator() * Scalar::rand(&mut thread_rng());
+            let y = Scalar::rand(&mut thread_rng());
             create.bench_function(&("g exp".to_string()), move |b| b.iter(|| x * y));
         }
     }
@@ -25,8 +24,8 @@ mod rvss_benches {
         let mut create: BenchmarkGroup<_> = c.benchmark_group("gadget");
 
         for k in KS {
-            let h = ristretto255::RistrettoPoint::generator();
-            let omega = ristretto255::RistrettoScalar::rand(&mut thread_rng());
+            let h = Point::generator();
+            let omega = Scalar::rand(&mut thread_rng());
 
             create.bench_function(format!("create k={}", k).as_str(), |b| {
                 b.iter(|| Gadget::new(k, h, omega))
@@ -47,14 +46,14 @@ mod rvss_benches {
         for n in ns {
             for k in ks {
                 let sk = (1..=n)
-                    .map(|i| ristretto255::RistrettoScalar::rand(&mut thread_rng()))
+                    .map(|_| GScalar::rand(&mut thread_rng()))
                     .collect_vec();
                 let pks = sk
                     .iter()
-                    .map(|sk_i| ristretto255::RistrettoPoint::generator() * sk_i)
+                    .map(|sk_i| Point::generator() * sk_i)
                     .collect_vec();
                 let t = (n / 3) * 2;
-                let omega = ristretto255::RistrettoScalar::rand(&mut thread_rng());
+                let omega = GScalar::rand(&mut thread_rng());
 
                 create.bench_function(format!("create t={}, n={}, k={}", t, n, k).as_str(), |b| {
                     b.iter(|| RVSS::new(k, t, omega, &pks))

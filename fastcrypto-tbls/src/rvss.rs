@@ -5,7 +5,7 @@ use either::Either;
 use fastcrypto::serde_helpers::ToFromByteArray;
 use fastcrypto::{
     error::{FastCryptoError, FastCryptoResult},
-    groups::{ristretto255, GroupElement, HashToGroupElement, Scalar},
+    groups::{ristretto255, GroupElement, HashToGroupElement, Scalar as GScalar},
 };
 use itertools::Itertools;
 use rand::thread_rng;
@@ -14,29 +14,27 @@ use std::num::NonZeroU16;
 
 // Quick and dirty implementation of the RVSS protocol for performance testing
 
+pub type Point = ristretto255::RistrettoPoint;
+pub type Scalar = ristretto255::RistrettoScalar;
+
 //////// Recovery gadget ////////
 #[derive(Serialize)]
 pub struct Gadget {
-    h: ristretto255::RistrettoPoint,
-    h_omega: ristretto255::RistrettoPoint,
-    t: Vec<(ristretto255::RistrettoPoint, Vec<u8>)>,
-    t_prime: Vec<Either<ristretto255::RistrettoPoint, ristretto255::RistrettoScalar>>,
+    h: Point,
+    h_omega: Point,
+    t: Vec<(Point, Vec<u8>)>,
+    t_prime: Vec<Either<Point, Scalar>>,
 }
 
 impl Gadget {
-    pub fn new(
-        k: usize,
-        h: ristretto255::RistrettoPoint,
-        omega: ristretto255::RistrettoScalar,
-    ) -> Self {
+    pub fn new(k: usize, h: Point, omega: ristretto255::RistrettoScalar) -> Self {
         let ro = RandomOracle::new("gadget");
         let r = (0..k)
-            .map(|_i| ristretto255::RistrettoScalar::rand(&mut thread_rng()))
+            .map(|_i| Scalar::rand(&mut thread_rng()))
             .collect_vec();
 
         let h_omega = h * omega;
-        let g = ristretto255::RistrettoPoint::generator();
-
+        let g = Point::generator();
         let t = r
             .iter()
             .enumerate()
@@ -86,11 +84,8 @@ impl Gadget {
                         .zip(&self.t[i].1)
                         .map(|(x1, &x2)| x1 ^ x2)
                         .collect_vec();
-                    let r_j: ristretto255::RistrettoScalar =
-                        ristretto255::RistrettoScalar::from_byte_array(
-                            &r_j[0..32].try_into().unwrap(),
-                        )
-                        .unwrap();
+                    let r_j: Scalar =
+                        Scalar::from_byte_array(&r_j[0..32].try_into().unwrap()).unwrap();
                     tuples_1.push((r_j, g_j));
                     tuples_2.push((r_j, self.t[i].0));
                 } else {
@@ -104,11 +99,7 @@ impl Gadget {
                 }
             }
         }
-        verify_pairs(
-            &ristretto255::RistrettoPoint::generator(),
-            &tuples_1,
-            &mut thread_rng(),
-        )?;
+        verify_pairs(&Point::generator(), &tuples_1, &mut thread_rng())?;
         verify_pairs(&self.h, &tuples_2, &mut thread_rng())
     }
 }
@@ -116,19 +107,19 @@ impl Gadget {
 //////// Low degree zk proof ////////
 #[derive(Serialize)]
 pub struct LDProof {
-    challenge: ristretto255::RistrettoScalar,
-    z_poly: Poly<ristretto255::RistrettoScalar>,
-    bases_to_z: Vec<(ristretto255::RistrettoPoint, ristretto255::RistrettoPoint)>,
-    exponents_to_challenge: Vec<(ristretto255::RistrettoPoint, ristretto255::RistrettoPoint)>,
+    challenge: Scalar,
+    z_poly: Poly<Scalar>,
+    bases_to_z: Vec<(Point, Point)>,
+    exponents_to_challenge: Vec<(Point, Point)>,
 }
 
 impl LDProof {
     pub fn new(
-        bases1: &[ristretto255::RistrettoPoint],
-        bases2: &[ristretto255::RistrettoPoint],
-        exponents1: &[ristretto255::RistrettoPoint],
-        exponents2: &[ristretto255::RistrettoPoint],
-        secret_poly: &Poly<ristretto255::RistrettoScalar>,
+        bases1: &[Point],
+        bases2: &[Point],
+        exponents1: &[Point],
+        exponents2: &[Point],
+        secret_poly: &Poly<Scalar>,
     ) -> LDProof {
         assert!(bases1.len() == bases2.len());
         assert!(bases1.len() == exponents1.len());
@@ -147,10 +138,9 @@ impl LDProof {
             })
             .collect_vec();
 
-        let challenge: ristretto255::RistrettoScalar =
-            ristretto255::RistrettoScalar::hash_to_group_element(
-                &ro.evaluate(&(bases1, bases2, exponents1, exponents2, x)),
-            );
+        let challenge: Scalar = Scalar::hash_to_group_element(
+            &ro.evaluate(&(bases1, bases2, exponents1, exponents2, x)),
+        );
 
         let z_poly = r_poly + &(secret_poly.clone() * &challenge);
 
@@ -181,10 +171,10 @@ impl LDProof {
     pub fn verify(
         &self,
         t: usize,
-        bases1: &[ristretto255::RistrettoPoint],
-        bases2: &[ristretto255::RistrettoPoint],
-        exponents1: &[ristretto255::RistrettoPoint],
-        exponents2: &[ristretto255::RistrettoPoint],
+        bases1: &[Point],
+        bases2: &[Point],
+        exponents1: &[Point],
+        exponents2: &[Point],
     ) -> FastCryptoResult<()> {
         let ro = RandomOracle::new("mldei");
         if self.z_poly.degree() != t {
@@ -221,7 +211,7 @@ impl LDProof {
             })
             .collect_vec();
 
-        let challenge = ristretto255::RistrettoScalar::hash_to_group_element(
+        let challenge = Scalar::hash_to_group_element(
             &ro.evaluate(&(bases1, bases2, exponents1, exponents2, x)),
         );
         if challenge != self.challenge {
@@ -234,8 +224,8 @@ impl LDProof {
 //////// The RVSS protocol (share and verify) ////////
 #[derive(Serialize)]
 pub struct RVSS {
-    v: Vec<ristretto255::RistrettoPoint>,
-    c_hat: Vec<ristretto255::RistrettoPoint>,
+    v: Vec<Point>,
+    c_hat: Vec<Point>,
     c: Vec<[u8; 32]>,
     gadget: Gadget,
     mdlei_proof: LDProof,
@@ -245,8 +235,8 @@ impl RVSS {
     pub fn new(
         k: usize, // security parameter for the recovery gadget
         t: usize,
-        omega: ristretto255::RistrettoScalar,
-        pks: &[ristretto255::RistrettoPoint],
+        omega: Scalar,
+        pks: &[Point],
     ) -> RVSS {
         let ro = RandomOracle::new("rvss");
         let mut rng = thread_rng();
@@ -290,12 +280,7 @@ impl RVSS {
         }
     }
 
-    pub fn verify(
-        &self,
-        k: usize,
-        t: usize,
-        pks: &[ristretto255::RistrettoPoint],
-    ) -> FastCryptoResult<()> {
+    pub fn verify(&self, k: usize, t: usize, pks: &[Point]) -> FastCryptoResult<()> {
         let n = pks.len();
         let (_g, h) = Self::bases();
 
@@ -308,11 +293,7 @@ impl RVSS {
     }
 
     // Just to measure performance in the case of an honest dealer
-    pub fn optimistic_decrypt(
-        &self,
-        i: usize,
-        sk: &ristretto255::RistrettoScalar,
-    ) -> FastCryptoResult<ristretto255::RistrettoScalar> {
+    pub fn optimistic_decrypt(&self, i: usize, sk: &Scalar) -> FastCryptoResult<Scalar> {
         let ro = RandomOracle::new("rvss");
         let (_g, h) = Self::bases();
         let c_i = self.c[i];
@@ -325,31 +306,29 @@ impl RVSS {
             .zip(&c_i)
             .map(|(x1, &x2)| x1 ^ x2)
             .collect_vec();
-        let s_i = ristretto255::RistrettoScalar::from_byte_array(&s_i[0..32].try_into().unwrap())?;
+        let s_i = Scalar::from_byte_array(&s_i[0..32].try_into().unwrap())?;
         if h * s_i != self.v[i] {
             return Err(FastCryptoError::InvalidProof);
         }
         Ok(s_i)
     }
 
-    fn bases() -> (ristretto255::RistrettoPoint, ristretto255::RistrettoPoint) {
+    fn bases() -> (Point, Point) {
         let ro = RandomOracle::new("base");
-        let g = ristretto255::RistrettoPoint::generator();
-        let h = ristretto255::RistrettoPoint::hash_to_group_element(&ro.evaluate(&(g, g)));
+        let g = Point::generator();
+        let h = Point::hash_to_group_element(&ro.evaluate(&(g, g)));
         (g, h)
     }
 }
-
 
 fn share_index(i: usize) -> NonZeroU16 {
     NonZeroU16::new((i + 1) as u16).expect("index must be non-zero")
 }
 
-
 #[test]
 fn test_gadget() {
-    let h = ristretto255::RistrettoPoint::generator();
-    let omega = ristretto255::RistrettoScalar::rand(&mut thread_rng());
+    let h = Point::generator();
+    let omega = Scalar::rand(&mut thread_rng());
     let gadget = Gadget::new(128, h, omega);
     gadget.verify(128).unwrap();
 }
@@ -357,16 +336,10 @@ fn test_gadget() {
 #[test]
 fn test_mldei() {
     let bases1 = (1..=100)
-        .map(|i| {
-            ristretto255::RistrettoPoint::generator()
-                * ristretto255::RistrettoScalar::from(i as u128)
-        })
+        .map(|i| Point::generator() * Scalar::from(i as u128))
         .collect_vec();
     let bases2 = (1..=100)
-        .map(|i| {
-            ristretto255::RistrettoPoint::generator()
-                * ristretto255::RistrettoScalar::from(i as u128)
-        })
+        .map(|i| Point::generator() * Scalar::from(i as u128))
         .collect_vec();
 
     let t = 31;
@@ -391,16 +364,12 @@ fn test_rvss() {
     let t = (n / 3) * 2;
 
     let pks = (1..=n)
-        .map(|i| {
-            ristretto255::RistrettoPoint::generator()
-                * ristretto255::RistrettoScalar::from(i as u128)
-        })
+        .map(|i| Point::generator() * Scalar::from(i as u128))
         .collect_vec();
 
-    let omega = ristretto255::RistrettoScalar::rand(&mut thread_rng());
+    let omega = Scalar::rand(&mut thread_rng());
     let rvss = RVSS::new(k, t, omega, &pks);
     rvss.verify(k, t, &pks).unwrap();
 
-    rvss.optimistic_decrypt(10, &ristretto255::RistrettoScalar::from(11u128))
-        .unwrap();
+    rvss.optimistic_decrypt(10, &Scalar::from(11u128)).unwrap();
 }
