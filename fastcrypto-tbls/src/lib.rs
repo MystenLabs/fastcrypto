@@ -23,6 +23,8 @@ pub mod tbls;
 pub mod threshold_schnorr;
 pub mod types;
 
+pub mod rvss;
+
 // TODO: needs to use ecies_v1
 // #[cfg(any(test, feature = "experimental"))]
 // pub mod nidkg;

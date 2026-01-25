@@ -25,6 +25,8 @@ hex = "0.4.3"
 tap = { version = "1.0.1", features = [] }
 serde-big-array = "0.5.1"
 
+either = { version = "1.13.0", features = ["serde"] }
+
 [dev-dependencies]
 criterion = "0.5.1"
 generic-tests = "0.1.2"
@@ -52,6 +54,10 @@ harness = false
 
 [[bench]]
 name = "batch_avss"
+harness = false
+
+[[bench]]
+name = "rvss"
 harness = false
 
 [features]
