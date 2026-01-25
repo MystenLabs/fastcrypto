@@ -72,6 +72,7 @@ pub fn verify_poly_evals<G: GroupElement + MultiScalarMul, R: AllowedRng>(
 /// Check that a pair (k, H) satisfies H = k*G using a random combination of the pairs and
 /// multi scalar multiplication.
 pub fn verify_pairs<G: GroupElement + MultiScalarMul, R: AllowedRng>(
+    base: &G,
     pairs: &[(G::ScalarType, G)],
     rng: &mut R,
 ) -> FastCryptoResult<()> {
@@ -82,7 +83,7 @@ pub fn verify_pairs<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     // Generate random r1, r2, ..., rn
     let rs = get_random_scalars::<G::ScalarType, R>(pairs.len(), rng);
     // Compute (r1*k1 + r2*k2 + ... + rn*kn)*G
-    let lhs = G::generator()
+    let lhs = *base
         * rs.iter()
             .zip(pairs.iter())
             .map(|(r, (k, _))| *r * *k)
