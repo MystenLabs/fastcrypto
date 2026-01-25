@@ -13,7 +13,7 @@ use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use crate::utils::log2_byte;
-use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_byte_array};
+use crate::{generate_bytes_representation, hash, serialize_deserialize_with_to_from_byte_array};
 use blst::{
     blst_bendian_from_scalar, blst_final_exp, blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul,
     blst_fp12_one, blst_fp12_sqr, blst_fp_from_bendian, blst_fr, blst_fr_add, blst_fr_cneg,
@@ -34,6 +34,7 @@ use std::fmt::Debug;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
 use zeroize::Zeroize;
+use hash::*;
 
 /// Elements of the group G_1 in BLS 12-381.
 #[derive(Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
@@ -267,6 +268,13 @@ impl Pairing for G1Element {
         }
         let result = blst_pairing.as_fp12().final_exp();
         Ok(GTElement(result))
+    }
+}
+
+impl HashToGroupElement for Scalar {
+    fn hash_to_group_element(msg: &[u8]) -> Self {
+        let hash = Sha512::digest(msg);
+        reduce_mod_uniform_buffer(hash.as_ref())
     }
 }
 

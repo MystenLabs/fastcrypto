@@ -5,17 +5,26 @@ use either::Either;
 use fastcrypto::serde_helpers::ToFromByteArray;
 use fastcrypto::{
     error::{FastCryptoError, FastCryptoResult},
-    groups::{ristretto255, GroupElement, HashToGroupElement, Scalar as GScalar},
+    groups::{GroupElement, HashToGroupElement, Scalar as GScalar},
 };
 use itertools::Itertools;
 use rand::thread_rng;
 use serde::Serialize;
 use std::num::NonZeroU16;
 
-// Quick and dirty implementation of the RVSS protocol for performance testing
+/////// Quick and dirty implementation of the RVSS protocol for performance testing ///////
 
+/////// BLS12-381 test ///////
+// use fastcrypto::groups::bls12381;
+// pub type Point = bls12381::G1Element;
+// pub type Scalar = bls12381::Scalar;
+
+/////// Ristretto255 test ///////
+use fastcrypto::groups::ristretto255;
 pub type Point = ristretto255::RistrettoPoint;
 pub type Scalar = ristretto255::RistrettoScalar;
+
+
 
 //////// Recovery gadget ////////
 #[derive(Serialize)]
@@ -27,7 +36,7 @@ pub struct Gadget {
 }
 
 impl Gadget {
-    pub fn new(k: usize, h: Point, omega: ristretto255::RistrettoScalar) -> Self {
+    pub fn new(k: usize, h: Point, omega: Scalar) -> Self {
         let ro = RandomOracle::new("gadget");
         let r = (0..k)
             .map(|_i| Scalar::rand(&mut thread_rng()))
