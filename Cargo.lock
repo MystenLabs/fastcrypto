@@ -1362,6 +1362,7 @@ dependencies = [
  "sha3",
  "signature 2.1.0",
  "static_assertions",
+ "subtle",
  "thiserror",
  "tokio",
  "tracing",
