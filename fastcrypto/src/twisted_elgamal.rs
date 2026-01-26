@@ -82,7 +82,6 @@ impl Ciphertext {
         rng: &mut impl AllowedRng,
     ) -> ZeroProof {
         let pk = pk_from_sk(private_key);
-
         ZeroProof(DdhTupleNizk::create(
             &private_key.0,
             &self.commitment.0,
