@@ -11,10 +11,10 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
 lazy_static! {
-    /// Base point for the blinding factor
+    /// Base point for the value
     pub static ref H: RistrettoPoint = RistrettoPoint::hash_to_group_element(b"fastcrypto-blinding-gen-01");
 
-    /// Base point for the value
+    /// Base point for the blinding factor
     pub static ref G: RistrettoPoint = RistrettoPoint::generator();
 
     /// For integration with the bulletproofs crate, we give the generators we use here
