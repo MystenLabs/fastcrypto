@@ -102,8 +102,10 @@ pub mod hash;
 pub mod hmac;
 pub mod jwt_utils;
 pub mod merkle;
+pub mod nizk;
 pub mod pedersen;
 pub mod private_seed;
+pub mod random_oracle;
 pub mod rsa;
 pub mod secp256k1;
 pub mod secp256r1;
@@ -112,8 +114,6 @@ pub mod signature_service;
 pub mod twisted_elgamal;
 pub mod utils;
 pub mod vrf;
-pub mod nizk;
-pub mod random_oracle;
 
 /// This module contains unsecure cryptographic primitives. The purpose of this library is to allow seamless
 /// benchmarking of systems without taking into account the cost of cryptographic primitives - and hence

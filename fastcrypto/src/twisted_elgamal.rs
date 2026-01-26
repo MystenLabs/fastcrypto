@@ -6,21 +6,14 @@ use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
 use crate::groups::{Doubling, GroupElement, Scalar};
 use crate::nizk::DdhTupleNizk;
-use crate::pedersen::{Blinding, PedersenCommitment};
+use crate::pedersen::{Blinding, PedersenCommitment, G, H};
 use crate::random_oracle::RandomOracle;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
-use bulletproofs::PedersenGens;
 use derive_more::{Add, Mul, Sub};
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::iter::successors;
-
-lazy_static! {
-    static ref G: RistrettoPoint = RistrettoPoint(PedersenGens::default().B);
-    static ref H: RistrettoPoint = RistrettoPoint(PedersenGens::default().B_blinding);
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PublicKey(RistrettoPoint);
@@ -37,7 +30,7 @@ pub fn generate_keypair(rng: &mut impl AllowedRng) -> (PublicKey, PrivateKey) {
 }
 
 pub fn pk_from_sk(sk: &PrivateKey) -> PublicKey {
-    PublicKey(*H * sk.0)
+    PublicKey(*G * sk.0)
 }
 
 // TODO: Encryptions of the same message can reuse commitments
@@ -57,7 +50,7 @@ impl Ciphertext {
         (
             Self {
                 decryption_handle: public_key.0 * blinding.0,
-                commitment: PedersenCommitment::from_blinding(
+                commitment: PedersenCommitment::new(
                     &RistrettoScalar::from(message as u64),
                     &blinding,
                 ),
@@ -76,7 +69,7 @@ impl Ciphertext {
             if let Some(&x_high) = table.get(&c.to_byte_array()) {
                 return Ok(x_low + ((x_high as u32) << 16));
             }
-            c -= *G;
+            c -= *H;
         }
         Err(InvalidInput)
     }
@@ -89,9 +82,9 @@ impl Ciphertext {
         rng: &mut impl AllowedRng,
     ) -> ZeroProof {
         let pk = pk_from_sk(private_key);
-        ZeroProof(DdhTupleNizk::create_with_generator(
+
+        ZeroProof(DdhTupleNizk::create(
             &private_key.0,
-            &*H,
             &self.commitment.0,
             &pk.0,
             &self.decryption_handle,
@@ -108,8 +101,7 @@ impl ZeroProof {
         pk: &PublicKey,
         random_oracle: &RandomOracle,
     ) -> FastCryptoResult<()> {
-        self.0.verify_with_generator(
-            &*H,
+        self.0.verify(
             &encryption.commitment.0,
             &pk.0,
             &encryption.decryption_handle,
@@ -134,7 +126,7 @@ impl MultiRecipientEncryption {
         (
             Self {
                 decryption_handles: pks.iter().map(|pk| pk * blinding.0).collect(),
-                commitment: PedersenCommitment::from_blinding(
+                commitment: PedersenCommitment::new(
                     &RistrettoScalar::from(message as u64),
                     &blinding,
                 ),
@@ -158,7 +150,7 @@ impl MultiRecipientEncryption {
 ///
 /// The table contains a mapping from Ristretto points <i>(2<sup>16</sup> x) G<i> to <i>x</i> for all <i>x</i> in the range <i>0, .., 2<sup>16</sup>-1</i>.
 pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16> {
-    let step = G.repeated_doubling(16);
+    let step = H.repeated_doubling(16);
     successors(Some(RistrettoPoint::zero()), |p| Some(p + step))
         .enumerate()
         .map(|(i, p)| (p.to_byte_array(), i as u16))

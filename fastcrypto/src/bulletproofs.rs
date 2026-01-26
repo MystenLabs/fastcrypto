@@ -16,15 +16,15 @@
 //! let blinding = Blinding::rand(&mut rng);
 //! let proof =
 //!    RangeProof::prove(value, &blinding, &range, b"MY_DOMAIN", &mut rng).unwrap();
-//! let commitment = PedersenCommitment::from_blinding(&RistrettoScalar::from(value), &blinding);
+//! let commitment = PedersenCommitment::new(&RistrettoScalar::from(value), &blinding);
 //! assert!(proof.verify(&commitment, &range, b"MY_DOMAIN", &mut rng).is_ok());
 //! ```
 
 use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
-use crate::pedersen::{Blinding, PedersenCommitment};
+use crate::pedersen::{Blinding, PedersenCommitment, GENS};
 use crate::traits::AllowedRng;
-use bulletproofs::{BulletproofGens, PedersenGens, RangeProof as ExternalRangeProof};
+use bulletproofs::{BulletproofGens, RangeProof as ExternalRangeProof};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
@@ -111,14 +111,13 @@ impl RangeProof {
         }
 
         let bits = range.upper_bound_in_bits() as usize;
-        let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(bits, values.len());
         let mut prover_transcript = Transcript::new(domain);
 
         // TODO: Can we avoid calculating the Pedersen commitments here?
         ExternalRangeProof::prove_multiple_with_rng(
             &bp_gens,
-            &pc_gens,
+            &GENS,
             &mut prover_transcript,
             values,
             &blindings.iter().map(|b| b.0 .0).collect::<Vec<_>>(),
@@ -138,14 +137,13 @@ impl RangeProof {
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
         let bits = range.upper_bound_in_bits() as usize;
-        let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(bits, commitments.len());
         let mut verifier_transcript = Transcript::new(domain);
 
         self.0
             .verify_multiple_with_rng(
                 &bp_gens,
-                &pc_gens,
+                &GENS,
                 &mut verifier_transcript,
                 &commitments
                     .iter()
@@ -183,7 +181,7 @@ fn test_range_proof_valid() {
 
     let value = 1u64;
     let proof = RangeProof::prove(value, &blinding, &range, b"NARWHAL", &mut rng).unwrap();
-    let commitment = PedersenCommitment::from_blinding(&RistrettoScalar::from(value), &blinding);
+    let commitment = PedersenCommitment::new(&RistrettoScalar::from(value), &blinding);
     assert!(proof
         .verify(&commitment, &range, b"NARWHAL", &mut rng)
         .is_ok());
