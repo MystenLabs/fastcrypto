@@ -7,7 +7,8 @@
 use crate::error::FastCryptoError::InvalidInput;
 use crate::error::FastCryptoResult;
 use crate::groups::{
-    Doubling, FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Scalar,
+    Doubling, FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement,
+    MultiScalarMul, Scalar,
 };
 use crate::hash::Sha512;
 use crate::serde_helpers::ToFromByteArray;
@@ -17,11 +18,11 @@ use crate::{
 };
 use curve25519_dalek;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
-use curve25519_dalek::ristretto::CompressedRistretto as ExternalCompressedPoint;
 use curve25519_dalek::ristretto::RistrettoPoint as ExternalPoint;
 use curve25519_dalek::scalar::Scalar as ExternalScalar;
 use curve25519_dalek::traits::{Identity, VartimeMultiscalarMul};
 use derive_more::{Add, Div, Neg, Sub};
+use elliptic_curve::group::GroupEncoding;
 use elliptic_curve::Field;
 use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Add, Div, Mul};
@@ -99,16 +100,26 @@ impl HashToGroupElement for RistrettoPoint {
 }
 
 impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
-    fn from_byte_array(bytes: &[u8; RISTRETTO_POINT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
-        ExternalCompressedPoint::from_slice(bytes)
-            .ok()
-            .and_then(|p| p.decompress())
+    fn from_byte_array(bytes: &[u8; RISTRETTO_POINT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
+        ExternalPoint::from_bytes(bytes)
+            .into_option()
             .map(RistrettoPoint)
             .ok_or(InvalidInput)
     }
 
     fn to_byte_array(&self) -> [u8; RISTRETTO_POINT_BYTE_LENGTH] {
         self.0.compress().0
+    }
+}
+
+impl FromTrustedByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
+    fn from_trusted_byte_array(bytes: &[u8; RISTRETTO_POINT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
+        // Note that the external crate does not distinguish between from_bytes and from_bytes_unchecked:
+        // https://github.com/dalek-cryptography/curve25519-dalek/blob/11f5375375d3d52c153049f18bd8b1b7669c2565/curve25519-dalek/src/ristretto.rs#L1221-L1224
+        ExternalPoint::from_bytes_unchecked(bytes)
+            .into_option()
+            .map(RistrettoPoint)
+            .ok_or(InvalidInput)
     }
 }
 
@@ -209,6 +220,12 @@ impl ToFromByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
 
     fn to_byte_array(&self) -> [u8; RISTRETTO_SCALAR_BYTE_LENGTH] {
         self.0.to_bytes()
+    }
+}
+
+impl FromTrustedByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
+    fn from_trusted_byte_array(bytes: &[u8; RISTRETTO_SCALAR_BYTE_LENGTH]) -> FastCryptoResult<Self> {
+        Ok(Self::from_bytes_mod_order(bytes))
     }
 }
 
