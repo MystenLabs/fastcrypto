@@ -101,10 +101,7 @@ impl HashToGroupElement for RistrettoPoint {
 
 impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
     fn from_byte_array(bytes: &[u8; RISTRETTO_POINT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
-        ExternalPoint::from_bytes(bytes)
-            .into_option()
-            .map(RistrettoPoint)
-            .ok_or(InvalidInput)
+        Option::from(ExternalPoint::from_bytes(bytes).map(RistrettoPoint)).ok_or(InvalidInput)
     }
 
     fn to_byte_array(&self) -> [u8; RISTRETTO_POINT_BYTE_LENGTH] {
@@ -118,9 +115,7 @@ impl FromTrustedByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
     ) -> FastCryptoResult<Self> {
         // Note that the external crate does not distinguish between from_bytes and from_bytes_unchecked:
         // https://github.com/dalek-cryptography/curve25519-dalek/blob/11f5375375d3d52c153049f18bd8b1b7669c2565/curve25519-dalek/src/ristretto.rs#L1221-L1224
-        ExternalPoint::from_bytes_unchecked(bytes)
-            .into_option()
-            .map(RistrettoPoint)
+        Option::from(ExternalPoint::from_bytes_unchecked(bytes).map(RistrettoPoint))
             .ok_or(InvalidInput)
     }
 }
