@@ -113,7 +113,9 @@ impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
 }
 
 impl FromTrustedByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
-    fn from_trusted_byte_array(bytes: &[u8; RISTRETTO_POINT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
+    fn from_trusted_byte_array(
+        bytes: &[u8; RISTRETTO_POINT_BYTE_LENGTH],
+    ) -> FastCryptoResult<Self> {
         // Note that the external crate does not distinguish between from_bytes and from_bytes_unchecked:
         // https://github.com/dalek-cryptography/curve25519-dalek/blob/11f5375375d3d52c153049f18bd8b1b7669c2565/curve25519-dalek/src/ristretto.rs#L1221-L1224
         ExternalPoint::from_bytes_unchecked(bytes)
@@ -224,7 +226,9 @@ impl ToFromByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
 }
 
 impl FromTrustedByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
-    fn from_trusted_byte_array(bytes: &[u8; RISTRETTO_SCALAR_BYTE_LENGTH]) -> FastCryptoResult<Self> {
+    fn from_trusted_byte_array(
+        bytes: &[u8; RISTRETTO_SCALAR_BYTE_LENGTH],
+    ) -> FastCryptoResult<Self> {
         Ok(Self::from_bytes_mod_order(bytes))
     }
 }
