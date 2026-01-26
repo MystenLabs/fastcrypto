@@ -22,7 +22,7 @@
 
 use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
-use crate::pedersen::{Blinding, PedersenCommitment, GENS};
+use crate::pedersen::{Blinding, PedersenCommitment, GENERATORS};
 use crate::traits::AllowedRng;
 use bulletproofs::{BulletproofGens, RangeProof as ExternalRangeProof};
 use merlin::Transcript;
@@ -117,7 +117,7 @@ impl RangeProof {
         // TODO: Can we avoid calculating the Pedersen commitments here?
         ExternalRangeProof::prove_multiple_with_rng(
             &bp_gens,
-            &GENS,
+            &GENERATORS,
             &mut prover_transcript,
             values,
             &blindings.iter().map(|b| b.0 .0).collect::<Vec<_>>(),
@@ -143,7 +143,7 @@ impl RangeProof {
         self.0
             .verify_multiple_with_rng(
                 &bp_gens,
-                &GENS,
+                &GENERATORS,
                 &mut verifier_transcript,
                 &commitments
                     .iter()

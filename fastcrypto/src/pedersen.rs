@@ -18,7 +18,8 @@ lazy_static! {
     pub static ref H: RistrettoPoint = RistrettoPoint::generator();
 
     /// For integration with the bulletproofs crate, we give the generators we use here
-    pub(crate) static ref GENS: bulletproofs::PedersenGens = bulletproofs::PedersenGens {
+    /// Note that the bases here are different from `bulletproofs::PedersenGens::default()`.
+    pub(crate) static ref GENERATORS: bulletproofs::PedersenGens = bulletproofs::PedersenGens {
         B: H.0,
         B_blinding: G.0,
     };
