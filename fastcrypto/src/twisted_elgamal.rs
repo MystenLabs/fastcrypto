@@ -64,7 +64,7 @@ impl Ciphertext {
         private_key: &PrivateKey,
         table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
     ) -> FastCryptoResult<u32> {
-        let mut c = self.commitment.0 - (self.decryption_handle / private_key.0).unwrap();
+        let mut c = self.commitment.0 - (self.decryption_handle / private_key.0)?;
         for x_low in 0..1 << 16 {
             if let Some(&x_high) = table.get(&c.to_byte_array()) {
                 return Ok(x_low + ((x_high as u32) << 16));
