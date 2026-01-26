@@ -4,13 +4,27 @@
 use crate::error::FastCryptoError::InvalidProof;
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use crate::groups::Scalar;
+use crate::groups::{GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
 use crate::traits::AllowedRng;
-use bulletproofs::PedersenGens;
 use derive_more::{Add, Mul, Sub};
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
-// TODO: We don't need to have this point in decompressed form in order to just verify the commitment, but it's convenient when using the homomorphic property.
+lazy_static! {
+    /// Base point for the value
+    pub static ref H: RistrettoPoint = RistrettoPoint::hash_to_group_element(b"fastcrypto-blinding-gen-01");
+
+    /// Base point for the blinding factor
+    pub static ref G: RistrettoPoint = RistrettoPoint::generator();
+
+    /// For integration with the bulletproofs crate, we give the generators we use here
+    /// Note that the bases here are different from `bulletproofs::PedersenGens::default()`.
+    pub(crate) static ref GENERATORS: bulletproofs::PedersenGens = bulletproofs::PedersenGens {
+        B: H.0,
+        B_blinding: G.0,
+    };
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Mul, Serialize, Deserialize)]
 pub struct PedersenCommitment(pub(crate) RistrettoPoint);
 
@@ -18,19 +32,20 @@ pub struct PedersenCommitment(pub(crate) RistrettoPoint);
 pub struct Blinding(pub(crate) RistrettoScalar);
 
 impl PedersenCommitment {
-    pub fn from_blinding(value: &RistrettoScalar, blinding: &Blinding) -> Self {
-        Self(RistrettoPoint(
-            PedersenGens::default().commit(value.0, blinding.0 .0),
-        ))
+    pub fn new(value: &RistrettoScalar, blinding: &Blinding) -> Self {
+        Self(
+            RistrettoPoint::multi_scalar_mul(&[*value, blinding.0], &[*H, *G])
+                .expect("Constant lengths"),
+        )
     }
 
     pub fn commit(value: &RistrettoScalar, rng: &mut impl AllowedRng) -> (Self, Blinding) {
         let blinding = Blinding::rand(rng);
-        (Self::from_blinding(value, &blinding), blinding)
+        (Self::new(value, &blinding), blinding)
     }
 
     pub fn verify(&self, value: &RistrettoScalar, blinding: &Blinding) -> FastCryptoResult<()> {
-        if RistrettoPoint(PedersenGens::default().commit(value.0, blinding.0 .0)) == self.0 {
+        if Self::new(value, blinding) == *self {
             Ok(())
         } else {
             Err(InvalidProof)

@@ -21,12 +21,12 @@
 //! The following conditions must hold: <i>t + 2f &leq; n</i> and <i>t > f</i>.
 
 use crate::nodes::PartyId;
-use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::groups;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::GroupElement;
+use fastcrypto::random_oracle::RandomOracle;
 use std::fmt::{Display, Formatter};
 
 pub mod avss;

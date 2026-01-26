@@ -1,10 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use crate::random_oracle::RandomOracle;
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
-use fastcrypto::traits::AllowedRng;
+use crate::traits::AllowedRng;
 use serde::{Deserialize, Deserializer, Serialize};
 use tracing::debug;
 

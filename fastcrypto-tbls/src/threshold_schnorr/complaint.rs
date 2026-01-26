@@ -4,12 +4,12 @@
 use crate::ecies_v1;
 use crate::ecies_v1::RecoveryPackage;
 use crate::nodes::PartyId;
-use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::Extensions::{Encryption, Recovery};
 use crate::threshold_schnorr::EG;
 use fastcrypto::error::FastCryptoError::InvalidProof;
 use fastcrypto::error::FastCryptoResult;
+use fastcrypto::random_oracle::RandomOracle;
 use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
