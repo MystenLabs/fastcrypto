@@ -27,8 +27,8 @@ use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Add, Div, Mul};
 use zeroize::Zeroize;
 
-pub(crate) const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
-const RISTRETTO_SCALAR_BYTE_LENGTH: usize = 32;
+pub const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
+pub const RISTRETTO_SCALAR_BYTE_LENGTH: usize = 32;
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Add, Sub, Neg, GroupOpsExtend)]
