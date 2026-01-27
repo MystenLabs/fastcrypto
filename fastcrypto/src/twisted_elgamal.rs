@@ -191,13 +191,11 @@ fn encrypt_and_range_proof() {
     let mut rng = rand::thread_rng();
     let (pk, sk) = generate_keypair(&mut rng);
     let (ciphertext, blinding) = Ciphertext::encrypt(&pk, value, &mut rng);
-    let domain = b"test";
     let range_proof =
-        crate::bulletproofs::RangeProof::prove(value as u64, &blinding, &range, domain, &mut rng)
-            .unwrap();
+        crate::bulletproofs::RangeProof::prove(value as u64, &blinding, &range, &mut rng).unwrap();
 
     assert!(range_proof
-        .verify(&ciphertext.commitment, &range, domain, &mut rng)
+        .verify(&ciphertext.commitment, &range, &mut rng)
         .is_ok());
 
     assert_eq!(ciphertext.decrypt(&sk, &precompute_table()).unwrap(), value);
