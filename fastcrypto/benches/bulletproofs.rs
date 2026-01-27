@@ -1,11 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use std::iter;
+
 use criterion::*;
 use fastcrypto::bulletproofs::{Range, RangeProof};
 use fastcrypto::groups::ristretto255::RistrettoScalar;
 use fastcrypto::pedersen::{Blinding, PedersenCommitment};
 use rand::{thread_rng, Rng};
+use std::iter;
 
 fn verification(c: &mut Criterion) {
     static INPUT_SIZES: [usize; 4] = [1, 2, 4, 8];
@@ -15,7 +16,8 @@ fn verification(c: &mut Criterion) {
     for size in INPUT_SIZES {
         for range in &ranges {
             let bits = range_to_bits(range);
-            let values = iter::repeat_with(|| rng.gen_range(0..1 << bits)).take(size)
+            let values = iter::repeat_with(|| rng.gen_range(0..1 << bits))
+                .take(size)
                 .collect::<Vec<_>>();
             let (commitments, blindings): (Vec<PedersenCommitment>, Vec<Blinding>) = values
                 .iter()
