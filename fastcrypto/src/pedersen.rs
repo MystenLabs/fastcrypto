@@ -26,10 +26,10 @@ lazy_static! {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Mul, Serialize, Deserialize)]
-pub struct PedersenCommitment(pub(crate) RistrettoPoint);
+pub struct PedersenCommitment(pub RistrettoPoint);
 
 #[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Mul, Serialize, Deserialize)]
-pub struct Blinding(pub(crate) RistrettoScalar);
+pub struct Blinding(pub RistrettoScalar);
 
 impl PedersenCommitment {
     pub fn new(value: &RistrettoScalar, blinding: &Blinding) -> Self {

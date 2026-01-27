@@ -15,9 +15,9 @@
 //! let mut rng = rand::thread_rng();
 //! let blinding = Blinding::rand(&mut rng);
 //! let proof =
-//!    RangeProof::prove(value, &blinding, &range, b"MY_DOMAIN", &mut rng).unwrap();
+//!    RangeProof::prove(value, &blinding, &range, &mut rng).unwrap();
 //! let commitment = PedersenCommitment::new(&RistrettoScalar::from(value), &blinding);
-//! assert!(proof.verify(&commitment, &range, b"MY_DOMAIN", &mut rng).is_ok());
+//! assert!(proof.verify(&commitment, &range, &mut rng).is_ok());
 //! ```
 
 use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidProof};
@@ -72,10 +72,9 @@ impl RangeProof {
         value: u64,
         blinding: &Blinding,
         range: &Range,
-        domain: &'static [u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<RangeProof> {
-        Self::prove_batch(&[value], &[blinding.clone()], range, domain, rng)
+        Self::prove_batch(&[value], &[blinding.clone()], range, rng)
     }
 
     /// Verifies a range proof: That the commitment is to a value in the given range.
@@ -83,10 +82,9 @@ impl RangeProof {
         &self,
         commitment: &PedersenCommitment,
         range: &Range,
-        domain: &'static [u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
-        self.verify_batch(&[commitment.clone()], range, domain, rng)
+        self.verify_batch(&[commitment.clone()], range, rng)
     }
 
     /// Create a proof that all the given `values` are in the range using the given commitment blindings.
@@ -100,7 +98,6 @@ impl RangeProof {
         values: &[u64],
         blindings: &[Blinding],
         range: &Range,
-        domain: &'static [u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<RangeProof> {
         if values.iter().any(|&v| !range.is_in_range(v))
@@ -112,7 +109,7 @@ impl RangeProof {
 
         let bits = range.upper_bound_in_bits() as usize;
         let bp_gens = BulletproofGens::new(bits, values.len());
-        let mut prover_transcript = Transcript::new(domain);
+        let mut prover_transcript = Transcript::new(&[]);
 
         // TODO: Can we avoid calculating the Pedersen commitments here?
         ExternalRangeProof::prove_multiple_with_rng(
@@ -133,12 +130,11 @@ impl RangeProof {
         &self,
         commitments: &[PedersenCommitment],
         range: &Range,
-        domain: &'static [u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
         let bits = range.upper_bound_in_bits() as usize;
         let bp_gens = BulletproofGens::new(bits, commitments.len());
-        let mut verifier_transcript = Transcript::new(domain);
+        let mut verifier_transcript = Transcript::new(&[]);
 
         self.0
             .verify_multiple_with_rng(
@@ -180,9 +176,7 @@ fn test_range_proof_valid() {
     let blinding = Blinding::rand(&mut rng);
 
     let value = 1u64;
-    let proof = RangeProof::prove(value, &blinding, &range, b"NARWHAL", &mut rng).unwrap();
+    let proof = RangeProof::prove(value, &blinding, &range, &mut rng).unwrap();
     let commitment = PedersenCommitment::new(&RistrettoScalar::from(value), &blinding);
-    assert!(proof
-        .verify(&commitment, &range, b"NARWHAL", &mut rng)
-        .is_ok());
+    assert!(proof.verify(&commitment, &range, &mut rng).is_ok());
 }
