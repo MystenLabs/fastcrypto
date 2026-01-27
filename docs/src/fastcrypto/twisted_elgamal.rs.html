@@ -191,55 +191,53 @@
 <a href=#191 id=191 data-nosnippet>191</a>    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
 <a href=#192 id=192 data-nosnippet>192</a>    <span class="kw">let </span>(pk, sk) = generate_keypair(<span class="kw-2">&amp;mut </span>rng);
 <a href=#193 id=193 data-nosnippet>193</a>    <span class="kw">let </span>(ciphertext, blinding) = Ciphertext::encrypt(<span class="kw-2">&amp;</span>pk, value, <span class="kw-2">&amp;mut </span>rng);
-<a href=#194 id=194 data-nosnippet>194</a>    <span class="kw">let </span>domain = <span class="string">b"test"</span>;
-<a href=#195 id=195 data-nosnippet>195</a>    <span class="kw">let </span>range_proof =
-<a href=#196 id=196 data-nosnippet>196</a>        <span class="kw">crate</span>::bulletproofs::RangeProof::prove(value <span class="kw">as </span>u64, <span class="kw-2">&amp;</span>blinding, <span class="kw-2">&amp;</span>range, domain, <span class="kw-2">&amp;mut </span>rng)
-<a href=#197 id=197 data-nosnippet>197</a>            .unwrap();
-<a href=#198 id=198 data-nosnippet>198</a>
-<a href=#199 id=199 data-nosnippet>199</a>    <span class="macro">assert!</span>(range_proof
-<a href=#200 id=200 data-nosnippet>200</a>        .verify(<span class="kw-2">&amp;</span>ciphertext.commitment, <span class="kw-2">&amp;</span>range, domain, <span class="kw-2">&amp;mut </span>rng)
-<a href=#201 id=201 data-nosnippet>201</a>        .is_ok());
-<a href=#202 id=202 data-nosnippet>202</a>
-<a href=#203 id=203 data-nosnippet>203</a>    <span class="macro">assert_eq!</span>(ciphertext.decrypt(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>precompute_table()).unwrap(), value);
-<a href=#204 id=204 data-nosnippet>204</a>}
-<a href=#205 id=205 data-nosnippet>205</a>
-<a href=#206 id=206 data-nosnippet>206</a><span class="attr">#[test]
-<a href=#207 id=207 data-nosnippet>207</a></span><span class="kw">fn </span>linear_encryptions() {
-<a href=#208 id=208 data-nosnippet>208</a>    <span class="kw">let </span>value_1 = <span class="number">12u32</span>;
-<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">let </span>value_2 = <span class="number">34u32</span>;
-<a href=#210 id=210 data-nosnippet>210</a>    <span class="kw">let </span>s = <span class="number">7u32</span>;
-<a href=#211 id=211 data-nosnippet>211</a>    <span class="kw">let </span>(pk, sk) = generate_keypair(<span class="kw-2">&amp;mut </span>rand::thread_rng());
-<a href=#212 id=212 data-nosnippet>212</a>    <span class="kw">let </span>(ciphertext_1, <span class="kw">_</span>) = Ciphertext::encrypt(<span class="kw-2">&amp;</span>pk, value_1, <span class="kw-2">&amp;mut </span>rand::thread_rng());
-<a href=#213 id=213 data-nosnippet>213</a>    <span class="kw">let </span>(ciphertext_2, <span class="kw">_</span>) = Ciphertext::encrypt(<span class="kw-2">&amp;</span>pk, value_2, <span class="kw-2">&amp;mut </span>rand::thread_rng());
-<a href=#214 id=214 data-nosnippet>214</a>    <span class="kw">let </span>ciphertext_3 = ciphertext_1 + ciphertext_2 * RistrettoScalar::from(s <span class="kw">as </span>u64);
-<a href=#215 id=215 data-nosnippet>215</a>    <span class="macro">assert_eq!</span>(
-<a href=#216 id=216 data-nosnippet>216</a>        ciphertext_3.decrypt(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>precompute_table()).unwrap(),
-<a href=#217 id=217 data-nosnippet>217</a>        value_1 + value_2 * s
-<a href=#218 id=218 data-nosnippet>218</a>    );
-<a href=#219 id=219 data-nosnippet>219</a>}
-<a href=#220 id=220 data-nosnippet>220</a>
-<a href=#221 id=221 data-nosnippet>221</a><span class="attr">#[test]
-<a href=#222 id=222 data-nosnippet>222</a></span><span class="kw">fn </span>test_equality() {
-<a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">let </span>value = <span class="number">123u32</span>;
-<a href=#224 id=224 data-nosnippet>224</a>    <span class="kw">let </span>(pk, sk) = generate_keypair(<span class="kw-2">&amp;mut </span>rand::thread_rng());
-<a href=#225 id=225 data-nosnippet>225</a>    <span class="kw">let </span>encryption_1 = Ciphertext::encrypt(<span class="kw-2">&amp;</span>pk, value, <span class="kw-2">&amp;mut </span>rand::thread_rng());
-<a href=#226 id=226 data-nosnippet>226</a>    <span class="kw">let </span>encryption_2 = Ciphertext::encrypt(<span class="kw-2">&amp;</span>pk, value, <span class="kw-2">&amp;mut </span>rand::thread_rng());
+<a href=#194 id=194 data-nosnippet>194</a>    <span class="kw">let </span>range_proof =
+<a href=#195 id=195 data-nosnippet>195</a>        <span class="kw">crate</span>::bulletproofs::RangeProof::prove(value <span class="kw">as </span>u64, <span class="kw-2">&amp;</span>blinding, <span class="kw-2">&amp;</span>range, <span class="kw-2">&amp;mut </span>rng).unwrap();
+<a href=#196 id=196 data-nosnippet>196</a>
+<a href=#197 id=197 data-nosnippet>197</a>    <span class="macro">assert!</span>(range_proof
+<a href=#198 id=198 data-nosnippet>198</a>        .verify(<span class="kw-2">&amp;</span>ciphertext.commitment, <span class="kw-2">&amp;</span>range, <span class="kw-2">&amp;mut </span>rng)
+<a href=#199 id=199 data-nosnippet>199</a>        .is_ok());
+<a href=#200 id=200 data-nosnippet>200</a>
+<a href=#201 id=201 data-nosnippet>201</a>    <span class="macro">assert_eq!</span>(ciphertext.decrypt(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>precompute_table()).unwrap(), value);
+<a href=#202 id=202 data-nosnippet>202</a>}
+<a href=#203 id=203 data-nosnippet>203</a>
+<a href=#204 id=204 data-nosnippet>204</a><span class="attr">#[test]
+<a href=#205 id=205 data-nosnippet>205</a></span><span class="kw">fn </span>linear_encryptions() {
+<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">let </span>value_1 = <span class="number">12u32</span>;
+<a href=#207 id=207 data-nosnippet>207</a>    <span class="kw">let </span>value_2 = <span class="number">34u32</span>;
+<a href=#208 id=208 data-nosnippet>208</a>    <span class="kw">let </span>s = <span class="number">7u32</span>;
+<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">let </span>(pk, sk) = generate_keypair(<span class="kw-2">&amp;mut </span>rand::thread_rng());
+<a href=#210 id=210 data-nosnippet>210</a>    <span class="kw">let </span>(ciphertext_1, <span class="kw">_</span>) = Ciphertext::encrypt(<span class="kw-2">&amp;</span>pk, value_1, <span class="kw-2">&amp;mut </span>rand::thread_rng());
+<a href=#211 id=211 data-nosnippet>211</a>    <span class="kw">let </span>(ciphertext_2, <span class="kw">_</span>) = Ciphertext::encrypt(<span class="kw-2">&amp;</span>pk, value_2, <span class="kw-2">&amp;mut </span>rand::thread_rng());
+<a href=#212 id=212 data-nosnippet>212</a>    <span class="kw">let </span>ciphertext_3 = ciphertext_1 + ciphertext_2 * RistrettoScalar::from(s <span class="kw">as </span>u64);
+<a href=#213 id=213 data-nosnippet>213</a>    <span class="macro">assert_eq!</span>(
+<a href=#214 id=214 data-nosnippet>214</a>        ciphertext_3.decrypt(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>precompute_table()).unwrap(),
+<a href=#215 id=215 data-nosnippet>215</a>        value_1 + value_2 * s
+<a href=#216 id=216 data-nosnippet>216</a>    );
+<a href=#217 id=217 data-nosnippet>217</a>}
+<a href=#218 id=218 data-nosnippet>218</a>
+<a href=#219 id=219 data-nosnippet>219</a><span class="attr">#[test]
+<a href=#220 id=220 data-nosnippet>220</a></span><span class="kw">fn </span>test_equality() {
+<a href=#221 id=221 data-nosnippet>221</a>    <span class="kw">let </span>value = <span class="number">123u32</span>;
+<a href=#222 id=222 data-nosnippet>222</a>    <span class="kw">let </span>(pk, sk) = generate_keypair(<span class="kw-2">&amp;mut </span>rand::thread_rng());
+<a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">let </span>encryption_1 = Ciphertext::encrypt(<span class="kw-2">&amp;</span>pk, value, <span class="kw-2">&amp;mut </span>rand::thread_rng());
+<a href=#224 id=224 data-nosnippet>224</a>    <span class="kw">let </span>encryption_2 = Ciphertext::encrypt(<span class="kw-2">&amp;</span>pk, value, <span class="kw-2">&amp;mut </span>rand::thread_rng());
+<a href=#225 id=225 data-nosnippet>225</a>
+<a href=#226 id=226 data-nosnippet>226</a>    <span class="kw">let </span>diff = encryption_1.<span class="number">0</span>.clone() - encryption_2.<span class="number">0</span>;
 <a href=#227 id=227 data-nosnippet>227</a>
-<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">let </span>diff = encryption_1.<span class="number">0</span>.clone() - encryption_2.<span class="number">0</span>;
-<a href=#229 id=229 data-nosnippet>229</a>
-<a href=#230 id=230 data-nosnippet>230</a>    <span class="kw">let </span>random_oracle = RandomOracle::new(<span class="string">"zero_proof_test"</span>);
-<a href=#231 id=231 data-nosnippet>231</a>    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
-<a href=#232 id=232 data-nosnippet>232</a>
-<a href=#233 id=233 data-nosnippet>233</a>    diff.zero_proof(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>random_oracle, <span class="kw-2">&amp;mut </span>rng)
-<a href=#234 id=234 data-nosnippet>234</a>        .verify(<span class="kw-2">&amp;</span>diff, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>random_oracle)
-<a href=#235 id=235 data-nosnippet>235</a>        .unwrap();
-<a href=#236 id=236 data-nosnippet>236</a>
-<a href=#237 id=237 data-nosnippet>237</a>    <span class="kw">let </span>other_value = <span class="number">1234u32</span>;
-<a href=#238 id=238 data-nosnippet>238</a>    <span class="kw">let </span>encryption_3 = Ciphertext::encrypt(<span class="kw-2">&amp;</span>pk, other_value, <span class="kw-2">&amp;mut </span>rand::thread_rng());
-<a href=#239 id=239 data-nosnippet>239</a>    <span class="kw">let </span>other_diff = encryption_1.<span class="number">0 </span>- encryption_3.<span class="number">0</span>;
-<a href=#240 id=240 data-nosnippet>240</a>    other_diff
-<a href=#241 id=241 data-nosnippet>241</a>        .zero_proof(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>random_oracle, <span class="kw-2">&amp;mut </span>rng)
-<a href=#242 id=242 data-nosnippet>242</a>        .verify(<span class="kw-2">&amp;</span>other_diff, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>random_oracle)
-<a href=#243 id=243 data-nosnippet>243</a>        .unwrap_err();
-<a href=#244 id=244 data-nosnippet>244</a>}
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">let </span>random_oracle = RandomOracle::new(<span class="string">"zero_proof_test"</span>);
+<a href=#229 id=229 data-nosnippet>229</a>    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
+<a href=#230 id=230 data-nosnippet>230</a>
+<a href=#231 id=231 data-nosnippet>231</a>    diff.zero_proof(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>random_oracle, <span class="kw-2">&amp;mut </span>rng)
+<a href=#232 id=232 data-nosnippet>232</a>        .verify(<span class="kw-2">&amp;</span>diff, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>random_oracle)
+<a href=#233 id=233 data-nosnippet>233</a>        .unwrap();
+<a href=#234 id=234 data-nosnippet>234</a>
+<a href=#235 id=235 data-nosnippet>235</a>    <span class="kw">let </span>other_value = <span class="number">1234u32</span>;
+<a href=#236 id=236 data-nosnippet>236</a>    <span class="kw">let </span>encryption_3 = Ciphertext::encrypt(<span class="kw-2">&amp;</span>pk, other_value, <span class="kw-2">&amp;mut </span>rand::thread_rng());
+<a href=#237 id=237 data-nosnippet>237</a>    <span class="kw">let </span>other_diff = encryption_1.<span class="number">0 </span>- encryption_3.<span class="number">0</span>;
+<a href=#238 id=238 data-nosnippet>238</a>    other_diff
+<a href=#239 id=239 data-nosnippet>239</a>        .zero_proof(<span class="kw-2">&amp;</span>sk, <span class="kw-2">&amp;</span>random_oracle, <span class="kw-2">&amp;mut </span>rng)
+<a href=#240 id=240 data-nosnippet>240</a>        .verify(<span class="kw-2">&amp;</span>other_diff, <span class="kw-2">&amp;</span>pk, <span class="kw-2">&amp;</span>random_oracle)
+<a href=#241 id=241 data-nosnippet>241</a>        .unwrap_err();
+<a href=#242 id=242 data-nosnippet>242</a>}
 </code></pre></div></section></main></body></html>

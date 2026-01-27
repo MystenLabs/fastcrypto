@@ -26,10 +26,10 @@
 <a href=#26 id=26 data-nosnippet>26</a>}
 <a href=#27 id=27 data-nosnippet>27</a>
 <a href=#28 id=28 data-nosnippet>28</a><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Mul, Serialize, Deserialize)]
-<a href=#29 id=29 data-nosnippet>29</a></span><span class="kw">pub struct </span>PedersenCommitment(<span class="kw">pub</span>(<span class="kw">crate</span>) RistrettoPoint);
+<a href=#29 id=29 data-nosnippet>29</a></span><span class="kw">pub struct </span>PedersenCommitment(<span class="kw">pub </span>RistrettoPoint);
 <a href=#30 id=30 data-nosnippet>30</a>
 <a href=#31 id=31 data-nosnippet>31</a><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Add, Sub, Mul, Serialize, Deserialize)]
-<a href=#32 id=32 data-nosnippet>32</a></span><span class="kw">pub struct </span>Blinding(<span class="kw">pub</span>(<span class="kw">crate</span>) RistrettoScalar);
+<a href=#32 id=32 data-nosnippet>32</a></span><span class="kw">pub struct </span>Blinding(<span class="kw">pub </span>RistrettoScalar);
 <a href=#33 id=33 data-nosnippet>33</a>
 <a href=#34 id=34 data-nosnippet>34</a><span class="kw">impl </span>PedersenCommitment {
 <a href=#35 id=35 data-nosnippet>35</a>    <span class="kw">pub fn </span>new(value: <span class="kw-2">&amp;</span>RistrettoScalar, blinding: <span class="kw-2">&amp;</span>Blinding) -&gt; <span class="self">Self </span>{
