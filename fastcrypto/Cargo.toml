@@ -105,6 +105,10 @@ harness = false
 name = "merkle"
 harness = false
 
+[[bench]]
+name = "bulletproofs"
+harness = false
+
 [features]
 default = []
 
