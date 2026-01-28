@@ -3,9 +3,13 @@
 
 use crate::ecies_v1;
 use crate::types::ShareIndex;
+use crate::weight_reduction::solve;
+use crate::weight_reduction::weight_reduction_checks::compute_precision_loss;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
+use itertools::Itertools;
+use num_rational::Ratio;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -220,5 +224,143 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             },
             new_t,
         ))
+    }
+
+    /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
+    /// This uses the swiper algorithms from the `weight_reduction` directory.
+    ///
+    /// DKG constraints (see `weight_reduction/PROOF.md`):
+    /// - **Safety**: α = (t-1)/W so that any coalition S with w(S) ≤ t-1 has w'(S) < βW'.
+    ///   Threshold is set to t' = βW' (dealer polynomial degree t'-1), and f' = (W'-t')/2.
+    /// - **Liveness**: For S with w(S) ≥ t+f+δ_allowed we need w'(S) ≥ t'+f'.
+    ///   With f = (W-t)/2 and precision loss δ, the condition is
+    ///   t+f+δ_allowed ≥ (t'+f')·d + δ, equivalently t + 2·δ_allowed ≥ W·β + 2·δ.
+    ///   We start from β = 1/2 and decrease until this holds.
+    ///
+    /// # Parameters
+    /// - `nodes_vec`: Input nodes with weights
+    /// - `t`: Threshold (t and f can be independent parameters, t > f, liveness = t+f, t+2f <= n)
+    /// - `allowed_delta`: Maximum allowed liveness slack
+    /// - `total_weight_lower_bound`: Minimum allowed total weight after reduction
+    ///
+    /// # Returns
+    /// A tuple of (reduced Nodes, new threshold t'), same as `new_reduced`.
+    pub fn new_super_swiper_reduced(
+        nodes_vec: Vec<Node<G>>,
+        t: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
+    ) -> FastCryptoResult<(Self, u16)> {
+        let n = Self::new(nodes_vec)?;
+        let original_total_weight = n.total_weight() as u64;
+        let w = original_total_weight;
+
+        // Validate total_weight_lower_bound (similar to new_reduced)
+        if total_weight_lower_bound > n.total_weight
+            || total_weight_lower_bound == 0
+            || original_total_weight == 0
+        {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        // Safety: α = (t-1)/W so that any S with w(S) ≤ t-1 gets w'(S) < βW' (PROOF.md).
+        let alpha = if t <= 1 {
+            Ratio::from_integer(0)
+        } else {
+            Ratio::new((t - 1) as u64, w)
+        };
+
+        // Extract weights from nodes, sorted in descending order (required by super_swiper)
+        let weights_sorted = n
+            .nodes
+            .iter()
+            .map(|node| node.weight as u64)
+            .sorted()
+            .rev()
+            .collect_vec();
+
+        // Original weights for delta calculation (in original order)
+        let original_weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
+
+        // Map from sorted index back to original index (computed once, used in loop)
+        let indexed_weights: Vec<(usize, u16)> = n
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, node)| (i, node.weight))
+            .sorted_by_key(|(_, w)| *w)
+            .rev()
+            .collect_vec();
+
+        // Find the highest beta such that delta < allowed_delta
+        // Start high and decrease until constraint is met
+        let step = Ratio::new(1u64, 100u64);
+        let beta_min = alpha + step; // Minimum beta is alpha + 1/100
+        let beta_max = Ratio::new(1u64, 2u64); // Maximum beta is 1/2
+        let mut beta = beta_max;
+
+        loop {
+            if beta < beta_min {
+                return Err(FastCryptoError::InvalidInput);
+            }
+
+            let reduced_weights_sorted = solve(alpha, beta, &weights_sorted);
+            let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
+
+            // Map reduced weights back to original order
+            let mut new_weights = vec![0u16; n.nodes.len()];
+            for (idx_in_sorted, (original_idx, _)) in indexed_weights.iter().enumerate() {
+                if idx_in_sorted < reduced_weights_sorted.len() {
+                    new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
+                }
+            }
+
+            let reduced_weights: Vec<u64> = new_weights.iter().copied().map(u64::from).collect();
+
+            // Precision loss δ = sum(max(w_i - w'_i·d, 0)), d = W/W' (PROOF.md).
+            let (delta, _d) = compute_precision_loss(&original_weights, &reduced_weights);
+
+            // Liveness: t+f+δ_allowed ≥ (t'+f')·d + δ. With f=(W-t)/2, f'=(W'-t')/2, t'=βW',
+            // this is equivalent to t + 2·δ_allowed ≥ W·β + 2·δ (PROOF.md).
+            // If δ > δ_allowed then t + 2·(δ_allowed − δ) would be negative; treat as not met.
+            let condition_met = delta <= Ratio::from_integer(allowed_delta as u64)
+                && Ratio::from_integer(t as u64)
+                    + Ratio::from_integer(2) * (Ratio::from_integer(allowed_delta as u64) - delta)
+                    >= Ratio::from_integer(w) * beta;
+
+            let lower_bound_ok = new_total_weight >= total_weight_lower_bound as u64;
+
+            // If condition not met or lower bound not met, decrease beta
+            if !condition_met || !lower_bound_ok {
+                beta -= step;
+                continue;
+            }
+
+            // Success - build and return the result
+            let nodes = n
+                .nodes
+                .into_iter()
+                .zip(new_weights)
+                .map(|(Node { id, pk, weight: _ }, new_weight)| Node {
+                    id,
+                    pk,
+                    weight: new_weight,
+                })
+                .collect_vec();
+
+            let accumulated_weights = Self::get_accumulated_weights(&nodes);
+            let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
+            let new_t = (beta * new_total_weight).to_integer() as u16;
+
+            return Ok((
+                Self {
+                    nodes,
+                    total_weight: new_total_weight as u16,
+                    accumulated_weights,
+                    nodes_with_nonzero_weight,
+                },
+                new_t,
+            ));
+        }
     }
 }

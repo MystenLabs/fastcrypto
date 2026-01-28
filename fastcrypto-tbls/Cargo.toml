@@ -10,6 +10,7 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
 fastcrypto = { path = "../fastcrypto", features = ["aes"] }
+num-rational = { version = "0.4.2", features = ["std"] }
 
 rand.workspace = true
 serde.workspace = true
@@ -28,6 +29,7 @@ serde-big-array = "0.5.1"
 [dev-dependencies]
 criterion = "0.5.1"
 generic-tests = "0.1.2"
+test-case = "3.3.1"
 
 [[bench]]
 name = "polynomial"
