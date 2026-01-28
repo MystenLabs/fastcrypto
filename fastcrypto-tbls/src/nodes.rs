@@ -229,22 +229,31 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
     /// This uses the swiper algorithms from the `weight_reduction` directory.
     ///
+    /// DKG constraints (see `weight_reduction/PROOF.md`):
+    /// - **Safety**: α = (t-1)/W so that any coalition S with w(S) ≤ t-1 has w'(S) < βW'.
+    ///   Threshold is set to t' = βW' (dealer polynomial degree t'-1), and f' = (W'-t')/2.
+    /// - **Liveness**: For S with w(S) ≥ t+f+δ_allowed we need w'(S) ≥ t'+f'.
+    ///   With f = (W-t)/2 and precision loss δ, the condition is
+    ///   t+f+δ_allowed ≥ (t'+f')·d + δ, equivalently t + 2·δ_allowed ≥ W·β + 2·δ.
+    ///   We start from β = 1/2 and decrease until this holds.
+    ///
     /// # Parameters
     /// - `nodes_vec`: Input nodes with weights
-    /// - `t`: Threshold (adversarial weight threshold in absolute terms)
-    /// - `allowed_delta`: Maximum allowed delta value
+    /// - `t`: Threshold (t and f can be independent parameters, t > f, liveness = t+f, t+2f <= n)
+    /// - `allowed_delta`: Maximum allowed liveness slack
     /// - `total_weight_lower_bound`: Minimum allowed total weight after reduction
     ///
     /// # Returns
-    /// A tuple of (reduced Nodes, new threshold, beta numerator, beta denominator)
+    /// A tuple of (reduced Nodes, new threshold t'), same as `new_reduced`.
     pub fn new_super_swiper_reduced(
         nodes_vec: Vec<Node<G>>,
         t: u16,
         allowed_delta: u16,
         total_weight_lower_bound: u16,
-    ) -> FastCryptoResult<(Self, u16, Ratio<u64>)> {
+    ) -> FastCryptoResult<(Self, u16)> {
         let n = Self::new(nodes_vec)?;
         let original_total_weight = n.total_weight() as u64;
+        let w = original_total_weight;
 
         // Validate total_weight_lower_bound (similar to new_reduced)
         if total_weight_lower_bound > n.total_weight
@@ -254,7 +263,12 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        let alpha = Ratio::new(t as u64, original_total_weight);
+        // Safety: α = (t-1)/W so that any S with w(S) ≤ t-1 gets w'(S) < βW' (PROOF.md).
+        let alpha = if t <= 1 {
+            Ratio::from_integer(0)
+        } else {
+            Ratio::new((t - 1) as u64, w)
+        };
 
         // Extract weights from nodes, sorted in descending order (required by super_swiper)
         let weights_sorted = n
@@ -303,19 +317,16 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
             let reduced_weights: Vec<u64> = new_weights.iter().copied().map(u64::from).collect();
 
-            // Compute delta = sum(max(original[i] - reduced[i] * d, 0))
-            // where d = total_original / total_reduced (exact ratio)
-            let (delta, d) = compute_precision_loss(&original_weights, &reduced_weights);
+            // Precision loss δ = sum(max(w_i - w'_i·d, 0)), d = W/W' (PROOF.md).
+            let (delta, _d) = compute_precision_loss(&original_weights, &reduced_weights);
 
-            // Check condition: (2*n+1)/3 + allowed_delta - delta >= 2 * beta * n - d
-            // where n = original_total_weight
-            let n_ratio = Ratio::from_integer(original_total_weight);
-            let two_n_plus_one = Ratio::from_integer(2 * original_total_weight + 1);
-            let left_side = two_n_plus_one / Ratio::from_integer(3)
-                + Ratio::from_integer(allowed_delta as u64)
-                - delta;
-            let right_side = Ratio::from_integer(2u64) * beta * n_ratio - d;
-            let condition_met = left_side >= right_side;
+            // Liveness: t+f+δ_allowed ≥ (t'+f')·d + δ. With f=(W-t)/2, f'=(W'-t')/2, t'=βW',
+            // this is equivalent to t + 2·δ_allowed ≥ W·β + 2·δ (PROOF.md).
+            // If δ > δ_allowed then t + 2·(δ_allowed − δ) would be negative; treat as not met.
+            let condition_met = delta <= Ratio::from_integer(allowed_delta as u64)
+                && Ratio::from_integer(t as u64)
+                    + Ratio::from_integer(2) * (Ratio::from_integer(allowed_delta as u64) - delta)
+                    >= Ratio::from_integer(w) * beta;
 
             let lower_bound_ok = new_total_weight >= total_weight_lower_bound as u64;
 
@@ -349,7 +360,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                     nodes_with_nonzero_weight,
                 },
                 new_t,
-                beta,
             ));
         }
     }

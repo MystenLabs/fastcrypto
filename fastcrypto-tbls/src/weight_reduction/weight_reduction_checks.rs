@@ -1,6 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! Weight reduction checks. See `weight_reduction/PROOF.md` for definitions:
+//! - Original weights w_i, reduced weights w'_i, total W = Σw_i, W' = Σw'_i.
+//! - Effective divisor d = W/W' (exact ratio).
+//! - Precision loss δ = Σᵢ max(w_i − w'_i·d, 0).
+//! - Key property: for any coalition S, w(S) − w'(S)·d ≤ δ.
+
 use num_rational::Ratio;
 use rand::Rng;
 
@@ -138,23 +144,13 @@ pub fn get_delta(
     Some(all_deltas.iter().fold(0u64, |a, &b| a.max(b)))
 }
 
-/// Compute the global precision loss for super_swiper weight reduction.
+/// Compute the global precision loss δ for super_swiper weight reduction (PROOF.md).
 ///
-/// This is analogous to `delta = sum(w % d)` in `new_reduced`, representing the total
-/// weight lost due to the transformation.
+/// Definitions:
+/// - d = W/W' (exact ratio, no floor), where W = total original weight, W' = total reduced weight.
+/// - δ = Σᵢ max(w_i − w'_i·d, 0). This is the precision loss used in the liveness condition.
 ///
-/// For super_swiper:
-/// - `d = total_original_weight / total_reduced_weight` (exact ratio, no floor)
-/// - `delta = sum(max(original[i] - reduced[i] * d, 0))`
-/// - This measures the weight lost when original weights exceed scaled reduced weights.
-/// - Negative differences (where scaled reduced > original) are ignored.
-///
-/// For new_reduced with integer d:
-/// - `delta = sum(original[i] % d) = sum(original[i] - reduced[i] * d)`
-/// - Since `reduced[i] = floor(original[i] / d)`, the difference is always non-negative,
-///   so `max(..., 0)` is equivalent to the difference itself.
-///
-/// Returns (delta, d) where delta is the precision loss and d is the effective divisor.
+/// Returns (δ, d).
 pub fn compute_precision_loss(
     original_weights: &[u64],
     reduced_weights: &[u64],

@@ -90,8 +90,8 @@ mod tests {
             .collect()
     }
 
-    // Type alias for epoch comparison results: (epoch, new_reduced_total, super_swiper_total, delta, delta_pct)
-    type EpochComparisonResult = (u64, Option<u16>, Option<u16>, Option<u64>, Option<f64>);
+    // Type alias for epoch comparison results: (epoch, new_reduced_total, new_reduced_t, super_swiper_total, super_swiper_t)
+    type EpochComparisonResult = (u64, Option<u16>, Option<u16>, Option<u16>, Option<u16>);
 
     #[test]
     fn test_all_epochs_comparison() {
@@ -115,9 +115,6 @@ mod tests {
             let allowed_delta = (original_total_weight as f64 * 0.08) as u16;
             let total_weight_lower_bound = 1u16;
 
-            // Original weights for delta calculation
-            let original_weights: Vec<u64> = scaled_weights.iter().map(|&w| w as u64).collect();
-
             // Test new_reduced
             let new_reduced_result = Nodes::new_reduced(
                 nodes_vec.clone(),
@@ -134,38 +131,22 @@ mod tests {
                 total_weight_lower_bound,
             );
 
-            let new_reduced_total = new_reduced_result
-                .ok()
-                .map(|(reduced_nodes, _)| reduced_nodes.total_weight());
+            let (new_reduced_total, new_reduced_t) = match new_reduced_result {
+                Ok((reduced_nodes, new_t)) => (Some(reduced_nodes.total_weight()), Some(new_t)),
+                Err(_) => (None, None),
+            };
 
-            let (super_swiper_total, delta_info) = match super_swiper_result {
-                Ok((reduced_nodes, _, _beta)) => {
-                    // Calculate delta for super_swiper
-                    let reduced_weights: Vec<u64> = reduced_nodes
-                        .iter()
-                        .map(|node| node.weight as u64)
-                        .collect();
-
-                    // Compute delta = sum(max(original[i] - reduced[i] * d, 0))
-                    // where d = total_original / total_reduced (exact ratio)
-                    let (delta, _d) = compute_precision_loss(&original_weights, &reduced_weights);
-                    let delta_int = delta.to_integer();
-                    let delta_pct = (delta_int as f64 / original_total_weight as f64) * 100.0;
-
-                    (
-                        Some(reduced_nodes.total_weight()),
-                        Some((delta_int, delta_pct)),
-                    )
-                }
+            let (super_swiper_total, super_swiper_t) = match super_swiper_result {
+                Ok((reduced_nodes, new_t)) => (Some(reduced_nodes.total_weight()), Some(new_t)),
                 Err(_) => (None, None),
             };
 
             results.push((
                 epoch,
                 new_reduced_total,
+                new_reduced_t,
                 super_swiper_total,
-                delta_info.map(|(d, _)| d),
-                delta_info.map(|(_, p)| p),
+                super_swiper_t,
             ));
 
             println!(
@@ -175,45 +156,45 @@ mod tests {
         }
 
         // Print comparison chart
-        let separator = "=".repeat(90);
+        let separator = "=".repeat(60);
         println!("\n{}", separator);
         println!("📈 WEIGHT REDUCTION COMPARISON CHART");
         println!("{}", separator);
         println!(
-            "{:<12} | {:<20} | {:<20} | {:<15} | {:<15}",
-            "Epoch", "new_reduced", "super_swiper", "Delta", "Delta %"
+            "{:<8} | {:<12} | {:<8} | {:<12} | {:<8}",
+            "Epoch", "new_red(w)", "new_red(t)", "super(w)", "super(t)"
         );
         println!(
             "{}-+-{}-+-{}-+-{}-+-{}",
+            "-".repeat(8),
             "-".repeat(12),
-            "-".repeat(20),
-            "-".repeat(20),
-            "-".repeat(15),
-            "-".repeat(15)
+            "-".repeat(8),
+            "-".repeat(12),
+            "-".repeat(8)
         );
-        for (epoch, new_reduced, super_swiper, delta, delta_pct) in &results {
+        for (epoch, new_reduced, new_reduced_t, super_swiper, super_swiper_t) in &results {
             let new_reduced_str = new_reduced
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let new_reduced_t_str = new_reduced_t
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "N/A".to_string());
             let super_swiper_str = super_swiper
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "N/A".to_string());
-            let delta_str = delta
+            let super_swiper_t_str = super_swiper_t
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "N/A".to_string());
-            let delta_pct_str = delta_pct
-                .map(|v| format!("{:.2}%", v))
-                .unwrap_or_else(|| "N/A".to_string());
             println!(
-                "{:<12} | {:<20} | {:<20} | {:<15} | {:<15}",
-                epoch, new_reduced_str, super_swiper_str, delta_str, delta_pct_str
+                "{:<8} | {:<12} | {:<8} | {:<12} | {:<8}",
+                epoch, new_reduced_str, new_reduced_t_str, super_swiper_str, super_swiper_t_str
             );
         }
         println!("{}", separator);
         println!();
 
         // Verify all tests passed
-        for (epoch, new_reduced, super_swiper, _, _) in &results {
+        for (epoch, new_reduced, _, super_swiper, _) in &results {
             assert!(
                 new_reduced.is_some(),
                 "new_reduced failed for epoch {}",
@@ -263,7 +244,7 @@ mod tests {
             );
 
             match super_swiper_result {
-                Ok((reduced_nodes, new_t, beta)) => {
+                Ok((reduced_nodes, new_t)) => {
                     // Create a map from validator ID to reduced weight for efficient lookup
                     let reduced_weights_map: HashMap<u16, u16> = reduced_nodes
                         .iter()
@@ -283,6 +264,14 @@ mod tests {
                     // Compute new delta: d = total_orig/total_red (exact ratio), delta = sum(max(orig - red*d, 0))
                     let (precision_delta, d) =
                         compute_precision_loss(&original_weights, &reduced_weights);
+
+                    // beta = t' / W' (recovered from threshold and reduced total weight for CSV metadata)
+                    let w_prime = reduced_nodes.total_weight() as u64;
+                    let beta = if w_prime > 0 {
+                        Ratio::new(new_t as u64, w_prime)
+                    } else {
+                        Ratio::from_integer(0)
+                    };
 
                     // Create CSV file
                     let csv_path = format!("{}/epoch_{}.csv", output_dir, epoch);
