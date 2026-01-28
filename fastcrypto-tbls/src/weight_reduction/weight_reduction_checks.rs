@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use num_rational::Ratio;
 use rand::Rng;
 
 /// Calculate the maximum delta across top, bottom, and random validity checks.
@@ -13,13 +14,13 @@ use rand::Rng;
 /// - `n_random`: Number of random subsets to test
 ///
 /// # Returns
-/// The maximum delta value from all checks, or None if t_prime cannot be reached
+/// The maximum delta value from all checks, or None if target cannot be reached
 ///
 /// # Delta Calculation
 /// For each validity check (top, bottom, or random):
-/// 1. Take the top reduced weights to reach t' = beta * total_new_weights
+/// 1. Take reduced weights to reach 2t' - 1
 /// 2. Let w1 = sum of old weights corresponding to the subset
-/// 3. Then delta = w1 - t, where t is the input threshold
+/// 3. Then delta = w1 - (2t - 1), where t is the input threshold
 pub fn get_delta(
     t_prime: u64,
     old_weights: &[u64],
@@ -33,33 +34,35 @@ pub fn get_delta(
 
     // Helper function to calculate delta for a given sorted order
     let calculate_delta_for_subset = |indexed: &[(usize, u64, u64)]| -> Option<u64> {
-        // Take reduced weights to reach t_prime
+        let reduced_target = t_prime.saturating_mul(2).saturating_sub(1);
         let mut reduced_sum = 0u64;
         let mut subset_indices = Vec::new();
 
         for (idx, _old_w, red_w) in indexed {
-            if reduced_sum >= t_prime {
+            if reduced_sum >= reduced_target {
                 break;
             }
             reduced_sum += red_w;
             subset_indices.push(*idx);
         }
 
-        // If we couldn't reach t_prime, return None
-        if reduced_sum < t_prime {
+        // If we couldn't reach reduced_target, return None
+        if reduced_sum < reduced_target {
             return None;
         }
 
         // Calculate w1 = sum of old weights corresponding to the subset
         let w1: u64 = subset_indices.iter().map(|&idx| old_weights[idx]).sum();
 
-        // Calculate delta = w1 - t
-        // Skip if delta would be negative (w1 < t)
-        if w1 < t {
+        let t_target = t.saturating_mul(2).saturating_sub(1);
+
+        // Calculate delta = w1 - (2t - 1)
+        // Skip if delta would be negative (w1 < 2t - 1)
+        if w1 < t_target {
             return None;
         }
 
-        let delta = w1 - t;
+        let delta = w1 - t_target;
         Some(delta)
     };
 
@@ -133,4 +136,59 @@ pub fn get_delta(
 
     // Return the maximum delta
     Some(all_deltas.iter().fold(0u64, |a, &b| a.max(b)))
+}
+
+/// Compute the global precision loss for super_swiper weight reduction.
+///
+/// This is analogous to `delta = sum(w % d)` in `new_reduced`, representing the total
+/// weight lost due to the transformation.
+///
+/// For super_swiper:
+/// - `d = total_original_weight / total_reduced_weight` (exact ratio, no floor)
+/// - `delta = sum(max(original[i] - reduced[i] * d, 0))`
+/// - This measures the weight lost when original weights exceed scaled reduced weights.
+/// - Negative differences (where scaled reduced > original) are ignored.
+///
+/// For new_reduced with integer d:
+/// - `delta = sum(original[i] % d) = sum(original[i] - reduced[i] * d)`
+/// - Since `reduced[i] = floor(original[i] / d)`, the difference is always non-negative,
+///   so `max(..., 0)` is equivalent to the difference itself.
+///
+/// Returns (delta, d) where delta is the precision loss and d is the effective divisor.
+pub fn compute_precision_loss(
+    original_weights: &[u64],
+    reduced_weights: &[u64],
+) -> (Ratio<u64>, Ratio<u64>) {
+    let total_original: u64 = original_weights.iter().sum();
+    let total_reduced: u64 = reduced_weights.iter().sum();
+
+    // d = total_original / total_reduced (exact ratio, no floor)
+    let d = if total_reduced > 0 {
+        Ratio::new(total_original, total_reduced)
+    } else {
+        Ratio::from_integer(1)
+    };
+
+    // delta = sum(max(original[i] - reduced[i] * d, 0))
+    let delta: Ratio<u64> = original_weights
+        .iter()
+        .enumerate()
+        .map(|(i, &orig)| {
+            let red = if i < reduced_weights.len() {
+                reduced_weights[i]
+            } else {
+                0
+            };
+            let orig_ratio = Ratio::from_integer(orig);
+            let scaled_red = Ratio::from_integer(red) * d;
+            // Compute max(original - scaled_reduced, 0)
+            if orig_ratio >= scaled_red {
+                orig_ratio - scaled_red
+            } else {
+                Ratio::from_integer(0)
+            }
+        })
+        .sum();
+
+    (delta, d)
 }

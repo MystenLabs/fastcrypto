@@ -4,7 +4,7 @@
 use crate::ecies_v1;
 use crate::types::ShareIndex;
 use crate::weight_reduction::solve;
-use crate::weight_reduction::weight_reduction_checks::get_delta;
+use crate::weight_reduction::weight_reduction_checks::compute_precision_loss;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
@@ -257,7 +257,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         let alpha = Ratio::new(t as u64, original_total_weight);
 
         // Extract weights from nodes, sorted in descending order (required by super_swiper)
-        // Sort in descending order as required by super_swiper
         let weights_sorted = n
             .nodes
             .iter()
@@ -266,98 +265,67 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             .rev()
             .collect_vec();
 
-        // Set initial beta = alpha + 1/100
-        let beta_denom = 100u64;
-        // Calculate alpha + 1/100 = (alpha_numer * 100 + alpha_denom) / (alpha_denom * 100)
-        // Then convert to denominator 100: beta_numer = (alpha_numer * 100 + alpha_denom) / alpha_denom
-        let mut beta_numer = (alpha.numer() * beta_denom + alpha.denom()) / alpha.denom();
+        // Original weights for delta calculation (in original order)
+        let original_weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
 
-        // Safety limit to prevent infinite loops
-        const MAX_BETA_ITERATIONS: u64 = 50; // Allow more iterations for slack-based approach
-        let mut iterations = 0;
+        // Map from sorted index back to original index (computed once, used in loop)
+        let indexed_weights: Vec<(usize, u16)> = n
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, node)| (i, node.weight))
+            .sorted_by_key(|(_, w)| *w)
+            .rev()
+            .collect_vec();
+
+        // Find the highest beta such that delta < allowed_delta
+        // Start high and decrease until constraint is met
+        let step = Ratio::new(1u64, 100u64);
+        let beta_min = alpha + step; // Minimum beta is alpha + 1/100
+        let beta_max = Ratio::new(1u64, 2u64); // Maximum beta is 1/2
+        let mut beta = beta_max;
 
         loop {
-            iterations += 1;
-            if iterations > MAX_BETA_ITERATIONS {
+            if beta < beta_min {
                 return Err(FastCryptoError::InvalidInput);
             }
 
-            // Call super_swiper to get ticket assignments (which are the reduced weights)
-            let reduced_weights_sorted =
-                solve(alpha, Ratio::new(beta_numer, beta_denom), &weights_sorted);
-
-            // Calculate the new total weight
+            let reduced_weights_sorted = solve(alpha, beta, &weights_sorted);
             let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
 
-            // Map the reduced weights back to nodes
-            let indexed_weights = n
-                .nodes
-                .iter()
-                .enumerate()
-                .map(|(i, node)| (i, node.weight))
-                .sorted_by_key(|(_, w)| *w)
-                .rev()
-                .collect_vec();
-
+            // Map reduced weights back to original order
             let mut new_weights = vec![0u16; n.nodes.len()];
-            for (idx_in_sorted, (original_idx, _original_weight)) in
-                indexed_weights.iter().enumerate()
-            {
+            for (idx_in_sorted, (original_idx, _)) in indexed_weights.iter().enumerate() {
                 if idx_in_sorted < reduced_weights_sorted.len() {
                     new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
                 }
             }
 
-            // Prepare weights for delta calculation (in original order)
-            let original_weights = n.nodes.iter().map(|node| node.weight as u64).collect_vec();
-            let reduced_weights = new_weights.iter().copied().map(u64::from).collect_vec();
-            let t_prime = (Ratio::new(beta_numer, beta_denom) * new_total_weight).to_integer();
+            let reduced_weights: Vec<u64> = new_weights.iter().copied().map(u64::from).collect();
 
-            // Get delta - this is the primary validation check
-            // Use n=2 random subsets in addition to top and bottom checks
-            let delta = get_delta(
-                t_prime,
-                &original_weights,
-                &reduced_weights,
-                t as u64,
-                2, // n_random: number of random subsets to test
-            );
+            // Compute delta = sum(max(original[i] - reduced[i] * d, 0))
+            // where d = total_original / total_reduced (exact ratio)
+            let (delta, d) = compute_precision_loss(&original_weights, &reduced_weights);
 
-            // Use delta as the primary check instead of other validations
-            // The constraint should be: delta >= allowed_delta (lower bound, like the old slack constraint)
-            // This ensures w1 >= t + allowed_delta, which means the reduction is not too aggressive
-            // If delta < allowed_delta, we need to increase beta to get a larger t_prime and thus larger w1
-            let delta_acceptable = if let Some(delta_value) = delta {
-                delta_value >= allowed_delta as u64
-            } else {
-                // If delta calculation failed (negative delta or t_prime cannot be reached), try increasing beta
-                // This might help by increasing t_prime and potentially getting a valid subset
-                false
-            };
+            // Check condition: (2*n+1)/3 + allowed_delta - delta >= 2 * beta * n - d
+            // where n = original_total_weight
+            let n_ratio = Ratio::from_integer(original_total_weight);
+            let two_n_plus_one = Ratio::from_integer(2 * original_total_weight + 1);
+            let left_side = two_n_plus_one / Ratio::from_integer(3)
+                + Ratio::from_integer(allowed_delta as u64)
+                - delta;
+            let right_side = Ratio::from_integer(2u64) * beta * n_ratio - d;
+            let condition_met = left_side >= right_side;
 
-            // Check if reduction went below the lower bound (similar to new_reduced)
             let lower_bound_ok = new_total_weight >= total_weight_lower_bound as u64;
 
-            // Check both constraints: lower bound and delta
-            // If either fails, try increasing beta (which helps both constraints)
-            if !lower_bound_ok || !delta_acceptable {
-                // Try to increase beta to improve both constraints
-                // Increasing beta increases new_total_weight (helps lower bound) and increases delta (helps delta constraint)
-                if beta_numer < 50 {
-                    beta_numer += 1;
-                    continue;
-                } else {
-                    // Can't increase beta further
-                    // If we've tried many times, accept the current result if it at least meets the lower bound
-                    // Otherwise return error
-                    if iterations < 20 || !lower_bound_ok {
-                        // Give more iterations to find a solution
-                        return Err(FastCryptoError::InvalidInput);
-                    }
-                    // Lower bound is met, accept even if delta constraint not perfectly met
-                }
+            // If condition not met or lower bound not met, decrease beta
+            if !condition_met || !lower_bound_ok {
+                beta -= step;
+                continue;
             }
 
+            // Success - build and return the result
             let nodes = n
                 .nodes
                 .into_iter()
@@ -369,12 +337,8 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                 })
                 .collect_vec();
 
-            // These are required fields for the Nodes struct
             let accumulated_weights = Self::get_accumulated_weights(&nodes);
             let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
-
-            // Calculate new threshold
-            let beta = Ratio::new(beta_numer, beta_denom);
             let new_t = (beta * new_total_weight).to_integer() as u16;
 
             return Ok((
