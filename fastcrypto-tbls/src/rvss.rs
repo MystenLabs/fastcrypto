@@ -1,4 +1,4 @@
-use crate::dl_verification::{verify_pairs, verify_triplets};
+use crate::dl_verification::verify_pairs;
 use crate::polynomial::Poly;
 use crate::random_oracle::RandomOracle;
 use either::Either;
@@ -8,11 +8,13 @@ use fastcrypto::{
     groups::{GroupElement, HashToGroupElement, Scalar as GScalar},
 };
 use itertools::Itertools;
-use rand::thread_rng;
+use rand::{thread_rng, RngCore};
 use serde::Serialize;
 use std::num::NonZeroU16;
 
-/////// Quick and dirty implementation of the RVSS protocol for performance testing ///////
+/////// Implementation of the RVSS protocol for performance testing ONLY ///////
+
+// Switch the group by commenting and uncommenting the following lines
 
 /////// BLS12-381 test ///////
 // use fastcrypto::groups::bls12381;
@@ -20,49 +22,51 @@ use std::num::NonZeroU16;
 // pub type Scalar = bls12381::Scalar;
 
 /////// Ristretto255 test ///////
-use fastcrypto::groups::ristretto255;
+use fastcrypto::groups::{ristretto255, MultiScalarMul};
 pub type Point = ristretto255::RistrettoPoint;
 pub type Scalar = ristretto255::RistrettoScalar;
 
-
-
 //////// Recovery gadget ////////
+
 #[derive(Serialize)]
 pub struct Gadget {
     h: Point,
     h_omega: Point,
     t: Vec<(Point, Vec<u8>)>,
-    t_prime: Vec<Either<Point, Scalar>>,
+    u: Vec<Either<Point, Scalar>>,
 }
 
 impl Gadget {
     pub fn new(k: usize, h: Point, omega: Scalar) -> Self {
         let ro = RandomOracle::new("gadget");
+        let h_omega = h * omega;
+        let g = Point::generator();
+
         let r = (0..k)
             .map(|_i| Scalar::rand(&mut thread_rng()))
             .collect_vec();
-
-        let h_omega = h * omega;
-        let g = Point::generator();
         let t = r
             .iter()
             .enumerate()
             .map(|(j, r_j)| {
                 let g_j = g * *r_j;
+                let h_j = h * *r_j;
                 let hash = &ro.evaluate(&(j, &g_j))[0..32];
-                let xored = hash
+                let t_j = hash
                     .iter()
                     .zip(r_j.to_byte_array())
                     .map(|(&x1, x2)| x1 ^ x2)
                     .collect();
-                (h * *r_j, xored)
+                (h_j, t_j)
             })
             .collect_vec();
 
-        let challenge = ro.evaluate(&(h, h_omega, &t));
-        let t_prime = (0..k)
+        let d = ro.evaluate(&(h, h_omega, &t));
+        // d == 1^k with neg probability
+
+        let u = (0..k)
             .map(|i| {
-                if challenge[i / 8] & (1 << (i % 8)) == 0 {
+                if d[i / 8] & (1 << (i % 8)) == 0 {
                     Either::Left(g * r[i])
                 } else {
                     Either::Right(r[i] - omega)
@@ -70,24 +74,22 @@ impl Gadget {
             })
             .collect();
 
-        Self {
-            h,
-            h_omega,
-            t,
-            t_prime,
-        }
+        Self { h, h_omega, t, u }
     }
 
     pub fn verify(&self, k: usize) -> FastCryptoResult<()> {
         let ro = RandomOracle::new("gadget");
-        let challenge = ro.evaluate(&(self.h, self.h_omega, &self.t));
+
+        // We check all exponents in a batch
         let mut tuples_1 = Vec::new();
         let mut tuples_2 = Vec::new();
+
+        let d = ro.evaluate(&(self.h, self.h_omega, &self.t));
         for i in 0..k {
-            let bit = challenge[i / 8] & (1 << (i % 8));
+            let bit = d[i / 8] & (1 << (i % 8));
             if bit == 0 {
-                if let Either::Left(g_j) = self.t_prime[i] {
-                    let hash = &ro.evaluate(&(i, &g_j))[0..32];
+                if let Either::Left(u_j) = self.u[i] {
+                    let hash = &ro.evaluate(&(i, &u_j))[0..32];
                     let r_j = hash
                         .iter()
                         .zip(&self.t[i].1)
@@ -95,14 +97,16 @@ impl Gadget {
                         .collect_vec();
                     let r_j: Scalar =
                         Scalar::from_byte_array(&r_j[0..32].try_into().unwrap()).unwrap();
-                    tuples_1.push((r_j, g_j));
+                    // check that g_j = g * r_j
+                    tuples_1.push((r_j, u_j));
+                    // check that t_j = h * r_j
                     tuples_2.push((r_j, self.t[i].0));
                 } else {
                     return Err(FastCryptoError::InvalidProof);
                 }
             } else {
-                if let Either::Right(t_prime_j) = self.t_prime[i] {
-                    tuples_2.push((t_prime_j, self.t[i].0 - self.h_omega));
+                if let Either::Right(u_j) = self.u[i] {
+                    tuples_2.push((u_j, self.t[i].0 - self.h_omega));
                 } else {
                     return Err(FastCryptoError::InvalidProof);
                 }
@@ -114,119 +118,103 @@ impl Gadget {
 }
 
 //////// Low degree zk proof ////////
+
 #[derive(Serialize)]
 pub struct LDProof {
-    challenge: Scalar,
-    z_poly: Poly<Scalar>,
-    bases_to_z: Vec<(Point, Point)>,
-    exponents_to_challenge: Vec<(Point, Point)>,
+    x: Vec<[Point; 2]>,
+    z: Poly<Scalar>,
 }
 
 impl LDProof {
     pub fn new(
-        bases1: &[Point],
-        bases2: &[Point],
-        exponents1: &[Point],
-        exponents2: &[Point],
-        secret_poly: &Poly<Scalar>,
+        g1: &[Point],
+        g2: &[Point],
+        h1: &[Point],
+        h2: &[Point],
+        w: &Poly<Scalar>,
     ) -> LDProof {
-        assert!(bases1.len() == bases2.len());
-        assert!(bases1.len() == exponents1.len());
-        assert!(bases1.len() == exponents2.len());
+        assert!(g1.len() == g2.len());
+        assert!(g1.len() == h1.len());
+        assert!(g1.len() == h2.len());
 
         let ro = RandomOracle::new("mldei");
 
-        let r_poly = Poly::rand(secret_poly.degree() as u16, &mut thread_rng());
-        let x = bases1
+        let r = Poly::rand(w.degree() as u16, &mut thread_rng());
+
+        let x = g1
             .iter()
-            .zip(bases2.iter())
+            .zip(g2.iter())
             .enumerate()
             .map(|(j, (base1, base2))| {
-                let r_j = r_poly.eval(share_index(j)).value;
-                (base1 * r_j, base2 * r_j)
+                let r_j = r.eval(share_index(j)).value;
+                [base1 * r_j, base2 * r_j]
             })
             .collect_vec();
 
-        let challenge: Scalar = Scalar::hash_to_group_element(
-            &ro.evaluate(&(bases1, bases2, exponents1, exponents2, x)),
-        );
+        let e: Scalar = Scalar::hash_to_group_element(&ro.evaluate(&(g1, g2, h1, h2, &x)));
+        let neg_e = -e;
+        let z = r + &(w.clone() * &neg_e);
 
-        let z_poly = r_poly + &(secret_poly.clone() * &challenge);
-
-        let bases_to_z = bases1
-            .iter()
-            .zip(bases2.iter())
-            .enumerate()
-            .map(|(j, (base1, base2))| {
-                let z_j = z_poly.eval(share_index(j)).value;
-                (base1 * z_j, base2 * z_j)
-            })
-            .collect_vec();
-
-        let exponents_to_challenge = exponents1
-            .iter()
-            .zip(exponents2.iter())
-            .map(|(exp1, exp2)| (exp1 * challenge, exp2 * challenge))
-            .collect_vec();
-
-        LDProof {
-            challenge,
-            z_poly,
-            bases_to_z,
-            exponents_to_challenge,
-        }
+        LDProof { x, z }
     }
 
     pub fn verify(
         &self,
         t: usize,
-        bases1: &[Point],
-        bases2: &[Point],
-        exponents1: &[Point],
-        exponents2: &[Point],
+        g1: &[Point],
+        g2: &[Point],
+        h1: &[Point],
+        h2: &[Point],
     ) -> FastCryptoResult<()> {
         let ro = RandomOracle::new("mldei");
-        if self.z_poly.degree() != t {
+        let mut rng = thread_rng();
+
+        if self.z.degree() > t {
             return Err(FastCryptoError::InvalidProof);
         }
 
-        let mut tuples = Vec::new();
-        (0..bases1.len()).into_iter().for_each(|j| {
-            let z_j = self
-                .z_poly
-                .eval(NonZeroU16::new((j + 1) as u16).unwrap())
-                .value;
-            tuples.push((z_j, bases1[j], self.bases_to_z[j].0));
-            tuples.push((z_j, bases2[j], self.bases_to_z[j].1));
-            tuples.push((
-                self.challenge,
-                exponents1[j],
-                self.exponents_to_challenge[j].0,
-            ));
-            tuples.push((
-                self.challenge,
-                exponents2[j],
-                self.exponents_to_challenge[j].1,
-            ));
-        });
-        verify_triplets(&tuples, &mut thread_rng())?;
+        let e = Scalar::hash_to_group_element(&ro.evaluate(&(g1, g2, h1, h2, &self.x)));
 
-        let x = (0..bases1.len())
-            .map(|j| {
-                (
-                    self.bases_to_z[j].0 - self.exponents_to_challenge[j].0,
-                    self.bases_to_z[j].1 - self.exponents_to_challenge[j].1,
-                )
+        let r = (0..self.x.len())
+            .map(|_| {
+                [
+                    Scalar::from(rng.next_u64() as u128),
+                    Scalar::from(rng.next_u64() as u128),
+                ]
             })
-            .collect_vec();
+            .collect::<Vec<_>>();
 
-        let challenge = Scalar::hash_to_group_element(
-            &ro.evaluate(&(bases1, bases2, exponents1, exponents2, x)),
-        );
-        if challenge != self.challenge {
+        let z_values = (0..self.x.len())
+            .map(|i| self.z.eval(share_index(i)).value)
+            .collect::<Vec<_>>();
+
+        let mut scalars = Vec::new();
+        let mut points = Vec::new();
+
+        let g = [g1, g2];
+        let h = [h1, h2];
+
+        for i in 0..self.x.len() {
+            let z = z_values[i];
+            for j in 0..2 {
+                scalars.push(z * r[i][j]);
+                points.push(g[j][i]);
+
+                scalars.push(e * r[i][j]);
+                points.push(h[j][i]);
+
+                scalars.push(-r[i][j]);
+                points.push(self.x[i][j]);
+            }
+        }
+
+        let msm = Point::multi_scalar_mul(&scalars[..], &points[..]).expect("valid sizes");
+
+        if msm == Point::zero() {
+            return Ok(());
+        } else {
             return Err(FastCryptoError::InvalidProof);
         }
-        Ok(())
     }
 }
 
@@ -237,7 +225,7 @@ pub struct RVSS {
     c_hat: Vec<Point>,
     c: Vec<[u8; 32]>,
     gadget: Gadget,
-    mdlei_proof: LDProof,
+    mldei_proof: LDProof,
 }
 
 impl RVSS {
@@ -258,7 +246,7 @@ impl RVSS {
         let mut c_hat = Vec::new();
 
         for (j, pk) in pks.iter().enumerate() {
-            let s_j = poly.eval(NonZeroU16::new((j + 1) as u16).unwrap()).value;
+            let s_j = poly.eval(share_index(j)).value;
             let s_hat_j = g * s_j;
             let v_j = h * s_j;
             let c_hat_j = pk * s_j;
@@ -278,14 +266,14 @@ impl RVSS {
         let gadget = Gadget::new(k, h, omega);
         let h_n_times = (0..pks.len()).map(|_| h).collect_vec();
 
-        let mdlei_proof = LDProof::new(pks, &h_n_times, &c_hat, &v, &poly);
+        let mldei_proof = LDProof::new(pks, &h_n_times, &c_hat, &v, &poly);
 
         RVSS {
             v,
             c_hat,
             c,
             gadget,
-            mdlei_proof,
+            mldei_proof,
         }
     }
 
@@ -294,14 +282,14 @@ impl RVSS {
         let (_g, h) = Self::bases();
 
         let h_n_times = (0..n).map(|_| h).collect_vec();
-        self.mdlei_proof
+        self.mldei_proof
             .verify(t, pks, &h_n_times, &self.c_hat, &self.v)?;
         self.gadget.verify(k)?;
 
         Ok(())
     }
 
-    // Just to measure performance in the case of an honest dealer
+    // To measure performance in the case of an honest dealer
     pub fn optimistic_decrypt(&self, i: usize, sk: &Scalar) -> FastCryptoResult<Scalar> {
         let ro = RandomOracle::new("rvss");
         let (_g, h) = Self::bases();
@@ -333,6 +321,8 @@ impl RVSS {
 fn share_index(i: usize) -> NonZeroU16 {
     NonZeroU16::new((i + 1) as u16).expect("index must be non-zero")
 }
+
+// Following tests check the e2e functionalities but not edge cases
 
 #[test]
 fn test_gadget() {

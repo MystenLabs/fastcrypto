@@ -28,13 +28,13 @@ use blst::{
     p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use fastcrypto_derive::GroupOpsExtend;
+use hash::*;
 use hex_literal::hex;
 use once_cell::sync::OnceCell;
 use std::fmt::Debug;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
 use zeroize::Zeroize;
-use hash::*;
 
 /// Elements of the group G_1 in BLS 12-381.
 #[derive(Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
