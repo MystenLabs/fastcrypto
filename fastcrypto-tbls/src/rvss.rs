@@ -115,6 +115,11 @@ impl Gadget {
         verify_pairs(&Point::generator(), &tuples_1, &mut thread_rng())?;
         verify_pairs(&self.h, &tuples_2, &mut thread_rng())
     }
+
+    #[cfg(test)]
+    pub fn t(&mut self) -> &mut Vec<(Point, Vec<u8>)> {
+        &mut self.t
+    }
 }
 
 //////// Low degree zk proof ////////
@@ -216,6 +221,11 @@ impl LDProof {
             return Err(FastCryptoError::InvalidProof);
         }
     }
+
+    #[cfg(test)]
+    pub fn x(&mut self) -> &mut Vec<[Point; 2]> {
+        &mut self.x
+    }
 }
 
 //////// The RVSS protocol (share and verify) ////////
@@ -316,6 +326,11 @@ impl RVSS {
         let h = Point::hash_to_group_element(&ro.evaluate(&(g, g)));
         (g, h)
     }
+
+    #[cfg(test)]
+    pub fn c_hat(&mut self) -> &mut Vec<Point> {
+        &mut self.c_hat
+    }
 }
 
 fn share_index(i: usize) -> NonZeroU16 {
@@ -328,8 +343,11 @@ fn share_index(i: usize) -> NonZeroU16 {
 fn test_gadget() {
     let h = Point::generator();
     let omega = Scalar::rand(&mut thread_rng());
-    let gadget = Gadget::new(128, h, omega);
+    let mut gadget = Gadget::new(128, h, omega);
     gadget.verify(128).unwrap();
+
+    gadget.t()[0].0 = Point::generator();
+    gadget.verify(128).unwrap_err();
 }
 
 #[test]
@@ -350,10 +368,15 @@ fn test_mldei() {
         .map(|i| bases2[i] * &p.eval(NonZeroU16::new((i + 1) as u16).unwrap()).value)
         .collect_vec();
 
-    let proof = LDProof::new(&bases1, &bases2, &exponents1, &exponents2, &p);
+    let mut proof = LDProof::new(&bases1, &bases2, &exponents1, &exponents2, &p);
     proof
         .verify(t.into(), &bases1, &bases2, &exponents1, &exponents2)
         .unwrap();
+
+    proof.x()[0][0] = Point::generator();
+    proof
+        .verify(t.into(), &bases1, &bases2, &exponents1, &exponents2)
+        .unwrap_err();
 }
 
 #[test]
@@ -367,8 +390,11 @@ fn test_rvss() {
         .collect_vec();
 
     let omega = Scalar::rand(&mut thread_rng());
-    let rvss = RVSS::new(k, t, omega, &pks);
+    let mut rvss = RVSS::new(k, t, omega, &pks);
     rvss.verify(k, t, &pks).unwrap();
 
     rvss.optimistic_decrypt(10, &Scalar::from(11u128)).unwrap();
+
+    rvss.c_hat()[0] = Point::generator();
+    rvss.verify(k, t, &pks).unwrap_err();
 }
