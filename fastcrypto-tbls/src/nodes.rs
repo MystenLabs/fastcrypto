@@ -244,13 +244,13 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     /// - `total_weight_lower_bound`: Minimum allowed total weight after reduction
     ///
     /// # Returns
-    /// A tuple of (reduced Nodes, new threshold t'), same as `new_reduced`.
+    /// A tuple of (reduced Nodes, new threshold t', new f').
     pub fn new_super_swiper_reduced(
         nodes_vec: Vec<Node<G>>,
         t: u16,
         allowed_delta: u16,
         total_weight_lower_bound: u16,
-    ) -> FastCryptoResult<(Self, u16)> {
+    ) -> FastCryptoResult<(Self, u16, u16)> {
         let n = Self::new(nodes_vec)?;
         let original_total_weight = n.total_weight() as u64;
         let w = original_total_weight;
@@ -262,6 +262,13 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         {
             return Err(FastCryptoError::InvalidInput);
         }
+
+        // We calculate f = (W-t)/2 here, but it can be supplied as a parameter.
+        let f = if w >= t as u64 {
+            (w - t as u64) / 2
+        } else {
+            return Err(FastCryptoError::InvalidInput);
+        };
 
         // Safety: α = (t-1)/W so that any S with w(S) ≤ t-1 gets w'(S) < βW' (PROOF.md).
         let alpha = if t <= 1 {
@@ -292,11 +299,11 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             .rev()
             .collect_vec();
 
-        // Find the highest beta such that delta < allowed_delta
-        // Start high and decrease until constraint is met
+        // Find the highest beta such that there exists an integer f' satisfying the constraint
+        // Start from beta = 0.5 and decrease until constraint can be satisfied
         let step = Ratio::new(1u64, 100u64);
         let beta_min = alpha + step; // Minimum beta is alpha + 1/100
-        let beta_max = Ratio::new(1u64, 2u64); // Maximum beta is 1/2
+        let beta_max = Ratio::new(1u64, 2u64); // Maximum beta is 0.5
         let mut beta = beta_max;
 
         loop {
@@ -306,6 +313,11 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
             let reduced_weights_sorted = solve(alpha, beta, &weights_sorted);
             let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
+
+            if new_total_weight == 0 {
+                beta -= step;
+                continue;
+            }
 
             // Map reduced weights back to original order
             let mut new_weights = vec![0u16; n.nodes.len()];
@@ -318,25 +330,112 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             let reduced_weights: Vec<u64> = new_weights.iter().copied().map(u64::from).collect();
 
             // Precision loss δ = sum(max(w_i - w'_i·d, 0)), d = W/W' (PROOF.md).
-            let (delta, _d) = compute_precision_loss(&original_weights, &reduced_weights);
+            let (delta, d) = compute_precision_loss(&original_weights, &reduced_weights);
 
-            // Liveness: t+f+δ_allowed ≥ (t'+f')·d + δ. With f=(W-t)/2, f'=(W'-t')/2, t'=βW',
-            // this is equivalent to t + 2·δ_allowed ≥ W·β + 2·δ (PROOF.md).
-            // If δ > δ_allowed then t + 2·(δ_allowed − δ) would be negative; treat as not met.
-            let condition_met = delta <= Ratio::from_integer(allowed_delta as u64)
-                && Ratio::from_integer(t as u64)
-                    + Ratio::from_integer(2) * (Ratio::from_integer(allowed_delta as u64) - delta)
-                    >= Ratio::from_integer(w) * beta;
+            // Calculate t' = βW'
+            let t_prime = beta * Ratio::from_integer(new_total_weight);
+            let t_prime_int = t_prime.to_integer();
 
-            let lower_bound_ok = new_total_weight >= total_weight_lower_bound as u64;
+            // Constraint from PROOF.md: (f - δ_f + δ)/d ≤ f' ≤ min((t+f+δ_allowed-δ)/d - t', (W' - t')/2, t'-1)
+            // where δ_f = f * 0.50 (constraint: w(S) <= f - δ_f => w'(S) <= f')
 
-            // If condition not met or lower bound not met, decrease beta
-            if !condition_met || !lower_bound_ok {
+            // Calculate lower bound: f' ≥ (f - δ_f + δ)/d
+            let delta_f = Ratio::from_integer(f) * Ratio::new(50u64, 100u64); // δ_f = f * 0.50
+            let lower_bound = (Ratio::from_integer(f) - delta_f + delta) / d;
+
+            // Calculate upper bounds from three constraints:
+            // 1. Constraint 2: f' ≤ (t+f+δ_allowed-δ)/d - t'
+            let t_plus_f_plus_delta_allowed = Ratio::from_integer(t as u64)
+                + Ratio::from_integer(f)
+                + Ratio::from_integer(allowed_delta as u64);
+
+            let upper_bound_constraint2 = if delta > t_plus_f_plus_delta_allowed {
+                // Delta too large, constraint cannot be satisfied
+                None
+            } else {
+                let numerator = t_plus_f_plus_delta_allowed - delta;
+                let first_term = numerator / d;
+                if first_term >= t_prime {
+                    Some(first_term - t_prime)
+                } else {
+                    // first_term < t_prime means constraint 2 cannot be satisfied
+                    None
+                }
+            };
+
+            // 2. f' < t' => f' ≤ t' - 1
+            let upper_bound_t_prime = if t_prime_int == 0 {
+                None
+            } else {
+                Some(Ratio::from_integer(t_prime_int - 1))
+            };
+
+            // 3. t' + 2f' ≤ W' => f' ≤ (W' - t')/2
+            let upper_bound_w_prime = if new_total_weight > t_prime_int {
+                let w_prime_ratio = Ratio::from_integer(new_total_weight);
+                Some((w_prime_ratio - t_prime) / Ratio::from_integer(2))
+            } else {
+                None
+            };
+
+            // Find minimum of all valid upper bounds
+            let min_upper_bound = match (
+                upper_bound_constraint2,
+                upper_bound_t_prime,
+                upper_bound_w_prime,
+            ) {
+                (None, _, _) | (_, None, _) | (_, _, None) => {
+                    beta -= step;
+                    continue;
+                }
+                (Some(ub2), Some(ub_t), Some(ub_w)) => {
+                    let mut min_val = ub2;
+                    if ub_t < min_val {
+                        min_val = ub_t;
+                    }
+                    if ub_w < min_val {
+                        min_val = ub_w;
+                    }
+                    min_val
+                }
+            };
+
+            // Check that lower_bound ≤ min_upper_bound and min_upper_bound > 0
+            if min_upper_bound <= Ratio::from_integer(0) || lower_bound > min_upper_bound {
                 beta -= step;
                 continue;
             }
 
-            // Success - build and return the result
+            // Calculate f' as ceiling of lower bound
+            let f_prime = if lower_bound.numer() == &0 {
+                0u16
+            } else {
+                let num = *lower_bound.numer();
+                let den = *lower_bound.denom();
+                ((num + den - 1) / den) as u16
+            };
+
+            // Verify f' satisfies all constraints
+            let f_prime_u64 = f_prime as u64;
+            let f_prime_ratio = Ratio::from_integer(f_prime_u64);
+            let satisfies_all = f_prime_ratio >= lower_bound
+                && f_prime_ratio <= upper_bound_constraint2.unwrap()
+                && f_prime_ratio <= upper_bound_t_prime.unwrap()
+                && f_prime_ratio <= upper_bound_w_prime.unwrap()
+                && f_prime_u64 < t_prime_int;
+
+            if !satisfies_all {
+                beta -= step;
+                continue;
+            }
+
+            let lower_bound_ok = new_total_weight >= total_weight_lower_bound as u64;
+            if !lower_bound_ok {
+                beta -= step;
+                continue;
+            }
+
+            // Build and return the result
             let nodes = n
                 .nodes
                 .into_iter()
@@ -350,7 +449,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
             let accumulated_weights = Self::get_accumulated_weights(&nodes);
             let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
-            let new_t = (beta * new_total_weight).to_integer() as u16;
+            let new_t = t_prime_int as u16;
 
             return Ok((
                 Self {
@@ -360,6 +459,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                     nodes_with_nonzero_weight,
                 },
                 new_t,
+                f_prime,
             ));
         }
     }

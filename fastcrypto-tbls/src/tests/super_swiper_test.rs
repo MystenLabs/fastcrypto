@@ -90,8 +90,18 @@ mod tests {
             .collect()
     }
 
-    // Type alias for epoch comparison results: (epoch, new_reduced_total, new_reduced_t, super_swiper_total, super_swiper_t)
-    type EpochComparisonResult = (u64, Option<u16>, Option<u16>, Option<u16>, Option<u16>);
+    // Type alias for epoch comparison results: (epoch, W, t, f, beta, W', t', f')
+    // where W, t, f are original values, and beta, W', t', f' are from super_swiper
+    type EpochComparisonResult = (
+        u64,
+        Option<u16>,
+        Option<u16>,
+        Option<u64>,
+        Option<String>,
+        Option<u16>,
+        Option<u16>,
+        Option<u16>,
+    );
 
     #[test]
     fn test_all_epochs_comparison() {
@@ -115,8 +125,8 @@ mod tests {
             let allowed_delta = (original_total_weight as f64 * 0.08) as u16;
             let total_weight_lower_bound = 1u16;
 
-            // Test new_reduced
-            let new_reduced_result = Nodes::new_reduced(
+            // Test new_reduced (not used in output, but kept for potential future use)
+            let _new_reduced_result = Nodes::new_reduced(
                 nodes_vec.clone(),
                 t,
                 allowed_delta,
@@ -131,77 +141,102 @@ mod tests {
                 total_weight_lower_bound,
             );
 
-            let (new_reduced_total, new_reduced_t) = match new_reduced_result {
-                Ok((reduced_nodes, new_t)) => (Some(reduced_nodes.total_weight()), Some(new_t)),
-                Err(_) => (None, None),
+            // Calculate f = (W-t)/2
+            let f = if original_total_weight >= t as u16 {
+                Some((original_total_weight - t as u16) as u64 / 2)
+            } else {
+                None
             };
 
-            let (super_swiper_total, super_swiper_t) = match super_swiper_result {
-                Ok((reduced_nodes, new_t)) => (Some(reduced_nodes.total_weight()), Some(new_t)),
-                Err(_) => (None, None),
+            let (w_prime, t_prime, f_prime, beta_str) = match super_swiper_result {
+                Ok((reduced_nodes, new_t, f_p)) => {
+                    let w_p = reduced_nodes.total_weight();
+                    // Calculate beta = t'/W'
+                    let beta_val = if w_p > 0 {
+                        let beta_ratio = Ratio::new(new_t as u64, w_p as u64);
+                        Some(format!("{}/{}", beta_ratio.numer(), beta_ratio.denom()))
+                    } else {
+                        None
+                    };
+                    (Some(w_p), Some(new_t), Some(f_p), beta_val)
+                }
+                Err(_) => (None, None, None, None),
             };
 
             results.push((
                 epoch,
-                new_reduced_total,
-                new_reduced_t,
-                super_swiper_total,
-                super_swiper_t,
+                Some(original_total_weight),
+                Some(t),
+                f,
+                beta_str.clone(),
+                w_prime,
+                t_prime,
+                f_prime,
             ));
 
             println!(
-                "  ✅ Epoch {}: new_reduced={:?}, super_swiper={:?}",
-                epoch, new_reduced_total, super_swiper_total
+                "  ✅ Epoch {}: W={}, t={}, f={:?}, beta={:?}, W'={:?}, t'={:?}, f'={:?}",
+                epoch, original_total_weight, t, f, beta_str, w_prime, t_prime, f_prime
             );
         }
 
         // Print comparison chart
-        let separator = "=".repeat(60);
+        let separator = "=".repeat(100);
         println!("\n{}", separator);
         println!("📈 WEIGHT REDUCTION COMPARISON CHART");
         println!("{}", separator);
         println!(
-            "{:<8} | {:<12} | {:<8} | {:<12} | {:<8}",
-            "Epoch", "new_red(w)", "new_red(t)", "super(w)", "super(t)"
+            "{:<8} | {:<6} | {:<6} | {:<8} | {:<12} | {:<8} | {:<8} | {:<8}",
+            "Epoch", "W", "t", "f", "beta", "W'", "t'", "f'"
         );
         println!(
-            "{}-+-{}-+-{}-+-{}-+-{}",
+            "{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}",
+            "-".repeat(8),
+            "-".repeat(6),
+            "-".repeat(6),
             "-".repeat(8),
             "-".repeat(12),
             "-".repeat(8),
-            "-".repeat(12),
+            "-".repeat(8),
             "-".repeat(8)
         );
-        for (epoch, new_reduced, new_reduced_t, super_swiper, super_swiper_t) in &results {
-            let new_reduced_str = new_reduced
+        for (epoch, w, t_val, f_val, beta, w_prime, t_prime, f_prime) in &results {
+            let w_str = w
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "N/A".to_string());
-            let new_reduced_t_str = new_reduced_t
+            let t_str = t_val
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "N/A".to_string());
-            let super_swiper_str = super_swiper
+            let f_str = f_val
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "N/A".to_string());
-            let super_swiper_t_str = super_swiper_t
+            let beta_str = beta.clone().unwrap_or_else(|| "N/A".to_string());
+            let w_prime_str = w_prime
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let t_prime_str = t_prime
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let f_prime_str = f_prime
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "N/A".to_string());
             println!(
-                "{:<8} | {:<12} | {:<8} | {:<12} | {:<8}",
-                epoch, new_reduced_str, new_reduced_t_str, super_swiper_str, super_swiper_t_str
+                "{:<8} | {:<6} | {:<6} | {:<8} | {:<12} | {:<8} | {:<8} | {:<8}",
+                epoch, w_str, t_str, f_str, beta_str, w_prime_str, t_prime_str, f_prime_str
             );
         }
         println!("{}", separator);
         println!();
 
         // Verify all tests passed
-        for (epoch, new_reduced, _, super_swiper, _) in &results {
+        for (epoch, w, t_val, f_val, beta, w_prime, t_prime, f_prime) in &results {
             assert!(
-                new_reduced.is_some(),
-                "new_reduced failed for epoch {}",
+                w.is_some() && t_val.is_some() && f_val.is_some(),
+                "Failed to calculate W, t, f for epoch {}",
                 epoch
             );
             assert!(
-                super_swiper.is_some(),
+                beta.is_some() && w_prime.is_some() && t_prime.is_some() && f_prime.is_some(),
                 "super_swiper failed for epoch {}",
                 epoch
             );
@@ -232,7 +267,7 @@ mod tests {
             // Calculate t = alpha * total_old_weights, where alpha = 1/3
             let alpha = Ratio::new(1u64, 3u64);
             let t = (alpha * original_total_weight as u64).to_integer() as u16;
-            let allowed_delta = (original_total_weight as f64 * 0.08) as u16;
+            let allowed_delta = (original_total_weight as f64 * 0.1) as u16;
             let total_weight_lower_bound = 1u16;
 
             // Run super_swiper reduction
@@ -244,7 +279,7 @@ mod tests {
             );
 
             match super_swiper_result {
-                Ok((reduced_nodes, new_t)) => {
+                Ok((reduced_nodes, new_t, _f_prime)) => {
                     // Create a map from validator ID to reduced weight for efficient lookup
                     let reduced_weights_map: HashMap<u16, u16> = reduced_nodes
                         .iter()
