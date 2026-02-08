@@ -90,8 +90,12 @@ mod tests {
             .collect()
     }
 
-    // Type alias for epoch comparison results: (epoch, W, t, f, beta, W', t', f')
-    // where W, t, f are original values, and beta, W', t', f' are from super_swiper
+    fn ratio_to_decimal(r: &Ratio<u64>) -> String {
+        format!("{:.6}", *r.numer() as f64 / *r.denom() as f64)
+    }
+
+    // Type alias for epoch comparison results: (epoch, W, t, f, beta, W', t', f', delta, d)
+    // where W, t, f are original values; beta, W', t', f', delta, d are from super_swiper (ratios as decimals)
     type EpochComparisonResult = (
         u64,
         Option<u16>,
@@ -101,6 +105,8 @@ mod tests {
         Option<u16>,
         Option<u16>,
         Option<u16>,
+        Option<String>,
+        Option<String>,
     );
 
     #[test]
@@ -148,19 +154,36 @@ mod tests {
                 None
             };
 
-            let (w_prime, t_prime, f_prime, beta_str) = match super_swiper_result {
+            let (w_prime, t_prime, f_prime, beta_str, delta_str, d_str) = match super_swiper_result
+            {
                 Ok((reduced_nodes, new_t, f_p)) => {
                     let w_p = reduced_nodes.total_weight();
-                    // Calculate beta = t'/W'
+                    // Calculate beta = t'/W' (as decimal)
                     let beta_val = if w_p > 0 {
                         let beta_ratio = Ratio::new(new_t as u64, w_p as u64);
-                        Some(format!("{}/{}", beta_ratio.numer(), beta_ratio.denom()))
+                        Some(ratio_to_decimal(&beta_ratio))
                     } else {
                         None
                     };
-                    (Some(w_p), Some(new_t), Some(f_p), beta_val)
+                    // Compute precision loss δ and divisor d for table
+                    let original_weights: Vec<u64> =
+                        scaled_weights.iter().map(|&w| w as u64).collect();
+                    let reduced_weights: Vec<u64> =
+                        reduced_nodes.iter().map(|n| n.weight as u64).collect();
+                    let (precision_delta, d) =
+                        compute_precision_loss(&original_weights, &reduced_weights);
+                    let delta_val = Some(ratio_to_decimal(&precision_delta));
+                    let d_val = Some(ratio_to_decimal(&d));
+                    (
+                        Some(w_p),
+                        Some(new_t),
+                        Some(f_p),
+                        beta_val,
+                        delta_val,
+                        d_val,
+                    )
                 }
-                Err(_) => (None, None, None, None),
+                Err(_) => (None, None, None, None, None, None),
             };
 
             results.push((
@@ -172,35 +195,39 @@ mod tests {
                 w_prime,
                 t_prime,
                 f_prime,
+                delta_str.clone(),
+                d_str.clone(),
             ));
 
             println!(
-                "  ✅ Epoch {}: W={}, t={}, f={:?}, beta={:?}, W'={:?}, t'={:?}, f'={:?}",
-                epoch, original_total_weight, t, f, beta_str, w_prime, t_prime, f_prime
+                "  ✅ Epoch {}: W={}, t={}, f={:?}, beta={:?}, W'={:?}, t'={:?}, f'={:?}, δ={:?}, d={:?}",
+                epoch, original_total_weight, t, f, beta_str, w_prime, t_prime, f_prime, delta_str, d_str
             );
         }
 
         // Print comparison chart
-        let separator = "=".repeat(100);
+        let separator = "=".repeat(130);
         println!("\n{}", separator);
         println!("📈 WEIGHT REDUCTION COMPARISON CHART");
         println!("{}", separator);
         println!(
-            "{:<8} | {:<6} | {:<6} | {:<8} | {:<12} | {:<8} | {:<8} | {:<8}",
-            "Epoch", "W", "t", "f", "beta", "W'", "t'", "f'"
+            "{:<8} | {:<6} | {:<6} | {:<8} | {:<10} | {:<8} | {:<8} | {:<8} | {:<10} | {:<10}",
+            "Epoch", "W", "t", "f", "beta", "W'", "t'", "f'", "delta", "d"
         );
         println!(
-            "{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}",
+            "{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}",
             "-".repeat(8),
             "-".repeat(6),
             "-".repeat(6),
             "-".repeat(8),
-            "-".repeat(12),
+            "-".repeat(10),
             "-".repeat(8),
             "-".repeat(8),
-            "-".repeat(8)
+            "-".repeat(8),
+            "-".repeat(10),
+            "-".repeat(10)
         );
-        for (epoch, w, t_val, f_val, beta, w_prime, t_prime, f_prime) in &results {
+        for (epoch, w, t_val, f_val, beta, w_prime, t_prime, f_prime, delta, d) in &results {
             let w_str = w
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "N/A".to_string());
@@ -220,23 +247,39 @@ mod tests {
             let f_prime_str = f_prime
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "N/A".to_string());
+            let delta_str = delta.clone().unwrap_or_else(|| "N/A".to_string());
+            let d_str = d.clone().unwrap_or_else(|| "N/A".to_string());
             println!(
-                "{:<8} | {:<6} | {:<6} | {:<8} | {:<12} | {:<8} | {:<8} | {:<8}",
-                epoch, w_str, t_str, f_str, beta_str, w_prime_str, t_prime_str, f_prime_str
+                "{:<8} | {:<6} | {:<6} | {:<8} | {:<10} | {:<8} | {:<8} | {:<8} | {:<10} | {:<10}",
+                epoch,
+                w_str,
+                t_str,
+                f_str,
+                beta_str,
+                w_prime_str,
+                t_prime_str,
+                f_prime_str,
+                delta_str,
+                d_str
             );
         }
         println!("{}", separator);
         println!();
 
         // Verify all tests passed
-        for (epoch, w, t_val, f_val, beta, w_prime, t_prime, f_prime) in &results {
+        for (epoch, w, t_val, f_val, beta, w_prime, t_prime, f_prime, delta, d) in &results {
             assert!(
                 w.is_some() && t_val.is_some() && f_val.is_some(),
                 "Failed to calculate W, t, f for epoch {}",
                 epoch
             );
             assert!(
-                beta.is_some() && w_prime.is_some() && t_prime.is_some() && f_prime.is_some(),
+                beta.is_some()
+                    && w_prime.is_some()
+                    && t_prime.is_some()
+                    && f_prime.is_some()
+                    && delta.is_some()
+                    && d.is_some(),
                 "super_swiper failed for epoch {}",
                 epoch
             );

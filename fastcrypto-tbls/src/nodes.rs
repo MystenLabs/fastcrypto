@@ -299,168 +299,63 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             .rev()
             .collect_vec();
 
-        // Find the highest beta such that there exists an integer f' satisfying the constraint
-        // Start from beta = 0.5 and decrease until constraint can be satisfied
-        let step = Ratio::new(1u64, 100u64);
-        let beta_min = alpha + step; // Minimum beta is alpha + 1/100
-        let beta_max = Ratio::new(1u64, 2u64); // Maximum beta is 0.5
-        let mut beta = beta_max;
+        // Set beta equal to (delta_allowed - 1)/W + alpha
+        let beta = alpha + Ratio::new((allowed_delta - 1) as u64, original_total_weight);
 
-        loop {
-            if beta < beta_min {
-                return Err(FastCryptoError::InvalidInput);
+        let reduced_weights_sorted = solve(alpha, beta, &weights_sorted);
+        let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
+
+        // Map reduced weights back to original order
+        let mut new_weights = vec![0u16; n.nodes.len()];
+        for (idx_in_sorted, (original_idx, _)) in indexed_weights.iter().enumerate() {
+            if idx_in_sorted < reduced_weights_sorted.len() {
+                new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
             }
-
-            let reduced_weights_sorted = solve(alpha, beta, &weights_sorted);
-            let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
-
-            if new_total_weight == 0 {
-                beta -= step;
-                continue;
-            }
-
-            // Map reduced weights back to original order
-            let mut new_weights = vec![0u16; n.nodes.len()];
-            for (idx_in_sorted, (original_idx, _)) in indexed_weights.iter().enumerate() {
-                if idx_in_sorted < reduced_weights_sorted.len() {
-                    new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
-                }
-            }
-
-            let reduced_weights: Vec<u64> = new_weights.iter().copied().map(u64::from).collect();
-
-            // Precision loss δ = sum(max(w_i - w'_i·d, 0)), d = W/W' (PROOF.md).
-            let (delta, d) = compute_precision_loss(&original_weights, &reduced_weights);
-
-            // Calculate t' = βW'
-            let t_prime = beta * Ratio::from_integer(new_total_weight);
-            let t_prime_int = t_prime.to_integer();
-
-            // Constraint from PROOF.md: (f - δ_f + δ)/d ≤ f' ≤ min((t+f+δ_allowed-δ)/d - t', (W' - t')/2, t'-1)
-            // where δ_f = f * 0.50 (constraint: w(S) <= f - δ_f => w'(S) <= f')
-
-            // Calculate lower bound: f' ≥ (f - δ_f + δ)/d
-            let delta_f = Ratio::from_integer(f) * Ratio::new(50u64, 100u64); // δ_f = f * 0.50
-            let lower_bound = (Ratio::from_integer(f) - delta_f + delta) / d;
-
-            // Calculate upper bounds from three constraints:
-            // 1. Constraint 2: f' ≤ (t+f+δ_allowed-δ)/d - t'
-            let t_plus_f_plus_delta_allowed = Ratio::from_integer(t as u64)
-                + Ratio::from_integer(f)
-                + Ratio::from_integer(allowed_delta as u64);
-
-            let upper_bound_constraint2 = if delta > t_plus_f_plus_delta_allowed {
-                // Delta too large, constraint cannot be satisfied
-                None
-            } else {
-                let numerator = t_plus_f_plus_delta_allowed - delta;
-                let first_term = numerator / d;
-                if first_term >= t_prime {
-                    Some(first_term - t_prime)
-                } else {
-                    // first_term < t_prime means constraint 2 cannot be satisfied
-                    None
-                }
-            };
-
-            // 2. f' < t' => f' ≤ t' - 1
-            let upper_bound_t_prime = if t_prime_int == 0 {
-                None
-            } else {
-                Some(Ratio::from_integer(t_prime_int - 1))
-            };
-
-            // 3. t' + 2f' ≤ W' => f' ≤ (W' - t')/2
-            let upper_bound_w_prime = if new_total_weight > t_prime_int {
-                let w_prime_ratio = Ratio::from_integer(new_total_weight);
-                Some((w_prime_ratio - t_prime) / Ratio::from_integer(2))
-            } else {
-                None
-            };
-
-            // Find minimum of all valid upper bounds
-            let min_upper_bound = match (
-                upper_bound_constraint2,
-                upper_bound_t_prime,
-                upper_bound_w_prime,
-            ) {
-                (None, _, _) | (_, None, _) | (_, _, None) => {
-                    beta -= step;
-                    continue;
-                }
-                (Some(ub2), Some(ub_t), Some(ub_w)) => {
-                    let mut min_val = ub2;
-                    if ub_t < min_val {
-                        min_val = ub_t;
-                    }
-                    if ub_w < min_val {
-                        min_val = ub_w;
-                    }
-                    min_val
-                }
-            };
-
-            // Check that lower_bound ≤ min_upper_bound and min_upper_bound > 0
-            if min_upper_bound <= Ratio::from_integer(0) || lower_bound > min_upper_bound {
-                beta -= step;
-                continue;
-            }
-
-            // Calculate f' as ceiling of lower bound
-            let f_prime = if lower_bound.numer() == &0 {
-                0u16
-            } else {
-                let num = *lower_bound.numer();
-                let den = *lower_bound.denom();
-                ((num + den - 1) / den) as u16
-            };
-
-            // Verify f' satisfies all constraints
-            let f_prime_u64 = f_prime as u64;
-            let f_prime_ratio = Ratio::from_integer(f_prime_u64);
-            let satisfies_all = f_prime_ratio >= lower_bound
-                && f_prime_ratio <= upper_bound_constraint2.unwrap()
-                && f_prime_ratio <= upper_bound_t_prime.unwrap()
-                && f_prime_ratio <= upper_bound_w_prime.unwrap()
-                && f_prime_u64 < t_prime_int;
-
-            if !satisfies_all {
-                beta -= step;
-                continue;
-            }
-
-            let lower_bound_ok = new_total_weight >= total_weight_lower_bound as u64;
-            if !lower_bound_ok {
-                beta -= step;
-                continue;
-            }
-
-            // Build and return the result
-            let nodes = n
-                .nodes
-                .into_iter()
-                .zip(new_weights)
-                .map(|(Node { id, pk, weight: _ }, new_weight)| Node {
-                    id,
-                    pk,
-                    weight: new_weight,
-                })
-                .collect_vec();
-
-            let accumulated_weights = Self::get_accumulated_weights(&nodes);
-            let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
-            let new_t = t_prime_int as u16;
-
-            return Ok((
-                Self {
-                    nodes,
-                    total_weight: new_total_weight as u16,
-                    accumulated_weights,
-                    nodes_with_nonzero_weight,
-                },
-                new_t,
-                f_prime,
-            ));
         }
+
+        let reduced_weights: Vec<u64> = new_weights.iter().copied().map(u64::from).collect();
+
+        // Precision loss δ = sum(max(w_i - w'_i·d, 0)), d = W/W' (PROOF.md).
+        let (delta, d) = compute_precision_loss(&original_weights, &reduced_weights);
+
+        // Calculate t' = βW'
+        let t_prime = beta * Ratio::from_integer(new_total_weight);
+        let t_prime_int = t_prime.to_integer();
+
+        // Calculate f' = (f - δ)/d (PROOF.md). Clamp numerator to 0 when δ > f to avoid underflow.
+        let f_minus_delta = if Ratio::from_integer(f) >= delta {
+            Ratio::from_integer(f) - delta
+        } else {
+            Ratio::from_integer(0)
+        };
+        let f_prime = f_minus_delta / d;
+        let f_prime_int = f_prime.to_integer() as u16;
+
+        // Build and return the result
+        let nodes = n
+            .nodes
+            .into_iter()
+            .zip(new_weights)
+            .map(|(Node { id, pk, weight: _ }, new_weight)| Node {
+                id,
+                pk,
+                weight: new_weight,
+            })
+            .collect_vec();
+
+        let accumulated_weights = Self::get_accumulated_weights(&nodes);
+        let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
+        let new_t = t_prime_int as u16;
+
+        Ok((
+            Self {
+                nodes,
+                total_weight: new_total_weight as u16,
+                accumulated_weights,
+                nodes_with_nonzero_weight,
+            },
+            new_t,
+            f_prime_int,
+        ))
     }
 }

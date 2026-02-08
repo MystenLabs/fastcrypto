@@ -97,81 +97,20 @@ We want four constraints:
 
 1. **Safety**: For all $S$ such that $w(S) \leq t-1$, we have $w'(S) < \beta W'$. This is guaranteed by supplying $\alpha = (t-1)/W$ and $\beta$ to the super swiper algorithm and then setting threshold $t' = \beta W'$. The dealer polynomial is set to be of degree $t'-1$.
 
-2. **Liveness**: For all $S$ such that $w(S) \geq t+f+\delta_{\text{allowed}}$, we need $w'(S) \geq t'+f'$. This is required as the DKG algorithm requires a liveness of $t'+f'$.
+2. **f-constraint**: For all $S$ such that $w(S) \geq f$, we have $w'(S) \geq f'$.
 
-3. **f-constraint**: For all $S$ such that $w(S) \leq f - \delta_f$ (where $\delta_f$ is a parameter), we have $w'(S) \leq f'$.
+3. **Liveness**: For all $S$ such that $w(S) \geq t+f+\delta_{\text{allowed}}$, we need $w'(S) \geq t'+f'$. This is required as the DKG algorithm requires a liveness of $t'+f'$.
 
 4. **Standard DKG constraint**: $0 < f' < t'$, and $t' + 2f' \leq W'$
 
-## Tight Bounds for $f'$
+## Relation between $\beta$ and $\delta_{\text{allowed}}$
 
-Using the inequalities above, we derive tight bounds for $f'$ in terms of $W$, $t$, $f$, $\beta$, $W'$, $t'$, and $\delta$.
+**From f-constraint**: For all $S$ with $w(S) \geq f$, we require $w'(S) \geq f'$. We can fulfill this by setting $f' = (f-\delta)/d$.
 
-**From constraint 3**: For all $S$ with $w(S) \leq f - \delta_f$, we require $w'(S) \leq f'$.
+**From liveness constraint**: For all $S$ with $w(S) \geq t+f+\delta_{\text{allowed}}$, we need $w'(S) \geq t'+f'$.
 
-To find the maximum possible $w'(S)$ given $w(S) \leq f - \delta_f$, we use the lower bound $w(S) \geq w'(S) \cdot d - \delta$:
-$$
-w(S) \leq f - \delta_f \implies w'(S) \cdot d - \delta \leq w(S) \leq f - \delta_f
-$$
+Now, $w(S) \geq t+f+\delta_{\text{allowed}}$ implies $w'(S) \geq (t+f+\delta_{\text{allowed}} -\delta)/d = t'+f'+((t+\delta_{\text{allowed}})/d-t')$.
 
-Therefore:
-$$
-w'(S) \leq \frac{f - \delta_f + \delta}{d}
-$$
+This can be fulfilled by setting $\delta_{\text{allowed}} = t'd - t = (\beta - \alpha)W + 1$.
 
-To ensure $w'(S) \leq f'$ for all such $S$, we need:
-$$
-f' \geq \frac{f - \delta_f + \delta}{d}
-$$
-
-**From constraint 2**: For all $S$ with $w(S) \geq t+f+\delta_{\text{allowed}}$, we require $w'(S) \geq t'+f'$.
-
-To find the minimum possible $w'(S)$ given $w(S) \geq t+f+\delta_{\text{allowed}}$, we use the upper bound $w(S) \leq w'(S) \cdot d + \delta$:
-$$
-w(S) \leq w'(S) \cdot d + \delta
-$$
-
-If $w(S) \geq t+f+\delta_{\text{allowed}}$, then:
-$$
-w'(S) \cdot d + \delta \geq w(S) \geq t+f+\delta_{\text{allowed}}
-$$
-
-Therefore:
-$$
-w'(S) \geq \frac{t+f+\delta_{\text{allowed}}-\delta}{d}
-$$
-
-To ensure $w'(S) \geq t'+f'$ for all such $S$, we need:
-$$
-\frac{t+f+\delta_{\text{allowed}}-\delta}{d} \geq t'+f'
-$$
-
-Rearranging gives an upper bound on $f'$:
-$$
-f' \leq \frac{t+f+\delta_{\text{allowed}}-\delta}{d} - t'
-$$
-
-**Additional constraints**: We also require $0 < f < t$ (given) and $t' + 2f' \leq W'$.
-
-From $t' + 2f' \leq W'$, we get:
-$$
-f' \leq \frac{W' - t'}{2}
-$$
-
-We also require $f' < t'$.
-
-**Combining all constraints, the tight bounds for $f'$ are:**
-
-The upper bound from constraint 2 is $\frac{t+f+\delta_{\text{allowed}}-\delta}{d} - t'$. Additionally, we require $f' < t'$ and $f' \leq \frac{W' - t'}{2}$.
-
-Therefore:
-$$
-\frac{f - \delta_f + \delta}{d} \leq f' \leq \min\left(\frac{t+f+\delta_{\text{allowed}}-\delta}{d} - t', \frac{W' - t'}{2}, t'-1\right)
-$$
-
-These bounds ensure that:
-- Constraint 3 is satisfied: all coalitions $S$ with $w(S) \leq f - \delta_f$ have $w'(S) \leq f'$
-- Constraint 2 is satisfied: all coalitions $S$ with $w(S) \geq t+f+\delta_{\text{allowed}}$ have $w'(S) \geq t'+f'$
-- $0 < f' < t'$ 
-- $t' + 2f' \leq W'$ 
-
+Thus we can set $\beta = (\delta_{\text{allowed}} - 1)/W + \alpha$.
