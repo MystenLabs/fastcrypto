@@ -3,10 +3,10 @@
 
 use crate::ecies_v1::*;
 use crate::ecies_v1::{PrivateKey, PublicKey};
+use crate::random_oracle::RandomOracle;
 use fastcrypto::bls12381::min_sig::BLS12381KeyPair;
 use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar, SCALAR_LENGTH};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
-use fastcrypto::random_oracle::RandomOracle;
 use fastcrypto::traits::KeyPair;
 use rand::prelude::StdRng;
 use rand::{thread_rng, SeedableRng};

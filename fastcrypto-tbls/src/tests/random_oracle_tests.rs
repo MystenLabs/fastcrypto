@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::random_oracle::RandomOracle;
+use crate::random_oracle::RandomOracle;
 
 #[test]
 fn test_random_oracle() {
