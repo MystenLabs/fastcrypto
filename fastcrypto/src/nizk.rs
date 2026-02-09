@@ -9,12 +9,12 @@ use crate::traits::AllowedRng;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::ops::Neg;
 
-/// NIZKPoK for the DDH tuple [G, H=eG, xG, xH].
-/// - Prover selects a random r and sends A=rG, B=rH.
-/// - Prover computes challenge c and sends z=r+c*x.
-/// - Verifier checks that zG=A+c(xG) and zH=B+c(xH).
+/// NIZKPoK for the DDH tuple `(G, H=eG, xG, xH)` where `e` is implicit and `x` is the witness.
+/// - Prover selects a random `r` and sends `(A=rG, B=rH)`.
+/// - Prover computes challenge `c` and sends `z=r+c*x`.
+/// - Verifier checks that `zG=A+c(xG)` and `zH=B+c(xH)`.
 ///
-/// The NIZK is (A, B, z) where c is implicitly computed using a random oracle.
+/// The NIZK is `(A, B, z)` where `c` is implicitly computed using a random oracle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DdhTupleNizk<G: GroupElement>(G, G, G::ScalarType);
 
@@ -23,7 +23,7 @@ where
     G: MultiScalarMul + Serialize,
     <G as GroupElement>::ScalarType: FiatShamirChallenge,
 {
-    /// Create a new NIZKPoK for the DDH tuple [G, H=eG, xG, xH] using the given RNG and random oracle.
+    /// Create a new NIZKPoK for the DDH tuple `(G, H=eG, xG, xH)` using the given RNG.
     pub fn create<R: AllowedRng>(
         x: &G::ScalarType,
         g: &G,
