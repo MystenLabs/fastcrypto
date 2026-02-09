@@ -15,12 +15,19 @@ use std::ops::Neg;
 /// - Verifier checks that `zG=A+c(xG)` and `zH=B+c(xH)`.
 ///
 /// The NIZK is `(A, B, z)` where `c` is implicitly computed using a random oracle.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct DdhTupleNizk<G: GroupElement>(G, G, G::ScalarType);
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct DdhTupleNizk<G: GroupElement + Serialize + for<'d> Deserialize<'d>> {
+    #[serde(deserialize_with = "check_non_zero")]
+    a: G,
+    #[serde(deserialize_with = "check_non_zero")]
+    b: G,
+    #[serde(deserialize_with = "check_non_zero")]
+    z: G::ScalarType,
+}
 
 impl<G> DdhTupleNizk<G>
 where
-    G: MultiScalarMul + Serialize,
+    G: MultiScalarMul + Serialize + for<'d> Deserialize<'d>,
     <G as GroupElement>::ScalarType: FiatShamirChallenge,
 {
     /// Create a new NIZKPoK for the DDH tuple `(G, H=eG, xG, xH)` using the given RNG.
@@ -37,25 +44,21 @@ where
         let b = *h * r;
         let challenge = Self::fiat_shamir_challenge(g, h, x_g, x_h, &a, &b);
         let z = challenge * x + r;
-        DdhTupleNizk(a, b, z)
+        DdhTupleNizk { a, b, z }
     }
 
     /// Verify this NIZKPoK.
     pub fn verify(&self, g: &G, h: &G, x_g: &G, x_h: &G) -> FastCryptoResult<()> {
         if *g == G::zero() || *h == G::zero() || *x_g == G::zero() || *x_h == G::zero() {
-            // We should never see this, but just in case
             return Err(FastCryptoError::InvalidProof);
         }
-        let challenge = Self::fiat_shamir_challenge(g, h, x_g, x_h, &self.0, &self.1);
-        if !is_valid_relation(
-            &self.0, // A
-            x_g, g, &self.2, // z
-            &challenge,
-        ) || !is_valid_relation(
-            &self.1, // B
-            x_h, h, &self.2, // z
-            &challenge,
-        ) {
+        let challenge = Self::fiat_shamir_challenge(g, h, x_g, x_h, &self.a, &self.b);
+        if !is_valid_relation(&self.a, x_g, g, &self.z, &challenge)
+            || !is_valid_relation(
+                &self.b, // B
+                x_h, h, &self.z, &challenge,
+            )
+        {
             Err(FastCryptoError::InvalidProof)
         } else {
             Ok(())
@@ -69,25 +72,6 @@ where
     }
 }
 
-impl<'de, G> Deserialize<'de> for DdhTupleNizk<G>
-where
-    G: GroupElement + Deserialize<'de>,
-    G::ScalarType: Deserialize<'de>,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let tuple = <(G, G, G::ScalarType)>::deserialize(deserializer)?;
-        if tuple.0 == G::zero() || tuple.1 == G::zero() || tuple.2 == G::ScalarType::zero() {
-            return Err(serde::de::Error::custom(
-                "Invalid proof: one of the elements is inf/zero",
-            ));
-        }
-        Ok(DdhTupleNizk(tuple.0, tuple.1, tuple.2))
-    }
-}
-
 /// Checks if e1 + c e2 = z e3
 fn is_valid_relation<G: MultiScalarMul>(
     e1: &G,
@@ -97,6 +81,20 @@ fn is_valid_relation<G: MultiScalarMul>(
     c: &G::ScalarType,
 ) -> bool {
     *e1 == G::multi_scalar_mul(&[c.neg(), *z], &[*e2, *e3]).unwrap()
+}
+
+/// Custom deserializer for GroupElements which fails if the result is zero.
+fn check_non_zero<'de, D, G: GroupElement>(d: D) -> Result<G, D::Error>
+where
+    D: Deserializer<'de>,
+    G: Deserialize<'de>,
+{
+    let g: G = G::deserialize(d)?;
+    if g == G::zero() {
+        Err(serde::de::Error::custom("zero element"))
+    } else {
+        Ok(g)
+    }
 }
 
 #[cfg(test)]
