@@ -49,9 +49,7 @@ where
         let challenge = Self::fiat_shamir_challenge(g, h, x_g, x_h, &self.0, &self.1);
         if !is_valid_relation(
             &self.0, // A
-            x_g,
-            &G::generator(),
-            &self.2, // z
+            x_g, g, &self.2, // z
             &challenge,
         ) || !is_valid_relation(
             &self.1, // B
@@ -99,4 +97,34 @@ fn is_valid_relation<G: MultiScalarMul>(
     c: &G::ScalarType,
 ) -> bool {
     *e1 == G::multi_scalar_mul(&[c.neg(), *z], &[*e2, *e3]).unwrap()
+}
+
+#[test]
+fn test_nizk_flow() {
+    use crate::groups::ristretto255::RistrettoPoint as G;
+    use crate::groups::ristretto255::RistrettoScalar as S;
+    use rand::thread_rng;
+
+    let x1 = S::rand(&mut thread_rng());
+    let x2 = S::rand(&mut thread_rng());
+    let g = G::generator() * S::rand(&mut thread_rng());
+    let g_x1 = g * x1;
+    let g_x2 = g * x2;
+    let g_x1_x2 = g_x1 * x2;
+    let nizk = DdhTupleNizk::create(&x2, &g, &g_x1, &g_x2, &g_x1_x2, &mut thread_rng());
+    assert!(nizk.verify(&g, &g_x1, &g_x2, &g_x1_x2).is_ok());
+
+    let invalid_witness = x2 + S::generator();
+    let invalid_nizk = DdhTupleNizk::create(
+        &invalid_witness,
+        &g,
+        &g_x1,
+        &g_x2,
+        &g_x1_x2,
+        &mut thread_rng(),
+    );
+    assert!(invalid_nizk.verify(&g, &g_x1, &g_x2, &g_x1_x2).is_err());
+
+    let other_g = g + G::generator();
+    assert!(nizk.verify(&other_g, &g_x1, &g_x2, &g_x1_x2).is_err());
 }
