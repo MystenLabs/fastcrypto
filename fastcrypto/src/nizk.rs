@@ -84,10 +84,9 @@ fn is_valid_relation<G: MultiScalarMul>(
 }
 
 /// Custom deserializer for GroupElements which fails if the result is zero.
-fn check_non_zero<'de, D, G: GroupElement>(d: D) -> Result<G, D::Error>
+fn check_non_zero<'de, D, G: GroupElement + Deserialize<'de>>(d: D) -> Result<G, D::Error>
 where
     D: Deserializer<'de>,
-    G: Deserialize<'de>,
 {
     let g: G = G::deserialize(d)?;
     if g == G::zero() {
