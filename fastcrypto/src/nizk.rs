@@ -99,32 +99,100 @@ fn is_valid_relation<G: MultiScalarMul>(
     *e1 == G::multi_scalar_mul(&[c.neg(), *z], &[*e2, *e3]).unwrap()
 }
 
-#[test]
-fn test_nizk_flow() {
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::encoding::{Encoding, Hex};
     use crate::groups::ristretto255::RistrettoPoint as G;
     use crate::groups::ristretto255::RistrettoScalar as S;
+    use crate::serde_helpers::ToFromByteArray;
     use rand::thread_rng;
 
-    let x1 = S::rand(&mut thread_rng());
-    let x2 = S::rand(&mut thread_rng());
-    let g = G::generator() * S::rand(&mut thread_rng());
-    let g_x1 = g * x1;
-    let g_x2 = g * x2;
-    let g_x1_x2 = g_x1 * x2;
-    let nizk = DdhTupleNizk::create(&x2, &g, &g_x1, &g_x2, &g_x1_x2, &mut thread_rng());
-    assert!(nizk.verify(&g, &g_x1, &g_x2, &g_x1_x2).is_ok());
+    #[test]
+    fn test_nizk_flow() {
+        let x1 = S::rand(&mut thread_rng());
+        let x2 = S::rand(&mut thread_rng());
+        let g = G::generator() * S::rand(&mut thread_rng());
+        let g_x1 = g * x1;
+        let g_x2 = g * x2;
+        let g_x1_x2 = g_x1 * x2;
+        let nizk = DdhTupleNizk::create(&x2, &g, &g_x1, &g_x2, &g_x1_x2, &mut thread_rng());
+        assert!(nizk.verify(&g, &g_x1, &g_x2, &g_x1_x2).is_ok());
 
-    let invalid_witness = x2 + S::generator();
-    let invalid_nizk = DdhTupleNizk::create(
-        &invalid_witness,
-        &g,
-        &g_x1,
-        &g_x2,
-        &g_x1_x2,
-        &mut thread_rng(),
-    );
-    assert!(invalid_nizk.verify(&g, &g_x1, &g_x2, &g_x1_x2).is_err());
+        let invalid_witness = x2 + S::generator();
+        let invalid_nizk = DdhTupleNizk::create(
+            &invalid_witness,
+            &g,
+            &g_x1,
+            &g_x2,
+            &g_x1_x2,
+            &mut thread_rng(),
+        );
+        assert!(invalid_nizk.verify(&g, &g_x1, &g_x2, &g_x1_x2).is_err());
 
-    let other_g = g + G::generator();
-    assert!(nizk.verify(&other_g, &g_x1, &g_x2, &g_x1_x2).is_err());
+        let other_g = g + G::generator();
+        assert!(nizk.verify(&other_g, &g_x1, &g_x2, &g_x1_x2).is_err());
+    }
+
+    #[test]
+    fn challenge_regression_test() {
+        let x1 = S::from(7u64);
+        let x2 = S::from(31u64);
+        let g = G::generator() * S::from(71u64);
+        let h = g * x1;
+        let g_x2 = g * x2;
+        let g_x1_x2 = h * x2;
+        let r = S::from(91u64);
+        let a = g * r;
+        let b = h * r;
+        let c = DdhTupleNizk::fiat_shamir_challenge(&g, &h, &g_x2, &g_x1_x2, &a, &b);
+        assert_eq!(
+            &c.to_byte_array(),
+            Hex::decode("30db2f4121471c4af67d2dcfdede1f4aefb15475867c20c0dd5c228c0721f80e")
+                .unwrap()
+                .as_slice()
+        );
+    }
+
+    #[test]
+    fn test_invalid_proofs() {
+        // x_g/h_g/h=inf should be rejected
+        let x1 = S::zero();
+        let x2 = S::rand(&mut thread_rng());
+        let g = G::generator() * S::rand(&mut thread_rng());
+        let g_x1 = g * x1;
+        let g_x2 = g * x2;
+        let g_x1_x2 = g_x1 * x2;
+        let nizk = DdhTupleNizk::create(&x2, &g, &g_x1, &g_x2, &g_x1_x2, &mut thread_rng());
+
+        assert!(nizk.verify(&G::zero(), &g_x1, &g_x2, &g_x1_x2).is_err());
+        assert!(nizk.verify(&g, &G::zero(), &g_x2, &g_x1_x2).is_err());
+        assert!(nizk.verify(&g, &g_x1, &G::zero(), &g_x1_x2).is_err());
+        assert!(nizk.verify(&g, &g_x1, &g_x2, &G::zero()).is_err());
+    }
+
+    #[test]
+    fn test_serde() {
+        let x1 = S::rand(&mut thread_rng());
+        let x2 = S::rand(&mut thread_rng());
+        let g = G::generator() * S::rand(&mut thread_rng());
+        let g_x1 = g * x1;
+        let g_x2 = g * x2;
+        let g_x1_x2 = g_x1 * x2;
+        let nizk = DdhTupleNizk::create(&x2, &g, &g_x1, &g_x2, &g_x1_x2, &mut thread_rng());
+        assert!(nizk.verify(&g, &g_x1, &g_x2, &g_x1_x2).is_ok());
+
+        let as_bytes = bcs::to_bytes(&nizk).unwrap();
+        let nizk2: DdhTupleNizk<G> = bcs::from_bytes(&as_bytes).unwrap();
+        assert_eq!(nizk, nizk2);
+
+        let as_bytes = bcs::to_bytes(&(G::generator(), G::generator(), S::generator())).unwrap();
+        assert!(bcs::from_bytes::<DdhTupleNizk<G>>(&as_bytes).is_ok());
+        let as_bytes = bcs::to_bytes(&(G::zero(), G::generator(), S::generator())).unwrap();
+        assert!(bcs::from_bytes::<DdhTupleNizk<G>>(&as_bytes).is_err());
+        let as_bytes = bcs::to_bytes(&(G::generator(), G::zero(), S::generator())).unwrap();
+        assert!(bcs::from_bytes::<DdhTupleNizk<G>>(&as_bytes).is_err());
+        let as_bytes = bcs::to_bytes(&(G::generator(), G::generator(), S::zero())).unwrap();
+        assert!(bcs::from_bytes::<DdhTupleNizk<G>>(&as_bytes).is_err());
+    }
 }
