@@ -54,6 +54,8 @@ pub mod nodes_tests;
 // #[path = "tests/nidkg_tests.rs"]
 // pub mod nidkg_tests;
 
+pub mod nizk;
 #[cfg(test)]
 #[path = "tests/nizk_tests.rs"]
 pub mod nizk_tests;
+pub mod random_oracle;

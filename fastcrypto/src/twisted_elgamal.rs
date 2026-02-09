@@ -7,7 +7,6 @@ use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POI
 use crate::groups::{Doubling, GroupElement, Scalar};
 use crate::nizk::DdhTupleNizk;
 use crate::pedersen::{Blinding, PedersenCommitment, G, H};
-use crate::random_oracle::RandomOracle;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use derive_more::{Add, Mul, Sub};
@@ -75,36 +74,26 @@ impl Ciphertext {
     }
 
     /// Create a PoK of a private key such that the given encryption is of the message 0.
-    pub fn zero_proof(
-        &self,
-        private_key: &PrivateKey,
-        random_oracle: &RandomOracle,
-        rng: &mut impl AllowedRng,
-    ) -> ZeroProof {
+    pub fn zero_proof(&self, private_key: &PrivateKey, rng: &mut impl AllowedRng) -> ZeroProof {
         let pk = pk_from_sk(private_key);
         ZeroProof(DdhTupleNizk::create(
             &private_key.0,
+            &RistrettoPoint::generator(),
             &self.commitment.0,
             &pk.0,
             &self.decryption_handle,
-            random_oracle,
             rng,
         ))
     }
 }
 
 impl ZeroProof {
-    pub fn verify(
-        &self,
-        encryption: &Ciphertext,
-        pk: &PublicKey,
-        random_oracle: &RandomOracle,
-    ) -> FastCryptoResult<()> {
+    pub fn verify(&self, encryption: &Ciphertext, pk: &PublicKey) -> FastCryptoResult<()> {
         self.0.verify(
+            &RistrettoPoint::generator(),
             &encryption.commitment.0,
             &pk.0,
             &encryption.decryption_handle,
-            random_oracle,
         )
     }
 }
@@ -170,18 +159,15 @@ fn test_round_trip() {
 
 #[test]
 fn test_zero_proof() {
-    let random_oracle = RandomOracle::new("zero_proof_test");
     let mut rng = rand::thread_rng();
     let (pk, sk) = generate_keypair(&mut rng);
     let (ciphertext, _) = Ciphertext::encrypt(&pk, 0, &mut rng);
-    let zero_proof = ciphertext.zero_proof(&sk, &random_oracle, &mut rng);
-    zero_proof.verify(&ciphertext, &pk, &random_oracle).unwrap();
+    let zero_proof = ciphertext.zero_proof(&sk, &mut rng);
+    zero_proof.verify(&ciphertext, &pk).unwrap();
 
     let (other_ciphertext, _) = Ciphertext::encrypt(&pk, 1, &mut rng);
-    let other_zero_proof = other_ciphertext.zero_proof(&sk, &random_oracle, &mut rng);
-    other_zero_proof
-        .verify(&ciphertext, &pk, &random_oracle)
-        .unwrap_err();
+    let other_zero_proof = other_ciphertext.zero_proof(&sk, &mut rng);
+    other_zero_proof.verify(&ciphertext, &pk).unwrap_err();
 }
 
 #[test]
@@ -225,18 +211,15 @@ fn test_equality() {
 
     let diff = encryption_1.0.clone() - encryption_2.0;
 
-    let random_oracle = RandomOracle::new("zero_proof_test");
     let mut rng = rand::thread_rng();
 
-    diff.zero_proof(&sk, &random_oracle, &mut rng)
-        .verify(&diff, &pk, &random_oracle)
-        .unwrap();
+    diff.zero_proof(&sk, &mut rng).verify(&diff, &pk).unwrap();
 
     let other_value = 1234u32;
     let encryption_3 = Ciphertext::encrypt(&pk, other_value, &mut rand::thread_rng());
     let other_diff = encryption_1.0 - encryption_3.0;
     other_diff
-        .zero_proof(&sk, &random_oracle, &mut rng)
-        .verify(&other_diff, &pk, &random_oracle)
+        .zero_proof(&sk, &mut rng)
+        .verify(&other_diff, &pk)
         .unwrap_err();
 }

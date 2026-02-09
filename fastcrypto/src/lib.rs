@@ -105,7 +105,6 @@ pub mod merkle;
 pub mod nizk;
 pub mod pedersen;
 pub mod private_seed;
-pub mod random_oracle;
 pub mod rsa;
 pub mod secp256k1;
 pub mod secp256r1;

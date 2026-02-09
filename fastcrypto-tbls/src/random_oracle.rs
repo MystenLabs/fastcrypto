@@ -1,8 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::groups::{FiatShamirChallenge, GroupElement};
 use digest::Digest;
+use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_512;
 use std::fmt::Debug;
