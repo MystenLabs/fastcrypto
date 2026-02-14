@@ -89,28 +89,26 @@ $$
 \frac{w(S) - \delta}{d} \leq w'(S) \leq \frac{w(S) + \delta}{d}
 $$
 
-## DKG Constraints
+## AVSS Constraints
 
-Let $W$ and $t$ be the total weight and threshold of the original nodes, and $W'$ and $t'$ be the total weight and threshold of the reduced nodes. Let $f$ be a given parameter such that $0 < f < t$ and $t + 2f \leq W$.
+Let $W$ and $t$ be the total weight and threshold of the original nodes, and $W'$ and $t'$ be the total weight and threshold of the reduced nodes. Let $f$ be a given parameter such that $0 < f < t$ and $t + 2f \leq W$. Let $\delta_{\text{allowed}}$ be the given allowed liveness loss. In the algorithm, we start from a high enough $\beta$ and step down till $2\delta \leq \delta_{\text{allowed}}$. WLOG, we can set $\delta_{\text{allowed}} = 2\delta$ by taking $\delta_{\text{allowed}}$ to be the actually achieved quantity.
 
-We want four constraints:
+We enforce four constraints:
 
-1. **Safety**: For all $S$ such that $w(S) \leq t-1$, we have $w'(S) < \beta W'$. This is guaranteed by supplying $\alpha = (t-1)/W$ and $\beta$ to the super swiper algorithm and then setting threshold $t' = \beta W'$. The dealer polynomial is set to be of degree $t'-1$.
+1. **Safety**: For all $S$ such that $w(S) \leq t$, we have $w'(S) \leq t'$. This is guaranteed by taking $t' = (t+2\delta)/d$. The dealer polynomial is set to be of degree $t'-1$.
 
-2. **f-constraint**: For all $S$ such that $w(S) \geq f$, we have $w'(S) \geq f'$.
+2. **f-constraint**: For all $S$ such that $w(S) \leq f - 2\delta$, we have $w'(S) \leq f'$. This is guaranteed by taking $f' = (f-\delta)/d$. These slacks are carefully calibrated to ensure $t'+2f' = (t+2f)/d \leq W'$.
 
-3. **Liveness**: For all $S$ such that $w(S) \geq t+f+\delta_{\text{allowed}}$, we need $w'(S) \geq t'+f'$. This is required as the DKG algorithm requires a liveness of $t'+f'$.
+3. **Liveness**: For all $S$ such that $w(S) \geq t+f+\delta_{\text{allowed}}$, we need $w'(S) \geq t'+f'$. This is required as the DKG algorithm requires a liveness of $t'+f'$. This follows given the implication $w'(S) \geq (t+f+\delta_{\text{allowed}} -\delta)/d = (t'd-2\delta+f'd+\delta+2\delta-\delta)/d = t'+f'$.
 
-4. **Standard DKG constraint**: $0 < f' < t'$, and $t' + 2f' \leq W'$
+4. **Dual Liveness**: For all $S$ such that $w'(S) \geq t'+f'$, we need $w(S) \geq t+f$. This follows given the implication $w(S) \geq (t'+f')d - \delta = t+2\delta + f - \delta - \delta = t+f$.
 
-## Relation between $\beta$ and $\delta_{\text{allowed}}$
+5. **Standard DKG constraint**: $0 < f' < t'$, and $t' + 2f' \leq W'$
 
-**From f-constraint**: For all $S$ with $w(S) \geq f$, we require $w'(S) \geq f'$. We can fulfill this by setting $f' = (f-\delta)/d$.
-
-**From liveness constraint**: For all $S$ with $w(S) \geq t+f+\delta_{\text{allowed}}$, we need $w'(S) \geq t'+f'$.
-
-Now, $w(S) \geq t+f+\delta_{\text{allowed}}$ implies $w'(S) \geq (t+f+\delta_{\text{allowed}} -\delta)/d = t'+f'+((t+\delta_{\text{allowed}})/d-t')$.
-
-This can be fulfilled by setting $\delta_{\text{allowed}} = t'd - t = (\beta - \alpha)W + 1$.
-
-Thus we can set $\beta = (\delta_{\text{allowed}} - 1)/W + \alpha$.
+In effect, we have:
+1. $\delta_{\text{allowed}} = 2\delta$
+2. $t' = (t+2\delta)/d$
+3. $f' = (f-\delta)/d$
+4. $w(S) \leq t+\delta \implies w'(S) \leq t' \implies w(S) \leq t+3\delta$.
+5. $w(S) \leq f - 2\delta \implies w'(S) \leq f' \implies w(S) \leq f$.
+6. $w(S) \geq t+f+2\delta \implies w'(S) \geq t'+f' \implies w(S) \geq t+f$.

@@ -227,21 +227,18 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     }
 
     /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
-    /// This uses the swiper algorithms from the `weight_reduction` directory.
     ///
-    /// DKG constraints (see `weight_reduction/PROOF.md`):
-    /// - **Safety**: α = (t-1)/W so that any coalition S with w(S) ≤ t-1 has w'(S) < βW'.
-    ///   Threshold is set to t' = βW' (dealer polynomial degree t'-1), and f' = (W'-t')/2.
-    /// - **Liveness**: For S with w(S) ≥ t+f+δ_allowed we need w'(S) ≥ t'+f'.
-    ///   With f = (W-t)/2 and precision loss δ, the condition is
-    ///   t+f+δ_allowed ≥ (t'+f')·d + δ, equivalently t + 2·δ_allowed ≥ W·β + 2·δ.
-    ///   We start from β = 1/2 and decrease until this holds.
+    /// Algorithm:
+    /// 1. Loop β from 0.95 step down until 2·δ ≤ allowed_delta (and W' ≥ total_weight_lower_bound).
+    /// 2. Set t' = (t + 2·δ)/d.
+    /// 3. Set f' = (f − δ)/d.
     ///
     /// # Parameters
     /// - `nodes_vec`: Input nodes with weights
-    /// - `t`: Threshold (t and f can be independent parameters, t > f, liveness = t+f, t+2f <= n)
-    /// - `allowed_delta`: Maximum allowed liveness slack
+    /// - `t`: Threshold
+    /// - `allowed_delta`: Used in the loop condition 2·δ ≤ allowed_delta
     /// - `total_weight_lower_bound`: Minimum allowed total weight after reduction
+    /// - `f`: If `Some(x)`, use `x` as the f parameter; otherwise use (W−t)/2
     ///
     /// # Returns
     /// A tuple of (reduced Nodes, new threshold t', new f').
@@ -250,6 +247,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         t: u16,
         allowed_delta: u16,
         total_weight_lower_bound: u16,
+        f: Option<u64>,
     ) -> FastCryptoResult<(Self, u16, u16)> {
         let n = Self::new(nodes_vec)?;
         let original_total_weight = n.total_weight() as u64;
@@ -263,19 +261,22 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        // We calculate f = (W-t)/2 here, but it can be supplied as a parameter.
-        let f = if w >= t as u64 {
-            (w - t as u64) / 2
-        } else {
-            return Err(FastCryptoError::InvalidInput);
+        let f_val = match f {
+            Some(x) if x <= w.saturating_sub(t as u64) => x,
+            Some(_) => return Err(FastCryptoError::InvalidInput),
+            None if w >= t as u64 => (w - t as u64) / 2,
+            None => return Err(FastCryptoError::InvalidInput),
         };
 
-        // Safety: α = (t-1)/W so that any S with w(S) ≤ t-1 gets w'(S) < βW' (PROOF.md).
+        // α = (t-1)/W for the super_swiper solve.
         let alpha = if t <= 1 {
             Ratio::from_integer(0)
         } else {
             Ratio::new((t - 1) as u64, w)
         };
+        if alpha >= Ratio::new(95, 100) {
+            return Err(FastCryptoError::InvalidInput);
+        }
 
         // Extract weights from nodes, sorted in descending order (required by super_swiper)
         let weights_sorted = n
@@ -299,32 +300,46 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             .rev()
             .collect_vec();
 
-        // Set beta equal to (delta_allowed - 1)/W + alpha
-        let beta = alpha + Ratio::new((allowed_delta - 1) as u64, original_total_weight);
-
-        let reduced_weights_sorted = solve(alpha, beta, &weights_sorted);
-        let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
-
-        // Map reduced weights back to original order
-        let mut new_weights = vec![0u16; n.nodes.len()];
-        for (idx_in_sorted, (original_idx, _)) in indexed_weights.iter().enumerate() {
-            if idx_in_sorted < reduced_weights_sorted.len() {
-                new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
+        // Loop beta from 0.95 step down until 2·δ ≤ allowed_delta (and W' ≥ total_weight_lower_bound).
+        let allowed_delta_ratio = Ratio::from_integer(allowed_delta as u64);
+        let start_numer = 95u64;
+        let (new_total_weight, new_weights, delta, d) = {
+            let mut result = None;
+            for k in 0..=100u64 {
+                let numer = start_numer.saturating_sub(k).min(100);
+                let beta = Ratio::new(numer, 100);
+                if beta < alpha {
+                    break; // safety: beta must be ≥ α
+                }
+                let reduced_weights_sorted = solve(alpha, beta, &weights_sorted);
+                let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
+                if new_total_weight < total_weight_lower_bound as u64 {
+                    return Err(FastCryptoError::InvalidInput); // W' below bound; no valid beta
+                }
+                let mut new_weights = vec![0u16; n.nodes.len()];
+                for (idx_in_sorted, (original_idx, _)) in indexed_weights.iter().enumerate() {
+                    if idx_in_sorted < reduced_weights_sorted.len() {
+                        new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
+                    }
+                }
+                let reduced_weights: Vec<u64> =
+                    new_weights.iter().copied().map(u64::from).collect();
+                let (delta, d) = compute_precision_loss(&original_weights, &reduced_weights);
+                if Ratio::from_integer(2) * delta <= allowed_delta_ratio {
+                    result = Some((new_total_weight, new_weights, delta, d));
+                    break;
+                }
             }
-        }
+            result.ok_or(FastCryptoError::InvalidInput)?
+        };
 
-        let reduced_weights: Vec<u64> = new_weights.iter().copied().map(u64::from).collect();
-
-        // Precision loss δ = sum(max(w_i - w'_i·d, 0)), d = W/W' (PROOF.md).
-        let (delta, d) = compute_precision_loss(&original_weights, &reduced_weights);
-
-        // Calculate t' = βW'
-        let t_prime = beta * Ratio::from_integer(new_total_weight);
+        // t' = (t + 2·δ)/d
+        let t_prime = (Ratio::from_integer(t as u64) + Ratio::from_integer(2) * delta) / d;
         let t_prime_int = t_prime.to_integer();
 
-        // Calculate f' = (f - δ)/d (PROOF.md). Clamp numerator to 0 when δ > f to avoid underflow.
-        let f_minus_delta = if Ratio::from_integer(f) >= delta {
-            Ratio::from_integer(f) - delta
+        // f' = (f − δ)/d; clamp numerator to 0 when f < δ
+        let f_minus_delta = if Ratio::from_integer(f_val) >= delta {
+            Ratio::from_integer(f_val) - delta
         } else {
             Ratio::from_integer(0)
         };
