@@ -615,6 +615,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "blake3"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "199c42ab6972d92c9f8995f086273d25c42fc0f7b2a1fcefba465c1352d25ba5"
+dependencies = [
+ "arrayref",
+ "arrayvec",
+ "cc",
+ "cfg-if 1.0.0",
+ "constant_time_eq",
+ "digest 0.10.7",
+]
+
+[[package]]
 name = "block-buffer"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1317,6 +1331,7 @@ dependencies = [
  "bech32",
  "bincode",
  "blake2",
+ "blake3",
  "blst",
  "bs58",
  "bulletproofs",

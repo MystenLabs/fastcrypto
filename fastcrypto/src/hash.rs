@@ -177,6 +177,9 @@ pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256, 32>;
 /// The [BLAKE2-256](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2) hash function with 256 bit digests.
 pub type Blake2b256 = HashFunctionWrapper<blake2::Blake2b<typenum::U32>, 32>;
 
+/// The [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) hash function with 256 bit digests.
+pub type Blake3_256 = HashFunctionWrapper<blake3::Hasher, 32>;
+
 /// A Multiset Hash is a homomorphic hash function, which hashes arbitrary multisets of objects such
 /// that the hash of the union of two multisets is easy to compute from the hashes of the two multisets.
 ///
