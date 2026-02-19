@@ -22,6 +22,9 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 # output a note when they are encountered.
 ignore = [
     #"RUSTSEC-0000-0000",
+    # Marvin Attack (timing side-channel for private key recovery during decryption).
+    # This codebase only uses RSA for signature verification with public keys,
+    # so this vulnerability does not apply. No patched version exists yet.
     "RUSTSEC-2023-0071",
     # allow unmaintained proc-macro-error used in transitive dependencies (also in Sui)
     "RUSTSEC-2024-0370",
