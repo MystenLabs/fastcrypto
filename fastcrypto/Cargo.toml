@@ -109,6 +109,10 @@ harness = false
 name = "bulletproofs"
 harness = false
 
+[[bench]]
+name = "nizk"
+harness = false
+
 [features]
 default = []
 

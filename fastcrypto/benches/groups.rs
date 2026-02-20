@@ -12,7 +12,9 @@ mod group_benches {
     };
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
     use fastcrypto::groups::multiplier::ScalarMultiplier;
-    use fastcrypto::groups::ristretto255::RistrettoPoint;
+    use fastcrypto::groups::ristretto255::{
+        RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH, RISTRETTO_SCALAR_BYTE_LENGTH,
+    };
     use fastcrypto::groups::{
         bls12381, secp256k1, secp256r1, FromTrustedByteArray, GroupElement, HashToGroupElement,
         MultiScalarMul, Pairing, Scalar,
@@ -386,6 +388,16 @@ mod group_benches {
             &mut group,
         );
         deser_single::<GTElement, _, { GT_ELEMENT_BYTE_LENGTH }>("BLS12381-GT", false, &mut group);
+        deser_single::<RistrettoPoint, _, { RISTRETTO_POINT_BYTE_LENGTH }>(
+            "RistrettoPoint",
+            false,
+            &mut group,
+        );
+        deser_single::<RistrettoScalar, _, { RISTRETTO_SCALAR_BYTE_LENGTH }>(
+            "RistrettoScalar",
+            false,
+            &mut group,
+        );
     }
 
     criterion_group! {
