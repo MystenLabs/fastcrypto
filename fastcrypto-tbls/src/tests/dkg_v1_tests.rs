@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::dkg_v1::{
-    create_fake_complaint, Confirmation, Message, Party, ProcessedMessage, DKG_MESSAGES_MAX_SIZE,
+    create_fake_complaint, Confirmation, Message, Observer, Party, ProcessedMessage,
+    DKG_MESSAGES_MAX_SIZE,
 };
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, PublicKey};
 use crate::nizk::DLNizk;
@@ -1016,4 +1017,239 @@ fn test_e2e_dkg_and_key_rotation() {
     let sigs = vec![sig0, sig1, sig2];
     let sig = S::aggregate(nd0.t(), sigs.iter()).unwrap();
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
+}
+
+#[test]
+fn test_e2e_dkg_and_key_rotation_with_observer() {
+    // TODO: test also non happy flows
+
+    let ro = RandomOracle::new("dkg");
+
+    ////// DKG 2 out of 3 //////
+
+    let t = 2;
+    let (keys, nodes) = gen_keys_and_nodes_rng(3, &mut thread_rng(), true);
+
+    // Create the parties
+    let d0 = Party::<G, EG>::new_advanced(
+        keys.first().unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        None,
+        None,
+        &mut thread_rng(),
+    )
+    .unwrap();
+    assert_eq!(d0.t(), t);
+    let d1 = Party::<G, EG>::new_advanced(
+        keys.get(1_usize).unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        None,
+        None,
+        &mut thread_rng(),
+    )
+    .unwrap();
+    let d2 = Party::<G, EG>::new_advanced(
+        keys.get(2_usize).unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        None,
+        None,
+        &mut thread_rng(),
+    )
+    .unwrap();
+
+    let observer = Observer::<G, EG>::new_advanced(nodes.clone(), t, ro.clone(), None).unwrap();
+
+    let msg0 = d0.create_message(&mut thread_rng()).unwrap();
+    let msg1 = d1.create_message(&mut thread_rng()).unwrap();
+    let msg2 = d2.create_message(&mut thread_rng()).unwrap();
+
+    let all_messages = vec![msg0.clone(), msg1, msg0.clone(), msg2]; // duplicates should be ignored
+
+    // merge() should succeed and ignore duplicates and include 1 complaint
+    let proc_msg0 = &all_messages
+        .iter()
+        .map(|m| d0.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .collect::<Vec<_>>();
+    let (conf0, used_msgs0) = d0.merge(proc_msg0).unwrap();
+    assert!(conf0.complaints.is_empty());
+    assert_eq!(used_msgs0.0.len(), 3);
+
+    let proc_msg1 = &all_messages
+        .iter()
+        .map(|m| d1.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .collect::<Vec<_>>();
+    let (_, used_msgs1) = d1.merge(proc_msg1).unwrap();
+
+    let proc_msg2 = &all_messages
+        .iter()
+        .map(|m| d2.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .collect::<Vec<_>>();
+    let (conf2, used_msgs2) = d2.merge(proc_msg2).unwrap();
+    assert!(conf2.complaints.is_empty());
+
+    let o0 = d0.complete_optimistic(&used_msgs0).unwrap();
+    let o1 = d1.complete_optimistic(&used_msgs1).unwrap();
+    let o2 = d2.complete_optimistic(&used_msgs2).unwrap();
+
+    assert!(o0.shares.is_some());
+    assert!(o1.shares.is_some());
+    assert!(o2.shares.is_some());
+    assert_eq!(o0.vss_pk, o1.vss_pk);
+    assert_eq!(o0.vss_pk, o2.vss_pk);
+
+    // Run DKG as observer:
+
+    // Compute the observers output. The Observer has no shares but only the vss_pk
+    let obs_output = observer.observe_dkg(all_messages).unwrap();
+    assert_eq!(obs_output.vss_pk, o0.vss_pk);
+
+    // Use the shares to sign the message.
+    let sig0 = S::partial_sign(&o0.shares.as_ref().unwrap()[0], &MSG);
+    let sig1 = S::partial_sign(&o1.shares.as_ref().unwrap()[0], &MSG);
+    let sig2 = S::partial_sign(&o2.shares.as_ref().unwrap()[0], &MSG);
+
+    S::partial_verify(&o0.vss_pk, &MSG, &sig0).unwrap();
+    S::partial_verify(&o0.vss_pk, &MSG, &sig1).unwrap();
+    S::partial_verify(&o0.vss_pk, &MSG, &sig2).unwrap();
+
+    let sigs = vec![sig0, sig1, sig2];
+    let sig = S::aggregate(d0.t(), sigs.iter()).unwrap();
+    S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
+
+    // The Observer can also verify this
+    S::verify(obs_output.vss_pk.c0(), &MSG, &sig).unwrap();
+
+    ////// key rotation to 3 out of 4 //////
+    let nt = 3; // new t
+    let (nkeys, nnodes) = gen_keys_and_nodes_rng(4, &mut thread_rng(), true);
+
+    // Create the parties, first two are from previous committee
+    let nd0 = Party::<G, EG>::new_advanced(
+        nkeys.first().unwrap().1.clone(),
+        nnodes.clone(),
+        nt,
+        ro.clone(),
+        Some(o1.shares.unwrap()[0].value),
+        Some(2),
+        &mut thread_rng(),
+    )
+    .unwrap();
+    assert_eq!(nd0.t(), nt);
+    let nd1 = Party::<G, EG>::new_advanced(
+        nkeys.get(1_usize).unwrap().1.clone(),
+        nnodes.clone(),
+        nt,
+        ro.clone(),
+        Some(o0.shares.unwrap()[0].value),
+        Some(2),
+        &mut thread_rng(),
+    )
+    .unwrap();
+    let nd2 = Party::<G, EG>::new_advanced(
+        nkeys.get(2_usize).unwrap().1.clone(),
+        nnodes.clone(),
+        nt,
+        ro.clone(),
+        None,
+        Some(2),
+        &mut thread_rng(),
+    )
+    .unwrap();
+
+    // An observer for the key rotation
+    let observer_2 =
+        Observer::<G, EG>::new_advanced(nnodes.clone(), nt, ro.clone(), Some(2)).unwrap();
+
+    let msg0 = nd0.create_message(&mut thread_rng()).unwrap();
+    let msg1 = nd1.create_message(&mut thread_rng()).unwrap();
+
+    let expected_pks = [
+        o0.vss_pk.eval(ShareIndex::new(2).unwrap()).value,
+        o0.vss_pk.eval(ShareIndex::new(1).unwrap()).value,
+    ];
+
+    let all_messages = vec![msg0, msg1];
+
+    // merge() should succeed and ignore duplicates and include 1 complaint
+    let proc_msg0 = &all_messages
+        .iter()
+        .zip(expected_pks.iter())
+        .map(|(m, epk)| {
+            nd0.process_message_and_check_pk(m.clone(), epk, &mut thread_rng())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let (conf0, used_msgs0) = nd0.merge(proc_msg0).unwrap();
+    assert!(conf0.complaints.is_empty());
+    assert_eq!(used_msgs0.0.len(), 2);
+
+    let proc_msg1 = &all_messages
+        .iter()
+        .zip(expected_pks.iter())
+        .map(|(m, epk)| {
+            nd1.process_message_and_check_pk(m.clone(), epk, &mut thread_rng())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let (_, used_msgs1) = nd1.merge(proc_msg1).unwrap();
+
+    let proc_msg2 = &all_messages
+        .iter()
+        .zip(expected_pks.iter())
+        .map(|(m, epk)| {
+            nd2.process_message_and_check_pk(m.clone(), epk, &mut thread_rng())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let (conf2, used_msgs2) = nd2.merge(proc_msg2).unwrap();
+    assert!(conf2.complaints.is_empty());
+
+    let new_sender_to_old_map: HashMap<PartyId, PartyId> = [(0, 1), (1, 0)].into();
+    let no0 = nd0
+        .complete_optimistic_key_rotation(&used_msgs0, &new_sender_to_old_map)
+        .unwrap();
+    let no1 = nd1
+        .complete_optimistic_key_rotation(&used_msgs1, &new_sender_to_old_map)
+        .unwrap();
+    let no2 = nd2
+        .complete_optimistic_key_rotation(&used_msgs2, &new_sender_to_old_map)
+        .unwrap();
+
+    // The Observer can process all messages.
+    let observer_output_2 = observer_2
+        .observe_key_rotation(all_messages, &expected_pks, &new_sender_to_old_map)
+        .unwrap();
+
+    assert!(no0.shares.is_some());
+    assert!(no1.shares.is_some());
+    assert!(no2.shares.is_some());
+    assert_eq!(no0.vss_pk, no1.vss_pk);
+    assert_eq!(no0.vss_pk, no2.vss_pk);
+
+    assert_eq!(no0.vss_pk.c0(), o0.vss_pk.c0());
+
+    // The Observer sees the same vss_pk
+    assert_eq!(observer_output_2.vss_pk, no0.vss_pk);
+
+    // Use the shares to sign the message.
+    let sig0 = S::partial_sign(&no0.shares.as_ref().unwrap()[0], &MSG);
+    let sig1 = S::partial_sign(&no1.shares.as_ref().unwrap()[0], &MSG);
+    let sig2 = S::partial_sign(&no2.shares.as_ref().unwrap()[0], &MSG);
+
+    S::partial_verify(&no0.vss_pk, &MSG, &sig0).unwrap();
+    S::partial_verify(&no0.vss_pk, &MSG, &sig1).unwrap();
+    S::partial_verify(&no0.vss_pk, &MSG, &sig2).unwrap();
+
+    let sigs = vec![sig0, sig1, sig2];
+    let sig = S::aggregate(nd0.t(), sigs.iter()).unwrap();
+    S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
+
+    // The Observer can verify the signature
+    S::verify(observer_output_2.vss_pk.c0(), &MSG, &sig).unwrap();
 }
