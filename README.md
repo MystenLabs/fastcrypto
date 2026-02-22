@@ -4,7 +4,7 @@
 [![Docs][docs-image]][docs-link]
 [![Build status](https://github.com/MystenLabs/fastcrypto/actions/workflows/rust.yml/badge.svg)](https://github.com/MystenLabs/fastcrypto/actions)
 [![Update the fastcrypto pointer Sui](https://github.com/MystenLabs/sui/actions/workflows/fastcrypto_pull.yml/badge.svg)](https://github.com/MystenLabs/sui/actions/workflows/fastcrypto_pull.yml)
-![Apache2/MIT licensed][license-image]
+[![Apache2/MIT licensed][license-image]](https://github.com/MystenLabs/fastcrypto/blob/main/LICENSE)
 ![Rust Version][rustc-image]
 [![codecov](https://codecov.io/gh/MystenLabs/fastcrypto/branch/main/graph/badge.svg?token=zlB0v8k4O5)](https://codecov.io/gh/MystenLabs/fastcrypto)
 
