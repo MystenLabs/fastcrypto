@@ -170,14 +170,18 @@ impl KeyPair for Ed25519KeyPair {
     }
 
     fn private(self) -> Self::PrivKey {
-        Ed25519PrivateKey::from_bytes(self.private.as_ref()).unwrap()
+        self.private
     }
 
     #[cfg(feature = "copy_key")]
     fn copy(&self) -> Self {
+        // Note: The copy_key feature explicitly allows copying private keys for specific use cases.
+        // This reconstructs the private key from bytes, which should never fail for a valid keypair.
+        let private_bytes = self.private.as_ref();
         Self {
-            public: Ed25519PublicKey::from_bytes(self.public.as_ref()).unwrap(),
-            private: Ed25519PrivateKey::from_bytes(self.private.as_ref()).unwrap(),
+            public: self.public.clone(),
+            private: Ed25519PrivateKey::from_bytes(private_bytes)
+                .expect("KeyPair should always contain valid private key bytes"),
         }
     }
 
