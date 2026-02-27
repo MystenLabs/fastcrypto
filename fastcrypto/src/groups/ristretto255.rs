@@ -42,6 +42,12 @@ impl RistrettoPoint {
     pub fn from_uniform_bytes(bytes: &[u8; 64]) -> Self {
         RistrettoPoint(ExternalPoint::from_uniform_bytes(bytes))
     }
+
+    pub fn random<R: AllowedRng>(rng: &mut R) -> Self {
+        let mut bytes = [0u8; 64];
+        rng.fill_bytes(&mut bytes);
+        Self::from_uniform_bytes(&bytes)
+    }
 }
 
 impl Doubling for RistrettoPoint {
@@ -150,6 +156,12 @@ impl From<u64> for RistrettoScalar {
     }
 }
 
+impl Default for RistrettoScalar {
+    fn default() -> Self {
+        RistrettoScalar(ExternalScalar::ZERO)
+    }
+}
+
 impl Mul<RistrettoScalar> for RistrettoScalar {
     type Output = RistrettoScalar;
 
@@ -157,6 +169,14 @@ impl Mul<RistrettoScalar> for RistrettoScalar {
         RistrettoScalar(self.0 * rhs.0)
     }
 }
+
+// impl Add<RistrettoScalar> for RistrettoScalar {
+//     type Output = RistrettoScalar;
+
+//     fn add(self, rhs: RistrettoScalar) -> RistrettoScalar {
+//         RistrettoScalar(self.0 + rhs.0)
+//     }
+// }
 
 #[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<RistrettoScalar> for RistrettoScalar {
