@@ -170,14 +170,6 @@ impl Mul<RistrettoScalar> for RistrettoScalar {
     }
 }
 
-// impl Add<RistrettoScalar> for RistrettoScalar {
-//     type Output = RistrettoScalar;
-
-//     fn add(self, rhs: RistrettoScalar) -> RistrettoScalar {
-//         RistrettoScalar(self.0 + rhs.0)
-//     }
-// }
-
 #[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<RistrettoScalar> for RistrettoScalar {
     type Output = Result<RistrettoScalar, FastCryptoError>;
