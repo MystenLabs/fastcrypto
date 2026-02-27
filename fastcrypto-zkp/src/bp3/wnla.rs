@@ -26,7 +26,7 @@ pub struct Proof {
 
 impl WeightNormLinearArgument {
 
-    /// Computes a weight norm linear argument commitment for vectors `l` and `n`, i.e., 
+    /// Computes a weight norm linear argument commitment `C` for vectors `l` and `n`: 
     /// `C = v * Gen + <H, l> + <G, n> with v = <c, l> + <n, n>_mu`.
     pub fn commit(&self, l: &[RistrettoScalar], n: &[RistrettoScalar]) -> RistrettoPoint {
         let v = inner_product(&self.c, l).
