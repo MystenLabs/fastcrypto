@@ -130,8 +130,8 @@ where
             return Proof {
                 R: vec![],
                 X: vec![],
-                l: l,
-                n: n,
+                l,
+                n,
             };
         }
 
@@ -160,8 +160,8 @@ where
             .mul(vx)
             .add(inner_product(&H0, &l1))
             .add(inner_product(&H1, &l0))
-            .add(inner_product(&G0, &scale(&n1, &self.rho)))
-            .add(inner_product(&G1, &scale(&n0, &rho_inv)));
+            .add(inner_product(&G0, &scale(&n1, self.rho)))
+            .add(inner_product(&G1, &scale(&n0, rho_inv)));
 
         // R = v_r * Gen + <H1, l1> + <G1, n1>
         let R = self
@@ -187,11 +187,11 @@ where
         // G' = rho * G0 + gamma * G1
         let Gp = add(&scale(&G0, self.rho), &scale(&G1, gamma));
         // c' = c0 + gamma * c1
-        let cp = add(&c0, &scale(&c1, &gamma));
+        let cp = add(&c0, &scale(&c1, gamma));
         // l' = l0 + gamma * l1
-        let lp = add(&l0, &scale(&l1, &gamma));
+        let lp = add(&l0, &scale(&l1, gamma));
         // n' = rho_inv * n0 + gamma * n1
-        let np = add(&scale(&n0, &rho_inv), &scale(&n1, &gamma));
+        let np = add(&scale(&n0, rho_inv), &scale(&n1, gamma));
 
         let wnla = WeightNormLinearArgument {
             Gen: self.Gen,
