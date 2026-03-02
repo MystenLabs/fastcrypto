@@ -42,12 +42,6 @@ impl RistrettoPoint {
     pub fn from_uniform_bytes(bytes: &[u8; 64]) -> Self {
         RistrettoPoint(ExternalPoint::from_uniform_bytes(bytes))
     }
-
-    pub fn random<R: AllowedRng>(rng: &mut R) -> Self {
-        let mut bytes = [0u8; 64];
-        rng.fill_bytes(&mut bytes);
-        Self::from_uniform_bytes(&bytes)
-    }
 }
 
 impl Doubling for RistrettoPoint {

@@ -1,2 +1,2 @@
-pub mod wnla;
 mod util;
+pub mod wnla;
