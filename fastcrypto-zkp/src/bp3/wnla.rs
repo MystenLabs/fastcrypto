@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 #![allow(non_snake_case)]
 
 use crate::bp3::util::*;
