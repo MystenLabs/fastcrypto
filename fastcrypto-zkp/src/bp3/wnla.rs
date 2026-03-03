@@ -6,7 +6,6 @@
 use crate::bp3::util::*;
 use fastcrypto::serde_helpers::ToFromByteArray;
 use merlin::Transcript;
-use std::ops::Sub;
 
 pub struct WeightNormLinearArgument<GroupElement, Scalar, const N: usize> {
     pub Gen: GroupElement,
@@ -48,11 +47,7 @@ where
         C: &GroupElement,
         t: &mut Transcript,
         proof: &Proof<GroupElement, Scalar>,
-    ) -> bool
-    where
-        GroupElement: PartialEq,
-        Scalar: Sub<Output = Scalar>,
-    {
+    ) -> bool {
         if proof.X.len() != proof.R.len() {
             return false;
         }

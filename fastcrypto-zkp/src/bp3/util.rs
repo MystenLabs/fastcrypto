@@ -28,7 +28,11 @@ where
     T: Copy + Default + Add<Output = T> + Mul<Scalar, Output = T>,
     Scalar: Copy,
 {
-    assert_eq!(v.len(), w.len(), "inner_product: vectors must have equal length");
+    assert_eq!(
+        v.len(),
+        w.len(),
+        "inner_product: vectors must have equal length"
+    );
     let mut result = T::default();
     v.iter().zip(w.iter()).for_each(|(v_val, w_val)| {
         result = result.add(v_val.mul(*w_val));
@@ -43,7 +47,11 @@ where
     T: Copy + Default + Add<Output = T> + Mul<Scalar, Output = T>,
     Scalar: Copy + From<u128> + Mul<Output = Scalar>,
 {
-    assert_eq!(v.len(), w.len(), "weighted_inner_product: vectors must have equal length");
+    assert_eq!(
+        v.len(),
+        w.len(),
+        "weighted_inner_product: vectors must have equal length"
+    );
     let mut exp = Scalar::from(1u128);
     let mut result = T::default();
     v.iter().zip(w.iter()).for_each(|(v_val, w_val)| {
