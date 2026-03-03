@@ -6,7 +6,7 @@
 use crate::bp3::util::*;
 use fastcrypto::serde_helpers::ToFromByteArray;
 use merlin::Transcript;
-use std::ops::{Add, Mul, Sub};
+use std::ops::Sub;
 
 pub struct WeightNormLinearArgument<GroupElement, Scalar, const N: usize> {
     pub Gen: GroupElement,
@@ -27,19 +27,9 @@ pub struct Proof<GroupElement, Scalar> {
 
 impl<GroupElement, Scalar, const N: usize> WeightNormLinearArgument<GroupElement, Scalar, N>
 where
-    GroupElement: Copy
-        + Default
-        + Add<Output = GroupElement>
-        + Mul<Scalar, Output = GroupElement>
-        + ToFromByteArray<N>
-        + PartialEq,
-    Scalar: Copy
-        + Default
-        + Add<Output = Scalar>
-        + Sub<Output = Scalar>
-        + Mul<Scalar, Output = Scalar>
-        + From<u128>
-        + fastcrypto::groups::Scalar,
+    GroupElement:
+        Default + fastcrypto::groups::GroupElement<ScalarType = Scalar> + ToFromByteArray<N>,
+    Scalar: Default + fastcrypto::groups::Scalar,
 {
     /// Computes a weight norm linear argument commitment `C` for vectors `l` and `n`:
     /// `C = v * Gen + <H, l> + <G, n> with v = <c, l> + <n, n>_mu`.
@@ -83,9 +73,9 @@ where
         t.append_u64(b"wlna:n.len", self.G.len() as u64);
 
         // Compute Fiat Shamir challenge gamma
-        let mut buf = [0u8; 64];
+        let mut buf = [0u8; 16];
         t.challenge_bytes(b"wnla:gamma", &mut buf);
-        let gamma = Scalar::from(u128::from_le_bytes(buf[..16].try_into().unwrap()));
+        let gamma = Scalar::from(u128::from_le_bytes(buf));
 
         // G' = rho * G0 + gamma * G1
         let Gp = add(&scale(&G0, self.rho), &scale(&G1, gamma));
@@ -139,14 +129,12 @@ where
         }
 
         let rho_inv = self.rho.inverse().unwrap();
-
+        let mu_squared = self.mu.mul(&self.mu);
         let (c0, c1) = reduce(&self.c);
         let (l0, l1) = reduce(&l);
         let (n0, n1) = reduce(&n);
         let (G0, G1) = reduce(&self.G);
         let (H0, H1) = reduce(&self.H);
-
-        let mu_squared = self.mu.mul(&self.mu);
 
         // v_x = 2 * rho_inv * <n0, n1>_{mu_squared} + <c0, l1> + <c1, l0>
         let vx = weighted_inner_product(&n0, &n1, &mu_squared)
@@ -181,9 +169,9 @@ where
         t.append_u64(b"wlna:n.len", n.len() as u64);
 
         // Compute Fiat Shamir challenge gamma
-        let mut buf = [0u8; 64];
+        let mut buf = [0u8; 16];
         t.challenge_bytes(b"wnla:gamma", &mut buf);
-        let gamma = Scalar::from(u128::from_le_bytes(buf[..16].try_into().unwrap()));
+        let gamma = Scalar::from(u128::from_le_bytes(buf));
 
         // H' = H0 + gamma * H1
         let Hp = add(&H0, &scale(&H1, gamma));
