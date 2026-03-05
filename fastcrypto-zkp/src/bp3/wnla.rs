@@ -4,50 +4,38 @@
 #![allow(non_snake_case)]
 
 use crate::bp3::util::*;
-use fastcrypto::serde_helpers::ToFromByteArray;
+use fastcrypto::groups::{GroupElement, Scalar};
 use merlin::Transcript;
+use serde::Serialize;
 
-pub struct WeightNormLinearArgument<GroupElement, Scalar, const N: usize> {
-    pub Gen: GroupElement,
-    pub G: Vec<GroupElement>,
-    pub H: Vec<GroupElement>,
-    pub c: Vec<Scalar>,
-    pub rho: Scalar,
-    pub mu: Scalar,
+pub struct WeightNormLinearArgument<G: GroupElement> {
+    pub Gen: G,
+    pub G: Vec<G>,
+    pub H: Vec<G>,
+    pub c: Vec<G::ScalarType>,
+    pub rho: G::ScalarType,
+    pub mu: G::ScalarType,
 }
 
 #[derive(Clone, Debug)]
-pub struct Proof<GroupElement, Scalar> {
-    pub R: Vec<GroupElement>,
-    pub X: Vec<GroupElement>,
-    pub l: Vec<Scalar>,
-    pub n: Vec<Scalar>,
+pub struct Proof<G: GroupElement> {
+    pub R: Vec<G>,
+    pub X: Vec<G>,
+    pub l: Vec<G::ScalarType>,
+    pub n: Vec<G::ScalarType>,
 }
 
-impl<GroupElement, Scalar, const N: usize> WeightNormLinearArgument<GroupElement, Scalar, N>
-where
-    GroupElement:
-        Default + fastcrypto::groups::GroupElement<ScalarType = Scalar> + ToFromByteArray<N>,
-    Scalar: Default + fastcrypto::groups::Scalar,
-{
+impl<G: GroupElement + Serialize> WeightNormLinearArgument<G> {
     /// Computes a weight norm linear argument commitment `C` for vectors `l` and `n`:
     /// `C = v * Gen + <H, l> + <G, n> with v = <c, l> + <n, n>_mu`.
-    pub fn commit(&self, l: &[Scalar], n: &[Scalar]) -> GroupElement {
-        let v = inner_product(&self.c, l).add(weighted_inner_product(n, n, &self.mu));
-        self.Gen
-            .mul(v)
-            .add(inner_product(&self.H, l))
-            .add(inner_product(&self.G, n))
+    pub fn commit(&self, l: &[G::ScalarType], n: &[G::ScalarType]) -> G {
+        let v = inner_product(&self.c, l) + weighted_inner_product(n, n, &self.mu);
+        self.Gen * v + inner_product(&self.H, l) + inner_product(&self.G, n)
     }
 
     /// Verifies a weight norm linear argument proof.
     /// TODO: This is the "naive" (recursive) verification. We can optimize it as described on page 14 of the paper.
-    pub fn verify(
-        &self,
-        C: &GroupElement,
-        t: &mut Transcript,
-        proof: &Proof<GroupElement, Scalar>,
-    ) -> bool {
+    pub fn verify(&self, C: &G, t: &mut Transcript, proof: &Proof<G>) -> bool {
         if proof.X.len() != proof.R.len() {
             return false;
         }
@@ -61,16 +49,16 @@ where
         let (H0, H1) = reduce(&self.H);
 
         // Add messages to Fiat Shamir transcript
-        t.append_message(b"wnla:C", &C.to_byte_array());
-        t.append_message(b"wnla:X", &proof.X.last().unwrap().to_byte_array());
-        t.append_message(b"wnla:R", &proof.R.last().unwrap().to_byte_array());
+        t.append_message(b"wnla:C", &bcs::to_bytes(&C).unwrap());
+        t.append_message(b"wnla:X", &bcs::to_bytes(&proof.X.last().unwrap()).unwrap());
+        t.append_message(b"wnla:R", &bcs::to_bytes(&proof.R.last().unwrap()).unwrap());
         t.append_u64(b"wlna:l.len", self.H.len() as u64);
         t.append_u64(b"wlna:n.len", self.G.len() as u64);
 
         // Compute Fiat Shamir challenge gamma
         let mut buf = [0u8; 16];
         t.challenge_bytes(b"wnla:gamma", &mut buf);
-        let gamma = Scalar::from(u128::from_le_bytes(buf));
+        let gamma = G::ScalarType::from(u128::from_le_bytes(buf));
 
         // G' = rho * G0 + gamma * G1
         let Gp = add(&scale(&G0, self.rho), &scale(&G1, gamma));
@@ -84,7 +72,7 @@ where
                 .R
                 .last()
                 .unwrap()
-                .mul(gamma.mul(gamma).sub(Scalar::from(1u128))),
+                .mul(gamma * gamma - G::ScalarType::from(1u128)),
         );
 
         let wnla = WeightNormLinearArgument {
@@ -93,7 +81,7 @@ where
             H: Hp,
             c: cp,
             rho: self.mu,
-            mu: self.mu.mul(self.mu),
+            mu: self.mu * self.mu,
         };
 
         let proofp = Proof {
@@ -109,11 +97,11 @@ where
     /// Creates a weight norm linear argument proof.
     pub fn prove(
         &self,
-        C: &GroupElement,
+        C: &G,
         t: &mut Transcript,
-        l: Vec<Scalar>,
-        n: Vec<Scalar>,
-    ) -> Proof<GroupElement, Scalar> {
+        l: Vec<G::ScalarType>,
+        n: Vec<G::ScalarType>,
+    ) -> Proof<G> {
         if l.len() + n.len() < 6 {
             return Proof {
                 R: vec![],
@@ -124,7 +112,7 @@ where
         }
 
         let rho_inv = self.rho.inverse().unwrap();
-        let mu_squared = self.mu.mul(&self.mu);
+        let mu_squared = self.mu * &self.mu;
         let (c0, c1) = reduce(&self.c);
         let (l0, l1) = reduce(&l);
         let (n0, n1) = reduce(&n);
@@ -132,13 +120,13 @@ where
         let (H0, H1) = reduce(&self.H);
 
         // v_x = 2 * rho_inv * <n0, n1>_{mu_squared} + <c0, l1> + <c1, l0>
-        let vx = weighted_inner_product(&n0, &n1, &mu_squared)
-            .mul(&rho_inv.mul(&Scalar::from(2u128)))
-            .add(&inner_product(&c0, &l1))
-            .add(&inner_product(&c1, &l0));
+        let vx =
+            weighted_inner_product(&n0, &n1, &mu_squared) * rho_inv * G::ScalarType::from(2u128)
+                + inner_product(&c0, &l1)
+                + inner_product(&c1, &l0);
 
         // v_r = <n1, n1>_{mu_squared} + <c1, l1>
-        let vr = weighted_inner_product(&n1, &n1, &mu_squared).add(&inner_product(&c1, &l1));
+        let vr = weighted_inner_product(&n1, &n1, &mu_squared) + inner_product(&c1, &l1);
 
         // X = v_x * Gen + <H0, l1> + <H1, l0> + <G0, rho * n1> + <G1, rho_inv * n0>
         let X = self
@@ -157,16 +145,16 @@ where
             .add(inner_product(&G1, &n1));
 
         // Add messages to Fiat Shamir transcript
-        t.append_message(b"wnla:C", &C.to_byte_array());
-        t.append_message(b"wnla:X", &X.to_byte_array());
-        t.append_message(b"wnla:R", &R.to_byte_array());
+        t.append_message(b"wnla:C", &bcs::to_bytes(&C).unwrap());
+        t.append_message(b"wnla:X", &bcs::to_bytes(&X).unwrap());
+        t.append_message(b"wnla:R", &bcs::to_bytes(&R).unwrap());
         t.append_u64(b"wlna:l.len", l.len() as u64);
         t.append_u64(b"wlna:n.len", n.len() as u64);
 
         // Compute Fiat Shamir challenge gamma
         let mut buf = [0u8; 16];
         t.challenge_bytes(b"wnla:gamma", &mut buf);
-        let gamma = Scalar::from(u128::from_le_bytes(buf));
+        let gamma = G::ScalarType::from(u128::from_le_bytes(buf));
 
         // H' = H0 + gamma * H1
         let Hp = add(&H0, &scale(&H1, gamma));
@@ -231,15 +219,14 @@ mod tests {
             .collect::<Vec<_>>();
         let rho = get_random_scalar(&mut rand);
 
-        let wnla: WeightNormLinearArgument<RistrettoPoint, RistrettoScalar, 32> =
-            WeightNormLinearArgument {
-                Gen,
-                G,
-                H,
-                c,
-                rho,
-                mu: rho.mul(&rho),
-            };
+        let wnla: WeightNormLinearArgument<RistrettoPoint> = WeightNormLinearArgument {
+            Gen,
+            G,
+            H,
+            c,
+            rho,
+            mu: rho.mul(&rho),
+        };
 
         let l = (0..M)
             .map(|_| get_random_scalar(&mut rand))
