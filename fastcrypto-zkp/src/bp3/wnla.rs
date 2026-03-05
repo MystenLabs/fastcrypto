@@ -4,6 +4,7 @@
 #![allow(non_snake_case)]
 
 use crate::bp3::util::*;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use merlin::Transcript;
 use serde::Serialize;
@@ -37,23 +38,32 @@ where
 
     /// Verifies a weight norm linear argument proof.
     /// TODO: This is the "naive" (recursive) verification. We can optimize it as described on page 14 of the paper.
-    pub fn verify(&self, C: &G, t: &mut Transcript, proof: &Proof<G>) -> bool {
-        if proof.X.len() != proof.R.len() {
-            return false;
+    pub fn verify(&self, C: &G, t: &mut Transcript, proof: Proof<G>) -> FastCryptoResult<()> {
+        let Proof { mut R, mut X, l, n } = proof;
+
+        if X.len() != R.len() {
+            return Err(FastCryptoError::InvalidInput);
         }
 
-        if proof.X.is_empty() {
-            return C.eq(&self.commit(&proof.l, &proof.n));
+        if X.is_empty() {
+            return if C == &self.commit(&l, &n) {
+                Ok(())
+            } else {
+                Err(FastCryptoError::InvalidProof)
+            };
         }
 
         let (c0, c1) = reduce(&self.c);
         let (G0, G1) = reduce(&self.G);
         let (H0, H1) = reduce(&self.H);
 
+        let X_last = X.pop().unwrap();
+        let R_last = R.pop().unwrap();
+
         // Add messages to Fiat Shamir transcript
         t.append_message(b"wnla:C", &bcs::to_bytes(&C).unwrap());
-        t.append_message(b"wnla:X", &bcs::to_bytes(&proof.X.last().unwrap()).unwrap());
-        t.append_message(b"wnla:R", &bcs::to_bytes(&proof.R.last().unwrap()).unwrap());
+        t.append_message(b"wnla:X", &bcs::to_bytes(&X_last).unwrap());
+        t.append_message(b"wnla:R", &bcs::to_bytes(&R_last).unwrap());
         t.append_u64(b"wlna:l.len", self.H.len() as u64);
         t.append_u64(b"wlna:n.len", self.G.len() as u64);
 
@@ -69,13 +79,7 @@ where
         // c' = c0 + gamma * c1
         let cp = add(&c0, &scale(&c1, gamma));
         // C' = C + gamma * X + (gamma^2 - 1) * R
-        let Cp = C.add(proof.X.last().unwrap().mul(gamma)).add(
-            proof
-                .R
-                .last()
-                .unwrap()
-                .mul(gamma * gamma - G::ScalarType::from(1u128)),
-        );
+        let Cp = *C + X_last * gamma + R_last * (gamma * gamma - G::ScalarType::from(1u128));
 
         let wnla = WeightNormLinearArgument {
             G: Gp,
@@ -84,15 +88,7 @@ where
             rho: self.mu,
             mu: self.mu * self.mu,
         };
-
-        let proofp = Proof {
-            R: proof.R[..proof.R.len() - 1].to_vec(),
-            X: proof.X[..proof.X.len() - 1].to_vec(),
-            l: proof.l.clone(),
-            n: proof.n.clone(),
-        };
-
-        wnla.verify(&Cp, t, &proofp)
+        wnla.verify(&Cp, t, Proof { R, X, l, n })
     }
 
     /// Creates a weight norm linear argument proof.
@@ -113,7 +109,7 @@ where
         }
 
         let rho_inv = self.rho.inverse().unwrap();
-        let mu_squared = self.mu * &self.mu;
+        let mu_squared = self.mu * self.mu;
         let (c0, c1) = reduce(&self.c);
         let (l0, l1) = reduce(&l);
         let (n0, n1) = reduce(&n);
@@ -234,6 +230,6 @@ mod tests {
         let mut pt = merlin::Transcript::new(b"wnla test");
         let proof = wnla.prove(&C, &mut pt, l, n);
         let mut vt = merlin::Transcript::new(b"wnla test");
-        assert!(wnla.verify(&C, &mut vt, &proof));
+        assert!(wnla.verify(&C, &mut vt, proof).is_ok());
     }
 }
