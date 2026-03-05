@@ -150,12 +150,6 @@ impl From<u64> for RistrettoScalar {
     }
 }
 
-impl Default for RistrettoScalar {
-    fn default() -> Self {
-        RistrettoScalar(ExternalScalar::ZERO)
-    }
-}
-
 impl Mul<RistrettoScalar> for RistrettoScalar {
     type Output = RistrettoScalar;
 
