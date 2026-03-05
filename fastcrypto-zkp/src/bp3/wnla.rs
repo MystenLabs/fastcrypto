@@ -9,7 +9,6 @@ use merlin::Transcript;
 use serde::Serialize;
 
 pub struct WeightNormLinearArgument<G: GroupElement> {
-    pub Gen: G,
     pub G: Vec<G>,
     pub H: Vec<G>,
     pub c: Vec<G::ScalarType>,
@@ -30,7 +29,7 @@ impl<G: GroupElement + Serialize> WeightNormLinearArgument<G> {
     /// `C = v * Gen + <H, l> + <G, n> with v = <c, l> + <n, n>_mu`.
     pub fn commit(&self, l: &[G::ScalarType], n: &[G::ScalarType]) -> G {
         let v = inner_product(&self.c, l) + weighted_inner_product(n, n, &self.mu);
-        self.Gen * v + inner_product(&self.H, l) + inner_product(&self.G, n)
+        G::generator() * v + inner_product(&self.H, l) + inner_product(&self.G, n)
     }
 
     /// Verifies a weight norm linear argument proof.
@@ -76,7 +75,6 @@ impl<G: GroupElement + Serialize> WeightNormLinearArgument<G> {
         );
 
         let wnla = WeightNormLinearArgument {
-            Gen: self.Gen,
             G: Gp,
             H: Hp,
             c: cp,
@@ -129,20 +127,10 @@ impl<G: GroupElement + Serialize> WeightNormLinearArgument<G> {
         let vr = weighted_inner_product(&n1, &n1, &mu_squared) + inner_product(&c1, &l1);
 
         // X = v_x * Gen + <H0, l1> + <H1, l0> + <G0, rho * n1> + <G1, rho_inv * n0>
-        let X = self
-            .Gen
-            .mul(vx)
-            .add(inner_product(&H0, &l1))
-            .add(inner_product(&H1, &l0))
-            .add(inner_product(&G0, &scale(&n1, self.rho)))
-            .add(inner_product(&G1, &scale(&n0, rho_inv)));
+        let X = G::generator() * vx + inner_product(&H0, &l1) + inner_product(&H1, &l0) + inner_product(&G0, &scale(&n1, self.rho)) + inner_product(&G1, &scale(&n0, rho_inv));
 
         // R = v_r * Gen + <H1, l1> + <G1, n1>
-        let R = self
-            .Gen
-            .mul(vr)
-            .add(inner_product(&H1, &l1))
-            .add(inner_product(&G1, &n1));
+        let R = G::generator() * vr + inner_product(&H1, &l1) + inner_product(&G1, &n1);
 
         // Add messages to Fiat Shamir transcript
         t.append_message(b"wnla:C", &bcs::to_bytes(&C).unwrap());
@@ -168,7 +156,6 @@ impl<G: GroupElement + Serialize> WeightNormLinearArgument<G> {
         let np = add(&scale(&n0, rho_inv), &scale(&n1, gamma));
 
         let wnla = WeightNormLinearArgument {
-            Gen: self.Gen,
             G: Gp,
             H: Hp,
             c: cp,
@@ -188,7 +175,7 @@ mod tests {
     use crate::bp3::wnla::WeightNormLinearArgument;
     use ark_std::rand::thread_rng;
     use fastcrypto::groups::ristretto255::*;
-    use fastcrypto::groups::{GroupElement, Scalar};
+    use fastcrypto::groups::Scalar;
     use fastcrypto::traits::AllowedRng;
     use std::ops::Mul;
 
@@ -207,7 +194,6 @@ mod tests {
         const M: usize = 4;
         let mut rand = thread_rng();
 
-        let Gen = RistrettoPoint::generator();
         let G = (0..M)
             .map(|_| get_random_point(&mut rand))
             .collect::<Vec<_>>();
@@ -220,7 +206,6 @@ mod tests {
         let rho = get_random_scalar(&mut rand);
 
         let wnla: WeightNormLinearArgument<RistrettoPoint> = WeightNormLinearArgument {
-            Gen,
             G,
             H,
             c,
