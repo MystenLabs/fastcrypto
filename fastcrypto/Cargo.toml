@@ -102,10 +102,6 @@ name = "hash"
 harness = false
 
 [[bench]]
-name = "merkle"
-harness = false
-
-[[bench]]
 name = "bulletproofs"
 harness = false
 

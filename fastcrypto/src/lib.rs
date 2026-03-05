@@ -84,10 +84,6 @@ pub mod secp256r1_group_tests;
 #[path = "tests/secp256k1_group_tests.rs"]
 pub mod secp256k1_group_tests;
 
-#[cfg(test)]
-#[path = "tests/merkle_tests.rs"]
-pub mod merkle_tests;
-
 pub mod traits;
 
 #[cfg(feature = "aes")]
@@ -101,7 +97,6 @@ pub mod groups;
 pub mod hash;
 pub mod hmac;
 pub mod jwt_utils;
-pub mod merkle;
 pub mod nizk;
 pub mod pedersen;
 pub mod private_seed;
