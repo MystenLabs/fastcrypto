@@ -53,24 +53,14 @@ where
             };
         }
 
-        let (c0, c1) = reduce(&self.c);
-        let (G0, G1) = reduce(&self.G);
-        let (H0, H1) = reduce(&self.H);
-
         let X_last = X.pop().unwrap();
         let R_last = R.pop().unwrap();
 
-        // Add messages to Fiat Shamir transcript
-        t.append_message(b"wnla:C", &bcs::to_bytes(&C).unwrap());
-        t.append_message(b"wnla:X", &bcs::to_bytes(&X_last).unwrap());
-        t.append_message(b"wnla:R", &bcs::to_bytes(&R_last).unwrap());
-        t.append_u64(b"wlna:l.len", self.H.len() as u64);
-        t.append_u64(b"wlna:n.len", self.G.len() as u64);
+        let gamma = Self::challenge(t, C, &X_last, &R_last, self.H.len(), self.G.len());
 
-        // Compute Fiat Shamir challenge gamma
-        let mut buf = [0u8; 16];
-        t.challenge_bytes(b"wnla:gamma", &mut buf);
-        let gamma = G::ScalarType::fiat_shamir_reduction_to_group_element(&buf);
+        let (c0, c1) = reduce(&self.c);
+        let (G0, G1) = reduce(&self.G);
+        let (H0, H1) = reduce(&self.H);
 
         // G' = rho * G0 + gamma * G1
         let Gp = add(&scale(&G0, self.rho), &scale(&G1, gamma));
@@ -137,17 +127,8 @@ where
         // R = v_r * Gen + <H1, l1> + <G1, n1>
         let R = G::generator() * vr + inner_product(&H1, &l1) + inner_product(&G1, &n1);
 
-        // Add messages to Fiat Shamir transcript
-        t.append_message(b"wnla:C", &bcs::to_bytes(&C).unwrap());
-        t.append_message(b"wnla:X", &bcs::to_bytes(&X).unwrap());
-        t.append_message(b"wnla:R", &bcs::to_bytes(&R).unwrap());
-        t.append_u64(b"wlna:l.len", l.len() as u64);
-        t.append_u64(b"wlna:n.len", n.len() as u64);
-
         // Compute Fiat Shamir challenge gamma
-        let mut buf = [0u8; 16];
-        t.challenge_bytes(b"wnla:gamma", &mut buf);
-        let gamma = G::ScalarType::fiat_shamir_reduction_to_group_element(&buf);
+        let gamma = Self::challenge(t, C, &X, &R, l.len(), n.len());
 
         // H' = H0 + gamma * H1
         let Hp = add(&H0, &scale(&H1, gamma));
@@ -172,6 +153,27 @@ where
         proof.R.push(R);
         proof.X.push(X);
         proof
+    }
+
+    fn challenge(
+        t: &mut Transcript,
+        C: &G,
+        X: &G,
+        R: &G,
+        l_len: usize,
+        n_len: usize,
+    ) -> G::ScalarType {
+        // Add messages to Fiat Shamir transcript
+        t.append_message(b"wnla:C", &bcs::to_bytes(&C).unwrap());
+        t.append_message(b"wnla:X", &bcs::to_bytes(&X).unwrap());
+        t.append_message(b"wnla:R", &bcs::to_bytes(&R).unwrap());
+        t.append_u64(b"wlna:l.len", l_len as u64);
+        t.append_u64(b"wlna:n.len", n_len as u64);
+
+        // Compute Fiat Shamir challenge gamma
+        let mut buf = [0u8; 16];
+        t.challenge_bytes(b"wnla:gamma", &mut buf);
+        G::ScalarType::fiat_shamir_reduction_to_group_element(&buf)
     }
 }
 
