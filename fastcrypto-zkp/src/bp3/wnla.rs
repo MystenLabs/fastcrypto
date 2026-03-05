@@ -4,7 +4,7 @@
 #![allow(non_snake_case)]
 
 use crate::bp3::util::*;
-use fastcrypto::groups::{GroupElement, Scalar};
+use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use merlin::Transcript;
 use serde::Serialize;
 
@@ -24,7 +24,10 @@ pub struct Proof<G: GroupElement> {
     pub n: Vec<G::ScalarType>,
 }
 
-impl<G: GroupElement + Serialize> WeightNormLinearArgument<G> {
+impl<G: GroupElement + Serialize> WeightNormLinearArgument<G>
+where
+    G::ScalarType: FiatShamirChallenge,
+{
     /// Computes a weight norm linear argument commitment `C` for vectors `l` and `n`:
     /// `C = v * Gen + <H, l> + <G, n> with v = <c, l> + <n, n>_mu`.
     pub fn commit(&self, l: &[G::ScalarType], n: &[G::ScalarType]) -> G {
@@ -57,7 +60,7 @@ impl<G: GroupElement + Serialize> WeightNormLinearArgument<G> {
         // Compute Fiat Shamir challenge gamma
         let mut buf = [0u8; 16];
         t.challenge_bytes(b"wnla:gamma", &mut buf);
-        let gamma = G::ScalarType::from(u128::from_le_bytes(buf));
+        let gamma = G::ScalarType::fiat_shamir_reduction_to_group_element(&buf);
 
         // G' = rho * G0 + gamma * G1
         let Gp = add(&scale(&G0, self.rho), &scale(&G1, gamma));
@@ -148,7 +151,7 @@ impl<G: GroupElement + Serialize> WeightNormLinearArgument<G> {
         // Compute Fiat Shamir challenge gamma
         let mut buf = [0u8; 16];
         t.challenge_bytes(b"wnla:gamma", &mut buf);
-        let gamma = G::ScalarType::from(u128::from_le_bytes(buf));
+        let gamma = G::ScalarType::fiat_shamir_reduction_to_group_element(&buf);
 
         // H' = H0 + gamma * H1
         let Hp = add(&H0, &scale(&H1, gamma));
