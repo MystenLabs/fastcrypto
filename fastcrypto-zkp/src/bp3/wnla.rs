@@ -117,6 +117,8 @@ impl<G: GroupElement + Serialize> WeightNormLinearArgument<G> {
         let (G0, G1) = reduce(&self.G);
         let (H0, H1) = reduce(&self.H);
 
+        // TODO: The Hadamard product n1 * mu_squared is computed both in the computation of vx and vr
+
         // v_x = 2 * rho_inv * <n0, n1>_{mu_squared} + <c0, l1> + <c1, l0>
         let vx =
             weighted_inner_product(&n0, &n1, &mu_squared) * rho_inv * G::ScalarType::from(2u128)
@@ -127,7 +129,11 @@ impl<G: GroupElement + Serialize> WeightNormLinearArgument<G> {
         let vr = weighted_inner_product(&n1, &n1, &mu_squared) + inner_product(&c1, &l1);
 
         // X = v_x * Gen + <H0, l1> + <H1, l0> + <G0, rho * n1> + <G1, rho_inv * n0>
-        let X = G::generator() * vx + inner_product(&H0, &l1) + inner_product(&H1, &l0) + inner_product(&G0, &scale(&n1, self.rho)) + inner_product(&G1, &scale(&n0, rho_inv));
+        let X = G::generator() * vx
+            + inner_product(&H0, &l1)
+            + inner_product(&H1, &l0)
+            + inner_product(&G0, &n1) * self.rho
+            + inner_product(&G1, &n0) * rho_inv;
 
         // R = v_r * Gen + <H1, l1> + <G1, n1>
         let R = G::generator() * vr + inner_product(&H1, &l1) + inner_product(&G1, &n1);
