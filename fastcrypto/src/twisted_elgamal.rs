@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
+use crate::bulletproofs::{Range, RangeProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
 use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
@@ -233,6 +234,56 @@ pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16> {
         .collect()
 }
 
+pub struct VerifiableCiphertext {
+    pub ciphertexts: Vec<Ciphertext>,
+    pub range_proof: RangeProof,
+}
+
+impl VerifiableCiphertext {
+    pub fn seal(
+        public_key: &PublicKey,
+        messages: &[u32],
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<(Self, Vec<Blinding>)> {
+        let (ciphertexts, blindings): (Vec<Ciphertext>, Vec<Blinding>) = messages
+            .iter()
+            .map(|&m| Ciphertext::encrypt(public_key, m, rng))
+            .unzip();
+        let messages_u64: Vec<u64> = messages.iter().map(|&m| m as u64).collect();
+        let range_proof = RangeProof::prove_batch(&messages_u64, &blindings, &Range::Bits32, rng)?;
+        Ok((
+            Self {
+                ciphertexts,
+                range_proof,
+            },
+            blindings,
+        ))
+    }
+
+    pub fn verify(&self, rng: &mut impl AllowedRng) -> FastCryptoResult<()> {
+        let commitments: Vec<PedersenCommitment> = self
+            .ciphertexts
+            .iter()
+            .map(|ct| ct.commitment.clone())
+            .collect();
+        self.range_proof
+            .verify_batch(&commitments, &Range::Bits32, rng)
+    }
+
+    pub fn open(
+        &self,
+        private_key: &PrivateKey,
+        table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<Vec<u32>> {
+        self.verify(rng)?;
+        self.ciphertexts
+            .iter()
+            .map(|ct| ct.decrypt(private_key, table))
+            .collect()
+    }
+}
+
 #[test]
 fn test_round_trip() {
     let (pk, sk) = generate_keypair(&mut rand::thread_rng());
@@ -325,4 +376,19 @@ fn test_equality() {
         .zero_proof(&sk, &mut rng)
         .verify(&other_diff, &pk)
         .unwrap_err();
+}
+
+#[test]
+fn test_verifiable_ciphertext() {
+    let mut rng = rand::thread_rng();
+    let (public_key, private_key) = generate_keypair(&mut rng);
+    let table = precompute_table();
+    let messages: Vec<u32> = vec![1, 23, 456, 789, 987, 654, 32, 1];
+    let (verifiable_ciphertext, _blindings) =
+        VerifiableCiphertext::seal(&public_key, &messages, &mut rng).unwrap();
+    assert!(verifiable_ciphertext.verify(&mut rng).is_ok());
+    let decrypted_messages = verifiable_ciphertext
+        .open(&private_key, &table, &mut rng)
+        .unwrap();
+    assert_eq!(messages, decrypted_messages);
 }
