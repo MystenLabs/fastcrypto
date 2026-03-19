@@ -12,7 +12,8 @@ use fastcrypto::groups::secp256k1::schnorr::{
 use fastcrypto::groups::GroupElement;
 use itertools::Itertools;
 
-/// Generate partial threshold Schnorr signatures for a given message using a presigning triple.
+/// Generate partial threshold Schnorr signatures for a given message using a presigning tuple.
+/// The presigning tuple must be taken from a [Presignatures] iterator, the other parties should use the same tuple and one tuple may only be used once.
 /// Returns also the public nonce R.
 ///
 /// The signatures produced follow the BIP-0340 standard (https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki).
@@ -21,12 +22,11 @@ use itertools::Itertools;
 /// [derive_verifying_key]), and the signature is adjusted accordingly.
 /// The signature will be valid for the derived verifying key.
 ///
-/// Returns an `OutOfPresigs` error if the presignatures iterator is exhausted.
 /// `GeneralOpaqueError` is returned if the generated nonce R is the identity element (should happen only with negligible probability).
 /// `InvalidInput` is returned if the verifying key is the identity element.
 pub fn generate_partial_signatures(
     message: &[u8],
-    (secret_presigs, public_presig): (Vec<S>, G),
+    (mut secret_presigs, public_presig): (Vec<S>, G),
     beacon_value: &S,
     my_signing_key_shares: &avss::SharesForNode,
     verifying_key: &G,
@@ -42,7 +42,6 @@ pub fn generate_partial_signatures(
     // In BIP-340, the nonce R must have an even Y coordinate.
     // If it doesn't, we negate the secret nonce to get a new nonce R' = -R with an even Y.
     // Since only the X coordinate of R is included in the signature, we don't need to change R, but we must negate the presigs.
-    let mut secret_presigs = secret_presigs;
     if !r_g.has_even_y()? {
         for presig in &mut secret_presigs {
             *presig = -*presig;
