@@ -699,7 +699,7 @@ impl VerifiableCiphertext {
                 ciphertexts,
                 range_proof,
             },
-            blindings,
+            blindings, // TODO: do we need to return these? Probably better to return the combined value.
         ))
     }
 
@@ -726,6 +726,86 @@ impl VerifiableCiphertext {
             .collect()
     }
 }
+
+pub struct VerifiableKeyEncapsulation {
+    pub verifiable_ciphertext: VerifiableCiphertext,
+    pub r: RistrettoScalar,
+    pub key_proof: DdhTupleNizk<RistrettoPoint>
+}
+
+impl VerifiableKeyEncapsulation {
+    pub fn seal(
+        public_key: &PublicKey,
+        private_key: &PrivateKey,
+        rng: &mut impl AllowedRng,
+    ) -> VerifiableKeyEncapsulation {
+        let private_key_bytes = private_key.0.to_byte_array();
+        let limbs: Vec<u32> = (0..8)
+            .map(|i| u32::from_le_bytes(private_key_bytes[4*i..4*(i+1)].try_into().unwrap()))
+            .collect();
+        let (verifiable_ciphertext, blindings) = VerifiableCiphertext::seal(public_key, &limbs, rng).unwrap();
+        let b = RistrettoScalar::from(1u64 << 32); // 2**32
+        let mut e = RistrettoScalar::from(1u64); // 2**(i * 32) for i = 0..7
+        let mut r = RistrettoScalar::from(0u64); // r = sum_i(r_i * 2**(i * 32))
+        for ri in &blindings {
+            r += ri.0 * e;
+            e *= b;
+        }
+        let key_proof = DdhTupleNizk::create(
+            &private_key.0,
+            &*G,
+            &*H,
+            &(*G * private_key.0),
+            &(*H * private_key.0),
+            rng,
+        );
+        VerifiableKeyEncapsulation{
+            verifiable_ciphertext,
+            r, // TODO: doublecheck if it's okay to "leak" r
+            key_proof
+        }
+    }
+
+    pub fn verify(
+        &self,
+        public_key:
+        &PublicKey,
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<()> {
+        self.verifiable_ciphertext.verify(rng)?;
+        let b = RistrettoScalar::from(1u64 << 32); // 2**32
+        let mut e = RistrettoScalar::from(1u64);
+        let mut c = RistrettoPoint::zero();
+        for ct in &self.verifiable_ciphertext.ciphertexts {
+            c += ct.commitment.0 * e;
+            e *= b;
+        }
+        self.key_proof.verify(
+            &*G,
+            &*H,
+            &public_key.0,
+            &(c - *G * self.r)
+        )
+    }
+
+    pub fn open(
+        &self,
+        public_key: &PublicKey,
+        decryption_key: &PrivateKey,
+        table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<PrivateKey> {
+        self.verify(public_key, rng)?;
+        let limbs = self.verifiable_ciphertext.open(decryption_key, table, rng)?;
+        let mut private_key_bytes = [0u8; 32];
+        for (i, limb) in limbs.iter().enumerate() {
+            private_key_bytes[4*i..4*i+4].copy_from_slice(&limb.to_le_bytes());
+        }
+        let private_key = RistrettoScalar::from_byte_array(&private_key_bytes)?;
+        Ok(PrivateKey(private_key))
+    }
+}
+
 
 #[test]
 fn test_round_trip() {
@@ -834,6 +914,18 @@ fn test_verifiable_ciphertext() {
         .open(&private_key, &table, &mut rng)
         .unwrap();
     assert_eq!(messages, decrypted_messages);
+}
+
+#[test]
+fn test_verifiable_key_encapsulation() {
+    let mut rng = rand::thread_rng();
+    let table = precompute_table();
+    let (pk_send, sk_send) = generate_keypair(&mut rng);
+    let (pk_recv, sk_recv) = generate_keypair(&mut rng);
+    let encapsulation = VerifiableKeyEncapsulation::seal(&pk_recv, &sk_send, &mut rng);
+    assert!(encapsulation.verify(&pk_send, &mut rng).is_ok());
+    let recovered_private_key = encapsulation.open(&pk_send, &sk_recv, &table, &mut rng).unwrap();
+    assert_eq!(recovered_private_key.0, sk_send.0);
 }
 
 #[test]
