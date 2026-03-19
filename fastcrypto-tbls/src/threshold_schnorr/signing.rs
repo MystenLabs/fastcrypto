@@ -3,9 +3,8 @@
 
 use crate::polynomial::{Eval, Poly};
 use crate::threshold_schnorr::key_derivation::{compute_tweak, derive_verifying_key_internal};
-use crate::threshold_schnorr::presigning::Presignatures;
 use crate::threshold_schnorr::{avss, Address, G, S};
-use fastcrypto::error::FastCryptoError::{InputTooShort, OutOfPresigs};
+use fastcrypto::error::FastCryptoError::InputTooShort;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::secp256k1::schnorr::{
     bip0340_hash_to_scalar, SchnorrPublicKey, SchnorrSignature, Tag,
@@ -13,7 +12,8 @@ use fastcrypto::groups::secp256k1::schnorr::{
 use fastcrypto::groups::GroupElement;
 use itertools::Itertools;
 
-/// Generate partial threshold Schnorr signatures for a given message using a presigning triple.
+/// Generate partial threshold Schnorr signatures for a given message using a presigning tuple.
+/// The presigning tuple must be taken from a [Presignatures] iterator, the other parties should use the same tuple and one tuple may only be used once.
 /// Returns also the public nonce R.
 ///
 /// The signatures produced follow the BIP-0340 standard (https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki).
@@ -22,20 +22,16 @@ use itertools::Itertools;
 /// [derive_verifying_key]), and the signature is adjusted accordingly.
 /// The signature will be valid for the derived verifying key.
 ///
-/// Returns an `OutOfPresigs` error if the presignatures iterator is exhausted.
 /// `GeneralOpaqueError` is returned if the generated nonce R is the identity element (should happen only with negligible probability).
 /// `InvalidInput` is returned if the verifying key is the identity element.
 pub fn generate_partial_signatures(
     message: &[u8],
-    presignatures: &mut Presignatures,
+    (mut secret_presigs, public_presig): (Vec<S>, G),
     beacon_value: &S,
     my_signing_key_shares: &avss::SharesForNode,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
-    // TODO: Each output from an instance of Presigning has a unique index. Perhaps this is needed for coordination?
-    let (_, mut secret_presigs, public_presig) = presignatures.next().ok_or(OutOfPresigs)?;
-
     let r_g = public_presig + G::generator() * beacon_value;
 
     // Since both the public_presig and the beacon_value are random, this should happen only with negligible probability.

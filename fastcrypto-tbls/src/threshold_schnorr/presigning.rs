@@ -9,15 +9,14 @@ use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
 
-/// An iterator that yields presigning tuples (i, t_i, p_i).
+/// An iterator that yields presigning tuples (t_i, p_i).
 pub struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
-    index: usize,
 }
 
 impl Iterator for Presignatures {
-    type Item = (usize, Vec<S>, G);
+    type Item = (Vec<S>, G);
 
     fn next(&mut self) -> Option<Self::Item> {
         let secret = self
@@ -28,10 +27,7 @@ impl Iterator for Presignatures {
         let public = self.public.next();
 
         match (secret, public) {
-            (Some(s), Some(p)) => {
-                self.index += 1;
-                Some((self.index, s, p))
-            }
+            (Some(s), Some(p)) => Some((s, p)),
             (None, None) => None,
             _ => unreachable!(),
         }
@@ -126,10 +122,6 @@ impl Presignatures {
         );
         assert_eq!(public.len(), expected_len);
 
-        Ok(Self {
-            secret,
-            public,
-            index: 0,
-        })
+        Ok(Self { secret, public })
     }
 }
