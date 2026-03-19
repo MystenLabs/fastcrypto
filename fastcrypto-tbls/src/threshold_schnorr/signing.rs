@@ -3,9 +3,8 @@
 
 use crate::polynomial::{Eval, Poly};
 use crate::threshold_schnorr::key_derivation::{compute_tweak, derive_verifying_key_internal};
-use crate::threshold_schnorr::presigning::Presignatures;
 use crate::threshold_schnorr::{avss, Address, G, S};
-use fastcrypto::error::FastCryptoError::{InputTooShort, OutOfPresigs};
+use fastcrypto::error::FastCryptoError::InputTooShort;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::secp256k1::schnorr::{
     bip0340_hash_to_scalar, SchnorrPublicKey, SchnorrSignature, Tag,
@@ -27,15 +26,12 @@ use itertools::Itertools;
 /// `InvalidInput` is returned if the verifying key is the identity element.
 pub fn generate_partial_signatures(
     message: &[u8],
-    presignatures: &mut Presignatures,
+    (secret_presigs, public_presig): (Vec<S>, G),
     beacon_value: &S,
     my_signing_key_shares: &avss::SharesForNode,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
-    // TODO: Each output from an instance of Presigning has a unique index. Perhaps this is needed for coordination?
-    let (_, mut secret_presigs, public_presig) = presignatures.next().ok_or(OutOfPresigs)?;
-
     let r_g = public_presig + G::generator() * beacon_value;
 
     // Since both the public_presig and the beacon_value are random, this should happen only with negligible probability.
@@ -46,6 +42,7 @@ pub fn generate_partial_signatures(
     // In BIP-340, the nonce R must have an even Y coordinate.
     // If it doesn't, we negate the secret nonce to get a new nonce R' = -R with an even Y.
     // Since only the X coordinate of R is included in the signature, we don't need to change R, but we must negate the presigs.
+    let mut secret_presigs = secret_presigs;
     if !r_g.has_even_y()? {
         for presig in &mut secret_presigs {
             *presig = -*presig;

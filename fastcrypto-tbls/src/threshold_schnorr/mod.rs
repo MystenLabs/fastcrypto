@@ -279,7 +279,7 @@ mod tests {
             .map(|node| {
                 generate_partial_signatures(
                     message,
-                    presigs.get_mut(&node.id).unwrap(),
+                    presigs.get_mut(&node.id).unwrap().next().unwrap(),
                     &beacon_value,
                     &merged_shares.get(&node.id).unwrap().my_shares,
                     &vk,
@@ -459,7 +459,7 @@ mod tests {
             .map(|node| {
                 generate_partial_signatures(
                     message_2,
-                    presigs.get_mut(&node.id).unwrap(),
+                    presigs.get_mut(&node.id).unwrap().next().unwrap(),
                     &beacon_value,
                     &merged_shares_after_rotation
                         .get(&node.id)
@@ -618,7 +618,7 @@ mod tests {
                 };
                 generate_partial_signatures(
                     message,
-                    presigning,
+                    presigning.next().unwrap(),
                     &beacon_value,
                     &my_shares,
                     &vk_element,
@@ -744,7 +744,7 @@ mod tests {
                 };
                 generate_partial_signatures(
                     message,
-                    presigning,
+                    presigning.next().unwrap(),
                     &beacon_value,
                     &my_shares,
                     &vk_element,
