@@ -277,6 +277,7 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 struct TestIssuerJWTResponse {
     jwt: String,
 }

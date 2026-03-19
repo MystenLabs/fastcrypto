@@ -18,7 +18,6 @@ use std::num::NonZeroU16;
 use std::ops::{Add, AddAssign, Div, Index, Mul, MulAssign, SubAssign};
 
 /// Types
-
 pub type Eval<A> = IndexedValue<A>;
 
 /// A polynomial that is using a scalar for the variable x and a generic
@@ -30,7 +29,6 @@ pub type PrivatePoly<C> = Poly<<C as GroupElement>::ScalarType>;
 pub type PublicPoly<C> = Poly<C>;
 
 /// Vector related operations.
-
 impl<C: GroupElement> Poly<C> {
     /// Returns an upper bound for the degree of the polynomial.
     /// The returned number is equal to the size of the underlying coefficient vector - 1,
@@ -116,7 +114,6 @@ impl<C: GroupElement> SubAssign<Poly<C>> for Poly<C> {
 }
 
 /// GroupElement operations.
-
 impl<C: GroupElement> Poly<C> {
     /// Returns a polynomial with the zero element.
     pub fn zero() -> Self {
@@ -326,7 +323,6 @@ impl<C: GroupElement> Poly<C> {
 }
 
 /// Scalar operations.
-
 impl<C: Scalar> Poly<C> {
     /// Returns a new polynomial of the given degree where each coefficients is
     /// sampled at random from the given RNG.
@@ -691,10 +687,7 @@ impl<C: GroupElement> Iterator for PolynomialEvaluator<C> {
         if self.first {
             self.first = false;
         } else {
-            self.index = match self.index.checked_add(self.step.get()) {
-                Some(new_index) => new_index,
-                None => return None,
-            };
+            self.index = self.index.checked_add(self.step.get())?;
             Self::iterate_state(&mut self.state);
         }
         Some(Eval {

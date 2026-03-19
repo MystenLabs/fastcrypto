@@ -713,7 +713,7 @@ fn base64_to_bitarray(input: &str) -> FastCryptoResult<Vec<u8>> {
 /// Convert a bitarray (each bit is represented by a u8) to a byte array by taking each 8 bits as a
 /// byte in big-endian format.
 fn bitarray_to_bytearray(bits: &[u8]) -> FastCryptoResult<Vec<u8>> {
-    if bits.len() % 8 != 0 {
+    if !bits.len().is_multiple_of(8) {
         return Err(FastCryptoError::InvalidInput);
     }
     Ok(bits

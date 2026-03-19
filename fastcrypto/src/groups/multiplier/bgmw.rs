@@ -69,10 +69,11 @@ impl<
 
         // Compute cache[i][j] = 2^w * cache[i-1][j] for i > 0.
         for i in 1..HEIGHT {
-            for j in 0..WIDTH {
-                cache[i][j] = cache[i - 1][j];
+            let (prev, curr) = cache.split_at_mut(i);
+            for (j, item) in curr[0].iter_mut().take(WIDTH).enumerate() {
+                *item = prev[i - 1][j];
                 for _ in 0..Self::WINDOW_WIDTH {
-                    cache[i][j] = cache[i][j].double();
+                    *item = item.double();
                 }
             }
         }

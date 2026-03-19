@@ -110,16 +110,18 @@ impl QuadraticForm {
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
 
-        let u1 = &self.a;
-        let v1 = &self.b;
-        let w1 = &self.c;
-        let u2 = &rhs.a;
-        let v2 = &rhs.b;
-        let w2 = &rhs.c;
+        let mut u1 = &self.a;
+        let mut v1 = &self.b;
+        let mut w1 = &self.c;
+        let mut u2 = &rhs.a;
+        let mut v2 = &rhs.b;
+        let mut w2 = &rhs.c;
 
         // 1.
         if w1 < w2 {
-            swap(&mut (u1, v1, w1), &mut (u2, v2, w2));
+            swap(&mut u1, &mut u2);
+            swap(&mut v1, &mut v2);
+            swap(&mut w1, &mut w2);
         }
         let s: BigInt = (v1 + v2) >> 1;
         let m = v2 - &s;

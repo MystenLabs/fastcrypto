@@ -14,7 +14,7 @@ use rand::prelude::*;
 use std::iter;
 use std::num::NonZeroU16;
 
-const I10: NonZeroU16 = unsafe { NonZeroU16::new_unchecked(10) };
+const I10: NonZeroU16 = NonZeroU16::new(10).unwrap();
 
 #[generic_tests::define]
 mod scalar_tests {

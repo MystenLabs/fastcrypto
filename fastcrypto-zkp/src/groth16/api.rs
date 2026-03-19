@@ -90,7 +90,7 @@ impl<G1: Pairing> VerifyingKey<G1> {
         // not a little-endian u64 as it is here.
 
         if bytes.len() < G1_SIZE + 3 * G2_SIZE + size_of::<u64>()
-            || (bytes.len() - (G1_SIZE + 3 * G2_SIZE + size_of::<u64>())) % G1_SIZE != 0
+            || !(bytes.len() - (G1_SIZE + 3 * G2_SIZE + size_of::<u64>())).is_multiple_of(G1_SIZE)
         {
             return Err(FastCryptoError::InvalidInput);
         }

@@ -271,7 +271,7 @@ pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T>(
     bytes: &[u8],
     from_byte_array: fn(&[u8; SIZE_IN_BYTES]) -> FastCryptoResult<T>,
 ) -> FastCryptoResult<Vec<T>> {
-    if bytes.len() % SIZE_IN_BYTES != 0 {
+    if !bytes.len().is_multiple_of(SIZE_IN_BYTES) {
         return Err(FastCryptoError::InvalidInput);
     }
     bytes

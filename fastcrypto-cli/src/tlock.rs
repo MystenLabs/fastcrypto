@@ -218,7 +218,7 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
                     result.push_str(&msg);
                     Ok(result)
                 }
-                None => Err(Error::new(ErrorKind::Other, "Decryption failed.")),
+                None => Err(Error::other("Decryption failed.")),
             }
         }
         Command::Verify(arguments) => {

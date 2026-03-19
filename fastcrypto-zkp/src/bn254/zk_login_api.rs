@@ -21,18 +21,13 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 /// Enum to specify the environment to use for verifying keys.
-#[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq, Copy)]
+#[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq, Copy, Default)]
 pub enum ZkLoginEnv {
     /// Use the secure global verifying key derived from ceremony.
+    #[default]
     Prod,
     /// Use the insecure global verifying key.
     Test,
-}
-
-impl Default for ZkLoginEnv {
-    fn default() -> Self {
-        Self::Prod
-    }
 }
 
 /// Corresponding to proofs generated from prover (prod). Produced from ceremony. Secure to use for mainnet.

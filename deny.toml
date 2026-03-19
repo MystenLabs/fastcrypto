@@ -26,15 +26,14 @@ ignore = [
     # This codebase only uses RSA for signature verification with public keys,
     # so this vulnerability does not apply. No patched version exists yet.
     "RUSTSEC-2023-0071",
-    # allow unmaintained proc-macro-error used in transitive dependencies (also in Sui)
-    "RUSTSEC-2024-0370",
-    # allow unmaintained instant crate used in transitive dependencies (backoff, cached, fastrand, parking_lot_*, also in Sui)
-    "RUSTSEC-2024-0384",
-    # allow outdated 'idna' until passkey-client crate is able to update (also in Sui)
-    "RUSTSEC-2024-0421",
-    # allow unmaintained derivative crate used in transitive dependencies (paste, ark-*, also in Sui)
+    # Unmaintained derivative crate used by ark-crypto-primitives v0.4.0
     "RUSTSEC-2024-0388",
-    "RUSTSEC-2024-0436"
+    # Unmaintained paste crate used by ark dependencies
+    "RUSTSEC-2024-0436",
+    # tracing-subscriber ANSI escape vulnerability from ark-relations 0.4.0
+    "RUSTSEC-2025-0055",
+    # Unmaintained bincode (direct dependency, no safe upgrade available)
+    "RUSTSEC-2025-0141"
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -62,12 +61,11 @@ allow = [
     "MPL-2.0",
     "ISC",
     "CC0-1.0",
-    "0BSD",
-    "LicenseRef-ring",
     "Unlicense",
     "BSL-1.0",
-    "Unicode-DFS-2016",
     "Unicode-3.0",
+    "Zlib",
+    "CDLA-Permissive-2.0",
     #"Apache-2.0 WITH LLVM-exception",
 ]
 # The confidence threshold for detecting a license from license text.

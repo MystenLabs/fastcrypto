@@ -74,7 +74,7 @@ impl RangeProof {
         range: &Range,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<RangeProof> {
-        Self::prove_batch(&[value], &[blinding.clone()], range, rng)
+        Self::prove_batch(&[value], std::slice::from_ref(blinding), range, rng)
     }
 
     /// Verifies a range proof: That the commitment is to a value in the given range.
@@ -84,7 +84,7 @@ impl RangeProof {
         range: &Range,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
-        self.verify_batch(&[commitment.clone()], range, rng)
+        self.verify_batch(std::slice::from_ref(commitment), range, rng)
     }
 
     /// Create a proof that all the given `values` are in the range using the given commitment blindings.
