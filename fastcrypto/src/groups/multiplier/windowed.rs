@@ -133,7 +133,7 @@ pub fn multi_scalar_mul<
     // Create vector with all precomputation tables.
     let mut all_precomputed_multiples = vec![];
     for i in 0..N {
-        match precomputed_multiples.get(&i).take() {
+        match precomputed_multiples.get(&i) {
             Some(precomputed_multiples) => {
                 all_precomputed_multiples.push(precomputed_multiples);
                 window_sizes[i] = integer_utils::log2(all_precomputed_multiples[i].len()) + 1;

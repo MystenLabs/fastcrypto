@@ -21,8 +21,8 @@ where
     let bytes1 = bincode::serialize(obj).unwrap();
     let obj2: T = bincode::deserialize(&bytes1).unwrap();
     let bytes2 = bincode::serialize(&obj2).unwrap();
-    if expected.is_some() {
-        assert_eq!(bytes1, expected.unwrap());
+    if let Some(exp) = expected {
+        assert_eq!(bytes1, exp);
     }
     assert_eq!(*obj, obj2);
     assert_eq!(bytes1, bytes2);

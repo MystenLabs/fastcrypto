@@ -570,7 +570,8 @@ fn test_default_values() {
     let default_sig = Ed25519Signature::default();
     let valid_pk = valid_kp.public().clone();
     let default_pk = Ed25519PublicKey::insecure_default();
-    let valid_agg_sig = Ed25519AggregateSignature::aggregate(&[valid_sig.clone()]).unwrap();
+    let valid_agg_sig =
+        Ed25519AggregateSignature::aggregate(std::slice::from_ref(&valid_sig)).unwrap();
     let default_agg_sig = Ed25519AggregateSignature::default();
 
     // Default sig should fail (for both types of keys)
@@ -582,10 +583,10 @@ fn test_default_values() {
 
     // Verifications with one of the default values should fail.
     assert!(valid_agg_sig
-        .verify(&[valid_pk.clone()], b"message")
+        .verify(std::slice::from_ref(&valid_pk), b"message")
         .is_ok());
     assert!(valid_agg_sig
-        .verify(&[default_pk.clone()], b"message")
+        .verify(std::slice::from_ref(&default_pk), b"message")
         .is_err());
     assert!(default_agg_sig.verify(&[valid_pk], b"message").is_err());
     assert!(default_agg_sig.verify(&[default_pk], b"message").is_err());

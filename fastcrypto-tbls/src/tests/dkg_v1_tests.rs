@@ -147,12 +147,12 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
         MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut thread_rng());
     // d2 and d3 are ignored here (emulating slow parties).
 
-    let all_messages = vec![msg0.clone(), msg1, msg0.clone(), msg4.clone(), msg5.clone()]; // duplicates should be ignored
+    let all_messages = [msg0.clone(), msg1, msg0.clone(), msg4.clone(), msg5.clone()]; // duplicates should be ignored
 
     // expect failure - merge() requires t messages (even if some are duplicated)
     let proc0 = d0.process_message(msg0.clone(), &mut thread_rng()).unwrap();
     assert_eq!(
-        d0.merge(&[proc0.clone()]).err(),
+        d0.merge(std::slice::from_ref(&proc0)).err(),
         Some(FastCryptoError::NotEnoughInputs)
     );
     assert_eq!(
@@ -282,7 +282,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
     S::partial_verify(&o3.vss_pk, &MSG, &sig30).unwrap();
     S::partial_verify(&o3.vss_pk, &MSG, &sig31).unwrap();
 
-    let sigs = vec![sig00, sig30, sig31];
+    let sigs = [sig00, sig30, sig31];
     let sig = S::aggregate(d0.t(), sigs.iter()).unwrap();
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
 }
@@ -520,7 +520,7 @@ fn test_test_process_confirmations() {
     msg3.encrypted_shares =
         MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 3"), &mut thread_rng());
 
-    let all_messages = vec![msg0, msg1, msg3];
+    let all_messages = [msg0, msg1, msg3];
 
     let proc_msg0 = &all_messages
         .iter()
@@ -721,7 +721,7 @@ fn test_serialized_message_regression() {
         &mut rng,
     );
 
-    let all_messages = vec![msg0.clone(), msg1, msg3];
+    let all_messages = [msg0.clone(), msg1, msg3];
 
     let proc_msg0 = &all_messages
         .iter()
@@ -812,7 +812,7 @@ fn test_e2e_dkg_and_key_rotation() {
         nizk: d2.nizk_pop_of_secret(&mut thread_rng()),
     };
 
-    let all_messages = vec![msg0, msg1, msg2]; // duplicates should be ignored
+    let all_messages = [msg0, msg1, msg2]; // duplicates should be ignored
 
     // merge() should succeed and ignore duplicates and include 1 complaint
     let proc_msg0 = &all_messages
@@ -879,7 +879,7 @@ fn test_e2e_dkg_and_key_rotation() {
     S::partial_verify(&o0.vss_pk, &MSG, &sig1).unwrap();
     S::partial_verify(&o0.vss_pk, &MSG, &sig2).unwrap();
 
-    let sigs = vec![sig0, sig1, sig2];
+    let sigs = [sig0, sig1, sig2];
     let sig = S::aggregate(d0.t(), sigs.iter()).unwrap();
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
 
@@ -934,7 +934,7 @@ fn test_e2e_dkg_and_key_rotation() {
         o0.vss_pk.eval(ShareIndex::new(1).unwrap()).value,
     ];
 
-    let all_messages = vec![msg0, msg1];
+    let all_messages = [msg0, msg1];
 
     // merge() should succeed and ignore duplicates and include 1 complaint
     let proc_msg0 = &all_messages
@@ -1013,7 +1013,7 @@ fn test_e2e_dkg_and_key_rotation() {
     S::partial_verify(&no0.vss_pk, &MSG, &sig1).unwrap();
     S::partial_verify(&no0.vss_pk, &MSG, &sig2).unwrap();
 
-    let sigs = vec![sig0, sig1, sig2];
+    let sigs = [sig0, sig1, sig2];
     let sig = S::aggregate(nd0.t(), sigs.iter()).unwrap();
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
 }

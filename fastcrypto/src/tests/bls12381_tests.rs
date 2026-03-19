@@ -15,7 +15,7 @@ use crate::{
     },
 };
 use proptest::{collection, prelude::*};
-use rand::{rngs::StdRng, SeedableRng as _};
+use rand::{rngs::StdRng, RngCore, SeedableRng as _};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
@@ -588,7 +588,7 @@ fn test_verify_with_default_values() {
     let default_sig = BLS12381Signature::default();
     let valid_pk = valid_kp.public().clone();
     let default_pk = BLS12381PublicKey::insecure_default();
-    let valid_agg_sig = BLS12381AggregateSignature::aggregate(&[valid_sig.clone()]).unwrap();
+    let valid_agg_sig = BLS12381AggregateSignature::aggregate(std::slice::from_ref(&valid_sig)).unwrap();
     let default_agg_sig = BLS12381AggregateSignature::default();
 
     // Default sig should fail (for both types of keys)
@@ -599,10 +599,10 @@ fn test_verify_with_default_values() {
     assert!(default_pk.verify(b"message", &valid_sig).is_err());
 
     // Verifications with one of the default values should fail.
-    assert!(valid_agg_sig.verify(&[valid_pk.clone()], b"message").is_ok());
-    assert!(valid_agg_sig.verify(&[default_pk.clone()], b"message").is_err());
-    assert!(default_agg_sig.verify(&[valid_pk.clone()], b"message").is_err());
-    assert!(default_agg_sig.verify(&[default_pk.clone()], b"message").is_err());
+    assert!(valid_agg_sig.verify(std::slice::from_ref(&valid_pk), b"message").is_ok());
+    assert!(valid_agg_sig.verify(std::slice::from_ref(&default_pk), b"message").is_err());
+    assert!(default_agg_sig.verify(std::slice::from_ref(&valid_pk), b"message").is_err());
+    assert!(default_agg_sig.verify(std::slice::from_ref(&default_pk), b"message").is_err());
 }
 
 #[test]
@@ -653,7 +653,7 @@ fn test_verify_with_default_values() {
      let sig = keys().pop().unwrap().sign(b"Hello, world!");
      assert_eq!(format!("{}", sig), Base64::encode(sig.as_bytes()));
 
-     let aggregate_sig = BLS12381AggregateSignature::aggregate(&[sig.clone()]).unwrap();
+     let aggregate_sig = BLS12381AggregateSignature::aggregate(std::slice::from_ref(&sig)).unwrap();
      assert_eq!(format!("{}", aggregate_sig), Base64::encode(aggregate_sig.as_bytes()));
  }
 

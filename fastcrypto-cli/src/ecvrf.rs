@@ -68,14 +68,14 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
     match cmd {
         Command::Keygen => {
             let keypair = ECVRFKeyPair::generate(&mut thread_rng());
-            let sk_string =
-                hex::encode(bcs::to_bytes(&keypair.sk).map_err(|_| {
-                    Error::new(ErrorKind::Other, "Failed to serialize secret key.")
-                })?);
-            let pk_string =
-                hex::encode(bcs::to_bytes(&keypair.pk).map_err(|_| {
-                    Error::new(ErrorKind::Other, "Failed to serialize public key.")
-                })?);
+            let sk_string = hex::encode(
+                bcs::to_bytes(&keypair.sk)
+                    .map_err(|_| Error::other("Failed to serialize secret key."))?,
+            );
+            let pk_string = hex::encode(
+                bcs::to_bytes(&keypair.pk)
+                    .map_err(|_| Error::other("Failed to serialize public key."))?,
+            );
 
             let mut result = "Secret key: ".to_string();
             result.push_str(&sk_string);
@@ -135,7 +135,7 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
             {
                 return Ok("Proof verified correctly!".to_string());
             }
-            Err(Error::new(ErrorKind::Other, "Proof is not correct."))
+            Err(Error::other("Proof is not correct."))
         }
     }
 }

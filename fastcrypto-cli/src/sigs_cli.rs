@@ -19,10 +19,7 @@ use fastcrypto::{
 };
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use std::{
-    io::{Error, ErrorKind},
-    str::FromStr,
-};
+use std::{io::Error, str::FromStr};
 #[derive(Parser)]
 #[command(name = "sig-cli")]
 #[command(about = "Sign or verify a signature using a signature scheme", long_about = None)]
@@ -69,7 +66,7 @@ impl FromStr for SignatureScheme {
             "secp256r1-rec" => Ok(SignatureScheme::Secp256r1Recoverable),
             "bls12381-minsig" => Ok(SignatureScheme::BLS12381MinSig),
             "bls12381-minpk" => Ok(SignatureScheme::BLS12381MinPk),
-            _ => Err(Error::new(ErrorKind::Other, "Invalid signature scheme.")),
+            _ => Err(Error::other("Invalid signature scheme.")),
         }
     }
 }
