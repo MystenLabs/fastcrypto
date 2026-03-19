@@ -1,9 +1,9 @@
 (function() {
-    var implementors = Object.fromEntries([["fastcrypto_zkp",[]]]);
+    const implementors = Object.fromEntries([["fastcrypto_zkp",[]]]);
     if (window.register_implementors) {
         window.register_implementors(implementors);
     } else {
         window.pending_implementors = implementors;
     }
 })()
-//{"start":57,"fragment_lengths":[21]}
+//{"start":59,"fragment_lengths":[21]}
