@@ -279,7 +279,7 @@
 <a href=#279 id=279 data-nosnippet>279</a>            .map(|node| {
 <a href=#280 id=280 data-nosnippet>280</a>                generate_partial_signatures(
 <a href=#281 id=281 data-nosnippet>281</a>                    message,
-<a href=#282 id=282 data-nosnippet>282</a>                    presigs.get_mut(<span class="kw-2">&amp;</span>node.id).unwrap(),
+<a href=#282 id=282 data-nosnippet>282</a>                    presigs.get_mut(<span class="kw-2">&amp;</span>node.id).unwrap().next().unwrap(),
 <a href=#283 id=283 data-nosnippet>283</a>                    <span class="kw-2">&amp;</span>beacon_value,
 <a href=#284 id=284 data-nosnippet>284</a>                    <span class="kw-2">&amp;</span>merged_shares.get(<span class="kw-2">&amp;</span>node.id).unwrap().my_shares,
 <a href=#285 id=285 data-nosnippet>285</a>                    <span class="kw-2">&amp;</span>vk,
@@ -459,7 +459,7 @@
 <a href=#459 id=459 data-nosnippet>459</a>            .map(|node| {
 <a href=#460 id=460 data-nosnippet>460</a>                generate_partial_signatures(
 <a href=#461 id=461 data-nosnippet>461</a>                    message_2,
-<a href=#462 id=462 data-nosnippet>462</a>                    presigs.get_mut(<span class="kw-2">&amp;</span>node.id).unwrap(),
+<a href=#462 id=462 data-nosnippet>462</a>                    presigs.get_mut(<span class="kw-2">&amp;</span>node.id).unwrap().next().unwrap(),
 <a href=#463 id=463 data-nosnippet>463</a>                    <span class="kw-2">&amp;</span>beacon_value,
 <a href=#464 id=464 data-nosnippet>464</a>                    <span class="kw-2">&amp;</span>merged_shares_after_rotation
 <a href=#465 id=465 data-nosnippet>465</a>                        .get(<span class="kw-2">&amp;</span>node.id)
@@ -618,7 +618,7 @@
 <a href=#618 id=618 data-nosnippet>618</a>                };
 <a href=#619 id=619 data-nosnippet>619</a>                generate_partial_signatures(
 <a href=#620 id=620 data-nosnippet>620</a>                    message,
-<a href=#621 id=621 data-nosnippet>621</a>                    presigning,
+<a href=#621 id=621 data-nosnippet>621</a>                    presigning.next().unwrap(),
 <a href=#622 id=622 data-nosnippet>622</a>                    <span class="kw-2">&amp;</span>beacon_value,
 <a href=#623 id=623 data-nosnippet>623</a>                    <span class="kw-2">&amp;</span>my_shares,
 <a href=#624 id=624 data-nosnippet>624</a>                    <span class="kw-2">&amp;</span>vk_element,
@@ -744,7 +744,7 @@
 <a href=#744 id=744 data-nosnippet>744</a>                };
 <a href=#745 id=745 data-nosnippet>745</a>                generate_partial_signatures(
 <a href=#746 id=746 data-nosnippet>746</a>                    message,
-<a href=#747 id=747 data-nosnippet>747</a>                    presigning,
+<a href=#747 id=747 data-nosnippet>747</a>                    presigning.next().unwrap(),
 <a href=#748 id=748 data-nosnippet>748</a>                    <span class="kw-2">&amp;</span>beacon_value,
 <a href=#749 id=749 data-nosnippet>749</a>                    <span class="kw-2">&amp;</span>my_shares,
 <a href=#750 id=750 data-nosnippet>750</a>                    <span class="kw-2">&amp;</span>vk_element,
