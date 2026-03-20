@@ -677,6 +677,8 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
     }
 }
 
+/// A verifiable ciphertext is a collection of 32-bit ciphertexts ct_i and a 32-bit batch range proof showing that each
+/// ct_i lies in the range [0, 2^32-1].
 pub struct VerifiableCiphertext {
     pub ciphertexts: Vec<Ciphertext>,
     pub range_proof: RangeProof,
@@ -699,7 +701,7 @@ impl VerifiableCiphertext {
                 ciphertexts,
                 range_proof,
             },
-            blindings, // TODO: do we need to return these? Probably better to return the combined value.
+            blindings,
         ))
     }
 
@@ -727,10 +729,13 @@ impl VerifiableCiphertext {
     }
 }
 
+/// A verifiable key encapsulation allows to verifiably encrypt a private key. The private key is encrypted into a
+/// verifiable ciphertext containing a batch range proof. An additional DLEQ NIZK proof shows that the encrypted private
+/// key limbs match the corresponding public key.
 pub struct VerifiableKeyEncapsulation {
     pub verifiable_ciphertext: VerifiableCiphertext,
+    pub dleq_proof: DdhTupleNizk<RistrettoPoint>,
     pub r: RistrettoScalar,
-    pub key_proof: DdhTupleNizk<RistrettoPoint>
 }
 
 impl VerifiableKeyEncapsulation {
@@ -739,11 +744,24 @@ impl VerifiableKeyEncapsulation {
         private_key: &PrivateKey,
         rng: &mut impl AllowedRng,
     ) -> VerifiableKeyEncapsulation {
+        // Re-arrange private key into 32-bit limbs
         let private_key_bytes = private_key.0.to_byte_array();
         let limbs: Vec<u32> = (0..8)
-            .map(|i| u32::from_le_bytes(private_key_bytes[4*i..4*(i+1)].try_into().unwrap()))
+            .map(|i| u32::from_le_bytes(private_key_bytes[4 * i..4 * (i + 1)].try_into().unwrap()))
             .collect();
-        let (verifiable_ciphertext, blindings) = VerifiableCiphertext::seal(public_key, &limbs, rng).unwrap();
+        // Encrypt 32-bit key limbs with Twisted ElGamal and create a batch range proof
+        let (verifiable_ciphertext, blindings) =
+            VerifiableCiphertext::seal(public_key, &limbs, rng).unwrap();
+        // Create DLEQ NIZK proof (G, H, sk * G, sk * H) for private key sk
+        let dleq_proof = DdhTupleNizk::create(
+            &private_key.0,
+            &*G,
+            &*H,
+            &(*G * private_key.0),
+            &(*H * private_key.0),
+            rng,
+        );
+        // Compute r = sum_i(r_i * 2^{32i}) for range proof blinding factors r_i required for verification of the DDH NIZK proof
         let b = RistrettoScalar::from(1u64 << 32); // 2**32
         let mut e = RistrettoScalar::from(1u64); // 2**(i * 32) for i = 0..7
         let mut r = RistrettoScalar::from(0u64); // r = sum_i(r_i * 2**(i * 32))
@@ -761,6 +779,7 @@ impl VerifiableKeyEncapsulation {
         );
         VerifiableKeyEncapsulation{
             verifiable_ciphertext,
+            dleq_proof,
             r, // TODO: doublecheck if it's okay to "leak" r
             key_proof
         }
@@ -772,10 +791,12 @@ impl VerifiableKeyEncapsulation {
         &PublicKey,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
+        // Verify range proofs
         self.verifiable_ciphertext.verify(rng)?;
+        // Compute C = sum_i(C_i * 2^{32i}) for range proof commitments C_i; note: C = sk * H + r * G
         let b = RistrettoScalar::from(1u64 << 32); // 2**32
-        let mut e = RistrettoScalar::from(1u64);
-        let mut c = RistrettoPoint::zero();
+        let mut e = RistrettoScalar::from(1u64); // 2**(i * 32) for i = 0..7
+        let mut c = RistrettoPoint::zero(); // C = sum_i(C_i * 2^{32i})
         for ct in &self.verifiable_ciphertext.ciphertexts {
             c += ct.commitment.0 * e;
             e *= b;
@@ -795,17 +816,21 @@ impl VerifiableKeyEncapsulation {
         table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<PrivateKey> {
+        // Verify ciphertext
         self.verify(public_key, rng)?;
-        let limbs = self.verifiable_ciphertext.open(decryption_key, table, rng)?;
+        // Decrypt 32-bit private key limbs
+        let limbs = self
+            .verifiable_ciphertext
+            .open(decryption_key, table, rng)?;
+        // Recover private key bytes
         let mut private_key_bytes = [0u8; 32];
         for (i, limb) in limbs.iter().enumerate() {
-            private_key_bytes[4*i..4*i+4].copy_from_slice(&limb.to_le_bytes());
+            private_key_bytes[4 * i..4 * i + 4].copy_from_slice(&limb.to_le_bytes());
         }
         let private_key = RistrettoScalar::from_byte_array(&private_key_bytes)?;
         Ok(PrivateKey(private_key))
     }
 }
-
 
 #[test]
 fn test_round_trip() {
@@ -920,12 +945,14 @@ fn test_verifiable_ciphertext() {
 fn test_verifiable_key_encapsulation() {
     let mut rng = rand::thread_rng();
     let table = precompute_table();
-    let (pk_send, sk_send) = generate_keypair(&mut rng);
-    let (pk_recv, sk_recv) = generate_keypair(&mut rng);
-    let encapsulation = VerifiableKeyEncapsulation::seal(&pk_recv, &sk_send, &mut rng);
-    assert!(encapsulation.verify(&pk_send, &mut rng).is_ok());
-    let recovered_private_key = encapsulation.open(&pk_send, &sk_recv, &table, &mut rng).unwrap();
-    assert_eq!(recovered_private_key.0, sk_send.0);
+    let (pk_snd, sk_snd) = generate_keypair(&mut rng); // sender key pair
+    let (pk_rcv, sk_rcv) = generate_keypair(&mut rng); // receiver key pair
+    let encapsulation = VerifiableKeyEncapsulation::seal(&pk_rcv, &sk_snd, &mut rng);
+    assert!(encapsulation.verify(&pk_snd, &mut rng).is_ok());
+    let recovered_private_key = encapsulation
+        .open(&pk_snd, &sk_rcv, &table, &mut rng)
+        .unwrap();
+    assert_eq!(recovered_private_key.0, sk_snd.0);
 }
 
 #[test]
