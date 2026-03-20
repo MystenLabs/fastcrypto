@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::iter::successors;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PublicKey(RistrettoPoint);
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -149,52 +149,88 @@ pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16> {
 
 /// A verifiable ciphertext is a collection of 32-bit ciphertexts ct_i and a 32-bit batch range proof showing that each
 /// ct_i lies in the range [0, 2^32-1].
-pub struct VerifiableCiphertext {
-    pub ciphertexts: Vec<Ciphertext>,
+pub struct VerifiableCiphertext<const N: usize> {
+    pub commitments: [PedersenCommitment; N],
+    pub decryption_handles: Vec<[RistrettoPoint; N]>,
     pub range_proof: RangeProof,
 }
 
-impl VerifiableCiphertext {
-    pub fn seal(
-        public_key: &PublicKey,
-        messages: &[u32],
+impl<const N: usize> VerifiableCiphertext<N> {
+    /// Seal a message to multiple recipient public keys
+    pub fn batch_seal(
+        public_keys: &[&PublicKey],
+        messages: &[u32; N],
         rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<(Self, Vec<Blinding>)> {
-        let (ciphertexts, blindings): (Vec<Ciphertext>, Vec<Blinding>) = messages
+    ) -> FastCryptoResult<(Self, [Blinding; N])> {
+        assert!(N.is_power_of_two(), "N must be a power of two");
+        let (commitments_vec, blindings_vec): (Vec<PedersenCommitment>, Vec<Blinding>) = messages
             .iter()
-            .map(|&m| Ciphertext::encrypt(public_key, m, rng))
+            .map(|&m| {
+                let b = Blinding::rand(rng);
+                (
+                    PedersenCommitment::new(&RistrettoScalar::from(m as u64), &b),
+                    b,
+                )
+            })
             .unzip();
+        let commitments: [PedersenCommitment; N] = commitments_vec.try_into().unwrap();
+        let blindings: [Blinding; N] = blindings_vec.try_into().unwrap();
+        let decryption_handles: Vec<[RistrettoPoint; N]> = public_keys
+            .iter()
+            .map(|pk| {
+                let handles: Vec<RistrettoPoint> = blindings.iter().map(|b| pk.0 * b.0).collect();
+                handles.try_into().unwrap()
+            })
+            .collect();
         let messages_u64: Vec<u64> = messages.iter().map(|&m| m as u64).collect();
         let range_proof = RangeProof::prove_batch(&messages_u64, &blindings, &Range::Bits32, rng)?;
         Ok((
             Self {
-                ciphertexts,
+                commitments,
+                decryption_handles,
                 range_proof,
             },
             blindings,
         ))
     }
 
-    pub fn verify(&self, rng: &mut impl AllowedRng) -> FastCryptoResult<()> {
-        let commitments: Vec<PedersenCommitment> = self
-            .ciphertexts
-            .iter()
-            .map(|ct| ct.commitment.clone())
-            .collect();
-        self.range_proof
-            .verify_batch(&commitments, &Range::Bits32, rng)
+    /// Seal a message to a single recipient public key
+    pub fn seal(
+        public_key: &PublicKey,
+        messages: &[u32; N],
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<(Self, [Blinding; N])> {
+        Self::batch_seal(&[public_key], messages, rng)
     }
 
+    /// Verify the range proof corresponding to this ciphertext
+    pub fn verify(&self, rng: &mut impl AllowedRng) -> FastCryptoResult<()> {
+        self.range_proof
+            .verify_batch(&self.commitments, &Range::Bits32, rng)
+    }
+
+    /// Open the ciphertext of a single recipient identified by the provided index
     pub fn open(
         &self,
-        private_key: &PrivateKey,
+        idx: usize,
+        decryption_key: &PrivateKey,
         table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<Vec<u32>> {
+        if idx >= self.decryption_handles.len() {
+            return Err(InvalidInput);
+        }
         self.verify(rng)?;
-        self.ciphertexts
+        self.commitments
             .iter()
-            .map(|ct| ct.decrypt(private_key, table))
+            .zip(self.decryption_handles[idx].iter())
+            .map(|(commitment, handle)| {
+                Ciphertext {
+                    commitment: commitment.clone(),
+                    decryption_handle: *handle,
+                }
+                .decrypt(decryption_key, table)
+            })
             .collect()
     }
 }
@@ -203,25 +239,26 @@ impl VerifiableCiphertext {
 /// verifiable ciphertext containing a batch range proof. An additional DLEQ NIZK proof shows that the encrypted private
 /// key limbs match the corresponding public key.
 pub struct VerifiableKeyEncapsulation {
-    pub verifiable_ciphertext: VerifiableCiphertext,
+    pub verifiable_ciphertext: VerifiableCiphertext<8>,
     pub dleq_proof: DdhTupleNizk<RistrettoPoint>,
     pub r: RistrettoScalar,
 }
 
 impl VerifiableKeyEncapsulation {
-    pub fn seal(
-        public_key: &PublicKey,
+    /// Verifiably encrypt a private key to multiple recipient public keys
+    pub fn batch_seal(
+        public_keys: &[&PublicKey],
         private_key: &PrivateKey,
         rng: &mut impl AllowedRng,
     ) -> VerifiableKeyEncapsulation {
         // Re-arrange private key into 32-bit limbs
         let private_key_bytes = private_key.0.to_byte_array();
-        let limbs: Vec<u32> = (0..8)
-            .map(|i| u32::from_le_bytes(private_key_bytes[4 * i..4 * (i + 1)].try_into().unwrap()))
-            .collect();
+        let limbs: [u32; 8] = std::array::from_fn(|i| {
+            u32::from_le_bytes(private_key_bytes[4 * i..4 * (i + 1)].try_into().unwrap())
+        });
         // Encrypt 32-bit key limbs with Twisted ElGamal and create a batch range proof
         let (verifiable_ciphertext, blindings) =
-            VerifiableCiphertext::seal(public_key, &limbs, rng).unwrap();
+            VerifiableCiphertext::batch_seal(public_keys, &limbs, rng).unwrap();
         // Create DLEQ NIZK proof (G, H, sk * G, sk * H) for private key sk
         let dleq_proof = DdhTupleNizk::create(
             &private_key.0,
@@ -244,6 +281,16 @@ impl VerifiableKeyEncapsulation {
         }
     }
 
+    /// Verifiably encrypt a private key to a single recipient public key
+    pub fn seal(
+        public_key: &PublicKey,
+        private_key: &PrivateKey,
+        rng: &mut impl AllowedRng,
+    ) -> VerifiableKeyEncapsulation {
+        Self::batch_seal(&[public_key], private_key, rng)
+    }
+
+    /// Verify the range proof and DLEQ NIZK proof corresponding to this key encapsulation
     pub fn verify(
         &self,
         public_key: &PublicKey,
@@ -253,9 +300,9 @@ impl VerifiableKeyEncapsulation {
         self.verifiable_ciphertext.verify(rng)?;
         // Compute C = sum_i(C_i * 2^{32i}) for range proof commitments C_i; note: C = sk * H + r * G
         let b = RistrettoScalar::from(1u64 << 32); // 2**32
-        let (c, _) = self.verifiable_ciphertext.ciphertexts.iter().fold(
+        let (c, _) = self.verifiable_ciphertext.commitments.iter().fold(
             (RistrettoPoint::zero(), RistrettoScalar::from(1u64)),
-            |(c_acc, e), cti| (c_acc + cti.commitment.0 * e, e * b),
+            |(c_acc, e), ci| (c_acc + ci.0 * e, e * b),
         );
         // Verify DLEQ NIZK proof
         self.dleq_proof.verify(
@@ -266,8 +313,10 @@ impl VerifiableKeyEncapsulation {
         )
     }
 
+    /// Open the key encapsulation for a single recipient public key identified by the provided index
     pub fn open(
         &self,
+        idx: usize,
         public_key: &PublicKey,
         decryption_key: &PrivateKey,
         table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
@@ -278,13 +327,16 @@ impl VerifiableKeyEncapsulation {
         // Decrypt 32-bit private key limbs
         let limbs = self
             .verifiable_ciphertext
-            .open(decryption_key, table, rng)?;
+            .open(idx, decryption_key, table, rng)?;
         // Recover private key bytes
         let mut private_key_bytes = [0u8; 32];
         for (i, limb) in limbs.iter().enumerate() {
             private_key_bytes[4 * i..4 * i + 4].copy_from_slice(&limb.to_le_bytes());
         }
         let private_key = RistrettoScalar::from_byte_array(&private_key_bytes)?;
+        if pk_from_sk(&PrivateKey(private_key)) != *public_key {
+            return Err(InvalidInput);
+        }
         Ok(PrivateKey(private_key))
     }
 }
@@ -372,14 +424,14 @@ fn test_verifiable_ciphertext() {
     let mut rng = rand::thread_rng();
     let (public_key, private_key) = generate_keypair(&mut rng);
     let table = precompute_table();
-    let messages: Vec<u32> = vec![1, 23, 456, 789, 987, 654, 32, 1];
+    let messages: [u32; 8] = [1, 23, 456, 789, 987, 654, 32, 1];
     let (verifiable_ciphertext, _blindings) =
         VerifiableCiphertext::seal(&public_key, &messages, &mut rng).unwrap();
     assert!(verifiable_ciphertext.verify(&mut rng).is_ok());
     let decrypted_messages = verifiable_ciphertext
-        .open(&private_key, &table, &mut rng)
+        .open(0, &private_key, &table, &mut rng)
         .unwrap();
-    assert_eq!(messages, decrypted_messages);
+    assert_eq!(messages.as_slice(), decrypted_messages);
 }
 
 #[test]
@@ -391,7 +443,49 @@ fn test_verifiable_key_encapsulation() {
     let encapsulation = VerifiableKeyEncapsulation::seal(&pk_rcv, &sk_snd, &mut rng);
     assert!(encapsulation.verify(&pk_snd, &mut rng).is_ok());
     let recovered_private_key = encapsulation
-        .open(&pk_snd, &sk_rcv, &table, &mut rng)
+        .open(0, &pk_snd, &sk_rcv, &table, &mut rng)
         .unwrap();
     assert_eq!(recovered_private_key.0, sk_snd.0);
+}
+
+#[test]
+fn test_verifiable_key_encapsulation_batch() {
+    let mut rng = rand::thread_rng();
+    let table = precompute_table();
+
+    // Sender key pair (private key being encrypted)
+    let (pk_snd, sk_snd) = generate_keypair(&mut rng);
+
+    // Three recipient key pairs
+    let (pk_rcv_0, sk_rcv_0) = generate_keypair(&mut rng);
+    let (pk_rcv_1, sk_rcv_1) = generate_keypair(&mut rng);
+    let (pk_rcv_2, sk_rcv_2) = generate_keypair(&mut rng);
+
+    let encapsulation = VerifiableKeyEncapsulation::batch_seal(
+        &[&pk_rcv_0, &pk_rcv_1, &pk_rcv_2],
+        &sk_snd,
+        &mut rng,
+    );
+
+    // Verification passes for the sender's public key
+    assert!(encapsulation.verify(&pk_snd, &mut rng).is_ok());
+
+    // Each recipient can independently recover the sender's private key
+    let recovered_0 = encapsulation
+        .open(0, &pk_snd, &sk_rcv_0, &table, &mut rng)
+        .unwrap();
+    let recovered_1 = encapsulation
+        .open(1, &pk_snd, &sk_rcv_1, &table, &mut rng)
+        .unwrap();
+    let recovered_2 = encapsulation
+        .open(2, &pk_snd, &sk_rcv_2, &table, &mut rng)
+        .unwrap();
+    assert_eq!(recovered_0.0, sk_snd.0);
+    assert_eq!(recovered_1.0, sk_snd.0);
+    assert_eq!(recovered_2.0, sk_snd.0);
+
+    // A recipient cannot open another recipient's slot with their own key
+    assert!(encapsulation
+        .open(1, &pk_snd, &sk_rcv_0, &table, &mut rng)
+        .is_err());
 }
