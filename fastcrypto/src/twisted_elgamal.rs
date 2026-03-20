@@ -235,7 +235,7 @@ pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16> {
 }
 
 /// A verifiable ciphertext is a collection of 32-bit ciphertexts ct_i and a 32-bit batch range proof showing that each
-/// ct_i lies in the range [0, 2^32-1].
+/// ct_i lies in the range [0, 2^32-1]. Supports encryption towards multiple recipients.
 pub struct VerifiableCiphertext<const N: usize> {
     pub commitments: [PedersenCommitment; N],
     pub decryption_handles: Vec<[RistrettoPoint; N]>,
@@ -324,7 +324,7 @@ impl<const N: usize> VerifiableCiphertext<N> {
 
 /// A verifiable key encapsulation allows to verifiably encrypt a private key. The private key is encrypted into a
 /// verifiable ciphertext containing a batch range proof. An additional DLEQ NIZK proof shows that the encrypted private
-/// key limbs match the corresponding public key.
+/// key limbs match the corresponding public key. Supports encryption towards multiple recipients.
 pub struct VerifiableKeyEncapsulation {
     pub verifiable_ciphertext: VerifiableCiphertext<8>,
     pub dleq_proof: DdhTupleNizk<RistrettoPoint>,
@@ -355,7 +355,7 @@ impl VerifiableKeyEncapsulation {
             &(*H * private_key.0),
             rng,
         );
-        // Compute r = sum_i(r_i * 2^{32i}) for range proof blinding factors r_i required for verification of the DDH NIZK proof
+        // Compute r = sum_i(r_i * 2^{32i}) for range proof blinding factors r_i which is required for the DLEQ NIZK proof verification
         let b = RistrettoScalar::from(1u64 << 32); // 2**32
         let (r, _) = blindings.iter().fold(
             (RistrettoScalar::from(0u64), RistrettoScalar::from(1u64)),
