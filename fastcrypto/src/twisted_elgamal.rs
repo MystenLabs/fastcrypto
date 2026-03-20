@@ -233,12 +233,10 @@ impl VerifiableKeyEncapsulation {
         );
         // Compute r = sum_i(r_i * 2^{32i}) for range proof blinding factors r_i required for verification of the DDH NIZK proof
         let b = RistrettoScalar::from(1u64 << 32); // 2**32
-        let mut e = RistrettoScalar::from(1u64); // 2**(i * 32) for i = 0..7
-        let mut r = RistrettoScalar::from(0u64); // r = sum_i(r_i * 2**(i * 32))
-        for ri in &blindings {
-            r += ri.0 * e;
-            e *= b;
-        }
+        let (r, _) = blindings.iter().fold(
+            (RistrettoScalar::from(0u64), RistrettoScalar::from(1u64)),
+            |(r_acc, e), ri| (r_acc + ri.0 * e, e * b),
+        );
         VerifiableKeyEncapsulation {
             verifiable_ciphertext,
             dleq_proof,
@@ -255,12 +253,10 @@ impl VerifiableKeyEncapsulation {
         self.verifiable_ciphertext.verify(rng)?;
         // Compute C = sum_i(C_i * 2^{32i}) for range proof commitments C_i; note: C = sk * H + r * G
         let b = RistrettoScalar::from(1u64 << 32); // 2**32
-        let mut e = RistrettoScalar::from(1u64); // 2**(i * 32) for i = 0..7
-        let mut c = RistrettoPoint::zero(); // C = sum_i(C_i * 2^{32i})
-        for ct in &self.verifiable_ciphertext.ciphertexts {
-            c += ct.commitment.0 * e;
-            e *= b;
-        }
+        let (c, _) = self.verifiable_ciphertext.ciphertexts.iter().fold(
+            (RistrettoPoint::zero(), RistrettoScalar::from(1u64)),
+            |(c_acc, e), cti| (c_acc + cti.commitment.0 * e, e * b),
+        );
         // Verify DLEQ NIZK proof
         self.dleq_proof.verify(
             &*G,
