@@ -13,6 +13,7 @@ use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use derive_more::{Add, Mul, Sub};
 use serde::{Deserialize, Serialize};
+use std::array;
 use std::collections::HashMap;
 use std::iter::successors;
 
@@ -276,7 +277,7 @@ impl<const N: usize> VerifiableCiphertext<N> {
         messages: &[u32; N],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<(Self, [Blinding; N])> {
-        Self::batch_seal(&[public_key], messages, rng)
+        Self::batch_seal(std::slice::from_ref(public_key), messages, rng)
     }
 
     /// Verify the range proof corresponding to this ciphertext
@@ -363,7 +364,7 @@ impl VerifiableKeyEncapsulation {
         private_key: &PrivateKey,
         rng: &mut impl AllowedRng,
     ) -> VerifiableKeyEncapsulation {
-        Self::batch_seal(&[public_key], private_key, rng)
+        Self::batch_seal(std::slice::from_ref(public_key), private_key, rng)
     }
 
     /// Verify the range proof and DLEQ NIZK proof corresponding to this key encapsulation
@@ -551,7 +552,7 @@ fn test_verifiable_key_encapsulation_batch() {
     let (pk_rcv_2, sk_rcv_2) = generate_keypair(&mut rng);
 
     let encapsulation = VerifiableKeyEncapsulation::batch_seal(
-        &[&pk_rcv_0, &pk_rcv_1, &pk_rcv_2],
+        &[pk_rcv_0, pk_rcv_1, pk_rcv_2],
         &sk_snd,
         &mut rng,
     );
