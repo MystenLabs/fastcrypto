@@ -158,7 +158,7 @@ pub struct VerifiableCiphertext<const N: usize> {
 impl<const N: usize> VerifiableCiphertext<N> {
     /// Seal a message to multiple recipient public keys
     pub fn batch_seal(
-        public_keys: &[&PublicKey],
+        public_keys: &[PublicKey],
         messages: &[u32; N],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<(Self, [Blinding; N])> {
