@@ -334,7 +334,7 @@ pub struct VerifiableKeyEncapsulation {
 impl VerifiableKeyEncapsulation {
     /// Verifiably encrypt a private key to multiple recipient public keys
     pub fn batch_seal(
-        public_keys: &[&PublicKey],
+        public_keys: &[PublicKey],
         private_key: &PrivateKey,
         rng: &mut impl AllowedRng,
     ) -> VerifiableKeyEncapsulation {
