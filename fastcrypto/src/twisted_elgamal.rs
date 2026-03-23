@@ -318,11 +318,8 @@ impl VerifiableKeyEncapsulation {
             .verifiable_ciphertext
             .open(idx, decryption_key, table, rng)?;
         // Recover private key bytes
-        let mut private_key_bytes = [0u8; 32];
-        for (i, limb) in limbs.iter().enumerate() {
-            private_key_bytes[4 * i..4 * i + 4].copy_from_slice(&limb.to_le_bytes());
-        }
-        let private_key = RistrettoScalar::from_byte_array(&private_key_bytes)?;
+        let private_key_bytes = limbs.iter().flat_map(|l| l.to_le_bytes()).collect::<Vec<_>>();
+        let private_key = RistrettoScalar::from_byte_array(&private_key_bytes.try_into().unwrap())?;
         if pk_from_sk(&PrivateKey(private_key)) != *public_key {
             return Err(InvalidInput);
         }
