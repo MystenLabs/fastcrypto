@@ -183,7 +183,7 @@ impl<const N: usize> VerifiableCiphertext<N> {
         ))
     }
 
-    /// Seal a message to a single recipient public key
+    /// Seal `N` messages to a single recipient public key
     pub fn seal(
         public_key: &PublicKey,
         messages: &[u32; N],
