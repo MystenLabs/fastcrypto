@@ -243,7 +243,7 @@ pub struct VerifiableCiphertext<const N: usize> {
 }
 
 impl<const N: usize> VerifiableCiphertext<N> {
-    /// Seal a message to multiple recipient public keys
+    /// Seal `N` messages to multiple recipient public keys where `N` is a power of two.
     pub fn batch_seal(
         public_keys: &[PublicKey],
         messages: &[u32; N],
