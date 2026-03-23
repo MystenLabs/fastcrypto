@@ -292,7 +292,7 @@ impl<const N: usize> VerifiableCiphertext<N> {
         decryption_key: &PrivateKey,
         table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
         rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<Vec<u32>> {
+    ) -> FastCryptoResult<[u32; N]> {
         if idx >= self.decryption_handles.len() {
             return Err(InvalidInput);
         }
