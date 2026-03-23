@@ -210,7 +210,7 @@ impl<const N: usize> VerifiableCiphertext<N> {
             return Err(InvalidInput);
         }
         self.verify(rng)?;
-        self.commitments
+        Ok(self.commitments
             .iter()
             .zip(self.decryption_handles[idx].iter())
             .map(|(commitment, handle)| {
@@ -220,7 +220,7 @@ impl<const N: usize> VerifiableCiphertext<N> {
                 }
                 .decrypt(decryption_key, table)
             })
-            .collect()
+            .collect::<FastCryptoResult<Vec<_>>>()?.try_into().unwrap())
     }
 }
 
