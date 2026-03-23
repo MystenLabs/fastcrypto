@@ -163,27 +163,16 @@ impl<const N: usize> VerifiableCiphertext<N> {
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<(Self, [Blinding; N])> {
         assert!(N.is_power_of_two(), "N must be a power of two");
-        let (commitments_vec, blindings_vec): (Vec<PedersenCommitment>, Vec<Blinding>) = messages
-            .iter()
-            .map(|&m| {
-                let b = Blinding::rand(rng);
-                (
-                    PedersenCommitment::new(&RistrettoScalar::from(m as u64), &b),
-                    b,
-                )
-            })
-            .unzip();
-        let commitments: [PedersenCommitment; N] = commitments_vec.try_into().unwrap();
-        let blindings: [Blinding; N] = blindings_vec.try_into().unwrap();
-        let decryption_handles: Vec<[RistrettoPoint; N]> = public_keys
-            .iter()
-            .map(|pk| {
-                let handles: Vec<RistrettoPoint> = blindings.iter().map(|b| pk.0 * b.0).collect();
-                handles.try_into().unwrap()
-            })
-            .collect();
-        let messages_u64: Vec<u64> = messages.iter().map(|&m| m as u64).collect();
-        let range_proof = RangeProof::prove_batch(&messages_u64, &blindings, &Range::Bits32, rng)?;
+    let messages = messages.map(|m| m as u64);
+    let blindings = array::from_fn(|_| Blinding::rand(rng));
+    let commitments = array::from_fn(|i| {
+        PedersenCommitment::new(&RistrettoScalar::from(messages[i]), &blindings[i])
+    });
+    let decryption_handles: Vec<[RistrettoPoint; N]> = public_keys
+        .iter()
+        .map(|pk| blindings.each_ref().map(|b| pk.0 * b.0))
+        .collect();
+    let range_proof = RangeProof::prove_batch(&messages, &blindings, &Range::Bits32, rng)?;
         Ok((
             Self {
                 commitments,
