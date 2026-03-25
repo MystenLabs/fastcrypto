@@ -230,28 +230,24 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     ///
     /// Algorithm:
     /// 1. Loop β from 0.95 step down until 2·δ ≤ allowed_delta (and W' ≥ total_weight_lower_bound).
-    /// 2. Set t' = (t + 2·δ)/d.
-    /// 3. Set f' = (f − δ)/d.
+    /// 2. Set t' = (t + δ)/d.
     ///
     /// # Parameters
     /// - `nodes_vec`: Input nodes with weights
     /// - `t`: Threshold
     /// - `allowed_delta`: Used in the loop condition 2·δ ≤ allowed_delta
     /// - `total_weight_lower_bound`: Minimum allowed total weight after reduction
-    /// - `f`: If `Some(x)`, use `x` as the f parameter; otherwise use (W−t)/2
     ///
     /// # Returns
-    /// A tuple of (reduced Nodes, new threshold t', new f').
+    /// A tuple of (reduced Nodes, new threshold t').
     pub fn new_super_swiper_reduced(
         nodes_vec: Vec<Node<G>>,
         t: u16,
         allowed_delta: u16,
         total_weight_lower_bound: u16,
-        f: Option<u64>,
-    ) -> FastCryptoResult<(Self, u16, u16)> {
+    ) -> FastCryptoResult<(Self, u16)> {
         let n = Self::new(nodes_vec)?;
         let original_total_weight = n.total_weight() as u64;
-        let w = original_total_weight;
 
         // Validate total_weight_lower_bound (similar to new_reduced)
         if total_weight_lower_bound > n.total_weight
@@ -261,18 +257,11 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        let f_val = match f {
-            Some(x) if x <= w.saturating_sub(t as u64) => x,
-            Some(_) => return Err(FastCryptoError::InvalidInput),
-            None if w >= t as u64 => (w - t as u64) / 2,
-            None => return Err(FastCryptoError::InvalidInput),
-        };
-
         // α = (t-1)/W for the super_swiper solve.
         let alpha = if t <= 1 {
             Ratio::from_integer(0)
         } else {
-            Ratio::new((t - 1) as u64, w)
+            Ratio::new((t - 1) as u64, original_total_weight as u64)
         };
         if alpha >= Ratio::new(95, 100) {
             return Err(FastCryptoError::InvalidInput);
@@ -308,8 +297,8 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             for k in 0..=100u64 {
                 let numer = start_numer.saturating_sub(k).min(100);
                 let beta = Ratio::new(numer, 100);
-                if beta < alpha {
-                    break; // safety: beta must be ≥ α
+                if beta <= alpha {
+                    break; // safety: beta must be > α
                 }
                 let reduced_weights_sorted = solve(alpha, beta, &weights_sorted);
                 let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
@@ -333,18 +322,9 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             result.ok_or(FastCryptoError::InvalidInput)?
         };
 
-        // t' = (t + 2·δ)/d
-        let t_prime = (Ratio::from_integer(t as u64) + Ratio::from_integer(2) * delta) / d;
+        // t' = (t + δ)/d
+        let t_prime = (Ratio::from_integer(t as u64) + delta) / d;
         let t_prime_int = t_prime.to_integer();
-
-        // f' = (f − δ)/d; clamp numerator to 0 when f < δ
-        let f_minus_delta = if Ratio::from_integer(f_val) >= delta {
-            Ratio::from_integer(f_val) - delta
-        } else {
-            Ratio::from_integer(0)
-        };
-        let f_prime = f_minus_delta / d;
-        let f_prime_int = f_prime.to_integer() as u16;
 
         // Build and return the result
         let nodes = n
@@ -370,7 +350,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                 nodes_with_nonzero_weight,
             },
             new_t,
-            f_prime_int,
         ))
     }
 }
