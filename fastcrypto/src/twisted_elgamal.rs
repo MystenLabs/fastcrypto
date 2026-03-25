@@ -1,10 +1,11 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::error::FastCryptoError::InvalidInput;
+use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
-use crate::groups::{Doubling, GroupElement, Scalar};
+use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
+use crate::hash::{HashFunction, Sha3_256};
 use crate::nizk::DdhTupleNizk;
 use crate::pedersen::{Blinding, PedersenCommitment, G, H};
 use crate::serde_helpers::ToFromByteArray;
@@ -22,6 +23,14 @@ pub struct PrivateKey(RistrettoScalar);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ZeroProof(DdhTupleNizk<RistrettoPoint>);
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ConsistencyProof {
+    a: RistrettoPoint,
+    b: RistrettoPoint,
+    z1: RistrettoScalar,
+    z2: RistrettoScalar,
+}
 
 pub fn generate_keypair(rng: &mut impl AllowedRng) -> (PublicKey, PrivateKey) {
     let sk = PrivateKey(RistrettoScalar::rand(rng));
@@ -58,6 +67,22 @@ impl Ciphertext {
         )
     }
 
+    pub fn encrypt_with_consistency_proof(
+        public_key: &PublicKey,
+        message: u32,
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<(Self, Blinding, ConsistencyProof)> {
+        let (ciphertext, blinding) = Self::encrypt(public_key, message, rng);
+        let proof = ConsistencyProof::prove(
+            &RistrettoScalar::from(message as u64),
+            &ciphertext,
+            &blinding,
+            public_key,
+            rng,
+        )?;
+        Ok((ciphertext, blinding, proof))
+    }
+
     pub fn decrypt(
         &self,
         private_key: &PrivateKey,
@@ -84,6 +109,68 @@ impl Ciphertext {
             &self.decryption_handle,
             rng,
         ))
+    }
+}
+
+impl ConsistencyProof {
+    fn prove(
+        message: &RistrettoScalar,
+        ciphertext: &Ciphertext,
+        blinding: &Blinding,
+        public_key: &PublicKey,
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<Self> {
+        let r1 = RistrettoScalar::rand(rng);
+        let r2 = RistrettoScalar::rand(rng);
+        let a = public_key.0 * r1;
+        let b = RistrettoPoint::multi_scalar_mul(&[r1, r2], &[*G, *H]).expect("Constant length");
+
+        let c = Self::challenge(&a, &b, ciphertext, public_key);
+        let z1 = r1 + c * blinding.0;
+        let z2 = r2 + c * message;
+
+        Ok(Self { a, b, z1, z2 })
+    }
+
+    fn challenge(
+        a: &RistrettoPoint,
+        b: &RistrettoPoint,
+        ciphertext: &Ciphertext,
+        public_key: &PublicKey,
+    ) -> RistrettoScalar {
+        let output = Sha3_256::digest(
+            bcs::to_bytes(&(
+                &*G,
+                &*H,
+                a,
+                b,
+                &ciphertext.commitment,
+                &ciphertext.decryption_handle,
+                public_key,
+            ))
+            .unwrap(),
+        );
+        RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
+    }
+
+    pub fn verify(&self, ciphertext: &Ciphertext, public_key: &PublicKey) -> FastCryptoResult<()> {
+        let c = Self::challenge(&self.a, &self.b, ciphertext, public_key);
+        if self.a
+            != RistrettoPoint::multi_scalar_mul(
+                &[-c, self.z1],
+                &[ciphertext.decryption_handle, public_key.0],
+            )
+            .expect("Constant lengths")
+            || self.b
+                != RistrettoPoint::multi_scalar_mul(
+                    &[-c, self.z1, self.z2],
+                    &[ciphertext.commitment.0, *G, *H],
+                )
+                .expect("Constant lengths")
+        {
+            return Err(InvalidProof);
+        }
+        Ok(())
     }
 }
 
@@ -151,6 +238,22 @@ fn test_round_trip() {
     let (pk, sk) = generate_keypair(&mut rand::thread_rng());
     let message = 1234567890u32;
     let (ciphertext, _) = Ciphertext::encrypt(&pk, message, &mut rand::thread_rng());
+
+    // This table can be reused, so it only has to be computed once
+    let table = precompute_table();
+    assert_eq!(ciphertext.decrypt(&sk, &table).unwrap(), message);
+}
+
+#[test]
+fn test_round_trip_with_consistency_proof() {
+    let (pk, sk) = generate_keypair(&mut rand::thread_rng());
+    let message = 1234567890u32;
+    let (ciphertext, _, proof) =
+        Ciphertext::encrypt_with_consistency_proof(&pk, message, &mut rand::thread_rng()).unwrap();
+    assert!(proof.verify(&ciphertext, &pk).is_ok());
+
+    let (other_pk, _) = generate_keypair(&mut rand::thread_rng());
+    assert!(proof.verify(&ciphertext, &other_pk).is_err());
 
     // This table can be reused, so it only has to be computed once
     let table = precompute_table();
