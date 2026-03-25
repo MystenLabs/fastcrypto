@@ -229,13 +229,16 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
     ///
     /// Algorithm:
-    /// 1. Loop β from 0.95 step down until 2·δ ≤ allowed_delta (and W' ≥ total_weight_lower_bound).
+    /// 1. Outer loop: α from 0.10 to 0.90 in steps of 1/100. Inner loop: β from α + 0.01 to α + 0.20
+    ///    in steps of 1/100 (skip β ≥ 1). Pass each (α, β) to [`solve`](crate::weight_reduction::solve).
+    ///    Among pairs with 2·δ ≤ allowed_delta, W' ≥ total_weight_lower_bound, and β > α, keep the
+    ///    reduction with smallest W' (tie-break: smaller δ when W' is equal).
     /// 2. Set t' = (t + δ)/d.
     ///
     /// # Parameters
     /// - `nodes_vec`: Input nodes with weights
     /// - `t`: Threshold
-    /// - `allowed_delta`: Used in the loop condition 2·δ ≤ allowed_delta
+    /// - `allowed_delta`: Used in the feasibility condition 2·δ ≤ allowed_delta
     /// - `total_weight_lower_bound`: Minimum allowed total weight after reduction
     ///
     /// # Returns
@@ -254,16 +257,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             || total_weight_lower_bound == 0
             || original_total_weight == 0
         {
-            return Err(FastCryptoError::InvalidInput);
-        }
-
-        // α = (t-1)/W for the super_swiper solve.
-        let alpha = if t <= 1 {
-            Ratio::from_integer(0)
-        } else {
-            Ratio::new((t - 1) as u64, original_total_weight as u64)
-        };
-        if alpha >= Ratio::new(95, 100) {
             return Err(FastCryptoError::InvalidInput);
         }
 
@@ -289,37 +282,50 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             .rev()
             .collect_vec();
 
-        // Loop beta from 0.95 step down until 2·δ ≤ allowed_delta (and W' ≥ total_weight_lower_bound).
+        // Double loop: α ∈ [0.10, 0.90] step 1/100; β ∈ [α+0.01, α+0.20] step 1/100; β < 1.
         let allowed_delta_ratio = Ratio::from_integer(allowed_delta as u64);
-        let start_numer = 95u64;
+        let two = Ratio::from_integer(2u64);
+        let one = Ratio::from_integer(1u64);
         let (new_total_weight, new_weights, delta, d) = {
-            let mut result = None;
-            for k in 0..=100u64 {
-                let numer = start_numer.saturating_sub(k).min(100);
-                let beta = Ratio::new(numer, 100);
-                if beta <= alpha {
-                    break; // safety: beta must be > α
-                }
-                let reduced_weights_sorted = solve(alpha, beta, &weights_sorted);
-                let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
-                if new_total_weight < total_weight_lower_bound as u64 {
-                    return Err(FastCryptoError::InvalidInput); // W' below bound; no valid beta
-                }
-                let mut new_weights = vec![0u16; n.nodes.len()];
-                for (idx_in_sorted, (original_idx, _)) in indexed_weights.iter().enumerate() {
-                    if idx_in_sorted < reduced_weights_sorted.len() {
-                        new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
+            let mut best: Option<(u64, Ratio<u64>, Vec<u16>, Ratio<u64>)> = None;
+            for a_numer in 10u64..=90u64 {
+                let alpha = Ratio::new(a_numer, 100);
+                for b_extra_numer in 1u64..=20u64 {
+                    let beta = alpha + Ratio::new(b_extra_numer, 100);
+                    if beta >= one {
+                        continue;
+                    }
+                    let reduced_weights_sorted = solve(alpha, beta, &weights_sorted);
+                    let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
+                    if new_total_weight < total_weight_lower_bound as u64 {
+                        continue;
+                    }
+                    let mut new_weights = vec![0u16; n.nodes.len()];
+                    for (idx_in_sorted, (original_idx, _)) in indexed_weights.iter().enumerate() {
+                        if idx_in_sorted < reduced_weights_sorted.len() {
+                            new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
+                        }
+                    }
+                    let reduced_weights: Vec<u64> =
+                        new_weights.iter().copied().map(u64::from).collect();
+                    let (delta, d) = compute_precision_loss(&original_weights, &reduced_weights);
+                    if two * delta <= allowed_delta_ratio {
+                        let take = match &best {
+                            None => true,
+                            Some((best_w, best_delta, _, _)) => {
+                                new_total_weight < *best_w
+                                    || (new_total_weight == *best_w && delta < *best_delta)
+                            }
+                        };
+                        if take {
+                            best = Some((new_total_weight, delta, new_weights, d));
+                        }
                     }
                 }
-                let reduced_weights: Vec<u64> =
-                    new_weights.iter().copied().map(u64::from).collect();
-                let (delta, d) = compute_precision_loss(&original_weights, &reduced_weights);
-                if Ratio::from_integer(2) * delta <= allowed_delta_ratio {
-                    result = Some((new_total_weight, new_weights, delta, d));
-                    break;
-                }
             }
-            result.ok_or(FastCryptoError::InvalidInput)?
+            let (new_total_weight, delta, new_weights, d) =
+                best.ok_or(FastCryptoError::InvalidInput)?;
+            (new_total_weight, new_weights, delta, d)
         };
 
         // t' = (t + δ)/d

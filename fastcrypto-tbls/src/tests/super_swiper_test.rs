@@ -403,7 +403,7 @@ mod tests {
         let params = EpochChartParams::t52_l80_delta8();
         run_all_epochs_comparison_chart(
             Nodes::new_super_swiper_reduced,
-            "new_super_swiper_reduced (t=52%, L=80%, δ_allow=8%)",
+            "new_super_swiper_reduced",
             "new_super_swiper_reduced",
             FFromLiveness::SuperSwiper,
             &params,
@@ -415,7 +415,7 @@ mod tests {
         let params = EpochChartParams::t52_l80_delta8();
         run_all_epochs_comparison_chart(
             Nodes::new_reduced,
-            "new_reduced (t=52%, L=80%, δ_allow=8%)",
+            "new_reduced",
             "new_reduced",
             FFromLiveness::NewReduced,
             &params,
