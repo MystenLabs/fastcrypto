@@ -124,9 +124,11 @@ impl ConsistencyProof {
         let r2 = RistrettoScalar::rand(rng);
         let a = public_key.0 * r1;
         let b = *G * r1 + *H * r2;
+
         let c = Self::challenge(&a, &b, ciphertext, public_key);
         let z1 = r1 + c * blinding.0;
         let z2 = r2 + c * message;
+
         Ok(Self { a, b, z1, z2 })
     }
 
@@ -239,6 +241,9 @@ fn test_round_trip_with_consistency_proof() {
     let (ciphertext, _, proof) =
         Ciphertext::encrypt_with_consistency_proof(&pk, message, &mut rand::thread_rng()).unwrap();
     assert!(proof.verify(&ciphertext, &pk).is_ok());
+
+    let (other_pk, _) = generate_keypair(&mut rand::thread_rng());
+    assert!(proof.verify(&ciphertext, &other_pk).is_err());
 
     // This table can be reused, so it only has to be computed once
     let table = precompute_table();
