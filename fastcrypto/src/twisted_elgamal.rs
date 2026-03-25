@@ -4,7 +4,7 @@
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
-use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, Scalar};
+use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
 use crate::hash::{HashFunction, Sha3_256};
 use crate::nizk::DdhTupleNizk;
 use crate::pedersen::{Blinding, PedersenCommitment, G, H};
@@ -123,7 +123,7 @@ impl ConsistencyProof {
         let r1 = RistrettoScalar::rand(rng);
         let r2 = RistrettoScalar::rand(rng);
         let a = public_key.0 * r1;
-        let b = *G * r1 + *H * r2;
+        let b = RistrettoPoint::multi_scalar_mul(&[r1, r2], &[*G, *H]).expect("Constant length");
 
         let c = Self::challenge(&a, &b, ciphertext, public_key);
         let z1 = r1 + c * blinding.0;
@@ -155,8 +155,18 @@ impl ConsistencyProof {
 
     pub fn verify(&self, ciphertext: &Ciphertext, public_key: &PublicKey) -> FastCryptoResult<()> {
         let c = Self::challenge(&self.a, &self.b, ciphertext, public_key);
-        if self.a + ciphertext.decryption_handle * c != public_key.0 * self.z1
-            || *G * self.z1 + *H * self.z2 != self.b + ciphertext.commitment.0 * c
+        if self.a
+            != RistrettoPoint::multi_scalar_mul(
+                &[-c, self.z1],
+                &[ciphertext.decryption_handle, public_key.0],
+            )
+            .expect("Constant lengths")
+            || self.b
+                != RistrettoPoint::multi_scalar_mul(
+                    &[-c, self.z1, self.z2],
+                    &[ciphertext.commitment.0, *G, *H],
+                )
+                .expect("Constant lengths")
         {
             return Err(InvalidProof);
         }
