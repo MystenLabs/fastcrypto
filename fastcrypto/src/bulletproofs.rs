@@ -26,10 +26,9 @@ use crate::pedersen::{Blinding, PedersenCommitment, GENERATORS};
 use crate::traits::AllowedRng;
 use bulletproofs::{BulletproofGens, RangeProof as ExternalRangeProof};
 use merlin::Transcript;
-use serde::{Deserialize, Serialize};
 
 /// Bulletproof Range Proofs
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct RangeProof(ExternalRangeProof);
 
 pub enum Range {
@@ -150,6 +149,16 @@ impl RangeProof {
             )
             .map_err(|_| InvalidProof)
     }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_bytes()
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
+        ExternalRangeProof::from_bytes(bytes)
+            .map(RangeProof)
+            .map_err(|_| InvalidInput)
+    }
 }
 
 #[test]
@@ -179,4 +188,36 @@ fn test_range_proof_valid() {
     let proof = RangeProof::prove(value, &blinding, &range, &mut rng).unwrap();
     let commitment = PedersenCommitment::new(&RistrettoScalar::from(value), &blinding);
     assert!(proof.verify(&commitment, &range, &mut rng).is_ok());
+}
+
+#[test]
+fn test_batch_range_proof_valid() {
+    use crate::groups::ristretto255::RistrettoScalar;
+    let range = Range::Bits32;
+    let mut rng = rand::thread_rng();
+    let values = (1u64..=8).collect::<Vec<_>>();
+    let (commitments, blindings) = values
+        .iter()
+        .map(|&v| PedersenCommitment::commit(&RistrettoScalar::from(v), &mut rng))
+        .unzip::<_, _, Vec<_>, Vec<_>>();
+    let proof = RangeProof::prove_batch(&values, &blindings, &range, &mut rng).unwrap();
+    assert!(proof.verify_batch(&commitments, &range, &mut rng).is_ok());
+}
+
+#[test]
+fn test_to_from_bytes() {
+    use crate::groups::ristretto255::RistrettoScalar;
+    let range = Range::Bits32;
+    let mut rng = rand::thread_rng();
+    let values = (1u64..=8).collect::<Vec<_>>();
+    let (commitments, blindings) = values
+        .iter()
+        .map(|&v| PedersenCommitment::commit(&RistrettoScalar::from(v), &mut rng))
+        .unzip::<_, _, Vec<_>, Vec<_>>();
+    let proof = RangeProof::prove_batch(&values, &blindings, &range, &mut rng).unwrap();
+    let proof_bytes = proof.to_bytes();
+    let reconstructed_proof = RangeProof::from_bytes(&proof_bytes).unwrap();
+    assert!(reconstructed_proof
+        .verify_batch(&commitments, &range, &mut rng)
+        .is_ok());
 }
