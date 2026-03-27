@@ -454,41 +454,6 @@ fn test_jwk_parse() {
     .is_err());
 }
 
-#[tokio::test]
-#[ignore] // This test depends on external providers, so we ignore it for now
-async fn test_get_jwks() {
-    let client = reqwest::Client::new();
-    for p in [
-        OIDCProvider::Facebook,
-        OIDCProvider::Google,
-        OIDCProvider::Twitch,
-        OIDCProvider::Slack,
-        OIDCProvider::Kakao,
-        OIDCProvider::Apple,
-        OIDCProvider::Microsoft,
-        OIDCProvider::KarrierOne,
-        OIDCProvider::Credenza3,
-        OIDCProvider::Playtron,
-        OIDCProvider::Threedos,
-        OIDCProvider::Onefc,
-        OIDCProvider::FanTV,
-        // OIDCProvider::Arden, // TODO: disabling until the service is up again
-        OIDCProvider::EveFrontier,
-        OIDCProvider::TestEveFrontier,
-        OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), //Trace
-        OIDCProvider::AwsTenant((
-            "ap-southeast-1".to_string(),
-            "ap-southeast-1_2QQPyQXDz".to_string(),
-        )), // Decot
-    ] {
-        let res = fetch_jwks(&p, &client, true).await;
-        assert!(res.is_ok());
-        res.unwrap().iter().for_each(|e| {
-            assert_eq!(e.0.iss, p.get_config().iss);
-        });
-    }
-}
-
 #[test]
 fn test_get_nonce() {
     let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
