@@ -150,10 +150,13 @@ impl RangeProof {
             .map_err(|_| InvalidProof)
     }
 
+    /// Serialize a range proof. The output will be serialized Risretto255 group elements and scalars.
+    /// It follows the format used in https://github.com/dalek-cryptography/bulletproofs/blob/be67b6d5f5ad1c1f54d5511b52e6d645a1313d07/src/range_proof/mod.rs#L59-L76.
     pub fn to_bytes(&self) -> Vec<u8> {
         self.0.to_bytes()
     }
 
+    /// Deserialize a range proof. See also [Self::to_bytes].
     pub fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
         ExternalRangeProof::from_bytes(bytes)
             .map(RangeProof)
