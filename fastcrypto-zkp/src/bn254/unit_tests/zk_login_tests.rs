@@ -455,6 +455,7 @@ fn test_jwk_parse() {
 }
 
 #[tokio::test]
+#[ignore] // This test depends on external providers, so we ignore it for now
 async fn test_get_jwks() {
     let client = reqwest::Client::new();
     for p in [
