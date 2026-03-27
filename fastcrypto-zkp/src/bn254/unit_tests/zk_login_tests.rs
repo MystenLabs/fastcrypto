@@ -9,11 +9,11 @@ use crate::bn254::utils::{
 use crate::bn254::zk_login::big_int_array_to_bits;
 use crate::bn254::zk_login::bitarray_to_bytearray;
 use crate::bn254::zk_login::poseidon_zk_login;
+use crate::bn254::zk_login::OIDCProvider;
 use crate::bn254::zk_login::{
     base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
     parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId,
 };
-use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
 use crate::bn254::zk_login_api::ZkLoginEnv;
 use crate::bn254::zk_login_api::{verify_zk_login_id, verify_zk_login_iss, Bn254Fr};
 use crate::bn254::{
