@@ -294,7 +294,15 @@ impl MultiRecipientCiphertext {
     }
 }
 
-/// TODO
+/// A sigma protocol proof that `N` Twisted ElGamal ciphertexts encrypt the 32-bit limbs of a
+/// private key whose corresponding public key is known. Concretely, for each limb `i` and
+/// recipient `j` it proves: (1) the decryption handle `D_ij = r_i * S_j` was formed with the
+/// same blinding `r_i` used in the Pedersen commitment `C_i = r_i * G + u_i * H`, and (2) the
+/// same limb values `u_i` that open those commitments reconstruct to the private key, i.e.
+/// `(\sum_i u_i * 2^{32i}) * G == U` where `U` is the sender's public key. Crucially, the proof
+/// binds (1) and (2) together, so the verifier is assured that the values inside the commitments
+/// are exactly the limbs of the private key for `U`. The proof is made non-interactive via the
+/// Fiat-Shamir transform and supports multiple recipients sharing the same commitment per limb.
 pub struct KeyConsistencyProof<const N: usize> {
     a1: Vec<RistrettoPoint>,
     a2: [RistrettoPoint; N],
@@ -384,9 +392,9 @@ impl<const N: usize> KeyConsistencyProof<N> {
             &self.a3,
         );
 
-        // Batch all three verification equations into a single MSM using hash-derived scalars.
+        // Batch all three groups of verification equations into a single MSM using hash-derived scalars.
         //
-        // The three equations that must hold for a valid proof are:
+        // The three groups of equations that must hold for a valid proof are:
         //
         //   Check 1 (decryption handle consistency): Verifies that each decryption handle was formed with the same
         //   blinding r_i as the commitment via
@@ -442,17 +450,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
             RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
         };
 
-        // Aggregate scalars for check 3: z = \sum_i z_2i * 2^{32i}
-        let b = RistrettoScalar::from(1u64 << 32);
-        let mut exp = RistrettoScalar::from(1u64);
-        let mut z = RistrettoScalar::from(0u64);
-        for z2i in self.z2.iter() {
-            z += *z2i * exp;
-            exp *= b;
-        }
-
-        // G coefficient: alpha * (sum_i rho_i * z_1i)  [check 2]  +  beta * z  [check 3]
-        // H coefficient: alpha * (sum_i rho_i * z_2i)  [check 2]
+        // Check 2: compute sum_i(rho_i * z_1i) and sum_i(rho_i * z_2i)
         let rho_z1 = rho
             .iter()
             .zip(&self.z1)
@@ -466,10 +464,19 @@ impl<const N: usize> KeyConsistencyProof<N> {
                 acc + *rhoi * *z2i
             });
 
+        // Check 3: compute z = \sum_i z_2i * 2^{32i}
+        let b = RistrettoScalar::from(1u64 << 32);
+        let mut exp = RistrettoScalar::from(1u64);
+        let mut z = RistrettoScalar::from(0u64);
+        for z2i in self.z2.iter() {
+            z += *z2i * exp;
+            exp *= b;
+        }
+
         let mut scalars: Vec<RistrettoScalar> = vec![alpha * rho_z1 + beta * z, alpha * rho_z2];
         let mut points: Vec<RistrettoPoint> = vec![*G, *H];
 
-        // Check 1: S_j terms — \sum_j (\sum_i mu_ij * z_1i) * S_j
+        // Check 1: Append (\sum_i mu_ij * z_1i, S_j) terms for each recipient j
         for j in 0..m {
             let coeff = (0..N).fold(RistrettoScalar::from(0u64), |acc, i| {
                 acc + mu[i * m + j] * self.z1[i]
@@ -478,7 +485,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
             points.push(recipient_encryption_keys[j].0);
         }
 
-        // Check 1: A1_ij and D_ij terms
+        // Check 1: Append (-mu_ij, A1_ij) and (-c * mu_ij, D_ij) terms
         for (i, (a1_chunk, ci)) in self.a1.chunks(m).zip(ciphertexts).enumerate() {
             for (j, (a1ij, dij)) in a1_chunk.iter().zip(&ci.decryption_handles).enumerate() {
                 scalars.push(-mu[i * m + j]);
@@ -488,7 +495,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
             }
         }
 
-        // Check 2: A2_i and C_i terms — scaled by alpha
+        // Check 2: Append (-alpha * rho_i, A2_i) and (-c * alpha * rho_i, C_i) terms
         for (rhoi, (a2i, ci)) in rho.iter().zip(self.a2.iter().zip(ciphertexts)) {
             scalars.push(-(alpha * *rhoi));
             points.push(*a2i);
@@ -496,7 +503,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
             points.push(ci.commitment.0);
         }
 
-        // Check 3: sender public key U and A3_i terms — scaled by beta
+        // Check 3: Append (-beta * c, U) and (-beta * 2^{32i}, A3_i) terms
         scalars.push(-(beta * c));
         points.push(sender_public_key.0);
         let mut exp = RistrettoScalar::from(1u64);
@@ -542,7 +549,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
 
 /// A verifiable key encapsulation allows to verifiably encrypt a private key to multiple recipients.
 /// A batch range proof shows that each limb of the private key lies in the range [0, 2^32-1].
-/// A key consistency proof shows that the key limbs have been encrypted to the correct recipient public keys
+/// A key consistency proof shows that the 32-bit key limbs have been encrypted to the correct recipient public keys
 /// and that they correspond to the provided sender public key.
 pub struct VerifiableKeyEncapsulation<const N: usize> {
     pub ciphertexts: [MultiRecipientCiphertext; N],
@@ -553,12 +560,12 @@ pub struct VerifiableKeyEncapsulation<const N: usize> {
 impl<const N: usize> VerifiableKeyEncapsulation<N> {
     /// Verifiably encrypt a private key to multiple recipient public keys.
     pub fn batch_seal(
-        encryption_keys: &[PublicKey],
-        private_key: &PrivateKey,
+        sender_private_key: &PrivateKey,
+        recipient_encryption_keys: &[PublicKey],
         rng: &mut impl AllowedRng,
     ) -> VerifiableKeyEncapsulation<N> {
         // Re-arrange private key into N 32-bit limbs
-        let private_key_bytes = private_key.0.to_byte_array();
+        let private_key_bytes = sender_private_key.0.to_byte_array();
         let limbs: [u32; N] = std::array::from_fn(|i| {
             u32::from_le_bytes(private_key_bytes[4 * i..4 * (i + 1)].try_into().unwrap())
         });
@@ -566,7 +573,7 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
         // Encrypt all N 32-bit key limbs with Twisted ElGamal to the recipient public keys
         let (ciphertexts, blindings): (Vec<_>, Vec<_>) = limbs
             .iter()
-            .map(|&li| MultiRecipientCiphertext::encrypt(encryption_keys, li, rng))
+            .map(|&li| MultiRecipientCiphertext::encrypt(recipient_encryption_keys, li, rng))
             .unzip();
 
         // Split results into ciphertexts and blindings arrays
@@ -581,8 +588,8 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
         // Create consistency proof
         let consistency_proof = KeyConsistencyProof::prove(
             &limbs,
-            &pk_from_sk(private_key),
-            encryption_keys,
+            &pk_from_sk(sender_private_key),
+            recipient_encryption_keys,
             &ciphertexts,
             &blindings,
             rng,
@@ -598,11 +605,15 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
 
     /// Verifiably encrypt a private key to a single recipient public key.
     pub fn seal(
-        encryption_key: &PublicKey,
-        private_key: &PrivateKey,
+        sender_private_key: &PrivateKey,
+        recipient_encryption_key: &PublicKey,
         rng: &mut impl AllowedRng,
     ) -> VerifiableKeyEncapsulation<N> {
-        Self::batch_seal(std::slice::from_ref(encryption_key), private_key, rng)
+        Self::batch_seal(
+            sender_private_key,
+            std::slice::from_ref(recipient_encryption_key),
+            rng,
+        )
     }
 
     /// Verify the range and key consistency proofs.
@@ -635,8 +646,8 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
     pub fn open(
         &self,
         index: usize,
-        recipient_public_keys: &[PublicKey],
         recipient_decryption_key: &PrivateKey,
+        recipient_public_keys: &[PublicKey],
         sender_public_key: &PublicKey,
         table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
         rng: &mut impl AllowedRng,
@@ -826,7 +837,7 @@ fn test_verifiable_key_encapsulation() {
 
     // Seal the sender's private key to all three recipients
     let encapsulation =
-        VerifiableKeyEncapsulation::<N>::batch_seal(&recipient_keys, &sk_snd, &mut rng);
+        VerifiableKeyEncapsulation::<N>::batch_seal(&sk_snd, &recipient_keys, &mut rng);
 
     // Verification passes for the correct sender public key and recipient keys
     assert!(encapsulation
@@ -841,13 +852,13 @@ fn test_verifiable_key_encapsulation() {
 
     // Each recipient can independently recover the sender's private key
     let recovered_0 = encapsulation
-        .open(0, &recipient_keys, &sk_rcv_0, &pk_snd, &table, &mut rng)
+        .open(0, &sk_rcv_0, &recipient_keys, &pk_snd, &table, &mut rng)
         .unwrap();
     let recovered_1 = encapsulation
-        .open(1, &recipient_keys, &sk_rcv_1, &pk_snd, &table, &mut rng)
+        .open(1, &sk_rcv_1, &recipient_keys, &pk_snd, &table, &mut rng)
         .unwrap();
     let recovered_2 = encapsulation
-        .open(2, &recipient_keys, &sk_rcv_2, &pk_snd, &table, &mut rng)
+        .open(2, &sk_rcv_2, &recipient_keys, &pk_snd, &table, &mut rng)
         .unwrap();
 
     assert_eq!(recovered_0.0, sk_snd.0);
@@ -856,6 +867,6 @@ fn test_verifiable_key_encapsulation() {
 
     // A recipient cannot open another recipient's slot with their own key
     assert!(encapsulation
-        .open(1, &recipient_keys, &sk_rcv_0, &pk_snd, &table, &mut rng)
+        .open(1, &sk_rcv_0, &recipient_keys, &pk_snd, &table, &mut rng)
         .is_err());
 }
