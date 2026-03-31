@@ -1,8 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::bulletproofs::{Range, RangeProof};
+use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
 use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
@@ -12,11 +12,12 @@ use crate::pedersen::{Blinding, PedersenCommitment, G, H};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use derive_more::{Add, Mul, Sub};
+//use radix64::configs::Fast;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::iter::successors;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PublicKey(RistrettoPoint);
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,14 +25,6 @@ pub struct PrivateKey(RistrettoScalar);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ZeroProof(DdhTupleNizk<RistrettoPoint>);
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ConsistencyProof {
-    a: RistrettoPoint,
-    b: RistrettoPoint,
-    z1: RistrettoScalar,
-    z2: RistrettoScalar,
-}
 
 pub fn generate_keypair(rng: &mut impl AllowedRng) -> (PublicKey, PrivateKey) {
     let sk = PrivateKey(RistrettoScalar::rand(rng));
@@ -63,14 +56,14 @@ pub struct Ciphertext {
 
 impl Ciphertext {
     pub fn encrypt(
-        public_key: &PublicKey,
+        encryption_key: &PublicKey,
         message: u32,
         rng: &mut impl AllowedRng,
     ) -> (Self, Blinding) {
         let blinding = Blinding::rand(rng);
         (
             Self {
-                decryption_handle: public_key.0 * blinding.0,
+                decryption_handle: encryption_key.0 * blinding.0,
                 commitment: PedersenCommitment::new(
                     &RistrettoScalar::from(message as u64),
                     &blinding,
@@ -81,16 +74,16 @@ impl Ciphertext {
     }
 
     pub fn encrypt_with_consistency_proof(
-        public_key: &PublicKey,
+        encryption_key: &PublicKey,
         message: u32,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<(Self, Blinding, ConsistencyProof)> {
-        let (ciphertext, blinding) = Self::encrypt(public_key, message, rng);
+        let (ciphertext, blinding) = Self::encrypt(encryption_key, message, rng);
         let proof = ConsistencyProof::prove(
             &RistrettoScalar::from(message as u64),
             &ciphertext,
             &blinding,
-            public_key,
+            encryption_key,
             rng,
         )?;
         Ok((ciphertext, blinding, proof))
@@ -125,31 +118,41 @@ impl Ciphertext {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ConsistencyProof {
+    a1: RistrettoPoint,
+    a2: RistrettoPoint,
+    a3: RistrettoPoint,
+    z1: RistrettoScalar,
+    z2: RistrettoScalar,
+}
+
 impl ConsistencyProof {
-    fn prove(
+    pub fn prove(
         message: &RistrettoScalar,
         ciphertext: &Ciphertext,
         blinding: &Blinding,
-        public_key: &PublicKey,
+        encryption_key: &PublicKey,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<Self> {
         let r1 = RistrettoScalar::rand(rng);
         let r2 = RistrettoScalar::rand(rng);
-        let a = public_key.0 * r1;
-        let b = RistrettoPoint::multi_scalar_mul(&[r1, r2], &[*G, *H]).expect("Constant length");
+        let a1 = encryption_key.0 * r1;
+        let a2 = RistrettoPoint::multi_scalar_mul(&[r1, r2], &[*G, *H]).expect("Constant length");
+        let a3 = *G * r2;
 
-        let c = Self::challenge(&a, &b, ciphertext, public_key);
+        let c = Self::challenge(&a1, &a2, ciphertext, encryption_key);
         let z1 = r1 + c * blinding.0;
         let z2 = r2 + c * message;
 
-        Ok(Self { a, b, z1, z2 })
+        Ok(Self { a1, a2, a3, z1, z2 })
     }
 
-    fn challenge(
+    pub fn challenge(
         a: &RistrettoPoint,
         b: &RistrettoPoint,
         ciphertext: &Ciphertext,
-        public_key: &PublicKey,
+        encryption_key: &PublicKey,
     ) -> RistrettoScalar {
         let output = Sha3_256::digest(
             bcs::to_bytes(&(
@@ -159,22 +162,26 @@ impl ConsistencyProof {
                 b,
                 &ciphertext.commitment,
                 &ciphertext.decryption_handle,
-                public_key,
+                encryption_key,
             ))
             .unwrap(),
         );
         RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
     }
 
-    pub fn verify(&self, ciphertext: &Ciphertext, public_key: &PublicKey) -> FastCryptoResult<()> {
-        let c = Self::challenge(&self.a, &self.b, ciphertext, public_key);
-        if self.a
+    pub fn verify(
+        &self,
+        ciphertext: &Ciphertext,
+        encryption_key: &PublicKey,
+    ) -> FastCryptoResult<()> {
+        let c = Self::challenge(&self.a1, &self.a2, ciphertext, encryption_key);
+        if self.a1
             != RistrettoPoint::multi_scalar_mul(
                 &[-c, self.z1],
-                &[ciphertext.decryption_handle, public_key.0],
+                &[ciphertext.decryption_handle, encryption_key.0],
             )
             .expect("Constant lengths")
-            || self.b
+            || self.a2
                 != RistrettoPoint::multi_scalar_mul(
                     &[-c, self.z1, self.z2],
                     &[ciphertext.commitment.0, *G, *H],
@@ -205,7 +212,7 @@ pub struct MultiRecipientCiphertext {
 }
 
 impl MultiRecipientCiphertext {
-    // Encrypt a 32-bit ciphertext to multiple recipients.
+    // Encrypt a 32-bit ciphertext to multiple recipients where the decryption handles share the same blinding factor.
     pub fn encrypt(
         encryption_keys: &[PublicKey],
         message: u32,
@@ -222,6 +229,30 @@ impl MultiRecipientCiphertext {
             },
             blinding,
         )
+    }
+
+    // Encrypt a 32-bit ciphertext to multiple recipients where the decryption handles share the same blinding factor
+    // while also computing consistency proofs showing that ciphertexts were created towards the given encryption keys.
+    pub fn encrypt_with_consistency_proof(
+        encryption_keys: &[PublicKey],
+        message: u32,
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<(Self, Blinding, Vec<ConsistencyProof>)> {
+        let (multi_recipient_ciphertext, blinding) = Self::encrypt(encryption_keys, message, rng);
+        let proofs = encryption_keys
+            .iter()
+            .enumerate()
+            .map(|(i, encryption_key)| {
+                ConsistencyProof::prove(
+                    &RistrettoScalar::from(message as u64),
+                    &multi_recipient_ciphertext.ciphertext(i)?,
+                    &blinding,
+                    encryption_key,
+                    rng,
+                )
+            })
+            .collect::<FastCryptoResult<Vec<ConsistencyProof>>>()?;
+        Ok((multi_recipient_ciphertext, blinding, proofs))
     }
 
     /// Decrypt the ciphertext of a single recipient identified by the provided index.
@@ -263,124 +294,305 @@ impl MultiRecipientCiphertext {
     }
 }
 
-/// A verifiable ciphertext is a collection of 32-bit ciphertexts ct_i and a 32-bit batch range proof showing that each
-/// ct_i lies in the range [0, 2^32-1]. Supports encryption towards multiple recipients.
-pub struct VerifiableCiphertext<const N: usize> {
+/// TODO
+pub struct KeyConsistencyProof<const N: usize> {
+    a1: Vec<RistrettoPoint>,
+    a2: [RistrettoPoint; N],
+    a3: [RistrettoPoint; N],
+    z1: [RistrettoScalar; N],
+    z2: [RistrettoScalar; N],
+}
+
+impl<const N: usize> KeyConsistencyProof<N> {
+    pub fn prove(
+        sender_private_key_limbs: &[u32; N],
+        sender_public_key: &PublicKey,
+        recipient_encryption_keys: &[PublicKey],
+        ciphertexts: &[MultiRecipientCiphertext; N],
+        blindings: &[Blinding; N],
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<Self> {
+        // Sample N random a_i and b_i
+        let a = (0..N)
+            .map(|_| RistrettoScalar::rand(rng))
+            .collect::<Vec<_>>();
+        let b = (0..N)
+            .map(|_| RistrettoScalar::rand(rng))
+            .collect::<Vec<_>>();
+
+        // A_1ij = a_i * pk_j for all (i, j) — N*m elements, ordered by limb then recipient
+        let a1 = a
+            .iter()
+            .flat_map(|ai| recipient_encryption_keys.iter().map(move |pk| pk.0 * ai))
+            .collect::<Vec<RistrettoPoint>>();
+
+        // A_2i = a_i * G + b_i * H for all i
+        let a2 = a
+            .iter()
+            .zip(b.iter())
+            .map(|(ai, bi)| *G * ai + *H * bi)
+            .collect::<Vec<RistrettoPoint>>();
+
+        // A_3i = b_i * G for all i
+        let a3 = b.iter().map(|bi| *G * bi).collect::<Vec<RistrettoPoint>>();
+
+        // c = Hash(G, H, sender_public_key, recipient_encryption_keys, ciphertexts, a1, a2, a3)
+        let c = Self::challenge(
+            sender_public_key,
+            recipient_encryption_keys,
+            ciphertexts,
+            &a1,
+            &a2,
+            &a3,
+        );
+
+        // z_1i = a_i + c * r_i
+        let z1 = a
+            .iter()
+            .zip(blindings.iter())
+            .map(|(ai, ri)| ai + c * ri.0)
+            .collect::<Vec<RistrettoScalar>>();
+
+        // z_2i = b_i + c * u_i
+        let z2 = b
+            .iter()
+            .zip(sender_private_key_limbs.iter())
+            .map(|(bi, ui)| bi + c * RistrettoScalar::from(*ui as u64))
+            .collect::<Vec<RistrettoScalar>>();
+
+        Ok(Self {
+            a1,
+            a2: a2.try_into().unwrap(),
+            a3: a3.try_into().unwrap(),
+            z1: z1.try_into().unwrap(),
+            z2: z2.try_into().unwrap(),
+        })
+    }
+
+    pub fn verify(
+        &self,
+        sender_public_key: &PublicKey,
+        recipient_encryption_keys: &[PublicKey],
+        ciphertexts: &[MultiRecipientCiphertext; N],
+    ) -> FastCryptoResult<()> {
+        let c = Self::challenge(
+            sender_public_key,
+            recipient_encryption_keys,
+            ciphertexts,
+            &self.a1,
+            &self.a2,
+            &self.a3,
+        );
+
+        // Batch all three verification equations into a single MSM using hash-derived scalars.
+        //
+        // The three equations that must hold for a valid proof are:
+        //
+        //   Check 1 (decryption handle consistency): Verifies that each decryption handle was formed with the same
+        //   blinding r_i as the commitment via
+        //     A1_ij + c * D_ij == z_1i * S_j
+        //   for all limbs i and recipients j where D_ij = r_i * S_j is the decryption handle and S_j is recipient j's public key.
+        //   Combined equations using scalars mu_ij = Hash("mu", c, i, j):
+        //     \sum_j (\sum_i mu_ij * z_1i) * S_j - \sum_{i,j} mu_ij * A1_ij - \sum_{i,j} (c * mu_ij) * D_ij == 0
+        //
+        //   Check 2 (commitment consistency): Verifies knowledge of the blinding r_i and message u_i opening the
+        //   commitment via
+        //     A2_i + c * C_i == z_1i * G + z_2i * H
+        //   for all limbs i where C_i = r_i * G + u_i * H is the Pedersen commitment.
+        //   Combined equations using scalars rho_i = Hash("rho", c, i):
+        //     (\sum_i rho_i * z_1i) * G + (\sum_i rho_i * z_2i) * H - \sum_i rho_i * A2_i - \sum_i (c * rho_i) * C_i == 0
+        //
+        //   Check 3 (public key consistency): Verifies that the encrypted 32-bit key limbs u_i reconstruct to the
+        //   private key corresponding to U via
+        //     (\sum_i z_2i * 2^{32i}) * G == (\sum_i A3_i * 2^{32i}) + c * U
+        //   where U is the sender's public key.
+        //
+        //   We combine the individual checks as
+        //     (check 1) + alpha * (check 2) + beta * (check 3) == 0
+        //   using hash-derived outer scalars alpha = Hash("alpha", c) and beta = Hash("beta", c) to ensure soundness.
+
+        let m = recipient_encryption_keys.len();
+
+        // Compute inner scalars mu_ij = Hash("mu", c, i, j) for all i and j used in check 1
+        let mu: Vec<RistrettoScalar> = (0..N)
+            .flat_map(|i| {
+                (0..m).map(move |j| {
+                    let output = Sha3_256::digest(bcs::to_bytes(&("mu", &c, i, j)).unwrap());
+                    RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
+                })
+            })
+            .collect();
+
+        // Compute inner scalars rho_i = Hash("rho", c, i) for all i used in check 2
+        let rho: Vec<RistrettoScalar> = (0..N)
+            .map(|i| {
+                let output = Sha3_256::digest(bcs::to_bytes(&("rho", &c, i)).unwrap());
+                RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
+            })
+            .collect();
+
+        // Outer scalars alpha = Hash("alpha", c) and beta = Hash("beta", c) combine the three zero-expressions:
+        //   (check 1) + alpha * (check 2) + beta * (check 3) == 0
+        let alpha = {
+            let output = Sha3_256::digest(bcs::to_bytes(&("alpha", &c)).unwrap());
+            RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
+        };
+        let beta = {
+            let output = Sha3_256::digest(bcs::to_bytes(&("beta", &c)).unwrap());
+            RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
+        };
+
+        // Aggregate scalars for check 3: z = \sum_i z_2i * 2^{32i}
+        let b = RistrettoScalar::from(1u64 << 32);
+        let mut exp = RistrettoScalar::from(1u64);
+        let mut z = RistrettoScalar::from(0u64);
+        for z2i in self.z2.iter() {
+            z += *z2i * exp;
+            exp *= b;
+        }
+
+        // G coefficient: alpha * (sum_i rho_i * z_1i)  [check 2]  +  beta * z  [check 3]
+        // H coefficient: alpha * (sum_i rho_i * z_2i)  [check 2]
+        let rho_z1 = rho
+            .iter()
+            .zip(&self.z1)
+            .fold(RistrettoScalar::from(0u64), |acc, (rhoi, z1i)| {
+                acc + *rhoi * *z1i
+            });
+        let rho_z2 = rho
+            .iter()
+            .zip(&self.z2)
+            .fold(RistrettoScalar::from(0u64), |acc, (rhoi, z2i)| {
+                acc + *rhoi * *z2i
+            });
+
+        let mut scalars: Vec<RistrettoScalar> = vec![alpha * rho_z1 + beta * z, alpha * rho_z2];
+        let mut points: Vec<RistrettoPoint> = vec![*G, *H];
+
+        // Check 1: S_j terms — \sum_j (\sum_i mu_ij * z_1i) * S_j
+        for j in 0..m {
+            let coeff = (0..N).fold(RistrettoScalar::from(0u64), |acc, i| {
+                acc + mu[i * m + j] * self.z1[i]
+            });
+            scalars.push(coeff);
+            points.push(recipient_encryption_keys[j].0);
+        }
+
+        // Check 1: A1_ij and D_ij terms
+        for (i, (a1_chunk, ci)) in self.a1.chunks(m).zip(ciphertexts).enumerate() {
+            for (j, (a1ij, dij)) in a1_chunk.iter().zip(&ci.decryption_handles).enumerate() {
+                scalars.push(-mu[i * m + j]);
+                points.push(*a1ij);
+                scalars.push(-(c * mu[i * m + j]));
+                points.push(*dij);
+            }
+        }
+
+        // Check 2: A2_i and C_i terms — scaled by alpha
+        for (rhoi, (a2i, ci)) in rho.iter().zip(self.a2.iter().zip(ciphertexts)) {
+            scalars.push(-(alpha * *rhoi));
+            points.push(*a2i);
+            scalars.push(-(c * alpha * *rhoi));
+            points.push(ci.commitment.0);
+        }
+
+        // Check 3: sender public key U and A3_i terms — scaled by beta
+        scalars.push(-(beta * c));
+        points.push(sender_public_key.0);
+        let mut exp = RistrettoScalar::from(1u64);
+        for a3i in self.a3.iter() {
+            scalars.push(-(beta * exp));
+            points.push(*a3i);
+            exp *= b;
+        }
+
+        if RistrettoPoint::multi_scalar_mul(&scalars, &points).expect("Consistent lengths")
+            != RistrettoPoint::zero()
+        {
+            return Err(InvalidProof);
+        }
+
+        Ok(())
+    }
+
+    pub fn challenge(
+        sender_public_key: &PublicKey,
+        recipient_encryption_keys: &[PublicKey],
+        ciphertexts: &[MultiRecipientCiphertext; N],
+        a1: &[RistrettoPoint],
+        a2: &[RistrettoPoint],
+        a3: &[RistrettoPoint],
+    ) -> RistrettoScalar {
+        let output = Sha3_256::digest(
+            bcs::to_bytes(&(
+                &*G,
+                &*H,
+                sender_public_key,
+                recipient_encryption_keys,
+                ciphertexts.as_slice(),
+                a1,
+                a2,
+                a3,
+            ))
+            .unwrap(),
+        );
+        RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
+    }
+}
+
+/// A verifiable key encapsulation allows to verifiably encrypt a private key to multiple recipients.
+/// A batch range proof shows that each limb of the private key lies in the range [0, 2^32-1].
+/// A key consistency proof shows that the key limbs have been encrypted to the correct recipient public keys
+/// and that they correspond to the provided sender public key.
+pub struct VerifiableKeyEncapsulation<const N: usize> {
     pub ciphertexts: [MultiRecipientCiphertext; N],
     pub range_proof: RangeProof,
+    pub consistency_proof: KeyConsistencyProof<N>,
 }
 
-impl<const N: usize> VerifiableCiphertext<N> {
-    /// Seal `N` messages to multiple recipient public keys where `N` is a power of two.
-    pub fn batch_seal(
-        encryption_keys: &[PublicKey],
-        messages: &[u32; N],
-        rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<(Self, [Blinding; N])> {
-        if !N.is_power_of_two() {
-            return Err(InvalidInput);
-        }
-        let (ciphertexts, blindings): (Vec<_>, Vec<_>) = messages
-            .iter()
-            .map(|&m| MultiRecipientCiphertext::encrypt(encryption_keys, m, rng))
-            .unzip();
-        let range_proof =
-            RangeProof::prove_batch(&messages.map(|m| m as u64), &blindings, &Range::Bits32, rng)?;
-        Ok((
-            Self {
-                ciphertexts: ciphertexts.try_into().unwrap(),
-                range_proof,
-            },
-            blindings.try_into().unwrap(),
-        ))
-    }
-
-    /// Seal `N` messages to a single recipient public key.
-    pub fn seal(
-        encryption_key: &PublicKey,
-        messages: &[u32; N],
-        rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<(Self, [Blinding; N])> {
-        Self::batch_seal(std::slice::from_ref(encryption_key), messages, rng)
-    }
-
-    /// Verify the range proof corresponding to this ciphertext.
-    pub fn verify(&self, rng: &mut impl AllowedRng) -> FastCryptoResult<()> {
-        self.range_proof
-            .verify_batch(&self.commitments().unwrap(), &Range::Bits32, rng)
-    }
-
-    /// Open the ciphertext of a single recipient identified by the provided index.
-    pub fn open(
-        &self,
-        index: usize,
-        decryption_key: &PrivateKey,
-        table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
-        rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<[u32; N]> {
-        self.verify(rng)?;
-        Ok(self
-            .ciphertexts
-            .iter()
-            .map(|c| c.decrypt(index, decryption_key, table))
-            .collect::<FastCryptoResult<Vec<_>>>()?
-            .try_into()
-            .unwrap())
-    }
-
-    /// Return the commitments of all ciphertexts.
-    pub fn commitments(&self) -> FastCryptoResult<Vec<PedersenCommitment>> {
-        Ok(self
-            .ciphertexts
-            .iter()
-            .map(|c| c.commitment().unwrap())
-            .collect::<Vec<PedersenCommitment>>())
-    }
-}
-
-/// A verifiable key encapsulation allows to verifiably encrypt a private key. The private key is encrypted into a
-/// verifiable ciphertext containing a batch range proof. An additional DLEQ NIZK proof shows that the encrypted private
-/// key limbs match the corresponding public key. Supports encryption towards multiple recipients.
-pub struct VerifiableKeyEncapsulation {
-    pub verifiable_ciphertext: VerifiableCiphertext<8>,
-    pub dleq_proof: DdhTupleNizk<RistrettoPoint>,
-    pub r: RistrettoScalar,
-}
-
-impl VerifiableKeyEncapsulation {
+impl<const N: usize> VerifiableKeyEncapsulation<N> {
     /// Verifiably encrypt a private key to multiple recipient public keys.
     pub fn batch_seal(
         encryption_keys: &[PublicKey],
         private_key: &PrivateKey,
         rng: &mut impl AllowedRng,
-    ) -> VerifiableKeyEncapsulation {
-        // Re-arrange private key into 32-bit limbs
+    ) -> VerifiableKeyEncapsulation<N> {
+        // Re-arrange private key into N 32-bit limbs
         let private_key_bytes = private_key.0.to_byte_array();
-        let limbs: [u32; 8] = std::array::from_fn(|i| {
+        let limbs: [u32; N] = std::array::from_fn(|i| {
             u32::from_le_bytes(private_key_bytes[4 * i..4 * (i + 1)].try_into().unwrap())
         });
-        // Encrypt 32-bit key limbs with Twisted ElGamal and create a batch range proof
-        let (verifiable_ciphertext, blindings) =
-            VerifiableCiphertext::batch_seal(encryption_keys, &limbs, rng).unwrap();
-        // Create DLEQ NIZK proof (G, H, sk * G, sk * H) for private key sk
-        let dleq_proof = DdhTupleNizk::create(
-            &private_key.0,
-            &*G,
-            &*H,
-            &(*G * private_key.0),
-            &(*H * private_key.0),
+
+        // Encrypt all N 32-bit key limbs with Twisted ElGamal to the recipient public keys
+        let (ciphertexts, blindings): (Vec<_>, Vec<_>) = limbs
+            .iter()
+            .map(|&li| MultiRecipientCiphertext::encrypt(encryption_keys, li, rng))
+            .unzip();
+
+        // Split results into ciphertexts and blindings arrays
+        let ciphertexts: [MultiRecipientCiphertext; N] = ciphertexts.try_into().unwrap();
+        let blindings: [Blinding; N] = blindings.try_into().unwrap();
+
+        // Create range proof
+        let range_proof =
+            RangeProof::prove_batch(&limbs.map(|m| m as u64), &blindings, &Range::Bits32, rng)
+                .unwrap();
+
+        // Create consistency proof
+        let consistency_proof = KeyConsistencyProof::prove(
+            &limbs,
+            &pk_from_sk(private_key),
+            encryption_keys,
+            &ciphertexts,
+            &blindings,
             rng,
-        );
-        // Compute r = sum_i(r_i * 2^{32i}) for range proof blinding factors r_i which is required for the DLEQ NIZK proof verification
-        let b = RistrettoScalar::from(1u64 << 32); // 2**32
-        let (r, _) = blindings.iter().fold(
-            (RistrettoScalar::from(0u64), RistrettoScalar::from(1u64)),
-            |(r_acc, e), ri| (r_acc + ri.0 * e, e * b),
-        );
+        )
+        .unwrap();
+
         VerifiableKeyEncapsulation {
-            verifiable_ciphertext,
-            dleq_proof,
-            r,
+            ciphertexts,
+            range_proof,
+            consistency_proof,
         }
     }
 
@@ -389,56 +601,65 @@ impl VerifiableKeyEncapsulation {
         encryption_key: &PublicKey,
         private_key: &PrivateKey,
         rng: &mut impl AllowedRng,
-    ) -> VerifiableKeyEncapsulation {
+    ) -> VerifiableKeyEncapsulation<N> {
         Self::batch_seal(std::slice::from_ref(encryption_key), private_key, rng)
     }
 
-    /// Verify the range proof and DLEQ NIZK proof corresponding to this key encapsulation.
+    /// Verify the range and key consistency proofs.
     pub fn verify(
         &self,
-        public_key: &PublicKey,
+        sender_public_key: &PublicKey,
+        recipient_encryption_keys: &[PublicKey],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
-        // Verify range proofs
-        self.verifiable_ciphertext.verify(rng)?;
-        // Compute C = sum_i(C_i * 2^{32i}) for range proof commitments C_i; note: C = sk * H + r * G
-        let b = RistrettoScalar::from(1u64 << 32); // 2**32
-        let (c, _) = self.verifiable_ciphertext.commitments()?.iter().fold(
-            (RistrettoPoint::zero(), RistrettoScalar::from(1u64)),
-            |(c_acc, e), ci| (c_acc + ci.0 * e, e * b),
-        );
-        // Verify DLEQ NIZK proof
-        self.dleq_proof.verify(
-            &*G,
-            &*H,
-            &public_key.0,      // sk * G
-            &(c - *G * self.r), // C - r * G = sk * H
+        // Verify range proof over the Pedersen commitments of all limb ciphertexts
+        let commitments = self
+            .ciphertexts
+            .iter()
+            .map(|c| c.commitment.clone())
+            .collect::<Vec<_>>();
+        self.range_proof
+            .verify_batch(&commitments, &Range::Bits32, rng)?;
+
+        // Verify key consistency proof
+        self.consistency_proof.verify(
+            sender_public_key,
+            recipient_encryption_keys,
+            &self.ciphertexts,
         )
     }
 
-    /// Open the key encapsulation for a single recipient public key identified by the provided index using the
-    /// provided 16-bit discrete log decryption table.
+    /// Open the key encapsulation for a single recipient decryption key identified by the provided index using the
+    /// provided 16-bit discrete log decryption table. All recipient public keys must be provided to verify the
+    /// consistency proof, which is bound to the full set of recipients.
     pub fn open(
         &self,
         index: usize,
-        public_key: &PublicKey,
-        decryption_key: &PrivateKey,
+        recipient_public_keys: &[PublicKey],
+        recipient_decryption_key: &PrivateKey,
+        sender_public_key: &PublicKey,
         table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<PrivateKey> {
-        // Verify ciphertext
-        self.verify(public_key, rng)?;
-        // Decrypt 32-bit private key limbs
+        // Verify range and consistency proofs against all recipient keys
+        self.verify(sender_public_key, recipient_public_keys, rng)?;
+
+        // Decrypt each limb ciphertext using the recipient's decryption key
         let limbs = self
-            .verifiable_ciphertext
-            .open(index, decryption_key, table, rng)?;
-        // Recover private key bytes
+            .ciphertexts
+            .iter()
+            .map(|c| c.decrypt(index, recipient_decryption_key, table))
+            .collect::<FastCryptoResult<Vec<u32>>>()?;
+
+        // Reconstruct the private key from its 32-bit limbs
         let private_key_bytes = limbs
             .iter()
             .flat_map(|l| l.to_le_bytes())
             .collect::<Vec<_>>();
         let private_key = RistrettoScalar::from_byte_array(&private_key_bytes.try_into().unwrap())?;
-        if pk_from_sk(&PrivateKey(private_key)) != *public_key {
+
+        // Verify the recovered key corresponds to the sender's public key
+        if pk_from_sk(&PrivateKey(private_key)) != *sender_public_key {
             return Err(InvalidInput);
         }
         Ok(PrivateKey(private_key))
@@ -540,40 +761,60 @@ fn test_equality() {
 }
 
 #[test]
-fn test_verifiable_ciphertext() {
+fn test_key_consistency_proof() {
+    const N: usize = 8;
     let mut rng = rand::thread_rng();
-    let (public_key, private_key) = generate_keypair(&mut rng);
-    let table = precompute_table();
-    let messages: [u32; 8] = [1, 23, 456, 789, 987, 654, 32, 1];
-    let (verifiable_ciphertext, _blindings) =
-        VerifiableCiphertext::seal(&public_key, &messages, &mut rng).unwrap();
-    assert!(verifiable_ciphertext.verify(&mut rng).is_ok());
-    let decrypted_messages = verifiable_ciphertext
-        .open(0, &private_key, &table, &mut rng)
-        .unwrap();
-    assert_eq!(messages.as_slice(), decrypted_messages);
+
+    // Generate sender and recipient key pairs
+    let (pk_snd, sk_snd) = generate_keypair(&mut rng);
+    let (pk_rcv, _sk_rcv) = generate_keypair(&mut rng);
+
+    // Split sender private key into 8 x 32-bit limbs
+    let sk_bytes = sk_snd.0.to_byte_array();
+    let limbs: [u32; N] = std::array::from_fn(|i| {
+        u32::from_le_bytes(sk_bytes[4 * i..4 * (i + 1)].try_into().unwrap())
+    });
+
+    // Encrypt each limb as a multi-recipient Twisted ElGamal ciphertext towards the recipient
+    let (ciphertexts, blindings): (Vec<_>, Vec<_>) = limbs
+        .iter()
+        .map(|&limb| {
+            MultiRecipientCiphertext::encrypt(std::slice::from_ref(&pk_rcv), limb, &mut rng)
+        })
+        .unzip();
+    let ciphertexts: [MultiRecipientCiphertext; N] = ciphertexts.try_into().unwrap();
+    let blindings: [Blinding; N] = blindings.try_into().unwrap();
+
+    // Prove
+    let proof = KeyConsistencyProof::<N>::prove(
+        &limbs,
+        &pk_snd,
+        std::slice::from_ref(&pk_rcv),
+        &ciphertexts,
+        &blindings,
+        &mut rng,
+    )
+    .unwrap();
+
+    // Verification passes with correct sender public key
+    assert!(proof
+        .verify(&pk_snd, std::slice::from_ref(&pk_rcv), &ciphertexts)
+        .is_ok());
+
+    // Verification fails with a different sender public key
+    let (other_pk_snd, _) = generate_keypair(&mut rng);
+    assert!(proof
+        .verify(&other_pk_snd, &[pk_rcv], &ciphertexts)
+        .is_err());
 }
 
 #[test]
 fn test_verifiable_key_encapsulation() {
-    let mut rng = rand::thread_rng();
-    let table = precompute_table();
-    let (pk_snd, sk_snd) = generate_keypair(&mut rng); // sender key pair
-    let (pk_rcv, sk_rcv) = generate_keypair(&mut rng); // receiver key pair
-    let encapsulation = VerifiableKeyEncapsulation::seal(&pk_rcv, &sk_snd, &mut rng);
-    assert!(encapsulation.verify(&pk_snd, &mut rng).is_ok());
-    let recovered_private_key = encapsulation
-        .open(0, &pk_snd, &sk_rcv, &table, &mut rng)
-        .unwrap();
-    assert_eq!(recovered_private_key.0, sk_snd.0);
-}
-
-#[test]
-fn test_verifiable_key_encapsulation_batch() {
+    const N: usize = 8;
     let mut rng = rand::thread_rng();
     let table = precompute_table();
 
-    // Sender key pair (private key being encrypted)
+    // Sender key pair; the private key will be encapsulated
     let (pk_snd, sk_snd) = generate_keypair(&mut rng);
 
     // Three recipient key pairs
@@ -581,28 +822,40 @@ fn test_verifiable_key_encapsulation_batch() {
     let (pk_rcv_1, sk_rcv_1) = generate_keypair(&mut rng);
     let (pk_rcv_2, sk_rcv_2) = generate_keypair(&mut rng);
 
-    let encapsulation =
-        VerifiableKeyEncapsulation::batch_seal(&[pk_rcv_0, pk_rcv_1, pk_rcv_2], &sk_snd, &mut rng);
+    let recipient_keys = [pk_rcv_0.clone(), pk_rcv_1.clone(), pk_rcv_2.clone()];
 
-    // Verification passes for the sender's public key
-    assert!(encapsulation.verify(&pk_snd, &mut rng).is_ok());
+    // Seal the sender's private key to all three recipients
+    let encapsulation =
+        VerifiableKeyEncapsulation::<N>::batch_seal(&recipient_keys, &sk_snd, &mut rng);
+
+    // Verification passes for the correct sender public key and recipient keys
+    assert!(encapsulation
+        .verify(&pk_snd, &recipient_keys, &mut rng)
+        .is_ok());
+
+    // Verification fails with a wrong sender public key
+    let (other_pk, _) = generate_keypair(&mut rng);
+    assert!(encapsulation
+        .verify(&other_pk, &recipient_keys, &mut rng)
+        .is_err());
 
     // Each recipient can independently recover the sender's private key
     let recovered_0 = encapsulation
-        .open(0, &pk_snd, &sk_rcv_0, &table, &mut rng)
+        .open(0, &recipient_keys, &sk_rcv_0, &pk_snd, &table, &mut rng)
         .unwrap();
     let recovered_1 = encapsulation
-        .open(1, &pk_snd, &sk_rcv_1, &table, &mut rng)
+        .open(1, &recipient_keys, &sk_rcv_1, &pk_snd, &table, &mut rng)
         .unwrap();
     let recovered_2 = encapsulation
-        .open(2, &pk_snd, &sk_rcv_2, &table, &mut rng)
+        .open(2, &recipient_keys, &sk_rcv_2, &pk_snd, &table, &mut rng)
         .unwrap();
+
     assert_eq!(recovered_0.0, sk_snd.0);
     assert_eq!(recovered_1.0, sk_snd.0);
     assert_eq!(recovered_2.0, sk_snd.0);
 
     // A recipient cannot open another recipient's slot with their own key
     assert!(encapsulation
-        .open(1, &pk_snd, &sk_rcv_0, &table, &mut rng)
+        .open(1, &recipient_keys, &sk_rcv_0, &pk_snd, &table, &mut rng)
         .is_err());
 }
