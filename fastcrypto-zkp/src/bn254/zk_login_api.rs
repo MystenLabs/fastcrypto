@@ -36,6 +36,12 @@ static GLOBAL_VERIFYING_KEY: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(globa
 /// Corresponding to proofs generated from prover-dev. Used in devnet/testnet.
 static INSECURE_VERIFYING_KEY: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(insecure_pvk);
 
+/// V2 verifying key for production (mainnet/testnet).
+static VERIFYING_KEY_V2: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(global_pvk_v2);
+
+/// V2 verifying key for test environments.
+static TEST_VERIFYING_KEY_V2: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(insecure_pvk_v2);
+
 /// Load a fixed verifying key from zkLogin.vkey output. This is based on a local setup and should not use in production.
 fn insecure_pvk() -> PreparedVerifyingKey<Bn254> {
     // Convert the Circom G1/G2/GT to arkworks G1/G2/GT
@@ -314,7 +320,153 @@ fn global_pvk() -> PreparedVerifyingKey<Bn254> {
     PreparedVerifyingKey::from(vk)
 }
 
-/// Entry point for the ZkLogin API.
+/// TODO: Replace with the actual V2 production verifying key from ceremony.
+/// Currently uses the V1 production key as a placeholder so that V2 verification
+/// fails gracefully and falls back to V1 in verify_zk_login.
+fn global_pvk_v2() -> PreparedVerifyingKey<Bn254> {
+    global_pvk()
+}
+
+/// Load a fixed verifying key for V2 (insecure/test). Based on zklogin-circuits v2-main branch binaries/dev/zkLogin.vkey.
+fn insecure_pvk_v2() -> PreparedVerifyingKey<Bn254> {
+    // Convert the Circom G1/G2/GT to arkworks G1/G2/GT
+    let vk_alpha_1 = g1_affine_from_str_projective(&vec![
+        Bn254FqElement::from_str(
+            "20491192805390485299153009773594534940189261866228447918068658471970481763042",
+        )
+        .unwrap(),
+        Bn254FqElement::from_str(
+            "9383485363053290200918347156157836566562967994039712273449902621266178545958",
+        )
+        .unwrap(),
+        Bn254FqElement::from_str("1").unwrap(),
+    ])
+    .unwrap();
+    let vk_beta_2 = g2_affine_from_str_projective(&vec![
+        vec![
+            Bn254FqElement::from_str(
+                "6375614351688725206403948262868962793625744043794305715222011528459656738731",
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                "4252822878758300859123897981450591353533073413197771768651442665752259397132",
+            )
+            .unwrap(),
+        ],
+        vec![
+            Bn254FqElement::from_str(
+                "10505242626370262277552901082094356697409835680220590971873171140371331206856",
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                "21847035105528745403288232691147584728191162732299865338377159692350059136679",
+            )
+            .unwrap(),
+        ],
+        vec![
+            Bn254FqElement::from_str("1").unwrap(),
+            Bn254FqElement::from_str("0").unwrap(),
+        ],
+    ])
+    .unwrap();
+    let vk_gamma_2 = g2_affine_from_str_projective(&vec![
+        vec![
+            Bn254FqElement::from_str(
+                "10857046999023057135944570762232829481370756359578518086990519993285655852781",
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                "11559732032986387107991004021392285783925812861821192530917403151452391805634",
+            )
+            .unwrap(),
+        ],
+        vec![
+            Bn254FqElement::from_str(
+                "8495653923123431417604973247489272438418190587263600148770280649306958101930",
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                "4082367875863433681332203403145435568316851327593401208105741076214120093531",
+            )
+            .unwrap(),
+        ],
+        vec![
+            Bn254FqElement::from_str("1").unwrap(),
+            Bn254FqElement::from_str("0").unwrap(),
+        ],
+    ])
+    .unwrap();
+    let vk_delta_2 = g2_affine_from_str_projective(&vec![
+        vec![
+            Bn254FqElement::from_str(
+                "10857046999023057135944570762232829481370756359578518086990519993285655852781",
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                "11559732032986387107991004021392285783925812861821192530917403151452391805634",
+            )
+            .unwrap(),
+        ],
+        vec![
+            Bn254FqElement::from_str(
+                "8495653923123431417604973247489272438418190587263600148770280649306958101930",
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                "4082367875863433681332203403145435568316851327593401208105741076214120093531",
+            )
+            .unwrap(),
+        ],
+        vec![
+            Bn254FqElement::from_str("1").unwrap(),
+            Bn254FqElement::from_str("0").unwrap(),
+        ],
+    ])
+    .unwrap();
+
+    // Create a vector of G1Affine elements from the IC
+    let mut vk_gamma_abc_g1 = Vec::new();
+    for e in [
+        vec![
+            Bn254FqElement::from_str(
+                "10072952702364647056396580948288068337429646645261195600542985847161493124350",
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                "10059695544772438326942587147727840338308309541916960048410541064992504349600",
+            )
+            .unwrap(),
+            Bn254FqElement::from_str("1").unwrap(),
+        ],
+        vec![
+            Bn254FqElement::from_str(
+                "8557257866589356892362985667296999226348661195559311943369405418132096626997",
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                "19685601134364964124388805532244595228311864798102859996415395591809391132671",
+            )
+            .unwrap(),
+            Bn254FqElement::from_str("1").unwrap(),
+        ],
+    ] {
+        let g1 = g1_affine_from_str_projective(&e).unwrap();
+        vk_gamma_abc_g1.push(g1);
+    }
+
+    let vk = VerifyingKey {
+        alpha_g1: vk_alpha_1,
+        beta_g2: vk_beta_2,
+        gamma_g2: vk_gamma_2,
+        delta_g2: vk_delta_2,
+        gamma_abc_g1: vk_gamma_abc_g1,
+    };
+
+    // Convert the verifying key into the prepared form.
+    PreparedVerifyingKey::from(vk)
+}
+
+/// Verify zklogin
 pub fn verify_zk_login(
     input: &ZkLoginInputs,
     max_epoch: u64,
@@ -335,12 +487,25 @@ pub fn verify_zk_login(
         FastCryptoError::GeneralError("Invalid Base64 encoded jwk modulus".to_string())
     })?;
 
-    // Calculate all inputs hash and passed to the verification function.
-    match verify_zk_login_proof_with_fixed_vk(
-        env,
-        &input.get_proof().as_arkworks()?,
-        &[input.calculate_all_inputs_hash(eph_pubkey_bytes, &modulus, max_epoch)?],
-    ) {
+    let proof = input.get_proof().as_arkworks()?;
+
+    // Try verifying with v2 config + VK first, then fall back to v1.
+    if let Ok(all_inputs_hash) =
+        input.calculate_all_inputs_hash(eph_pubkey_bytes, &modulus, max_epoch, &CIRCUIT_CONFIG_V2)
+    {
+        if let Ok(true) = verify_zk_login_proof_with_fixed_vk(env, &proof, &[all_inputs_hash], true)
+        {
+            return Ok(());
+        }
+    }
+
+    let all_inputs_hash = input.calculate_all_inputs_hash(
+        eph_pubkey_bytes,
+        &modulus,
+        max_epoch,
+        &CIRCUIT_CONFIG_V1,
+    )?;
+    match verify_zk_login_proof_with_fixed_vk(env, &proof, &[all_inputs_hash], false) {
         Ok(true) => Ok(()),
         Ok(false) | Err(_) => Err(FastCryptoError::GeneralError(
             "Groth16 proof verify failed".to_string(),
@@ -348,16 +513,53 @@ pub fn verify_zk_login(
     }
 }
 
+/// Configuration for circuit-specific parameters
+#[derive(Debug, Copy, Clone)]
+pub struct CircuitConfig {
+    /// Maximum header length in base64
+    pub max_header_len_b64: u16,
+    /// Maximum issuer length in base64
+    pub max_iss_len_b64: u16,
+    /// Maximum RSA key size in bits
+    pub max_rsa_bits: u16,
+}
+
+const V1_MAX_EXT_ISS_LEN: u16 = 165;
+const V2_MAX_EXT_ISS_LEN: u16 = 183;
+
+/// V1 circuit configuration
+pub const CIRCUIT_CONFIG_V1: CircuitConfig = CircuitConfig {
+    max_header_len_b64: 248,
+    max_iss_len_b64: 4 * (1 + V1_MAX_EXT_ISS_LEN / 3),
+    max_rsa_bits: 2048,
+};
+
+/// V2 circuit configuration
+pub const CIRCUIT_CONFIG_V2: CircuitConfig = CircuitConfig {
+    max_header_len_b64: 279,
+    max_iss_len_b64: 4 * (1 + V2_MAX_EXT_ISS_LEN / 3),
+    max_rsa_bits: 8192,
+};
+
 /// Verify a proof against its public inputs using the fixed verifying key.
 pub fn verify_zk_login_proof_with_fixed_vk(
     usage: &ZkLoginEnv,
     proof: &Proof<Bn254>,
     public_inputs: &[Bn254Fr],
+    v2: bool,
 ) -> Result<bool, FastCryptoError> {
-    let vk = match usage {
-        ZkLoginEnv::Prod => &GLOBAL_VERIFYING_KEY,
-        ZkLoginEnv::Test => &INSECURE_VERIFYING_KEY,
+    let vk = if v2 {
+        match usage {
+            ZkLoginEnv::Prod => &VERIFYING_KEY_V2,
+            ZkLoginEnv::Test => &TEST_VERIFYING_KEY_V2,
+        }
+    } else {
+        match usage {
+            ZkLoginEnv::Prod => &GLOBAL_VERIFYING_KEY,
+            ZkLoginEnv::Test => &INSECURE_VERIFYING_KEY,
+        }
     };
+
     Groth16::<Bn254>::verify_with_processed_vk(vk, public_inputs, proof)
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }

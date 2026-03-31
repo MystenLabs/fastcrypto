@@ -7,6 +7,7 @@ use serde_json::Value;
 
 use super::utils::split_to_two_frs;
 use crate::bn254::poseidon::poseidon_merkle_tree;
+use crate::bn254::zk_login_api::CircuitConfig;
 use crate::bn254::FieldElement;
 use crate::zk_login_utils::{
     g1_affine_from_str_projective, g2_affine_from_str_projective, Bn254FrElement, CircomG1,
@@ -37,12 +38,9 @@ mod zk_login_tests;
 #[path = "unit_tests/zk_login_e2e_tests.rs"]
 mod zk_login_e2e_tests;
 
-const MAX_HEADER_LEN: u8 = 248;
 const PACK_WIDTH: u8 = 248;
 const ISS: &str = "iss";
 const BASE64_URL_CHARSET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-const MAX_EXT_ISS_LEN: u8 = 165;
-const MAX_ISS_LEN_B64: u8 = 4 * (1 + MAX_EXT_ISS_LEN / 3);
 
 /// Key to identify a JWK, consists of iss and kid.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -112,6 +110,8 @@ pub enum OIDCProvider {
     Credenza3,
     /// This is a test issuer that will return a JWT non-interactively.
     TestIssuer,
+    /// Test issuer for key 8192.
+    TestIssuerKey8192,
     /// https://oauth2.playtron.one/.well-known/jwks.json
     Playtron,
     /// https://auth.3dos.io/.well-known/openid-configuration
@@ -140,6 +140,7 @@ impl FromStr for OIDCProvider {
             "Apple" => Ok(Self::Apple),
             "Slack" => Ok(Self::Slack),
             "TestIssuer" => Ok(Self::TestIssuer),
+            "TestIssuerKey8192" => Ok(Self::TestIssuerKey8192),
             "Microsoft" => Ok(Self::Microsoft),
             "KarrierOne" => Ok(Self::KarrierOne),
             "Credenza3" => Ok(Self::Credenza3),
@@ -177,6 +178,7 @@ impl Display for OIDCProvider {
             Self::Apple => write!(f, "Apple"),
             Self::Slack => write!(f, "Slack"),
             Self::TestIssuer => write!(f, "TestIssuer"),
+            Self::TestIssuerKey8192 => write!(f, "TestIssuerKey8192"),
             Self::Microsoft => write!(f, "Microsoft"),
             Self::KarrierOne => write!(f, "KarrierOne"),
             Self::Credenza3 => write!(f, "Credenza3"),
@@ -241,8 +243,12 @@ impl OIDCProvider {
                 "https://accounts.credenza3.com/jwks",
             ),
             OIDCProvider::TestIssuer => ProviderConfig::new(
-                "https://oauth.sui.io",
+            "https://oauth.sui.io",
                 "https://jwt-tester.mystenlabs.com/.well-known/jwks.json",
+            ),
+            OIDCProvider::TestIssuerKey8192 => ProviderConfig::new(
+                "https://jwt-tester.mystenlabs.com",
+                "https://jwt-tester.mystenlabs.com/8192/jwks.json",
             ),
             OIDCProvider::Playtron => ProviderConfig::new(
                 "https://oauth2.playtron.one",
@@ -285,6 +291,7 @@ impl OIDCProvider {
             "https://appleid.apple.com" => Ok(Self::Apple),
             "https://slack.com" => Ok(Self::Slack),
             "https://oauth.sui.io" => Ok(Self::TestIssuer),
+            "https://jwt-tester.mystenlabs.com" => Ok(Self::TestIssuerKey8192),
             "https://accounts.karrier.one/" => Ok(Self::KarrierOne),
             "https://accounts.credenza3.com" => Ok(Self::Credenza3),
             "https://oauth2.playtron.one" => Ok(Self::Playtron),
@@ -518,7 +525,7 @@ impl ZkLoginInputs {
         Self::from_reader(reader, address_seed)
     }
 
-    /// Initialize ZkLoginInputs from the
+    /// Initialize ZkLoginInputs from the reader.
     pub fn from_reader(
         reader: ZkLoginInputsReader,
         address_seed: &str,
@@ -566,8 +573,9 @@ impl ZkLoginInputs {
         eph_pk_bytes: &[u8],
         modulus: &[u8],
         max_epoch: u64,
+        config: &CircuitConfig,
     ) -> Result<Bn254Fr, FastCryptoError> {
-        if self.header_base64.len() > MAX_HEADER_LEN as usize {
+        if self.header_base64.len() > config.max_header_len_b64 as usize {
             return Err(FastCryptoError::GeneralError("Header too long".to_string()));
         }
 
@@ -579,9 +587,13 @@ impl ZkLoginInputs {
             (&Bn254FrElement::from_str(&self.iss_base64_details.index_mod_4.to_string())?).into();
 
         let iss_base64_f =
-            hash_ascii_str_to_field(&self.iss_base64_details.value, MAX_ISS_LEN_B64)?;
-        let header_f = hash_ascii_str_to_field(&self.header_base64, MAX_HEADER_LEN)?;
-        let modulus_f = hash_to_field(&[BigUint::from_bytes_be(modulus)], 2048, PACK_WIDTH)?;
+            hash_ascii_str_to_field(&self.iss_base64_details.value, config.max_iss_len_b64)?;
+        let header_f = hash_ascii_str_to_field(&self.header_base64, config.max_header_len_b64)?;
+        let modulus_f = hash_to_field(
+            &[BigUint::from_bytes_be(modulus)],
+            config.max_rsa_bits,
+            PACK_WIDTH,
+        )?;
         poseidon_zk_login(&[
             first,
             second,
@@ -729,12 +741,12 @@ fn bitarray_to_bytearray(bits: &[u8]) -> FastCryptoResult<Vec<u8>> {
 }
 
 /// Pads a stream of bytes and maps it to a field element
-pub fn hash_ascii_str_to_field(str: &str, max_size: u8) -> Result<Bn254Fr, FastCryptoError> {
+pub fn hash_ascii_str_to_field(str: &str, max_size: u16) -> Result<Bn254Fr, FastCryptoError> {
     let str_padded = str_to_padded_char_codes(str, max_size)?;
     hash_to_field(&str_padded, 8, PACK_WIDTH)
 }
 
-fn str_to_padded_char_codes(str: &str, max_len: u8) -> Result<Vec<BigUint>, FastCryptoError> {
+fn str_to_padded_char_codes(str: &str, max_len: u16) -> Result<Vec<BigUint>, FastCryptoError> {
     let arr: Vec<BigUint> = str
         .chars()
         .map(|c| BigUint::from_slice(&([c as u32])))
@@ -742,7 +754,7 @@ fn str_to_padded_char_codes(str: &str, max_len: u8) -> Result<Vec<BigUint>, Fast
     pad_with_zeroes(arr, max_len)
 }
 
-fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u8) -> Result<Vec<BigUint>, FastCryptoError> {
+fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>, FastCryptoError> {
     if in_arr.len() > out_count as usize {
         return Err(FastCryptoError::GeneralError("in_arr too long".to_string()));
     }
@@ -808,11 +820,13 @@ fn big_int_array_to_bits(integers: &[BigUint], intended_size: usize) -> FastCryp
 
 /// Calculate the poseidon hash of the field element inputs. If there are no inputs, return an error.
 /// If input length is <= 16, calculate H(inputs), if it is <= 32, calculate H(H(inputs[0..16]),
-/// H(inputs[16..])), otherwise return an error.
+/// H(inputs[16..])), if it is <= 48, calculate H(H(inputs[0..16]), H(inputs[16..32]), H(inputs[32..])),
+/// if it is <= 64, calculate H(H(inputs[0..16]), H(inputs[16..32]), H(inputs[32..48]), H(inputs[48..])),
+/// otherwise return an error.
 ///
 /// This functions must be equivalent with the one found in the zk_login circuit.
 pub(crate) fn poseidon_zk_login(inputs: &[Bn254Fr]) -> FastCryptoResult<Bn254Fr> {
-    if inputs.is_empty() || inputs.len() > 32 {
+    if inputs.is_empty() || inputs.len() > 64 {
         return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
     poseidon_merkle_tree(&inputs.iter().map(|x| FieldElement(*x)).collect_vec()).map(|x| x.0)
@@ -823,5 +837,7 @@ fn test_poseidon_zk_login_input_sizes() {
     assert!(poseidon_zk_login(&[]).is_err());
     assert!(poseidon_zk_login(&[Bn254Fr::from_str("123").unwrap(); 1]).is_ok());
     assert!(poseidon_zk_login(&[Bn254Fr::from_str("123").unwrap(); 32]).is_ok());
-    assert!(poseidon_zk_login(&[Bn254Fr::from_str("123").unwrap(); 33]).is_err());
+    assert!(poseidon_zk_login(&[Bn254Fr::from_str("123").unwrap(); 33]).is_ok());
+    assert!(poseidon_zk_login(&[Bn254Fr::from_str("123").unwrap(); 64]).is_ok());
+    assert!(poseidon_zk_login(&[Bn254Fr::from_str("123").unwrap(); 65]).is_err());
 }
