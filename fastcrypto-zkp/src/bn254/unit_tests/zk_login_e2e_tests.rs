@@ -46,6 +46,7 @@ async fn test_end_to_end_twitch() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
+        false,
     );
     assert!(res.is_ok());
 
@@ -56,6 +57,7 @@ async fn test_end_to_end_twitch() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
+        false,
     );
     assert!(res_prod.is_err());
 }
@@ -88,6 +90,7 @@ async fn test_end_to_end_kakao() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
+        false,
     );
     assert!(res.is_ok());
 
@@ -98,6 +101,7 @@ async fn test_end_to_end_kakao() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
+        false,
     );
     assert!(res_prod.is_err());
 }
@@ -129,6 +133,7 @@ async fn test_end_to_end_apple() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
+        false,
     );
     assert!(res.is_ok());
 
@@ -139,6 +144,7 @@ async fn test_end_to_end_apple() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
+        false,
     );
     assert!(res_prod.is_err());
 }
@@ -170,6 +176,7 @@ async fn test_end_to_end_slack() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
+        false,
     );
     assert!(res.is_ok());
 
@@ -180,6 +187,7 @@ async fn test_end_to_end_slack() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
+        false,
     );
     assert!(res_prod.is_err());
 }
@@ -229,6 +237,7 @@ async fn test_end_to_end_all_providers() {
             &eph_pubkey,
             &map,
             &ZkLoginEnv::Test,
+            false,
         );
         assert!(res.is_ok());
 
@@ -239,6 +248,7 @@ async fn test_end_to_end_all_providers() {
             &eph_pubkey,
             &map,
             &ZkLoginEnv::Prod,
+            false,
         );
         assert!(res_prod.is_err());
     }
@@ -363,6 +373,7 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
             &eph_pk_bytes,
             &map,
             &ZkLoginEnv::Test,
+            false,
         );
         assert!(res.is_ok());
     }
