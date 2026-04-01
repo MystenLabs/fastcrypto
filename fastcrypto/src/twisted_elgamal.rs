@@ -377,12 +377,38 @@ impl<const N: usize> KeyConsistencyProof<N> {
         })
     }
 
+    /// Verify checks the provided consistency proof. To do so, it batches all three groups of verification equations
+    /// into a single MSM using hash-derived scalars. The three groups of equations that must hold for a valid proof are:
+    ///
+    ///   Check 1 (decryption handle consistency): Verifies that each decryption handle was formed with the same
+    ///   blinding r_i as the commitment via
+    ///     A1_ij + c * D_ij == z_1i * S_j
+    ///   for all limbs i and recipients j where D_ij = r_i * S_j is the decryption handle and S_j is recipient j's public key.
+    ///   Combined equations using scalars mu_ij = Hash("mu", c, i, j):
+    ///     \sum_j (\sum_i mu_ij * z_1i) * S_j - \sum_{i,j} mu_ij * A1_ij - \sum_{i,j} (c * mu_ij) * D_ij == 0
+    ///
+    ///   Check 2 (commitment consistency): Verifies knowledge of the blinding r_i and message u_i opening the
+    ///   commitment via
+    ///     A2_i + c * C_i == z_1i * G + z_2i * H
+    ///   for all limbs i where C_i = r_i * G + u_i * H is the Pedersen commitment.
+    ///   Combined equations using scalars rho_i = Hash("rho", c, i):
+    ///     (\sum_i rho_i * z_1i) * G + (\sum_i rho_i * z_2i) * H - \sum_i rho_i * A2_i - \sum_i (c * rho_i) * C_i == 0
+    ///
+    ///   Check 3 (public key consistency): Verifies that the encrypted 32-bit key limbs u_i reconstruct to the
+    ///   private key corresponding to U via
+    ///     (\sum_i z_2i * 2^{32i}) * G == (\sum_i A3_i * 2^{32i}) + c * U
+    ///   where U is the sender's public key.
+    ///
+    ///   We combine the individual checks as
+    ///     (check 1) + alpha * (check 2) + beta * (check 3) == 0
+    ///   using hash-derived outer scalars alpha = Hash("alpha", c) and beta = Hash("beta", c) to ensure soundness.
     pub fn verify(
         &self,
         sender_public_key: &PublicKey,
         recipient_encryption_keys: &[PublicKey],
         ciphertexts: &[MultiRecipientCiphertext; N],
     ) -> FastCryptoResult<()> {
+        // Fiat-Shamir challenge
         let c = Self::challenge(
             sender_public_key,
             recipient_encryption_keys,
@@ -392,33 +418,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
             &self.a3,
         );
 
-        // Batch all three groups of verification equations into a single MSM using hash-derived scalars.
-        //
-        // The three groups of equations that must hold for a valid proof are:
-        //
-        //   Check 1 (decryption handle consistency): Verifies that each decryption handle was formed with the same
-        //   blinding r_i as the commitment via
-        //     A1_ij + c * D_ij == z_1i * S_j
-        //   for all limbs i and recipients j where D_ij = r_i * S_j is the decryption handle and S_j is recipient j's public key.
-        //   Combined equations using scalars mu_ij = Hash("mu", c, i, j):
-        //     \sum_j (\sum_i mu_ij * z_1i) * S_j - \sum_{i,j} mu_ij * A1_ij - \sum_{i,j} (c * mu_ij) * D_ij == 0
-        //
-        //   Check 2 (commitment consistency): Verifies knowledge of the blinding r_i and message u_i opening the
-        //   commitment via
-        //     A2_i + c * C_i == z_1i * G + z_2i * H
-        //   for all limbs i where C_i = r_i * G + u_i * H is the Pedersen commitment.
-        //   Combined equations using scalars rho_i = Hash("rho", c, i):
-        //     (\sum_i rho_i * z_1i) * G + (\sum_i rho_i * z_2i) * H - \sum_i rho_i * A2_i - \sum_i (c * rho_i) * C_i == 0
-        //
-        //   Check 3 (public key consistency): Verifies that the encrypted 32-bit key limbs u_i reconstruct to the
-        //   private key corresponding to U via
-        //     (\sum_i z_2i * 2^{32i}) * G == (\sum_i A3_i * 2^{32i}) + c * U
-        //   where U is the sender's public key.
-        //
-        //   We combine the individual checks as
-        //     (check 1) + alpha * (check 2) + beta * (check 3) == 0
-        //   using hash-derived outer scalars alpha = Hash("alpha", c) and beta = Hash("beta", c) to ensure soundness.
-
+        // Number of recipients
         let m = recipient_encryption_keys.len();
 
         // Compute inner scalars mu_ij = Hash("mu", c, i, j) for all i and j used in check 1
@@ -439,7 +439,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
             })
             .collect();
 
-        // Outer scalars alpha = Hash("alpha", c) and beta = Hash("beta", c) combine the three zero-expressions:
+        // Compute outer scalars alpha = Hash("alpha", c) and beta = Hash("beta", c) combining the three zero-expressions:
         //   (check 1) + alpha * (check 2) + beta * (check 3) == 0
         let alpha = {
             let output = Sha3_256::digest(bcs::to_bytes(&("alpha", &c)).unwrap());
@@ -547,8 +547,8 @@ impl<const N: usize> KeyConsistencyProof<N> {
     }
 }
 
-/// A verifiable key encapsulation allows to verifiably encrypt a private key to multiple recipients.
-/// A batch range proof shows that each limb of the private key lies in the range [0, 2^32-1].
+/// A verifiable key encapsulation verifiably encrypts a private key to multiple recipients.
+/// A batch range proof shows that each 32-bit limb of the private key lies in the range [0, 2^32-1].
 /// A key consistency proof shows that the 32-bit key limbs have been encrypted to the correct recipient public keys
 /// and that they correspond to the provided sender public key.
 pub struct VerifiableKeyEncapsulation<const N: usize> {
