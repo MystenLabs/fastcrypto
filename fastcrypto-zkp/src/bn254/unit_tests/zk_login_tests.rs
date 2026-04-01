@@ -481,8 +481,8 @@ fn test_get_provider_to_from_iss_to_from_str() {
         OIDCProvider::Onefc,
         OIDCProvider::FanTV,
         OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), // Trace
-        OIDCProvider::AwsTenant(("eu-north-1".to_string(), "eu-north-1_rz7IVMOR5".to_string())), // test gammaprime
-        OIDCProvider::AwsTenant(("eu-north-1".to_string(), "eu-north-1_K3XgRburu".to_string())), // gammaprime
+        OIDCProvider::AwsTenant(("eu-north-1".to_string(), "eu-north-1_Bpct2JyBg".to_string())), // test gammaprime
+        OIDCProvider::AwsTenant(("eu-north-1".to_string(), "eu-north-1_4HdQTpt3E".to_string())), // gammaprime
     ] {
         // to/from iss
         assert_eq!(p, OIDCProvider::from_iss(&p.get_config().iss).unwrap());
