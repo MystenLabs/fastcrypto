@@ -49,7 +49,6 @@ pub fn setup_receiver(
 
 pub fn setup_dealer(
     threshold: u16,
-    f: u16,
     weight: u16, // Per node
     keys: &[(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)],
 ) -> avss::Dealer {
@@ -65,7 +64,6 @@ pub fn setup_dealer(
         None,
         Nodes::new(nodes).unwrap(),
         threshold,
-        f,
         b"avss".to_vec(),
     )
     .unwrap()
@@ -90,7 +88,7 @@ mod avss_benches {
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
                 let keys = generate_ecies_keys(*n);
-                let d0 = setup_dealer(t, t - 1, w, &keys);
+                let d0 = setup_dealer(t, w, &keys);
                 create.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| b.iter(|| d0.create_message(&mut thread_rng())),
@@ -105,7 +103,7 @@ mod avss_benches {
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
                 let keys = generate_ecies_keys(*n);
-                let d0 = setup_dealer(t, t - 1, w, &keys);
+                let d0 = setup_dealer(t, w, &keys);
                 let r1 = setup_receiver(1, t, w, &keys);
                 let message = d0.create_message(&mut thread_rng());
 
@@ -133,9 +131,7 @@ mod avss_benches {
                         .collect(),
                 )
                 .unwrap();
-                let dealers = (0..*n)
-                    .map(|_| setup_dealer(t, t - 1, w, &keys))
-                    .collect_vec();
+                let dealers = (0..*n).map(|_| setup_dealer(t, w, &keys)).collect_vec();
                 let r1 = setup_receiver(1, t, w, &keys);
                 let messages: HashMap<PartyId, avss::Message> = dealers
                     .iter()
@@ -162,7 +158,7 @@ mod avss_benches {
                 );
 
                 let dealers = (0..total_w)
-                    .map(|_| setup_dealer(t, t - 1, w, &keys))
+                    .map(|_| setup_dealer(t, w, &keys))
                     .collect_vec();
                 let r1 = setup_receiver(1, t, w, &keys);
                 let messages: HashMap<PartyId, avss::Message> = dealers
