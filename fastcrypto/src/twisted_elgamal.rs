@@ -12,6 +12,7 @@ use crate::pedersen::{Blinding, PedersenCommitment, G, H};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use derive_more::{Add, Mul, Sub};
+use std::array;
 //use radix64::configs::Fast;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -23,8 +24,39 @@ pub struct PublicKey(RistrettoPoint);
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrivateKey(RistrettoScalar);
 
+// TODO: Encryptions of the same message can reuse commitments
+#[derive(Debug, Clone, Add, Sub, Mul, Serialize, Deserialize)]
+pub struct Ciphertext {
+    commitment: PedersenCommitment,
+    decryption_handle: RistrettoPoint,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MultiRecipientCiphertext {
+    commitment: PedersenCommitment,
+    decryption_handles: Vec<RistrettoPoint>,
+}
+
+/// A verifiable key encapsulation verifiably encrypts a private key to multiple recipients.
+/// A batch range proof shows that each 32-bit limb of the private key lies in the range [0, 2^32-1].
+/// A key consistency proof shows that the 32-bit key limbs have been encrypted to the correct recipient public keys
+/// and that they correspond to the provided sender public key.
+pub struct VerifiableKeyEncapsulation<const N: usize> {
+    pub ciphertexts: [MultiRecipientCiphertext; N],
+    pub range_proof: RangeProof,
+    pub consistency_proof: KeyConsistencyProof<N>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ZeroProof(DdhTupleNizk<RistrettoPoint>);
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ConsistencyProof {
+    a1: RistrettoPoint,
+    a2: RistrettoPoint,
+    z1: RistrettoScalar,
+    z2: RistrettoScalar,
+}
 
 pub fn generate_keypair(rng: &mut impl AllowedRng) -> (PublicKey, PrivateKey) {
     let sk = PrivateKey(RistrettoScalar::rand(rng));
@@ -45,13 +77,6 @@ pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16> {
         .map(|(i, p)| (p.to_byte_array(), i as u16))
         .take(1 << 16)
         .collect()
-}
-
-// TODO: Encryptions of the same message can reuse commitments
-#[derive(Debug, Clone, Add, Sub, Mul, Serialize, Deserialize)]
-pub struct Ciphertext {
-    commitment: PedersenCommitment,
-    decryption_handle: RistrettoPoint,
 }
 
 impl Ciphertext {
@@ -118,15 +143,6 @@ impl Ciphertext {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ConsistencyProof {
-    a1: RistrettoPoint,
-    a2: RistrettoPoint,
-    a3: RistrettoPoint,
-    z1: RistrettoScalar,
-    z2: RistrettoScalar,
-}
-
 impl ConsistencyProof {
     pub fn prove(
         message: &RistrettoScalar,
@@ -139,13 +155,12 @@ impl ConsistencyProof {
         let r2 = RistrettoScalar::rand(rng);
         let a1 = encryption_key.0 * r1;
         let a2 = RistrettoPoint::multi_scalar_mul(&[r1, r2], &[*G, *H]).expect("Constant length");
-        let a3 = *G * r2;
 
         let c = Self::challenge(&a1, &a2, ciphertext, encryption_key);
         let z1 = r1 + c * blinding.0;
         let z2 = r2 + c * message;
 
-        Ok(Self { a1, a2, a3, z1, z2 })
+        Ok(Self { a1, a2, z1, z2 })
     }
 
     pub fn challenge(
@@ -205,12 +220,6 @@ impl ZeroProof {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MultiRecipientCiphertext {
-    commitment: PedersenCommitment,
-    decryption_handles: Vec<RistrettoPoint>,
-}
-
 impl MultiRecipientCiphertext {
     // Encrypt a 32-bit ciphertext to multiple recipients where the decryption handles share the same blinding factor.
     pub fn encrypt(
@@ -229,30 +238,6 @@ impl MultiRecipientCiphertext {
             },
             blinding,
         )
-    }
-
-    // Encrypt a 32-bit ciphertext to multiple recipients where the decryption handles share the same blinding factor
-    // while also computing consistency proofs showing that ciphertexts were created towards the given encryption keys.
-    pub fn encrypt_with_consistency_proof(
-        encryption_keys: &[PublicKey],
-        message: u32,
-        rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<(Self, Blinding, Vec<ConsistencyProof>)> {
-        let (multi_recipient_ciphertext, blinding) = Self::encrypt(encryption_keys, message, rng);
-        let proofs = encryption_keys
-            .iter()
-            .enumerate()
-            .map(|(i, encryption_key)| {
-                ConsistencyProof::prove(
-                    &RistrettoScalar::from(message as u64),
-                    &multi_recipient_ciphertext.ciphertext(i)?,
-                    &blinding,
-                    encryption_key,
-                    rng,
-                )
-            })
-            .collect::<FastCryptoResult<Vec<ConsistencyProof>>>()?;
-        Ok((multi_recipient_ciphertext, blinding, proofs))
     }
 
     /// Decrypt the ciphertext of a single recipient identified by the provided index.
@@ -547,16 +532,6 @@ impl<const N: usize> KeyConsistencyProof<N> {
     }
 }
 
-/// A verifiable key encapsulation verifiably encrypts a private key to multiple recipients.
-/// A batch range proof shows that each 32-bit limb of the private key lies in the range [0, 2^32-1].
-/// A key consistency proof shows that the 32-bit key limbs have been encrypted to the correct recipient public keys
-/// and that they correspond to the provided sender public key.
-pub struct VerifiableKeyEncapsulation<const N: usize> {
-    pub ciphertexts: [MultiRecipientCiphertext; N],
-    pub range_proof: RangeProof,
-    pub consistency_proof: KeyConsistencyProof<N>,
-}
-
 impl<const N: usize> VerifiableKeyEncapsulation<N> {
     /// Verifiably encrypt a private key to multiple recipient public keys.
     pub fn batch_seal(
@@ -566,7 +541,7 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
     ) -> VerifiableKeyEncapsulation<N> {
         // Re-arrange private key into N 32-bit limbs
         let private_key_bytes = sender_private_key.0.to_byte_array();
-        let limbs: [u32; N] = std::array::from_fn(|i| {
+        let limbs: [u32; N] = array::from_fn(|i| {
             u32::from_le_bytes(private_key_bytes[4 * i..4 * (i + 1)].try_into().unwrap())
         });
 
