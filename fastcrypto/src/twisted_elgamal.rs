@@ -6,17 +6,14 @@ use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
 use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
-use crate::hash::{HashFunction, Sha3_256};
 use crate::nizk::DdhTupleNizk;
 use crate::pedersen::{Blinding, PedersenCommitment, G, H};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use derive_more::{Add, Mul, Sub};
+use serde::{Deserialize, Serialize};
 use std::array;
 use std::array::from_fn;
-//use radix64::configs::Fast;
-use crate::hash;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::iter::successors;
 
@@ -171,8 +168,8 @@ impl ConsistencyProof {
         ciphertext: &Ciphertext,
         encryption_key: &PublicKey,
     ) -> RistrettoScalar {
-        let output = Sha3_256::digest(
-            bcs::to_bytes(&(
+        RistrettoScalar::fiat_shamir_reduction_to_group_element(
+            &bcs::to_bytes(&(
                 &*G,
                 &*H,
                 a,
@@ -182,8 +179,7 @@ impl ConsistencyProof {
                 encryption_key,
             ))
             .unwrap(),
-        );
-        RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
+        )
     }
 
     pub fn verify(
@@ -380,8 +376,9 @@ impl<const N: usize> KeyConsistencyProof<N> {
         let mu: Vec<RistrettoScalar> = (0..N)
             .flat_map(|i| {
                 (0..m).map(move |j| {
-                    let output = Sha3_256::digest(bcs::to_bytes(&("mu", &c, i, j)).unwrap());
-                    RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
+                    RistrettoScalar::fiat_shamir_reduction_to_group_element(
+                        &bcs::to_bytes(&("mu", &c, i, j)).unwrap(),
+                    )
                 })
             })
             .collect();
@@ -389,20 +386,23 @@ impl<const N: usize> KeyConsistencyProof<N> {
         // Compute inner scalars rho_i = Hash("rho", c, i) for all i used in check 2
         let rho: Vec<RistrettoScalar> = (0..N)
             .map(|i| {
-                let output = Sha3_256::digest(bcs::to_bytes(&("rho", &c, i)).unwrap());
-                RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
+                RistrettoScalar::fiat_shamir_reduction_to_group_element(
+                    &bcs::to_bytes(&("rho", &c, i)).unwrap(),
+                )
             })
             .collect();
 
         // Compute outer scalars alpha = Hash("alpha", c) and beta = Hash("beta", c) combining the three zero-expressions:
         //   (check 1) + alpha * (check 2) + beta * (check 3) == 0
         let alpha = {
-            let output = Sha3_256::digest(bcs::to_bytes(&("alpha", &c)).unwrap());
-            RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
+            RistrettoScalar::fiat_shamir_reduction_to_group_element(
+                &bcs::to_bytes(&("alpha", &c)).unwrap(),
+            )
         };
         let beta = {
-            let output = Sha3_256::digest(bcs::to_bytes(&("beta", &c)).unwrap());
-            RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
+            RistrettoScalar::fiat_shamir_reduction_to_group_element(
+                &bcs::to_bytes(&("beta", &c)).unwrap(),
+            )
         };
 
         // Check 2: compute sum_i(rho_i * z_1i) and sum_i(rho_i * z_2i)
@@ -485,8 +485,8 @@ impl<const N: usize> KeyConsistencyProof<N> {
         a2: &[RistrettoPoint],
         a3: &[RistrettoPoint],
     ) -> RistrettoScalar {
-        let output = Sha3_256::digest(
-            bcs::to_bytes(&(
+        RistrettoScalar::fiat_shamir_reduction_to_group_element(
+            &bcs::to_bytes(&(
                 &*G,
                 &*H,
                 sender_public_key,
@@ -497,8 +497,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
                 a3,
             ))
             .unwrap(),
-        );
-        RistrettoScalar::fiat_shamir_reduction_to_group_element(&output.digest)
+        )
     }
 }
 
@@ -620,16 +619,6 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
         }
         Ok(PrivateKey(private_key))
     }
-}
-
-/// Simple Fiat-Shamir reduction of a byte array to a Ristretto scalar by interpreting the first 31
-/// bytes of the Blake2b hash of the input as the little-endian representation of a Ristretto scalar.
-///
-/// The distribution will NOT be uniform over the scalar field, but it almost the same entropy.
-fn fiat_shamir_reduction_to_group_element(bytes: &[u8]) -> RistrettoScalar {
-    let mut digest = hash::Blake2b256::digest(bytes).digest;
-    digest[31] = 0; // Ensure that we're in the right field
-    RistrettoScalar::from_byte_array(&digest).unwrap()
 }
 
 #[test]
