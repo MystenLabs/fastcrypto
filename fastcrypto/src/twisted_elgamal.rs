@@ -21,7 +21,6 @@ pub struct PublicKey(RistrettoPoint);
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrivateKey(RistrettoScalar);
 
-// TODO: Encryptions of the same message can reuse commitments
 #[derive(Debug, Clone, Add, Sub, Mul, Serialize, Deserialize)]
 pub struct Ciphertext {
     commitment: PedersenCommitment,
