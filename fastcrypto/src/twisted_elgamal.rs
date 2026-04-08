@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bulletproofs::{Range, RangeProof};
-use crate::bulletproofs::{Range, RangeProof};
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
@@ -12,14 +11,12 @@ use crate::pedersen::{Blinding, PedersenCommitment, G, H};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use derive_more::{Add, Mul, Sub};
-//use radix64::configs::Fast;
 use serde::{Deserialize, Serialize};
-use std::array;
 use std::array::from_fn;
 use std::collections::HashMap;
 use std::iter::successors;
 
-#[derive(Clone, Clone, Debug, PartialEq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PublicKey(RistrettoPoint);
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -142,15 +139,6 @@ impl Ciphertext {
             rng,
         ))
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ConsistencyProof {
-    a1: RistrettoPoint,
-    a2: RistrettoPoint,
-    a3: RistrettoPoint,
-    z1: RistrettoScalar,
-    z2: RistrettoScalar,
 }
 
 impl ConsistencyProof {
