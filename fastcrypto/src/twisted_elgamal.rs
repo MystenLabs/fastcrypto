@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
-use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
 use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
-use crate::nizk::DdhTupleNizk;
 use crate::pedersen::{Blinding, PedersenCommitment, G, H};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -14,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use std::array::from_fn;
 use std::collections::HashMap;
 use std::iter::successors;
-use tracing::debug;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PublicKey(RistrettoPoint);
@@ -149,7 +147,7 @@ impl Ciphertext {
 
     /// Create a PoK of a private key such that the given encryption is of the message 0.
     pub fn zero_proof(&self, private_key: &PrivateKey, rng: &mut impl AllowedRng) -> ZeroProof {
-        ZeroProof::create(&self, private_key, rng)
+        ZeroProof::create(self, private_key, rng)
     }
 }
 
