@@ -15,6 +15,7 @@ use derive_more::{Add, Mul, Sub};
 use std::array;
 use std::array::from_fn;
 //use radix64::configs::Fast;
+use crate::hash;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::iter::successors;
@@ -619,6 +620,16 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
         }
         Ok(PrivateKey(private_key))
     }
+}
+
+/// Simple Fiat-Shamir reduction of a byte array to a Ristretto scalar by interpreting the first 31
+/// bytes of the Blake2b hash of the input as the little-endian representation of a Ristretto scalar.
+///
+/// The distribution will NOT be uniform over the scalar field, but it almost the same entropy.
+fn fiat_shamir_reduction_to_group_element(bytes: &[u8]) -> RistrettoScalar {
+    let mut digest = hash::Blake2b256::digest(bytes).digest;
+    digest[31] = 0; // Ensure that we're in the right field
+    RistrettoScalar::from_byte_array(&digest).unwrap()
 }
 
 #[test]
