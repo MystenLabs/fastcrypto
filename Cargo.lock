@@ -1353,6 +1353,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "hkdf",
+ "itertools 0.12.1",
  "k256",
  "lazy_static",
  "merlin",

@@ -46,6 +46,14 @@ pub trait GroupElement:
     fn sum(terms: impl Iterator<Item = Self>) -> Self {
         terms.fold(Self::zero(), |acc, x| acc + x)
     }
+
+    /// Compute the inner product of two iterators. The sum stops when the shortest iterator ends.
+    fn inner_product<B: IntoIterator<Item = Self::ScalarType>>(
+        a: impl IntoIterator<Item = Self>,
+        b: B,
+    ) -> Self {
+        Self::sum(a.into_iter().zip(b).map(|(a, b)| a * b))
+    }
 }
 
 // TODO: Move Serialize + DeserializeOwned to GroupElement.
