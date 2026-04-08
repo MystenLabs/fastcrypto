@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
-use crate::error::FastCryptoResult;
+use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
 use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
 use crate::nizk::DdhTupleNizk;
@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::array::from_fn;
 use std::collections::HashMap;
 use std::iter::successors;
+use tracing::debug;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PublicKey(RistrettoPoint);
@@ -61,7 +62,11 @@ pub struct KeyConsistencyProof<const N: usize> {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ZeroProof(DdhTupleNizk<RistrettoPoint>);
+pub struct ZeroProof {
+    a1: RistrettoPoint,
+    a2: RistrettoPoint,
+    z: RistrettoScalar,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConsistencyProof {
@@ -144,15 +149,41 @@ impl Ciphertext {
 
     /// Create a PoK of a private key such that the given encryption is of the message 0.
     pub fn zero_proof(&self, private_key: &PrivateKey, rng: &mut impl AllowedRng) -> ZeroProof {
+        ZeroProof::create(&self, private_key, rng)
+    }
+}
+
+impl ZeroProof {
+    pub fn create<R: AllowedRng>(
+        encryption: &Ciphertext,
+        private_key: &PrivateKey,
+        rng: &mut R,
+    ) -> Self {
+        let r = RistrettoScalar::rand(rng);
+        let a1 = RistrettoPoint::generator() * r;
+        let a2 = encryption.commitment.0 * r;
         let pk = pk_from_sk(private_key);
-        ZeroProof(DdhTupleNizk::create(
-            &private_key.0,
-            &RistrettoPoint::generator(),
-            &self.commitment.0,
-            &pk.0,
-            &self.decryption_handle,
-            rng,
-        ))
+        let challenge = fiat_shamir_challenge(&(&a1, &a2, &pk, &encryption));
+        let z = challenge * private_key.0 + r;
+        ZeroProof { a1, a2, z }
+    }
+
+    pub fn verify(&self, encryption: &Ciphertext, pk: &PublicKey) -> FastCryptoResult<()> {
+        let c = fiat_shamir_challenge(&(&self.a1, &self.a2, &pk, &encryption));
+        if self.a1
+            != RistrettoPoint::multi_scalar_mul(&[-c, self.z], &[pk.0, *G])
+                .expect("Constant lengths")
+            || self.a2
+                != RistrettoPoint::multi_scalar_mul(
+                    &[-c, self.z],
+                    &[encryption.decryption_handle, encryption.commitment.0],
+                )
+                .expect("Constant lengths")
+        {
+            Err(InvalidProof)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -215,17 +246,6 @@ impl ConsistencyProof {
             return Err(InvalidProof);
         }
         Ok(())
-    }
-}
-
-impl ZeroProof {
-    pub fn verify(&self, encryption: &Ciphertext, pk: &PublicKey) -> FastCryptoResult<()> {
-        self.0.verify(
-            &RistrettoPoint::generator(),
-            &encryption.commitment.0,
-            &pk.0,
-            &encryption.decryption_handle,
-        )
     }
 }
 
@@ -385,11 +405,14 @@ impl<const N: usize> KeyConsistencyProof<N> {
 
         // Check 3: compute z = \sum_i z_2i * 2^{32i}
         let b = RistrettoScalar::from(1u64 << 32);
-        let z = RistrettoScalar::sum(self
-            .z2
-            .iter()
-            .zip(successors(Some(RistrettoScalar::generator()), |e| Some(e * b)))
-            .map(|(z2i, e)| *z2i * e));
+        let z = RistrettoScalar::sum(
+            self.z2
+                .iter()
+                .zip(successors(Some(RistrettoScalar::generator()), |e| {
+                    Some(e * b)
+                }))
+                .map(|(z2i, e)| *z2i * e),
+        );
 
         let mut scalars: Vec<RistrettoScalar> = vec![alpha * rho_z1 + beta * z, alpha * rho_z2];
         let mut points: Vec<RistrettoPoint> = vec![*G, *H];
