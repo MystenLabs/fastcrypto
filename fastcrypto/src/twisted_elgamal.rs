@@ -793,3 +793,55 @@ fn test_key_consistency_proof() {
         .verify(&other_pk_snd, &[pk_rcv], &ciphertexts)
         .is_err());
 }
+
+#[test]
+fn test_verifiable_key_encapsulation() {
+    const N: usize = 8;
+    let mut rng = rand::thread_rng();
+    let table = precompute_table();
+
+    // Sender key pair; the private key will be encapsulated
+    let (pk_snd, sk_snd) = generate_keypair(&mut rng);
+
+    // Three recipient key pairs
+    let (pk_rcv_0, sk_rcv_0) = generate_keypair(&mut rng);
+    let (pk_rcv_1, sk_rcv_1) = generate_keypair(&mut rng);
+    let (pk_rcv_2, sk_rcv_2) = generate_keypair(&mut rng);
+
+    let recipient_keys = [pk_rcv_0.clone(), pk_rcv_1.clone(), pk_rcv_2.clone()];
+
+    // Seal the sender's private key to all three recipients
+    let encapsulation =
+        VerifiableKeyEncapsulation::<N>::batch_seal(&sk_snd, &recipient_keys, &mut rng);
+
+    // Verification passes for the correct sender public key and recipient keys
+    assert!(encapsulation
+        .verify(&pk_snd, &recipient_keys, &mut rng)
+        .is_ok());
+
+    // Verification fails with a wrong sender public key
+    let (other_pk, _) = generate_keypair(&mut rng);
+    assert!(encapsulation
+        .verify(&other_pk, &recipient_keys, &mut rng)
+        .is_err());
+
+    // Each recipient can independently recover the sender's private key
+    let recovered_0 = encapsulation
+        .open(0, &sk_rcv_0, &recipient_keys, &pk_snd, &table, &mut rng)
+        .unwrap();
+    let recovered_1 = encapsulation
+        .open(1, &sk_rcv_1, &recipient_keys, &pk_snd, &table, &mut rng)
+        .unwrap();
+    let recovered_2 = encapsulation
+        .open(2, &sk_rcv_2, &recipient_keys, &pk_snd, &table, &mut rng)
+        .unwrap();
+
+    assert_eq!(recovered_0.0, sk_snd.0);
+    assert_eq!(recovered_1.0, sk_snd.0);
+    assert_eq!(recovered_2.0, sk_snd.0);
+
+    // A recipient cannot open another recipient's slot with their own key
+    assert!(encapsulation
+        .open(1, &sk_rcv_0, &recipient_keys, &pk_snd, &table, &mut rng)
+        .is_err());
+}
