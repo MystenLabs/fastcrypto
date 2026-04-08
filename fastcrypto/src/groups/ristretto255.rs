@@ -193,10 +193,6 @@ impl Scalar for RistrettoScalar {
 }
 
 impl FiatShamirChallenge for RistrettoScalar {
-    /// Simple Fiat-Shamir reduction of a byte array to a Ristretto scalar by interpreting the first 31
-    /// bytes of the Blake2b hash of the input as the little-endian representation of a Ristretto scalar.
-    ///
-    /// The distribution will NOT be uniform over the scalar field, but it almost the same entropy.
     fn fiat_shamir_reduction_to_group_element(msg: &[u8]) -> Self {
         let mut digest = hash::Blake2b256::digest(msg).digest;
         digest[31] = 0; // Ensure that we're in the right field
