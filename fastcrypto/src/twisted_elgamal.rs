@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::bulletproofs::{Range, RangeProof};
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
@@ -39,6 +40,7 @@ pub struct MultiRecipientCiphertext {
 /// and that they correspond to the provided sender public key.
 pub struct VerifiableKeyEncapsulation<const N: usize> {
     pub ciphertexts: [MultiRecipientCiphertext; N],
+    pub range_proof: RangeProof,
     pub consistency_proof: KeyConsistencyProof<N>,
 }
 
@@ -486,6 +488,11 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
             .unzip();
         let ciphertexts: [MultiRecipientCiphertext; N] = ciphertexts.try_into().unwrap();
 
+        // Create range proof
+        let range_proof =
+            RangeProof::prove_batch(&limbs.map(|m| m as u64), &blindings, &Range::Bits32, rng)
+                .unwrap();
+
         // Create consistency proof
         let consistency_proof = KeyConsistencyProof::prove(
             &limbs,
@@ -498,6 +505,7 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
 
         VerifiableKeyEncapsulation {
             ciphertexts,
+            range_proof,
             consistency_proof,
         }
     }
@@ -520,7 +528,16 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
         &self,
         sender_public_key: &PublicKey,
         recipient_encryption_keys: &[PublicKey],
+        rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
+        // Verify range proof over the Pedersen commitments of all limb ciphertexts
+        let commitments = self
+            .ciphertexts
+            .iter()
+            .map(|c| c.commitment.clone())
+            .collect::<Vec<_>>();
+        self.range_proof
+            .verify_batch(&commitments, &Range::Bits32, rng)?;
         self.consistency_proof.verify(
             sender_public_key,
             recipient_encryption_keys,
@@ -538,9 +555,10 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
         recipient_public_keys: &[PublicKey],
         sender_public_key: &PublicKey,
         table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
+        rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<PrivateKey> {
         // Verify consistency proofs against all recipient keys
-        self.verify(sender_public_key, recipient_public_keys)?;
+        self.verify(sender_public_key, recipient_public_keys, rng)?;
 
         // Decrypt each limb ciphertext using the recipient's decryption key
         let limbs = self
@@ -744,21 +762,25 @@ fn test_verifiable_key_encapsulation() {
         VerifiableKeyEncapsulation::<N>::batch_seal(&sk_snd, &recipient_keys, &mut rng);
 
     // Verification passes for the correct sender public key and recipient keys
-    assert!(encapsulation.verify(&pk_snd, &recipient_keys).is_ok());
+    assert!(encapsulation
+        .verify(&pk_snd, &recipient_keys, &mut rng)
+        .is_ok());
 
     // Verification fails with a wrong sender public key
     let (other_pk, _) = generate_keypair(&mut rng);
-    assert!(encapsulation.verify(&other_pk, &recipient_keys).is_err());
+    assert!(encapsulation
+        .verify(&other_pk, &recipient_keys, &mut rng)
+        .is_err());
 
     // Each recipient can independently recover the sender's private key
     let recovered_0 = encapsulation
-        .open(0, &sk_rcv_0, &recipient_keys, &pk_snd, &table)
+        .open(0, &sk_rcv_0, &recipient_keys, &pk_snd, &table, &mut rng)
         .unwrap();
     let recovered_1 = encapsulation
-        .open(1, &sk_rcv_1, &recipient_keys, &pk_snd, &table)
+        .open(1, &sk_rcv_1, &recipient_keys, &pk_snd, &table, &mut rng)
         .unwrap();
     let recovered_2 = encapsulation
-        .open(2, &sk_rcv_2, &recipient_keys, &pk_snd, &table)
+        .open(2, &sk_rcv_2, &recipient_keys, &pk_snd, &table, &mut rng)
         .unwrap();
 
     assert_eq!(recovered_0.0, sk_snd.0);
@@ -767,7 +789,7 @@ fn test_verifiable_key_encapsulation() {
 
     // A recipient cannot open another recipient's slot with their own key
     assert!(encapsulation
-        .open(1, &sk_rcv_0, &recipient_keys, &pk_snd, &table)
+        .open(1, &sk_rcv_0, &recipient_keys, &pk_snd, &table, &mut rng)
         .is_err());
 }
 
