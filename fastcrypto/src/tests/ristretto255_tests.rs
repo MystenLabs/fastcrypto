@@ -63,14 +63,7 @@ fn test_arithmetic() {
 #[test]
 fn hash_regression_tests() {
     let input = b"Random numbers should not be generated with a method chosen at random";
-    let expected_scalar = hex!("9f07ae34b44b42539e3c45be1da015e10369a454b3ffaec9a7bbe1086b6d170d");
     let expected_point = hex!("baf5aa3b987469509a11b22d069be0731904af04889790cc6bd54d77afbf871d");
-    assert_eq!(
-        RistrettoScalar::hash_to_group_element(input)
-            .to_byte_array()
-            .to_vec(),
-        expected_scalar
-    );
     assert_eq!(
         RistrettoPoint::hash_to_group_element(input)
             .to_byte_array()
@@ -79,12 +72,6 @@ fn hash_regression_tests() {
     );
 
     let other_input = b"Any one who considers arithmetical methods of producing random digits is, of course, in a state of sin";
-    assert_ne!(
-        RistrettoScalar::hash_to_group_element(other_input)
-            .to_byte_array()
-            .to_vec(),
-        expected_scalar
-    );
     assert_ne!(
         RistrettoPoint::hash_to_group_element(other_input)
             .to_byte_array()

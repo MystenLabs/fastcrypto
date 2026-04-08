@@ -14,7 +14,7 @@ use crate::hash::Sha512;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use crate::{
-    error::FastCryptoError, hash::HashFunction, serialize_deserialize_with_to_from_byte_array,
+    error::FastCryptoError, hash, hash::HashFunction, serialize_deserialize_with_to_from_byte_array,
 };
 use curve25519_dalek;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
@@ -192,15 +192,11 @@ impl Scalar for RistrettoScalar {
     }
 }
 
-impl HashToGroupElement for RistrettoScalar {
-    fn hash_to_group_element(bytes: &[u8]) -> Self {
-        Self::from_bytes_mod_order_wide(&Sha512::digest(bytes).digest)
-    }
-}
-
 impl FiatShamirChallenge for RistrettoScalar {
     fn fiat_shamir_reduction_to_group_element(msg: &[u8]) -> Self {
-        Self::hash_to_group_element(msg)
+        let mut digest = hash::Blake2b256::digest(msg).digest;
+        digest[31] = 0; // Ensure that we're in the right field
+        RistrettoScalar::from_byte_array(&digest).unwrap()
     }
 }
 
