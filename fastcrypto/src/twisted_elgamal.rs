@@ -14,7 +14,6 @@ use itertools::{iterate, Itertools};
 use serde::{Deserialize, Serialize};
 use std::array::from_fn;
 use std::collections::HashMap;
-use std::iter::successors;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PublicKey(RistrettoPoint);
@@ -61,6 +60,7 @@ pub struct KeyConsistencyProof<const N: usize> {
     z2: [RistrettoScalar; N],
 }
 
+/// Sigma protocol that a Twisted ElGamal ciphertext encrypts the message 0.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ZeroProof {
     a1: RistrettoPoint,
@@ -68,6 +68,7 @@ pub struct ZeroProof {
     z: RistrettoScalar,
 }
 
+/// Sigma protocol that a Twisted ElGamal ciphertext is a valid encryption of some message (without revealing the message).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConsistencyProof {
     a1: RistrettoPoint,
@@ -78,23 +79,13 @@ pub struct ConsistencyProof {
 
 pub fn generate_keypair(rng: &mut impl AllowedRng) -> (PublicKey, PrivateKey) {
     let sk = PrivateKey(RistrettoScalar::rand(rng));
-    (pk_from_sk(&sk), sk)
+    (PublicKey::from(&sk), sk)
 }
 
-pub fn pk_from_sk(sk: &PrivateKey) -> PublicKey {
-    PublicKey(*G * sk.0)
-}
-
-/// Precompute discrete log table for use in decryption. This only needs to be computed once.
-///
-/// The table contains a mapping from Ristretto points <i>(2<sup>16</sup> x) G<i> to <i>x</i> for all <i>x</i> in the range <i>0, .., 2<sup>16</sup>-1</i>.
-pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16> {
-    let step = H.repeated_doubling(16);
-    successors(Some(RistrettoPoint::zero()), |p| Some(p + step))
-        .enumerate()
-        .map(|(i, p)| (p.to_byte_array(), i as u16))
-        .take(1 << 16)
-        .collect()
+impl From<&PrivateKey> for PublicKey {
+    fn from(sk: &PrivateKey) -> Self {
+        PublicKey(*G * sk.0)
+    }
 }
 
 impl Ciphertext {
@@ -162,7 +153,7 @@ impl ZeroProof {
         let r = RistrettoScalar::rand(rng);
         let a1 = RistrettoPoint::generator() * r;
         let a2 = encryption.commitment.0 * r;
-        let pk = pk_from_sk(private_key);
+        let pk = PublicKey::from(private_key);
         let challenge = fiat_shamir_challenge(&(&a1, &a2, &pk, &encryption));
         let z = challenge * private_key.0 + r;
         ZeroProof { a1, a2, z }
@@ -499,7 +490,7 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
         // Create consistency proof
         let consistency_proof = KeyConsistencyProof::prove(
             &limbs,
-            &pk_from_sk(sender_private_key),
+            &PublicKey::from(sender_private_key),
             recipient_encryption_keys,
             &ciphertexts,
             &blindings.try_into().unwrap(),
@@ -564,11 +555,23 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
         let private_key = RistrettoScalar::from_byte_array(&private_key_bytes.try_into().unwrap())?;
 
         // Verify the recovered key corresponds to the sender's public key
-        if pk_from_sk(&PrivateKey(private_key)) != *sender_public_key {
+        if PublicKey::from(&PrivateKey(private_key)) != *sender_public_key {
             return Err(InvalidInput);
         }
         Ok(PrivateKey(private_key))
     }
+}
+
+/// Precompute discrete log table for use in decryption. This only needs to be computed once.
+///
+/// The table contains a mapping from Ristretto points <i>(2<sup>16</sup> x) G<i> to <i>x</i> for all <i>x</i> in the range <i>0, .., 2<sup>16</sup>-1</i>.
+pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16> {
+    let step = H.repeated_doubling(16);
+    iterate(RistrettoPoint::zero(), |p| p + step)
+        .enumerate()
+        .map(|(i, p)| (p.to_byte_array(), i as u16))
+        .take(1 << 16)
+        .collect()
 }
 
 /// Derive a Fiat-Shamir challenge scalar from any serializable message.
