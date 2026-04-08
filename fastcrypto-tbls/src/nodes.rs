@@ -164,17 +164,19 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     /// - The new weights are all divided by d (floor division)
     /// - The precision loss, counted as the sum of the remainders of the division by d, is at most
     ///   the allowed delta
+    /// - The new threshold on the number of Byzantine parties is ceil(f / d)
     ///
     /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
     ///
     /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To
     /// get the best results, set it to 1.
-    pub fn new_reduced(
+    pub fn new_reduced_with_f(
         nodes_vec: Vec<Node<G>>,
         t: u16,
+        f: Option<u16>,
         allowed_delta: u16,
         total_weight_lower_bound: u16,
-    ) -> FastCryptoResult<(Self, u16)> {
+    ) -> FastCryptoResult<(Self, u16, Option<u16>)> {
         let n = Self::new(nodes_vec)?; // checks the input, etc
         assert!(total_weight_lower_bound <= n.total_weight && total_weight_lower_bound > 0);
         let mut max_d = 1;
@@ -211,6 +213,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         // U16 is safe here since the original total_weight is u16.
         let total_weight = nodes.iter().map(|n| n.weight).sum::<u16>();
         let new_t = t.div_ceil(max_d);
+        let new_f = f.map(|f| f.div_ceil(max_d));
         Ok((
             Self {
                 nodes,
@@ -219,6 +222,18 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                 nodes_with_nonzero_weight,
             },
             new_t,
+            new_f,
         ))
+    }
+
+    /// Same as [Nodes::new_reduced_with_f], but this only computes a new threshold, `t`, and not a threshold for the number of Byzantine parties, `f`.
+    pub fn new_reduced(
+        nodes_vec: Vec<Node<G>>,
+        t: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
+    ) -> FastCryptoResult<(Self, u16)> {
+        Self::new_reduced_with_f(nodes_vec, t, None, allowed_delta, total_weight_lower_bound)
+            .map(|(n, t, _)| (n, t))
     }
 }
