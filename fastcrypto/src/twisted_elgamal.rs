@@ -13,6 +13,7 @@ use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use derive_more::{Add, Mul, Sub};
 use std::array;
+use std::array::from_fn;
 //use radix64::configs::Fast;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -296,28 +297,20 @@ impl<const N: usize> KeyConsistencyProof<N> {
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<Self> {
         // Sample N random a_i and b_i
-        let a = (0..N)
-            .map(|_| RistrettoScalar::rand(rng))
-            .collect::<Vec<_>>();
-        let b = (0..N)
-            .map(|_| RistrettoScalar::rand(rng))
-            .collect::<Vec<_>>();
+        let a: [_; N] = from_fn(|_| RistrettoScalar::rand(rng));
+        let b: [_; N] = from_fn(|_| RistrettoScalar::rand(rng));
 
         // A_1ij = a_i * pk_j for all (i, j) — N*m elements, ordered by limb then recipient
         let a1 = a
             .iter()
             .flat_map(|ai| recipient_encryption_keys.iter().map(move |pk| pk.0 * ai))
-            .collect::<Vec<RistrettoPoint>>();
+            .collect::<Vec<_>>();
 
         // A_2i = a_i * G + b_i * H for all i
-        let a2 = a
-            .iter()
-            .zip(b.iter())
-            .map(|(ai, bi)| *G * ai + *H * bi)
-            .collect::<Vec<RistrettoPoint>>();
+        let a2 = from_fn(|i| *G * a[i] + *H * b[i]);
 
         // A_3i = b_i * G for all i
-        let a3 = b.iter().map(|bi| *G * bi).collect::<Vec<RistrettoPoint>>();
+        let a3 = from_fn(|i| *G * b[i]);
 
         // c = Hash(G, H, sender_public_key, recipient_encryption_keys, ciphertexts, a1, a2, a3)
         let c = Self::challenge(
@@ -330,26 +323,12 @@ impl<const N: usize> KeyConsistencyProof<N> {
         );
 
         // z_1i = a_i + c * r_i
-        let z1 = a
-            .iter()
-            .zip(blindings.iter())
-            .map(|(ai, ri)| ai + c * ri.0)
-            .collect::<Vec<RistrettoScalar>>();
+        let z1 = from_fn(|i| a[i] + c * blindings[i].0);
 
         // z_2i = b_i + c * u_i
-        let z2 = b
-            .iter()
-            .zip(sender_private_key_limbs.iter())
-            .map(|(bi, ui)| bi + c * RistrettoScalar::from(*ui as u64))
-            .collect::<Vec<RistrettoScalar>>();
+        let z2 = from_fn(|i| b[i] + c * RistrettoScalar::from(sender_private_key_limbs[i] as u64));
 
-        Ok(Self {
-            a1,
-            a2: a2.try_into().unwrap(),
-            a3: a3.try_into().unwrap(),
-            z1: z1.try_into().unwrap(),
-            z2: z2.try_into().unwrap(),
-        })
+        Ok(Self { a1, a2, a3, z1, z2 })
     }
 
     /// Verify checks the provided consistency proof. To do so, it batches all three groups of verification equations
