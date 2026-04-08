@@ -250,14 +250,7 @@ impl MultiRecipientCiphertext {
         if index > self.decryption_handles.len() {
             return Err(InvalidInput);
         }
-        let mut c = self.commitment.0 - (self.decryption_handles[index] / decryption_key.0)?;
-        for x_low in 0..1 << 16 {
-            if let Some(&x_high) = table.get(&c.to_byte_array()) {
-                return Ok(x_low + ((x_high as u32) << 16));
-            }
-            c -= *H;
-        }
-        Err(InvalidInput)
+        self.ciphertext(index)?.decrypt(decryption_key, table)
     }
 
     pub fn ciphertext(&self, index: usize) -> FastCryptoResult<Ciphertext> {
