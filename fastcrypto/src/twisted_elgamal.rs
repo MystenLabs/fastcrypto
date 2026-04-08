@@ -286,14 +286,6 @@ impl MultiRecipientCiphertext {
             decryption_handle: self.decryption_handles[index],
         })
     }
-
-    pub fn commitment(&self) -> FastCryptoResult<PedersenCommitment> {
-        Ok(self.commitment.clone())
-    }
-
-    pub fn decryption_handle(&self, index: usize) -> FastCryptoResult<RistrettoPoint> {
-        Ok(self.decryption_handles[index])
-    }
 }
 
 impl<const N: usize> KeyConsistencyProof<N> {
