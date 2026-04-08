@@ -385,14 +385,11 @@ impl<const N: usize> KeyConsistencyProof<N> {
 
         // Check 3: compute z = \sum_i z_2i * 2^{32i}
         let b = RistrettoScalar::from(1u64 << 32);
-        let z = self
+        let z = RistrettoScalar::sum(self
             .z2
             .iter()
-            .fold(
-                (RistrettoScalar::zero(), RistrettoScalar::generator()),
-                |(z, exp), z2i| (z + *z2i * exp, exp * b),
-            )
-            .0;
+            .zip(successors(Some(RistrettoScalar::generator()), |e| Some(e * b)))
+            .map(|(z2i, e)| *z2i * e));
 
         let mut scalars: Vec<RistrettoScalar> = vec![alpha * rho_z1 + beta * z, alpha * rho_z2];
         let mut points: Vec<RistrettoPoint> = vec![*G, *H];
