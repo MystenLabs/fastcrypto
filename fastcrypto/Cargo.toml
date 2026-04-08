@@ -59,6 +59,7 @@ bcs.workspace = true
 bulletproofs = "5.0.0"
 merlin = "3.0.0"
 tracing.workspace = true
+itertools = "0.12.0"
 
 # Required for the unsecure signature and hash schemes
 twox-hash = { version = "1.6.3", optional = true }

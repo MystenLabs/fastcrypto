@@ -10,6 +10,7 @@ use crate::pedersen::{Blinding, PedersenCommitment, G, H};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use derive_more::{Add, Mul, Sub};
+use itertools::{iterate, Itertools};
 use serde::{Deserialize, Serialize};
 use std::array::from_fn;
 use std::collections::HashMap;
@@ -306,7 +307,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
         let a1 = a
             .iter()
             .flat_map(|ai| recipient_encryption_keys.iter().map(move |pk| pk.0 * ai))
-            .collect::<Vec<_>>();
+            .collect_vec();
 
         // A_2i = a_i * G + b_i * H for all i
         let a2 = from_fn(|i| *G * a[i] + *H * b[i]);
@@ -391,18 +392,14 @@ impl<const N: usize> KeyConsistencyProof<N> {
         let beta = fiat_shamir_challenge(&("beta", &c));
 
         // Check 2: compute sum_i(rho_i * z_1i) and sum_i(rho_i * z_2i)
-        let rho_z1 = RistrettoScalar::sum(rho.iter().zip(&self.z1).map(|(rhoi, z1i)| *rhoi * *z1i));
-        let rho_z2 = RistrettoScalar::sum(rho.iter().zip(&self.z2).map(|(rhoi, z2i)| *rhoi * *z2i));
+        let rho_z1 = RistrettoScalar::inner_product(rho, self.z1);
+        let rho_z2 = RistrettoScalar::inner_product(rho, self.z2);
 
         // Check 3: compute z = \sum_i z_2i * 2^{32i}
         let b = RistrettoScalar::from(1u64 << 32);
-        let z = RistrettoScalar::sum(
-            self.z2
-                .iter()
-                .zip(successors(Some(RistrettoScalar::generator()), |e| {
-                    Some(e * b)
-                }))
-                .map(|(z2i, e)| *z2i * e),
+        let z = RistrettoScalar::inner_product(
+            iterate(RistrettoScalar::generator(), |e| e * b),
+            self.z2,
         );
 
         let mut scalars: Vec<RistrettoScalar> = vec![alpha * rho_z1 + beta * z, alpha * rho_z2];
@@ -410,8 +407,9 @@ impl<const N: usize> KeyConsistencyProof<N> {
 
         // Check 1: Append (\sum_i mu_ij * z_1i, S_j) terms for each recipient j
         for j in 0..m {
-            scalars.push(RistrettoScalar::sum(
-                (0..N).map(|i| mu[i * m + j] * self.z1[i]),
+            scalars.push(RistrettoScalar::inner_product(
+                (0..N).map(|i| mu[i * m + j]),
+                self.z1,
             ));
             points.push(recipient_encryption_keys[j].0);
         }
@@ -427,9 +425,9 @@ impl<const N: usize> KeyConsistencyProof<N> {
         }
 
         // Check 2: Append (-alpha * rho_i, A2_i) and (-c * alpha * rho_i, C_i) terms
-        for (rhoi, (a2i, ci)) in rho.iter().zip(self.a2.iter().zip(ciphertexts)) {
+        for ((rhoi, a2i), ci) in rho.iter().zip(self.a2).zip(ciphertexts) {
             scalars.push(-(alpha * *rhoi));
-            points.push(*a2i);
+            points.push(a2i);
             scalars.push(-(c * alpha * *rhoi));
             points.push(ci.commitment.0);
         }
@@ -487,7 +485,7 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
             .to_byte_array()
             .chunks(4)
             .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
-            .collect::<Vec<_>>()
+            .collect_vec()
             .try_into()
             .unwrap();
 
@@ -559,13 +557,10 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
             .ciphertexts
             .iter()
             .map(|c| c.decrypt(index, recipient_decryption_key, table))
-            .collect::<FastCryptoResult<Vec<u32>>>()?;
+            .collect::<FastCryptoResult<Vec<_>>>()?;
 
         // Reconstruct the private key from its 32-bit limbs
-        let private_key_bytes = limbs
-            .iter()
-            .flat_map(|l| l.to_le_bytes())
-            .collect::<Vec<_>>();
+        let private_key_bytes = limbs.iter().flat_map(|l| l.to_le_bytes()).collect_vec();
         let private_key = RistrettoScalar::from_byte_array(&private_key_bytes.try_into().unwrap())?;
 
         // Verify the recovered key corresponds to the sender's public key
