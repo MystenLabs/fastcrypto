@@ -254,14 +254,6 @@ impl MultiRecipientCiphertext {
             decryption_handle: self.decryption_handles[index],
         })
     }
-
-    pub fn commitment(&self) -> FastCryptoResult<PedersenCommitment> {
-        Ok(self.commitment.clone())
-    }
-
-    pub fn decryption_handle(&self, index: usize) -> FastCryptoResult<RistrettoPoint> {
-        Ok(self.decryption_handles[index])
-    }
 }
 
 /// A sigma protocol proof that `N` Twisted ElGamal ciphertexts encrypt the 32-bit limbs of a
@@ -375,9 +367,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
             .collect();
 
         // Compute inner scalars rho_i = Hash("rho", c, i) for all i used in check 2
-        let rho: Vec<RistrettoScalar> = (0..N)
-            .map(|i| fiat_shamir_challenge(&("rho", &c, i)))
-            .collect();
+        let rho: [RistrettoScalar; N] = from_fn(|i| fiat_shamir_challenge(&("rho", &c, i)));
 
         // Compute outer scalars alpha = Hash("alpha", c) and beta = Hash("beta", c) combining the three zero-expressions:
         //   (check 1) + alpha * (check 2) + beta * (check 3) == 0
@@ -385,36 +375,26 @@ impl<const N: usize> KeyConsistencyProof<N> {
         let beta = fiat_shamir_challenge(&("beta", &c));
 
         // Check 2: compute sum_i(rho_i * z_1i) and sum_i(rho_i * z_2i)
-        let rho_z1 = rho
-            .iter()
-            .zip(&self.z1)
-            .fold(RistrettoScalar::zero(), |acc, (rhoi, z1i)| {
-                acc + *rhoi * *z1i
-            });
-        let rho_z2 = rho
-            .iter()
-            .zip(&self.z2)
-            .fold(RistrettoScalar::zero(), |acc, (rhoi, z2i)| {
-                acc + *rhoi * *z2i
-            });
+        let rho_z1 = RistrettoScalar::sum(rho.iter().zip(&self.z1).map(|(rhoi, z1i)| *rhoi * *z1i));
+        let rho_z2 = RistrettoScalar::sum(rho.iter().zip(&self.z2).map(|(rhoi, z2i)| *rhoi * *z2i));
 
         // Check 3: compute z = \sum_i z_2i * 2^{32i}
         let b = RistrettoScalar::from(1u64 << 32);
-        let mut exp = RistrettoScalar::generator();
-        let mut z = RistrettoScalar::zero();
-        for z2i in self.z2.iter() {
-            z += *z2i * exp;
-            exp *= b;
-        }
+        let z = self
+            .z2
+            .iter()
+            .fold(
+                (RistrettoScalar::zero(), RistrettoScalar::generator()),
+                |(z, exp), z2i| (z + *z2i * exp, exp * b),
+            )
+            .0;
 
         let mut scalars: Vec<RistrettoScalar> = vec![alpha * rho_z1 + beta * z, alpha * rho_z2];
         let mut points: Vec<RistrettoPoint> = vec![*G, *H];
 
         // Check 1: Append (\sum_i mu_ij * z_1i, S_j) terms for each recipient j
         for j in 0..m {
-            let coeff = (0..N).fold(RistrettoScalar::zero(), |acc, i| {
-                acc + mu[i * m + j] * self.z1[i]
-            });
+            let coeff = RistrettoScalar::sum((0..N).map(|i| mu[i * m + j] * self.z1[i]));
             scalars.push(coeff);
             points.push(recipient_encryption_keys[j].0);
         }
@@ -441,9 +421,9 @@ impl<const N: usize> KeyConsistencyProof<N> {
         scalars.push(-(beta * c));
         points.push(sender_public_key.0);
         let mut exp = RistrettoScalar::generator();
-        for a3i in self.a3.iter() {
+        for a3i in self.a3 {
             scalars.push(-(beta * exp));
-            points.push(*a3i);
+            points.push(a3i);
             exp *= b;
         }
 
@@ -486,9 +466,10 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
     ) -> VerifiableKeyEncapsulation<N> {
         // Re-arrange private key into N 32-bit limbs
         let private_key_bytes = sender_private_key.0.to_byte_array();
-        let limbs: [u32; N] = array::from_fn(|i| {
-            u32::from_le_bytes(private_key_bytes[4 * i..4 * (i + 1)].try_into().unwrap())
-        });
+        let limbs: Vec<u32> = private_key_bytes
+            .chunks(4)
+            .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+            .collect();
 
         // Encrypt all N 32-bit key limbs with Twisted ElGamal to the recipient public keys
         let (ciphertexts, blindings): (Vec<_>, Vec<_>) = limbs
@@ -499,6 +480,7 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
         // Split results into ciphertexts and blindings arrays
         let ciphertexts: [MultiRecipientCiphertext; N] = ciphertexts.try_into().unwrap();
         let blindings: [Blinding; N] = blindings.try_into().unwrap();
+        let limbs: [u32; N] = limbs.try_into().unwrap();
 
         // Create range proof
         let range_proof =
