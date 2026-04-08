@@ -1,10 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::encoding::{Encoding, Hex};
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
-use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
+use crate::groups::{Doubling, GroupElement, MultiScalarMul, Scalar};
+use crate::hash::{Blake2b256, HashFunction};
 use crate::pedersen::{Blinding, PedersenCommitment, G, H};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -495,10 +497,7 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
             .iter()
             .map(|&li| MultiRecipientCiphertext::encrypt(recipient_encryption_keys, li, rng))
             .unzip();
-
-        // Split results into ciphertexts and blindings arrays
         let ciphertexts: [MultiRecipientCiphertext; N] = ciphertexts.try_into().unwrap();
-        let blindings: [Blinding; N] = blindings.try_into().unwrap();
 
         // Create consistency proof
         let consistency_proof = KeyConsistencyProof::prove(
@@ -506,7 +505,7 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
             &pk_from_sk(sender_private_key),
             recipient_encryption_keys,
             &ciphertexts,
-            &blindings,
+            &blindings.try_into().unwrap(),
             rng,
         );
 
@@ -579,7 +578,9 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
 }
 
 fn fiat_shamir_challenge<T: Serialize>(msg: &T) -> RistrettoScalar {
-    RistrettoScalar::fiat_shamir_reduction_to_group_element(&bcs::to_bytes(msg).unwrap())
+    let mut digest = Blake2b256::digest(&bcs::to_bytes(msg).unwrap()).digest;
+    digest[31] = 0;
+    RistrettoScalar::from_byte_array(&digest).expect("Always in field")
 }
 
 #[test]
@@ -769,4 +770,22 @@ fn test_verifiable_key_encapsulation() {
     assert!(encapsulation
         .open(1, &sk_rcv_0, &recipient_keys, &pk_snd, &table)
         .is_err());
+}
+
+#[test]
+fn test_fiat_shamir_regression() {
+    let challenge_input = (
+        "Accept the challenges",
+        "so that you can feel the exhilaration of victory",
+        7u64,
+    );
+    let expected = RistrettoScalar::from_byte_array(
+        &Hex::decode("418b0d04de7cf9c3366c542fe4e91d675220c7a571cb8f320d2fbb9cf4a34200")
+            .unwrap()
+            .try_into()
+            .unwrap(),
+    )
+    .unwrap();
+    let actual = fiat_shamir_challenge(&challenge_input);
+    assert_eq!(actual, expected);
 }
