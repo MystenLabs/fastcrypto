@@ -247,9 +247,6 @@ impl MultiRecipientCiphertext {
         decryption_key: &PrivateKey,
         table: &HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16>,
     ) -> FastCryptoResult<u32> {
-        if index > self.decryption_handles.len() {
-            return Err(InvalidInput);
-        }
         self.ciphertext(index)?.decrypt(decryption_key, table)
     }
 
