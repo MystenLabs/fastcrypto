@@ -168,18 +168,15 @@ impl ConsistencyProof {
         ciphertext: &Ciphertext,
         encryption_key: &PublicKey,
     ) -> RistrettoScalar {
-        RistrettoScalar::fiat_shamir_reduction_to_group_element(
-            &bcs::to_bytes(&(
-                &*G,
-                &*H,
-                a,
-                b,
-                &ciphertext.commitment,
-                &ciphertext.decryption_handle,
-                encryption_key,
-            ))
-            .unwrap(),
-        )
+        fiat_shamir_challenge(&(
+            &*G,
+            &*H,
+            a,
+            b,
+            &ciphertext.commitment,
+            &ciphertext.decryption_handle,
+            encryption_key,
+        ))
     }
 
     pub fn verify(
@@ -374,55 +371,37 @@ impl<const N: usize> KeyConsistencyProof<N> {
 
         // Compute inner scalars mu_ij = Hash("mu", c, i, j) for all i and j used in check 1
         let mu: Vec<RistrettoScalar> = (0..N)
-            .flat_map(|i| {
-                (0..m).map(move |j| {
-                    RistrettoScalar::fiat_shamir_reduction_to_group_element(
-                        &bcs::to_bytes(&("mu", &c, i, j)).unwrap(),
-                    )
-                })
-            })
+            .flat_map(|i| (0..m).map(move |j| fiat_shamir_challenge(&("mu", &c, i, j))))
             .collect();
 
         // Compute inner scalars rho_i = Hash("rho", c, i) for all i used in check 2
         let rho: Vec<RistrettoScalar> = (0..N)
-            .map(|i| {
-                RistrettoScalar::fiat_shamir_reduction_to_group_element(
-                    &bcs::to_bytes(&("rho", &c, i)).unwrap(),
-                )
-            })
+            .map(|i| fiat_shamir_challenge(&("rho", &c, i)))
             .collect();
 
         // Compute outer scalars alpha = Hash("alpha", c) and beta = Hash("beta", c) combining the three zero-expressions:
         //   (check 1) + alpha * (check 2) + beta * (check 3) == 0
-        let alpha = {
-            RistrettoScalar::fiat_shamir_reduction_to_group_element(
-                &bcs::to_bytes(&("alpha", &c)).unwrap(),
-            )
-        };
-        let beta = {
-            RistrettoScalar::fiat_shamir_reduction_to_group_element(
-                &bcs::to_bytes(&("beta", &c)).unwrap(),
-            )
-        };
+        let alpha = fiat_shamir_challenge(&("alpha", &c));
+        let beta = fiat_shamir_challenge(&("beta", &c));
 
         // Check 2: compute sum_i(rho_i * z_1i) and sum_i(rho_i * z_2i)
         let rho_z1 = rho
             .iter()
             .zip(&self.z1)
-            .fold(RistrettoScalar::from(0u64), |acc, (rhoi, z1i)| {
+            .fold(RistrettoScalar::zero(), |acc, (rhoi, z1i)| {
                 acc + *rhoi * *z1i
             });
         let rho_z2 = rho
             .iter()
             .zip(&self.z2)
-            .fold(RistrettoScalar::from(0u64), |acc, (rhoi, z2i)| {
+            .fold(RistrettoScalar::zero(), |acc, (rhoi, z2i)| {
                 acc + *rhoi * *z2i
             });
 
         // Check 3: compute z = \sum_i z_2i * 2^{32i}
         let b = RistrettoScalar::from(1u64 << 32);
-        let mut exp = RistrettoScalar::from(1u64);
-        let mut z = RistrettoScalar::from(0u64);
+        let mut exp = RistrettoScalar::generator();
+        let mut z = RistrettoScalar::zero();
         for z2i in self.z2.iter() {
             z += *z2i * exp;
             exp *= b;
@@ -433,7 +412,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
 
         // Check 1: Append (\sum_i mu_ij * z_1i, S_j) terms for each recipient j
         for j in 0..m {
-            let coeff = (0..N).fold(RistrettoScalar::from(0u64), |acc, i| {
+            let coeff = (0..N).fold(RistrettoScalar::zero(), |acc, i| {
                 acc + mu[i * m + j] * self.z1[i]
             });
             scalars.push(coeff);
@@ -461,7 +440,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
         // Check 3: Append (-beta * c, U) and (-beta * 2^{32i}, A3_i) terms
         scalars.push(-(beta * c));
         points.push(sender_public_key.0);
-        let mut exp = RistrettoScalar::from(1u64);
+        let mut exp = RistrettoScalar::generator();
         for a3i in self.a3.iter() {
             scalars.push(-(beta * exp));
             points.push(*a3i);
@@ -485,19 +464,16 @@ impl<const N: usize> KeyConsistencyProof<N> {
         a2: &[RistrettoPoint],
         a3: &[RistrettoPoint],
     ) -> RistrettoScalar {
-        RistrettoScalar::fiat_shamir_reduction_to_group_element(
-            &bcs::to_bytes(&(
-                &*G,
-                &*H,
-                sender_public_key,
-                recipient_encryption_keys,
-                ciphertexts.as_slice(),
-                a1,
-                a2,
-                a3,
-            ))
-            .unwrap(),
-        )
+        fiat_shamir_challenge(&(
+            &*G,
+            &*H,
+            sender_public_key,
+            recipient_encryption_keys,
+            ciphertexts.as_slice(),
+            a1,
+            a2,
+            a3,
+        ))
     }
 }
 
@@ -619,6 +595,10 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
         }
         Ok(PrivateKey(private_key))
     }
+}
+
+fn fiat_shamir_challenge<T: Serialize>(msg: &T) -> RistrettoScalar {
+    RistrettoScalar::fiat_shamir_reduction_to_group_element(&bcs::to_bytes(msg).unwrap())
 }
 
 #[test]
