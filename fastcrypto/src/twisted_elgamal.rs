@@ -1,7 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::encoding::{Encoding, Hex};
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
@@ -577,8 +576,11 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
     }
 }
 
+/// Derive a Fiat-Shamir challenge scalar from any serializable message.
+///
+/// TODO: Add domain seperation
 fn fiat_shamir_challenge<T: Serialize>(msg: &T) -> RistrettoScalar {
-    let mut digest = Blake2b256::digest(&bcs::to_bytes(msg).unwrap()).digest;
+    let mut digest = Blake2b256::digest(bcs::to_bytes(msg).unwrap()).digest;
     digest[31] = 0;
     RistrettoScalar::from_byte_array(&digest).expect("Always in field")
 }
@@ -774,6 +776,7 @@ fn test_verifiable_key_encapsulation() {
 
 #[test]
 fn test_fiat_shamir_regression() {
+    use crate::encoding::{Encoding, Hex};
     let challenge_input = (
         "Accept the challenges",
         "so that you can feel the exhilaration of victory",
