@@ -134,7 +134,7 @@
 <a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">for </span>dealer_id <span class="kw">in </span>nodes.node_ids_iter() {
 <a href=#135 id=135 data-nosnippet>135</a>            <span class="kw">let </span>sid = <span class="macro">format!</span>(<span class="string">"dkg-test-session-{}"</span>, dealer_id).into_bytes();
 <a href=#136 id=136 data-nosnippet>136</a>            <span class="kw">let </span>dealer: avss::Dealer =
-<a href=#137 id=137 data-nosnippet>137</a>                avss::Dealer::new(<span class="prelude-val">None</span>, nodes.clone(), t, f, sid.clone()).unwrap();
+<a href=#137 id=137 data-nosnippet>137</a>                avss::Dealer::new(<span class="prelude-val">None</span>, nodes.clone(), t, sid.clone()).unwrap();
 <a href=#138 id=138 data-nosnippet>138</a>            <span class="kw">let </span>receivers = sks
 <a href=#139 id=139 data-nosnippet>139</a>                .iter()
 <a href=#140 id=140 data-nosnippet>140</a>                .enumerate()
@@ -341,7 +341,7 @@
 <a href=#341 id=341 data-nosnippet>341</a>                    .unwrap()
 <a href=#342 id=342 data-nosnippet>342</a>                    .value;
 <a href=#343 id=343 data-nosnippet>343</a>                <span class="kw">let </span>dealer: avss::Dealer =
-<a href=#344 id=344 data-nosnippet>344</a>                    avss::Dealer::new(<span class="prelude-val">Some</span>(secret), nodes.clone(), t, f, sid.clone()).unwrap();
+<a href=#344 id=344 data-nosnippet>344</a>                    avss::Dealer::new(<span class="prelude-val">Some</span>(secret), nodes.clone(), t, sid.clone()).unwrap();
 <a href=#345 id=345 data-nosnippet>345</a>
 <a href=#346 id=346 data-nosnippet>346</a>                <span class="kw">let </span>receivers = sks
 <a href=#347 id=347 data-nosnippet>347</a>                    .iter()
