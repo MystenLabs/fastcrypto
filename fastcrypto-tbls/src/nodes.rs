@@ -175,8 +175,14 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         allowed_delta: u16,
         total_weight_lower_bound: u16,
     ) -> FastCryptoResult<(Self, u16)> {
-        Self::new_reduced_with_f(nodes_vec, t, None, allowed_delta, total_weight_lower_bound)
-            .map(|(n, t, _f)| (n, t))
+        Self::new_reduced_with_f(
+            nodes_vec,
+            t,
+            0, /* ignored */
+            allowed_delta,
+            total_weight_lower_bound,
+        )
+        .map(|(n, t, _f)| (n, t))
     }
 
     /// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
@@ -195,10 +201,10 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     pub fn new_reduced_with_f(
         nodes_vec: Vec<Node<G>>,
         t: u16,
-        f: Option<u16>,
+        f: u16,
         allowed_delta: u16,
         total_weight_lower_bound: u16,
-    ) -> FastCryptoResult<(Self, u16, Option<u16>)> {
+    ) -> FastCryptoResult<(Self, u16, u16)> {
         let n = Self::new(nodes_vec)?; // checks the input, etc
         assert!(total_weight_lower_bound <= n.total_weight && total_weight_lower_bound > 0);
         let mut max_d = 1;
@@ -235,7 +241,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         // U16 is safe here since the original total_weight is u16.
         let total_weight = nodes.iter().map(|n| n.weight).sum::<u16>();
         let new_t = t.div_ceil(max_d);
-        let new_f = f.map(|f| f.div_ceil(max_d));
+        let new_f = f.div_ceil(max_d);
         Ok((
             Self {
                 nodes,
