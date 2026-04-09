@@ -466,7 +466,7 @@ fn insecure_pvk_v2() -> PreparedVerifyingKey<Bn254> {
     PreparedVerifyingKey::from(vk)
 }
 
-/// Verify zklogin
+/// Verify zklogin. Try verifying with v2 VK first, then fall back to v1.
 pub fn verify_zk_login(
     input: &ZkLoginInputs,
     max_epoch: u64,
@@ -493,9 +493,23 @@ pub fn verify_zk_login(
     if let Ok(all_inputs_hash) =
         input.calculate_all_inputs_hash(eph_pubkey_bytes, &modulus, max_epoch, &CIRCUIT_CONFIG_V2)
     {
-        if let Ok(true) = verify_zk_login_proof_with_fixed_vk(env, &proof, &[all_inputs_hash], true)
-        {
-            return Ok(());
+        match verify_zk_login_proof_with_fixed_vk(env, &proof, &[all_inputs_hash], true) {
+            Ok(true) => return Ok(()),
+            Ok(false) => {
+                tracing::warn!(
+                    "[zkLogin] v2 verify returned false (env={:?}, iss={}), falling back to v1",
+                    env,
+                    iss
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "[zkLogin] v2 verify failed (env={:?}, iss={}): {:?}, falling back to v1",
+                    env,
+                    iss,
+                    e
+                );
+            }
         }
     }
 
