@@ -147,20 +147,13 @@ impl Dealer {
     /// * `secret`: The secret to share. If None, a random secret will be generated.
     /// * `nodes`: The set of nodes (parties) participating in the protocol, including their public keys and weights.
     /// * `t`: The threshold number of shares required to reconstruct the secret. One party can have multiple shares according to its weight.
-    /// * `f`: An upper bound on the number of Byzantine parties counted by weight.
     /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
     pub fn new(
         secret: Option<S>,
         nodes: Nodes<EG>,
         t: u16,
-        f: u16,
         sid: Vec<u8>,
     ) -> FastCryptoResult<Self> {
-        // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
-        if t <= f || t + 2 * f > nodes.total_weight() {
-            return Err(InvalidInput);
-        }
-
         Ok(Self {
             secret,
             t,
@@ -569,7 +562,6 @@ mod tests {
     fn test_sharing() {
         // No complaints, all honest. All have weight 1
         let t = 3;
-        let f = 2;
         let n = 7;
 
         let mut rng = rand::thread_rng();
@@ -593,7 +585,7 @@ mod tests {
         let secret = Scalar::rand(&mut rng);
         let previous_round_commitment = G::generator() * secret;
 
-        let dealer: Dealer = Dealer::new(Some(secret), nodes.clone(), t, f, sid.clone()).unwrap();
+        let dealer: Dealer = Dealer::new(Some(secret), nodes.clone(), t, sid.clone()).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -635,7 +627,6 @@ mod tests {
     fn test_sharing_two_rounds() {
         // No complaints, all honest. All have weight 1
         let t = 3;
-        let f = 2;
         let n = 7;
 
         let mut rng = rand::thread_rng();
@@ -656,7 +647,7 @@ mod tests {
 
         let sid = b"tbls test".to_vec();
 
-        let dealer: Dealer = Dealer::new(None, nodes.clone(), t, f, sid.clone()).unwrap();
+        let dealer: Dealer = Dealer::new(None, nodes.clone(), t, sid.clone()).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -692,7 +683,7 @@ mod tests {
 
         let sid2 = b"tbls test 2".to_vec();
         let dealer: Dealer =
-            Dealer::new(Some(secret.value), nodes.clone(), t, f, sid2.clone()).unwrap();
+            Dealer::new(Some(secret.value), nodes.clone(), t, sid2.clone()).unwrap();
         let receivers = receivers
             .into_iter()
             .map(
@@ -746,7 +737,6 @@ mod tests {
     #[test]
     fn test_share_recovery() {
         let t = 3;
-        let f = 2;
         let n = 7;
 
         let mut rng = rand::thread_rng();
@@ -768,7 +758,7 @@ mod tests {
         let sid = b"tbls test".to_vec();
         let secret = Scalar::rand(&mut rng);
 
-        let dealer: Dealer = Dealer::new(Some(secret), nodes.clone(), t, f, sid.clone()).unwrap();
+        let dealer: Dealer = Dealer::new(Some(secret), nodes.clone(), t, sid.clone()).unwrap();
 
         let commitment = G::generator() * secret;
 
@@ -876,7 +866,6 @@ mod tests {
     fn test_dkg_simple() {
         // No complaints, all honest. All have weight 1
         let t = 3;
-        let f = 2;
         let n = 7;
 
         let mut rng = rand::thread_rng();
@@ -906,7 +895,7 @@ mod tests {
         // Each node acts as dealer in the DKG
         for node in nodes.iter() {
             let sid = format!("dkg-test-session-{}", node.id).into_bytes();
-            let dealer: Dealer = Dealer::new(None, nodes.clone(), t, f, sid.clone()).unwrap();
+            let dealer: Dealer = Dealer::new(None, nodes.clone(), t, sid.clone()).unwrap();
             let receivers = sks
                 .iter()
                 .enumerate()

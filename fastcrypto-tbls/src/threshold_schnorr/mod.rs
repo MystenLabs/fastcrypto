@@ -134,7 +134,7 @@ mod tests {
         for dealer_id in nodes.node_ids_iter() {
             let sid = format!("dkg-test-session-{}", dealer_id).into_bytes();
             let dealer: avss::Dealer =
-                avss::Dealer::new(None, nodes.clone(), t, f, sid.clone()).unwrap();
+                avss::Dealer::new(None, nodes.clone(), t, sid.clone()).unwrap();
             let receivers = sks
                 .iter()
                 .enumerate()
@@ -341,7 +341,7 @@ mod tests {
                     .unwrap()
                     .value;
                 let dealer: avss::Dealer =
-                    avss::Dealer::new(Some(secret), nodes.clone(), t, f, sid.clone()).unwrap();
+                    avss::Dealer::new(Some(secret), nodes.clone(), t, sid.clone()).unwrap();
 
                 let receivers = sks
                     .iter()
