@@ -175,6 +175,30 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         allowed_delta: u16,
         total_weight_lower_bound: u16,
     ) -> FastCryptoResult<(Self, u16)> {
+        Self::new_reduced_with_f(nodes_vec, t, None, allowed_delta, total_weight_lower_bound)
+            .map(|(n, t, _f)| (n, t))
+    }
+
+    /// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
+    /// Reduces weights up to an allowed delta in the original total weight.
+    /// Finds the largest d such that:
+    /// - The new threshold is ceil(t / d)
+    /// - The new threshold for Byzantine parties is floor((f - dt' + t) / d)
+    /// - The new weights are all divided by d (floor division)
+    /// - The precision loss, counted as the sum of the remainders of the division by d, is at most
+    ///   the allowed delta
+    ///
+    /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
+    ///
+    /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To
+    /// get the best results, set it to 1.
+    pub fn new_reduced_with_f(
+        nodes_vec: Vec<Node<G>>,
+        t: u16,
+        f: Option<u16>,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
+    ) -> FastCryptoResult<(Self, u16, Option<u16>)> {
         let n = Self::new(nodes_vec)?; // checks the input, etc
         assert!(total_weight_lower_bound <= n.total_weight && total_weight_lower_bound > 0);
         let mut max_d = 1;
@@ -211,6 +235,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         // U16 is safe here since the original total_weight is u16.
         let total_weight = nodes.iter().map(|n| n.weight).sum::<u16>();
         let new_t = t.div_ceil(max_d);
+        let new_f = f.map(|f| (f - max_d * new_t + t) / max_d);
         Ok((
             Self {
                 nodes,
@@ -219,6 +244,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                 nodes_with_nonzero_weight,
             },
             new_t,
+            new_f,
         ))
     }
 }
