@@ -3,6 +3,7 @@
 
 use crate::ecies_v1;
 use crate::types::ShareIndex;
+use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
@@ -235,7 +236,12 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         // U16 is safe here since the original total_weight is u16.
         let total_weight = nodes.iter().map(|n| n.weight).sum::<u16>();
         let new_t = t.div_ceil(max_d);
-        let new_f = f.map(|f| (f - max_d * new_t + t) / max_d);
+        let new_f = if let Some(f) = f {
+            let t_double_prime = max_d * new_t - t;
+            Some(f.checked_sub(t_double_prime).ok_or(InvalidInput)? / max_d)
+        } else {
+            None
+        };
         Ok((
             Self {
                 nodes,
