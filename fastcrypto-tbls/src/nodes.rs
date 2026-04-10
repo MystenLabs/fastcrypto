@@ -187,6 +187,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             }
             // Compute the precision loss.
             // U16 is safe here since total_weight is u16.
+            /// TODO: The reduction delta should be estimated here as it is done in `new_reduced_with_f`.
             let delta = n.nodes.iter().map(|n| n.weight % d).sum::<u16>();
             if delta <= allowed_delta {
                 max_d = d;
