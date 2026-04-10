@@ -175,36 +175,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         allowed_delta: u16,
         total_weight_lower_bound: u16,
     ) -> FastCryptoResult<(Self, u16)> {
-        Self::new_reduced_with_f(
-            nodes_vec,
-            t,
-            0, /* ignored */
-            allowed_delta,
-            total_weight_lower_bound,
-        )
-        .map(|(n, t, _f)| (n, t))
-    }
-
-    /// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
-    /// Reduces weights up to an allowed delta in the original total weight.
-    /// Finds the largest d such that:
-    /// - The new threshold is ceil(t / d)
-    /// - The new threshold for Byzantine parties is ceil(f / d)
-    /// - The new weights are all divided by d (floor division)
-    /// - The precision loss, counted as the sum of the remainders of the division by d, is at most
-    ///   the allowed delta
-    ///
-    /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
-    ///
-    /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To
-    /// get the best results, set it to 1.
-    pub fn new_reduced_with_f(
-        nodes_vec: Vec<Node<G>>,
-        t: u16,
-        f: u16,
-        allowed_delta: u16,
-        total_weight_lower_bound: u16,
-    ) -> FastCryptoResult<(Self, u16, u16)> {
         let n = Self::new(nodes_vec)?; // checks the input, etc
         assert!(total_weight_lower_bound <= n.total_weight && total_weight_lower_bound > 0);
         let mut max_d = 1;
@@ -241,6 +211,74 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         // U16 is safe here since the original total_weight is u16.
         let total_weight = nodes.iter().map(|n| n.weight).sum::<u16>();
         let new_t = t.div_ceil(max_d);
+        Ok((
+            Self {
+                nodes,
+                total_weight,
+                accumulated_weights,
+                nodes_with_nonzero_weight,
+            },
+            new_t,
+        ))
+    }
+
+    /// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
+    /// Reduces weights up to an allowed delta in the original total weight.
+    /// Finds the largest d such that:
+    /// - The new threshold is ceil(t / d)
+    /// - The new threshold for Byzantine parties is ceil(f / d)
+    /// - The new weights are all divided by d (floor division)
+    /// - The precision loss, counted as the sum of the remainders of the division by d, is at most
+    ///   the allowed delta
+    ///
+    /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
+    ///
+    /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To
+    /// get the best results, set it to 1.
+    pub fn new_reduced_with_f(
+        nodes_vec: Vec<Node<G>>,
+        t: u16,
+        f: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
+    ) -> FastCryptoResult<(Self, u16, u16)> {
+        let n = Self::new(nodes_vec)?; // checks the input, etc
+        assert!(total_weight_lower_bound <= n.total_weight && total_weight_lower_bound > 0);
+        let mut max_d = 1;
+        for d in 2..=40 {
+            // Break if we reached the lower bound.
+            // U16 is safe here since total_weight is u16.
+            let new_total_weight = n.nodes.iter().map(|n| n.weight / d).sum::<u16>();
+            if new_total_weight < total_weight_lower_bound {
+                break;
+            }
+            // Compute the precision loss.
+            // U16 is safe here since total_weight is u16.
+            let delta =
+                n.nodes.iter().map(|n| n.weight % d).sum::<u16>() + neg_mod(t, d) + neg_mod(f, d);
+            if delta <= allowed_delta {
+                max_d = d;
+            }
+        }
+        debug!(
+            "Nodes::reduce reducing from {} with max_d {}, allowed_delta {}, total_weight_lower_bound {}",
+            n.total_weight, max_d, allowed_delta, total_weight_lower_bound
+        );
+
+        let nodes = n
+            .nodes
+            .iter()
+            .map(|n| Node {
+                id: n.id,
+                pk: n.pk.clone(),
+                weight: n.weight / max_d,
+            })
+            .collect::<Vec<_>>();
+        let accumulated_weights = Self::get_accumulated_weights(&nodes);
+        let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
+        // U16 is safe here since the original total_weight is u16.
+        let total_weight = nodes.iter().map(|n| n.weight).sum::<u16>();
+        let new_t = t.div_ceil(max_d);
         let new_f = f.div_ceil(max_d);
         Ok((
             Self {
@@ -253,4 +291,9 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             new_f,
         ))
     }
+}
+
+/// Compute (-x) mod d = d * ceil(x/d) - x
+fn neg_mod(x: u16, d: u16) -> u16 {
+    (-(x as i32)).rem_euclid(d as i32) as u16
 }
