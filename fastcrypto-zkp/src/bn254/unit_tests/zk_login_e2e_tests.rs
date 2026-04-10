@@ -381,7 +381,7 @@ async fn test_get_jwks() {
         OIDCProvider::Apple,
         OIDCProvider::Microsoft,
         OIDCProvider::KarrierOne,
-        OIDCProvider::Credenza3,
+        // OIDCProvider::Credenza3, // TODO: disabling until Cloudflare challenge is removed from JWK endpoint
         OIDCProvider::Playtron,
         OIDCProvider::Threedos,
         OIDCProvider::Onefc,
@@ -396,7 +396,12 @@ async fn test_get_jwks() {
         )), // Decot
     ] {
         let res = fetch_jwks(&p, &client, true).await;
-        assert!(res.is_ok());
+        assert!(
+            res.is_ok(),
+            "fetch_jwks failed for {:?}: {:?}",
+            p,
+            res.err()
+        );
         res.unwrap().iter().for_each(|e| {
             assert_eq!(e.0.iss, p.get_config().iss);
         });
