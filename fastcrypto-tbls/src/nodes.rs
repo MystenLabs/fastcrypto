@@ -15,6 +15,9 @@ use tracing::debug;
 
 pub type PartyId = u16;
 
+/// Best super_swiper candidate: reduced total weight W', per-party weights, precision loss δ, divisor d.
+type SuperSwiperBest = (u64, Vec<u16>, Ratio<u64>, Ratio<u64>);
+
 /// Public parameters of a party.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node<G: GroupElement> {
@@ -287,8 +290,9 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         let allowed_delta_ratio = Ratio::from_integer(allowed_delta as u64);
         let two = Ratio::from_integer(2u64);
         let one = Ratio::from_integer(1u64);
+        // Keep tuple field order (W', weights, δ, d) consistent everywhere to avoid mixing up δ and weights.
         let (new_total_weight, new_weights, delta, d) = {
-            let mut best: Option<(u64, Ratio<u64>, Vec<u16>, Ratio<u64>)> = None;
+            let mut best: Option<SuperSwiperBest> = None;
             for a_numer in 10u64..=90u64 {
                 let alpha = Ratio::new(a_numer, 100);
                 for b_extra_numer in 1u64..=20u64 {
@@ -304,7 +308,8 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                     let mut new_weights = vec![0u16; n.nodes.len()];
                     for (idx_in_sorted, (original_idx, _)) in indexed_weights.iter().enumerate() {
                         if idx_in_sorted < reduced_weights_sorted.len() {
-                            new_weights[*original_idx] = reduced_weights_sorted[idx_in_sorted] as u16;
+                            new_weights[*original_idx] =
+                                reduced_weights_sorted[idx_in_sorted] as u16;
                         }
                     }
                     let reduced_weights: Vec<u64> =
@@ -313,20 +318,18 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                     if two * delta <= allowed_delta_ratio {
                         let take = match &best {
                             None => true,
-                            Some((best_w, best_delta, _, _)) => {
+                            Some((best_w, _, best_delta, _)) => {
                                 new_total_weight < *best_w
                                     || (new_total_weight == *best_w && delta < *best_delta)
                             }
                         };
                         if take {
-                            best = Some((new_total_weight, delta, new_weights, d));
+                            best = Some((new_total_weight, new_weights, delta, d));
                         }
                     }
                 }
             }
-            let (new_total_weight, delta, new_weights, d) =
-                best.ok_or(FastCryptoError::InvalidInput)?;
-            (new_total_weight, new_weights, delta, d)
+            best.ok_or(FastCryptoError::InvalidInput)?
         };
 
         // t' = (t + δ)/d
@@ -353,6 +356,13 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             Self {
                 nodes,
                 total_weight: new_total_weight as u16,
+                accumulated_weights,
+                nodes_with_nonzero_weight,
+            },
+            new_t,
+        ))
+    }
+
     /// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
     /// Reduces weights up to an allowed delta in the original total weight.
     /// Finds the largest d such that:
@@ -385,8 +395,9 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             }
             // Compute the precision loss.
             // U16 is safe here since total_weight is u16.
-            let delta =
-                n.nodes.iter().map(|n| n.weight % d).sum::<u16>() + neg_mod(t, d) + neg_mod(f, d);
+            let delta = n.nodes.iter().map(|n| n.weight % d).sum::<u16>()
+                + Self::neg_mod(t, d)
+                + Self::neg_mod(f, d);
             if delta <= allowed_delta {
                 max_d = d;
             }
@@ -419,14 +430,12 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                 nodes_with_nonzero_weight,
             },
             new_t,
-        ))
-    }
             new_f,
         ))
     }
-}
 
-/// Compute (-x) mod d = d * ceil(x/d) - x
-fn neg_mod(x: u16, d: u16) -> u16 {
-    (-(x as i32)).rem_euclid(d as i32) as u16
+    /// Compute (-x) mod d = d * ceil(x/d) - x
+    fn neg_mod(x: u16, d: u16) -> u16 {
+        (-(x as i32)).rem_euclid(d as i32) as u16
+    }
 }

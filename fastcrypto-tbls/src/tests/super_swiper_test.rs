@@ -8,8 +8,8 @@
 mod tests {
     use crate::ecies_v1;
     use crate::nodes::{Node, Nodes};
-    use fastcrypto::error::FastCryptoResult;
     use crate::weight_reduction::weight_reduction_checks::compute_precision_loss;
+    use fastcrypto::error::FastCryptoResult;
 
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
@@ -201,8 +201,7 @@ mod tests {
             let original_total_weight = original_nodes.total_weight();
 
             let t = (params.t_alpha * original_total_weight as u64).to_integer() as u16;
-            let allowed_delta =
-                (original_total_weight as f64 * params.allowed_delta_pct) as u16;
+            let allowed_delta = (original_total_weight as f64 * params.allowed_delta_pct) as u16;
             let total_weight_lower_bound = 1u16;
 
             let reduced_result = reducer(
@@ -212,8 +211,7 @@ mod tests {
                 total_weight_lower_bound,
             );
 
-            let liveness_weight =
-                (original_total_weight as f64 * params.liveness_pct) as u16;
+            let liveness_weight = (original_total_weight as f64 * params.liveness_pct) as u16;
             let (w_prime, t_prime, f_prime, delta_str, d_str, f) = match reduced_result {
                 Ok((reduced_nodes, new_t)) => {
                     let w_p = reduced_nodes.total_weight();
@@ -228,10 +226,12 @@ mod tests {
 
                     let w = u64::from(original_total_weight);
                     let f_l = match f_from_liveness {
-                        FFromLiveness::SuperSwiper => u64::from(liveness_weight)
-                            .saturating_sub(u64::from(t) + 3 * delta_int),
-                        FFromLiveness::NewReduced => u64::from(liveness_weight)
-                            .saturating_sub(u64::from(t) + delta_int),
+                        FFromLiveness::SuperSwiper => {
+                            u64::from(liveness_weight).saturating_sub(u64::from(t) + 3 * delta_int)
+                        }
+                        FFromLiveness::NewReduced => {
+                            u64::from(liveness_weight).saturating_sub(u64::from(t) + delta_int)
+                        }
                     };
                     let f_val = f_upper_bound(w, t).map(|cap| f_l.min(cap));
 
@@ -239,21 +239,12 @@ mod tests {
                         FFromLiveness::SuperSwiper => (f_l + delta_int) / d_int,
                         FFromLiveness::NewReduced => f_l / d_int,
                     };
-                    let f_prime_val =
-                        f_upper_bound(u64::from(w_p), new_t).and_then(|cap| {
-                            u16::try_from(f_prime_l.min(cap)).ok()
-                        });
+                    let f_prime_val = f_upper_bound(u64::from(w_p), new_t)
+                        .and_then(|cap| u16::try_from(f_prime_l.min(cap)).ok());
 
                     let delta_val = Some(ratio_to_decimal(&precision_delta));
                     let d_val = Some(ratio_to_decimal(&d));
-                    (
-                        Some(w_p),
-                        Some(new_t),
-                        f_prime_val,
-                        delta_val,
-                        d_val,
-                        f_val,
-                    )
+                    (Some(w_p), Some(new_t), f_prime_val, delta_val, d_val, f_val)
                 }
                 Err(_) => (
                     None::<u16>,
@@ -367,7 +358,8 @@ mod tests {
                     && delta.is_some()
                     && d.is_some(),
                 "{} failed for epoch {}",
-                fail_label, epoch
+                fail_label,
+                epoch
             );
         }
 

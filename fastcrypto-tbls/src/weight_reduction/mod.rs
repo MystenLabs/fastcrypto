@@ -319,7 +319,7 @@ fn process_batch_recursive(
     }
 
     // Number of tickets assignments in the left branch.
-    let left_branch_size = (deltas.len() + 1) / 2;
+    let left_branch_size = deltas.len().div_ceil(2);
 
     let deltas_left = &deltas[..left_branch_size - 1];
     if let Some(dp) = apply(

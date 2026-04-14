@@ -60,7 +60,7 @@ pub mod nizk;
 #[path = "tests/nizk_tests.rs"]
 pub mod nizk_tests;
 
+pub mod random_oracle;
 #[cfg(test)]
 #[path = "tests/super_swiper_test.rs"]
 pub mod super_swiper_test;
-pub mod random_oracle;

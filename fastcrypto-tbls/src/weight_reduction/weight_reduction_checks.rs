@@ -119,14 +119,8 @@ pub fn get_delta(
 
     // If any validity check resulted in a negative delta (None), skip this solution
     // Top and bottom checks must both pass
-    let delta_top_value = match delta_top {
-        Some(d) => d,
-        None => return None, // Top check had negative delta, skip solution
-    };
-    let delta_bot_value = match delta_bot {
-        Some(d) => d,
-        None => return None, // Bottom check had negative delta, skip solution
-    };
+    let delta_top_value = delta_top?; // Top check had negative delta, skip solution
+    let delta_bot_value = delta_bot?; // Bottom check had negative delta, skip solution
 
     // All random subsets must pass (no negative deltas)
     if delta_random.len() < n_random {
