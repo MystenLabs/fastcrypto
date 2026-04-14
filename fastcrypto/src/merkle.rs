@@ -142,7 +142,7 @@ where
         let mut level_index = leaf_index;
         for sibling in self.path.iter() {
             // The sibling hash of the current node
-            if level_index % 2 == 0 {
+            if level_index.is_multiple_of(2) {
                 // The current node is a left child
                 current_hash = inner_hash::<T>(&current_hash, sibling);
             } else {
@@ -160,7 +160,7 @@ where
         let mut level_index = leaf_index;
         for sibling in self.path.iter() {
             // The sibling hash of the current node
-            if level_index % 2 == 0 {
+            if level_index.is_multiple_of(2) {
                 // The current node is a left child
                 if sibling.as_ref() != EMPTY_NODE.as_ref() {
                     return false;
@@ -432,7 +432,7 @@ where
         while n_level > 1 {
             // All levels contain an even number of nodes
             n_level = n_level.next_multiple_of(2);
-            let sibling_index = if level_index % 2 == 0 {
+            let sibling_index = if level_index.is_multiple_of(2) {
                 level_base_index + level_index + 1
             } else {
                 level_base_index + level_index - 1

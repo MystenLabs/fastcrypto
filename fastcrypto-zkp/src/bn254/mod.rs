@@ -65,7 +65,7 @@ impl FieldElement {
     pub(crate) fn deserialize_vector(
         field_element_bytes: &[u8],
     ) -> FastCryptoResult<Vec<FieldElement>> {
-        if field_element_bytes.len() % SCALAR_SIZE != 0 {
+        if !field_element_bytes.len().is_multiple_of(SCALAR_SIZE) {
             return Err(FastCryptoError::InputLengthWrong(field_element_bytes.len()));
         }
         let mut public_inputs = Vec::new();

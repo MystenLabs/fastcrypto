@@ -8,8 +8,10 @@ use crate::hash::{HashFunction, Sha256};
 pub use base64ct::{Base64UrlUnpadded, Encoding};
 use rsa::pkcs1::DecodeRsaPublicKey;
 use rsa::pkcs1v15::Signature as ExternalSignature;
+use rsa::traits::SignatureScheme;
+use rsa::Pkcs1v15Sign;
 use rsa::{BigUint, RsaPublicKey as ExternalPublicKey};
-use rsa::{Pkcs1v15Sign, PublicKey};
+use signature::SignatureEncoding;
 
 #[derive(Clone)]
 pub struct RSAPublicKey(pub ExternalPublicKey);
@@ -44,12 +46,8 @@ impl RSAPublicKey {
 
     /// Verify a signed message. The message, `hashed`, must be the output of a cryptographic hash function.
     pub fn verify_prehash(&self, hashed: &[u8], signature: &RSASignature) -> FastCryptoResult<()> {
-        self.0
-            .verify(
-                Pkcs1v15Sign::new::<sha2::Sha256>(),
-                hashed,
-                signature.0.as_ref(),
-            )
+        Pkcs1v15Sign::new::<sha2::Sha256>()
+            .verify(&self.0, hashed, &signature.0.to_bytes())
             .map_err(|_| FastCryptoError::InvalidSignature)
     }
 }

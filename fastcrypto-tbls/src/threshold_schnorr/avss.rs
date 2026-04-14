@@ -23,11 +23,12 @@ use fastcrypto::error::FastCryptoError::{
     InputLengthWrong, InvalidInput, InvalidMessage, NotEnoughWeight,
 };
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::Scalar;
+use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::ops::Add;
 
 /// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
 #[allow(dead_code)]
@@ -130,7 +131,7 @@ impl SharesForNode {
                     .iter()
                     .flat_map(|share| share.shares.clone())
                     .collect_vec();
-                Poly::interpolate_at_index(index, &evaluations).unwrap()
+                Poly::recover_at(index, &evaluations).unwrap()
             })
             .collect_vec();
 
@@ -146,20 +147,13 @@ impl Dealer {
     /// * `secret`: The secret to share. If None, a random secret will be generated.
     /// * `nodes`: The set of nodes (parties) participating in the protocol, including their public keys and weights.
     /// * `t`: The threshold number of shares required to reconstruct the secret. One party can have multiple shares according to its weight.
-    /// * `f`: An upper bound on the number of Byzantine parties counted by weight.
     /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
     pub fn new(
         secret: Option<S>,
         nodes: Nodes<EG>,
         t: u16,
-        f: u16,
         sid: Vec<u8>,
     ) -> FastCryptoResult<Self> {
-        // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
-        if t <= f || t + 2 * f > nodes.total_weight() {
-            return Err(InvalidInput);
-        }
-
         Ok(Self {
             secret,
             t,
@@ -169,12 +163,12 @@ impl Dealer {
     }
 
     /// 1. The Dealer samples nonces, generates shares and broadcasts the encrypted shares.
-    pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> FastCryptoResult<Message> {
+    pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> Message {
         let secret = self.secret.unwrap_or(S::rand(rng));
         let polynomial = Poly::rand_fixed_c0(self.t - 1, secret, rng);
 
         // Evaluate all shares
-        let all_shares = polynomial.eval_range(self.nodes.total_weight())?;
+        let all_shares = polynomial.eval_range(self.nodes.total_weight());
 
         // Encrypt all shares to the receivers
         let pk_and_msgs = self
@@ -187,7 +181,7 @@ impl Dealer {
                     SharesForNode {
                         shares: share_ids
                             .into_iter()
-                            .map(|index| all_shares[index].clone())
+                            .map(|index| all_shares.get_eval(index))
                             .collect_vec(),
                     }
                     .to_bytes(),
@@ -201,10 +195,10 @@ impl Dealer {
             rng,
         );
 
-        Ok(Message {
+        Message {
             ciphertext,
             feldman_commitment: polynomial.commit(),
-        })
+        }
     }
 
     fn random_oracle(&self) -> RandomOracle {
@@ -278,10 +272,7 @@ impl Receiver {
         );
 
         match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
-            if my_shares.weight() != self.my_weight() {
-                return Err(InvalidInput);
-            }
-            my_shares.verify(message)?;
+            verify_shares(&my_shares, &self.nodes, self.id, message)?;
             Ok(my_shares)
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(PartialOutput {
@@ -309,12 +300,14 @@ impl Receiver {
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
             &self.random_oracle(),
-            |shares: &SharesForNode| shares.verify(message),
+            |shares: &SharesForNode| {
+                verify_shares(shares, &self.nodes, complaint.accuser_id, message)
+            },
         )?;
-        Ok(ComplaintResponse::create(
-            self.id,
-            my_output.my_shares.clone(),
-        ))
+        Ok(ComplaintResponse {
+            responder_id: self.id,
+            shares: my_output.my_shares.clone(),
+        })
     }
 
     /// 5. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
@@ -377,6 +370,19 @@ impl Receiver {
     }
 }
 
+/// Verify a set of shares receiver from a Dealer
+fn verify_shares(
+    shares: &SharesForNode,
+    nodes: &Nodes<EG>,
+    receiver: PartyId,
+    message: &Message,
+) -> FastCryptoResult<()> {
+    if shares.weight() != nodes.weight_of(receiver)? as usize {
+        return Err(InvalidMessage);
+    }
+    shares.verify(message)
+}
+
 impl ReceiverOutput {
     pub fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
         self.my_shares.shares.iter().find(|s| s.index == index)
@@ -402,34 +408,15 @@ impl ReceiverOutput {
         let outputs = outputs.into_values().collect_vec();
 
         // Sanity check: Outputs cannot be empty and all outputs must have the same weight.
-        if outputs.is_empty() || !outputs.iter().map(|output| output.weight()).all_equal() {
+        if !outputs.iter().map(|output| output.weight()).all_equal() {
             return Err(InvalidInput);
         }
 
-        Ok(outputs
+        outputs
             .into_iter()
-            .map(|output| output.into_receiver_output(nodes))
-            .reduce(|acc, output| {
-                let shares = acc
-                    .my_shares
-                    .shares
-                    .iter()
-                    .zip_eq(&output.my_shares.shares)
-                    .map(types::sum)
-                    .collect_vec();
-                let commitments = acc
-                    .commitments
-                    .iter()
-                    .zip_eq(&output.commitments)
-                    .map(types::sum)
-                    .collect_vec();
-                ReceiverOutput {
-                    my_shares: SharesForNode { shares },
-                    commitments,
-                    vk: acc.vk + output.vk,
-                }
-            })
-            .expect("Should not be empty"))
+            .reduce(|acc, output| acc + output)
+            .ok_or(InvalidInput)
+            .map(|o| o.into_receiver_output(nodes))
     }
 
     /// Interpolate shares from multiple outputs to create new shares for the given indices.
@@ -454,51 +441,46 @@ impl ReceiverOutput {
 
         let my_indices = nodes.share_ids_of(my_id)?;
 
-        let outputs = outputs
-            .iter()
-            .map(|output| Eval {
-                index: output.index,
-                value: output.clone().value.into_receiver_output(nodes),
-            })
-            .collect_vec();
-
-        let shares = my_indices
-            .iter()
-            .map(|&index| Eval {
-                index,
-                value: Poly::recover_c0(
-                    t,
-                    outputs.iter().map(|output| Eval {
-                        index: output.index,
-                        value: output.value.share_for_index(index).unwrap().clone().value,
-                    }),
-                )
-                .unwrap(),
-            })
-            .collect();
-
-        let commitments = nodes
-            .share_ids_iter()
-            .map(|index| Eval {
-                index,
-                value: Poly::recover_c0_msm(
-                    t,
-                    outputs.iter().map(|output| Eval {
-                        index: output.index,
-                        value: output.value.commitment_for_index(index).unwrap().value,
-                    }),
-                )
-                .unwrap(),
-            })
-            .collect_vec();
-
-        // TODO: This will not change, so perhaps it's not meaningful to compute it again, except for a sanity check?
-        let vk = Poly::recover_c0_msm(
+        // We only need to compute the lagrange coefficients for one of the indices this party controls
+        let lagrange_coefficients: Vec<S> = Poly::get_lagrange_coefficients_for_c0(
             t,
             outputs.iter().map(|output| Eval {
                 index: output.index,
-                value: output.value.vk,
+                value: output.value.share_for_index(my_indices[0]).unwrap().value,
             }),
+        )
+        .map(|c| c.1.iter().map(|s| s * c.0).collect_vec())?;
+
+        let feldman_commitment = Poly::multi_scalar_mul(
+            &outputs
+                .iter()
+                .map(|output| output.value.feldman_commitment.clone())
+                .collect_vec(),
+            &lagrange_coefficients,
+        )?;
+
+        let commitments = feldman_commitment.eval_range(nodes.total_weight()).to_vec();
+
+        let shares =
+            my_indices
+                .iter()
+                .map(|&index| Eval {
+                    index,
+                    value: S::sum(outputs.iter().zip(&lagrange_coefficients).map(
+                        |(output, coeff)| {
+                            output.value.share_for_index(index).unwrap().clone().value * coeff
+                        },
+                    )),
+                })
+                .collect();
+
+        let vk = G::multi_scalar_mul(
+            &lagrange_coefficients,
+            outputs
+                .iter()
+                .map(|o| *o.value.feldman_commitment.c0())
+                .collect_vec()
+                .as_slice(),
         )?;
 
         Ok(Self {
@@ -521,10 +503,7 @@ impl PartialOutput {
     }
 
     fn compute_all_commitments(&self, to: ShareIndex) -> Vec<Eval<G>> {
-        self.feldman_commitment
-            .eval_range(to.get())
-            .unwrap()
-            .to_vec()
+        self.feldman_commitment.eval_range(to.get()).to_vec()
     }
 
     #[cfg(test)]
@@ -532,8 +511,30 @@ impl PartialOutput {
         self.feldman_commitment.eval(index)
     }
 
+    fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
+        self.my_shares.shares.iter().find(|s| s.index == index)
+    }
+
     fn weight(&self) -> usize {
         self.my_shares.weight()
+    }
+}
+
+impl Add<Self> for PartialOutput {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let shares = self
+            .my_shares
+            .shares
+            .iter()
+            .zip_eq(&rhs.my_shares.shares)
+            .map(types::sum)
+            .collect_vec();
+        Self {
+            my_shares: SharesForNode { shares },
+            feldman_commitment: self.feldman_commitment + &rhs.feldman_commitment,
+        }
     }
 }
 
@@ -561,7 +562,6 @@ mod tests {
     fn test_sharing() {
         // No complaints, all honest. All have weight 1
         let t = 3;
-        let f = 2;
         let n = 7;
 
         let mut rng = rand::thread_rng();
@@ -585,7 +585,7 @@ mod tests {
         let secret = Scalar::rand(&mut rng);
         let previous_round_commitment = G::generator() * secret;
 
-        let dealer: Dealer = Dealer::new(Some(secret), nodes.clone(), t, f, sid.clone()).unwrap();
+        let dealer: Dealer = Dealer::new(Some(secret), nodes.clone(), t, sid.clone()).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -602,7 +602,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let message = dealer.create_message(&mut rng).unwrap();
+        let message = dealer.create_message(&mut rng);
 
         let all_shares = receivers
             .iter()
@@ -627,7 +627,6 @@ mod tests {
     fn test_sharing_two_rounds() {
         // No complaints, all honest. All have weight 1
         let t = 3;
-        let f = 2;
         let n = 7;
 
         let mut rng = rand::thread_rng();
@@ -648,7 +647,7 @@ mod tests {
 
         let sid = b"tbls test".to_vec();
 
-        let dealer: Dealer = Dealer::new(None, nodes.clone(), t, f, sid.clone()).unwrap();
+        let dealer: Dealer = Dealer::new(None, nodes.clone(), t, sid.clone()).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -665,7 +664,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let message = dealer.create_message(&mut rng).unwrap();
+        let message = dealer.create_message(&mut rng);
 
         // Get shares for all receivers
         let all_shares = receivers
@@ -684,7 +683,7 @@ mod tests {
 
         let sid2 = b"tbls test 2".to_vec();
         let dealer: Dealer =
-            Dealer::new(Some(secret.value), nodes.clone(), t, f, sid2.clone()).unwrap();
+            Dealer::new(Some(secret.value), nodes.clone(), t, sid2.clone()).unwrap();
         let receivers = receivers
             .into_iter()
             .map(
@@ -712,7 +711,7 @@ mod tests {
             )
             .collect::<Vec<_>>();
 
-        let message = dealer.create_message(&mut rng).unwrap();
+        let message = dealer.create_message(&mut rng);
 
         // Shares for all receivers
         let all_shares = receivers
@@ -738,7 +737,6 @@ mod tests {
     #[test]
     fn test_share_recovery() {
         let t = 3;
-        let f = 2;
         let n = 7;
 
         let mut rng = rand::thread_rng();
@@ -760,7 +758,7 @@ mod tests {
         let sid = b"tbls test".to_vec();
         let secret = Scalar::rand(&mut rng);
 
-        let dealer: Dealer = Dealer::new(Some(secret), nodes.clone(), t, f, sid.clone()).unwrap();
+        let dealer: Dealer = Dealer::new(Some(secret), nodes.clone(), t, sid.clone()).unwrap();
 
         let commitment = G::generator() * secret;
 
@@ -868,7 +866,6 @@ mod tests {
     fn test_dkg_simple() {
         // No complaints, all honest. All have weight 1
         let t = 3;
-        let f = 2;
         let n = 7;
 
         let mut rng = rand::thread_rng();
@@ -898,7 +895,7 @@ mod tests {
         // Each node acts as dealer in the DKG
         for node in nodes.iter() {
             let sid = format!("dkg-test-session-{}", node.id).into_bytes();
-            let dealer: Dealer = Dealer::new(None, nodes.clone(), t, f, sid.clone()).unwrap();
+            let dealer: Dealer = Dealer::new(None, nodes.clone(), t, sid.clone()).unwrap();
             let receivers = sks
                 .iter()
                 .enumerate()
@@ -915,7 +912,7 @@ mod tests {
                 .collect::<Vec<_>>();
 
             // Each dealer creates a message
-            let message = dealer.create_message(&mut rng).unwrap();
+            let message = dealer.create_message(&mut rng);
             messages.push(message.clone());
 
             // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.

@@ -15,10 +15,8 @@ pub mod dkg_v1;
 pub mod dl_verification;
 pub mod ecies_v1;
 pub mod mocked_dkg;
-pub mod nizk;
 pub mod nodes;
 pub mod polynomial;
-pub mod random_oracle;
 pub mod tbls;
 pub mod threshold_schnorr;
 pub mod types;
@@ -57,6 +55,7 @@ pub mod nodes_tests;
 // #[path = "tests/nidkg_tests.rs"]
 // pub mod nidkg_tests;
 
+pub mod nizk;
 #[cfg(test)]
 #[path = "tests/nizk_tests.rs"]
 pub mod nizk_tests;
@@ -64,3 +63,4 @@ pub mod nizk_tests;
 #[cfg(test)]
 #[path = "tests/super_swiper_test.rs"]
 pub mod super_swiper_test;
+pub mod random_oracle;

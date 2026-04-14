@@ -277,6 +277,7 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 struct TestIssuerJWTResponse {
     jwt: String,
 }
@@ -366,4 +367,43 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
         assert!(res.is_ok());
     }
     .await;
+}
+
+#[tokio::test]
+async fn test_get_jwks() {
+    let client = reqwest::Client::new();
+    for p in [
+        OIDCProvider::Facebook,
+        OIDCProvider::Google,
+        OIDCProvider::Twitch,
+        OIDCProvider::Slack,
+        OIDCProvider::Kakao,
+        OIDCProvider::Apple,
+        OIDCProvider::Microsoft,
+        OIDCProvider::KarrierOne,
+        // OIDCProvider::Credenza3, // TODO: disabling until Cloudflare challenge is removed from JWK endpoint
+        OIDCProvider::Playtron,
+        OIDCProvider::Threedos,
+        OIDCProvider::Onefc,
+        OIDCProvider::FanTV,
+        // OIDCProvider::Arden, // TODO: disabling until the service is up again
+        OIDCProvider::EveFrontier,
+        OIDCProvider::TestEveFrontier,
+        OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), //Trace
+        OIDCProvider::AwsTenant((
+            "ap-southeast-1".to_string(),
+            "ap-southeast-1_2QQPyQXDz".to_string(),
+        )), // Decot
+    ] {
+        let res = fetch_jwks(&p, &client, true).await;
+        assert!(
+            res.is_ok(),
+            "fetch_jwks failed for {:?}: {:?}",
+            p,
+            res.err()
+        );
+        res.unwrap().iter().for_each(|e| {
+            assert_eq!(e.0.iss, p.get_config().iss);
+        });
+    }
 }

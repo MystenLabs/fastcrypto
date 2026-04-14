@@ -23,14 +23,14 @@ use std::ops::{Add, Neg};
 #[cfg(test)]
 mod tests;
 
-/// This module implements a hash function for imaginary class groups whichtakes an arbitrary binary input and returns
+/// This module implements a hash function for imaginary class groups which takes an arbitrary binary input and returns
 /// an element in the class group. The output of the hash function is uniformly random on a large subset of the class
 /// group but not the entire class group.
 pub(crate) mod hash;
 
 /// Two quadratic forms may represent the same element in the class group, but each equivalence class contains exactly
-/// one reduced form. This module contains methods to reduce quadratic forms, which besides uniqness also ensures that
-/// the coefficients does not become too large.
+/// one reduced form. This module contains methods to reduce quadratic forms, which besides uniqueness also ensures that
+/// the coefficients do not become too large.
 pub(crate) mod reduction;
 
 /// Discriminants of quadratic forms are negative primes which is 1 mod 8. This module contains a type to represent
@@ -110,16 +110,18 @@ impl QuadraticForm {
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
 
-        let u1 = &self.a;
-        let v1 = &self.b;
-        let w1 = &self.c;
-        let u2 = &rhs.a;
-        let v2 = &rhs.b;
-        let w2 = &rhs.c;
+        let mut u1 = &self.a;
+        let mut v1 = &self.b;
+        let mut w1 = &self.c;
+        let mut u2 = &rhs.a;
+        let mut v2 = &rhs.b;
+        let mut w2 = &rhs.c;
 
         // 1.
         if w1 < w2 {
-            swap(&mut (u1, v1, w1), &mut (u2, v2, w2));
+            swap(&mut u1, &mut u2);
+            swap(&mut v1, &mut v2);
+            swap(&mut w1, &mut w2);
         }
         let s: BigInt = (v1 + v2) >> 1;
         let m = v2 - &s;

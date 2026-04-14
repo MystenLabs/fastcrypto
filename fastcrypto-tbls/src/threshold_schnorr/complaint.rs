@@ -40,32 +40,26 @@ impl Complaint {
             self.accuser_id as usize,
         )?;
 
-        let shares = match S::from_bytes(&buffer) {
-            Ok(s) => s,
-            Err(_) => {
-                debug!(
-                    "Complaint by party {} is valid: C complaint failed to deserialize shares",
-                    self.accuser_id
-                );
-                return Ok(());
-            }
+        let Ok(shares) = S::from_bytes(&buffer) else {
+            debug!(
+                "Complaint by party {} is valid: Failed to deserialize shares",
+                self.accuser_id
+            );
+            return Ok(());
         };
 
-        match verifier(&shares) {
-            Ok(_) => {
-                debug!(
-                    "Complaint by party {} is invalid: Shares verify correctly",
-                    self.accuser_id
-                );
-                Err(InvalidProof)
-            }
-            Err(_) => {
-                debug!(
-                    "Complaint by party {} is valid: Shares do not verify correctly",
-                    self.accuser_id
-                );
-                Ok(())
-            }
+        if verifier(&shares).is_ok() {
+            debug!(
+                "Complaint by party {} is invalid: Shares verify correctly",
+                self.accuser_id
+            );
+            Err(InvalidProof)
+        } else {
+            debug!(
+                "Complaint by party {} is valid: Shares do not verify correctly",
+                self.accuser_id
+            );
+            Ok(())
         }
     }
 
@@ -87,7 +81,7 @@ impl Complaint {
     }
 }
 
-/// A response to a complaint, containing the responders shares.
+/// A response to a complaint, containing the responder's shares.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComplaintResponse<S> {
     pub(crate) responder_id: PartyId,
@@ -95,8 +89,8 @@ pub struct ComplaintResponse<S> {
 }
 
 impl<S> ComplaintResponse<S> {
-    pub(crate) fn create(responder_id: PartyId, shares: S) -> Self {
-        ComplaintResponse {
+    pub fn new(responder_id: PartyId, shares: S) -> Self {
+        Self {
             responder_id,
             shares,
         }

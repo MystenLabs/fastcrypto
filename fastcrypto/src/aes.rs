@@ -305,5 +305,5 @@ pub type Aes128Gcm<NonceSize> = AeadWrapper<aes_gcm::AesGcm<aes::Aes128, NonceSi
 /// AES256 in GCM-mode (authenticated) using the given nonce size.
 pub type Aes256Gcm<NonceSize> = AeadWrapper<aes_gcm::AesGcm<aes::Aes256, NonceSize>>;
 
-/// AES256 in GCM-SIV (athenticated) mode with 96 bit nonces.
+/// AES256 in GCM-SIV (authenticated) mode with 96 bit nonces.
 pub type Aes256GcmSiv = AeadWrapper<aes_gcm_siv::Aes256GcmSiv>;

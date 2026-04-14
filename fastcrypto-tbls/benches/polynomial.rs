@@ -10,7 +10,7 @@ use std::num::NonZeroU16;
 mod polynomial_benches {
     use super::*;
     use fastcrypto::groups::bls12381::Scalar;
-    use fastcrypto_tbls::threshold_schnorr::gao::RSDecoder;
+    use fastcrypto_tbls::threshold_schnorr::reed_solomon::RSDecoder;
     use fastcrypto_tbls::threshold_schnorr::S;
     use fastcrypto_tbls::types::ShareIndex;
     use itertools::Itertools;
@@ -74,7 +74,7 @@ mod polynomial_benches {
                 let vss_sk = Poly::<bls12381::Scalar>::rand(t as u16, &mut thread_rng());
                 shares_gen.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
                     b.iter(|| {
-                        let _ = vss_sk.eval_range(n as u16).unwrap();
+                        let _ = vss_sk.eval_range(n as u16);
                     })
                 });
             }
@@ -121,7 +121,7 @@ mod polynomial_benches {
 
         c.bench_function(format!("interpolate at index t={t}").as_str(), |b| {
             b.iter(|| {
-                let _ = Poly::interpolate_at_index(NonZeroU16::new(7).unwrap(), &points).unwrap();
+                let _ = Poly::recover_at(NonZeroU16::new(307).unwrap(), &points).unwrap();
             })
         });
     }

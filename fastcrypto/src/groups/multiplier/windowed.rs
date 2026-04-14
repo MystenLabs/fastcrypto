@@ -70,7 +70,7 @@ impl<
         let base_2w_expansion =
             integer_utils::compute_base_2w_expansion(&scalar_bytes, Self::WINDOW_WIDTH);
 
-        // Computer multiplication using the fixed-window method to ensure that it's constant time.
+        // Compute multiplication using the fixed-window method to ensure that it's constant time.
         let mut result: G = self.cache[base_2w_expansion[base_2w_expansion.len() - 1]].clone();
         for digit in base_2w_expansion.iter().rev().skip(1) {
             for _ in 1..=Self::WINDOW_WIDTH {
@@ -133,7 +133,7 @@ pub fn multi_scalar_mul<
     // Create vector with all precomputation tables.
     let mut all_precomputed_multiples = vec![];
     for i in 0..N {
-        match precomputed_multiples.get(&i).take() {
+        match precomputed_multiples.get(&i) {
             Some(precomputed_multiples) => {
                 all_precomputed_multiples.push(precomputed_multiples);
                 window_sizes[i] = integer_utils::log2(all_precomputed_multiples[i].len()) + 1;
@@ -239,6 +239,7 @@ mod tests {
     use crate::groups::secp256r1::{ProjectivePoint, Scalar};
     use crate::groups::GroupElement;
     use crate::groups::Scalar as ScalarTrait;
+    use crate::ristretto255_tests::GROUP_ORDER_MINUS_ONE;
     use crate::serde_helpers::ToFromByteArray;
 
     use super::*;
@@ -257,16 +258,14 @@ mod tests {
         );
 
         let scalars = [
-            RistrettoScalar::from(0),
-            RistrettoScalar::from(1),
-            RistrettoScalar::from(2),
-            RistrettoScalar::from(1234),
-            RistrettoScalar::from(123456),
-            RistrettoScalar::from(123456789),
-            RistrettoScalar::from(0xffffffffffffffff),
-            RistrettoScalar::group_order(),
-            RistrettoScalar::group_order() - RistrettoScalar::from(1),
-            RistrettoScalar::group_order() + RistrettoScalar::from(1),
+            RistrettoScalar::from(0u64),
+            RistrettoScalar::from(1u64),
+            RistrettoScalar::from(2u64),
+            RistrettoScalar::from(1234u64),
+            RistrettoScalar::from(123456u64),
+            RistrettoScalar::from(123456789u64),
+            RistrettoScalar::from(0xffffffffffffffffu64),
+            RistrettoScalar::from_byte_array(&GROUP_ORDER_MINUS_ONE).unwrap(),
         ];
 
         for scalar in scalars {
@@ -338,7 +337,7 @@ mod tests {
             RistrettoPoint::zero(),
         );
 
-        let other_point = RistrettoPoint::generator() * RistrettoScalar::from(3);
+        let other_point = RistrettoPoint::generator() * RistrettoScalar::from(3u64);
 
         let a = RistrettoScalar::rand(&mut thread_rng());
         let b = RistrettoScalar::rand(&mut thread_rng());

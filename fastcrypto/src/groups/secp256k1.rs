@@ -7,7 +7,6 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{
     Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar as ScalarTrait,
 };
-use crate::hash::{HashFunction, Sha3_512};
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
@@ -257,9 +256,9 @@ impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
 
 impl FiatShamirChallenge for Scalar {
     fn fiat_shamir_reduction_to_group_element(uniform_buffer: &[u8]) -> Self {
-        Scalar::from(Fr::from_be_bytes_mod_order(
-            &Sha3_512::digest(uniform_buffer).digest,
-        ))
+        // Ensure that we have enough bytes to avoid bias in the modular reduction.
+        assert!(uniform_buffer.len() >= 48);
+        Scalar::from(Fr::from_be_bytes_mod_order(uniform_buffer))
     }
 }
 
@@ -369,16 +368,14 @@ pub mod schnorr {
     impl TryFrom<Scalar> for SchnorrPrivateKey {
         type Error = FastCryptoError;
 
-        fn try_from(value: Scalar) -> Result<Self, Self::Error> {
+        fn try_from(mut value: Scalar) -> Result<Self, Self::Error> {
             if value.is_zero() {
                 return Err(FastCryptoError::InvalidInput);
             }
 
             // Ensure that the corresponding public key has an even y-coordinate. Otherwise, flip the sign of the scalar.
-            let value = if (ProjectivePoint::generator() * value).has_even_y()? {
-                value
-            } else {
-                -value
+            if !(ProjectivePoint::generator() * value).has_even_y()? {
+                value = -value
             };
 
             Ok(SchnorrPrivateKey(value))
@@ -480,10 +477,7 @@ pub mod schnorr {
             )
             .expect("Fixed size inputs");
 
-            if expected.is_zero()
-                || !expected.has_even_y()?
-                || r != &expected.x_as_be_bytes().expect("Not infinity")
-            {
+            if expected.is_zero() || !expected.has_even_y()? || r != &expected.x_as_be_bytes()? {
                 return Err(FastCryptoError::InvalidSignature);
             }
             Ok(())

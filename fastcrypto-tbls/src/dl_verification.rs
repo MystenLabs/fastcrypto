@@ -8,7 +8,6 @@ use fastcrypto::traits::AllowedRng;
 use std::num::NonZeroU16;
 
 /// Helper functions for checking relations between scalars and group elements.
-
 fn dot<S: Scalar>(v1: &[S], v2: &[S]) -> S {
     assert_eq!(v1.len(), v2.len());
     v1.iter()

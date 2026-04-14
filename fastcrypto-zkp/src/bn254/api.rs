@@ -29,7 +29,10 @@ pub fn verify_groth16_in_bytes(
     proof_public_inputs_as_bytes: &[u8],
     proof_points_as_bytes: &[u8],
 ) -> Result<bool, FastCryptoError> {
-    if proof_public_inputs_as_bytes.len() % SCALAR_SIZE != 0 {
+    if !proof_public_inputs_as_bytes
+        .len()
+        .is_multiple_of(SCALAR_SIZE)
+    {
         return Err(FastCryptoError::InputLengthWrong(SCALAR_SIZE));
     }
 

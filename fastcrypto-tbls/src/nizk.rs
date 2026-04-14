@@ -121,30 +121,24 @@ where
     /// Create a new NIZKPoK for the DL [G, xG] using the given RNG and random oracle.
     pub fn create<R: AllowedRng>(
         x: &G::ScalarType,
-        x_g: &G,             // passed since probably already computed
-        aux_ro_input: &[u8], // optional auxiliary input to the random oracle
+        x_g: &G, // passed since probably already computed
         random_oracle: &RandomOracle,
         rng: &mut R,
     ) -> Self {
         let r = G::ScalarType::rand(rng);
         let a = G::generator() * r;
-        let challenge = Self::fiat_shamir_challenge(x_g, &a, aux_ro_input, random_oracle);
+        let challenge = Self::fiat_shamir_challenge(x_g, &a, random_oracle);
         let z = challenge * x + r;
         debug!("NIZK: Creating a proof for {x_g:?} with challenge {challenge:?}");
         DLNizk(a, z)
     }
 
-    pub fn verify(
-        &self,
-        x_g: &G,
-        aux_ro_input: &[u8],
-        random_oracle: &RandomOracle,
-    ) -> FastCryptoResult<()> {
+    pub fn verify(&self, x_g: &G, random_oracle: &RandomOracle) -> FastCryptoResult<()> {
         if *x_g == G::zero() {
             // we should never see this, but just in case
             return Err(FastCryptoError::InvalidProof);
         }
-        let challenge = Self::fiat_shamir_challenge(x_g, &self.0, aux_ro_input, random_oracle);
+        let challenge = Self::fiat_shamir_challenge(x_g, &self.0, random_oracle);
         debug!("NIZK: Verifying a proof of {x_g:?} with challenge {challenge:?}");
         if !is_valid_relation(&self.0, x_g, &G::generator(), &self.1, &challenge) {
             Err(FastCryptoError::InvalidProof)
@@ -154,13 +148,8 @@ where
     }
 
     /// Returns the challenge for Fiat-Shamir.
-    fn fiat_shamir_challenge(
-        x_g: &G,
-        a: &G,
-        aux_ro_input: &[u8],
-        random_oracle: &RandomOracle,
-    ) -> G::ScalarType {
-        let output = random_oracle.evaluate(&(G::generator(), x_g, a, aux_ro_input));
+    fn fiat_shamir_challenge(x_g: &G, a: &G, random_oracle: &RandomOracle) -> G::ScalarType {
+        let output = random_oracle.evaluate(&(G::generator(), x_g, a));
         G::ScalarType::fiat_shamir_reduction_to_group_element(&output)
     }
 }

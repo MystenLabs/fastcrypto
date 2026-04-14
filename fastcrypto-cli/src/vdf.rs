@@ -126,7 +126,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
             let vdf = DefaultVDF::new(DISCRIMINANT_3072.clone(), arguments.iterations);
             let (output, proof) = vdf
                 .evaluate(&g)
-                .map_err(|_| Error::new(ErrorKind::Other, "VDF evaluation failed"))?;
+                .map_err(|_| Error::other("VDF evaluation failed"))?;
 
             let output_string = hex::encode(bcs::to_bytes(&output).unwrap());
             let proof_string = hex::encode(bcs::to_bytes(&proof).unwrap());

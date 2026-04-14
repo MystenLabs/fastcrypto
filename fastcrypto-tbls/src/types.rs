@@ -68,3 +68,13 @@ where
         index: a.index,
     }
 }
+
+/// If all elements in this iterator have the same value, return that value.
+/// Otherwise, or if the iterator is empty, return `None`.
+pub fn get_uniform_value<T: PartialEq>(items: impl IntoIterator<Item = T>) -> Option<T> {
+    let mut iterator = items.into_iter();
+    let uniform_value = iterator.next()?;
+    iterator
+        .all(|x| uniform_value == x)
+        .then_some(uniform_value)
+}

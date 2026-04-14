@@ -29,6 +29,9 @@ env:
   # Don't emit giant backtraces in the CI logs.
   RUST_BACKTRACE: short
 
+permissions:
+  contents: read
+
 jobs:
   license-check:
     name: license-check
@@ -57,7 +60,8 @@ jobs:
         run: cargo build --benches --features experimental,copy_key,unsecure_schemes
       - name: cargo test
       # TODO: `cargo nextest run` doesn't work on windows, so we use `cargo test` instead
-        run: cargo test --all-features
+      # Skip zklogin e2e tests (run separately in non-required workflow)
+        run: cargo test --all-features -- --skip zk_login_e2e
       - name: Doctests
         run: |
           cargo test --doc --features experimental,copy_key,unsecure_schemes

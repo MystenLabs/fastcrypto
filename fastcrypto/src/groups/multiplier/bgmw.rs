@@ -12,7 +12,7 @@ use crate::serde_helpers::ToFromByteArray;
 /// Once pre-computation has been done, a scalar multiplication requires HEIGHT additions. Both `mul`
 /// and `double_mul` are constant time assuming the group operations for `G` are constant time.
 ///
-/// The algorithm used is the BGMW algorithm with base `2^WIDTH` and the basic digit set set to `0, ..., 2^WIDTH-1`.
+/// The algorithm used is the BGMW algorithm with base `2^WIDTH` and the basic digit set to `0, ..., 2^WIDTH-1`.
 ///
 /// This method is faster than the WindowedScalarMultiplier for a single multiplication, but it requires
 /// a larger number of precomputed points.
@@ -69,10 +69,11 @@ impl<
 
         // Compute cache[i][j] = 2^w * cache[i-1][j] for i > 0.
         for i in 1..HEIGHT {
-            for j in 0..WIDTH {
-                cache[i][j] = cache[i - 1][j];
+            let (prev, curr) = cache.split_at_mut(i);
+            for (j, item) in curr[0].iter_mut().take(WIDTH).enumerate() {
+                *item = prev[i - 1][j];
                 for _ in 0..Self::WINDOW_WIDTH {
-                    cache[i][j] = cache[i][j].double();
+                    *item = item.double();
                 }
             }
         }
@@ -102,6 +103,7 @@ mod tests {
     use super::*;
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::secp256r1::{ProjectivePoint, Scalar};
+    use crate::ristretto255_tests::GROUP_ORDER_MINUS_ONE;
     use ark_ff::{BigInteger, PrimeField};
     use ark_secp256r1::Fr;
 
@@ -113,16 +115,14 @@ mod tests {
         );
 
         let scalars = [
-            RistrettoScalar::from(0),
-            RistrettoScalar::from(1),
-            RistrettoScalar::from(2),
-            RistrettoScalar::from(1234),
-            RistrettoScalar::from(123456),
-            RistrettoScalar::from(123456789),
-            RistrettoScalar::from(0xffffffffffffffff),
-            RistrettoScalar::group_order(),
-            RistrettoScalar::group_order() - RistrettoScalar::from(1),
-            RistrettoScalar::group_order() + RistrettoScalar::from(1),
+            RistrettoScalar::from(0u64),
+            RistrettoScalar::from(1u64),
+            RistrettoScalar::from(2u64),
+            RistrettoScalar::from(1234u64),
+            RistrettoScalar::from(123456u64),
+            RistrettoScalar::from(123456789u64),
+            RistrettoScalar::from(0xffffffffffffffffu64),
+            RistrettoScalar::from_byte_array(&GROUP_ORDER_MINUS_ONE).unwrap(),
         ];
 
         for scalar in scalars {

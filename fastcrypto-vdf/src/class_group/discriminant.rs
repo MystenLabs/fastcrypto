@@ -73,7 +73,7 @@ impl Discriminant {
     /// Compute a valid discriminant (aka a negative prime equal to 1 mod 8) based on the given seed.
     /// The size_in_bits must be divisible by 8.
     pub fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<Discriminant> {
-        if size_in_bits % 8 != 0 {
+        if !size_in_bits.is_multiple_of(8) {
             return Err(InvalidInput);
         }
         // Set the lower three bits to ensure that the prime is 7 mod 8 which makes the discriminant 1 mod 8.

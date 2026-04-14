@@ -9,11 +9,11 @@ use crate::bn254::utils::{
 use crate::bn254::zk_login::big_int_array_to_bits;
 use crate::bn254::zk_login::bitarray_to_bytearray;
 use crate::bn254::zk_login::poseidon_zk_login;
+use crate::bn254::zk_login::OIDCProvider;
 use crate::bn254::zk_login::{
     base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
     parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId,
 };
-use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
 use crate::bn254::zk_login_api::ZkLoginEnv;
 use crate::bn254::zk_login_api::{verify_zk_login_id, verify_zk_login_iss, Bn254Fr};
 use crate::bn254::{
@@ -454,40 +454,6 @@ fn test_jwk_parse() {
     .is_err());
 }
 
-#[tokio::test]
-async fn test_get_jwks() {
-    let client = reqwest::Client::new();
-    for p in [
-        OIDCProvider::Facebook,
-        OIDCProvider::Google,
-        OIDCProvider::Twitch,
-        OIDCProvider::Slack,
-        OIDCProvider::Kakao,
-        OIDCProvider::Apple,
-        OIDCProvider::Microsoft,
-        OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_qPsZxYqd8".to_string())),
-        OIDCProvider::KarrierOne,
-        OIDCProvider::Credenza3,
-        OIDCProvider::Playtron,
-        OIDCProvider::Threedos,
-        OIDCProvider::Onefc,
-        OIDCProvider::FanTV,
-        // OIDCProvider::Arden, // TODO: disabling until the service is up again
-        OIDCProvider::EveFrontier,
-        OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), //Trace
-        OIDCProvider::AwsTenant((
-            "ap-southeast-1".to_string(),
-            "ap-southeast-1_2QQPyQXDz".to_string(),
-        )), // Decot
-    ] {
-        let res = fetch_jwks(&p, &client, true).await;
-        assert!(res.is_ok());
-        res.unwrap().iter().for_each(|e| {
-            assert_eq!(e.0.iss, p.get_config().iss);
-        });
-    }
-}
-
 #[test]
 fn test_get_nonce() {
     let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
@@ -508,14 +474,15 @@ fn test_get_provider_to_from_iss_to_from_str() {
         OIDCProvider::Apple,
         OIDCProvider::Microsoft,
         OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_LPSLCkC3A".to_string())),
-        OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_qPsZxYqd8".to_string())),
         OIDCProvider::KarrierOne,
         OIDCProvider::Credenza3,
         OIDCProvider::Playtron,
         OIDCProvider::Threedos,
         OIDCProvider::Onefc,
         OIDCProvider::FanTV,
-        OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), //Trace
+        OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), // Trace
+        OIDCProvider::AwsTenant(("eu-north-1".to_string(), "eu-north-1_Bpct2JyBg".to_string())), // test gammaprime
+        OIDCProvider::AwsTenant(("eu-north-1".to_string(), "eu-north-1_4HdQTpt3E".to_string())), // gammaprime
     ] {
         // to/from iss
         assert_eq!(p, OIDCProvider::from_iss(&p.get_config().iss).unwrap());

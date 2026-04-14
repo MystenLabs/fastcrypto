@@ -3,23 +3,34 @@
 
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::ristretto255::RistrettoScalar;
-use crate::groups::{GroupElement, MultiScalarMul};
+use crate::groups::{GroupElement, HashToGroupElement, MultiScalarMul};
 use crate::serde_helpers::ToFromByteArray;
+use hex_literal::hex;
+
+pub(crate) const GROUP_ORDER: [u8; 32] = [
+    237, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 16,
+];
+pub(crate) const GROUP_ORDER_MINUS_ONE: [u8; 32] = [
+    236, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 16,
+];
 
 #[test]
 fn test_arithmetic() {
     // From https://ristretto.group/test_vectors/ristretto255.html
-    let five_bp = RistrettoPoint::try_from(
-        hex::decode("e882b131016b52c1d3337080187cf768423efccbb517bb495ab812c4160ff44e")
+    let five_bp = RistrettoPoint::from_byte_array(
+        &hex::decode("e882b131016b52c1d3337080187cf768423efccbb517bb495ab812c4160ff44e")
             .unwrap()
-            .as_slice(),
+            .try_into()
+            .unwrap(),
     )
     .unwrap();
 
     // Test that different ways of computing [5]G gives the expected result
     let g = RistrettoPoint::generator();
 
-    let p1 = g * RistrettoScalar::from(5);
+    let p1 = g * RistrettoScalar::from(5u64);
     assert_eq!(five_bp, p1);
 
     let p2 = g + g + g + g + g + g - g;
@@ -30,48 +41,67 @@ fn test_arithmetic() {
     assert_eq!(five_bp, p3);
 
     let mut p4 = g;
-    p4 *= RistrettoScalar::from(5);
+    p4 *= RistrettoScalar::from(5u64);
     assert_eq!(five_bp, p4);
 
-    let p5 = g * (RistrettoScalar::from(7) - RistrettoScalar::from(2));
+    let p5 = g * (RistrettoScalar::from(7u64) - RistrettoScalar::from(2u64));
     assert_eq!(five_bp, p5);
 
     assert!((RistrettoPoint::generator() / RistrettoScalar::zero()).is_err());
 
-    // Test the order of the base point
-    assert_ne!(RistrettoPoint::zero(), g);
-    assert_eq!(RistrettoPoint::zero(), g * RistrettoScalar::group_order());
-
     // RistrettoScalar::from_byte_array should accept only canonical representations.
-    assert!(
-        RistrettoScalar::from_byte_array(&RistrettoScalar::group_order().to_byte_array()).is_err()
-    );
-    assert!(RistrettoScalar::from_byte_array(
-        &(RistrettoScalar::group_order() - RistrettoScalar::from(1)).to_byte_array()
-    )
-    .is_ok());
+    assert!(RistrettoScalar::from_byte_array(&GROUP_ORDER).is_err());
+    assert!(RistrettoScalar::from_byte_array(&GROUP_ORDER_MINUS_ONE).is_ok());
 
     // Check that u128 is decoded correctly.
     let x: u128 = 2 << 66;
     let x_scalar = RistrettoScalar::from(x);
-    let in_u64 = x_scalar / RistrettoScalar::from(8);
-    assert_eq!(in_u64.unwrap(), RistrettoScalar::from(2 << 63));
+    let in_u64 = x_scalar / RistrettoScalar::from(8u64);
+    assert_eq!(in_u64.unwrap(), RistrettoScalar::from(2u128 << 63));
+}
+
+#[test]
+fn hash_regression_tests() {
+    let input = b"Random numbers should not be generated with a method chosen at random";
+    let expected_scalar = hex!("9f07ae34b44b42539e3c45be1da015e10369a454b3ffaec9a7bbe1086b6d170d");
+    let expected_point = hex!("baf5aa3b987469509a11b22d069be0731904af04889790cc6bd54d77afbf871d");
+    assert_eq!(
+        RistrettoScalar::hash_to_group_element(input)
+            .to_byte_array()
+            .to_vec(),
+        expected_scalar
+    );
+    assert_eq!(
+        RistrettoPoint::hash_to_group_element(input)
+            .to_byte_array()
+            .to_vec(),
+        expected_point
+    );
+
+    let other_input = b"Any one who considers arithmetical methods of producing random digits is, of course, in a state of sin";
+    assert_ne!(
+        RistrettoScalar::hash_to_group_element(other_input)
+            .to_byte_array()
+            .to_vec(),
+        expected_scalar
+    );
+    assert_ne!(
+        RistrettoPoint::hash_to_group_element(other_input)
+            .to_byte_array()
+            .to_vec(),
+        expected_point
+    );
 }
 
 #[test]
 fn test_serialize_deserialize_element() {
     let p = RistrettoPoint::generator() + RistrettoPoint::generator();
+    let expected =
+        hex!("6a493210f7499cd17fecb510ae0cea23a110e8d5b901f8acadd3095c73a3b919").to_vec();
     let serialized = bincode::serialize(&p).unwrap();
+    assert_eq!(expected, serialized);
     let deserialized: RistrettoPoint = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, p);
-}
-
-#[test]
-fn test_compress_decompress() {
-    let p = RistrettoPoint::generator() + RistrettoPoint::generator();
-    let compressed = p.compress();
-    let decompressed: RistrettoPoint = RistrettoPoint::decompress(&compressed).unwrap();
-    assert_eq!(decompressed, p);
 }
 
 #[test]
@@ -98,7 +128,9 @@ fn test_vectors() {
 
     for (i, item) in VEC_MULGEN.iter().enumerate() {
         let actual = RistrettoPoint::generator() * RistrettoScalar::from(i as u128);
-        let expected = RistrettoPoint::try_from(hex::decode(item).unwrap().as_slice()).unwrap();
+        let expected =
+            RistrettoPoint::from_byte_array(&hex::decode(item).unwrap().try_into().unwrap())
+                .unwrap();
         assert_eq!(expected, actual);
     }
 
@@ -140,7 +172,10 @@ fn test_vectors() {
     ];
 
     for item in VEC_INVALID.iter() {
-        assert!(RistrettoPoint::try_from(hex::decode(item).unwrap().as_slice()).is_err());
+        assert!(
+            RistrettoPoint::from_byte_array(&hex::decode(item).unwrap().try_into().unwrap())
+                .is_err()
+        );
     }
 
     const VEC_MAP: [(&str, &str); 11] = [
@@ -172,7 +207,7 @@ fn test_vectors() {
         let actual =
             RistrettoPoint::from_uniform_bytes(&hex::decode(i).unwrap().try_into().unwrap());
         let expected = hex::decode(o).unwrap();
-        assert_eq!(expected, actual.compress());
+        assert_eq!(expected, actual.to_byte_array());
     }
 }
 
@@ -181,18 +216,18 @@ fn test_multiscalar_mul() {
     let g = RistrettoPoint::generator();
     let h = RistrettoPoint::multi_scalar_mul(
         &[
-            RistrettoScalar::from(1),
-            RistrettoScalar::from(2),
-            RistrettoScalar::from(3),
+            RistrettoScalar::from(1u64),
+            RistrettoScalar::from(2u64),
+            RistrettoScalar::from(3u64),
         ],
         &[g, g, g],
     )
     .unwrap();
-    assert_eq!(g * RistrettoScalar::from(6), h);
+    assert_eq!(g * RistrettoScalar::from(6u64), h);
 
     // Invalid lengths
     assert!(RistrettoPoint::multi_scalar_mul(
-        &[RistrettoScalar::from(1), RistrettoScalar::from(2)],
+        &[RistrettoScalar::from(1u64), RistrettoScalar::from(2u64)],
         &[g, g, g]
     )
     .is_err());

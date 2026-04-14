@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains a implementation of a verifiable delay function (VDF), using Wesolowski's
+//! This module contains an implementation of a verifiable delay function (VDF), using Wesolowski's
 //! construction with ideal class groups.
 
 use fastcrypto::error::FastCryptoResult;

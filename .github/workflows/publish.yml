@@ -25,6 +25,9 @@ env:
   # Don't emit giant backtraces in the CI logs.
   RUST_BACKTRACE: short
 
+permissions:
+  contents: write
+
 jobs:
   publish:
     name: Publish to crates.io
