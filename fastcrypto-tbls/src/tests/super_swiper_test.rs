@@ -366,6 +366,182 @@ mod tests {
         println!("✅ All epochs processed successfully ({})!", chart_title);
     }
 
+    fn run_all_epochs_v2_chart(chart_title: &str, params: &EpochChartParams) {
+        let epochs = vec![100, 200, 400, 800, 974];
+        let mut results: Vec<EpochComparisonResult> = Vec::new();
+
+        println!(
+            "\n🔬 Testing new_reduced_v2 across multiple epochs ({})...\n  params: t_min = {}%·W, L = {}%·W, allowed_delta = {}%·W\n",
+            chart_title,
+            100.0 * (*params.t_alpha.numer() as f64) / (*params.t_alpha.denom() as f64),
+            params.liveness_pct * 100.0,
+            params.allowed_delta_pct * 100.0,
+        );
+
+        for epoch in epochs {
+            println!("📊 Processing epoch {}...", epoch);
+            let sui_weights = load_sui_validator_voting_power_for_epoch(epoch);
+            let scaled_weights = scale_weights_to_u16(&sui_weights);
+            let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
+            let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
+            let original_total_weight = original_nodes.total_weight();
+
+            let t_min = (params.t_alpha * original_total_weight as u64).to_integer() as u16;
+            let liveness_upper_bound = (original_total_weight as f64 * params.liveness_pct) as u16;
+            let allowed_delta = (original_total_weight as f64 * params.allowed_delta_pct) as u16;
+            let total_weight_lower_bound = 1u16;
+
+            let reduced_result = Nodes::new_reduced_v2(
+                nodes_vec.clone(),
+                t_min,
+                liveness_upper_bound,
+                allowed_delta,
+                total_weight_lower_bound,
+            );
+
+            let (w_prime, t_prime, f_prime, delta_str, d_str, f) = match reduced_result {
+                Ok((reduced_nodes, new_t, new_f)) => {
+                    let w_p = reduced_nodes.total_weight();
+                    let original_weights: Vec<u64> =
+                        scaled_weights.iter().map(|&w| w as u64).collect();
+                    let reduced_weights: Vec<u64> =
+                        reduced_nodes.iter().map(|n| n.weight as u64).collect();
+                    let (precision_delta, d) =
+                        compute_precision_loss(&original_weights, &reduced_weights);
+                    // f = f' * d  (unilateral, PROOF.md)
+                    let d_int = d.to_integer().max(1);
+                    let f_val = u64::from(new_f) * d_int;
+
+                    let delta_val = Some(ratio_to_decimal(&precision_delta));
+                    let d_val = Some(ratio_to_decimal(&d));
+                    (
+                        Some(w_p),
+                        Some(new_t),
+                        Some(new_f),
+                        delta_val,
+                        d_val,
+                        Some(f_val),
+                    )
+                }
+                Err(_) => (
+                    None::<u16>,
+                    None::<u16>,
+                    None::<u16>,
+                    None::<String>,
+                    None::<String>,
+                    None::<u64>,
+                ),
+            };
+
+            let row: EpochComparisonResult = (
+                epoch,
+                Some(original_total_weight),
+                Some(t_min),
+                f,
+                w_prime,
+                t_prime,
+                f_prime,
+                delta_str.clone(),
+                d_str.clone(),
+            );
+            results.push(row);
+
+            println!(
+                "  ✅ Epoch {}: W={}, t_min={}, f={:?}, W'={:?}, t'={:?}, f'={:?}, δ={:?}, d={:?}",
+                epoch, original_total_weight, t_min, f, w_prime, t_prime, f_prime, delta_str, d_str
+            );
+        }
+
+        let col_tpf = 20;
+        let separator = "=".repeat(120);
+        println!("\n{}", separator);
+        println!(
+            "📈 WEIGHT REDUCTION COMPARISON CHART — {} (t_min={}%·W, L={}%·W, δ_allow={}%·W)",
+            chart_title,
+            100.0 * (*params.t_alpha.numer() as f64) / (*params.t_alpha.denom() as f64),
+            params.liveness_pct * 100.0,
+            params.allowed_delta_pct * 100.0,
+        );
+        println!("{}", separator);
+        println!(
+            "{:<8} | {:<6} | {:<6} | {:<8} | {:<8} | {:<width$} | {:<width$} | {:<10} | {:<10}",
+            "Epoch",
+            "W",
+            "t_min",
+            "f",
+            "W'",
+            "t' (% W')",
+            "f' (% W')",
+            "delta",
+            "d",
+            width = col_tpf,
+        );
+        println!(
+            "{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}",
+            "-".repeat(8),
+            "-".repeat(6),
+            "-".repeat(6),
+            "-".repeat(8),
+            "-".repeat(8),
+            "-".repeat(col_tpf),
+            "-".repeat(col_tpf),
+            "-".repeat(10),
+            "-".repeat(10)
+        );
+        for (epoch, w, t_val, f_val, w_prime, t_prime, f_prime, delta, d) in &results {
+            let w_str = w
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let t_str = t_val
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let f_str = f_val
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let w_prime_str = w_prime
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let t_prime_str = value_with_pct_of_w_prime(*t_prime, *w_prime);
+            let f_prime_str = value_with_pct_of_w_prime(*f_prime, *w_prime);
+            let delta_str = delta.clone().unwrap_or_else(|| "N/A".to_string());
+            let d_str = d.clone().unwrap_or_else(|| "N/A".to_string());
+            println!(
+                "{:<8} | {:<6} | {:<6} | {:<8} | {:<8} | {:<width$} | {:<width$} | {:<10} | {:<10}",
+                epoch,
+                w_str,
+                t_str,
+                f_str,
+                w_prime_str,
+                t_prime_str,
+                f_prime_str,
+                delta_str,
+                d_str,
+                width = col_tpf,
+            );
+        }
+        println!("{}", separator);
+        println!();
+
+        for (epoch, w, t_val, f_val, w_prime, t_prime, f_prime, delta, d) in &results {
+            assert!(
+                w.is_some() && t_val.is_some() && f_val.is_some(),
+                "Failed to calculate W, t_min, f for epoch {}",
+                epoch
+            );
+            assert!(
+                w_prime.is_some()
+                    && t_prime.is_some()
+                    && f_prime.is_some()
+                    && delta.is_some()
+                    && d.is_some(),
+                "new_reduced_v2 failed for epoch {}",
+                epoch
+            );
+        }
+
+        println!("✅ All epochs processed successfully ({})!", chart_title);
+    }
+
     #[test]
     fn test_all_epochs_comparison() {
         let params = EpochChartParams::baseline_34_75_8();
@@ -412,5 +588,17 @@ mod tests {
             FFromLiveness::NewReduced,
             &params,
         );
+    }
+
+    #[test]
+    fn test_all_epochs_new_reduced_v2() {
+        let params = EpochChartParams::baseline_34_75_8();
+        run_all_epochs_v2_chart("new_reduced_v2", &params);
+    }
+
+    #[test]
+    fn test_all_epochs_new_reduced_v2_t52_l80_delta8() {
+        let params = EpochChartParams::t52_l80_delta8();
+        run_all_epochs_v2_chart("new_reduced_v2", &params);
     }
 }

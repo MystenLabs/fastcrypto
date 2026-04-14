@@ -15,6 +15,9 @@ use tracing::debug;
 
 pub type PartyId = u16;
 
+/// Best reduction candidate: per-party weights, reduced total weight W', precision loss δ, divisor d.
+type ReductionBest = (Vec<u16>, u64, Ratio<u64>, Ratio<u64>);
+
 /// Best super_swiper candidate: reduced total weight W', per-party weights, precision loss δ, divisor d.
 type SuperSwiperBest = (u64, Vec<u16>, Ratio<u64>, Ratio<u64>);
 
@@ -426,6 +429,119 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             Self {
                 nodes,
                 total_weight,
+                accumulated_weights,
+                nodes_with_nonzero_weight,
+            },
+            new_t,
+            new_f,
+        ))
+    }
+
+    /// Weight reduction via floor division with exact precision loss (PROOF.md §Unilateral).
+    ///
+    /// Loops `div` from 100 down to 2, computing `w'_i = floor(w_i / div)` and exact
+    /// (δ, d) via [`compute_precision_loss`]. Keeps the solution with smallest W' whose
+    /// δ ≤ `allowed_delta`. Stops as soon as δ > `allowed_delta` (larger div ⇒ larger δ).
+    ///
+    /// Thresholds follow the unilateral formulas:
+    /// - `t' = t_min / d`
+    /// - `f' = (L - t_min - δ) / d`
+    ///
+    /// # Parameters
+    /// - `nodes_vec`: Input nodes with weights
+    /// - `t_min`: Safety threshold lower bound in original weight space
+    /// - `liveness_upper_bound`: `L` — upper bound in original space for `t' + f'`
+    /// - `allowed_delta`: Maximum acceptable precision loss δ
+    /// - `total_weight_lower_bound`: Minimum allowed total weight after reduction
+    ///
+    /// # Returns
+    /// `(reduced Nodes, t', f')` or error if no feasible reduction exists.
+    pub fn new_reduced_v2(
+        nodes_vec: Vec<Node<G>>,
+        t_min: u16,
+        liveness_upper_bound: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
+    ) -> FastCryptoResult<(Self, u16, u16)> {
+        let n = Self::new(nodes_vec)?;
+        if total_weight_lower_bound > n.total_weight
+            || total_weight_lower_bound == 0
+            || n.total_weight == 0
+        {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        let original_weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
+        let allowed_delta_ratio = Ratio::from_integer(allowed_delta as u64);
+
+        // Try a candidate divisor: w'_i = floor(w_i * scale / denom) where div = denom/scale.
+        // For coarse steps scale=1, denom=div. For fine steps scale=100, denom=div*100+k.
+        let try_div = |scale: u64, denom: u64| -> Option<ReductionBest> {
+            let new_weights: Vec<u16> = original_weights
+                .iter()
+                .map(|&w| (w * scale / denom) as u16)
+                .collect();
+            let new_total_weight: u64 = new_weights.iter().map(|&w| u64::from(w)).sum();
+            if new_total_weight < u64::from(total_weight_lower_bound) {
+                return None;
+            }
+            let reduced: Vec<u64> = new_weights.iter().copied().map(u64::from).collect();
+            let (delta, d) = compute_precision_loss(&original_weights, &reduced);
+            Some((new_weights, new_total_weight, delta, d))
+        };
+
+        let mut best: Option<ReductionBest> = None;
+        for div in 2..=100u64 {
+            if let Some((weights, w_prime, delta, d)) = try_div(1, div) {
+                if delta <= allowed_delta_ratio {
+                    best = Some((weights, w_prime, delta, d));
+                    continue;
+                }
+            }
+            // delta exceeded budget or W' too small — fine-scan the gap [div-1, div) in 0.01 steps.
+            // div = (div-1)*100 + k) / 100  for k = 1..99.
+            let base = (div - 1) * 100;
+            for k in 1..100u64 {
+                if let Some((weights, w_prime, delta, d)) = try_div(100, base + k) {
+                    if delta <= allowed_delta_ratio {
+                        best = Some((weights, w_prime, delta, d));
+                    } else {
+                        break;
+                    }
+                }
+            }
+            break;
+        }
+
+        let (new_weights, new_total_weight, delta, d) =
+            best.ok_or(FastCryptoError::InvalidInput)?;
+
+        // t' = t_min / d   (unilateral, PROOF.md)
+        let t_min_ratio = Ratio::from_integer(u64::from(t_min));
+        let new_t = (t_min_ratio / d).to_integer() as u16;
+
+        // f' = (L - t_min - δ) / d   (unilateral, PROOF.md)
+        let l_ratio = Ratio::from_integer(u64::from(liveness_upper_bound));
+        let new_f = ((l_ratio - t_min_ratio - delta) / d).to_integer() as u16;
+
+        let nodes = n
+            .nodes
+            .into_iter()
+            .zip(new_weights)
+            .map(|(Node { id, pk, weight: _ }, new_weight)| Node {
+                id,
+                pk,
+                weight: new_weight,
+            })
+            .collect::<Vec<_>>();
+
+        let accumulated_weights = Self::get_accumulated_weights(&nodes);
+        let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
+
+        Ok((
+            Self {
+                nodes,
+                total_weight: new_total_weight as u16,
                 accumulated_weights,
                 nodes_with_nonzero_weight,
             },
