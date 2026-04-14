@@ -23,10 +23,10 @@ use curve25519_dalek::scalar::Scalar as ExternalScalar;
 use curve25519_dalek::traits::{Identity, VartimeMultiscalarMul};
 use derive_more::{Add, Div, Neg, Sub};
 use elliptic_curve::group::GroupEncoding;
+use elliptic_curve::hash2curve::{ExpandMsg, ExpandMsgXmd, Expander};
 use elliptic_curve::Field;
 use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Add, Div, Mul};
-use elliptic_curve::hash2curve::{ExpandMsg, ExpandMsgXmd, Expander};
 use zeroize::Zeroize;
 
 pub const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
@@ -51,13 +51,9 @@ impl RistrettoPoint {
     /// following the specifications in [RFC9380](https://www.rfc-editor.org/rfc/rfc9380.html#appendix-B).
     pub fn hash_to_ristretto255(msg: &[u8]) -> Self {
         let mut bytes = [0u8; 64];
-        let mut expanded_message = ExpandMsgXmd::<
-            <Sha512 as ReverseWrapper>::Variant,
-        >::expand_message(
-            &[msg],
-            &[DST],
-            64,
-        ).unwrap();
+        let mut expanded_message =
+            ExpandMsgXmd::<<Sha512 as ReverseWrapper>::Variant>::expand_message(&[msg], &[DST], 64)
+                .unwrap();
         expanded_message.fill_bytes(&mut bytes);
         Self::from_uniform_bytes(&bytes)
     }

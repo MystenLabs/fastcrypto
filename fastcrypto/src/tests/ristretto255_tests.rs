@@ -1,12 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::encoding::{Encoding, Hex};
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::ristretto255::RistrettoScalar;
 use crate::groups::{GroupElement, HashToGroupElement, MultiScalarMul};
 use crate::serde_helpers::ToFromByteArray;
 use hex_literal::hex;
-use crate::encoding::{Encoding, Hex};
 
 pub(crate) const GROUP_ORDER: [u8; 32] = [
     237, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0, 0,
@@ -248,6 +248,11 @@ fn test_hash_to_point() {
     for (msg, expected_hex) in test_vectors {
         let expected = Hex::decode(expected_hex).unwrap();
         let actual = RistrettoPoint::hash_to_ristretto255(msg);
-        assert_eq!(expected, actual.to_byte_array(), "Failed for msg: {:?}", std::str::from_utf8(msg).unwrap_or("<invalid utf8>"));
+        assert_eq!(
+            expected,
+            actual.to_byte_array(),
+            "Failed for msg: {:?}",
+            std::str::from_utf8(msg).unwrap_or("<invalid utf8>")
+        );
     }
 }
