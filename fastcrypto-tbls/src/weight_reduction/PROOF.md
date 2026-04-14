@@ -1,4 +1,4 @@
-# Liveness Proof for Weight Reduction
+# Weight Reduction: Proof and Analysis
 
 ## Definitions
 
@@ -6,109 +6,136 @@
 - **Reduced weights**: $w'_i$ for $i = 1, \ldots, n$
 - **Total original weight**: $W = \sum_{i=1}^n w_i$
 - **Total reduced weight**: $W' = \sum_{i=1}^n w'_i$
-- **Effective divisor**: $d = W / W'$ (exact ratio, no floor)
+- **Effective divisor**: $d = W / W'$
 - **Precision loss**: $\delta = \sum_{i=1}^n \max(w_i - w'_i \cdot d, 0)$
 
-## Key Properties to Prove
+For any subset $S$, let $w(S) = \sum_{i \in S} w_i$ and $w'(S) = \sum_{i \in S} w'_i$.
 
-**For any coalition $S \subseteq \{1, \ldots, n\}$:**
+## Precision Bounds
 
-1. **Upper bound**: $w(S) \leq w'(S) \cdot d + \delta$
-2. **Lower bound**: $w(S) \geq w'(S) \cdot d - \delta$
+**Claim.** For any coalition $S \subseteq \{1, \ldots, n\}$:
+$$
+w'(S) \cdot d - \delta \leq w(S) \leq w'(S) \cdot d + \delta
+$$
 
-Where:
-- $w(S) = \sum_{i \in S} w_i$
-- $w'(S) = \sum_{i \in S} w'_i$
-
-## Proof of Upper Bound
-
-We want to show: $w(S) \leq w'(S) \cdot d + \delta$.
-
-For any subset $S$:
+### Upper bound: $w(S) \leq w'(S) \cdot d + \delta$
 
 $$
 \begin{aligned}
 w(S) - w'(S) \cdot d &= \sum_{i \in S} (w_i - w'_i \cdot d) \\
 &\leq \sum_{i \in S} \max(w_i - w'_i \cdot d, 0) \\
-&\leq \sum_{i=1}^n \max(w_i - w'_i \cdot d, 0) \\
-&= \delta
+&\leq \sum_{i=1}^n \max(w_i - w'_i \cdot d, 0) = \delta
 \end{aligned}
 $$
 
-Therefore: $w(S) \leq w'(S) \cdot d + \delta$
+### Lower bound: $w(S) \geq w'(S) \cdot d - \delta$
 
-This is the precision loss we calculate in `weight_reduction_checks.rs`.
-
-## Proof of Lower Bound
-
-We want to show: $w(S) \geq w'(S) \cdot d - \delta$, or equivalently $w'(S) \cdot d - w(S) \leq \delta$.
-
-Since $d = W/W'$, we have:
+Since $\sum_{i=1}^n (w'_i \cdot d - w_i) = W' \cdot d - W = 0$, the sum of positive differences equals the sum of negative differences:
 
 $$
-\sum_{i=1}^n (w'_i \cdot d - w_i) = W' \cdot d - W = W - W = 0
+\sum_{i=1}^n \max(w'_i \cdot d - w_i, 0) = \sum_{i=1}^n \max(w_i - w'_i \cdot d, 0) = \delta
 $$
 
-This means the sum of positive differences equals the sum of negative differences:
-$$
-\sum_{i=1}^n \max(w'_i \cdot d - w_i, 0) = -\sum_{i=1}^n \min(w'_i \cdot d - w_i, 0)
-$$
-
-Now, when $w'_i \cdot d - w_i < 0$, we have $\min(w'_i \cdot d - w_i, 0) = w'_i \cdot d - w_i = -(w_i - w'_i \cdot d) = -\max(w_i - w'_i \cdot d, 0)$ (since $w_i - w'_i \cdot d > 0$). When $w'_i \cdot d - w_i \geq 0$, both $\min(w'_i \cdot d - w_i, 0) = 0$ and $\max(w_i - w'_i \cdot d, 0) = 0$. Therefore:
-
-$$
--\sum_{i=1}^n \min(w'_i \cdot d - w_i, 0) = \sum_{i=1}^n \max(w_i - w'_i \cdot d, 0) = \delta
-$$
-
-So we conclude:
-$$
-\sum_{i=1}^n \max(w'_i \cdot d - w_i, 0) = \delta
-$$
-
-Now, for any subset $S$:
+Therefore:
 
 $$
 \begin{aligned}
 w'(S) \cdot d - w(S) &= \sum_{i \in S} (w'_i \cdot d - w_i) \\
 &\leq \sum_{i \in S} \max(w'_i \cdot d - w_i, 0) \\
-&\leq \sum_{i=1}^n \max(w'_i \cdot d - w_i, 0) \\
-&= \delta
+&\leq \sum_{i=1}^n \max(w'_i \cdot d - w_i, 0) = \delta
 \end{aligned}
 $$
 
-Therefore: $w(S) \geq w'(S) \cdot d - \delta$
+## Algorithm Classification
 
-## Summary
+### Unilateral Algorithms
 
-Combining both bounds, for any coalition $S$:
-$$
-w'(S) \cdot d - \delta \leq w(S) \leq w'(S) \cdot d + \delta
-$$
-and equivalently:
-$$
-\frac{w(S) - \delta}{d} \leq w'(S) \leq \frac{w(S) + \delta}{d}
-$$
+These algorithms (e.g. **new_reduced**) only decrease weights as a percentage of total weight. For these the **unilateral inequality** holds:
 
-## AVSS Constraints
+- $w(S) \leq ud \implies w'(S) \leq u \implies w(S) \leq ud + \delta$
 
-Let $W$ and $t$ be the total weight and threshold of the original nodes, and $W'$ and $t'$ be the total weight and threshold of the reduced nodes. Let $f$ be a given parameter such that $0 < f < t$ and $t + 2f \leq W$. Let $\delta_{\text{allowed}}$ be the given allowed liveness loss. In the algorithm, we start from a high enough $\beta$ and step down till $2\delta \leq \delta_{\text{allowed}}$. WLOG, we can set $\delta_{\text{allowed}} = 2\delta$ by taking $\delta_{\text{allowed}}$ to be the actually achieved quantity.
+We write $u \to [ud,\ ud+\delta]$ to denote this.
 
-We enforce four constraints:
+### Bilateral Algorithms
 
-1. **Safety**: For all $S$ such that $w(S) \leq t$, we have $w'(S) \leq t'$. This is guaranteed by taking $t' = (t+2\delta)/d$. The dealer polynomial is set to be of degree $t'-1$.
+These algorithms (e.g. **super_swiper**) may both increase or decrease weights as a percentage of total weight. For these the **bilateral inequality** holds:
 
-2. **f-constraint**: For all $S$ such that $w(S) \leq f - 2\delta$, we have $w'(S) \leq f'$. This is guaranteed by taking $f' = (f-\delta)/d$. These slacks are carefully calibrated to ensure $t'+2f' = (t+2f)/d \leq W'$.
+- $w(S) \leq ud - \delta \implies w'(S) \leq u \implies w(S) \leq ud + \delta$
 
-3. **Liveness**: For all $S$ such that $w(S) \geq t+f+\delta_{\text{allowed}}$, we need $w'(S) \geq t'+f'$. This is required as the DKG algorithm requires a liveness of $t'+f'$. This follows given the implication $w'(S) \geq (t+f+\delta_{\text{allowed}} -\delta)/d = (t'd-2\delta+f'd+\delta+2\delta-\delta)/d = t'+f'$.
+We write $u \to [ud-\delta,\ ud+\delta]$ to denote this.
 
-4. **Dual Liveness**: For all $S$ such that $w'(S) \geq t'+f'$, we need $w(S) \geq t+f$. This follows given the implication $w(S) \geq (t'+f')d - \delta = t+2\delta + f - \delta - \delta = t+f$.
+## Parameter Derivation
 
-5. **Standard DKG constraint**: $0 < f' < t'$, and $t' + 2f' \leq W'$
+### Given
 
-In effect, we have:
-1. $\delta_{\text{allowed}} = 2\delta$
-2. $t' = (t+2\delta)/d$
-3. $f' = (f-\delta)/d$
-4. $w(S) \leq t+\delta \implies w'(S) \leq t' \implies w(S) \leq t+3\delta$.
-5. $w(S) \leq f - 2\delta \implies w'(S) \leq f' \implies w(S) \leq f$.
-6. $w(S) \geq t+f+2\delta \implies w'(S) \geq t'+f' \implies w(S) \geq t+f$.
+- $t_{min}$: lower bound on $t$ in original space, i.e. $t' \to [t_{min}, \cdot]$
+- $L$: upper bound in original space for $t'+f'$, i.e. $t'+f' \to [\cdot, L]$
+    - Required: $L < 2\, t_{min} + \delta_{allowed}$
+- $\delta_{allowed}$: upper bound on error range for parameters
+- $f$: the unique value such that $f' \to [f, \cdot]$
+
+### For unilateral algorithms
+
+Target $\delta \leq \delta_{allowed}$. Set:
+
+- $t' = t_{min}/d$
+- $f' = (L - t_{min} - \delta)/d$
+- $f = f'd$
+
+Mapping to original space:
+
+| Parameter | Range |
+|-----------|-------|
+| $t'$ | $[t_{min},\ t_{min} + \delta]$ |
+| $f'$ | $[L - t_{min} - \delta,\ L - t_{min}]$ |
+| $t' + f'$ | $[L - \delta,\ L]$ |
+
+### For bilateral algorithms
+
+Target $\delta \leq \delta_{allowed}/2$. Set:
+
+- $t' = (t_{min} + \delta)/d$
+- $f' = (L - t_{min} - 2\delta)/d$
+- $f = f'd - \delta$
+
+Mapping to original space:
+
+| Parameter | Range |
+|-----------|-------|
+| $t'$ | $[t_{min},\ t_{min} + 2\delta]$ |
+| $f'$ | $[L - t_{min} - 3\delta,\ L - t_{min} - \delta]$ |
+| $t' + f'$ | $[L - 2\delta,\ L]$ |
+
+## Concrete Comparison
+
+### Example 1: $t_{min} = 34\%,\ L = 75\%,\ \delta_{allowed} = 8\%$
+
+**Unilateral (new_reduced)** with $\delta = 8\%$:
+
+- $t' = 34\%,\quad f' = 33\%,\quad f = 33\%$
+- $t' = 34\% \to [34\%,\ 42\%]$
+- $f' = 33\% \to [33\%,\ 41\%]$
+- $t' + f' = 67\% \to [67\%,\ 75\%]$
+
+**Bilateral (super_swiper)** with $\delta = 4\%$:
+
+- $t' = 38\%,\quad f' = 33\%,\quad f = 29\%$
+- $t' = 38\% \to [34\%,\ 42\%]$
+- $f' = 33\% \to [29\%,\ 37\%]$
+- $t' + f' = 71\% \to [67\%,\ 75\%]$
+
+### Example 2: $t_{min} = 52\%,\ L = 80\%,\ \delta_{allowed} = 8\%$
+
+**Unilateral (new_reduced)** with $\delta = 8\%$:
+
+- $t' = 52\%,\quad f' = 20\%,\quad f = 20\%$
+- $t' = 52\% \to [52\%,\ 60\%]$
+- $f' = 20\% \to [20\%,\ 28\%]$
+- $t' + f' = 72\% \to [72\%,\ 80\%]$
+
+**Bilateral (super_swiper)** with $\delta = 4\%$:
+
+- $t' = 56\%,\quad f' = 20\%,\quad f = 16\%$
+- $t' = 56\% \to [52\%,\ 60\%]$
+- $f' = 20\% \to [16\%,\ 24\%]$
+- $t' + f' = 76\% \to [72\%,\ 80\%]$
