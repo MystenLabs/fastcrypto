@@ -8,12 +8,13 @@ mod zklogin_benches {
 
     use ark_std::rand::rngs::StdRng;
     use ark_std::rand::SeedableRng;
-    use criterion::Criterion;
+    use criterion::{BatchSize, Criterion};
     use fastcrypto::ed25519::Ed25519KeyPair;
     use fastcrypto::error::FastCryptoError;
     use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
     use fastcrypto::traits::KeyPair;
     use fastcrypto_zkp::bn254::utils::gen_address_seed;
+    use fastcrypto_zkp::bn254::zk_login::clear_cache_for_testing;
     use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
     use fastcrypto_zkp::bn254::zk_login::JWK;
     use fastcrypto_zkp::bn254::zk_login::{JwkId, OIDCProvider};
@@ -70,11 +71,12 @@ mod zklogin_benches {
             b.iter(|| input_clone.get_proof().as_arkworks().unwrap())
         });
 
-        // Benchmark the `calculate_all_inputs_hash` function called by `verify_zk_login`.
+        // Benchmark `calculate_all_inputs_hash` with a WARM modulus-hash cache (all
+        // iterations hit).
         let eph_pubkey_clone = eph_pubkey.clone();
         let input_clone = input.clone();
         let modulus_clone = modulus.clone();
-        c.bench_function("verify_zk_login/calculate_all_inputs_hash", move |b| {
+        c.bench_function("verify_zk_login/calculate_all_inputs_hash/warm", move |b| {
             b.iter(|| {
                 input_clone
                     .calculate_all_inputs_hash(
@@ -85,6 +87,28 @@ mod zklogin_benches {
                     )
                     .unwrap()
             });
+        });
+
+        // Benchmark `calculate_all_inputs_hash` with a COLD cache (cleared before
+        // each iteration, so each timed call recomputes the modulus hash).
+        let eph_pubkey_clone = eph_pubkey.clone();
+        let input_clone = input.clone();
+        let modulus_clone = modulus.clone();
+        c.bench_function("verify_zk_login/calculate_all_inputs_hash/cold", move |b| {
+            b.iter_batched(
+                clear_cache_for_testing,
+                |_| {
+                    input_clone
+                        .calculate_all_inputs_hash(
+                            &eph_pubkey_clone,
+                            &modulus_clone,
+                            max_epoch,
+                            &CIRCUIT_CONFIG_V1,
+                        )
+                        .unwrap()
+                },
+                BatchSize::PerIteration,
+            )
         });
         let input_hashes = input
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, max_epoch, &CIRCUIT_CONFIG_V1)
@@ -106,17 +130,37 @@ mod zklogin_benches {
             },
         );
 
-        // Benchmark the entire `verify_zk_login` function.
-        c.bench_function("verify_zk_login", move |b| {
+        // Benchmark the entire `verify_zk_login` function (warm: modulus hash cache hit).
+        let input_warm = input.clone();
+        let eph_warm = eph_pubkey.clone();
+        let map_warm = map.clone();
+        c.bench_function("verify_zk_login/warm", move |b| {
             b.iter(|| {
                 fastcrypto_zkp::bn254::zk_login_api::verify_zk_login(
-                    &input,
+                    &input_warm,
                     max_epoch,
-                    &eph_pubkey,
-                    &map,
+                    &eph_warm,
+                    &map_warm,
                     &ZkLoginEnv::Test,
                 )
             })
+        });
+
+        // Benchmark `verify_zk_login` on a cold cache (first call after a JWK refresh).
+        c.bench_function("verify_zk_login/cold", move |b| {
+            b.iter_batched(
+                clear_cache_for_testing,
+                |_| {
+                    fastcrypto_zkp::bn254::zk_login_api::verify_zk_login(
+                        &input,
+                        max_epoch,
+                        &eph_pubkey,
+                        &map,
+                        &ZkLoginEnv::Test,
+                    )
+                },
+                BatchSize::PerIteration,
+            )
         });
     }
 
@@ -163,22 +207,49 @@ mod zklogin_benches {
             b.iter(|| input_clone.get_proof().as_arkworks().unwrap())
         });
 
-        // Benchmark the `calculate_all_inputs_hash` function called by `verify_zk_login`.
+        // Benchmark `calculate_all_inputs_hash` with a WARM modulus-hash cache.
         let eph_pubkey_clone = eph_pubkey.clone();
         let input_clone = input.clone();
         let modulus_clone = modulus.clone();
-        c.bench_function("verify_zk_login_v2/calculate_all_inputs_hash", move |b| {
-            b.iter(|| {
-                input_clone
-                    .calculate_all_inputs_hash(
-                        &eph_pubkey_clone,
-                        &modulus_clone,
-                        max_epoch,
-                        &CIRCUIT_CONFIG_V2,
-                    )
-                    .unwrap()
-            });
-        });
+        c.bench_function(
+            "verify_zk_login_v2/calculate_all_inputs_hash/warm",
+            move |b| {
+                b.iter(|| {
+                    input_clone
+                        .calculate_all_inputs_hash(
+                            &eph_pubkey_clone,
+                            &modulus_clone,
+                            max_epoch,
+                            &CIRCUIT_CONFIG_V2,
+                        )
+                        .unwrap()
+                });
+            },
+        );
+
+        // Benchmark `calculate_all_inputs_hash` with a COLD cache (cleared each iteration).
+        let eph_pubkey_clone = eph_pubkey.clone();
+        let input_clone = input.clone();
+        let modulus_clone = modulus.clone();
+        c.bench_function(
+            "verify_zk_login_v2/calculate_all_inputs_hash/cold",
+            move |b| {
+                b.iter_batched(
+                    clear_cache_for_testing,
+                    |_| {
+                        input_clone
+                            .calculate_all_inputs_hash(
+                                &eph_pubkey_clone,
+                                &modulus_clone,
+                                max_epoch,
+                                &CIRCUIT_CONFIG_V2,
+                            )
+                            .unwrap()
+                    },
+                    BatchSize::PerIteration,
+                )
+            },
+        );
         let input_hashes = input
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, max_epoch, &CIRCUIT_CONFIG_V2)
             .unwrap();
@@ -199,17 +270,37 @@ mod zklogin_benches {
             },
         );
 
-        // Benchmark the entire `verify_zk_login` function.
-        c.bench_function("verify_zk_login_v2", move |b| {
+        // Benchmark the entire `verify_zk_login` function (warm: modulus hash cache hit).
+        let input_warm = input.clone();
+        let eph_warm = eph_pubkey.clone();
+        let map_warm = map.clone();
+        c.bench_function("verify_zk_login_v2/warm", move |b| {
             b.iter(|| {
                 fastcrypto_zkp::bn254::zk_login_api::verify_zk_login(
-                    &input,
+                    &input_warm,
                     max_epoch,
-                    &eph_pubkey,
-                    &map,
+                    &eph_warm,
+                    &map_warm,
                     &ZkLoginEnv::Test,
                 )
             })
+        });
+
+        // Benchmark `verify_zk_login` on a cold cache (first call after a JWK refresh).
+        c.bench_function("verify_zk_login_v2/cold", move |b| {
+            b.iter_batched(
+                clear_cache_for_testing,
+                |_| {
+                    fastcrypto_zkp::bn254::zk_login_api::verify_zk_login(
+                        &input,
+                        max_epoch,
+                        &eph_pubkey,
+                        &map,
+                        &ZkLoginEnv::Test,
+                    )
+                },
+                BatchSize::PerIteration,
+            )
         });
     }
 

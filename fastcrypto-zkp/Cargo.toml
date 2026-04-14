@@ -15,6 +15,7 @@ harness = false
 [[bench]]
 name = "zklogin"
 harness = false
+required-features = ["test-utils"]
 
 [[bench]]
 name = "poseidon"
@@ -64,3 +65,4 @@ proptest = "1.1.0"
 
 [features]
 e2e = []
+test-utils = []

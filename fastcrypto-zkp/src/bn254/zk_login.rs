@@ -21,13 +21,47 @@ pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::FastCryptoError;
 use itertools::Itertools;
 use num_bigint::BigUint;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering::{Equal, Greater, Less};
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
 use std::str::FromStr;
+use std::sync::RwLock;
+
+/// Key for the modulus hash cache: (modulus bytes, max_rsa_bits).
+type ModulusHashKey = (Vec<u8>, u16);
+
+/// JWKs rotate occasionally, so caching by (modulus bytes, max_rsa_bits) avoids recomputing
+/// bit-packing + poseidon hash on every verification.
+static MODULUS_HASH_CACHE: Lazy<RwLock<HashMap<ModulusHashKey, Bn254Fr>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
+
+fn cached_modulus_hash(modulus: &[u8], max_rsa_bits: u16) -> Result<Bn254Fr, FastCryptoError> {
+    if let Some(f) = MODULUS_HASH_CACHE
+        .read()
+        .ok()
+        .and_then(|m| m.get(&(modulus.to_vec(), max_rsa_bits)).copied())
+    {
+        return Ok(f);
+    }
+    let f = hash_to_field(&[BigUint::from_bytes_be(modulus)], max_rsa_bits, PACK_WIDTH)?;
+    if let Ok(mut m) = MODULUS_HASH_CACHE.write() {
+        m.insert((modulus.to_vec(), max_rsa_bits), f);
+    }
+    Ok(f)
+}
+
+/// Clear the modulus hash cache for testing only benchmark.
+#[cfg(any(test, feature = "test-utils"))]
+pub fn clear_cache_for_testing() {
+    if let Ok(mut m) = MODULUS_HASH_CACHE.write() {
+        m.clear();
+    }
+}
 
 #[cfg(test)]
 #[path = "unit_tests/zk_login_tests.rs"]
@@ -589,11 +623,7 @@ impl ZkLoginInputs {
         let iss_base64_f =
             hash_ascii_str_to_field(&self.iss_base64_details.value, config.max_iss_len_b64)?;
         let header_f = hash_ascii_str_to_field(&self.header_base64, config.max_header_len_b64)?;
-        let modulus_f = hash_to_field(
-            &[BigUint::from_bytes_be(modulus)],
-            config.max_rsa_bits,
-            PACK_WIDTH,
-        )?;
+        let modulus_f = cached_modulus_hash(modulus, config.max_rsa_bits)?;
         poseidon_zk_login(&[
             first,
             second,
