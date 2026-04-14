@@ -117,8 +117,7 @@ pub fn get_nonce(
 ) -> Result<String, FastCryptoError> {
     let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
-    let max_epoch = Bn254Fr::from_str(&max_epoch.to_string())
-        .expect("max_epoch.to_string is always non empty string without trailing zeros");
+    let max_epoch = Bn254Fr::from(max_epoch);
     let jwt_randomness =
         Bn254Fr::from_str(jwt_randomness).map_err(|_| FastCryptoError::InvalidInput)?;
 
@@ -197,13 +196,17 @@ pub async fn get_proof(
     Ok(get_proof_response)
 }
 
-/// Given a 33-byte public key bytes (flag || pk_bytes), returns the two Bn254Fr split at the 128 bit index.
+/// Given a public key bytes (flag || pk_bytes), returns the two Bn254Fr split at the 128 bit index.
 pub fn split_to_two_frs(eph_pk_bytes: &[u8]) -> Result<(Bn254Fr, Bn254Fr), FastCryptoError> {
+    // Need at least 17 bytes (1 + 16 for the split) and at most 47 bytes
+    // (first_half must be <= 31 bytes to fit in Bn254Fr without modular reduction).
+    if eph_pk_bytes.len() < 17 || eph_pk_bytes.len() > 47 {
+        return Err(FastCryptoError::InputLengthWrong(eph_pk_bytes.len()));
+    }
     // Split the bytes deterministically such that the first element contains the first 128
     // bits of the hash, and the second element contains the latter ones.
     let (first_half, second_half) = eph_pk_bytes.split_at(eph_pk_bytes.len() - 16);
     let first_bigint = BigUint::from_bytes_be(first_half);
-    // TODO: this is not safe if the buffer is large. Can we use a fixed size array for eph_pk_bytes?
     let second_bigint = BigUint::from_bytes_be(second_half);
 
     let eph_public_key_0 = Bn254Fr::from(first_bigint);

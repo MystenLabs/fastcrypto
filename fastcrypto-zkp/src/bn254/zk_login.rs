@@ -616,9 +616,8 @@ impl ZkLoginInputs {
         let addr_seed = (&self.address_seed).into();
         let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
-        let max_epoch_f = (&Bn254FrElement::from_str(&max_epoch.to_string())?).into();
-        let index_mod_4_f =
-            (&Bn254FrElement::from_str(&self.iss_base64_details.index_mod_4.to_string())?).into();
+        let max_epoch_f = Bn254Fr::from(max_epoch);
+        let index_mod_4_f = Bn254Fr::from(self.iss_base64_details.index_mod_4 as u64);
 
         let iss_base64_f =
             hash_ascii_str_to_field(&self.iss_base64_details.value, config.max_iss_len_b64)?;
@@ -693,37 +692,30 @@ fn decode_base64_url(s: &str, i: &u8) -> Result<String, FastCryptoError> {
             "Base64 string smaller than 2".to_string(),
         ));
     }
-    let mut bits = base64_to_bitarray(s)?;
-    match i {
-        0 => {}
-        1 => {
-            bits.drain(..2);
-        }
-        2 => {
-            bits.drain(..4);
-        }
+    let bits = base64_to_bitarray(s)?;
+    let start = match i {
+        0 => 0,
+        1 => 2,
+        2 => 4,
         _ => {
             return Err(FastCryptoError::GeneralError(
                 "Invalid first_char_offset".to_string(),
             ));
         }
-    }
+    };
 
     let last_char_offset = (i + s.len() as u8 - 1) % 4;
-    match last_char_offset {
-        3 => {}
-        2 => {
-            bits.drain(bits.len() - 2..);
-        }
-        1 => {
-            bits.drain(bits.len() - 4..);
-        }
+    let end = match last_char_offset {
+        3 => bits.len(),
+        2 => bits.len() - 2,
+        1 => bits.len() - 4,
         _ => {
             return Err(FastCryptoError::GeneralError(
                 "Invalid last_char_offset".to_string(),
             ));
         }
-    }
+    };
+    let bits = &bits[start..end];
 
     if bits.len() % 8 != 0 {
         return Err(FastCryptoError::GeneralError(
@@ -731,7 +723,7 @@ fn decode_base64_url(s: &str, i: &u8) -> Result<String, FastCryptoError> {
         ));
     }
 
-    Ok(std::str::from_utf8(&bitarray_to_bytearray(&bits)?)
+    Ok(std::str::from_utf8(&bitarray_to_bytearray(bits)?)
         .map_err(|_| FastCryptoError::GeneralError("Invalid UTF8 string".to_string()))?
         .to_owned())
 }
@@ -777,19 +769,12 @@ pub fn hash_ascii_str_to_field(str: &str, max_size: u16) -> Result<Bn254Fr, Fast
 }
 
 fn str_to_padded_char_codes(str: &str, max_len: u16) -> Result<Vec<BigUint>, FastCryptoError> {
-    let arr: Vec<BigUint> = str
-        .chars()
-        .map(|c| BigUint::from_slice(&([c as u32])))
-        .collect();
-    pad_with_zeroes(arr, max_len)
-}
-
-fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>, FastCryptoError> {
-    if in_arr.len() > out_count as usize {
+    if str.len() > max_len as usize {
         return Err(FastCryptoError::GeneralError("in_arr too long".to_string()));
     }
-    let mut padded = in_arr;
-    padded.resize(out_count as usize, BigUint::zero());
+    let mut padded = Vec::with_capacity(max_len as usize);
+    padded.extend(str.chars().map(|c| BigUint::from(c as u32)));
+    padded.resize(max_len as usize, BigUint::zero());
     Ok(padded)
 }
 
@@ -818,8 +803,12 @@ fn convert_base(
     let bits = big_int_array_to_bits(in_arr, in_width as usize)?;
     let mut packed: Vec<Bn254Fr> = bits
         .rchunks(out_width as usize)
-        .map(|chunk| Bn254Fr::from(BigUint::from_radix_be(chunk, 2).unwrap()))
-        .collect();
+        .map(|chunk| {
+            BigUint::from_radix_be(chunk, 2)
+                .map(Bn254Fr::from)
+                .ok_or(FastCryptoError::InvalidInput)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     packed.reverse();
     match packed.len() != (in_arr.len() * in_width as usize).div_ceil(out_width as usize) {
         true => Err(FastCryptoError::InvalidInput),

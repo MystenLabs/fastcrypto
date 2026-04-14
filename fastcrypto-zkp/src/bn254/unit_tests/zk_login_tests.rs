@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 use crate::bn254::utils::{
     gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_proof, get_zk_login_address,
+    split_to_two_frs,
 };
 use crate::bn254::zk_login::big_int_array_to_bits;
 use crate::bn254::zk_login::bitarray_to_bytearray;
@@ -754,4 +755,36 @@ fn test_bitarray_to_bytearray() {
     assert!(bitarray_to_bytearray(&[0; 15]).is_err());
     assert!(bitarray_to_bytearray(&[0; 16]).is_ok());
     assert!(bitarray_to_bytearray(&[0; 17]).is_err());
+}
+
+#[test]
+fn test_split_to_two_frs() {
+    // 33-byte Ed25519 key (flag + 32 bytes) should work.
+    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
+    let mut eph_pubkey = vec![0x00];
+    eph_pubkey.extend(kp.public().as_ref());
+    assert!(split_to_two_frs(&eph_pubkey).is_ok());
+
+    // 34-byte Secp256k1/r1 compressed key (flag + 33 bytes) should work.
+    let pk_34 = vec![0x01; 34];
+    assert!(split_to_two_frs(&pk_34).is_ok());
+
+    // Less than 17 bytes should fail (need at least 1 byte + 16 for split).
+    assert!(split_to_two_frs(&[0u8; 16]).is_err());
+    assert!(split_to_two_frs(&[]).is_err());
+
+    // More than 47 bytes should fail (first_half would exceed Bn254Fr without reduction).
+    assert!(split_to_two_frs(&[0u8; 48]).is_err());
+}
+
+#[test]
+fn test_convert_base_zero_out_width() {
+    assert!(convert_base(&[BigUint::from(1u8)], 8, 0).is_err());
+}
+
+#[test]
+fn test_hash_ascii_str_to_field_too_long() {
+    // String longer than max_size should fail.
+    let long_str = "a".repeat(300);
+    assert!(hash_ascii_str_to_field(&long_str, 200).is_err());
 }
