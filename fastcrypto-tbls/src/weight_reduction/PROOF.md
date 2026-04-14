@@ -106,6 +106,28 @@ Mapping to original space:
 | $f'$ | $[L - t_{min} - 3\delta,\ L - t_{min} - \delta]$ |
 | $t' + f'$ | $[L - 2\delta,\ L]$ |
 
+## Guaranteed Properties
+
+The parameter choices above yield three properties for both algorithm types. We use the arrow notation from the mapping tables, where the left arrow of $u \to [a, b]$ is $w(S) \leq a \implies w'(S) \leq u$ and the right arrow is $w'(S) \leq u \implies w(S) \leq b$.
+
+**1. Safety.** If $w(S) \leq t_{min}$ then $w'(S) \leq t'$.
+
+Any coalition that cannot break the original scheme also cannot break the reduced scheme. This is the left arrow of the $t'$ mapping.
+
+**2. Liveness.** If $w(S) > L$ then $w'(S) > t' + f'$.
+
+This is the contrapositive of the right arrow of the $t' + f'$ mapping.
+
+**3. Byzantine Removal.** If $w'(S) \geq t' + f'$ and $T \subseteq S$ with $w(T) \leq f$, then $w'(S \setminus T) \geq t'$.
+
+*Proof.* By definition, $f$ is the lower bound of the range that $f'$ maps to, so $w(T) \leq f \implies w'(T) \leq f'$ (left arrow of the $f'$ mapping). Therefore:
+
+$$
+w'(S \setminus T) = w'(S) - w'(T) \geq (t' + f') - f' = t'.
+$$
+
+This property ensures that after collecting enough reduced weight ($t' + f'$) in signatures, removing all Byzantine parties (with original weight at most $f$) still leaves at least $t'$ reduced weight — enough to reconstruct.
+
 ## Concrete Comparison
 
 ### Example 1: $t_{min} = 34\%,\ L = 75\%,\ \delta_{allowed} = 8\%$
