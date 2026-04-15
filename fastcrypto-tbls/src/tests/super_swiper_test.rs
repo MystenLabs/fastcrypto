@@ -542,6 +542,146 @@ mod tests {
         println!("✅ All epochs processed successfully ({})!", chart_title);
     }
 
+    /// One row per epoch: **W** (original total) and **W'** after each reduction algorithm.
+    fn run_all_epochs_w_and_wprime_by_algorithm_chart(params: &EpochChartParams) {
+        let epochs = vec![100, 200, 400, 800, 974];
+        #[derive(Clone, Copy)]
+        struct Row {
+            epoch: u64,
+            w: u16,
+            w_prime_new_reduced: Option<u16>,
+            w_prime_super_swiper: Option<u16>,
+            w_prime_new_reduced_v2: Option<u16>,
+        }
+
+        println!(
+            "\n🔬 W vs W' by algorithm (all epochs)…\n  params: t = {}%·W, L = {}%·W, allowed_delta = {}%·W\n",
+            100.0 * (*params.t_alpha.numer() as f64) / (*params.t_alpha.denom() as f64),
+            params.liveness_pct * 100.0,
+            params.allowed_delta_pct * 100.0,
+        );
+
+        let mut rows: Vec<Row> = Vec::new();
+        for epoch in &epochs {
+            println!("📊 Processing epoch {}...", epoch);
+            let sui_weights = load_sui_validator_voting_power_for_epoch(*epoch);
+            let scaled_weights = scale_weights_to_u16(&sui_weights);
+            let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights);
+            let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
+            let w = original_nodes.total_weight();
+
+            let t = (params.t_alpha * w as u64).to_integer() as u16;
+            let liveness_upper_bound = (w as f64 * params.liveness_pct) as u16;
+            let allowed_delta = (w as f64 * params.allowed_delta_pct) as u16;
+            let total_weight_lower_bound = 1u16;
+
+            let w_prime_new_reduced = Nodes::new_reduced(
+                nodes_vec.clone(),
+                t,
+                allowed_delta,
+                total_weight_lower_bound,
+            )
+            .ok()
+            .map(|(n, _)| n.total_weight());
+
+            let w_prime_super_swiper = Nodes::new_super_swiper_reduced(
+                nodes_vec.clone(),
+                t,
+                allowed_delta,
+                total_weight_lower_bound,
+            )
+            .ok()
+            .map(|(n, _)| n.total_weight());
+
+            let w_prime_new_reduced_v2 = Nodes::new_reduced_v2(
+                nodes_vec,
+                t,
+                liveness_upper_bound,
+                allowed_delta,
+                total_weight_lower_bound,
+            )
+            .ok()
+            .map(|(n, _, _)| n.total_weight());
+
+            println!(
+                "  ✅ Epoch {}: W={}, W'(new_reduced)={:?}, W'(super_swiper)={:?}, W'(new_reduced_v2)={:?}",
+                epoch,
+                w,
+                w_prime_new_reduced,
+                w_prime_super_swiper,
+                w_prime_new_reduced_v2
+            );
+
+            rows.push(Row {
+                epoch: *epoch,
+                w,
+                w_prime_new_reduced,
+                w_prime_super_swiper,
+                w_prime_new_reduced_v2,
+            });
+        }
+
+        let col_w = 8;
+        let sep = "=".repeat(8 + 3 + col_w + 3 + col_w + 3 + col_w + 3 + col_w);
+        println!("\n{}", sep);
+        println!(
+            "📈 W and W' by algorithm — t={}%·W, L={}%·W, δ_allow={}%·W",
+            100.0 * (*params.t_alpha.numer() as f64) / (*params.t_alpha.denom() as f64),
+            params.liveness_pct * 100.0,
+            params.allowed_delta_pct * 100.0,
+        );
+        println!("{}", sep);
+        println!(
+            "{:<8} | {:<width$} | {:<width$} | {:<width$} | {:<width$}",
+            "Epoch",
+            "W",
+            "W' new_reduced",
+            "W' super_swiper",
+            "W' new_reduced_v2",
+            width = col_w,
+        );
+        println!(
+            "{}-+-{}-+-{}-+-{}-+-{}",
+            "-".repeat(8),
+            "-".repeat(col_w),
+            "-".repeat(col_w),
+            "-".repeat(col_w),
+            "-".repeat(col_w),
+        );
+        for r in &rows {
+            let fmt = |x: Option<u16>| x.map(|v| v.to_string()).unwrap_or_else(|| "N/A".to_string());
+            println!(
+                "{:<8} | {:<width$} | {:<width$} | {:<width$} | {:<width$}",
+                r.epoch,
+                r.w,
+                fmt(r.w_prime_new_reduced),
+                fmt(r.w_prime_super_swiper),
+                fmt(r.w_prime_new_reduced_v2),
+                width = col_w,
+            );
+        }
+        println!("{}\n", sep);
+
+        for r in &rows {
+            assert!(
+                r.w_prime_new_reduced.is_some(),
+                "new_reduced failed for epoch {}",
+                r.epoch
+            );
+            assert!(
+                r.w_prime_super_swiper.is_some(),
+                "new_super_swiper_reduced failed for epoch {}",
+                r.epoch
+            );
+            assert!(
+                r.w_prime_new_reduced_v2.is_some(),
+                "new_reduced_v2 failed for epoch {}",
+                r.epoch
+            );
+        }
+        println!("✅ All epochs: W / W' chart complete.");
+    }
+
     #[test]
     fn test_all_epochs_comparison() {
         let params = EpochChartParams::baseline_34_75_8();
@@ -600,5 +740,12 @@ mod tests {
     fn test_all_epochs_new_reduced_v2_t52_l80_delta8() {
         let params = EpochChartParams::t52_l80_delta8();
         run_all_epochs_v2_chart("new_reduced_v2", &params);
+    }
+
+    /// Rows: epochs 100, 200, 400, 800, 974. Columns: **W**, then **W'** for `new_reduced`,
+    /// `new_super_swiper_reduced`, and `new_reduced_v2` (baseline t/L/δ params).
+    #[test]
+    fn test_all_epochs_w_and_wprime_by_algorithm_chart() {
+        run_all_epochs_w_and_wprime_by_algorithm_chart(&EpochChartParams::baseline_34_75_8());
     }
 }
