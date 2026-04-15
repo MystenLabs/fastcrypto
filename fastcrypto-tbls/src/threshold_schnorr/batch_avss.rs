@@ -218,17 +218,11 @@ impl Dealer {
         nodes: Nodes<EG>,
         dealer_id: PartyId,
         t: u16,
-        f: u16,
         sid: Vec<u8>,
         batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
-        if t <= f || t + 2 * f > nodes.total_weight() {
-            return Err(InvalidInput);
-        }
-
         // Each dealer deals a number of nonces proportional to their weight.
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
-
         Ok(Self {
             t,
             nodes,
