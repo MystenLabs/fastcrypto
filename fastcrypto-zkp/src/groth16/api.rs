@@ -1,8 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::mem::size_of;
 use serde::de::DeserializeOwned;
+use std::mem::size_of;
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Pairing};
@@ -135,13 +135,13 @@ impl<G1: Pairing> VerifyingKey<G1> {
     /// for circuits, this verifying key can be used for.
     ///
     /// If the length cannot be of a valid verifying key, return an InvalidInput error.
-    pub fn get_public_inputs_num<const G1_SIZE: usize, const G2_SIZE: usize>(length: usize) -> FastCryptoResult<usize> {
+    pub fn get_public_inputs_num<const G1_SIZE: usize, const G2_SIZE: usize>(
+        length: usize,
+    ) -> FastCryptoResult<usize> {
         // The length of the fixed parts of a verifying key: alpha (G1), beta (G2), gamma (G2),
         // delta (G2) and the first element of gamma_abc (u64 length + G1).
         let prefix = 2 * G1_SIZE + 3 * G2_SIZE + size_of::<u64>();
-        if length < prefix
-            || !(length - prefix).is_multiple_of(G1_SIZE)
-        {
+        if length < prefix || !(length - prefix).is_multiple_of(G1_SIZE) {
             return Err(FastCryptoError::InvalidInput);
         }
         // gamma_abc.len() = #public_inputs + 1
