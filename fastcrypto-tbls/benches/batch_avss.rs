@@ -54,7 +54,7 @@ pub fn setup_receiver(
 pub fn setup_dealer(
     dealer_id: u16,
     threshold: u16,
-    f: u16,
+    _f: u16,
     weight: u16, // Per node
     keys: &[(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)],
     batch_size_per_weight: u16,
@@ -71,7 +71,6 @@ pub fn setup_dealer(
         Nodes::new(nodes).unwrap(),
         dealer_id,
         threshold,
-        f,
         b"avss".to_vec(),
         batch_size_per_weight,
     )
