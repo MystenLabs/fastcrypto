@@ -54,7 +54,6 @@ pub fn setup_receiver(
 pub fn setup_dealer(
     dealer_id: u16,
     threshold: u16,
-    f: u16,
     weight: u16, // Per node
     keys: &[(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)],
     batch_size_per_weight: u16,
@@ -71,7 +70,6 @@ pub fn setup_dealer(
         Nodes::new(nodes).unwrap(),
         dealer_id,
         threshold,
-        f,
         b"avss".to_vec(),
         batch_size_per_weight,
     )
@@ -103,7 +101,7 @@ mod batch_avss_benches {
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
                 let keys = generate_ecies_keys(*n);
-                let d0 = setup_dealer(0, t, t - 1, w, &keys, batch_size_per_weight);
+                let d0 = setup_dealer(0, t, w, &keys, batch_size_per_weight);
                 create.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| b.iter(|| d0.create_message(&mut thread_rng())),
@@ -120,7 +118,7 @@ mod batch_avss_benches {
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
                 let keys = generate_ecies_keys(*n);
-                let d0 = setup_dealer(0, t, t - 1, w, &keys, batch_size_per_weight);
+                let d0 = setup_dealer(0, t, w, &keys, batch_size_per_weight);
                 let r1 = setup_receiver(1, 0, t, w, &keys, batch_size_per_weight);
                 let message = d0.create_message(&mut thread_rng()).unwrap();
 
@@ -141,7 +139,7 @@ mod batch_avss_benches {
                 let keys = generate_ecies_keys(*n);
                 let quorum = (2 * n / 3 + 1) as usize;
                 let dealers: Vec<Dealer> = (0..quorum)
-                    .map(|id| setup_dealer(id as u16, t, t - 1, w, &keys, batch_size_per_weight))
+                    .map(|id| setup_dealer(id as u16, t, w, &keys, batch_size_per_weight))
                     .collect();
                 let outputs = dealers
                     .iter()

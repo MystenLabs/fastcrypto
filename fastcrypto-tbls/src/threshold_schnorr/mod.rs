@@ -213,7 +213,6 @@ mod tests {
                 nodes.clone(),
                 dealer_id,
                 t,
-                f,
                 sid.clone(),
                 batch_size_per_weight,
             )

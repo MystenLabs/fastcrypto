@@ -218,17 +218,11 @@ impl Dealer {
         nodes: Nodes<EG>,
         dealer_id: PartyId,
         t: u16,
-        f: u16,
         sid: Vec<u8>,
         batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
-        if t <= f || t + 2 * f > nodes.total_weight() {
-            return Err(InvalidInput);
-        }
-
         // Each dealer deals a number of nonces proportional to their weight.
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
-
         Ok(Self {
             t,
             nodes,
@@ -577,7 +571,6 @@ mod tests {
     fn test_happy_path() {
         // No complaints, all honest. All have weight 1
         let t = 3;
-        let f = 2;
         let n = 7;
         let batch_size_per_weight = 3;
 
@@ -603,7 +596,6 @@ mod tests {
             nodes.clone(),
             dealer_id,
             t,
-            f,
             sid.clone(),
             batch_size_per_weight,
         )
@@ -668,7 +660,6 @@ mod tests {
     fn test_happy_path_non_equal_weights() {
         // No complaints, all honest
         let t = 4;
-        let f = 3;
         let weights: Vec<u16> = vec![1, 2, 3, 4];
         let batch_size_per_weight = 3;
 
@@ -696,7 +687,6 @@ mod tests {
             nodes.clone(),
             dealer_id,
             t,
-            f,
             sid.clone(),
             batch_size_per_weight,
         )
@@ -749,7 +739,6 @@ mod tests {
     #[test]
     fn test_share_recovery() {
         let t = 3;
-        let f = 2;
         let n = 7;
         let batch_size_per_weight: u16 = 3;
 
@@ -776,7 +765,6 @@ mod tests {
             nodes.clone(),
             dealer_id,
             t,
-            f,
             sid.clone(),
             batch_size_per_weight,
         )
