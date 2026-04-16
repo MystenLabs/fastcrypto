@@ -46,8 +46,10 @@ impl Presignatures {
     ///
     /// All parties must use the same outputs in the same order, and the output from a dealer with weight `w` should be equal to `batch_size_per_weight * w`.
     ///
+    /// More parties contributing outputs gives more presignatures, so include as many as possible but at least f+1.
+    ///
     /// An InvalidInput error will be returned if:
-    /// * The total weight of the dealers for the outputs is not at least 2f+1,
+    /// * The total weight of the dealers for the outputs is not at least f+1,
     /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
     /// * or if batch_size_per_weight is zero.
     pub fn new(
@@ -73,7 +75,7 @@ impl Presignatures {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
         let total_weight_of_outputs: usize = weights.iter().sum();
-        if total_weight_of_outputs < 2 * f + 1 {
+        if total_weight_of_outputs < f + 1 {
             return Err(InvalidInput);
         }
 
