@@ -1,13 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::error::FastCryptoError;
+use crate::groth16::api;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::bls12381::{
     G1Element, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH,
     SCALAR_LENGTH,
 };
-
-use crate::groth16::api;
 
 mod conversions;
 #[cfg(test)]
@@ -48,5 +47,17 @@ pub fn verify_groth16_in_bytes(
         delta_g2_neg_pc_bytes,
         public_inputs_as_bytes,
         proof_points_as_bytes,
+    )
+}
+
+/// Given the length of a verifying key in Arkworks format, compute the number of public inputs
+/// for circuits, this verifying key can be used for.
+///
+/// If the length cannot be of a valid verifying key, return an [FastCryptoError::InvalidInput] error.
+pub fn get_public_inputs_num(vk_length_in_bytes: usize) -> FastCryptoResult<usize> {
+    api::get_public_inputs_num(
+        G1_ELEMENT_BYTE_LENGTH,
+        G2_ELEMENT_BYTE_LENGTH,
+        vk_length_in_bytes,
     )
 }

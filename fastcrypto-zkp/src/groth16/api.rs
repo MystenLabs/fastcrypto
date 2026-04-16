@@ -130,23 +130,6 @@ impl<G1: Pairing> VerifyingKey<G1> {
             gamma_abc,
         })
     }
-
-    /// Given the length of a verifying key in Arkworks format, compute the number of public inputs
-    /// for circuits, this verifying key can be used for.
-    ///
-    /// If the length cannot be of a valid verifying key, return an InvalidInput error.
-    pub fn get_public_inputs_num<const G1_SIZE: usize, const G2_SIZE: usize>(
-        vk_length_in_bytes: usize,
-    ) -> FastCryptoResult<usize> {
-        // The length of the fixed parts of a verifying key: alpha (G1), beta (G2), gamma (G2),
-        // delta (G2) and the first element of gamma_abc (u64 length + G1).
-        let prefix = 2 * G1_SIZE + 3 * G2_SIZE + size_of::<u64>();
-        if vk_length_in_bytes < prefix || !(vk_length_in_bytes - prefix).is_multiple_of(G1_SIZE) {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        // gamma_abc.len() = #public_inputs + 1
-        Ok((vk_length_in_bytes - prefix) / G1_SIZE)
-    }
 }
 
 impl<G1: Pairing> PreparedVerifyingKey<G1> {
@@ -225,4 +208,24 @@ pub trait GTSerialize<const SIZE_IN_BYTES: usize>: Sized {
 /// Scalars given to the API are expected to be in little-endian format.
 pub trait FromLittleEndianByteArray<const SIZE_IN_BYTES: usize>: Sized {
     fn from_little_endian_byte_array(bytes: &[u8; SIZE_IN_BYTES]) -> FastCryptoResult<Self>;
+}
+
+/// Given the length of a verifying key in Arkworks format, compute the number of public inputs
+/// for circuits, this verifying key can be used for.
+///
+/// If the length cannot be of a valid verifying key, return an InvalidInput error.
+pub(crate) fn get_public_inputs_num(
+    g1_size: usize,
+    g2_size: usize,
+    vk_length_in_bytes: usize,
+) -> FastCryptoResult<usize> {
+    // The length of the fixed parts of a verifying key: alpha (G1), beta (G2), gamma (G2),
+    // delta (G2) and the first element of gamma_abc (u64 length + G1).
+    let prefix = 2 * g1_size + 3 * g2_size + size_of::<u64>();
+    let per_public_input = vk_length_in_bytes - prefix;
+    if vk_length_in_bytes < prefix || !per_public_input.is_multiple_of(g1_size) {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    // gamma_abc.len() = #public_inputs + 1
+    Ok(per_public_input / g1_size)
 }

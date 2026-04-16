@@ -3,19 +3,19 @@
 
 use std::ops::Mul;
 
-use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Affine};
+use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Affine, G2Affine};
 use ark_ff::One;
 use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
 use ark_std::rand::thread_rng;
 use ark_std::UniformRand;
-
 use fastcrypto::groups::bls12381::{G1Element, G2Element};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::serde_helpers::ToFromByteArray;
+use itertools::repeat_n;
 
-use crate::bls12381::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
+use crate::bls12381::api::{get_public_inputs_num, prepare_pvk_bytes, verify_groth16_in_bytes};
 use crate::bls12381::test_helpers::from_arkworks_scalar;
 use crate::bls12381::{PreparedVerifyingKey, VerifyingKey};
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
@@ -98,6 +98,7 @@ fn test_verify_groth16_in_bytes_api() {
 
     let mut vk_bytes = vec![];
     vk.serialize_compressed(&mut vk_bytes).unwrap();
+    assert_eq!(1, get_public_inputs_num(vk_bytes.len()).unwrap());
 
     let bytes = prepare_pvk_bytes(&vk_bytes).unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
@@ -183,6 +184,7 @@ fn test_verify_groth16_in_bytes_api() {
 fn test_prepare_pvk_bytes_regression() {
     // Test vector
     let vk_bytes = hex::decode("a84d039ad1ae98eeeee4c8ba9af9b6c5d1cfcb98c3fc92ccfcebd77bcccffa1d170d39da29e9b4aa83b98680cb90bb25946b2b70f9e3565510c5361d5d65cb458a0b3177d612dd340b8f8f8493c2772454e3e8f577a3f77865df851d1a159b800c2ec5bae889029fc419678e83dee900465d60e7ef26f614940e719c6f7c0c7db57464fa0481a93c18d52cb2fbf8dcf0a398b153643614fc1071a54e288edb6402f1d9e00d3408c76d95c16885cc992dff5c6ebee3b739cb22359ab2d126026a1626c43ea7b898a7c1d2904c1bd4bbce5d0b1b16fab8535a52d1b08a5217df2e912ee1b0f4140892afa31d479f78dfbc82ab58a209ad00df6c86ab14841e8daa7a380a6853f28bacf38aad9903b6149fff4b119dea16de8aa3e5050b9d563a01009e061a950c233f66511c8fae2a8c58503059821df7f6defbba8f93d26e412cc07b66a9f3cdd740cce5c8488ce94fc8020000000000000081aabea18713222ac45a6ef3208a09f55ce2dde8a11cc4b12788be2ae77ae318176d631d36d80942df576af651b57a31a95f2e9bcaebbb53a588251634715599f7a7e9d51fe872fe312edf0b39d98f0d7f8b5554f96f759c041ea38b4b1e5e19").unwrap();
+    assert_eq!(1, get_public_inputs_num(vk_bytes.len()).unwrap());
     let expected_vk_bytes = hex::decode("81aabea18713222ac45a6ef3208a09f55ce2dde8a11cc4b12788be2ae77ae318176d631d36d80942df576af651b57a31a95f2e9bcaebbb53a588251634715599f7a7e9d51fe872fe312edf0b39d98f0d7f8b5554f96f759c041ea38b4b1e5e19").unwrap();
     let expected_alpha_bytes = hex::decode("097ca8074c7f1d661e25d70fc2e6f14aa874dabe3d8a5d7751a012a737d30b59fc0f5f6d4ce0ea6f6c4562912dfb2a1442df06f9f0b8fc2d834ca007c8620823926b2fc09367d0dfa9b205a216921715e13deedd93580c77cae413cbb83134051cb724633c58759c77e4eda4147a54b03b1f443b68c65247166465105ab5065847ae61ba9d8bdfec536212b0dadedc042dab119d0eeea16349493a4118d481761b1e75f559fbad57c926d599e81d98dde586a2cfcc37b49972e2f9db554e5a0ba56bec2d57a8bfed629ae29c95002e3e943311b7b0d1690d2329e874b179ce5d720bd7c5fb5a2f756b37e3510582cb0c0f8fc8047305fc222c309a5a8234c5ff31a7b311aabdcebf4a43d98b69071a9e5796372146f7199ba05f9ca0a3d14b0c421e7f1bd02ac87b365fd8ce992c0f87994d0ca66f75c72fed0ce94ca174fcb9e5092f0474e07e71e9fd687b3daa441193f264ca2059760faa9c5ca5ef38f6ecefef2ac7d8c47df67b99c36efa64f625fe3f55f40ad1865abbdf2ff4c3fc3a162e28b953f6faec70a6a61c76f4dca1eecc86544b88352994495ae7fc7a77d387880e59b2357d9dd1277ae7f7ee9ba00b440e0e6923dc3971de9050a977db59d767195622f200f2bf0d00e4a986e94a6932627954dd2b7da39b4fcb32c991a0190bdc44562ad83d34e0af7656b51d6cde03530b5d523380653130b87346720ad6dd425d8133ffb02f39a95fc70e9707181ecb168bd8d2d0e9e85e262255fecab15f1ada809ecbefa42a7082fa7326a1d494261a8954fe5b215c5b761fb10b7f18").unwrap();
     let expected_gamma_bytes = hex::decode("8398b153643614fc1071a54e288edb6402f1d9e00d3408c76d95c16885cc992dff5c6ebee3b739cb22359ab2d126026a1626c43ea7b898a7c1d2904c1bd4bbce5d0b1b16fab8535a52d1b08a5217df2e912ee1b0f4140892afa31d479f78dfbc").unwrap();
@@ -211,6 +213,7 @@ fn test_prepare_pvk_bytes() {
 
     let mut vk_bytes = vec![];
     vk.serialize_compressed(&mut vk_bytes).unwrap();
+    assert_eq!(1, get_public_inputs_num(vk_bytes.len()).unwrap());
 
     // Success case.
     assert!(prepare_pvk_bytes(vk_bytes.as_slice()).is_ok());
@@ -252,6 +255,7 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
 
     let mut vk_bytes = Vec::new();
     params.vk.serialize_compressed(&mut vk_bytes).unwrap();
+    assert_eq!(2, get_public_inputs_num(vk_bytes.len()).unwrap());
     let vk = VerifyingKey::from_arkworks_format(&vk_bytes).unwrap();
     let pvk = PreparedVerifyingKey::from(&vk);
 
@@ -293,6 +297,7 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
 fn api_regression_tests() {
     // Prepare VK
     let vk_bytes = hex::decode("835da56c560fbba42fe472c9c6c687986953de12db2adb66c10ecfff8957c1ec28a030dd2512b1ef3afa09fff2b467ddad48984a12c6568511bca1a3662ecfba801f31422f5c4208986bc52186938a2d86745abc9e6e0503b5eb16c5f2a622e108013d74b85f9532d87c391c5b0c49557ce47221e869b329fbe103ca73136c70b708ac61fa0092a238bf9060dc885d0da59dae8e121fd0013e45116a3d63837949b7976fd15e99d9974c654638d5fa1cbd51531a00889c75aeb5a91dd54891fd0b6c37bc2d6817541e4818040b3e2c78451674c5f180a895107070592eabf3386d21a9f6a91adb1f94debadb604f47c6a412f66347289eb47eec60604b31d973697f7f4ffc792fa914e24286f6d277a002ac1275b83a8dad2d84fcc4fc771bbf0854b5e655be18c6089cfc1841cf311e3c43f1ee2cd371d42cc91d61b5b2848f448f9f57229781d6dba2ca8367f2e3f602000000000000009274be44d5c4ec5203e96cb2b3e96468062cf4eebea465b1721889924bbea43d26de7c0b312beb7c09182c278f54c4d2b4092ebefd19ba81e8d5d787b25cd8ca8d03130326032c0e2f01d23cdf4e7a845f2c00a38574182e08d2f9fbe90ca3f7").unwrap();
+    assert_eq!(1, get_public_inputs_num(vk_bytes.len()).unwrap());
     let pvk_expected = vec![
         hex::decode("9274be44d5c4ec5203e96cb2b3e96468062cf4eebea465b1721889924bbea43d26de7c0b312beb7c09182c278f54c4d2b4092ebefd19ba81e8d5d787b25cd8ca8d03130326032c0e2f01d23cdf4e7a845f2c00a38574182e08d2f9fbe90ca3f7").unwrap(),
         hex::decode("5e235118ea90b0347c840b5f29df0cb765a81e9d55a0879fad4fda927f559aaa78af3f0d0ac1a0a3debe86e08c608907622cf46ce3be71d559c6bc460a206db1ac7ec28ef8817efd75a4ca6b56243ce2bd00782fd84ee9238c27b64bf68b4a138b22e9829464497fde48632b0a94461c6fc7dffab47d23851e30a484fb823827620b14678cb80ba4125a305b99213619354a7f98923b154ae209440b0e631ec0da2b02946dad1ad20830fe32f92e512843d6f870b0b4fa290e62935f921d470b0b8058af1f51391ebaf4ab1869933cfe37725e654a00f2c4a7099863937f4ce23e01bf7b2cabea888c6b073f47a0f411a3dc9295164e46a665c71c4ee31dd88f4c4d25aee40c832fc79bbb9f0bcbcf3fb3a5868a7027320f719f9ce0d23c620989e30af71459b32abffd7e879adfdc6d3417d552f43fbfa8b295bfd661dfc9fe2ac846c28f8527506ac15b1247dc7800d040e25698d2797be8c357a6883e0eeca928451406c93e0e3a2ea5fecbc5165e6691d164b6fa4de207a338a882600802a835795b29ee7ae73c66d6d22104a77e010d05293fc3fed65772b0da969a63c384ae24720e9c24c373912446400e7b087ecb1cbfe772b574bcf7c2e1e61fe56d9abe57ff5298956aa4ba47dd77c703f0fc4c69ab61d6e6e4161243e490a85b0c9d1dde1764f4924a3fc27de397256eb4822be1ba1faa6840afaa3219570806fe78622dc5ac74cb7352a0e4fa0fff5e0d30b6f87fd1a3e5fd3256f807ea5b5a45911518f4b93ec96f88a771ca33dae1339fcc7047cd0740b5df25e4403051af0b").unwrap(),
@@ -370,4 +375,21 @@ fn api_regression_tests() {
         &proof_bytes
     )
     .unwrap());
+}
+
+#[test]
+fn test_public_inputs_num() {
+    for i in 0..100 {
+        let gamma_abc_g1 = repeat_n(G1Affine::identity(), i + 1).collect::<Vec<_>>();
+        let vk = ark_groth16::VerifyingKey::<Bls12_381> {
+            alpha_g1: G1Affine::identity(),
+            beta_g2: G2Affine::identity(),
+            gamma_g2: G2Affine::identity(),
+            delta_g2: G2Affine::identity(),
+            gamma_abc_g1,
+        };
+        let mut vk_bytes = vec![];
+        vk.serialize_compressed(&mut vk_bytes).unwrap();
+        assert_eq!(i, get_public_inputs_num(vk_bytes.len()).unwrap());
+    }
 }
