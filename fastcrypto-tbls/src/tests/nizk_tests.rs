@@ -6,7 +6,7 @@ use crate::random_oracle::RandomOracle;
 use fastcrypto::groups::bls12381::{G1Element, G2Element};
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
-use rand::thread_rng;
+use rand::rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -20,9 +20,9 @@ mod point_tests {
         G::ScalarType: FiatShamirChallenge + DeserializeOwned,
     {
         // basic flow
-        let x = G::ScalarType::rand(&mut thread_rng());
+        let x = G::ScalarType::rand(&mut rng());
         let g_x = G::generator() * x;
-        let nizk = DLNizk::create(&x, &g_x, &RandomOracle::new("test"), &mut thread_rng());
+        let nizk = DLNizk::create(&x, &g_x, &RandomOracle::new("test"), &mut rng());
         assert!(nizk.verify(&g_x, &RandomOracle::new("test")).is_ok());
         assert!(nizk.verify(&g_x, &RandomOracle::new("test2")).is_err());
         assert!(nizk
@@ -34,7 +34,7 @@ mod point_tests {
         let inf = G::zero();
         let g = G::generator();
         let invalid_nizk =
-            DLNizk::create(&zero, &inf, &RandomOracle::new("test"), &mut thread_rng());
+            DLNizk::create(&zero, &inf, &RandomOracle::new("test"), &mut rng());
         assert!(invalid_nizk
             .verify(&inf, &RandomOracle::new("test"))
             .is_err());
@@ -58,8 +58,8 @@ mod point_tests {
         G::ScalarType: FiatShamirChallenge + DeserializeOwned,
     {
         // basic flow
-        let x1 = G::ScalarType::rand(&mut thread_rng());
-        let x2 = G::ScalarType::rand(&mut thread_rng());
+        let x1 = G::ScalarType::rand(&mut rng());
+        let x2 = G::ScalarType::rand(&mut rng());
         let g_x1 = G::generator() * x1;
         let g_x2 = G::generator() * x2;
         let g_x1_x2 = g_x1 * x2;
@@ -69,7 +69,7 @@ mod point_tests {
             &g_x2,
             &g_x1_x2,
             &RandomOracle::new("test"),
-            &mut thread_rng(),
+            &mut rng(),
         );
         assert!(nizk
             .verify(&g_x1, &g_x2, &g_x1_x2, &RandomOracle::new("test"))
@@ -88,7 +88,7 @@ mod point_tests {
             &g_x2,
             &g_x1_x2,
             &RandomOracle::new("test"),
-            &mut thread_rng(),
+            &mut rng(),
         );
         assert!(invalid_nizk
             .verify(&G::zero(), &g_x2, &g_x1_x2, &RandomOracle::new("test"))

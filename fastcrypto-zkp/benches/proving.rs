@@ -10,7 +10,7 @@ use ark_ff::{PrimeField, UniformRand};
 use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
-use ark_std::rand::thread_rng;
+use rand::rng;
 use criterion::{
     criterion_group, criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId,
     Criterion, SamplingMode,
@@ -31,7 +31,8 @@ fn bench_prove<F: PrimeField, E: Pairing<ScalarField = F>, M: Measurement>(
     static CONSTRAINTS: [usize; 5] = [8, 9, 10, 11, 12];
 
     for size in CONSTRAINTS.iter() {
-        let rng = &mut thread_rng();
+        let mut raw_rng = rng();
+        let rng = &mut fastcrypto::traits::old_rng(&mut raw_rng);
         let c = DummyCircuit::<F> {
             a: Some(<F>::rand(rng)),
             b: Some(<F>::rand(rng)),
@@ -57,7 +58,8 @@ fn bench_verify<F: PrimeField, E: Pairing<ScalarField = F>, M: Measurement>(
     static CONSTRAINTS: [usize; 5] = [8, 9, 10, 11, 12];
 
     for size in CONSTRAINTS.iter() {
-        let rng = &mut thread_rng();
+        let mut raw_rng = rng();
+        let rng = &mut fastcrypto::traits::old_rng(&mut raw_rng);
         let c = DummyCircuit::<F> {
             a: Some(<F>::rand(rng)),
             b: Some(<F>::rand(rng)),
@@ -420,7 +422,8 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
     static CONSTRAINTS: [usize; 5] = [8, 9, 10, 11, 12];
 
     for size in CONSTRAINTS.iter() {
-        let rng = &mut thread_rng();
+        let mut raw_rng = rng();
+        let rng = &mut fastcrypto::traits::old_rng(&mut raw_rng);
         let c = DummyCircuit::<BlsFr> {
             a: Some(<BlsFr>::rand(rng)),
             b: Some(<BlsFr>::rand(rng)),

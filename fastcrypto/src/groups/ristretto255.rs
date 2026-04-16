@@ -181,7 +181,7 @@ impl GroupElement for RistrettoScalar {
 
 impl Scalar for RistrettoScalar {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
-        Self(ExternalScalar::random(rng))
+        Self(ExternalScalar::random(&mut crate::traits::old_rng(rng)))
     }
 
     fn inverse(&self) -> FastCryptoResult<Self> {

@@ -22,8 +22,8 @@ use crate::bn254::{
 };
 use crate::zk_login_utils::Bn254FrElement;
 use ark_bn254::Fr;
-use ark_std::rand::rngs::StdRng;
-use ark_std::rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError;

@@ -9,7 +9,7 @@ use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar, SCALAR_LENGTH};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
 use fastcrypto::traits::KeyPair;
 use rand::prelude::StdRng;
-use rand::{thread_rng, SeedableRng};
+use rand::{rng, SeedableRng};
 use serde::{de::DeserializeOwned, Serialize};
 
 #[generic_tests::define]
@@ -29,7 +29,7 @@ mod point_tests {
         let ro = RandomOracle::new("test");
         let keys_and_msg = (0..10u32)
             .map(|i| {
-                let sk = PrivateKey::<Group>::new(&mut thread_rng());
+                let sk = PrivateKey::<Group>::new(&mut rng());
                 let pk = PublicKey::<Group>::from_private_key(&sk);
                 (
                     sk,
@@ -48,7 +48,7 @@ mod point_tests {
                 .map(|(_, pk, msg)| (pk.clone(), msg.as_bytes().to_vec()))
                 .collect::<Vec<_>>(),
             &ro,
-            &mut thread_rng(),
+            &mut rng(),
         );
 
         assert!(mr_enc.verify(&ro).is_ok());
@@ -66,7 +66,7 @@ mod point_tests {
                 .map(|(_, pk, _)| (pk.clone(), vec![]))
                 .collect::<Vec<_>>(),
             &ro,
-            &mut thread_rng(),
+            &mut rng(),
         );
         assert!(mr_enc2.verify(&ro).is_err());
 
@@ -78,11 +78,11 @@ mod point_tests {
                 .map(|(_, pk, msg)| (pk.clone(), msg.as_bytes().to_vec()))
                 .collect::<Vec<_>>(),
             &ro,
-            &mut thread_rng(),
+            &mut rng(),
         );
 
         for (i, (sk, pk, msg)) in keys_and_msg.iter().enumerate() {
-            let pkg = mr_enc.create_recovery_package(sk, &recovery_ro, &mut thread_rng());
+            let pkg = mr_enc.create_recovery_package(sk, &recovery_ro, &mut rng());
             let decrypted = mr_enc
                 .decrypt_with_recovery_package(&pkg, &recovery_ro, &ro, pk, i)
                 .unwrap();
@@ -109,7 +109,7 @@ mod point_tests {
 
 #[test]
 fn test_blskeypair_to_group() {
-    let pair = BLS12381KeyPair::generate(&mut thread_rng());
+    let pair = BLS12381KeyPair::generate(&mut rng());
     let (pk, sk) = (pair.public().clone(), pair.private());
     let pk: G2Element = bcs::from_bytes(pk.as_ref()).expect("should work");
     let ecies_pk = PublicKey::<G2Element>::from(pk);
@@ -126,7 +126,7 @@ fn test_blskeypair_to_group() {
 fn test_zeroization_on_drop() {
     let ptr: *const u8;
     {
-        let sk = PrivateKey::<G2Element>::new(&mut thread_rng());
+        let sk = PrivateKey::<G2Element>::new(&mut rng());
         ptr = std::ptr::addr_of!(sk.0) as *const u8;
     }
 

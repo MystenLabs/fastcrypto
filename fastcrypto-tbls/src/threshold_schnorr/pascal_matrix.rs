@@ -211,7 +211,7 @@ fn random_test_vector() {
         vec![1, 7, 28, 84, 210, 462, 924],
     ];
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let v = (0..7).map(|_| Scalar::rand(&mut rng)).collect_vec();
 
     // Compute expected result using naive matrix-vector multiplication.

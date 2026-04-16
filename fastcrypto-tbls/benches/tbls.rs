@@ -3,7 +3,7 @@
 
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::bls12381;
-use rand::thread_rng;
+use rand::rng;
 use std::num::NonZeroU16;
 
 mod tbls_benches {
@@ -17,7 +17,7 @@ mod tbls_benches {
 
         {
             let mut create: BenchmarkGroup<_> = c.benchmark_group("Batch signing");
-            let private_poly = Poly::<bls12381::Scalar>::rand(500, &mut thread_rng());
+            let private_poly = Poly::<bls12381::Scalar>::rand(500, &mut rng());
             const WEIGHTS: [usize; 5] = [10, 20, 30, 40, 50];
             for w in WEIGHTS {
                 let shares = (1..=w)
@@ -34,7 +34,7 @@ mod tbls_benches {
             let mut create: BenchmarkGroup<_> = c.benchmark_group("Recover full signature");
             const TOTAL_WEIGHTS: [usize; 4] = [666, 833, 1111, 1666];
             for w in TOTAL_WEIGHTS {
-                let private_poly = Poly::<bls12381::Scalar>::rand(w as u16, &mut thread_rng());
+                let private_poly = Poly::<bls12381::Scalar>::rand(w as u16, &mut rng());
                 let shares = (1..=w)
                     .map(|i| private_poly.eval(NonZeroU16::new(i as u16).unwrap()))
                     .collect::<Vec<_>>();

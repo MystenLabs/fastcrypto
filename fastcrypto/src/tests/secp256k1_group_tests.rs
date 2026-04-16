@@ -7,7 +7,7 @@ use std::ops::{Mul, Neg};
 use crate::groups::secp256k1::{ProjectivePoint, Scalar};
 use crate::groups::{secp256k1, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
-use rand::thread_rng;
+use rand::rng;
 
 #[test]
 fn test_arithmetic() {
@@ -27,7 +27,7 @@ fn test_arithmetic() {
 
 #[test]
 fn test_serde() {
-    let scalar = secp256k1::Scalar::rand(&mut thread_rng());
+    let scalar = secp256k1::Scalar::rand(&mut rng());
     let bytes = scalar.to_byte_array();
     let reconstructed = Scalar::from_byte_array(&bytes).unwrap();
     assert_eq!(scalar, reconstructed);
@@ -66,8 +66,8 @@ fn test_msm() {
         let mut points = Vec::new();
         let mut expected = ProjectivePoint::zero();
         for _ in 0..l {
-            let s = Scalar::rand(&mut thread_rng());
-            let e = Scalar::rand(&mut thread_rng());
+            let s = Scalar::rand(&mut rng());
+            let e = Scalar::rand(&mut rng());
             let g = ProjectivePoint::generator() * e;
             expected += g * s;
             scalars.push(s);

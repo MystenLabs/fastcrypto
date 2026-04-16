@@ -7,7 +7,7 @@ use fastcrypto::groups::bls12381::G2Element;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
 use rand::prelude::SliceRandom;
-use rand::thread_rng;
+use rand::rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::num::NonZeroU16;
@@ -18,7 +18,7 @@ where
     G: GroupElement + Serialize + DeserializeOwned,
     G::ScalarType: FiatShamirChallenge + Zeroize,
 {
-    let sk = ecies_v1::PrivateKey::<G>::new(&mut thread_rng());
+    let sk = ecies_v1::PrivateKey::<G>::new(&mut rng());
     let pk = ecies_v1::PublicKey::<G>::from_private_key(&sk);
     (0..n)
         .map(|i| Node {
@@ -67,9 +67,9 @@ fn test_new_failures() {
 fn test_new_order() {
     // order should not matter
     let mut nodes_vec = get_nodes::<G2Element>(100);
-    nodes_vec.shuffle(&mut thread_rng());
+    nodes_vec.shuffle(&mut rng());
     let nodes1 = Nodes::new(nodes_vec.clone()).unwrap();
-    nodes_vec.shuffle(&mut thread_rng());
+    nodes_vec.shuffle(&mut rng());
     let nodes2 = Nodes::new(nodes_vec.clone()).unwrap();
     assert_eq!(nodes1, nodes2);
     assert_eq!(nodes1.hash(), nodes2.hash());

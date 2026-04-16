@@ -138,7 +138,8 @@ mod tests {
         );
 
         // sG, random s
-        let random_s = p256::Scalar::random(&mut rand::thread_rng());
+        let mut rng = rand::rng();
+        let random_s = p256::Scalar::random(&mut crate::traits::old_rng(&mut rng));
         assert_eq!(
             (p256::AffinePoint::generator() * random_s).to_affine(),
             affine_pt_arkworks_to_p256(
@@ -171,7 +172,8 @@ mod tests {
         );
 
         // sG, random s
-        let random_s = p256::Scalar::random(&mut rand::thread_rng());
+        let mut rng = rand::rng();
+        let random_s = p256::Scalar::random(&mut crate::traits::old_rng(&mut rng));
         assert_eq!(
             (ark_secp256r1::Projective::generator() * fr_p256_to_arkworks(&random_s)).into_affine(),
             affine_pt_p256_to_projective_arkworks(
@@ -182,7 +184,8 @@ mod tests {
 
     #[test]
     fn test_arkworks_fq_to_fr() {
-        let s = ark_secp256r1::Fq::rand(&mut rand::thread_rng());
+        let mut rng = rand::rng();
+        let s = ark_secp256r1::Fq::rand(&mut crate::traits::old_rng(&mut rng));
         let s_fr = arkworks_fq_to_fr(&s).0;
         let p256_s = fq_arkworks_to_p256(&s);
         let reduced_s = p256::Scalar::reduce_bytes(&p256_s);

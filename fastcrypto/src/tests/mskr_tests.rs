@@ -5,15 +5,15 @@ use crate::bls12381::mskr::Randomize;
 use crate::bls12381::{min_pk, min_sig};
 use crate::traits::Signer;
 use crate::traits::{AggregateAuthenticator, KeyPair, VerifyingKey};
-use rand::thread_rng;
+use rand::rng;
 
 #[test]
 fn verify_randomized_signature_bls12381_min_pk() {
-    let kp = min_pk::BLS12381KeyPair::generate(&mut thread_rng());
+    let kp = min_pk::BLS12381KeyPair::generate(&mut rng());
 
     let pks = (0..4)
         .map(|_| {
-            let kp = min_pk::BLS12381KeyPair::generate(&mut thread_rng());
+            let kp = min_pk::BLS12381KeyPair::generate(&mut rng());
             kp.public().clone()
         })
         .collect::<Vec<_>>();
@@ -39,7 +39,7 @@ fn verify_randomized_signature_bls12381_min_pk() {
 #[test]
 fn verify_aggregate_all_bls12381_min_pk() {
     let kps = (0..4)
-        .map(|_| min_pk::BLS12381KeyPair::generate(&mut thread_rng()))
+        .map(|_| min_pk::BLS12381KeyPair::generate(&mut rng()))
         .collect::<Vec<_>>();
 
     let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
@@ -63,7 +63,7 @@ fn verify_aggregate_all_bls12381_min_pk() {
 #[test]
 fn verify_aggregate_subset_bls12381_min_pk() {
     let kps = (0..4)
-        .map(|_| min_pk::BLS12381KeyPair::generate(&mut thread_rng()))
+        .map(|_| min_pk::BLS12381KeyPair::generate(&mut rng()))
         .collect::<Vec<_>>();
 
     let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
@@ -87,11 +87,11 @@ fn verify_aggregate_subset_bls12381_min_pk() {
 
 #[test]
 fn verify_randomized_signature_bls12381_min_sig() {
-    let kp = min_sig::BLS12381KeyPair::generate(&mut thread_rng());
+    let kp = min_sig::BLS12381KeyPair::generate(&mut rng());
 
     let pks = (0..4)
         .map(|_| {
-            let kp = min_sig::BLS12381KeyPair::generate(&mut thread_rng());
+            let kp = min_sig::BLS12381KeyPair::generate(&mut rng());
             kp.public().clone()
         })
         .collect::<Vec<_>>();
@@ -117,7 +117,7 @@ fn verify_randomized_signature_bls12381_min_sig() {
 #[test]
 fn verify_aggregate_all_bls12381_min_sig() {
     let kps = (0..4)
-        .map(|_| min_sig::BLS12381KeyPair::generate(&mut thread_rng()))
+        .map(|_| min_sig::BLS12381KeyPair::generate(&mut rng()))
         .collect::<Vec<_>>();
 
     let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
@@ -141,7 +141,7 @@ fn verify_aggregate_all_bls12381_min_sig() {
 #[test]
 fn verify_aggregate_subset_bls12381_min_sig() {
     let kps = (0..4)
-        .map(|_| min_sig::BLS12381KeyPair::generate(&mut thread_rng()))
+        .map(|_| min_sig::BLS12381KeyPair::generate(&mut rng()))
         .collect::<Vec<_>>();
 
     let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();

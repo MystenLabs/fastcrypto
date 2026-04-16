@@ -8,7 +8,7 @@ use crate::{
     hash::HashFunction,
 };
 use rand::rngs::{StdRng, ThreadRng};
-use rand::{CryptoRng, RngCore};
+use rand::{CryptoRng, Rng};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
     borrow::Borrow,
@@ -99,11 +99,11 @@ pub trait VerifyingKey:
     /// ```rust
     /// use fastcrypto::ed25519::*;
     /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
-    /// use rand::thread_rng;
+    /// use rand::rng;
     /// let message: &[u8] = b"Hello, world!";
-    /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let kp1 = Ed25519KeyPair::generate(&mut rng());
     /// let signature1 = kp1.sign(message);
-    /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let kp2 = Ed25519KeyPair::generate(&mut rng());
     /// let signature2 = kp2.sign(message);
     /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
     /// let signatures = [signature1.clone(), signature2.clone()];
@@ -128,12 +128,12 @@ pub trait VerifyingKey:
     /// ```rust
     /// use fastcrypto::ed25519::*;
     /// # use fastcrypto::traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey};
-    /// use rand::thread_rng;
+    /// use rand::rng;
     /// let message1: &[u8] = b"Hello, world!";
-    /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let kp1 = Ed25519KeyPair::generate(&mut rng());
     /// let signature1 = kp1.sign(message1);
     /// let message2: &[u8] = b"Hello, world!!!";
-    /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let kp2 = Ed25519KeyPair::generate(&mut rng());
     /// let signature2 = kp2.sign(message2);
     /// let messages = [message1, message2];
     /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
@@ -291,13 +291,13 @@ pub trait AggregateAuthenticator:
     /// # Example
     /// ```rust
     /// use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
-    /// use rand::thread_rng;
+    /// use rand::rng;
     /// use fastcrypto::bls12381::min_sig::{BLS12381AggregateSignature, BLS12381KeyPair};
     ///
     /// let message: &[u8] = b"Hello, world!";
-    /// let kp1 = BLS12381KeyPair::generate(&mut thread_rng());
+    /// let kp1 = BLS12381KeyPair::generate(&mut rng());
     /// let signature1 = kp1.sign(message);
-    /// let kp2 = BLS12381KeyPair::generate(&mut thread_rng());
+    /// let kp2 = BLS12381KeyPair::generate(&mut rng());
     /// let signature2 = kp2.sign(message);
     ///
     /// let aggregated_signature = BLS12381AggregateSignature::aggregate(vec!(&signature1, &signature2)).unwrap();
@@ -315,14 +315,14 @@ pub trait AggregateAuthenticator:
     /// # Example
     /// ```rust
     /// use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
-    /// use rand::thread_rng;
+    /// use rand::rng;
     /// use fastcrypto::bls12381::min_sig::{BLS12381AggregateSignature, BLS12381KeyPair};
     ///
     /// let message1: &[u8] = b"Hello, world!";
-    /// let kp1 = BLS12381KeyPair::generate(&mut thread_rng());
+    /// let kp1 = BLS12381KeyPair::generate(&mut rng());
     /// let signature1 = kp1.sign(message1);
     /// let message2: &[u8] = b"Hello, world!!!";
-    /// let kp2 = BLS12381KeyPair::generate(&mut thread_rng());
+    /// let kp2 = BLS12381KeyPair::generate(&mut rng());
     /// let signature2 = kp2.sign(message2);
     ///
     /// let aggregated_signature = BLS12381AggregateSignature::aggregate(vec!(&signature1, &signature2)).unwrap();
@@ -341,15 +341,15 @@ pub trait AggregateAuthenticator:
     /// # Example
     /// ```rust
     /// use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
-    /// use rand::thread_rng;
+    /// use rand::rng;
     /// use fastcrypto::bls12381::min_sig::{BLS12381AggregateSignature, BLS12381KeyPair};
     ///
     /// let message1: &[u8] = b"Hello, world!";
-    /// let kp1 = BLS12381KeyPair::generate(&mut thread_rng());
+    /// let kp1 = BLS12381KeyPair::generate(&mut rng());
     /// let signature1 = kp1.sign(message1);
     /// let aggregated_signature1 = BLS12381AggregateSignature::aggregate(vec!(&signature1)).unwrap();
     /// let message2: &[u8] = b"1234";
-    /// let kp2 = BLS12381KeyPair::generate(&mut thread_rng());
+    /// let kp2 = BLS12381KeyPair::generate(&mut rng());
     /// let signature2 = kp2.sign(message2);
     /// let aggregated_signature2 = BLS12381AggregateSignature::aggregate(vec!(&signature2)).unwrap();
     ///
@@ -393,10 +393,51 @@ pub trait InsecureDefault {
 // Whitelist the RNG our APIs accept (see https://rust-random.github.io/book/guide-rngs.html for
 // others).
 /// Trait impl'd by RNG's accepted by fastcrypto.
-pub trait AllowedRng: CryptoRng + RngCore {}
+pub trait AllowedRng: CryptoRng + Rng {}
 
 // StdRng uses ChaCha12 (see https://github.com/rust-random/rand/issues/932).
-// It should be seeded with OsRng (e.g., StdRng::from_rng(OsRng)).
+// It should be seeded with SysRng (e.g., StdRng::from_rng(SysRng)).
 impl AllowedRng for StdRng {}
-// thread_rng() uses OsRng for the seed, and ChaCha12 as the PRG function.
+// rng() uses SysRng for the seed, and ChaCha12 as the PRG function.
 impl AllowedRng for ThreadRng {}
+
+/// Adapter that exposes a `rand` 0.10 [`Rng`] through the older
+/// `rand_core` 0.6 `RngCore`/`CryptoRng` traits.
+///
+/// Several third-party dependencies (e.g. `curve25519-dalek`, `ed25519-consensus`,
+/// `secp256k1`, `ecdsa`, `bulletproofs`) still require an RNG that implements the
+/// `rand_core` 0.6 trait family. Call sites in `fastcrypto` that accept an
+/// [`AllowedRng`] and forward it to one of these crates should wrap the rng in
+/// [`OldRngAdapter`] (or via [`old_rng`]) before passing it on.
+pub struct OldRngAdapter<'a, R: ?Sized>(pub &'a mut R);
+
+impl<'a, R: Rng + ?Sized> rand_core_compat::RngCore for OldRngAdapter<'a, R> {
+    #[inline]
+    fn next_u32(&mut self) -> u32 {
+        self.0.next_u32()
+    }
+
+    #[inline]
+    fn next_u64(&mut self) -> u64 {
+        self.0.next_u64()
+    }
+
+    #[inline]
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        self.0.fill_bytes(dest)
+    }
+
+    #[inline]
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core_compat::Error> {
+        self.0.fill_bytes(dest);
+        Ok(())
+    }
+}
+
+impl<'a, R: CryptoRng + Rng + ?Sized> rand_core_compat::CryptoRng for OldRngAdapter<'a, R> {}
+
+/// Convenience constructor for [`OldRngAdapter`].
+#[inline]
+pub fn old_rng<R: Rng + CryptoRng + ?Sized>(rng: &mut R) -> OldRngAdapter<'_, R> {
+    OldRngAdapter(rng)
+}

@@ -103,22 +103,22 @@ mod tests {
     use crate::groups::ristretto255::RistrettoPoint as G;
     use crate::groups::ristretto255::RistrettoScalar as S;
     use crate::serde_helpers::ToFromByteArray;
-    use rand::thread_rng;
+    use rand::rng;
 
     #[test]
     fn test_nizk_flow() {
-        let e = S::rand(&mut thread_rng());
-        let x = S::rand(&mut thread_rng());
-        let g = G::generator() * S::rand(&mut thread_rng());
+        let e = S::rand(&mut rng());
+        let x = S::rand(&mut rng());
+        let g = G::generator() * S::rand(&mut rng());
         let h = g * e;
         let x_g = g * x;
         let x_h = h * x;
-        let nizk = DdhTupleNizk::create(&x, &g, &h, &x_g, &x_h, &mut thread_rng());
+        let nizk = DdhTupleNizk::create(&x, &g, &h, &x_g, &x_h, &mut rng());
         assert!(nizk.verify(&g, &h, &x_g, &x_h).is_ok());
 
         let invalid_witness = x + S::generator();
         let invalid_nizk =
-            DdhTupleNizk::create(&invalid_witness, &g, &h, &x_g, &x_h, &mut thread_rng());
+            DdhTupleNizk::create(&invalid_witness, &g, &h, &x_g, &x_h, &mut rng());
         assert!(invalid_nizk.verify(&g, &h, &x_g, &x_h).is_err());
 
         let other_g = g + G::generator();
@@ -158,12 +158,12 @@ mod tests {
     fn test_invalid_proofs() {
         // x_g/h_g/h=inf should be rejected
         let e = S::zero();
-        let x = S::rand(&mut thread_rng());
-        let g = G::generator() * S::rand(&mut thread_rng());
+        let x = S::rand(&mut rng());
+        let g = G::generator() * S::rand(&mut rng());
         let h = g * e;
         let x_g = g * x;
         let x_h = h * x;
-        let nizk = DdhTupleNizk::create(&x, &g, &h, &x_g, &x_h, &mut thread_rng());
+        let nizk = DdhTupleNizk::create(&x, &g, &h, &x_g, &x_h, &mut rng());
 
         assert!(nizk.verify(&G::zero(), &h, &x_g, &x_h).is_err());
         assert!(nizk.verify(&g, &G::zero(), &x_g, &x_h).is_err());
@@ -173,13 +173,13 @@ mod tests {
 
     #[test]
     fn test_serde() {
-        let e = S::rand(&mut thread_rng());
-        let x2 = S::rand(&mut thread_rng());
-        let g = G::generator() * S::rand(&mut thread_rng());
+        let e = S::rand(&mut rng());
+        let x2 = S::rand(&mut rng());
+        let g = G::generator() * S::rand(&mut rng());
         let h = g * e;
         let x_g = g * x2;
         let x_h = h * x2;
-        let nizk = DdhTupleNizk::create(&x2, &g, &h, &x_g, &x_h, &mut thread_rng());
+        let nizk = DdhTupleNizk::create(&x2, &g, &h, &x_g, &x_h, &mut rng());
         assert!(nizk.verify(&g, &h, &x_g, &x_h).is_ok());
 
         let as_bytes = bcs::to_bytes(&nizk).unwrap();

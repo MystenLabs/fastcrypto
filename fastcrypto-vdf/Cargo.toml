@@ -15,8 +15,7 @@ num-bigint = { version = "0.4.4", features = ["serde", "rand"] }
 num-traits = "0.2.16"
 num-integer = "0.1.45"
 num-prime = { version = "0.5.0", features = ["big-int"] }
-rand = "0.8.5"
-rand_chacha = "0.3.1"
+rand = { version = "0.10.1", features = ["chacha"] }
 serde.workspace = true
 bcs.workspace = true
 lazy_static = "1.4.0"
@@ -27,7 +26,7 @@ experimental = []
 [dev-dependencies]
 hex = "0.4.3"
 criterion = "0.5.1"
-rand = "0.8.4"
+rand = { version = "0.10.1", features = ["chacha"] }
 num-bigint-dig = "0.8.4"
 
 [[bench]]

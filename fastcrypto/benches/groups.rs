@@ -18,14 +18,14 @@ mod group_benches {
         MultiScalarMul, Pairing, Scalar,
     };
     use fastcrypto::serde_helpers::ToFromByteArray;
-    use rand::thread_rng;
+    use rand::rng;
 
     fn add_single<G: GroupElement, M: measurement::Measurement>(
         name: &str,
         c: &mut BenchmarkGroup<M>,
     ) {
-        let x = G::generator() * G::ScalarType::rand(&mut thread_rng());
-        let y = G::generator() * G::ScalarType::rand(&mut thread_rng());
+        let x = G::generator() * G::ScalarType::rand(&mut rng());
+        let y = G::generator() * G::ScalarType::rand(&mut rng());
         c.bench_function(name.to_string(), move |b| b.iter(|| x + y));
     }
 
@@ -41,8 +41,8 @@ mod group_benches {
         name: &str,
         c: &mut BenchmarkGroup<M>,
     ) {
-        let x = G::generator() * G::ScalarType::rand(&mut thread_rng());
-        let y = G::ScalarType::rand(&mut thread_rng());
+        let x = G::generator() * G::ScalarType::rand(&mut rng());
+        let y = G::ScalarType::rand(&mut rng());
         c.bench_function(name.to_string(), move |b| b.iter(|| x * y));
     }
 
@@ -54,8 +54,8 @@ mod group_benches {
         name: &str,
         c: &mut BenchmarkGroup<M>,
     ) {
-        let x = G::generator() * G::ScalarType::rand(&mut thread_rng());
-        let y = G::ScalarType::rand(&mut thread_rng());
+        let x = G::generator() * G::ScalarType::rand(&mut rng());
+        let y = G::ScalarType::rand(&mut rng());
 
         let multiplier = Mul::new(x, G::zero());
         c.bench_function(name.to_string(), move |b| b.iter(|| multiplier.mul(&y)));
@@ -104,8 +104,8 @@ mod group_benches {
         let (scalars, points): (Vec<G::ScalarType>, Vec<G>) = (0..*len)
             .map(|_| {
                 (
-                    G::ScalarType::generator() * G::ScalarType::rand(&mut thread_rng()),
-                    G::generator() * G::ScalarType::rand(&mut thread_rng()),
+                    G::ScalarType::generator() * G::ScalarType::rand(&mut rng()),
+                    G::generator() * G::ScalarType::rand(&mut rng()),
                 )
             })
             .unzip();
@@ -158,10 +158,10 @@ mod group_benches {
         name: &str,
         c: &mut BenchmarkGroup<M>,
     ) {
-        let g1 = G::generator() * G::ScalarType::rand(&mut thread_rng());
-        let s1 = G::ScalarType::rand(&mut thread_rng());
-        let g2 = G::generator() * G::ScalarType::rand(&mut thread_rng());
-        let s2 = G::ScalarType::rand(&mut thread_rng());
+        let g1 = G::generator() * G::ScalarType::rand(&mut rng());
+        let s1 = G::ScalarType::rand(&mut rng());
+        let g2 = G::generator() * G::ScalarType::rand(&mut rng());
+        let s2 = G::ScalarType::rand(&mut rng());
 
         let multiplier = Mul::new(g1, G::zero());
         c.bench_function(name.to_string(), move |b| {
@@ -225,9 +225,9 @@ mod group_benches {
         name: &str,
         c: &mut BenchmarkGroup<M>,
     ) {
-        let x = G::generator() * G::ScalarType::rand(&mut thread_rng());
+        let x = G::generator() * G::ScalarType::rand(&mut rng());
         let y = G::Other::generator()
-            * <<G as Pairing>::Other as GroupElement>::ScalarType::rand(&mut thread_rng());
+            * <<G as Pairing>::Other as GroupElement>::ScalarType::rand(&mut rng());
         c.bench_function(name.to_string(), move |b| b.iter(|| G::pairing(&x, &y)));
     }
 
@@ -246,10 +246,10 @@ mod group_benches {
         let (ps, qs): (Vec<G>, Vec<G::Other>) = (0..len)
             .map(|_| {
                 (
-                    G::generator() * G::ScalarType::rand(&mut thread_rng()),
+                    G::generator() * G::ScalarType::rand(&mut rng()),
                     G::Other::generator()
                         * <<G as Pairing>::Other as GroupElement>::ScalarType::rand(
-                            &mut thread_rng(),
+                            &mut rng(),
                         ),
                 )
             })
@@ -273,7 +273,7 @@ mod group_benches {
 
         for n in NUMBER_OF_TERMS {
             let terms: Vec<G1Element> = (0..n)
-                .map(|_| G1Element::generator() * bls12381::Scalar::rand(&mut thread_rng()))
+                .map(|_| G1Element::generator() * bls12381::Scalar::rand(&mut rng()))
                 .collect();
 
             let terms_uncompressed = terms

@@ -5,7 +5,7 @@ use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkGroup, Crit
 use fastcrypto_vdf::math::jacobi::jacobi;
 use num_bigint::{BigInt, RandBigInt, ToBigInt};
 use num_bigint_dig::Sign;
-use rand::thread_rng;
+use rand::rng;
 use std::str::FromStr;
 
 fn jacobi_benchmark(c: &mut Criterion) {
@@ -29,7 +29,13 @@ fn jacobi_benchmark(c: &mut Criterion) {
 
         group.bench_function(format!("{} bits", bits), move |b| {
             b.iter_batched(
-                || thread_rng().gen_biguint(bits - 1).to_bigint().unwrap(),
+                || {
+                    let mut r = rng();
+                    fastcrypto::traits::old_rng(&mut r)
+                        .gen_biguint(bits - 1)
+                        .to_bigint()
+                        .unwrap()
+                },
                 |a| jacobi(&a, &p),
                 BatchSize::SmallInput,
             );
@@ -38,7 +44,11 @@ fn jacobi_benchmark(c: &mut Criterion) {
         group.bench_function(format!("{} bits (num-bigint-dig)", bits), move |b| {
             b.iter_batched(
                 || {
-                    let a = thread_rng().gen_biguint(bits - 1).to_bigint().unwrap();
+                    let mut r = rng();
+                    let a = fastcrypto::traits::old_rng(&mut r)
+                        .gen_biguint(bits - 1)
+                        .to_bigint()
+                        .unwrap();
                     num_bigint_dig::BigInt::from_bytes_be(Sign::Plus, &a.clone().to_bytes_be().1)
                 },
                 |a| num_bigint_dig::algorithms::jacobi(&a, &p_bigint_dig),

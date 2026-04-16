@@ -9,8 +9,8 @@
 //! ```rust
 //! # use fastcrypto::secp256r1::*;
 //! # use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
-//! use rand::thread_rng;
-//! let kp = Secp256r1KeyPair::generate(&mut thread_rng());
+//! use rand::rng;
+//! let kp = Secp256r1KeyPair::generate(&mut rng());
 //! let message: &[u8] = b"Hello, world!";
 //! let signature = kp.sign(message);
 //! assert!(kp.public().verify(message, &signature).is_ok());
@@ -473,7 +473,7 @@ impl KeyPair for Secp256r1KeyPair {
     }
 
     fn generate<R: AllowedRng>(rng: &mut R) -> Self {
-        let privkey = ExternalSecretKey::random(rng);
+        let privkey = ExternalSecretKey::random(&mut crate::traits::old_rng(rng));
         Secp256r1PrivateKey {
             privkey,
             bytes: OnceCell::new(),

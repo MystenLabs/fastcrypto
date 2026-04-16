@@ -10,8 +10,8 @@
 //! # use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
 //! # use fastcrypto::secp256k1::Secp256k1KeyPair;
 //! # use fastcrypto::traits::{RecoverableSignature, RecoverableSigner};
-//! use rand::thread_rng;
-//! let kp = Secp256k1KeyPair::generate(&mut thread_rng());
+//! use rand::rng;
+//! let kp = Secp256k1KeyPair::generate(&mut rng());
 //! let message: &[u8] = b"Hello, world!";
 //! let signature = kp.sign_recoverable(message);
 //! assert_eq!(&signature.recover(message).unwrap(), kp.public());

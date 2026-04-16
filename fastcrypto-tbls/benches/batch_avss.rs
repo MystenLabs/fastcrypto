@@ -7,7 +7,7 @@ use fastcrypto_tbls::ecies_v1;
 use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
 use fastcrypto_tbls::threshold_schnorr::batch_avss;
 use itertools::iproduct;
-use rand::thread_rng;
+use rand::rng;
 
 type EG = ristretto255::RistrettoPoint;
 
@@ -16,7 +16,7 @@ pub fn generate_ecies_keys(
 ) -> Vec<(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)> {
     (0..n)
         .map(|id| {
-            let sk = ecies_v1::PrivateKey::<EG>::new(&mut thread_rng());
+            let sk = ecies_v1::PrivateKey::<EG>::new(&mut rng());
             let pk = ecies_v1::PublicKey::<EG>::from_private_key(&sk);
             (id, sk, pk)
         })
@@ -104,7 +104,7 @@ mod batch_avss_benches {
                 let d0 = setup_dealer(0, t, w, &keys, batch_size_per_weight);
                 create.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| d0.create_message(&mut thread_rng())),
+                    |b| b.iter(|| d0.create_message(&mut rng())),
                 );
             }
         }
@@ -120,7 +120,7 @@ mod batch_avss_benches {
                 let keys = generate_ecies_keys(*n);
                 let d0 = setup_dealer(0, t, w, &keys, batch_size_per_weight);
                 let r1 = setup_receiver(1, 0, t, w, &keys, batch_size_per_weight);
-                let message = d0.create_message(&mut thread_rng()).unwrap();
+                let message = d0.create_message(&mut rng()).unwrap();
 
                 process.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
@@ -145,7 +145,7 @@ mod batch_avss_benches {
                     .iter()
                     .enumerate()
                     .map(|(dealer_id, d)| {
-                        let message = d.create_message(&mut thread_rng()).unwrap();
+                        let message = d.create_message(&mut rng()).unwrap();
                         let r =
                             setup_receiver(1, dealer_id as u16, t, w, &keys, batch_size_per_weight);
                         assert_valid_batch(r.process_message(&message).unwrap())

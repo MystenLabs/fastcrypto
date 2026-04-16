@@ -16,7 +16,7 @@ mod mskr_benches {
     use fastcrypto::hash::HashFunction;
     use fastcrypto::hash::Sha256;
     use fastcrypto::traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey};
-    use rand::thread_rng;
+    use rand::rng;
 
     fn verify_single<
         KP: KeyPair + Randomize<KP::PubKey, S, H, PUBKEY_LENGTH>,
@@ -34,7 +34,7 @@ mod mskr_benches {
     {
         let msg = Sha256::digest(*b"Hello, world!").to_vec();
 
-        let mut csprng: rand::rngs::ThreadRng = thread_rng();
+        let mut csprng: rand::rngs::ThreadRng = rng();
         let kps = (0..size)
             .map(|_| KP::generate(&mut csprng))
             .collect::<Vec<_>>();
@@ -106,7 +106,7 @@ mod mskr_benches {
             .map(|i| fastcrypto::hash::Sha256::digest(i.to_string().as_bytes()).digest)
             .collect();
 
-        let mut csprng: rand::rngs::ThreadRng = thread_rng();
+        let mut csprng: rand::rngs::ThreadRng = rng();
         let kps = (0..size)
             .map(|_| KP::generate(&mut csprng))
             .collect::<Vec<_>>();
@@ -177,7 +177,7 @@ mod mskr_benches {
     {
         let total = 1_00;
 
-        let mut csprng: rand::rngs::ThreadRng = thread_rng();
+        let mut csprng: rand::rngs::ThreadRng = rng();
         let kps = (0..total)
             .map(|_| min_pk::BLS12381KeyPair::generate(&mut csprng))
             .collect::<Vec<_>>();
@@ -185,7 +185,7 @@ mod mskr_benches {
 
         c.bench_function(name.to_string(), |b| {
             b.iter(|| {
-                let mut csprng: rand::rngs::ThreadRng = thread_rng();
+                let mut csprng: rand::rngs::ThreadRng = rng();
                 let kp = min_pk::BLS12381KeyPair::generate(&mut csprng);
                 kp.randomize(kp.public(), &pks);
             });
@@ -224,7 +224,7 @@ mod mskr_benches {
         KP::PubKey: Randomize<KP::PubKey, S, H, PUBKEY_LENGTH>,
     {
         let msg = Sha256::digest(*b"Hello, world!").to_vec();
-        let mut csprng: rand::rngs::ThreadRng = thread_rng();
+        let mut csprng: rand::rngs::ThreadRng = rng();
         let kp = min_pk::BLS12381KeyPair::generate(&mut csprng);
 
         c.bench_function(name.to_string(), |b| {

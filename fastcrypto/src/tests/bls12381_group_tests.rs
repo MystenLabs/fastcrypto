@@ -20,7 +20,7 @@ use blst::{
     blst_p1_deserialize, blst_p2_affine, blst_p2_affine_generator, blst_p2_affine_on_curve,
     blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR,
 };
-use rand::{rngs::StdRng, thread_rng, RngCore, SeedableRng as _};
+use rand::{rngs::StdRng, rng, Rng as _, SeedableRng as _};
 
 const MSG: &[u8] = b"test message";
 
@@ -82,7 +82,7 @@ fn test_g1_arithmetic() {
     let p6 = g * Scalar::zero();
     assert_eq!(G1Element::zero(), p6);
 
-    let sc = Scalar::rand(&mut thread_rng());
+    let sc = Scalar::rand(&mut rng());
     let p7 = g * sc;
     assert_eq!(p7 * Scalar::from(1), p7);
 
@@ -104,8 +104,8 @@ fn test_g1_msm() {
         let mut points = Vec::new();
         let mut expected = G1Element::zero();
         for _ in 0..l {
-            let s = Scalar::rand(&mut thread_rng());
-            let e = Scalar::rand(&mut thread_rng());
+            let s = Scalar::rand(&mut rng());
+            let e = Scalar::rand(&mut rng());
             let g = G1Element::generator() * e;
             expected += g * s;
             scalars.push(s);
@@ -125,12 +125,12 @@ fn test_g1_msm_single() {
         G1Element::multi_scalar_mul(&[Scalar::generator()], &[G1Element::generator()]).unwrap();
     assert_eq!(G1Element::generator(), actual);
 
-    let r = Scalar::rand(&mut thread_rng());
+    let r = Scalar::rand(&mut rng());
     let actual = G1Element::multi_scalar_mul(&[r], &[G1Element::generator()]).unwrap();
     assert_eq!(G1Element::generator() * r, actual);
 
-    let r = Scalar::rand(&mut thread_rng());
-    let h = G1Element::generator() * Scalar::rand(&mut thread_rng());
+    let r = Scalar::rand(&mut rng());
+    let h = G1Element::generator() * Scalar::rand(&mut rng());
     let actual = G1Element::multi_scalar_mul(&[r], &[h]).unwrap();
     assert_eq!(h * r, actual);
 }
@@ -150,7 +150,7 @@ fn test_g1_msm_identity() {
     .unwrap();
     assert_eq!(G1Element::generator(), actual);
 
-    let h = G1Element::generator() * Scalar::rand(&mut thread_rng());
+    let h = G1Element::generator() * Scalar::rand(&mut rng());
     let actual =
         G1Element::multi_scalar_mul(&[Scalar::generator(), Scalar::zero()], &[h, h]).unwrap();
     assert_eq!(h, actual);
@@ -160,7 +160,7 @@ fn test_g1_msm_identity() {
     (2..200).for_each(|l| {
         let ones = vec![Scalar::generator(); l];
         let mut points = vec![G1Element::generator(); l];
-        let rand_index = thread_rng().next_u32() as usize % l;
+        let rand_index = rng().next_u32() as usize % l;
         points[rand_index] = G1Element::zero();
         let actual = G1Element::multi_scalar_mul(&ones, &points).unwrap();
         assert_eq!(
@@ -194,7 +194,7 @@ fn test_g2_arithmetic() {
     let p6 = g * Scalar::zero();
     assert_eq!(G2Element::zero(), p6);
 
-    let sc = Scalar::rand(&mut thread_rng());
+    let sc = Scalar::rand(&mut rng());
     let p7 = g * sc;
     assert_eq!(p7 * Scalar::from(1), p7);
 
@@ -216,8 +216,8 @@ fn test_g2_msm() {
         let mut points = Vec::new();
         let mut expected = G2Element::zero();
         for _ in 0..l {
-            let s = Scalar::rand(&mut thread_rng());
-            let e = Scalar::rand(&mut thread_rng());
+            let s = Scalar::rand(&mut rng());
+            let e = Scalar::rand(&mut rng());
             let g = G2Element::generator() * e;
             expected += g * s;
             scalars.push(s);
@@ -237,12 +237,12 @@ fn test_g2_msm_single() {
         G2Element::multi_scalar_mul(&[Scalar::generator()], &[G2Element::generator()]).unwrap();
     assert_eq!(G2Element::generator(), actual);
 
-    let r = Scalar::rand(&mut thread_rng());
+    let r = Scalar::rand(&mut rng());
     let actual = G2Element::multi_scalar_mul(&[r], &[G2Element::generator()]).unwrap();
     assert_eq!(G2Element::generator() * r, actual);
 
-    let r = Scalar::rand(&mut thread_rng());
-    let h = G2Element::generator() * Scalar::rand(&mut thread_rng());
+    let r = Scalar::rand(&mut rng());
+    let h = G2Element::generator() * Scalar::rand(&mut rng());
     let actual = G2Element::multi_scalar_mul(&[r], &[h]).unwrap();
     assert_eq!(h * r, actual);
 }
@@ -262,7 +262,7 @@ fn test_g2_msm_identity() {
     .unwrap();
     assert_eq!(G2Element::generator(), actual);
 
-    let h = G2Element::generator() * Scalar::rand(&mut thread_rng());
+    let h = G2Element::generator() * Scalar::rand(&mut rng());
     let actual =
         G2Element::multi_scalar_mul(&[Scalar::generator(), Scalar::zero()], &[h, h]).unwrap();
     assert_eq!(h, actual);
@@ -272,7 +272,7 @@ fn test_g2_msm_identity() {
     (2..200).for_each(|l| {
         let ones = vec![Scalar::generator(); l];
         let mut points = vec![G2Element::generator(); l];
-        let rand_index = thread_rng().next_u32() as usize % l;
+        let rand_index = rng().next_u32() as usize % l;
         points[rand_index] = G2Element::zero();
         let actual = G2Element::multi_scalar_mul(&ones, &points).unwrap();
         assert_eq!(
@@ -306,7 +306,7 @@ fn test_gt_arithmetic() {
     let p6 = g * Scalar::zero();
     assert_eq!(GTElement::zero(), p6);
 
-    let sc = Scalar::rand(&mut thread_rng());
+    let sc = Scalar::rand(&mut rng());
     let p7 = g * sc;
     assert_eq!(p7 * Scalar::from(1), p7);
 
@@ -472,7 +472,7 @@ fn test_serialization_scalar() {
     );
 
     for _ in 0..100 {
-        let s = Scalar::rand(&mut thread_rng());
+        let s = Scalar::rand(&mut rng());
         let bytes = s.to_byte_array();
         assert_eq!(s, Scalar::from_byte_array(&bytes).unwrap());
     }
@@ -747,7 +747,7 @@ fn test_g1_sum() {
 
 #[test]
 fn test_g1_large_sum() {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let n: usize = 100;
     let points: Vec<G1Element> = (0..n)
         .map(|_| G1Element::generator() * Scalar::rand(&mut rng))

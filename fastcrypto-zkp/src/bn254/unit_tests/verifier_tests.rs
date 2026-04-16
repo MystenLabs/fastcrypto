@@ -4,7 +4,7 @@ use ark_bn254::{Bn254, Fr};
 use ark_ff::UniformRand;
 use ark_groth16::Groth16;
 use ark_snark::SNARK;
-use ark_std::rand::thread_rng;
+use rand::rng;
 use std::ops::Mul;
 
 use crate::dummy_circuits::DummyCircuit;
@@ -12,7 +12,8 @@ use crate::dummy_circuits::DummyCircuit;
 #[test]
 fn test_verify() {
     const PUBLIC_SIZE: usize = 128;
-    let rng = &mut thread_rng();
+    let mut raw_rng = rng();
+    let rng = &mut fastcrypto::traits::old_rng(&mut raw_rng);
     let c = DummyCircuit::<Fr> {
         a: Some(<Fr>::rand(rng)),
         b: Some(<Fr>::rand(rng)),

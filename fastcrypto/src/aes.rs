@@ -7,10 +7,10 @@
 //! ```
 //! # use fastcrypto::aes::*;
 //! # use crate::fastcrypto::traits::Generate;
-//! use rand::thread_rng;
+//! use rand::rng;
 //! let plaintext = b"Hello, world!";
-//! let key = AesKey::generate(&mut thread_rng());
-//! let iv = InitializationVector::generate(&mut thread_rng());
+//! let key = AesKey::generate(&mut rng());
+//! let iv = InitializationVector::generate(&mut rng());
 //! let cipher = Aes256Ctr::new(key);
 //! let ciphertext = cipher.encrypt(&iv, plaintext);
 //! let decrypted = cipher.decrypt(&iv, &ciphertext).unwrap();

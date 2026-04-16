@@ -6,7 +6,7 @@ use crate::nidkg::Party;
 use crate::nodes::Node;
 use crate::random_oracle::RandomOracle;
 use fastcrypto::groups::bls12381::G1Element;
-use rand::thread_rng;
+use rand::rng;
 
 // const MSG: [u8; 4] = [1, 2, 3, 4];
 
@@ -15,7 +15,7 @@ type G = G1Element;
 pub fn gen_ecies_keys(n: u16) -> Vec<(u16, ecies::PrivateKey<G>, ecies::PublicKey<G>)> {
     (0..n)
         .map(|id| {
-            let sk = ecies::PrivateKey::<G>::new(&mut thread_rng());
+            let sk = ecies::PrivateKey::<G>::new(&mut rng());
             let pk = ecies::PublicKey::<G>::from_private_key(&sk);
             (id, sk, pk)
         })
@@ -40,14 +40,14 @@ pub fn setup_party(
         nodes,
         threshold,
         RandomOracle::new("dkg"),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap()
 }
 
 #[test]
 fn test_dkg_e2e_4_parties_threshold_2() {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let keys = gen_ecies_keys(4); // total weight of 10
 
     let d0 = setup_party(0, 3, &keys);
@@ -56,9 +56,9 @@ fn test_dkg_e2e_4_parties_threshold_2() {
     // The third party is ignored (emulating a byzantine party).
     let _d3 = setup_party(3, 3, &keys);
 
-    let m0 = d0.create_message(&mut thread_rng());
-    let m1 = d1.create_message(&mut thread_rng());
-    let m2 = d2.create_message(&mut thread_rng());
+    let m0 = d0.create_message(&mut rng());
+    let m1 = d1.create_message(&mut rng());
+    let m2 = d2.create_message(&mut rng());
 
     assert!(d0.verify_message(&m1, &mut rng).is_ok());
     assert!(d1.verify_message(&m2, &mut rng).is_ok());

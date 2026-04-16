@@ -6,7 +6,7 @@ use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use num_traits::{One, Signed};
 use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha8Rng;
+use rand::rngs::ChaCha8Rng;
 use std::ops::{Shl, Shr};
 
 use fastcrypto::error::FastCryptoError::InvalidInput;
@@ -197,8 +197,8 @@ lazy_static! {
 mod tests {
     use num_bigint::BigInt;
     use num_traits::Num;
-    use rand::thread_rng;
-    use rand::RngCore;
+    use rand::rng;
+    use rand::Rng;
 
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::hash::hash_to_group_with_custom_parameters;
@@ -250,7 +250,7 @@ mod tests {
         let mut seed = [0u8; 32];
         for _ in 0..10 {
             // Different seed
-            thread_rng().fill_bytes(&mut seed);
+            rng().fill_bytes(&mut seed);
             let other_qf =
                 hash_to_group_with_custom_parameters(&seed, &discriminant, 17, 3).unwrap();
             assert_ne!(base_qf, other_qf);

@@ -225,7 +225,7 @@ impl From<u128> for Scalar {
 
 impl ScalarTrait for Scalar {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
-        Scalar(Fr::rand(rng))
+        Scalar(Fr::rand(&mut crate::traits::old_rng(rng)))
     }
 
     fn inverse(&self) -> FastCryptoResult<Self> {
@@ -718,7 +718,7 @@ pub mod schnorr {
         use super::schnorr::{SchnorrPrivateKey, SchnorrPublicKey, SchnorrSignature};
         use crate::groups::Scalar as ScalarTrait;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let sk = SchnorrPrivateKey::try_from(super::Scalar::rand(&mut rng)).unwrap();
         let message = [1u8; 32];
         let signature: SchnorrSignature = sk.sign(&message, b"").unwrap();
@@ -744,7 +744,7 @@ pub mod schnorr {
         use super::schnorr::{SchnorrPrivateKey, SchnorrPublicKey, SchnorrSignature};
         use crate::groups::Scalar as ScalarTrait;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let sk1 = SchnorrPrivateKey::try_from(super::Scalar::rand(&mut rng)).unwrap();
 
         // Sign using secp256k1

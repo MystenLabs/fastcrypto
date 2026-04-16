@@ -6,8 +6,8 @@
 //! ```rust
 //! # use fastcrypto::bls12381::min_sig::*;
 //! # use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
-//! use rand::thread_rng;
-//! let kp = BLS12381KeyPair::generate(&mut thread_rng());
+//! use rand::rng;
+//! let kp = BLS12381KeyPair::generate(&mut rng());
 //! let message: &[u8] = b"Hello, world!";
 //! let signature = kp.sign(message);
 //! assert!(kp.public().verify(message, &signature).is_ok());
@@ -299,7 +299,7 @@ macro_rules! define_bls12381 {
             let mut rands: Vec<blst_scalar> = Vec::with_capacity(n);
             // The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
             rands.push(get_one());
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             (1..n)
                 .into_iter()
                 .for_each(|_| rands.push(get_random_scalar(&mut rng)));

@@ -11,7 +11,7 @@ use crate::bn254::{
     zk_login::{JwkId, OIDCProvider, ZkLoginInputs, JWK},
     zk_login_api::{verify_zk_login, ZkLoginEnv},
 };
-use ark_std::rand::{rngs::StdRng, SeedableRng};
+use rand::{rngs::StdRng, SeedableRng};
 use fastcrypto::jwt_utils::parse_and_validate_jwt;
 use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use im::HashMap as ImHashMap;

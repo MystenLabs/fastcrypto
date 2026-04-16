@@ -8,7 +8,7 @@ use fastcrypto_tbls::ecies_v1;
 use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
 use fastcrypto_tbls::random_oracle::RandomOracle;
 use itertools::iproduct;
-use rand::thread_rng;
+use rand::rng;
 
 type G = bls12381::G2Element;
 type EG = ristretto255::RistrettoPoint;
@@ -16,7 +16,7 @@ type EG = ristretto255::RistrettoPoint;
 fn gen_ecies_keys(n: u16) -> Vec<(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)> {
     (0..n)
         .map(|id| {
-            let sk = ecies_v1::PrivateKey::<EG>::new(&mut thread_rng());
+            let sk = ecies_v1::PrivateKey::<EG>::new(&mut rng());
             let pk = ecies_v1::PublicKey::<EG>::from_private_key(&sk);
             (id, sk, pk)
         })
@@ -42,7 +42,7 @@ pub fn setup_party(
         Nodes::new(nodes).unwrap(),
         threshold,
         RandomOracle::new("dkg"),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap()
 }
@@ -64,10 +64,10 @@ mod dkg_benches {
 
                 create.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| d0.create_message(&mut thread_rng())),
+                    |b| b.iter(|| d0.create_message(&mut rng())),
                 );
 
-                let message = d0.create_message(&mut thread_rng()).unwrap();
+                let message = d0.create_message(&mut rng()).unwrap();
                 println!(
                     "Message size for n={}, t={}: {}",
                     n,
@@ -85,13 +85,13 @@ mod dkg_benches {
                 let keys = gen_ecies_keys(*n);
                 let d0 = setup_party(0, t, w, &keys);
                 let d1 = setup_party(1, t, w, &keys);
-                let message = d0.create_message(&mut thread_rng()).unwrap();
+                let message = d0.create_message(&mut rng()).unwrap();
 
                 verify.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            d1.process_message(message.clone(), &mut thread_rng())
+                            d1.process_message(message.clone(), &mut rng())
                                 .unwrap()
                         })
                     },

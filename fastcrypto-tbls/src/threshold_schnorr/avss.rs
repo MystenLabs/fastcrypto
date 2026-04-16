@@ -284,7 +284,7 @@ impl Receiver {
                 &message.ciphertext,
                 &self.enc_secret_key,
                 &self.random_oracle(),
-                &mut rand::thread_rng(),
+                &mut rand::rng(),
             ))),
         }
     }
@@ -564,7 +564,7 @@ mod tests {
         let t = 3;
         let n = 7;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let sks = (0..n)
             .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
             .collect::<Vec<_>>();
@@ -629,7 +629,7 @@ mod tests {
         let t = 3;
         let n = 7;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let sks = (0..n)
             .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
             .collect::<Vec<_>>();
@@ -739,7 +739,7 @@ mod tests {
         let t = 3;
         let n = 7;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let sks = (0..n)
             .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
             .collect::<Vec<_>>();
@@ -868,7 +868,7 @@ mod tests {
         let t = 3;
         let n = 7;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let sks = (0..n)
             .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
             .collect::<Vec<_>>();

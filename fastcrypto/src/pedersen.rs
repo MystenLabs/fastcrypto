@@ -63,7 +63,7 @@ impl Blinding {
 fn test_commitment() {
     use crate::groups::GroupElement;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let value_1 = RistrettoScalar::from(1u64);
     let (commitment_1, bf_1) = PedersenCommitment::commit(&value_1, &mut rng);
     assert!(commitment_1.verify(&value_1, &bf_1).is_ok());
@@ -80,7 +80,7 @@ fn test_commitment() {
 
 #[test]
 fn test_additive_commitments() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let value_1 = RistrettoScalar::from(1u64);
     let (commitment_1, bf_1) = PedersenCommitment::commit(&value_1, &mut rng);
@@ -96,7 +96,7 @@ fn test_additive_commitments() {
 
 #[test]
 fn test_scaled_commitments() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let value_1 = RistrettoScalar::from(7u64);
     let (commitment_1, bf_1) = PedersenCommitment::commit(&value_1, &mut rng);

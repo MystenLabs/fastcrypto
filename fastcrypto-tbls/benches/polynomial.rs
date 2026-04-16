@@ -4,7 +4,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::bls12381;
 use fastcrypto_tbls::polynomial::Poly;
-use rand::thread_rng;
+use rand::rng;
 use std::num::NonZeroU16;
 
 mod polynomial_benches {
@@ -51,7 +51,7 @@ mod polynomial_benches {
             for n in SIZES {
                 let t = n / 3;
                 vss_sk_gen.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
-                    b.iter(|| Poly::<bls12381::Scalar>::rand(t as u16, &mut thread_rng()))
+                    b.iter(|| Poly::<bls12381::Scalar>::rand(t as u16, &mut rng()))
                 });
             }
         }
@@ -60,7 +60,7 @@ mod polynomial_benches {
             let mut vss_pk_gen: BenchmarkGroup<_> = c.benchmark_group("VSS public key generation");
             for n in SIZES {
                 let t = n / 3;
-                let vss_sk = Poly::<bls12381::Scalar>::rand(t as u16, &mut thread_rng());
+                let vss_sk = Poly::<bls12381::Scalar>::rand(t as u16, &mut rng());
                 vss_pk_gen.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
                     b.iter(|| vss_sk.commit::<G>())
                 });
@@ -71,7 +71,7 @@ mod polynomial_benches {
             let mut shares_gen: BenchmarkGroup<_> = c.benchmark_group("Shares generation");
             for n in SIZES {
                 let t = n / 3;
-                let vss_sk = Poly::<bls12381::Scalar>::rand(t as u16, &mut thread_rng());
+                let vss_sk = Poly::<bls12381::Scalar>::rand(t as u16, &mut rng());
                 shares_gen.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
                     b.iter(|| {
                         let _ = vss_sk.eval_range(n as u16);
@@ -88,7 +88,7 @@ mod polynomial_benches {
             for n in SIZES {
                 let t = n / 3;
                 let k = n / 10;
-                let vss_sk = Poly::<bls12381::Scalar>::rand(t as u16, &mut thread_rng());
+                let vss_sk = Poly::<bls12381::Scalar>::rand(t as u16, &mut rng());
                 let vss_pk = vss_sk.commit::<G>();
                 shares_verification.bench_function(
                     format!("n={}, t={}, k={}", n, t, k).as_str(),
@@ -106,7 +106,7 @@ mod polynomial_benches {
 
     fn interpolate(c: &mut Criterion) {
         let t = 300;
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let polynomial: Poly<Scalar> = Poly::rand(t - 1, &mut rng);
 
         let points = (1..=t)

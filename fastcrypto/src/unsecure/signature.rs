@@ -6,7 +6,7 @@ use crate::{
     hash::{Digest, HashFunction},
 };
 use base64ct::{Base64, Encoding};
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use serde_with::serde_as;
@@ -267,7 +267,7 @@ impl KeyPair for UnsecureKeyPair {
     }
 
     fn generate<R: AllowedRng>(_rng: &mut R) -> Self {
-        let sk_bytes: [u8; PRIVATE_KEY_LENGTH] = rand::thread_rng().gen();
+        let sk_bytes: [u8; PRIVATE_KEY_LENGTH] = rand::rng().random();
         let sk = UnsecurePrivateKey(sk_bytes);
         sk.into()
     }

@@ -32,7 +32,7 @@ mod tests {
     use ark_bls12_381::{Bls12_381, Fr};
     use ark_groth16::Groth16;
     use ark_snark::SNARK;
-    use ark_std::rand::thread_rng;
+    use rand::rng;
     use ark_std::UniformRand;
 
     use crate::bls12381::test_helpers::{
@@ -43,7 +43,8 @@ mod tests {
     #[test]
     fn test_verify_with_processed_vk() {
         const PUBLIC_SIZE: usize = 128;
-        let rng = &mut thread_rng();
+        let mut raw = rng();
+        let rng = &mut fastcrypto::traits::old_rng(&mut raw);
         let c = DummyCircuit::<Fr> {
             a: Some(<Fr>::rand(rng)),
             b: Some(<Fr>::rand(rng)),

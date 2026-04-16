@@ -6,7 +6,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing};
 use fastcrypto::hash::{Blake2b256, HashFunction, Sha256};
 use fastcrypto::serde_helpers::ToFromByteArray;
-use rand::{thread_rng, Rng};
+use rand::{rng, RngExt};
 use serde::{Deserialize, Serialize};
 use std::io::{Error, ErrorKind};
 
@@ -92,7 +92,7 @@ fn encrypt(round: u64, msg: &[u8]) -> Encryption {
     let mut sigma: [u8; 32];
     let r: bls12381::Scalar;
     loop {
-        sigma = thread_rng().gen();
+        sigma = rng().random();
         let mut hash_function = Blake2b256::default();
         hash_function.update(b"HASH3 - ");
         hash_function.update(sigma);

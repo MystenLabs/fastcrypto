@@ -6,8 +6,8 @@ extern crate criterion;
 
 mod zklogin_benches {
 
-    use ark_std::rand::rngs::StdRng;
-    use ark_std::rand::SeedableRng;
+    use rand::rngs::StdRng;
+    use rand::SeedableRng;
     use criterion::Criterion;
     use fastcrypto::ed25519::Ed25519KeyPair;
     use fastcrypto::error::FastCryptoError;

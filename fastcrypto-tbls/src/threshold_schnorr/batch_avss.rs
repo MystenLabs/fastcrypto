@@ -420,7 +420,7 @@ impl Receiver {
                 ciphertext,
                 &self.enc_secret_key,
                 &self.random_oracle(),
-                &mut rand::thread_rng(),
+                &mut rand::rng(),
             ))),
         }
     }
@@ -574,7 +574,7 @@ mod tests {
         let n = 7;
         let batch_size_per_weight = 3;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let sks = (0..n)
             .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
             .collect::<Vec<_>>();
@@ -663,7 +663,7 @@ mod tests {
         let weights: Vec<u16> = vec![1, 2, 3, 4];
         let batch_size_per_weight = 3;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let sks = weights
             .iter()
             .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
@@ -742,7 +742,7 @@ mod tests {
         let n = 7;
         let batch_size_per_weight: u16 = 3;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let sks = (0..n)
             .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
             .collect::<Vec<_>>();

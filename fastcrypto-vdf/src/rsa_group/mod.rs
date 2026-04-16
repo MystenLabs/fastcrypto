@@ -7,7 +7,7 @@ use modulus::RSAModulus;
 use num_bigint::{BigUint, RandBigInt};
 use num_traits::One;
 use rand::SeedableRng;
-use rand_chacha::ChaCha20Rng;
+use rand::rngs::ChaCha20Rng;
 use serde::Serialize;
 use std::ops::{Add, Mul};
 
@@ -43,7 +43,8 @@ impl<'a> RSAGroupElement<'a> {
     /// using the given seed.
     pub fn from_seed(seed: [u8; 32], modulus: &'a RSAModulus) -> Self {
         let mut rng = ChaCha20Rng::from_seed(seed);
-        Self::new(rng.gen_biguint_below(&modulus.half), modulus)
+        let mut old = fastcrypto::traits::old_rng(&mut rng);
+        Self::new(old.gen_biguint_below(&modulus.half), modulus)
     }
 }
 

@@ -12,7 +12,7 @@ use fastcrypto_vdf::vdf::wesolowski::DefaultVDF;
 use fastcrypto_vdf::vdf::VDF;
 use num_bigint::BigInt;
 use num_traits::Num;
-use rand::{thread_rng, RngCore};
+use rand::{rng, Rng as _};
 
 struct VerificationInputs {
     iterations: u64,
@@ -89,7 +89,7 @@ fn sample_discriminant(c: &mut Criterion) {
 
     let mut seed = [0u8; 32];
 
-    let mut rng = thread_rng();
+    let mut rng = rng();
 
     for bit_length in bit_lengths {
         c.bench_with_input(
@@ -97,7 +97,7 @@ fn sample_discriminant(c: &mut Criterion) {
             &bit_length,
             |b, n| {
                 b.iter(|| {
-                    rng.try_fill_bytes(&mut seed).unwrap();
+                    rng.fill_bytes(&mut seed);
                     Discriminant::from_seed(&seed, *n).unwrap();
                 })
             },

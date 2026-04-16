@@ -7,7 +7,7 @@ use fastcrypto_tbls::ecies_v1;
 use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
 use fastcrypto_tbls::threshold_schnorr::avss;
 use itertools::iproduct;
-use rand::thread_rng;
+use rand::rng;
 
 type EG = ristretto255::RistrettoPoint;
 
@@ -16,7 +16,7 @@ fn generate_ecies_keys(
 ) -> Vec<(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)> {
     (0..n)
         .map(|id| {
-            let sk = ecies_v1::PrivateKey::<EG>::new(&mut thread_rng());
+            let sk = ecies_v1::PrivateKey::<EG>::new(&mut rng());
             let pk = ecies_v1::PublicKey::<EG>::from_private_key(&sk);
             (id, sk, pk)
         })
@@ -91,7 +91,7 @@ mod avss_benches {
                 let d0 = setup_dealer(t, w, &keys);
                 create.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| d0.create_message(&mut thread_rng())),
+                    |b| b.iter(|| d0.create_message(&mut rng())),
                 );
             }
         }
@@ -105,7 +105,7 @@ mod avss_benches {
                 let keys = generate_ecies_keys(*n);
                 let d0 = setup_dealer(t, w, &keys);
                 let r1 = setup_receiver(1, t, w, &keys);
-                let message = d0.create_message(&mut thread_rng());
+                let message = d0.create_message(&mut rng());
 
                 verify.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
@@ -136,7 +136,7 @@ mod avss_benches {
                 let messages: HashMap<PartyId, avss::Message> = dealers
                     .iter()
                     .enumerate()
-                    .map(|(i, d)| (PartyId::from(i as u16), d.create_message(&mut thread_rng())))
+                    .map(|(i, d)| (PartyId::from(i as u16), d.create_message(&mut rng())))
                     .collect();
 
                 let outputs: HashMap<PartyId, PartialOutput> = messages
@@ -164,7 +164,7 @@ mod avss_benches {
                 let messages: HashMap<PartyId, avss::Message> = dealers
                     .iter()
                     .enumerate()
-                    .map(|(i, d)| (PartyId::from(i as u16), d.create_message(&mut thread_rng())))
+                    .map(|(i, d)| (PartyId::from(i as u16), d.create_message(&mut rng())))
                     .collect();
 
                 let outputs: HashMap<PartyId, PartialOutput> = messages

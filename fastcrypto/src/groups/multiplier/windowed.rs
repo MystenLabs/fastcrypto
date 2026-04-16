@@ -233,7 +233,7 @@ fn compute_multiples<G: Doubling + for<'a> Add<&'a G, Output = G> + Clone + Debu
 mod tests {
     use ark_ff::{BigInteger, PrimeField};
     use ark_secp256r1::Fr;
-    use rand::thread_rng;
+    use rand::rng;
 
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::secp256r1::{ProjectivePoint, Scalar};
@@ -339,8 +339,8 @@ mod tests {
 
         let other_point = RistrettoPoint::generator() * RistrettoScalar::from(3u64);
 
-        let a = RistrettoScalar::rand(&mut thread_rng());
-        let b = RistrettoScalar::rand(&mut thread_rng());
+        let a = RistrettoScalar::rand(&mut rng());
+        let b = RistrettoScalar::rand(&mut rng());
         let expected = RistrettoPoint::generator() * a + other_point * b;
         let actual = multiplier.two_scalar_mul(&a, &other_point, &b);
         assert_eq!(expected, actual);

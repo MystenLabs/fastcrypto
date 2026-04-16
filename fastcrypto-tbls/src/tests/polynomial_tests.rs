@@ -10,7 +10,7 @@ use crate::types::ShareIndex;
 use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar as BlsScalar};
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
-use rand::prelude::*;
+use rand::{prelude::*, rng};
 use std::iter;
 use std::num::NonZeroU16;
 
@@ -24,26 +24,26 @@ mod scalar_tests {
     #[test]
     fn test_degree_bound<S: Scalar>() {
         let s: usize = 5;
-        let p = Poly::<S>::rand(s as u16, &mut thread_rng());
+        let p = Poly::<S>::rand(s as u16, &mut rng());
         assert_eq!(p.degree_bound(), s);
     }
 
     #[test]
     fn add<S: Scalar>() {
-        let p1 = Poly::<S>::rand(3, &mut thread_rng());
+        let p1 = Poly::<S>::rand(3, &mut rng());
         let p2 = Poly::<S>::zero();
         let mut res = p1.clone();
         res += &p2;
         assert_eq!(res, p1);
 
         let p1 = Poly::<S>::zero();
-        let p2 = Poly::<S>::rand(3, &mut thread_rng());
+        let p2 = Poly::<S>::rand(3, &mut rng());
         let mut res = p1;
         res += &p2;
         assert_eq!(res, p2);
 
-        let p1 = Poly::<S>::rand(3, &mut thread_rng());
-        let p2 = Poly::<S>::rand(5, &mut thread_rng());
+        let p1 = Poly::<S>::rand(3, &mut rng());
+        let p2 = Poly::<S>::rand(5, &mut rng());
         let mut p3 = p1.clone();
         p3 += &p2;
         assert_eq!(p1.eval(I10).value + p2.eval(I10).value, p3.eval(I10).value);
@@ -53,7 +53,7 @@ mod scalar_tests {
     fn test_recover_c0_errors<S: Scalar>() {
         let degree = 4;
         let threshold = degree + 1;
-        let poly = Poly::<S>::rand(4, &mut thread_rng());
+        let poly = Poly::<S>::rand(4, &mut rng());
         // insufficient shares gathered
         let shares = (1..threshold).map(|i| poly.eval(ShareIndex::new(i).unwrap()));
         Poly::<S>::recover_c0(threshold, shares).unwrap_err();
@@ -66,14 +66,14 @@ mod scalar_tests {
 
     #[test]
     fn test_recover_c0<S: Scalar>() {
-        let poly = Poly::<S>::rand(123, &mut thread_rng());
+        let poly = Poly::<S>::rand(123, &mut rng());
         // insufficient shares gathered
         let mut shares = (1..300)
             .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
             .collect::<Vec<_>>();
         let c0 = poly.c0();
         for _ in 0..10 {
-            shares.shuffle(&mut thread_rng());
+            shares.shuffle(&mut rng());
             let used_shares = shares.iter().take(124);
             assert_eq!(c0, &Poly::<S>::recover_c0(124, used_shares).unwrap());
         }
@@ -83,13 +83,13 @@ mod scalar_tests {
     fn test_interpolate_at_index<S: Scalar>() {
         let degree = 12;
         let threshold = degree + 1;
-        let poly = Poly::<S>::rand(degree, &mut thread_rng());
+        let poly = Poly::<S>::rand(degree, &mut rng());
         let mut shares = (1..50)
             .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
             .collect::<Vec<_>>();
         for _ in 0..10 {
-            shares.shuffle(&mut thread_rng());
-            let index = ShareIndex::new(thread_rng().gen_range(300..600)).unwrap();
+            shares.shuffle(&mut rng());
+            let index = ShareIndex::new(rng().random_range(300..600)).unwrap();
             let used_shares = shares
                 .iter()
                 .take(threshold as usize)
@@ -104,7 +104,7 @@ mod scalar_tests {
     fn test_interpolate_at_index_errors<S: Scalar>() {
         let degree = 4;
         let threshold = degree + 1;
-        let poly = Poly::<S>::rand(4, &mut thread_rng());
+        let poly = Poly::<S>::rand(4, &mut rng());
         // duplicate indices
         let shares = (1..=threshold)
             .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
@@ -117,12 +117,12 @@ mod scalar_tests {
     fn test_interpolate<S: Scalar>() {
         let degree = 12;
         let threshold = degree + 1;
-        let poly = Poly::<S>::rand(degree, &mut thread_rng());
+        let poly = Poly::<S>::rand(degree, &mut rng());
         let mut shares = (1..50)
             .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
             .collect::<Vec<_>>();
         for _ in 0..10 {
-            shares.shuffle(&mut thread_rng());
+            shares.shuffle(&mut rng());
             let used_shares = shares
                 .iter()
                 .take(threshold as usize)
@@ -134,7 +134,7 @@ mod scalar_tests {
 
         // Using too few shares
         for _ in 0..10 {
-            shares.shuffle(&mut thread_rng());
+            shares.shuffle(&mut rng());
             let used_shares = shares
                 .iter()
                 .take(threshold as usize - 1)
@@ -154,7 +154,7 @@ mod scalar_tests {
 
     #[test]
     fn test_division<S: Scalar>() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let degree_a = 8;
         let degree_b = 5;
         let a = crate::polynomial::Poly::from(
@@ -178,7 +178,7 @@ mod scalar_tests {
 
     #[test]
     fn test_extended_gcd<S: Scalar>() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let degree_a = 8;
         let degree_b = 5;
         let a = crate::polynomial::Poly::from(
@@ -212,7 +212,7 @@ mod scalar_tests {
     fn test_eval_range<S: Scalar>() {
         let t = 10;
         let n = 30;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let polynomial: Poly<S> = Poly::rand(t, &mut rng);
         let evaluations = polynomial.eval_range(n);
         for i in 1..=n {
@@ -227,7 +227,7 @@ mod scalar_tests {
     #[test]
     fn test_interpolate_consistency<S: Scalar>() {
         let degree = 5;
-        let p = Poly::<S>::rand(degree, &mut thread_rng());
+        let p = Poly::<S>::rand(degree, &mut rng());
 
         let evaluation_points = (1..2 * degree)
             .map(|i| p.eval(crate::types::ShareIndex::new(i).unwrap()))
@@ -242,7 +242,7 @@ mod scalar_tests {
     fn test_eval_from_points<S: Scalar>() {
         let degree = 20;
         let points = (0..=degree)
-            .map(|_| S::rand(&mut thread_rng()))
+            .map(|_| S::rand(&mut rng()))
             .collect_vec();
 
         let mut evaluator = PolynomialEvaluator::simple_from_evaluations(points.clone());
@@ -285,7 +285,7 @@ mod scalar_tests {
         let secret = S::from(7u128);
         let t = 10;
         let n = 100;
-        let range = create_secret_sharing(&mut thread_rng(), secret, t, n);
+        let range = create_secret_sharing(&mut rng(), secret, t, n);
         assert_eq!(range.len(), n as usize);
 
         for i in 0..89 {
@@ -316,7 +316,7 @@ mod points_tests {
         let p = Poly::<G::ScalarType>::zero();
         assert_eq!(p.eval(I10).value, G::ScalarType::zero());
         // test consistency
-        let p = Poly::<G::ScalarType>::rand(5, &mut thread_rng());
+        let p = Poly::<G::ScalarType>::rand(5, &mut rng());
         let e1 = p.eval(I10);
         let public_p = p.commit();
         let e2 = public_p.eval(I10);
@@ -342,7 +342,7 @@ mod points_tests {
     fn test_recover_c0_msm_errors<G: GroupElement + MultiScalarMul>() {
         let degree = 4;
         let threshold = degree + 1;
-        let poly = Poly::<G::ScalarType>::rand(4, &mut thread_rng());
+        let poly = Poly::<G::ScalarType>::rand(4, &mut rng());
         let poly_g = poly.commit();
         // insufficient shares gathered
         let shares = (1..threshold).map(|i| poly_g.eval(ShareIndex::new(i).unwrap()));
@@ -367,7 +367,7 @@ mod points_tests {
         assert_eq!(Poly::<G>::recover_c0_msm(3, shares.iter()).unwrap(), one);
 
         // and random tests
-        let poly = Poly::<G::ScalarType>::rand(123, &mut thread_rng());
+        let poly = Poly::<G::ScalarType>::rand(123, &mut rng());
         let poly_g = poly.commit();
         // insufficient shares gathered
         let mut shares = (1..200)
@@ -375,7 +375,7 @@ mod points_tests {
             .collect::<Vec<_>>();
         let c0 = poly_g.c0();
         for _ in 0..10 {
-            shares.shuffle(&mut thread_rng());
+            shares.shuffle(&mut rng());
             let used_shares = shares.iter().take(124);
             assert_eq!(c0, &Poly::<G>::recover_c0_msm(124, used_shares).unwrap());
         }

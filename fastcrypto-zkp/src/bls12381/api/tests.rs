@@ -8,7 +8,7 @@ use ark_ff::One;
 use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
-use ark_std::rand::thread_rng;
+use rand::rng;
 use ark_std::UniformRand;
 
 use fastcrypto::groups::bls12381::{G1Element, G2Element};
@@ -84,7 +84,8 @@ fn test_verify() {
 #[test]
 fn test_verify_groth16_in_bytes_api() {
     const PUBLIC_SIZE: usize = 128;
-    let rng = &mut thread_rng();
+    let mut raw_rng = rng();
+    let rng = &mut fastcrypto::traits::old_rng(&mut raw_rng);
     let c = DummyCircuit::<Fr> {
         a: Some(<Fr>::rand(rng)),
         b: Some(<Fr>::rand(rng)),
@@ -199,7 +200,8 @@ fn test_prepare_pvk_bytes_regression() {
 #[test]
 fn test_prepare_pvk_bytes() {
     const PUBLIC_SIZE: usize = 128;
-    let rng = &mut thread_rng();
+    let mut raw_rng = rng();
+    let rng = &mut fastcrypto::traits::old_rng(&mut raw_rng);
     let c = DummyCircuit::<Fr> {
         a: Some(<Fr>::rand(rng)),
         b: Some(<Fr>::rand(rng)),
@@ -227,7 +229,8 @@ fn test_prepare_pvk_bytes() {
 
 #[test]
 fn test_verify_groth16_in_bytes_multiple_inputs() {
-    let mut rng = thread_rng();
+    let mut raw_rng = rng();
+    let mut rng = fastcrypto::traits::old_rng(&mut raw_rng);
 
     let a = Fr::from(123);
     let b = Fr::from(456);

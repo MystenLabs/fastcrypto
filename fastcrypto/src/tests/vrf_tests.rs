@@ -7,11 +7,11 @@ use crate::serde_helpers::ToFromByteArray;
 use crate::test_helpers::verify_serialization;
 use crate::vrf::ecvrf::{ECVRFKeyPair, ECVRFProof, ECVRFPublicKey};
 use crate::vrf::{VRFKeyPair, VRFProof};
-use rand::thread_rng;
+use rand::rng;
 
 #[test]
 fn test_proof() {
-    let kp = ECVRFKeyPair::generate(&mut thread_rng());
+    let kp = ECVRFKeyPair::generate(&mut rng());
     let input1 = b"Hello, world!";
     let (output1, proof1) = kp.output(input1);
 
@@ -29,7 +29,7 @@ fn test_proof() {
 
 #[test]
 fn test_serialize_deserialize() {
-    let kp = ECVRFKeyPair::generate(&mut thread_rng());
+    let kp = ECVRFKeyPair::generate(&mut rng());
     let pk = &kp.pk;
     let sk = &kp.sk;
     let input = b"Hello, world!";

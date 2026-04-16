@@ -966,17 +966,17 @@ where
     EG: GroupElement + Serialize + DeserializeOwned + HashToGroupElement,
     <EG as GroupElement>::ScalarType: FiatShamirChallenge + Zeroize,
 {
-    let sk = ecies_v1::PrivateKey::<EG>::new(&mut rand::thread_rng());
+    let sk = ecies_v1::PrivateKey::<EG>::new(&mut rand::rng());
     let pk = ecies_v1::PublicKey::<EG>::from_private_key(&sk);
     let mr_enc = ecies_v1::MultiRecipientEncryption::encrypt(
         &[(pk.clone(), b"test".to_vec())],
         &RandomOracle::new("test"),
-        &mut rand::thread_rng(),
+        &mut rand::rng(),
     );
     let pkg = mr_enc.create_recovery_package(
         &sk,
         &RandomOracle::new("does not matter"),
-        &mut rand::thread_rng(),
+        &mut rand::rng(),
     );
     Complaint {
         accused_sender: 1,

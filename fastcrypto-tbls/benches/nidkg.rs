@@ -8,14 +8,14 @@ use criterion::{criterion_group, criterion_main, Criterion};
 // use fastcrypto_tbls::nidkg::Party;
 // use fastcrypto_tbls::nodes::Node;
 // use fastcrypto_tbls::random_oracle::RandomOracle;
-// use rand::thread_rng;
+// use rand::rng;
 
 // type G = bls12381::G1Element;
 
 // fn gen_ecies_keys(n: u16) -> Vec<(u16, ecies_v0::PrivateKey<G>, ecies_v1::PublicKey<G>)> {
 //     (0..n)
 //         .map(|id| {
-//             let sk = ecies_v1::PrivateKey::<G>::new(&mut thread_rng());
+//             let sk = ecies_v1::PrivateKey::<G>::new(&mut rng());
 //             let pk = ecies_v1::PublicKey::<G>::from_private_key(&sk);
 //             (id, sk, pk)
 //         })
@@ -40,7 +40,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 //         nodes,
 //         threshold,
 //         RandomOracle::new("dkg"),
-//         &mut thread_rng(),
+//         &mut rng(),
 //     )
 //     .unwrap()
 // }
@@ -59,7 +59,7 @@ mod nidkg_benches {
         //         let d0 = setup_party(0, t, &keys);
 
         //         create.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
-        //             b.iter(|| d0.create_message(&mut thread_rng()))
+        //             b.iter(|| d0.create_message(&mut rng()))
         //         });
         //     }
         // }
@@ -71,11 +71,11 @@ mod nidkg_benches {
         //         let keys = gen_ecies_keys(n);
         //         let d0 = setup_party(0, t, &keys);
         //         let d1 = setup_party(1, t, &keys);
-        //         let m = d0.create_message(&mut thread_rng());
+        //         let m = d0.create_message(&mut rng());
         //         println!("Message size: {}", bcs::to_bytes(&m).unwrap().len());
 
         //         verify.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
-        //             b.iter(|| d1.verify_message(&m, &mut thread_rng()))
+        //             b.iter(|| d1.verify_message(&m, &mut rng()))
         //         });
         //     }
         // }
@@ -88,10 +88,10 @@ mod nidkg_benches {
         //         let keys = gen_ecies_keys(n);
         //         let d0 = setup_party(0, t, &keys);
         //         let d1 = setup_party(1, t, &keys);
-        //         let m = d0.create_message(&mut thread_rng());
+        //         let m = d0.create_message(&mut rng());
 
         //         verify.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
-        //             b.iter(|| d1.process_message(&m, &mut thread_rng()))
+        //             b.iter(|| d1.process_message(&m, &mut rng()))
         //         });
         //     }
         // }
@@ -122,11 +122,11 @@ mod nidkg_benches {
         //             "pks_in_g2 size: {}",
         //             bcs::to_bytes(&pks_in_g2).unwrap().len()
         //         );
-        //         let m = d0.create_message(&mut thread_rng());
+        //         let m = d0.create_message(&mut rng());
 
         //         verify.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
         //             b.iter(|| {
-        //                 Party::<G>::verify_partial_pks_in_g2(&m, &pks_in_g2, &mut thread_rng())
+        //                 Party::<G>::verify_partial_pks_in_g2(&m, &pks_in_g2, &mut rng())
         //             })
         //         });
         //     }

@@ -100,7 +100,7 @@ impl From<u128> for Scalar {
 
 impl ScalarTrait for Scalar {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
-        Scalar(Fr::rand(rng))
+        Scalar(Fr::rand(&mut crate::traits::old_rng(rng)))
     }
 
     fn inverse(&self) -> FastCryptoResult<Self> {

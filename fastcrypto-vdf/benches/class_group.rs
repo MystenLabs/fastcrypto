@@ -5,7 +5,7 @@ use criterion::measurement::Measurement;
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkGroup, Criterion};
 use num_bigint::BigInt;
 use num_traits::Num;
-use rand::{thread_rng, RngCore};
+use rand::{rng, Rng as _};
 
 use fastcrypto::groups::Doubling;
 use fastcrypto_vdf::class_group::discriminant::Discriminant;
@@ -52,7 +52,7 @@ fn hash_to_class_group_single<M: Measurement>(
 
     group.bench_function(format!("{} bits, default", bits), move |b| {
         let mut seed = [0u8; 32];
-        thread_rng().fill_bytes(&mut seed);
+        rng().fill_bytes(&mut seed);
         b.iter(|| QuadraticForm::hash_to_group_with_default_parameters(&seed, &discriminant))
     });
 }

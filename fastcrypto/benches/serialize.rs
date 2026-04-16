@@ -12,14 +12,14 @@ mod serialization_benches {
     use fastcrypto::secp256r1::Secp256r1KeyPair;
     use fastcrypto::traits::Signer;
     use fastcrypto::{bls12381, ed25519::*, traits::KeyPair};
-    use rand::{prelude::ThreadRng, thread_rng};
+    use rand::{prelude::ThreadRng, rng};
 
     fn serialize_signature_single<KP: KeyPair, M: measurement::Measurement>(
         name: &str,
         c: &mut BenchmarkGroup<M>,
     ) {
         let msg: &[u8] = b"";
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let keypair = KP::generate(&mut csprng);
         let signature = keypair.sign(msg);
         c.bench_function(name.to_string(), move |b| {
@@ -31,7 +31,7 @@ mod serialization_benches {
         name: &str,
         c: &mut BenchmarkGroup<M>,
     ) {
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let keypair = KP::generate(&mut csprng);
         c.bench_function(name.to_string(), move |b| {
             b.iter(|| bincode::serialize(&keypair.public()))
@@ -73,7 +73,7 @@ mod serialization_benches {
         c: &mut BenchmarkGroup<M>,
     ) {
         let msg: &[u8] = b"";
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let keypair = KP::generate(&mut csprng);
         let signature = keypair.sign(msg);
         let serialized = bincode::serialize(&signature).unwrap();
@@ -86,7 +86,7 @@ mod serialization_benches {
         name: &str,
         c: &mut BenchmarkGroup<M>,
     ) {
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let keypair = KP::generate(&mut csprng);
         let serialized = bincode::serialize(&keypair.public()).unwrap();
         c.bench_function(name.to_string(), move |b| {
@@ -129,7 +129,7 @@ mod serialization_benches {
         c: &mut BenchmarkGroup<M>,
     ) {
         let msg: &[u8] = b"";
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let keypair = bls12381::min_pk::BLS12381KeyPair::generate(&mut csprng);
         let signature = keypair.sign(msg);
         let serialized = signature.sig.serialize();
@@ -138,7 +138,7 @@ mod serialization_benches {
         });
 
         let msg: &[u8] = b"";
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let keypair = bls12381::min_sig::BLS12381KeyPair::generate(&mut csprng);
         let signature = keypair.sign(msg);
         let serialized = signature.sig.serialize();

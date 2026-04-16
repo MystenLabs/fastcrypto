@@ -4,7 +4,7 @@
 use clap::Parser;
 use fastcrypto::vrf::ecvrf::{ECVRFKeyPair, ECVRFPrivateKey, ECVRFProof, ECVRFPublicKey};
 use fastcrypto::vrf::{VRFKeyPair, VRFProof};
-use rand::thread_rng;
+use rand::rng;
 use std::io::{Error, ErrorKind};
 
 #[derive(Parser)]
@@ -67,7 +67,7 @@ fn main() {
 fn execute(cmd: Command) -> Result<String, std::io::Error> {
     match cmd {
         Command::Keygen => {
-            let keypair = ECVRFKeyPair::generate(&mut thread_rng());
+            let keypair = ECVRFKeyPair::generate(&mut rng());
             let sk_string = hex::encode(
                 bcs::to_bytes(&keypair.sk)
                     .map_err(|_| Error::other("Failed to serialize secret key."))?,

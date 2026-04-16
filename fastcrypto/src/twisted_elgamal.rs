@@ -602,9 +602,9 @@ fn fiat_shamir_challenge<T: Serialize>(msg: &T) -> RistrettoScalar {
 
 #[test]
 fn test_round_trip() {
-    let (pk, sk) = generate_keypair(&mut rand::thread_rng());
+    let (pk, sk) = generate_keypair(&mut rand::rng());
     let message = 1234567890u32;
-    let (ciphertext, _) = Ciphertext::encrypt(&pk, message, &mut rand::thread_rng());
+    let (ciphertext, _) = Ciphertext::encrypt(&pk, message, &mut rand::rng());
 
     // This table can be reused, so it only has to be computed once
     let table = precompute_table();
@@ -613,13 +613,13 @@ fn test_round_trip() {
 
 #[test]
 fn test_round_trip_with_consistency_proof() {
-    let (pk, sk) = generate_keypair(&mut rand::thread_rng());
+    let (pk, sk) = generate_keypair(&mut rand::rng());
     let message = 1234567890u32;
     let (ciphertext, _, proof) =
-        Ciphertext::encrypt_with_consistency_proof(&pk, message, &mut rand::thread_rng()).unwrap();
+        Ciphertext::encrypt_with_consistency_proof(&pk, message, &mut rand::rng()).unwrap();
     assert!(proof.verify(&ciphertext, &pk).is_ok());
 
-    let (other_pk, _) = generate_keypair(&mut rand::thread_rng());
+    let (other_pk, _) = generate_keypair(&mut rand::rng());
     assert!(proof.verify(&ciphertext, &other_pk).is_err());
 
     // This table can be reused, so it only has to be computed once
@@ -629,7 +629,7 @@ fn test_round_trip_with_consistency_proof() {
 
 #[test]
 fn test_zero_proof() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (pk, sk) = generate_keypair(&mut rng);
     let (ciphertext, _) = Ciphertext::encrypt(&pk, 0, &mut rng);
     let zero_proof = ciphertext.zero_proof(&sk, &mut rng);
@@ -644,7 +644,7 @@ fn test_zero_proof() {
 fn encrypt_and_range_proof() {
     let value = 1234u32;
     let range = crate::bulletproofs::Range::Bits32;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (pk, sk) = generate_keypair(&mut rng);
     let (ciphertext, blinding) = Ciphertext::encrypt(&pk, value, &mut rng);
     let range_proof =
@@ -662,9 +662,9 @@ fn linear_encryptions() {
     let value_1 = 12u32;
     let value_2 = 34u32;
     let s = 7u32;
-    let (pk, sk) = generate_keypair(&mut rand::thread_rng());
-    let (ciphertext_1, _) = Ciphertext::encrypt(&pk, value_1, &mut rand::thread_rng());
-    let (ciphertext_2, _) = Ciphertext::encrypt(&pk, value_2, &mut rand::thread_rng());
+    let (pk, sk) = generate_keypair(&mut rand::rng());
+    let (ciphertext_1, _) = Ciphertext::encrypt(&pk, value_1, &mut rand::rng());
+    let (ciphertext_2, _) = Ciphertext::encrypt(&pk, value_2, &mut rand::rng());
     let ciphertext_3 = ciphertext_1 + ciphertext_2 * RistrettoScalar::from(s as u64);
     assert_eq!(
         ciphertext_3.decrypt(&sk, &precompute_table()).unwrap(),
@@ -675,18 +675,18 @@ fn linear_encryptions() {
 #[test]
 fn test_equality() {
     let value = 123u32;
-    let (pk, sk) = generate_keypair(&mut rand::thread_rng());
-    let encryption_1 = Ciphertext::encrypt(&pk, value, &mut rand::thread_rng());
-    let encryption_2 = Ciphertext::encrypt(&pk, value, &mut rand::thread_rng());
+    let (pk, sk) = generate_keypair(&mut rand::rng());
+    let encryption_1 = Ciphertext::encrypt(&pk, value, &mut rand::rng());
+    let encryption_2 = Ciphertext::encrypt(&pk, value, &mut rand::rng());
 
     let diff = encryption_1.0.clone() - encryption_2.0;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     diff.zero_proof(&sk, &mut rng).verify(&diff, &pk).unwrap();
 
     let other_value = 1234u32;
-    let encryption_3 = Ciphertext::encrypt(&pk, other_value, &mut rand::thread_rng());
+    let encryption_3 = Ciphertext::encrypt(&pk, other_value, &mut rand::rng());
     let other_diff = encryption_1.0 - encryption_3.0;
     other_diff
         .zero_proof(&sk, &mut rng)
@@ -697,7 +697,7 @@ fn test_equality() {
 #[test]
 fn test_key_consistency_proof() {
     const N: usize = 8;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     // Generate sender and recipient key pairs
     let (pk_snd, sk_snd) = generate_keypair(&mut rng);
@@ -744,7 +744,7 @@ fn test_key_consistency_proof() {
 #[test]
 fn test_verifiable_key_encapsulation() {
     const N: usize = 8;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let table = precompute_table();
 
     // Sender key pair; the private key will be encapsulated

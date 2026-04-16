@@ -6,11 +6,11 @@ use crate::groups::{Doubling, GroupElement};
 use crate::groups::secp256r1::{ProjectivePoint, Scalar};
 use crate::groups::{secp256r1, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
-use rand::thread_rng;
+use rand::rng;
 
 #[test]
 fn test_to_from_byte_array() {
-    let scalar = secp256r1::Scalar::rand(&mut thread_rng());
+    let scalar = secp256r1::Scalar::rand(&mut rng());
     let bytes = scalar.to_byte_array();
     let reconstructed = Scalar::from_byte_array(&bytes).unwrap();
     assert_eq!(scalar, reconstructed);

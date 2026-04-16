@@ -8,13 +8,13 @@ use crate::{tbls::ThresholdBls, types::ThresholdBls12381MinSig};
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar};
 use fastcrypto::groups::{bls12381, GroupElement};
-use rand::prelude::*;
+use rand::rng;
 use std::num::NonZeroU16;
 
 #[test]
 fn test_tbls_e2e() {
     let t = 3;
-    let private_poly = Poly::<bls12381::Scalar>::rand(t - 1, &mut thread_rng());
+    let private_poly = Poly::<bls12381::Scalar>::rand(t - 1, &mut rng());
     let public_poly = private_poly.commit();
 
     let share1 = private_poly.eval(NonZeroU16::new(1).unwrap());
@@ -99,7 +99,7 @@ fn test_tbls_e2e() {
 #[test]
 fn test_partial_verify_batch() {
     let t = 3;
-    let private_poly = Poly::<bls12381::Scalar>::rand(t - 1, &mut thread_rng());
+    let private_poly = Poly::<bls12381::Scalar>::rand(t - 1, &mut rng());
     let public_poly = private_poly.commit();
 
     let share1 = private_poly.eval(NonZeroU16::new(1).unwrap());
@@ -113,7 +113,7 @@ fn test_partial_verify_batch() {
         &public_poly,
         msg,
         [].iter(),
-        &mut thread_rng()
+        &mut rng()
     )
     .is_ok());
     // standard sigs should pass
@@ -122,7 +122,7 @@ fn test_partial_verify_batch() {
         &public_poly,
         msg,
         sigs.iter(),
-        &mut thread_rng()
+        &mut rng()
     )
     .is_ok());
     // even if repeated
@@ -132,7 +132,7 @@ fn test_partial_verify_batch() {
         &public_poly,
         msg,
         sigs.iter(),
-        &mut thread_rng()
+        &mut rng()
     )
     .is_ok());
     // different msg should fail
@@ -140,7 +140,7 @@ fn test_partial_verify_batch() {
         &public_poly,
         b"other message",
         sigs.iter(),
-        &mut thread_rng()
+        &mut rng()
     )
     .is_err());
     // invalid signatures according to the polynomial should fail
@@ -150,7 +150,7 @@ fn test_partial_verify_batch() {
         &public_poly,
         msg,
         sigs.iter(),
-        &mut thread_rng()
+        &mut rng()
     )
     .is_err());
     // identity as the signature should fail
@@ -160,7 +160,7 @@ fn test_partial_verify_batch() {
         &public_poly,
         msg,
         sigs.iter(),
-        &mut thread_rng()
+        &mut rng()
     )
     .is_err());
     // generator as the signature should fail
@@ -170,7 +170,7 @@ fn test_partial_verify_batch() {
         &public_poly,
         msg,
         sigs.iter(),
-        &mut thread_rng()
+        &mut rng()
     )
     .is_err());
     // even if the sum of sigs is ok, should fail since not consistent with the polynomial
@@ -181,7 +181,7 @@ fn test_partial_verify_batch() {
         &public_poly,
         msg,
         sigs.iter(),
-        &mut thread_rng()
+        &mut rng()
     )
     .is_err());
 }
@@ -189,44 +189,44 @@ fn test_partial_verify_batch() {
 #[test]
 fn test_verify_poly_evals() {
     let t = 3;
-    let private_poly = Poly::<bls12381::Scalar>::rand(t - 1, &mut thread_rng());
+    let private_poly = Poly::<bls12381::Scalar>::rand(t - 1, &mut rng());
     let public_poly: Poly<G2Element> = private_poly.commit();
 
     // no evals should pass
-    assert!(verify_poly_evals(&[], &public_poly, &mut thread_rng()).is_ok());
+    assert!(verify_poly_evals(&[], &public_poly, &mut rng()).is_ok());
     // standard evals should pass
     let shares = [1, 10, 100]
         .into_iter()
         .map(|i| private_poly.eval(NonZeroU16::new(i).unwrap()))
         .collect::<Vec<_>>();
-    assert!(verify_poly_evals(&shares, &public_poly, &mut thread_rng()).is_ok());
+    assert!(verify_poly_evals(&shares, &public_poly, &mut rng()).is_ok());
     // even if repeated
     let shares = [1, 10, 10]
         .into_iter()
         .map(|i| private_poly.eval(NonZeroU16::new(i).unwrap()))
         .collect::<Vec<_>>();
-    assert!(verify_poly_evals(&shares, &public_poly, &mut thread_rng()).is_ok());
+    assert!(verify_poly_evals(&shares, &public_poly, &mut rng()).is_ok());
     // invalid evals according to the polynomial should fail
     let mut shares = [1, 10, 100]
         .into_iter()
         .map(|i| private_poly.eval(NonZeroU16::new(i).unwrap()))
         .collect::<Vec<_>>();
     (shares[0].index, shares[1].index) = (shares[1].index, shares[0].index);
-    assert!(verify_poly_evals(&shares, &public_poly, &mut thread_rng()).is_err());
+    assert!(verify_poly_evals(&shares, &public_poly, &mut rng()).is_err());
     // identity as the eval should fail
     let mut shares = [1, 10, 100]
         .into_iter()
         .map(|i| private_poly.eval(NonZeroU16::new(i).unwrap()))
         .collect::<Vec<_>>();
     shares[0].value = Scalar::zero();
-    assert!(verify_poly_evals(&shares, &public_poly, &mut thread_rng()).is_err());
+    assert!(verify_poly_evals(&shares, &public_poly, &mut rng()).is_err());
     // generator as the eval should fail
     let mut shares = [1, 10, 100]
         .into_iter()
         .map(|i| private_poly.eval(NonZeroU16::new(i).unwrap()))
         .collect::<Vec<_>>();
     shares[0].value = Scalar::generator();
-    assert!(verify_poly_evals(&shares, &public_poly, &mut thread_rng()).is_err());
+    assert!(verify_poly_evals(&shares, &public_poly, &mut rng()).is_err());
     // even if the sum of evals is ok, should fail since not consistent with the polynomial
     let mut shares = [1, 10, 100]
         .into_iter()
@@ -234,5 +234,5 @@ fn test_verify_poly_evals() {
         .collect::<Vec<_>>();
     shares[0].value += Scalar::generator();
     shares[1].value -= Scalar::generator();
-    assert!(verify_poly_evals(&shares, &public_poly, &mut thread_rng()).is_err());
+    assert!(verify_poly_evals(&shares, &public_poly, &mut rng()).is_err());
 }

@@ -5,18 +5,18 @@ use criterion::*;
 use fastcrypto::bulletproofs::{Range, RangeProof};
 use fastcrypto::groups::ristretto255::RistrettoScalar;
 use fastcrypto::pedersen::{Blinding, PedersenCommitment};
-use rand::{thread_rng, Rng};
+use rand::{rng, RngExt};
 use std::iter;
 
 fn verification(c: &mut Criterion) {
     static INPUT_SIZES: [usize; 4] = [1, 2, 4, 8];
     let ranges = vec![Range::Bits8, Range::Bits16, Range::Bits32, Range::Bits64];
-    let mut rng = thread_rng();
+    let mut rng = rng();
 
     for size in INPUT_SIZES {
         for range in &ranges {
             let bits = range_to_bits(range);
-            let values = iter::repeat_with(|| rng.gen_range(0..1 << bits))
+            let values = iter::repeat_with(|| rng.random_range(0..1 << bits))
                 .take(size)
                 .collect::<Vec<_>>();
             let (commitments, blindings): (Vec<PedersenCommitment>, Vec<Blinding>) = values

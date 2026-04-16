@@ -103,7 +103,7 @@ mod tests {
 
         let batch_size_per_weight: u16 = 10;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let sks = (0..n)
             .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
             .collect::<Vec<_>>();
@@ -542,7 +542,7 @@ mod tests {
         let t = f + 1;
         let n = 3 * f + 1;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Mock DKG
         // Here, we don't assume anything about the partity of the vk's Y coordinate since we can't do that in a real DKG.
@@ -668,7 +668,7 @@ mod tests {
         let t = f + 1;
         let n = 3 * f + 1;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Mock DKG
         // Here, we don't assume anything about the partity of the vk's Y coordinate since we can't do that in a real DKG.

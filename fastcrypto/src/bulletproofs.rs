@@ -12,7 +12,7 @@
 //! use fastcrypto::pedersen::{Blinding, PedersenCommitment};
 //! let value = 300;
 //! let range = Bits16;
-//! let mut rng = rand::thread_rng();
+//! let mut rng = rand::rng();
 //! let blinding = Blinding::rand(&mut rng);
 //! let proof =
 //!    RangeProof::prove(value, &blinding, &range, &mut rng).unwrap();
@@ -118,7 +118,7 @@ impl RangeProof {
             values,
             &blindings.iter().map(|b| b.0 .0).collect::<Vec<_>>(),
             bits,
-            rng,
+            &mut crate::traits::old_rng(rng),
         )
         .map(|(proof, _)| RangeProof(proof))
         .map_err(|_| GeneralOpaqueError)
@@ -145,7 +145,7 @@ impl RangeProof {
                     .map(|c| c.0 .0.compress())
                     .collect::<Vec<_>>(),
                 bits,
-                rng,
+                &mut crate::traits::old_rng(rng),
             )
             .map_err(|_| InvalidProof)
     }
@@ -184,7 +184,7 @@ fn test_range_proof_valid() {
     use crate::groups::ristretto255::RistrettoScalar;
 
     let range = Range::Bits32;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let blinding = Blinding::rand(&mut rng);
 
     let value = 1u64;
@@ -197,7 +197,7 @@ fn test_range_proof_valid() {
 fn test_batch_range_proof_valid() {
     use crate::groups::ristretto255::RistrettoScalar;
     let range = Range::Bits32;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let values = (1u64..=8).collect::<Vec<_>>();
     let (commitments, blindings) = values
         .iter()
@@ -214,7 +214,7 @@ fn test_to_from_bytes() {
     use crate::serde_helpers::ToFromByteArray;
 
     let range = Range::Bits32;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let values = (1u64..=8).collect::<Vec<_>>();
     let (commitments, blindings) = values
         .iter()
@@ -256,6 +256,6 @@ fn regression_test() {
     .map(PedersenCommitment)
     .collect::<Vec<_>>();
     assert!(proof
-        .verify_batch(&commitments, &Range::Bits32, &mut rand::thread_rng())
+        .verify_batch(&commitments, &Range::Bits32, &mut rand::rng())
         .is_ok());
 }

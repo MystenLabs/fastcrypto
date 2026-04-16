@@ -17,7 +17,7 @@ use fastcrypto::groups::GroupElement;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use rand::prelude::StdRng;
-use rand::{thread_rng, SeedableRng};
+use rand::{rng, SeedableRng};
 use std::collections::HashMap;
 
 const MSG: [u8; 4] = [1, 2, 3, 4];
@@ -29,7 +29,7 @@ type EG = G2Element;
 type KeyNodePair<EG> = (PartyId, PrivateKey<EG>, PublicKey<EG>);
 
 fn gen_keys_and_nodes(n: usize) -> (Vec<KeyNodePair<EG>>, Nodes<EG>) {
-    gen_keys_and_nodes_rng(n, &mut thread_rng(), false)
+    gen_keys_and_nodes_rng(n, &mut rng(), false)
 }
 
 fn gen_keys_and_nodes_rng<R: AllowedRng>(
@@ -76,7 +76,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
     assert_eq!(d0.t(), t);
@@ -85,7 +85,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
     // Party with weight 0
@@ -94,7 +94,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
     let d3 = Party::<G, EG>::new(
@@ -102,7 +102,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
     let d4 = Party::<G, EG>::new(
@@ -110,7 +110,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
     let d5 = Party::<G, EG>::new(
@@ -118,39 +118,39 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
 
     // Only the first messages of d0, d4, d5 will pass all tests. d4's messages will be excluded
     // later because of an invalid complaint
-    let msg4 = d4.create_message(&mut thread_rng()).unwrap();
-    let msg5 = d5.create_message(&mut thread_rng()).unwrap();
+    let msg4 = d4.create_message(&mut rng()).unwrap();
+    let msg5 = d5.create_message(&mut rng()).unwrap();
     // zero weight
     assert_eq!(
-        d2.create_message(&mut thread_rng()).err(),
+        d2.create_message(&mut rng()).err(),
         Some(FastCryptoError::IgnoredMessage)
     );
     // d5 will receive invalid shares from d0, but its complaint will not be processed on time.
-    let mut msg0 = d0.create_message(&mut thread_rng()).unwrap();
+    let mut msg0 = d0.create_message(&mut rng()).unwrap();
     let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg0, &ro);
     pk_and_msgs[5] = pk_and_msgs[0].clone();
     msg0.encrypted_shares =
-        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 0"), &mut thread_rng());
+        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 0"), &mut rng());
 
     // We will modify d1's message to make it invalid (emulating a cheating party). d0 and d1
     // should detect that and send complaints.
-    let mut msg1 = d1.create_message(&mut thread_rng()).unwrap();
+    let mut msg1 = d1.create_message(&mut rng()).unwrap();
     let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg1, &ro);
     pk_and_msgs.swap(0, 1);
     msg1.encrypted_shares =
-        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut thread_rng());
+        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut rng());
     // d2 and d3 are ignored here (emulating slow parties).
 
     let all_messages = [msg0.clone(), msg1, msg0.clone(), msg4.clone(), msg5.clone()]; // duplicates should be ignored
 
     // expect failure - merge() requires t messages (even if some are duplicated)
-    let proc0 = d0.process_message(msg0.clone(), &mut thread_rng()).unwrap();
+    let proc0 = d0.process_message(msg0.clone(), &mut rng()).unwrap();
     assert_eq!(
         d0.merge(std::slice::from_ref(&proc0)).err(),
         Some(FastCryptoError::NotEnoughInputs)
@@ -163,7 +163,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
     // merge() should succeed and ignore duplicates and include 1 complaint
     let proc_msg0 = &all_messages
         .iter()
-        .map(|m| d0.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .map(|m| d0.process_message(m.clone(), &mut rng()).unwrap())
         .collect::<Vec<_>>();
     let (conf0, used_msgs0) = d0.merge(proc_msg0).unwrap();
     assert_eq!(conf0.complaints.len(), 1);
@@ -172,13 +172,13 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
 
     let proc_msg1 = &all_messages
         .iter()
-        .map(|m| d1.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .map(|m| d1.process_message(m.clone(), &mut rng()).unwrap())
         .collect::<Vec<_>>();
     let (conf1, used_msgs1) = d1.merge(proc_msg1).unwrap();
 
     let proc_msg2 = &all_messages
         .iter()
-        .map(|m| d2.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .map(|m| d2.process_message(m.clone(), &mut rng()).unwrap())
         .collect::<Vec<_>>();
     let (conf2, used_msgs2) = d2.merge(proc_msg2).unwrap();
     assert!(conf2.complaints.is_empty());
@@ -187,13 +187,13 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
     // shares and post complaints.
     let proc_msg3 = &all_messages
         .iter()
-        .map(|m| d3.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .map(|m| d3.process_message(m.clone(), &mut rng()).unwrap())
         .collect::<Vec<_>>();
     let (conf3, used_msgs3) = d3.merge(proc_msg3).unwrap();
 
     let proc_msg5 = &all_messages
         .iter()
-        .map(|m| d5.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .map(|m| d5.process_message(m.clone(), &mut rng()).unwrap())
         .collect::<Vec<_>>();
     let (conf5, used_msgs5) = d5.merge(proc_msg5).unwrap();
     assert_eq!(conf5.complaints.len(), 1);
@@ -227,7 +227,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
         d1.process_confirmations(
             &used_msgs0,
             &[conf0.clone(), conf0.clone(), conf0.clone()],
-            &mut thread_rng(),
+            &mut rng(),
         )
         .err(),
         Some(FastCryptoError::NotEnoughInputs)
@@ -235,19 +235,19 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
 
     // back to the happy case
     let ver_msg0 = d1
-        .process_confirmations(&used_msgs0, &all_confirmations, &mut thread_rng())
+        .process_confirmations(&used_msgs0, &all_confirmations, &mut rng())
         .unwrap();
     let ver_msg1 = d1
-        .process_confirmations(&used_msgs1, &all_confirmations, &mut thread_rng())
+        .process_confirmations(&used_msgs1, &all_confirmations, &mut rng())
         .unwrap();
     let ver_msg2 = d2
-        .process_confirmations(&used_msgs2, &all_confirmations, &mut thread_rng())
+        .process_confirmations(&used_msgs2, &all_confirmations, &mut rng())
         .unwrap();
     let ver_msg3 = d3
-        .process_confirmations(&used_msgs3, &all_confirmations, &mut thread_rng())
+        .process_confirmations(&used_msgs3, &all_confirmations, &mut rng())
         .unwrap();
     let ver_msg5 = d5
-        .process_confirmations(&used_msgs5, &all_confirmations, &mut thread_rng())
+        .process_confirmations(&used_msgs5, &all_confirmations, &mut rng())
         .unwrap();
     assert_eq!(ver_msg0.len(), 2); // only msg0, msg5 were valid and didn't send invalid complaints
     assert_eq!(ver_msg1.len(), 2);
@@ -320,7 +320,7 @@ fn test_party_new_errors() {
         nodes.clone(),
         0,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .is_err());
     // t is too large
@@ -329,16 +329,16 @@ fn test_party_new_errors() {
         nodes.clone(),
         6,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .is_err());
     // Invalid pk
     assert!(Party::<G, EG>::new(
-        PrivateKey::<EG>::new(&mut thread_rng()),
+        PrivateKey::<EG>::new(&mut rng()),
         nodes.clone(),
         3,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .is_err());
 }
@@ -354,7 +354,7 @@ fn test_process_message_failures() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
 
@@ -364,12 +364,12 @@ fn test_process_message_failures() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
-    let mut invalid_msg = d1.create_message(&mut thread_rng()).unwrap();
+    let mut invalid_msg = d1.create_message(&mut rng()).unwrap();
     invalid_msg.sender = 50;
-    assert!(d0.process_message(invalid_msg, &mut thread_rng()).is_err());
+    assert!(d0.process_message(invalid_msg, &mut rng()).is_err());
 
     // zero weight
     let d1 = Party::<G, EG>::new(
@@ -377,13 +377,13 @@ fn test_process_message_failures() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
-    let mut fake_msg_from_d2 = d1.create_message(&mut thread_rng()).unwrap();
+    let mut fake_msg_from_d2 = d1.create_message(&mut rng()).unwrap();
     fake_msg_from_d2.sender = 2;
     assert!(d0
-        .process_message(fake_msg_from_d2, &mut thread_rng())
+        .process_message(fake_msg_from_d2, &mut rng())
         .is_err());
 
     // invalid degree
@@ -392,11 +392,11 @@ fn test_process_message_failures() {
         nodes.clone(),
         t - 1,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
-    let invalid_msg = d1.create_message(&mut thread_rng()).unwrap();
-    assert!(d0.process_message(invalid_msg, &mut thread_rng()).is_err());
+    let invalid_msg = d1.create_message(&mut rng()).unwrap();
+    assert!(d0.process_message(invalid_msg, &mut rng()).is_err());
 
     // invalid c0
     let d1 = Party::<G, EG>::new(
@@ -404,43 +404,43 @@ fn test_process_message_failures() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
-    let mut invalid_msg = d1.create_message(&mut thread_rng()).unwrap();
+    let mut invalid_msg = d1.create_message(&mut rng()).unwrap();
     let mut poly: Vec<G> = invalid_msg.vss_pk.as_vec().clone();
     poly[0] = G::zero();
     invalid_msg.vss_pk = poly.into();
-    assert!(d0.process_message(invalid_msg, &mut thread_rng()).is_err());
+    assert!(d0.process_message(invalid_msg, &mut rng()).is_err());
 
     // invalid total number of encrypted shares
-    let mut msg1 = d1.create_message(&mut thread_rng()).unwrap();
+    let mut msg1 = d1.create_message(&mut rng()).unwrap();
     // Switch the encrypted shares of two receivers.
     let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg1, &ro);
     pk_and_msgs.pop();
     msg1.encrypted_shares =
-        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut thread_rng());
-    assert!(d0.process_message(msg1, &mut thread_rng()).is_err());
+        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut rng());
+    assert!(d0.process_message(msg1, &mut rng()).is_err());
 
     // invalid encryption's proof
-    let mut msg1 = d1.create_message(&mut thread_rng()).unwrap();
+    let mut msg1 = d1.create_message(&mut rng()).unwrap();
     // Switch the encrypted shares of two receivers.
     msg1.encrypted_shares
         .modify_c_hat_for_testing(*msg1.encrypted_shares.ephemeral_key());
-    assert!(d0.process_message(msg1, &mut thread_rng()).is_err());
+    assert!(d0.process_message(msg1, &mut rng()).is_err());
 
     // invalid number of encrypted shares for specific receiver
-    let mut msg1 = d1.create_message(&mut thread_rng()).unwrap();
+    let mut msg1 = d1.create_message(&mut rng()).unwrap();
     // Switch the encrypted shares of two receivers.
     let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg1, &ro);
     pk_and_msgs.swap(0, 1);
     msg1.encrypted_shares =
-        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut thread_rng());
+        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut rng());
     let ProcessedMessage {
         message: _,
         shares,
         complaint,
-    } = d0.process_message(msg1, &mut thread_rng()).unwrap();
+    } = d0.process_message(msg1, &mut rng()).unwrap();
     if !shares.is_empty() || complaint.is_none() {
         panic!("expected complaint");
     };
@@ -452,17 +452,17 @@ fn test_process_message_failures() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
-    let msg1_from_another_d1 = another_d1.create_message(&mut thread_rng()).unwrap();
-    let mut msg1 = d1.create_message(&mut thread_rng()).unwrap();
+    let msg1_from_another_d1 = another_d1.create_message(&mut rng()).unwrap();
+    let mut msg1 = d1.create_message(&mut rng()).unwrap();
     msg1.encrypted_shares = msg1_from_another_d1.encrypted_shares;
     let ProcessedMessage {
         message: _,
         shares,
         complaint,
-    } = d0.process_message(msg1, &mut thread_rng()).unwrap();
+    } = d0.process_message(msg1, &mut rng()).unwrap();
     if !shares.is_empty() || complaint.is_none() {
         panic!("expected complaint");
     };
@@ -479,7 +479,7 @@ fn test_test_process_confirmations() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
     let d1 = Party::<G, EG>::new(
@@ -487,7 +487,7 @@ fn test_test_process_confirmations() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
     let d2 = Party::<G, EG>::new(
@@ -495,7 +495,7 @@ fn test_test_process_confirmations() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
     let d3 = Party::<G, EG>::new(
@@ -503,46 +503,46 @@ fn test_test_process_confirmations() {
         nodes.clone(),
         t,
         ro.clone(),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
 
-    let msg0 = d0.create_message(&mut thread_rng()).unwrap();
-    let msg1 = d1.create_message(&mut thread_rng()).unwrap();
+    let msg0 = d0.create_message(&mut rng()).unwrap();
+    let msg1 = d1.create_message(&mut rng()).unwrap();
     // zero weight
     assert_eq!(
-        d2.create_message(&mut thread_rng()).err(),
+        d2.create_message(&mut rng()).err(),
         Some(FastCryptoError::IgnoredMessage)
     );
-    let mut msg3 = d3.create_message(&mut thread_rng()).unwrap();
+    let mut msg3 = d3.create_message(&mut rng()).unwrap();
     let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg3, &ro);
     pk_and_msgs.swap(0, 1);
     msg3.encrypted_shares =
-        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 3"), &mut thread_rng());
+        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 3"), &mut rng());
 
     let all_messages = [msg0, msg1, msg3];
 
     let proc_msg0 = &all_messages
         .iter()
-        .map(|m| d0.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .map(|m| d0.process_message(m.clone(), &mut rng()).unwrap())
         .collect::<Vec<_>>();
     let (conf0, used_msgs0) = d0.merge(proc_msg0).unwrap();
 
     let proc_msg1 = &all_messages
         .iter()
-        .map(|m| d1.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .map(|m| d1.process_message(m.clone(), &mut rng()).unwrap())
         .collect::<Vec<_>>();
     let (conf1, _used_msgs1) = d1.merge(proc_msg1).unwrap();
 
     let proc_msg2 = &all_messages
         .iter()
-        .map(|m| d2.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .map(|m| d2.process_message(m.clone(), &mut rng()).unwrap())
         .collect::<Vec<_>>();
     let (conf2, _used_msgs2) = d2.merge(proc_msg2).unwrap();
 
     let proc_msg3 = &all_messages
         .iter()
-        .map(|m| d3.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .map(|m| d3.process_message(m.clone(), &mut rng()).unwrap())
         .collect::<Vec<_>>();
     let (conf3, _used_msgs3) = d3.merge(proc_msg3).unwrap();
 
@@ -551,7 +551,7 @@ fn test_test_process_confirmations() {
         .process_confirmations(
             &used_msgs0,
             &[conf0.clone(), conf1.clone(), conf2.clone(), conf3.clone()],
-            &mut thread_rng(),
+            &mut rng(),
         )
         .unwrap();
     // d3 is ignored because it sent an invalid message, d2 is ignored because it's weight is 0
@@ -571,7 +571,7 @@ fn test_test_process_confirmations() {
         .process_confirmations(
             &used_msgs0,
             &[conf2.clone(), conf3.clone(), conf7],
-            &mut thread_rng(),
+            &mut rng(),
         )
         .unwrap();
 
@@ -593,7 +593,7 @@ fn test_test_process_confirmations() {
         .process_confirmations(
             &used_msgs0,
             &[conf0.clone(), conf1.clone(), conf2.clone(), conf3.clone()],
-            &mut thread_rng(),
+            &mut rng(),
         )
         .unwrap();
     // now also d2 is ignored because it sent an invalid complaint
@@ -615,10 +615,10 @@ fn create_message_generates_valid_message() {
         nodes.clone(),
         3,
         RandomOracle::new("dkg"),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
-    let msg = d.create_message(&mut thread_rng()).unwrap();
+    let msg = d.create_message(&mut rng()).unwrap();
 
     assert_eq!(msg.sender, 1);
     assert_eq!(msg.encrypted_shares.len(), 4);
@@ -636,11 +636,11 @@ fn test_size_limits() {
     let w = n / k;
     let shares = (0..w).map(Scalar::from).collect_vec();
 
-    let p = Poly::<<G2Element as GroupElement>::ScalarType>::rand(t as u16, &mut thread_rng());
+    let p = Poly::<<G2Element as GroupElement>::ScalarType>::rand(t as u16, &mut rng());
     let ro = RandomOracle::new("test");
     let keys_and_msg = (0..k)
         .map(|_| {
-            let sk = PrivateKey::<EG>::new(&mut thread_rng());
+            let sk = PrivateKey::<EG>::new(&mut rng());
             let pk = PublicKey::<EG>::from_private_key(&sk);
             (sk, pk, bcs::to_bytes(&shares).unwrap())
         })
@@ -651,7 +651,7 @@ fn test_size_limits() {
             .map(|(_, pk, msg)| (pk.clone(), msg.clone()))
             .collect::<Vec<_>>(),
         &ro,
-        &mut thread_rng(),
+        &mut rng(),
     );
     let msg = Message {
         sender: 0,
@@ -757,7 +757,7 @@ fn test_e2e_dkg_and_key_rotation() {
     ////// DKG 2 out of 3 //////
 
     let t = 2;
-    let (keys, nodes) = gen_keys_and_nodes_rng(3, &mut thread_rng(), true);
+    let (keys, nodes) = gen_keys_and_nodes_rng(3, &mut rng(), true);
 
     // Create the parties
     let d0 = Party::<G, EG>::new_advanced(
@@ -767,7 +767,7 @@ fn test_e2e_dkg_and_key_rotation() {
         ro.clone(),
         None,
         None,
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
     assert_eq!(d0.t(), t);
@@ -778,7 +778,7 @@ fn test_e2e_dkg_and_key_rotation() {
         ro.clone(),
         None,
         None,
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
     let d2 = Party::<G, EG>::new_advanced(
@@ -788,7 +788,7 @@ fn test_e2e_dkg_and_key_rotation() {
         ro.clone(),
         None,
         None,
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
 
@@ -800,16 +800,16 @@ fn test_e2e_dkg_and_key_rotation() {
     }
 
     let msg0 = MessageWithNizk {
-        message: d0.create_message(&mut thread_rng()).unwrap(),
-        nizk: d0.nizk_pop_of_secret(&mut thread_rng()),
+        message: d0.create_message(&mut rng()).unwrap(),
+        nizk: d0.nizk_pop_of_secret(&mut rng()),
     };
     let msg1 = MessageWithNizk {
-        message: d1.create_message(&mut thread_rng()).unwrap(),
-        nizk: d1.nizk_pop_of_secret(&mut thread_rng()),
+        message: d1.create_message(&mut rng()).unwrap(),
+        nizk: d1.nizk_pop_of_secret(&mut rng()),
     };
     let msg2 = MessageWithNizk {
-        message: d2.create_message(&mut thread_rng()).unwrap(),
-        nizk: d2.nizk_pop_of_secret(&mut thread_rng()),
+        message: d2.create_message(&mut rng()).unwrap(),
+        nizk: d2.nizk_pop_of_secret(&mut rng()),
     };
 
     let all_messages = [msg0, msg1, msg2]; // duplicates should be ignored
@@ -822,7 +822,7 @@ fn test_e2e_dkg_and_key_rotation() {
                 m.message.clone(),
                 &None,
                 &Some(m.nizk.clone()),
-                &mut thread_rng(),
+                &mut rng(),
             )
             .unwrap()
         })
@@ -838,7 +838,7 @@ fn test_e2e_dkg_and_key_rotation() {
                 m.message.clone(),
                 &None,
                 &Some(m.nizk.clone()),
-                &mut thread_rng(),
+                &mut rng(),
             )
             .unwrap()
         })
@@ -852,7 +852,7 @@ fn test_e2e_dkg_and_key_rotation() {
                 m.message.clone(),
                 &None,
                 &Some(m.nizk.clone()),
-                &mut thread_rng(),
+                &mut rng(),
             )
             .unwrap()
         })
@@ -885,7 +885,7 @@ fn test_e2e_dkg_and_key_rotation() {
 
     ////// key rotation to 3 out of 4 //////
     let nt = 3; // new t
-    let (nkeys, nnodes) = gen_keys_and_nodes_rng(4, &mut thread_rng(), true);
+    let (nkeys, nnodes) = gen_keys_and_nodes_rng(4, &mut rng(), true);
 
     // Create the parties, first two are from previous committee
     let nd0 = Party::<G, EG>::new_advanced(
@@ -895,7 +895,7 @@ fn test_e2e_dkg_and_key_rotation() {
         ro.clone(),
         Some(o1.shares.unwrap()[0].value),
         Some(2),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
     assert_eq!(nd0.t(), nt);
@@ -906,7 +906,7 @@ fn test_e2e_dkg_and_key_rotation() {
         ro.clone(),
         Some(o0.shares.unwrap()[0].value),
         Some(2),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
     let nd2 = Party::<G, EG>::new_advanced(
@@ -916,17 +916,17 @@ fn test_e2e_dkg_and_key_rotation() {
         ro.clone(),
         None,
         Some(2),
-        &mut thread_rng(),
+        &mut rng(),
     )
     .unwrap();
 
     let msg0 = MessageWithNizk {
-        message: nd0.create_message(&mut thread_rng()).unwrap(),
-        nizk: nd0.nizk_pop_of_secret(&mut thread_rng()),
+        message: nd0.create_message(&mut rng()).unwrap(),
+        nizk: nd0.nizk_pop_of_secret(&mut rng()),
     };
     let msg1 = MessageWithNizk {
-        message: nd1.create_message(&mut thread_rng()).unwrap(),
-        nizk: nd1.nizk_pop_of_secret(&mut thread_rng()),
+        message: nd1.create_message(&mut rng()).unwrap(),
+        nizk: nd1.nizk_pop_of_secret(&mut rng()),
     };
 
     let expected_pks = [
@@ -945,7 +945,7 @@ fn test_e2e_dkg_and_key_rotation() {
                 m.message.clone(),
                 &Some(*epk),
                 &Some(m.nizk.clone()),
-                &mut thread_rng(),
+                &mut rng(),
             )
             .unwrap()
         })
@@ -962,7 +962,7 @@ fn test_e2e_dkg_and_key_rotation() {
                 m.message.clone(),
                 &Some(*epk),
                 &Some(m.nizk.clone()),
-                &mut thread_rng(),
+                &mut rng(),
             )
             .unwrap()
         })
@@ -977,7 +977,7 @@ fn test_e2e_dkg_and_key_rotation() {
                 m.message.clone(),
                 &Some(*epk),
                 &Some(m.nizk.clone()),
-                &mut thread_rng(),
+                &mut rng(),
             )
             .unwrap()
         })

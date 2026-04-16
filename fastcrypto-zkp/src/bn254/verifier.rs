@@ -145,11 +145,11 @@ impl From<&VerifyingKey> for PreparedVerifyingKey {
     /// use ark_bn254::{Bn254, Fr};
     /// use ark_ff::One;
     /// use ark_groth16::Groth16;
-    /// use ark_std::rand::thread_rng;
+    /// use rand::rng;
     /// use fastcrypto_zkp::bn254::verifier::PreparedVerifyingKey;
     /// use fastcrypto_zkp::bn254::VerifyingKey;
     ///
-    /// let mut rng = thread_rng();
+    /// let mut rng = rng();
     /// let params = {
     ///     let c = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1 (standard Fibonacci)
     ///     Groth16::<Bn254>::generate_random_parameters_with_reduction(c, &mut rng).unwrap()
@@ -191,13 +191,14 @@ mod tests {
     use ark_bn254::{Bn254, Fr};
     use ark_groth16::Groth16;
     use ark_snark::SNARK;
-    use ark_std::rand::thread_rng;
+    use rand::rng;
     use ark_std::UniformRand;
 
     #[test]
     fn test_serialization() {
         const PUBLIC_SIZE: usize = 128;
-        let rng = &mut thread_rng();
+        let mut raw_rng = rng();
+        let rng = &mut fastcrypto::traits::old_rng(&mut raw_rng);
         let c = DummyCircuit::<Fr> {
             a: Some(<Fr>::rand(rng)),
             b: Some(<Fr>::rand(rng)),

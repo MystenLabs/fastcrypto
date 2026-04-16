@@ -52,6 +52,7 @@ ark-bls12-381 = "0.4.0"
 ark-crypto-primitives = { version = "0.4.0", features = ["r1cs", "prf"] }
 ark-r1cs-std = "0.4.0"
 ark-std = "0.4.0"
+rand.workspace = true
 blake2 = "0.10.6"
 criterion = "0.5.1"
 hex = "0.4.3"

@@ -18,7 +18,7 @@ mod signature_benches {
         hash::{Blake2b256, HashFunction},
         traits::{AggregateAuthenticator, KeyPair, VerifyingKey},
     };
-    use rand::{prelude::ThreadRng, thread_rng};
+    use rand::{prelude::ThreadRng, rng};
     use std::borrow::Borrow;
 
     fn sign_single<KP: KeyPair, M: measurement::Measurement>(
@@ -26,7 +26,7 @@ mod signature_benches {
         c: &mut BenchmarkGroup<M>,
     ) {
         let msg: &[u8] = b"";
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let keypair = KP::generate(&mut csprng);
         c.bench_function(name.to_string(), move |b| b.iter(|| keypair.sign(msg)));
     }
@@ -36,7 +36,7 @@ mod signature_benches {
         c: &mut BenchmarkGroup<M>,
     ) {
         let msg: &[u8] = b"";
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let keypair = KP::generate(&mut csprng);
         c.bench_function(name.to_string(), move |b| {
             b.iter(|| keypair.sign_recoverable(msg))
@@ -59,7 +59,7 @@ mod signature_benches {
         c: &mut BenchmarkGroup<M>,
     ) {
         let msg = b"";
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let keypair = KP::generate(&mut csprng);
         let public_key = keypair.public();
         let signature = keypair.sign(msg);
@@ -73,7 +73,7 @@ mod signature_benches {
         c: &mut BenchmarkGroup<M>,
     ) {
         let msg = b"";
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let keypair = KP::generate(&mut csprng);
         let signature = keypair.sign_recoverable(msg);
         c.bench_function(name.to_string(), move |b| b.iter(|| signature.recover(msg)));
@@ -100,7 +100,7 @@ mod signature_benches {
     fn generate_test_data<KP: KeyPair>(size: usize) -> TestDataBatchedVerification<KP> {
         let msg: Vec<u8> = Blake2b256::digest(b"Hello, world!".as_slice()).to_vec();
 
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let keypairs: Vec<_> = (0..size).map(|_| KP::generate(&mut csprng)).collect();
         let signatures: Vec<_> = keypairs.iter().map(|key| key.sign(&msg)).collect();
         let public_keys: Vec<_> = keypairs.iter().map(|key| key.public().clone()).collect();
@@ -167,7 +167,7 @@ mod signature_benches {
             .map(|i| fastcrypto::hash::Sha256::digest(i.to_string().as_bytes()).digest)
             .collect();
 
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let keypairs: Vec<_> = (0..size).map(|_| KP::generate(&mut csprng)).collect();
         let signatures: Vec<_> = keypairs
             .iter()
@@ -341,7 +341,7 @@ mod signature_benches {
             public_keys: Vec::new(),
             signatures: Vec::new(),
         };
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         for i in 0..size {
             let msg = fastcrypto::hash::Sha256::digest(i.to_string().as_bytes()).digest;
             result.msgs.push(msg);
@@ -406,7 +406,7 @@ mod signature_benches {
         static BATCH_SIZES: [usize; 5] = [4, 8, 16, 32, 64];
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Aggregate signatures");
 
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
 
         for size in BATCH_SIZES.iter() {
             let blst_min_sig_keypairs: Vec<_> = (0..*size)
@@ -452,7 +452,7 @@ mod signature_benches {
     }
 
     fn key_generation(c: &mut Criterion) {
-        let mut csprng: ThreadRng = thread_rng();
+        let mut csprng: ThreadRng = rng();
         let mut csprng2 = csprng.clone();
         let mut csprng3 = csprng.clone();
         let mut csprng4 = csprng.clone();

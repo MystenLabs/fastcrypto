@@ -15,7 +15,7 @@ use crate::{
     },
 };
 use proptest::{collection, prelude::*};
-use rand::{rngs::StdRng, RngCore, SeedableRng as _};
+use rand::{rngs::StdRng, Rng as _, SeedableRng as _};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
