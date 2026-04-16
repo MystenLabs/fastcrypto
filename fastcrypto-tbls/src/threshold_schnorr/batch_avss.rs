@@ -212,7 +212,7 @@ impl Dealer {
     /// * `batch_size_per_weight` is the number of secrets a dealer should deal per weight it has.
     ///
     /// Returns an `InvalidInput` error if
-    /// * t <= f or if the total weight of the nodes is smaller than t + 2*f.
+    /// * t is smaller than the total weight of the nodes.
     /// * the `dealer_id` is invalid (not part of `nodes`).
     pub fn new(
         nodes: Nodes<EG>,
@@ -221,6 +221,9 @@ impl Dealer {
         sid: Vec<u8>,
         batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
+        if t > nodes.total_weight() {
+            return Err(InvalidInput);
+        }
         // Each dealer deals a number of nonces proportional to their weight.
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
         Ok(Self {

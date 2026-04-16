@@ -148,12 +148,17 @@ impl Dealer {
     /// * `nodes`: The set of nodes (parties) participating in the protocol, including their public keys and weights.
     /// * `t`: The threshold number of shares required to reconstruct the secret. One party can have multiple shares according to its weight.
     /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
+    ///
+    /// Returns an error if `t` is smaller than the total weight of the nodes.
     pub fn new(
         secret: Option<S>,
         nodes: Nodes<EG>,
         t: u16,
         sid: Vec<u8>,
     ) -> FastCryptoResult<Self> {
+        if t > nodes.total_weight() {
+            return Err(InvalidInput);
+        }
         Ok(Self {
             secret,
             t,
