@@ -212,7 +212,7 @@ impl Dealer {
     /// * `batch_size_per_weight` is the number of secrets a dealer should deal per weight it has.
     ///
     /// Returns an `InvalidInput` error if
-    /// * t is smaller than the total weight of the nodes.
+    /// * t is larger than the total weight of the nodes.
     /// * the `dealer_id` is invalid (not part of `nodes`).
     pub fn new(
         nodes: Nodes<EG>,
