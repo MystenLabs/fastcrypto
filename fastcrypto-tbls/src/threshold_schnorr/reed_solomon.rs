@@ -99,6 +99,7 @@ impl RSDecoder {
     }
 
     /// Create a new decoder that can correct the given erasures.
+    /// Returns an InvalidInput error if the given erasures are not unique or not a subset of self.a.
     pub fn with_erasures(&self, erasures: &[ShareIndex]) -> FastCryptoResult<RSDecoder> {
         // This follows section 4 in Gao's paper
         let erasures = erasures.iter().sorted().collect_vec();
