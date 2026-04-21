@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod hash;
 pub mod winternitz_ots;
 
@@ -21,7 +24,7 @@ pub enum AdrsType {
     ForsPrf = 6,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Adrs([u8; 32]);
 
 impl Adrs {

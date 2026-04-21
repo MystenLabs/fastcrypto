@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 /// FIPS 205 Section 11.2.1 — SHA2-based tweakable hash functions for security category 1 (n=16).
 ///
 /// F, H, T_l, and PRF all share the same core:
@@ -26,7 +29,7 @@ pub fn tweakable_hash(pk_seed: &[u8], adrs: Adrs, m: &[u8]) -> Vec<u8> {
     // TODO: the first block is fixed - so we can share its output across instantiations to optimize hash costs
     hasher.update(pk_seed);
     hasher.update(&ZERO_PAD[..SHA256_BLOCK - n]);
-    hasher.update(&adrs_c);
+    hasher.update(adrs_c);
     hasher.update(m);
     hasher.finalize()[..n].to_vec()
 }

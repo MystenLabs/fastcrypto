@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 //! WOTS+ implementation from FIPS-205.
 //!
 //! Most functions in this file take an Address as input. Callers must ensure it encodes:
@@ -241,7 +244,6 @@ mod tests {
     fn test_convert_base_single_bits() {
         assert_eq!(convert_base(&[0xA3], 1), vec![1, 0, 1, 0, 0, 0, 1, 1]);
     }
-
 
     /// Runs keygen → sign → verify and a wrong-message negative check for the given WOTS+ config.
     fn run_e2e(n: u16, lg_w: u16) {
