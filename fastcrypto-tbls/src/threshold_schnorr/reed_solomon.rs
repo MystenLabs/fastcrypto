@@ -4,7 +4,7 @@
 use crate::polynomial::{Eval, MonicLinear, Poly};
 use crate::threshold_schnorr::S;
 use crate::types::{to_scalar, ShareIndex};
-use fastcrypto::error::FastCryptoError::InvalidInput;
+use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use itertools::Itertools;
 
@@ -107,7 +107,7 @@ impl RSDecoder {
     ) -> FastCryptoResult<Vec<S>> {
         // This follows section 4 in Gao's paper
         if erasures.len() + input.len() != self.block_length() {
-            return Err(FastCryptoError::InputLengthWrong(self.block_length()));
+            return Err(InputLengthWrong(self.block_length()));
         }
 
         let erasures = erasures.iter().sorted().collect_vec();
