@@ -385,7 +385,7 @@ async fn test_get_jwks() {
         OIDCProvider::Playtron,
         OIDCProvider::Threedos,
         OIDCProvider::Onefc,
-        OIDCProvider::FanTV,
+        // OIDCProvider::FanTV, // TODO: disabling until the service is up again
         // OIDCProvider::Arden, // TODO: disabling until the service is up again
         OIDCProvider::EveFrontier,
         OIDCProvider::TestEveFrontier,
