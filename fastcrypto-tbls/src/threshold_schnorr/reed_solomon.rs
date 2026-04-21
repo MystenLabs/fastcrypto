@@ -4,7 +4,8 @@
 use crate::polynomial::{Eval, MonicLinear, Poly};
 use crate::threshold_schnorr::S;
 use crate::types::{to_scalar, ShareIndex};
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, TooManyErrors};
+use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
 
 /// Decoder for Reed-Solomon codes.
@@ -51,7 +52,7 @@ impl RSDecoder {
         // The implementation follows Algorithm 1 in Gao's paper.
 
         if code_word.len() != self.block_length() {
-            return Err(FastCryptoError::InputLengthWrong(self.block_length()));
+            return Err(InputLengthWrong(self.block_length()));
         }
 
         // Step 1: Interpolation
@@ -74,7 +75,7 @@ impl RSDecoder {
         // Step 3: Long division
         let (f1, r) = g.div_rem(&v)?;
         if !r.is_zero() || f1.degree() >= self.k {
-            return Err(FastCryptoError::TooManyErrors((self.distance() - 1) / 2));
+            return Err(TooManyErrors((self.distance() - 1) / 2));
         }
         Ok(f1)
     }
@@ -83,7 +84,7 @@ impl RSDecoder {
     /// Returns an error if the message length is wrong.
     pub fn encode(&self, message: Vec<S>) -> FastCryptoResult<Vec<S>> {
         if message.len() != self.message_length() {
-            return Err(FastCryptoError::InputLengthWrong(self.message_length()));
+            return Err(InputLengthWrong(self.message_length()));
         }
         let f = Poly::from(message);
         Ok(self.a.iter().map(|&ai| f.eval(ai).value).collect_vec())
@@ -95,6 +96,30 @@ impl RSDecoder {
         let mut f1 = self.compute_message_polynomial(input)?.to_vec();
         f1.truncate(self.k);
         Ok(f1)
+    }
+
+    /// Create a new decoder that can correct the given erasures.
+    /// Returns an InvalidInput error if the given erasures are not unique or not a subset of self.a.
+    pub fn with_erasures(&self, erasures: &[ShareIndex]) -> FastCryptoResult<RSDecoder> {
+        // This follows section 4 in Gao's paper
+        let erasures = erasures.iter().sorted().collect_vec();
+        let a = self
+            .a
+            .iter()
+            .filter(|ai| erasures.binary_search(ai).is_err())
+            .cloned()
+            .collect_vec();
+
+        // Check if the erasures is a subset of a, e.g., that we have removed one a_i per erasure.
+        if a.len() + erasures.len() != self.block_length() {
+            return Err(InvalidInput);
+        }
+
+        let g0 = erasures.iter().fold(self.g0.clone(), |g0, ai| {
+            &g0 / MonicLinear(-to_scalar::<S>(*ai))
+        });
+
+        Ok(RSDecoder { g0, a, k: self.k })
     }
 }
 
@@ -125,5 +150,18 @@ mod tests {
         received[3] = S::from(2000u128); // Error at position 3
         received[2] = S::from(200u128); // Error at position 2
         assert!(decoder.decode(&received).is_err());
+
+        // But with erasure coding, it works!
+        let mut received = code_word.clone();
+        let erasures = vec![a[3], a[2], a[4]];
+        received.remove(4);
+        received.remove(3);
+        received.remove(2);
+        let decoded_message = decoder
+            .with_erasures(&erasures)
+            .unwrap()
+            .decode(&received)
+            .unwrap();
+        assert_eq!(decoded_message, message);
     }
 }
