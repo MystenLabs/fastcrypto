@@ -4,8 +4,8 @@
 use crate::polynomial::{Eval, MonicLinear, Poly};
 use crate::threshold_schnorr::S;
 use crate::types::{to_scalar, ShareIndex};
-use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput};
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, TooManyErrors};
+use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
 
 /// Decoder for Reed-Solomon codes.
@@ -52,7 +52,7 @@ impl RSDecoder {
         // The implementation follows Algorithm 1 in Gao's paper.
 
         if code_word.len() != self.block_length() {
-            return Err(FastCryptoError::InputLengthWrong(self.block_length()));
+            return Err(InputLengthWrong(self.block_length()));
         }
 
         // Step 1: Interpolation
@@ -75,7 +75,7 @@ impl RSDecoder {
         // Step 3: Long division
         let (f1, r) = g.div_rem(&v)?;
         if !r.is_zero() || f1.degree() >= self.k {
-            return Err(FastCryptoError::TooManyErrors((self.distance() - 1) / 2));
+            return Err(TooManyErrors((self.distance() - 1) / 2));
         }
         Ok(f1)
     }
@@ -84,7 +84,7 @@ impl RSDecoder {
     /// Returns an error if the message length is wrong.
     pub fn encode(&self, message: Vec<S>) -> FastCryptoResult<Vec<S>> {
         if message.len() != self.message_length() {
-            return Err(FastCryptoError::InputLengthWrong(self.message_length()));
+            return Err(InputLengthWrong(self.message_length()));
         }
         let f = Poly::from(message);
         Ok(self.a.iter().map(|&ai| f.eval(ai).value).collect_vec())
