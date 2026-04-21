@@ -118,7 +118,7 @@ impl RSDecoder {
             .cloned()
             .collect_vec();
 
-        // Check if the given erasures is a subset of a
+        // Check if the given erasures is a subset of a, e.g., that we have removed one a_i per erasure.
         if a.len() + erasures.len() != self.block_length() {
             return Err(InvalidInput);
         }
