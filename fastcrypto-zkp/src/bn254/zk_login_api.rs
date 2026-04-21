@@ -30,10 +30,10 @@ pub enum ZkLoginEnv {
     Test,
 }
 
-/// Corresponding to proofs generated from prover (prod). Produced from ceremony. Secure to use for mainnet.
+/// Corresponding to proofs generated from prover (prod). Produced from ceremony. Secure to use for mainnet and testnet.
 static GLOBAL_VERIFYING_KEY: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(global_pvk);
 
-/// Corresponding to proofs generated from prover-dev. Used in devnet/testnet.
+/// Corresponding to proofs generated from prover-dev. Used in devnet or other envs.
 static INSECURE_VERIFYING_KEY: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(insecure_pvk);
 
 /// Load a fixed verifying key from zkLogin.vkey output. This is based on a local setup and should not use in production.
