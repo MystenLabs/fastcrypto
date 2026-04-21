@@ -4,6 +4,7 @@
 use crate::polynomial::{Eval, MonicLinear, Poly};
 use crate::threshold_schnorr::S;
 use crate::types::{to_scalar, ShareIndex};
+use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use itertools::Itertools;
 
@@ -96,6 +97,39 @@ impl RSDecoder {
         f1.truncate(self.k);
         Ok(f1)
     }
+
+    /// Try to correct the input with erasures and return the decoded message.
+    /// Returns an error if the input length is wrong or if there are too many error.
+    pub fn decode_with_erasures(
+        &self,
+        input: &[S],
+        erasures: &[ShareIndex],
+    ) -> FastCryptoResult<Vec<S>> {
+        // This follows section 4 in Gao's paper
+        if erasures.len() + input.len() != self.block_length() {
+            return Err(FastCryptoError::InputLengthWrong(self.block_length()));
+        }
+
+        let erasures = erasures.iter().sorted().collect_vec();
+        let a = self
+            .a
+            .iter()
+            .filter(|ai| erasures.binary_search(ai).is_err())
+            .cloned()
+            .collect_vec();
+
+        // Check if the given erasures is a subset of a
+        if a.len() + erasures.len() != self.block_length() {
+            return Err(InvalidInput);
+        }
+
+        let g0 = erasures.iter().fold(self.g0.clone(), |g0, ai| {
+            &g0 / MonicLinear(-to_scalar::<S>(*ai))
+        });
+
+        let decoder = RSDecoder { g0, a, k: self.k };
+        decoder.decode(input)
+    }
 }
 
 #[cfg(test)]
@@ -125,5 +159,14 @@ mod tests {
         received[3] = S::from(2000u128); // Error at position 3
         received[2] = S::from(200u128); // Error at position 2
         assert!(decoder.decode(&received).is_err());
+
+        // But with erasure coding, it works!
+        let mut received = code_word.clone();
+        let erasures = vec![a[2], a[3], a[4]];
+        received.remove(4);
+        received.remove(3);
+        received.remove(2);
+        let decoded_message = decoder.decode_with_erasures(&received, &erasures).unwrap();
+        assert_eq!(decoded_message, message);
     }
 }
