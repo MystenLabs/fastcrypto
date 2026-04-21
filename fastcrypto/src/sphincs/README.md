@@ -6,8 +6,8 @@ Hand-written Rust impl, gated behind `--features experimental`.
 
 WOTS+ ✅ · ADRS ✅ · SHA2 tweakable hash ✅ · FORS ⏳ · XMSS ⏳ · Hypertree ⏳ · SLH-DSA ⏳
 
-Notes:
-- Individual components are built in a generic way, e.g., WOTS+ can be instantiated with any `n, lg_w` iff `8n % lg_w = 0`
+Individual components are planned to be built in a generic way:
+- WOTS+ can be instantiated with any `n, lg_w` iff `8n % lg_w = 0` and `1 <= lg_w <= 8`
 
 ## Approved parameter sets (FIPS 205)
 
