@@ -98,18 +98,8 @@ impl RSDecoder {
         Ok(f1)
     }
 
-    /// Try to correct the input with erasures and return the decoded message.
-    /// Returns an error if the input length is wrong or if there are too many error.
-    pub fn decode_with_erasures(
-        &self,
-        input: &[S],
-        erasures: &[ShareIndex],
-    ) -> FastCryptoResult<Vec<S>> {
-        // This follows section 4 in Gao's paper
-        if erasures.len() + input.len() != self.block_length() {
-            return Err(InputLengthWrong(self.block_length()));
-        }
-
+    /// Create a new decoder that can correct the given erasures.
+    pub fn with_erasures(&self, erasures: &[ShareIndex]) -> FastCryptoResult<RSDecoder> {
         let erasures = erasures.iter().sorted().collect_vec();
         let a = self
             .a
@@ -118,7 +108,7 @@ impl RSDecoder {
             .cloned()
             .collect_vec();
 
-        // Check if the given erasures is a subset of a, e.g., that we have removed one a_i per erasure.
+        // Check if the erasures is a subset of a, e.g., that we have removed one a_i per erasure.
         if a.len() + erasures.len() != self.block_length() {
             return Err(InvalidInput);
         }
@@ -127,8 +117,7 @@ impl RSDecoder {
             &g0 / MonicLinear(-to_scalar::<S>(*ai))
         });
 
-        let decoder = RSDecoder { g0, a, k: self.k };
-        decoder.decode(input)
+        Ok(RSDecoder { g0, a, k: self.k })
     }
 }
 
@@ -162,11 +151,15 @@ mod tests {
 
         // But with erasure coding, it works!
         let mut received = code_word.clone();
-        let erasures = vec![a[2], a[3], a[4]];
+        let erasures = vec![a[3], a[2], a[4]];
         received.remove(4);
         received.remove(3);
         received.remove(2);
-        let decoded_message = decoder.decode_with_erasures(&received, &erasures).unwrap();
+        let decoded_message = decoder
+            .with_erasures(&erasures)
+            .unwrap()
+            .decode(&received)
+            .unwrap();
         assert_eq!(decoded_message, message);
     }
 }
