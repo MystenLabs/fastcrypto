@@ -110,6 +110,11 @@ harness = false
 name = "bulletproofs"
 harness = false
 
+[[bench]]
+name = "winternitz_ots"
+harness = false
+required-features = ["experimental"]
+
 [features]
 default = []
 

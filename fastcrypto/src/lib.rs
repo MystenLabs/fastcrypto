@@ -114,6 +114,8 @@ pub mod twisted_elgamal;
 pub mod utils;
 pub mod vrf;
 
+#[cfg(feature = "experimental")]
+pub mod sphincs;
 /// This module contains unsecure cryptographic primitives. The purpose of this library is to allow seamless
 /// benchmarking of systems without taking into account the cost of cryptographic primitives - and hence
 /// providing a theoretical maximal throughput that a system could achieve if the cost of crypto is optimized
