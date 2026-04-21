@@ -100,6 +100,7 @@ impl RSDecoder {
 
     /// Create a new decoder that can correct the given erasures.
     pub fn with_erasures(&self, erasures: &[ShareIndex]) -> FastCryptoResult<RSDecoder> {
+        // This follows section 4 in Gao's paper
         let erasures = erasures.iter().sorted().collect_vec();
         let a = self
             .a
