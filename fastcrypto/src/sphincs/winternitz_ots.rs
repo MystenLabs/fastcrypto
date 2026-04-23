@@ -8,6 +8,7 @@
 //!     (ii) the WOTS+ keypair address within the XMSS tree.
 
 use crate::sphincs::hash::tweakable_hash;
+use crate::sphincs::utils::{bits_to_base, bytes_to_bits};
 use crate::sphincs::{Adrs, AdrsType};
 
 // ------------------------------------------------------------------
@@ -19,6 +20,24 @@ pub struct WotsParams {
     pub n: u16,    // hash output length in bytes (spec: {16, 24, 32})
     pub lg_w: u16, // bits per winternitz digit (spec: 1..=8)
     w: u16,        // hash chain length = 2^lg_w
+}
+
+pub struct WotsSignature(Vec<Vec<u8>>);
+
+impl WotsSignature {
+    pub fn as_slice(&self) -> &[Vec<u8>] {
+        &self.0
+    }
+
+    pub fn size_in_bytes(&self) -> usize {
+        self.0.iter().map(|s| s.len()).sum()
+    }
+
+    /// Construct from a pre-parsed list of per-chain values. Used by higher-level
+    /// signature deserialization.
+    pub fn from_chains(chains: Vec<Vec<u8>>) -> Self {
+        Self(chains)
+    }
 }
 
 impl WotsParams {
@@ -60,38 +79,17 @@ impl WotsParams {
 //            Message encoding (base-w digits + checksum)
 // ------------------------------------------------------------------
 
-fn to_bits(msg: &[u8]) -> Vec<u8> {
-    let mut msg_bits = Vec::with_capacity(msg.len() * 8);
-    for &x in msg {
-        for j in 0..8 {
-            msg_bits.push((x >> (7 - j)) & 1);
-        }
-    }
-    msg_bits
-}
-
-fn convert_base(msg: &[u8], lg_b: u16) -> Vec<u8> {
-    let msg_bits = to_bits(msg);
-    // chunking is guaranteed to be exact because WotsParams::new() enforces (8 * n) % lg_w = 0
-    let mut result = Vec::with_capacity(msg_bits.len() / lg_b as usize);
-    for chunk in msg_bits.chunks(lg_b as usize) {
-        // acc < 2^lg_b by construction; WotsParams::new() enforces lg_b ≤ 8, so acc fits in u8.
-        let mut acc: u8 = 0;
-        for &bit in chunk {
-            acc = (acc << 1) | bit;
-        }
-        result.push(acc);
-    }
-    result
-}
-
 fn encode_message(params: &WotsParams, msg: &[u8]) -> Vec<u8> {
     assert_eq!(
         msg.len(),
         params.n as usize,
         "msg length doesn't match params"
     );
-    let mut msg_digits = convert_base(msg, params.lg_w);
+    // lg_w ≤ 8 is enforced by WotsParams::new(), so each digit fits in u8.
+    let mut msg_digits: Vec<u8> = bits_to_base(&bytes_to_bits(msg), params.lg_w)
+        .into_iter()
+        .map(|d| d as u8)
+        .collect();
     let sum: u16 = msg_digits.iter().map(|&d| d as u16).sum();
     let checksum = params.max_checksum() - sum;
     let mask = params.w - 1;
@@ -189,26 +187,28 @@ pub fn wots_sign(
     pk_seed: &[u8],
     adrs: Adrs,
     msg: &[u8],
-) -> Vec<Vec<u8>> {
+) -> WotsSignature {
     let msg_digits = encode_message(params, msg);
     let sks = gen_sks(params, sk_seed, pk_seed, adrs);
-    chain_all(params, pk_seed, adrs, &sks, |i| (0, msg_digits[i] as u16))
+    WotsSignature(chain_all(params, pk_seed, adrs, &sks, |i| {
+        (0, msg_digits[i] as u16)
+    }))
 }
 
 pub fn wots_pk_from_sig(
     params: &WotsParams,
-    sig: &[Vec<u8>],
+    sig: &WotsSignature,
     msg: &[u8],
     pk_seed: &[u8],
     adrs: Adrs,
 ) -> Vec<u8> {
     assert_eq!(
-        sig.len(),
+        sig.0.len(),
         params.num_elements() as usize,
         "sig length doesn't match params"
     );
     let msg_digits = encode_message(params, msg);
-    let pks = chain_all(params, pk_seed, adrs, sig, |i| {
+    let pks = chain_all(params, pk_seed, adrs, &sig.0, |i| {
         (msg_digits[i] as u16, params.w - 1)
     });
     compress_chain_pks(pks, pk_seed, adrs)
@@ -226,23 +226,6 @@ mod tests {
             assert_eq!(sphincs_params.num_checksum_digits(), 3);
             assert_eq!(sphincs_params.num_elements(), 2 * n + 3);
         }
-    }
-
-    #[test]
-    fn test_convert_base_nibbles() {
-        assert_eq!(convert_base(&[0xA3], 4), vec![0xA, 0x3]);
-        assert_eq!(convert_base(&[0xA3, 0xF0], 4), vec![0xA, 0x3, 0xF, 0x0]);
-    }
-
-    #[test]
-    fn test_convert_base_pairs() {
-        // lg_b = 2 → 0xA3 = 10 10 00 11 → [2, 2, 0, 3]
-        assert_eq!(convert_base(&[0xA3], 2), vec![2, 2, 0, 3]);
-    }
-
-    #[test]
-    fn test_convert_base_single_bits() {
-        assert_eq!(convert_base(&[0xA3], 1), vec![1, 0, 1, 0, 0, 0, 1, 1]);
     }
 
     /// Runs keygen → sign → verify and a wrong-message negative check for the given WOTS+ config.

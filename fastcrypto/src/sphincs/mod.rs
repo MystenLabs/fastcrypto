@@ -1,16 +1,30 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod fors;
 pub mod hash;
+pub mod hypertree;
+pub mod merkle;
+mod params;
+mod utils;
 pub mod winternitz_ots;
+pub mod xmss;
 
 /// FIPS 205 Section 4.2 — ADRS (Address)
 ///
 /// 32-byte structure, 8 big-endian words:
-///   Word 0      : layer address
-///   Words 1-3   : tree address  (12 bytes; upper 4 zero, lower 8 = u64)
+///   Word 0      : XMSS tree height — layer of this XMSS tree in the hypertree stack
+///   Words 1-3   : XMSS tree index  — which XMSS tree at that layer (12 bytes; upper 4 zero, lower 8 = u64)
 ///   Word 4      : type
 ///   Words 5-7   : type-dependent (zeroed whenever type is changed)
+///
+/// FIPS 205 spec-name mapping (we rename for clarity):
+///   - "layer address" (word 0)    → `xmss_height`
+///   - "tree address"  (words 1-3) → `xmss_index`
+///
+/// Together these identify *which* XMSS tree in the hypertree (a 2D coordinate:
+/// height + index). The later `tree_height` / `tree_index` (words 6/7 of `Tree`
+/// and `FORS_TREE` ADRS) identify a node *within* a Merkle tree (either XMSS or FORS).
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -44,26 +58,23 @@ impl Adrs {
         self.0[off..off + 4].copy_from_slice(&val.to_be_bytes());
     }
 
-    // --- layer (word 0) ---
-
-    pub fn with_layer_address(mut self, layer: impl Into<u32>) -> Self {
-        self.set_word(0, layer.into());
+    // --- XMSS tree height (word 0; FIPS 205: "layer address") ---
+    // Layer of this XMSS tree in the hypertree stack.
+    pub fn with_xmss_height(mut self, height: impl Into<u32>) -> Self {
+        self.set_word(0, height.into());
         self
     }
 
-    pub fn get_layer_address(&self) -> u32 {
+    pub fn get_xmss_height(&self) -> u32 {
         self.get_word(0)
     }
 
-    // --- tree address (words 1-3, 12 bytes) ---
-
-    pub fn with_tree_address(mut self, tree: [u8; 12]) -> Self {
-        self.0[4..16].copy_from_slice(&tree);
+    // --- XMSS tree index (words 1-3, 12 bytes; FIPS 205: "tree address") ---
+    // Which XMSS tree at that layer.
+    pub fn with_xmss_index(mut self, idx: u64) -> Self {
+        self.0[4..8].fill(0);
+        self.0[8..16].copy_from_slice(&idx.to_be_bytes());
         self
-    }
-
-    pub fn get_tree_address(&self) -> [u8; 12] {
-        self.0[4..16].try_into().unwrap()
     }
 
     // --- type (word 4) — zeroes words 5-7 on change ---
