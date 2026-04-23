@@ -39,6 +39,55 @@ pub struct RecoveryPackage<G: GroupElement> {
 
 pub const AES_KEY_LENGTH: usize = 32;
 
+/// Single-recipient ECIES encryption.
+/// (rG, AES(k=RO(rPK), m))
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SingleRecipientEncryption<G: GroupElement> {
+    c: G,
+    enc: Vec<u8>,
+}
+
+impl<G: GroupElement + Serialize> SingleRecipientEncryption<G>
+where
+    <G as GroupElement>::ScalarType: FiatShamirChallenge + Zeroize,
+{
+    pub fn encrypt<R: AllowedRng>(
+        pk: &PublicKey<G>,
+        msg: &[u8],
+        encryption_random_oracle: &RandomOracle,
+        rng: &mut R,
+    ) -> SingleRecipientEncryption<G> {
+        let r = G::ScalarType::rand(rng);
+        let c = G::generator() * r;
+        let shared_secret = pk.0 * r;
+        let k = Self::enc_random_oracle(encryption_random_oracle).evaluate(&shared_secret);
+        let cipher = sym_cipher(&k);
+        // Since k is fresh per encryption, we can safely use a fixed nonce.
+        let enc = cipher.encrypt(&fixed_zero_nonce(), msg);
+
+        SingleRecipientEncryption { c, enc }
+    }
+
+    /// Assumption: Verify is called before decrypt and do not call it again here to avoid redundant
+    /// checks.
+    pub fn decrypt(&self, sk: &PrivateKey<G>, encryption_random_oracle: &RandomOracle) -> Vec<u8> {
+        let shared_secret = self.c * sk.0;
+        let k = Self::enc_random_oracle(encryption_random_oracle).evaluate(&shared_secret);
+        let cipher = sym_cipher(&k);
+        cipher
+            .decrypt(&fixed_zero_nonce(), &self.enc)
+            .expect("Decrypt should never fail for CTR mode")
+    }
+
+    pub fn ephemeral_key(&self) -> &G {
+        &self.c
+    }
+
+    fn enc_random_oracle(encryption_random_oracle: &RandomOracle) -> RandomOracle {
+        encryption_random_oracle.extend("enc")
+    }
+}
+
 /// Multi-recipient encryption with a proof-of-possession of the ephemeral key.
 /// (rG, r RO1(rG), {AES(k=RO2(rPK_i), m_i)}_i, DDH-NIZK(G, RO1(rG), rG, r RO1(rG)) )
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

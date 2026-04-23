@@ -21,6 +21,28 @@ mod point_tests {
 
     #[allow(clippy::multiple_bound_locations)]
     #[test]
+    fn test_single_rec<Group: GroupElement + Serialize + DeserializeOwned>()
+    where
+        Group::ScalarType: FiatShamirChallenge + Zeroize,
+        Group: HashToGroupElement,
+    {
+        let ro = RandomOracle::new("test");
+        let sk = PrivateKey::<Group>::new(&mut thread_rng());
+        let pk = PublicKey::<Group>::from_private_key(&sk);
+        let msg = b"test 12345678901234567890123456789012345678901234567890".to_vec();
+
+        let enc = SingleRecipientEncryption::encrypt(&pk, &msg, &ro, &mut thread_rng());
+
+        let decrypted = enc.decrypt(&sk, &ro);
+        assert_eq!(msg, decrypted);
+
+        // Wrong RO must not decrypt to the original message.
+        let decrypted_wrong = enc.decrypt(&sk, &ro.extend("bla"));
+        assert_ne!(msg, decrypted_wrong);
+    }
+
+    #[allow(clippy::multiple_bound_locations)]
+    #[test]
     fn test_multi_rec<Group: GroupElement + Serialize + DeserializeOwned>()
     where
         Group::ScalarType: FiatShamirChallenge + Zeroize,
