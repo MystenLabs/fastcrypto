@@ -115,6 +115,11 @@ name = "winternitz_ots"
 harness = false
 required-features = ["experimental"]
 
+[[bench]]
+name = "slh_dsa"
+harness = false
+required-features = ["experimental"]
+
 [features]
 default = []
 

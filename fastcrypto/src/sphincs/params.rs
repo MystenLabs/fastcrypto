@@ -5,14 +5,11 @@
 //!
 //! One canonical table shared by production (`SlhDsaParams::sha2_*` constructors)
 //! and tests (per-module `run_e2e` helpers).
-//!
-//! The `dead_code` allow covers consts/fields that are only read from tests or
-//! from PR 2's `slh_dsa.rs` — they look unused in a non-test build of this PR.
-
-#![allow(dead_code)]
 
 /// `name`, `m`, `sig_size` are redundant with the other fields — kept as
-/// cross-checks against the spec (FIPS 205 Table 1).
+/// cross-checks against the spec (FIPS 205 Table 1). They are only read from
+/// tests, hence the `dead_code` allow.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub(super) struct FipsParams {
     pub name: &'static str,
