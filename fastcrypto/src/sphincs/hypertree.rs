@@ -10,6 +10,10 @@
 use crate::sphincs::xmss::{xmss_node, xmss_pk_from_sig, xmss_sign, XmssParams, XmssSignature};
 use crate::sphincs::Adrs;
 
+// ------------------------------------------------------------------
+//                            Parameters
+// ------------------------------------------------------------------
+
 pub struct HypertreeParams {
     /// Number of layers of XMSS trees.
     pub d: u8,
@@ -43,12 +47,20 @@ impl HypertreeSignature {
     }
 }
 
+// ------------------------------------------------------------------
+//                             Helpers
+// ------------------------------------------------------------------
+
 /// Consume the low `h_prime` bits of `idx_tree` as the next layer's `idx_leaf`,
 /// and shift `idx_tree` down by `h_prime`.
 fn advance_indices(idx_tree: &mut u64, idx_leaf: &mut u32, h_prime: u8) {
     *idx_leaf = (*idx_tree & ((1u64 << h_prime) - 1)) as u32;
     *idx_tree >>= h_prime;
 }
+
+// ------------------------------------------------------------------
+//                          Public API
+// ------------------------------------------------------------------
 
 /// Top-tree root (layer d-1, tree 0). This is the SLH-DSA public key root.
 pub fn ht_pk_root(params: &HypertreeParams, sk_seed: &[u8], pk_seed: &[u8]) -> Vec<u8> {

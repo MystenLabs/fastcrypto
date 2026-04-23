@@ -11,13 +11,9 @@ use crate::sphincs::winternitz_ots::{
 };
 use crate::sphincs::{Adrs, AdrsType};
 
-/// Build a Tree ADRS for a node at `height` and `index` inside an XMSS tree.
-/// Sets `type = Tree` (which zeros kp, as Tree ADRS has no kp).
-fn xmss_tree_adrs(adrs: Adrs, height: impl Into<u32>, index: u32) -> Adrs {
-    adrs.with_type(AdrsType::Tree)
-        .with_tree_height(height)
-        .with_tree_index(index)
-}
+// ------------------------------------------------------------------
+//                            Parameters
+// ------------------------------------------------------------------
 
 pub struct XmssParams {
     /// Height of the XMSS tree (`h'`). An XMSS tree contains `2^h'` WOTS+
@@ -37,6 +33,18 @@ impl XmssSignature {
     pub fn size_in_bytes(&self) -> usize {
         self.wots.size_in_bytes() + self.auth.iter().map(|n| n.len()).sum::<usize>()
     }
+}
+
+// ------------------------------------------------------------------
+//                             Helpers
+// ------------------------------------------------------------------
+
+/// Build a Tree ADRS for a node at `height` and `index` inside an XMSS tree.
+/// Sets `type = Tree` (which zeros kp, as Tree ADRS has no kp).
+fn xmss_tree_adrs(adrs: Adrs, height: impl Into<u32>, index: u32) -> Adrs {
+    adrs.with_type(AdrsType::Tree)
+        .with_tree_height(height)
+        .with_tree_index(index)
 }
 
 /// Compute the XMSS subtree node at height `z` and index `i` (within that height).
@@ -62,6 +70,10 @@ pub fn xmss_node(
     let adrs_generator = |height, idx| xmss_tree_adrs(adrs, height, idx);
     merkle_node(&leaf_generator, &adrs_generator, i, u16::from(z), pk_seed)
 }
+
+// ------------------------------------------------------------------
+//                          Public API
+// ------------------------------------------------------------------
 
 pub fn xmss_sign(
     params: &XmssParams,

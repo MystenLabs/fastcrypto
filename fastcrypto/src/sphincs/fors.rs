@@ -13,11 +13,23 @@ use crate::sphincs::merkle::{build_auth_path, compute_root_from_path, merkle_nod
 use crate::sphincs::utils::{bits_to_base, bytes_to_bits};
 use crate::sphincs::{Adrs, AdrsType};
 
+// ------------------------------------------------------------------
+//                            Parameters
+// ------------------------------------------------------------------
+
 pub struct ForsParams {
     pub k: u16, // number of trees in the FORS forest
     pub a: u16, // height of each tree; also equivalent to #bits a single FORS tree can sign
     pub t: u32, // t = 2^a
     pub n: u16,
+}
+
+impl ForsParams {
+    pub fn new(k: u16, a: u16, n: u16) -> Self {
+        assert!(a < 32);
+        let t = 2u32.pow(a as u32);
+        ForsParams { k, a, t, n }
+    }
 }
 
 pub type ForsNode = Vec<u8>;
@@ -35,11 +47,15 @@ impl ForsTreeSignature {
     }
 }
 
-impl ForsParams {
-    pub fn new(k: u16, a: u16, n: u16) -> Self {
-        let t = 2u32.pow(a as u32);
-        ForsParams { k, a, t, n }
-    }
+// ------------------------------------------------------------------
+//                             Helpers
+// ------------------------------------------------------------------
+
+/// Build a FORS_TREE address at a given height/index. Assumes the caller's
+/// `adrs` is already a FORS_TREE address with `kp` set — true at every entry
+/// into this module (slh_dsa's `derive_fors_context` and the fors tests).
+fn fors_tree_adrs(adrs: Adrs, height: impl Into<u32>, index: u32) -> Adrs {
+    adrs.with_tree_height(height).with_tree_index(index)
 }
 
 fn fors_sk_gen(
@@ -58,13 +74,6 @@ fn fors_sk_gen(
             .with_tree_index(idx),
         sk_seed,
     )
-}
-
-/// Build a FORS_TREE address at a given height/index. Assumes the caller's
-/// `adrs` is already a FORS_TREE address with `kp` set — true at every entry
-/// into this module (slh_dsa's `derive_fors_context` and the fors tests).
-fn fors_tree_adrs(adrs: Adrs, height: impl Into<u32>, index: u32) -> Adrs {
-    adrs.with_tree_height(height).with_tree_index(index)
 }
 
 /// F(sk) — the FORS leaf at forest-global index `idx`. Used by both the signer
@@ -106,6 +115,20 @@ fn md_to_indices(params: &ForsParams, md: &[u8]) -> Vec<u32> {
     debug_assert_eq!(indices.len(), params.k as usize);
     indices
 }
+
+/// Compress the k FORS tree roots into the FORS public key (`T_k`).
+fn compress_roots(all_roots: &[u8], pk_seed: &[u8], adrs: Adrs) -> Vec<u8> {
+    tweakable_hash(
+        pk_seed,
+        adrs.with_type(AdrsType::ForsRoots)
+            .with_key_pair_address(adrs.get_key_pair_address()),
+        all_roots,
+    )
+}
+
+// ------------------------------------------------------------------
+//                           Public API
+// ------------------------------------------------------------------
 
 pub fn fors_sign(
     params: &ForsParams,
@@ -171,18 +194,12 @@ pub fn fors_pk_from_sig(
     compress_roots(&roots.concat(), pk_seed, adrs)
 }
 
-fn compress_roots(all_roots: &[u8], pk_seed: &[u8], adrs: Adrs) -> Vec<u8> {
-    tweakable_hash(
-        pk_seed,
-        adrs.with_type(AdrsType::ForsRoots)
-            .with_key_pair_address(adrs.get_key_pair_address()),
-        all_roots,
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sphincs::params::{
+        FipsParams, FIPS_128F, FIPS_128S, FIPS_192F, FIPS_192S, FIPS_256F, FIPS_256S,
+    };
 
     /// Compute the FORS public key from sk_seed by hashing the k tree roots — mirrors
     /// what a signer would publish, independent of fors_sign/fors_pk_from_sig.
@@ -192,10 +209,6 @@ mod tests {
             .collect();
         compress_roots(&roots, pk_seed, adrs)
     }
-
-    use crate::sphincs::params::{
-        FipsParams, FIPS_128F, FIPS_128S, FIPS_192F, FIPS_192S, FIPS_256F, FIPS_256S,
-    };
 
     /// End-to-end roundtrip: keygen → sign → verify, plus a tampered-md negative
     /// check and sig size formula `k · (1 + a) · n`.
