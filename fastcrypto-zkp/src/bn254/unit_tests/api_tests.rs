@@ -671,3 +671,8 @@ fn test_public_inputs_num() {
         assert_eq!(i, get_public_inputs_num(vk_bytes.len()).unwrap());
     }
 }
+
+#[test]
+fn test_public_inputs_invalid() {
+    assert!(get_public_inputs_num(0).is_err());
+}
