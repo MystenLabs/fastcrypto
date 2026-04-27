@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bn254::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
+use crate::bn254::api::{get_public_inputs_num, prepare_pvk_bytes, verify_groth16_in_bytes};
 use crate::bn254::verifier::PreparedVerifyingKey;
 use crate::bn254::VerifyingKey;
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
@@ -12,6 +12,7 @@ use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
 use ark_std::rand::thread_rng;
 use ark_std::UniformRand;
+use itertools::repeat_n;
 use std::ops::Mul;
 
 #[path = "./utils.rs"]
@@ -86,6 +87,7 @@ fn test_prepare_pvk_bytes() {
 
     let mut vk_bytes = vec![];
     vk.serialize_compressed(&mut vk_bytes).unwrap();
+    assert_eq!(1, get_public_inputs_num(vk_bytes.len()).unwrap());
 
     // Success case.
     assert!(prepare_pvk_bytes(vk_bytes.as_slice()).is_ok());
@@ -112,6 +114,10 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
         let circuit = Fibonacci::<Fr>::new(42, a, b);
         Groth16::<Bn254>::create_random_proof_with_reduction(circuit, &params, &mut rng).unwrap()
     };
+
+    let mut vk_bytes = vec![];
+    params.vk.serialize_compressed(&mut vk_bytes).unwrap();
+    assert_eq!(2, get_public_inputs_num(vk_bytes.len()).unwrap());
 
     let pvk = PreparedVerifyingKey::from(&params.vk);
 
@@ -563,6 +569,7 @@ fn fail_verify_groth16_invalid_elusiv_proof_in_bytes_api() {
 fn api_regression_tests() {
     // Prepare VK
     let vk_bytes = hex::decode("3c747dd28b1d21b2be3dae04a8c88152d2a5cec5efc800f7a4feea5f938e248298b4d9f57babfa38799f78172df2c303a754945bba9235b39be37826e4c15b273a0f051b814c50a489f6845bfe80521a1e99fbce0c6fda1ba521d4c29ea8d29e3cb543973711905d0cda7dee3c71e7b9460c34e9e7285e03d5fa519e2986a428754b79e5ddb20de39d9afb7b901b4a60c2366c20e658b476206a1710f99146914633127ccae0e459b3d2a8aa39db9a6d5aa91b5f7038bc2bbd7e9e713e6a9b2fb254de7356d1b449f95168ed30e5570715367c99b0e07fd8595517cdb042432b0200000000000000ada96147db3a3bef28beecff2d9bf2814bf07a62722e69486b6e2c3cd26844ac0779d941feabcdc6ae03c87f33fc46877f0261428e29bbf1087e8f858e1dfa88").unwrap();
+    assert_eq!(1, get_public_inputs_num(vk_bytes.len()).unwrap());
     let pvk_expected = vec![
         hex::decode("ada96147db3a3bef28beecff2d9bf2814bf07a62722e69486b6e2c3cd26844ac0779d941feabcdc6ae03c87f33fc46877f0261428e29bbf1087e8f858e1dfa88").unwrap(),
         hex::decode("4d6005b84ae8c96c5ecce7218b59b20a8a6b0ae7b0b4f3d3aa42407f161ddf140b4b211677e840d34950a4a780f91a434304870569e2ab9ee2fe4e3b4b712e2a2e2977ee78da6db29c0c012a13442df99620b008e38a9ea65dbb19a00e10412fc8558f6687fc2f8420ba8546e86dd91779897998a4bbd6d38c3cfd1af46f4d28f5bf00faf918a2c1079b216d03036920a89427bf00d01d17da30adbb9710952785b2dbd6a5e4ae828a970a5862c1c04fc082cf2ff694cbeefb92317dfabc3b21f1e3f17e25aaecbeaabfcd76b72fc9ba6494330ce687ed522bb22468e289dd103212f554cefc72ca9f49717f8aeefe807b4c44260391db2088be32142061921adf9efc013ce13a83aaa856a39480356581c8d2369a8c2b80c418607ec5778804703da5bbff5faf2aab898edd35b694ec5cbd6c8924d5ee5dded531875bcd462636133f8dcb4b858f34c02da0a6a4a12283fbe6def67b54f29f515533da05860430048966aeaa077a536cdc20972c2243de0c15febedcd3241d32c50df205f82a").unwrap(),
@@ -646,4 +653,21 @@ fn api_regression_tests() {
         &proof_bytes
     )
     .unwrap());
+}
+
+#[test]
+fn test_public_inputs_num() {
+    for i in 0..100 {
+        let gamma_abc_g1 = repeat_n(ark_bn254::G1Affine::identity(), i + 1).collect::<Vec<_>>();
+        let vk = ark_groth16::VerifyingKey::<ark_bn254::Bn254> {
+            alpha_g1: ark_bn254::G1Affine::identity(),
+            beta_g2: ark_bn254::G2Affine::identity(),
+            gamma_g2: ark_bn254::G2Affine::identity(),
+            delta_g2: ark_bn254::G2Affine::identity(),
+            gamma_abc_g1,
+        };
+        let mut vk_bytes = vec![];
+        vk.serialize_compressed(&mut vk_bytes).unwrap();
+        assert_eq!(i, get_public_inputs_num(vk_bytes.len()).unwrap());
+    }
 }
