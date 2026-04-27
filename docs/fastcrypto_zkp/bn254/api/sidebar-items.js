@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["SCALAR_SIZE"],"fn":["prepare_pvk_bytes","verify_groth16","verify_groth16_in_bytes"]};
+window.SIDEBAR_ITEMS = {"constant":["SCALAR_SIZE"],"fn":["get_public_inputs_num","prepare_pvk_bytes","verify_groth16","verify_groth16_in_bytes"]};
