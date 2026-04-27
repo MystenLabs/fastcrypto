@@ -222,11 +222,14 @@
 <a href=#222 id=222 data-nosnippet>222</a>    <span class="comment">// The length of the fixed parts of a verifying key: alpha (G1), beta (G2), gamma (G2),
 <a href=#223 id=223 data-nosnippet>223</a>    // delta (G2) and the first element of gamma_abc (u64 length + G1).
 <a href=#224 id=224 data-nosnippet>224</a>    </span><span class="kw">let </span>prefix = <span class="number">2 </span>* g1_size + <span class="number">3 </span>* g2_size + size_of::&lt;u64&gt;();
-<a href=#225 id=225 data-nosnippet>225</a>    <span class="kw">let </span>per_public_input = vk_length_in_bytes - prefix;
-<a href=#226 id=226 data-nosnippet>226</a>    <span class="kw">if </span>vk_length_in_bytes &lt; prefix || !per_public_input.is_multiple_of(g1_size) {
-<a href=#227 id=227 data-nosnippet>227</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
-<a href=#228 id=228 data-nosnippet>228</a>    }
-<a href=#229 id=229 data-nosnippet>229</a>    <span class="comment">// gamma_abc.len() = #public_inputs + 1
-<a href=#230 id=230 data-nosnippet>230</a>    </span><span class="prelude-val">Ok</span>(per_public_input / g1_size)
-<a href=#231 id=231 data-nosnippet>231</a>}
+<a href=#225 id=225 data-nosnippet>225</a>    <span class="kw">if </span>vk_length_in_bytes &lt; prefix {
+<a href=#226 id=226 data-nosnippet>226</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+<a href=#227 id=227 data-nosnippet>227</a>    }
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">let </span>per_public_input = vk_length_in_bytes - prefix;
+<a href=#229 id=229 data-nosnippet>229</a>    <span class="kw">if </span>!per_public_input.is_multiple_of(g1_size) {
+<a href=#230 id=230 data-nosnippet>230</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+<a href=#231 id=231 data-nosnippet>231</a>    }
+<a href=#232 id=232 data-nosnippet>232</a>    <span class="comment">// gamma_abc.len() = #public_inputs + 1
+<a href=#233 id=233 data-nosnippet>233</a>    </span><span class="prelude-val">Ok</span>(per_public_input / g1_size)
+<a href=#234 id=234 data-nosnippet>234</a>}
 </code></pre></div></section></main></body></html>
