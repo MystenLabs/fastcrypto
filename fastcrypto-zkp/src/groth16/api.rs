@@ -222,8 +222,11 @@ pub(crate) fn get_public_inputs_num(
     // The length of the fixed parts of a verifying key: alpha (G1), beta (G2), gamma (G2),
     // delta (G2) and the first element of gamma_abc (u64 length + G1).
     let prefix = 2 * g1_size + 3 * g2_size + size_of::<u64>();
+    if vk_length_in_bytes < prefix {
+        return Err(FastCryptoError::InvalidInput);
+    }
     let per_public_input = vk_length_in_bytes - prefix;
-    if vk_length_in_bytes < prefix || !per_public_input.is_multiple_of(g1_size) {
+    if !per_public_input.is_multiple_of(g1_size) {
         return Err(FastCryptoError::InvalidInput);
     }
     // gamma_abc.len() = #public_inputs + 1
