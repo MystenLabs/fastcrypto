@@ -396,5 +396,5 @@ fn test_public_inputs_num() {
 
 #[test]
 fn test_public_inputs_invalid() {
-    assert!(crate::bn254::api::get_public_inputs_num(0).is_err());
+    assert!(get_public_inputs_num(0).is_err());
 }
