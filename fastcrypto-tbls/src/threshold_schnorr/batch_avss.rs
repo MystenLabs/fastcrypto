@@ -9,7 +9,7 @@
 //! * The public keys along with the weights of each receiver are known to all parties and defined in the [Nodes] structure.
 //! * Define a new [Dealer] with the secrets who begins by calling [Dealer::create_message].
 
-use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
+use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, SingleRecipientEncryption};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{create_secret_sharing, Eval, Poly};
 use crate::random_oracle::RandomOracle;
@@ -27,6 +27,8 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::iter::repeat_with;
+use reed_solomon_erasure::galois_8::ReedSolomon;
+use fastcrypto::merkle;
 
 /// This represents a Dealer in the AVSS.
 /// There is exactly one dealer who creates the shares and broadcasts the encrypted shares.
@@ -53,11 +55,21 @@ pub struct Receiver {
 
 /// The message broadcast by the dealer.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Message {
+pub struct CommonMessage {
     full_public_keys: Vec<G>,
     blinding_commit: G,
-    ciphertext: MultiRecipientEncryption<EG>,
     response_polynomial: Poly<S>,
+}
+
+pub struct IndividualMessage {
+    /// One shard (with proof) per weight.
+    shards: Vec<ShardWithProof>,
+}
+
+pub struct ShardWithProof {
+    root: merkle::Node,
+    shard: Vec<u8>,
+    proof: merkle::MerkleProof,
 }
 
 /// The result of processing a message by a receiver: either valid shares or a complaint.
@@ -201,6 +213,12 @@ impl SharesForNode {
 
 impl BCSSerialized for SharesForNode {}
 
+impl ShardWithProof {
+    fn verify(&self, share_index: &ShareIndex) -> FastCryptoResult<()> {
+        self.proof.verify_proof(&self.root, &self.shard, (share_index.get() + 1) as usize)
+    }
+}
+
 impl Dealer {
     /// Create a new dealer.
     ///
@@ -235,7 +253,7 @@ impl Dealer {
     }
 
     /// 1. The Dealer generates shares for the secrets and broadcasts the encrypted shares.
-    pub fn create_message(&self, rng: &mut impl AllowedRng) -> FastCryptoResult<Message> {
+    pub fn create_message(&self, rng: &mut impl AllowedRng) -> FastCryptoResult<(CommonMessage, Vec<IndividualMessage>)> {
         let secrets = repeat_with(|| S::rand(rng))
             .take(self.batch_size)
             .collect_vec();
@@ -256,8 +274,9 @@ impl Dealer {
             .map(|&s| create_secret_sharing(rng, s, self.t, total_weight))
             .collect_vec();
 
-        // Encrypt all shares to the receivers
-        let pk_and_msgs = self
+        // Encrypt shares for each receiver
+        let ro = &self.random_oracle().extend(&Encryption.to_string());
+        let ciphertexts = self
             .nodes
             .iter()
             .map(|node| (node.pk.clone(), self.nodes.share_ids_of(node.id).unwrap()))
@@ -277,13 +296,14 @@ impl Dealer {
                     .to_bytes(),
                 )
             })
+            .map(|(pk, plaintext)| SingleRecipientEncryption::encrypt(&pk, &plaintext, ro, &mut rng))
             .collect_vec();
 
-        let ciphertext = MultiRecipientEncryption::encrypt(
-            &pk_and_msgs,
-            &self.random_oracle().extend(&Encryption.to_string()),
-            rng,
-        );
+        // TODO: Do we need f here to define the code?
+        let rs = ReedSolomon::new(self.t as usize, (self.nodes.total_weight() - self.t) as usize).map_err(|_| InvalidInput)?;
+        let (codes, trees) = self.nodes.share_ids_iter().map(|i| {
+            let shards = rs_encode_shards(ct, t, n - t, &rs)?;
+        });
 
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
         let challenge = compute_challenge(
@@ -306,12 +326,11 @@ impl Dealer {
                 .to_vec(),
         )?;
 
-        Ok(Message {
+        Ok(CommonMessage {
             full_public_keys,
             blinding_commit,
-            ciphertext,
             response_polynomial,
-        })
+        }, messages)
     }
 
     fn random_oracle(&self) -> RandomOracle {
@@ -531,10 +550,10 @@ fn compute_challenge(
     random_oracle: &RandomOracle,
     c: &[G],
     c_prime: &G,
-    e: &MultiRecipientEncryption<EG>,
+    roots: &[merkle::Node],
 ) -> Vec<S> {
     let random_oracle = random_oracle.extend(&Challenge.to_string());
-    let inner_hash = Sha3_512::digest(bcs::to_bytes(&(c.to_vec(), c_prime, e)).unwrap()).digest;
+    let inner_hash = Sha3_512::digest(bcs::to_bytes(&(c.to_vec(), c_prime, roots)).unwrap()).digest;
     (0..c.len())
         .map(|l| random_oracle.evaluate_to_group_element(&(l, inner_hash.to_vec())))
         .collect()
@@ -547,6 +566,29 @@ fn compute_challenge_from_message(random_oracle: &RandomOracle, message: &Messag
         &message.blinding_commit,
         &message.ciphertext,
     )
+}
+
+/// Reed-Solomon encode `data` into `data_shards + parity_shards` shards of equal size. The data is
+/// zero-padded to a multiple of `data_shards` bytes; callers that need to round-trip back to the
+/// exact original bytes should encode the length separately.
+fn rs_encode_shards(
+    data: &[u8],
+    data_shards: usize,
+    parity_shards: usize,
+    rs: &ReedSolomon,
+) -> FastCryptoResult<Vec<Vec<u8>>> {
+    let shard_size = data.len().div_ceil(data_shards).max(1);
+    let padded_len = shard_size * data_shards;
+    let mut padded = data.to_vec();
+    padded.resize(padded_len, 0);
+
+    let mut shards: Vec<Vec<u8>> = (0..data_shards)
+        .map(|i| padded[i * shard_size..(i + 1) * shard_size].to_vec())
+        .chain((0..parity_shards).map(|_| vec![0u8; shard_size]))
+        .collect();
+
+    rs.encode(&mut shards).map_err(|_| InvalidInput)?;
+    Ok(shards)
 }
 
 #[cfg(test)]
