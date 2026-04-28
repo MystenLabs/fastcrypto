@@ -32,6 +32,7 @@ bcs.workspace = true
 byte-slice-cast = "1.2.2"
 fastcrypto = { path = "../fastcrypto", version = "0.1.5" }
 derive_more = "0.99.16"
+merlin = "3.0.0"
 num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
 schemars = "0.8.10"
 serde = { version = "1.0.152", features = ["derive"] }
