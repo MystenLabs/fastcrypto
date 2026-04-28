@@ -2,13 +2,6 @@
 
 Hand-written Rust impl, gated behind `--features experimental`.
 
-## Status
-
-WOTS+ ✅ · ADRS ✅ · SHA2 tweakable hash ✅ · FORS ⏳ · XMSS ⏳ · Hypertree ⏳ · SLH-DSA ⏳
-
-Individual components are planned to be built in a generic way:
-- WOTS+ can be instantiated with any `n, lg_w` iff `8n % lg_w = 0` and `1 <= lg_w <= 8`
-
 ## Approved parameter sets (FIPS 205)
 
 Columns: `n` (hash bytes), `h` (total tree height), `d` (hypertree layers),
@@ -24,8 +17,6 @@ bytes), security category, pk / sig bytes.
 | SLH-DSA-{SHA2,SHAKE}-256s   | 32 | 64 | 8  | 8  | 14 | 22 | 4    | 47 | 5   | 64 | 29,792 |
 | SLH-DSA-{SHA2,SHAKE}-256f   | 32 | 68 | 17 | 4  | 9  | 35 | 4    | 49 | 5   | 64 | 49,856 |
 
-All fix `lg_w = 4`. WOTS+ collapses to 3 configs by `n`: {16, 24, 32}.
-
 ## Draft parameter sets (SP 800-230 IPD, Apr 2026)
 
 `2^24`-signature-limited sets. `d = 1` (single XMSS tree); `lg_w` varies.
@@ -36,14 +27,30 @@ All fix `lg_w = 4`. WOTS+ collapses to 3 configs by `n`: {16, 24, 32}.
 | SLH-DSA-{SHA2,SHAKE}-192-24 | 24 | 21 | 1 | 21 | 25 | 9  | 3    | 32 | 3   | 48 |  7,752 |
 | SLH-DSA-{SHA2,SHAKE}-256-24 | 32 | 21 | 1 | 21 | 25 | 12 | 2    | 41 | 5   | 64 | 14,944 |
 
-Adds new WOTS+ configs: `(n=16, lg_w=2)`, `(n=24, lg_w=3)`, `(n=32, lg_w=2)`.
-
 ## Run
 
 ```bash
 cargo test  -p fastcrypto --features experimental sphincs
 cargo bench -p fastcrypto --features experimental --bench winternitz_ots
 ```
+
+## Signature sizes
+
+```
+|sig| = (1 + k·(1 + a) + h + d·len) · n
+```
+
+Built up from the components:
+
+- **WOTS+**: `len = 8n/lg_w + ⌊log_w(8n/lg_w · (w−1))⌋ + 1`, where `w = 2^lg_w`
+  - `lg_w = 4` (FIPS 205): `len = 2n + 3`
+  - `lg_w = 3, n = 24`: `len = 68`
+  - `lg_w = 2, n = 16`: `len = 68`
+  - `lg_w = 2, n = 32`: `len = 133`
+- **XMSS**: `(len + h') · n` — `len` WOTS+ chain values + `h'` auth nodes
+- **HT** (`d` stacked XMSS trees): `d · (len + h') · n = (d·len + h) · n`
+- **FORS**: `k · (1 + a) · n` — `k` trees, each with 1 sk + `a` auth nodes
+- **SLH-DSA**: `R + FORS + HT = (1 + k·(1+a) + h + d·len) · n`
 
 ## References
 
