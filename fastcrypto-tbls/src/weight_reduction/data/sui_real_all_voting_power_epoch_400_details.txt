@@ -1,0 +1,107 @@
+Validator Name,Voting Power
+Figment,298
+Mysten-2,295
+P2P.ORG,293
+Mysten-1,277
+Triton One,258
+Blockdaemon,258
+Anchorage Digital-2,229
+Luganodes,209
+Chorus One,206
+Aftermath,179
+Cosmostation,178
+Everstake,176
+Overclock,169
+DSRV,169
+mrgn,160
+Kiln,152
+Blockscope.net,151
+Chainode Tech,151
+RepublicCrypto,150
+ContributionDAO,150
+Ahoy Validator,150
+BartestneT,147
+MoveFuns DAO,147
+Staketab,140
+n1stake,137
+Persimmon,137
+Durian,137
+BlockVision,131
+HashedPotatoes,125
+Coinbase Cloud,116
+Nodeinfra,116
+TrustedPoint,113
+P-OPS Team,109
+Dankuzone_w_DAIC,108
+TPT,108
+Artifact,108
+Bware Labs,106
+01node,105
+Laine,103
+Stakin,103
+Staking Defense League,102
+Galaxy Digital,102
+KingSuper,101
+ChainIDE,100
+KiligLab,99
+MIDL.dev,95
+Stardust Staking,93
+OKXEarn,91
+Chainflow,88
+ONBUFF,88
+ORBR,82
+StakingCabin,77
+Restake,77
+Staking Facilities,76
+Citadel.one,76
+Scale3Labs,75
+Ankr,62
+Shinlabs,56
+stakefish,55
+Allnodes,53
+Nelrann,50
+BiXinKelePool,49
+Cypher Capital,48
+ComingChat,46
+Cogent Crypto,46
+Brightlystake,46
+Staked,45
+Astro-Stakers,44
+Nodes.Guru,44
+B-Harvest,44
+Swiss Staking,44
+proofgroup,44
+Neuler,44
+[NODERS]TEAM x Criterion VC,44
+StakeWithUs,44
+Imperator.co,44
+SynergyNodes,44
+SyncNode,44
+Gaucho,41
+Peeranha,41
+Chainbase,40
+Anchorage Digital-1,38
+ZKValidator,37
+Suiet,37
+Studio Mirai,37
+InfStones,36
+Omnistake,35
+XPRV,35
+H2O Nodes,34
+A41,34
+Parasol,34
+BLRD,34
+Forbole,34
+Stakely,34
+QuantNode,34
+SpartanLabs,34
+NodeReal,34
+gumi,34
+SenseiNode,34
+Moonlet,34
+Juicy Stake,34
+Node Guardians,34
+TDMTech,34
+HashKey Cloud,34
+Latitude.sh,32
+BlockEden.xyz,31
