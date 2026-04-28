@@ -1,14 +1,23 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod fors;
+mod fors;
 pub mod hash;
-pub mod hypertree;
-pub mod merkle;
+mod hypertree;
+mod merkle;
 mod params;
+mod slh_dsa;
 mod utils;
 pub mod winternitz_ots;
-pub mod xmss;
+mod xmss;
+
+#[cfg(test)]
+mod kats;
+
+pub use slh_dsa::{
+    slh_keygen, slh_sign, slh_verify, SlhDsaParams, SlhDsaPublicKey, SlhDsaSecretKey,
+    SlhDsaSignature,
+};
 
 /// FIPS 205 Section 4.2 — ADRS (Address)
 ///

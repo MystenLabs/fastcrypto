@@ -13,6 +13,7 @@
 ///     replaces the whole family with a single XOF — no SHA-256/SHA-512 split,
 ///     no 64-n padding.
 use digest::Digest;
+use hkdf::hmac::{Hmac, Mac};
 use sha2::Sha256;
 
 use super::Adrs;
@@ -32,4 +33,44 @@ pub fn tweakable_hash(pk_seed: &[u8], adrs: Adrs, m: &[u8]) -> Vec<u8> {
     hasher.update(adrs_c);
     hasher.update(m);
     hasher.finalize()[..n].to_vec()
+}
+
+/// FIPS 205 §11.2.1 — PRF_msg for SHA2, n≤24.
+///   PRF_msg(sk_prf, opt_rand, M) = HMAC-SHA-256(sk_prf, opt_rand ‖ M)[0..n]
+pub fn prf_msg(sk_prf: &[u8], opt_rand: &[u8], msg: &[u8]) -> Vec<u8> {
+    let n = sk_prf.len();
+    let mut mac = <Hmac<Sha256>>::new_from_slice(sk_prf).expect("HMAC accepts any key length");
+    mac.update(opt_rand);
+    mac.update(msg);
+    mac.finalize().into_bytes()[..n].to_vec()
+}
+
+/// FIPS 205 §11.2.1 — H_msg for SHA2, n≤24.
+///   H_msg(R, pk_seed, pk_root, M) =
+///     MGF1-SHA-256(R ‖ pk_seed ‖ SHA-256(R ‖ pk_seed ‖ pk_root ‖ M), out_len)
+///
+/// MGF1 (RFC 8017 B.2.1): iterated SHA-256 with a 4-byte big-endian counter appended to the seed.
+pub fn h_msg(r: &[u8], pk_seed: &[u8], pk_root: &[u8], msg: &[u8], out_len: usize) -> Vec<u8> {
+    let inner = {
+        let mut h = Sha256::new();
+        h.update(r);
+        h.update(pk_seed);
+        h.update(pk_root);
+        h.update(msg);
+        h.finalize()
+    };
+
+    let mgf_seed: Vec<u8> = [r, pk_seed, inner.as_slice()].concat();
+
+    let mut out = Vec::with_capacity(out_len);
+    let mut counter: u32 = 0;
+    while out.len() < out_len {
+        let mut h = Sha256::new();
+        h.update(&mgf_seed);
+        h.update(counter.to_be_bytes());
+        out.extend_from_slice(&h.finalize());
+        counter += 1;
+    }
+    out.truncate(out_len);
+    out
 }
