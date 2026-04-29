@@ -323,7 +323,6 @@ where
         }
     }
 
-
     pub fn decrypt_with_recovery_package(
         &self,
         enc: &[u8],
