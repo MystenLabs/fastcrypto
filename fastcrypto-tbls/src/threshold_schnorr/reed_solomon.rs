@@ -10,6 +10,7 @@ use fastcrypto::error::FastCryptoError::{
 use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
 use reed_solomon_erasure::galois_8::ReedSolomon;
+use serde::{Deserialize, Serialize};
 
 /// Decoder for Reed-Solomon codes.
 /// This can correct up to (d-1)/2 errors, where d is the distance of the code.
@@ -129,6 +130,10 @@ impl RSDecoder {
 /// A wrapper struct for the Reed-Solomon erasure coding library.
 pub struct ErasureCoder(ReedSolomon);
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Shard(Vec<u8>);
+
 impl ErasureCoder {
     /// Create a new erasure encoder/decoder.
     ///
@@ -147,7 +152,7 @@ impl ErasureCoder {
             .map(Self)
     }
 
-    pub fn encode(&self, data: &[u8]) -> FastCryptoResult<Vec<Vec<u8>>> {
+    pub fn encode(&self, data: &[u8]) -> FastCryptoResult<Vec<Shard>> {
         // Define a shard size such that the data can be contained in `k` shards.
         let shard_size = data.len().div_ceil(self.0.data_shard_count());
         let mut data = data.to_vec();
@@ -157,10 +162,10 @@ impl ErasureCoder {
             .map(|c| c.to_vec())
             .collect_vec();
         self.0.encode(&mut shards).map_err(|_| InvalidInput)?;
-        Ok(shards)
+        Ok(shards.into_iter().map(Shard).collect_vec())
     }
 
-    pub fn decode(&self, shards: Vec<Option<Vec<u8>>>) -> FastCryptoResult<Vec<u8>> {
+    pub fn decode(&self, shards: Vec<Option<Shard>>) -> FastCryptoResult<Vec<u8>> {
         if shards.len() != self.0.total_shard_count() {
             return Err(InputTooShort(self.0.total_shard_count()));
         }
@@ -169,7 +174,7 @@ impl ErasureCoder {
             return Err(InvalidInput);
         }
 
-        let mut shards = shards;
+        let mut shards = shards.into_iter().map(|s| s.map(|s| s.0)).collect_vec();
         self.0.reconstruct(&mut shards).map_err(|_| InvalidInput)?;
         let shards = shards
             .into_iter()
@@ -254,7 +259,7 @@ mod tests {
             assert_eq!(shards.len(), n);
 
             // Remove up to `parity` shards (erasures) and reconstruct.
-            let mut opt_shards: Vec<Option<Vec<u8>>> = shards.into_iter().map(Some).collect();
+            let mut opt_shards: Vec<Option<Shard>> = shards.into_iter().map(Some).collect();
             for shard in opt_shards.iter_mut().take(n - k) {
                 *shard = None;
             }
@@ -277,7 +282,7 @@ mod tests {
         let shards = coder.encode(&data).unwrap();
 
         // Parity is `n - k` -- remove more shards than that.
-        let mut opt_shards: Vec<Option<Vec<u8>>> = shards.into_iter().map(Some).collect();
+        let mut opt_shards: Vec<Option<Shard>> = shards.into_iter().map(Some).collect();
         for shard in opt_shards.iter_mut().take(n - k + 1) {
             *shard = None;
         }
@@ -295,7 +300,7 @@ mod tests {
 
         // Corrupt one shard (without declaring it missing). Reconstruction will succeed,
         // but verification should fail.
-        shards[0][0] ^= 1;
+        shards[0].0[0] ^= 1;
         let opt_shards = shards.into_iter().map(Some).collect_vec();
 
         assert!(matches!(coder.decode(opt_shards), Err(TooManyErrors(_))));

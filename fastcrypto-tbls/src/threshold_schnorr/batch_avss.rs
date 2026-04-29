@@ -15,7 +15,7 @@ use crate::polynomial::{create_secret_sharing, Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
-use crate::threshold_schnorr::reed_solomon::ErasureCoder;
+use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption};
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::{get_uniform_value, ShareIndex};
@@ -30,6 +30,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::iter::repeat_with;
+use fastcrypto::merkle::MerkleTree;
 
 /// This represents a Dealer in the AVSS.
 /// There is exactly one dealer who creates the shares and broadcasts the encrypted shares.
@@ -295,18 +296,16 @@ impl Dealer {
         let (shared, ciphertexts) = ciphertext.clone().into_parts();
         let code = ErasureCoder::new(
             self.nodes.total_weight() as usize,
-            (self.nodes.total_weight() - 2 * self.f) as usize,
+            (self.nodes.total_weight() - 2 * self.f) as usize, // 2f parity shards
         )?;
-        let roots = ciphertexts
-            .iter()
-            .map(|part| {
-                let shards = code.encode(part)?;
-                let tree = fastcrypto::merkle::MerkleTree::<Blake2b256>::build_from_unserialized(
-                    shards.iter(),
-                )?;
-                Ok(tree.root())
-            })
-            .collect::<FastCryptoResult<Vec<_>>>()?;
+
+        let shards = ciphertexts.iter().map(|c| {
+            let shards = code.encode(c)?; // One shard per weight
+            self.nodes.collect_to_nodes(shards.into_iter()) // Grouped to nodes by weight
+        }).collect::<FastCryptoResult<Vec<_>>>()?;
+
+        let trees = shards.iter().map(MerkleTree::<Blake2b256>::build_from_unserialized).collect::<FastCryptoResult<Vec<_>>>()?;
+        let roots = trees.iter().map(MerkleTree::root).collect_vec();
 
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
         let challenge = compute_challenge(
