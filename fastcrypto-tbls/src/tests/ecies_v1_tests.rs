@@ -59,6 +59,13 @@ mod point_tests {
             assert_eq!(msg.as_bytes(), &decrypted);
         }
 
+        let (common, parts) = mr_enc.clone().into_parts();
+        assert!(common.verify(&ro).is_ok());
+        for (i, (part, (sk, _, msg))) in parts.iter().zip(keys_and_msg.iter()).enumerate() {
+            // Using parts should work as well
+            assert_eq!(msg.as_bytes(), part.decrypt(&common, sk, &ro, i));
+        }
+
         // test empty messages
         let mr_enc2 = MultiRecipientEncryption::encrypt(
             &keys_and_msg
