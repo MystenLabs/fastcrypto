@@ -15,6 +15,7 @@ use crate::polynomial::{create_secret_sharing, Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
+use crate::threshold_schnorr::reed_solomon::ErasureCoder;
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption};
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::{get_uniform_value, ShareIndex};
@@ -32,6 +33,7 @@ use std::iter::repeat_with;
 /// There is exactly one dealer who creates the shares and broadcasts the encrypted shares.
 #[allow(dead_code)]
 pub struct Dealer {
+    f: u16,
     t: u16,
     nodes: Nodes<EG>,
     sid: Vec<u8>,
@@ -217,6 +219,7 @@ impl Dealer {
     pub fn new(
         nodes: Nodes<EG>,
         dealer_id: PartyId,
+        f: u16,
         t: u16,
         sid: Vec<u8>,
         batch_size_per_weight: u16,
@@ -227,6 +230,7 @@ impl Dealer {
         // Each dealer deals a number of nonces proportional to their weight.
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
         Ok(Self {
+            f,
             t,
             nodes,
             sid,
@@ -285,7 +289,11 @@ impl Dealer {
             rng,
         );
 
-        //let (shared, parts) = ciphertext.into_parts();
+        // let (shared, parts) = ciphertext.into_parts();
+        // let code = ErasureCoder::new(self.nodes.total_weight() as usize, (self.nodes.total_weight() - 2 * self.f) as usize)?;
+        // let roots = parts.iter().map(|part| {
+        //     let shards = code.encode(&part.ciphertext)?;
+        // })
 
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
         let challenge = compute_challenge(
@@ -576,6 +584,7 @@ mod tests {
     fn test_happy_path() {
         // No complaints, all honest. All have weight 1
         let t = 3;
+        let f = 2;
         let n = 7;
         let batch_size_per_weight = 3;
 
@@ -600,6 +609,7 @@ mod tests {
         let dealer: Dealer = Dealer::new(
             nodes.clone(),
             dealer_id,
+            f,
             t,
             sid.clone(),
             batch_size_per_weight,
@@ -665,6 +675,7 @@ mod tests {
     fn test_happy_path_non_equal_weights() {
         // No complaints, all honest
         let t = 4;
+        let f = 3;
         let weights: Vec<u16> = vec![1, 2, 3, 4];
         let batch_size_per_weight = 3;
 
@@ -691,6 +702,7 @@ mod tests {
         let dealer: Dealer = Dealer::new(
             nodes.clone(),
             dealer_id,
+            f,
             t,
             sid.clone(),
             batch_size_per_weight,
@@ -744,6 +756,7 @@ mod tests {
     #[test]
     fn test_share_recovery() {
         let t = 3;
+        let f = 2;
         let n = 7;
         let batch_size_per_weight: u16 = 3;
 
@@ -769,6 +782,7 @@ mod tests {
         let dealer: Dealer = Dealer::new(
             nodes.clone(),
             dealer_id,
+            f,
             t,
             sid.clone(),
             batch_size_per_weight,
