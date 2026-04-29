@@ -64,8 +64,7 @@ pub struct Message {
     shared: SharedComponents<EG>,
     ciphertext: Vec<u8>,
     response_polynomial: Poly<S>,
-    roots: Vec<merkle::Node>,
-    avid_message: Vec<(Vec<Shard>, merkle::MerkleProof)>,
+    avid_message: Vec<(merkle::Node, Vec<Shard>, merkle::MerkleProof)>,
 }
 
 /// The result of processing a message by a receiver: either valid shares or a complaint.
@@ -313,6 +312,22 @@ impl Dealer {
             .iter()
             .map(MerkleTree::<Blake2b256>::build_from_unserialized)
             .collect::<FastCryptoResult<Vec<_>>>()?;
+
+        let messages = self
+            .nodes
+            .node_ids_iter()
+            .map(|id| {
+                shards
+                    .iter()
+                    .zip(&trees)
+                    .map(|(s, tree)| {
+                        let proof = tree.get_proof(id as usize)?;
+                        Ok((tree.root(), s[id as usize].clone(), proof))
+                    })
+                    .collect::<FastCryptoResult<Vec<_>>>()
+            })
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+
         let roots = trees.iter().map(MerkleTree::root).collect_vec();
 
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
@@ -337,21 +352,6 @@ impl Dealer {
                 .to_vec(),
         )?;
 
-        let messages = self
-            .nodes
-            .node_ids_iter()
-            .map(|id| {
-                shards
-                    .iter()
-                    .zip(&trees)
-                    .map(|(s, tree)| {
-                        let proof = tree.get_proof(id as usize)?;
-                        Ok((s[id as usize].clone(), proof))
-                    })
-                    .collect::<FastCryptoResult<Vec<_>>>()
-            })
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-
         Ok(ciphertexts
             .into_iter()
             .zip(messages)
@@ -359,7 +359,6 @@ impl Dealer {
                 full_public_keys: full_public_keys.clone(),
                 shared: shared.clone(),
                 response_polynomial: response_polynomial.clone(),
-                roots: roots.clone(),
                 blinding_commit,
                 ciphertext,
                 avid_message,
@@ -425,19 +424,15 @@ impl Receiver {
             blinding_commit,
             ciphertext,
             response_polynomial,
-            roots,
             shared,
             avid_message,
         } = message;
 
-        roots
-            .iter()
-            .zip(avid_message)
-            .for_each(|(root, (shards, proof))| {
-                assert!(proof
-                    .verify_proof_with_unserialized_leaf(root, &shards, self.id as usize)
-                    .is_ok())
-            });
+        avid_message.iter().for_each(|(root, shards, proof)| {
+            assert!(proof
+                .verify_proof_with_unserialized_leaf(root, &shards, self.id as usize)
+                .is_ok())
+        });
 
         if full_public_keys.len() != self.batch_size
             || response_polynomial.degree() != self.t as usize - 1
@@ -610,12 +605,17 @@ fn compute_challenge(
 }
 
 fn compute_challenge_from_message(random_oracle: &RandomOracle, message: &Message) -> Vec<S> {
+    let roots = message
+        .avid_message
+        .iter()
+        .map(|m| m.0.clone())
+        .collect_vec();
     compute_challenge(
         random_oracle,
         &message.full_public_keys,
         &message.blinding_commit,
         &message.shared,
-        &message.roots,
+        &roots,
     )
 }
 
