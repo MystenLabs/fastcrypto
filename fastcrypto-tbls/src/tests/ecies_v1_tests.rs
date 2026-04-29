@@ -63,7 +63,7 @@ mod point_tests {
         assert!(common.verify(&ro).is_ok());
         for (i, (part, (sk, _, msg))) in parts.iter().zip(keys_and_msg.iter()).enumerate() {
             // Using parts should work as well
-            assert_eq!(msg.as_bytes(), part.decrypt(&common, sk, &ro, i));
+            assert_eq!(msg.as_bytes(), common.decrypt(&part, sk, &ro, i));
         }
 
         // test empty messages
