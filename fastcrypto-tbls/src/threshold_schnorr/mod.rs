@@ -236,11 +236,11 @@ mod tests {
                 .collect::<Vec<_>>();
 
             // Each dealer creates a message
-            let message = dealer.create_message(&mut rng).unwrap();
+            let messages = dealer.create_message(&mut rng).unwrap();
 
             // Each receiver processes the message.
             // In this case, we assume all are honest and there are no complaints.
-            receivers.iter().for_each(|receiver| {
+            receivers.iter().zip(messages).for_each(|(receiver, message)| {
                 let output = assert_valid_batch(receiver.process_message(&message).unwrap());
                 presigning_outputs
                     .get_mut(&receiver.id)

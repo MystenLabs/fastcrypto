@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::ecies_v1;
-use crate::ecies_v1::RecoveryPackage;
+use crate::ecies_v1::{RecoveryPackage, SharedComponents};
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
@@ -27,12 +27,14 @@ impl Complaint {
     pub fn check<S: BCSSerialized>(
         &self,
         enc_pk: &ecies_v1::PublicKey<EG>,
-        ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
+        ciphertext: &[u8],
+        shared: &SharedComponents<EG>,
         random_oracle: &RandomOracle,
         verifier: impl Fn(&S) -> FastCryptoResult<()>,
     ) -> FastCryptoResult<()> {
         // Check that the recovery package is valid, and if not, return an error since the complaint is invalid.
-        let buffer = ciphertext.decrypt_with_recovery_package(
+        let buffer = shared.decrypt_with_recovery_package(
+            ciphertext,
             &self.proof,
             &random_oracle.extend(&Recovery(self.accuser_id).to_string()),
             &random_oracle.extend(&Encryption.to_string()),
@@ -65,7 +67,7 @@ impl Complaint {
 
     pub fn create(
         accuser_id: PartyId,
-        ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
+        ciphertext: &ecies_v1::SharedComponents<EG>,
         enc_sk: &ecies_v1::PrivateKey<EG>,
         random_oracle: &RandomOracle,
         rng: &mut impl AllowedRng,

@@ -286,7 +286,7 @@ impl Receiver {
             })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
-                &message.ciphertext,
+                &message.ciphertext.shared(),
                 &self.enc_secret_key,
                 &self.random_oracle(),
                 &mut rand::thread_rng(),
@@ -303,7 +303,8 @@ impl Receiver {
     ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
         complaint.check(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
-            &message.ciphertext,
+            &message.ciphertext.encs[complaint.accuser_id as usize],
+            &message.ciphertext.shared(),
             &self.random_oracle(),
             |shares: &SharesForNode| {
                 verify_shares(shares, &self.nodes, complaint.accuser_id, message)
