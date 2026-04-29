@@ -22,7 +22,7 @@ use crate::types::{get_uniform_value, ShareIndex};
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
-use fastcrypto::hash::{Blake2b256, HashFunction, Sha3_512};
+use fastcrypto::hash::{Blake2b256, Digest, HashFunction, Sha3_512};
 use fastcrypto::merkle;
 use fastcrypto::merkle::MerkleTree;
 use fastcrypto::traits::AllowedRng;
@@ -65,6 +65,15 @@ pub struct Message {
     ciphertext: Vec<u8>,
     response_polynomial: Poly<S>,
     avid_message: Vec<(merkle::Node, Vec<Shard>, merkle::MerkleProof)>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EchoMessage {
+    r: merkle::Node,
+    pi_i: merkle::MerkleProof,
+    r_i: merkle::Node,
+    s_ij: Vec<Shard>,
+    hash: Digest<32>,
 }
 
 /// The result of processing a message by a receiver: either valid shares or a complaint.
@@ -408,6 +417,28 @@ impl Receiver {
         })
     }
 
+    pub fn echo_message(&self, message: &Message) -> FastCryptoResult<Vec<EchoMessage>> {
+        if message.avid_message.iter().any(|(root, shards, proof)| {
+            proof
+                .verify_proof_with_unserialized_leaf(root, &shards, self.id as usize)
+                .is_err()
+        }) {
+            return Err(InvalidMessage);
+        }
+
+        let r = MerkleTree::<Blake2b256>::build_from_unserialized(message.avid_message.iter().map(|(root, _, _)| root))?.root();
+        let digest = compute_common_message_hash(message);
+        Ok(message.avid_message.iter().enumerate().map(|(i, (root, shards, proof))| {
+            EchoMessage {
+                r: r.clone(),
+                pi_i: proof.clone(),
+                r_i: root.clone(),
+                s_ij: shards.clone(),
+                hash: digest,
+            }
+        }).collect_vec())
+    }
+
     /// 2. Each receiver processes the message, verifies and decrypts its shares.
     ///
     /// If this works, the receiver can store the shares and contribute a signature on the message to a certificate.
@@ -418,21 +449,15 @@ impl Receiver {
     /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
     ///
     /// 3. When f+t signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
-    pub fn process_message(&self, message: &Message) -> FastCryptoResult<ProcessedMessage> {
+    pub fn process_message(&self, message: &Message, echo_message: &[EchoMessage]) -> FastCryptoResult<ProcessedMessage> {
         let Message {
             full_public_keys,
             blinding_commit,
             ciphertext,
             response_polynomial,
             shared,
-            avid_message,
+            avid_message: _,
         } = message;
-
-        avid_message.iter().for_each(|(root, shards, proof)| {
-            assert!(proof
-                .verify_proof_with_unserialized_leaf(root, &shards, self.id as usize)
-                .is_ok())
-        });
 
         if full_public_keys.len() != self.batch_size
             || response_polynomial.degree() != self.t as usize - 1
@@ -619,6 +644,20 @@ fn compute_challenge_from_message(random_oracle: &RandomOracle, message: &Messag
     )
 }
 
+fn compute_common_message_hash(message: &Message) -> Digest<32> {
+    let Message {
+        shared,
+        full_public_keys,
+        blinding_commit,
+        ciphertext,
+        response_polynomial,
+        avid_message: _,
+    } = message;
+    let mut hasher = Blake2b256::new();
+    hasher.update(bcs::to_bytes(&(shared, full_public_keys, blinding_commit, ciphertext, response_polynomial)).unwrap());
+    hasher.finalize()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -697,13 +736,20 @@ mod tests {
 
         let messages = dealer.create_message(&mut rng).unwrap();
 
+        let echo_messages = receivers
+            .iter()
+            .map(|receiver| receiver.echo_message(&messages[receiver.id as usize]))
+            .collect::<FastCryptoResult<Vec<_>>>()
+            .unwrap();
+
         let all_shares = receivers
             .iter()
             .zip(messages)
-            .map(|(receiver, message)| {
+            .zip(echo_messages)
+            .map(|((receiver, message), echo_message)| {
                 (
                     receiver.id,
-                    assert_valid(receiver.process_message(&message).unwrap()),
+                    assert_valid(receiver.process_message(&message, &echo_message).unwrap()),
                 )
             })
             .collect::<HashMap<_, _>>();
