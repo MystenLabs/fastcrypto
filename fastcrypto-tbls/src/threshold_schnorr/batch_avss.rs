@@ -24,13 +24,13 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::hash::{Blake2b256, HashFunction, Sha3_512};
 use fastcrypto::merkle;
+use fastcrypto::merkle::MerkleTree;
 use fastcrypto::traits::AllowedRng;
 use fastcrypto::twisted_elgamal::Ciphertext;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::iter::repeat_with;
-use fastcrypto::merkle::MerkleTree;
 
 /// This represents a Dealer in the AVSS.
 /// There is exactly one dealer who creates the shares and broadcasts the encrypted shares.
@@ -65,6 +65,7 @@ pub struct Message {
     ciphertext: Vec<u8>,
     response_polynomial: Poly<S>,
     roots: Vec<merkle::Node>,
+    avid_message: Vec<(Vec<Shard>, merkle::MerkleProof)>,
 }
 
 /// The result of processing a message by a receiver: either valid shares or a complaint.
@@ -300,12 +301,18 @@ impl Dealer {
             (self.nodes.total_weight() - 2 * self.f) as usize, // 2f parity shards
         )?;
 
-        let shards = ciphertexts.iter().map(|c| {
-            let shards = code.encode(c)?; // One shard per weight
-            self.nodes.collect_to_nodes(shards.into_iter()) // Grouped to nodes by weight
-        }).collect::<FastCryptoResult<Vec<_>>>()?;
+        let shards = ciphertexts
+            .iter()
+            .map(|c| {
+                let shards = code.encode(c)?; // One shard per weight
+                self.nodes.collect_to_nodes(shards.into_iter()) // Grouped to nodes by weight
+            })
+            .collect::<FastCryptoResult<Vec<_>>>()?;
 
-        let trees = shards.iter().map(MerkleTree::<Blake2b256>::build_from_unserialized).collect::<FastCryptoResult<Vec<_>>>()?;
+        let trees = shards
+            .iter()
+            .map(MerkleTree::<Blake2b256>::build_from_unserialized)
+            .collect::<FastCryptoResult<Vec<_>>>()?;
         let roots = trees.iter().map(MerkleTree::root).collect_vec();
 
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
@@ -330,14 +337,34 @@ impl Dealer {
                 .to_vec(),
         )?;
 
-        Ok(ciphertexts.into_iter().map(|ciphertext| Message {
-            full_public_keys: full_public_keys.clone(),
-            shared: shared.clone(),
-            response_polynomial: response_polynomial.clone(),
-            roots: roots.clone(),
-            blinding_commit,
-            ciphertext,
-        }).collect_vec())
+        let messages = self
+            .nodes
+            .node_ids_iter()
+            .map(|id| {
+                shards
+                    .iter()
+                    .zip(&trees)
+                    .map(|(s, tree)| {
+                        let proof = tree.get_proof(id as usize)?;
+                        Ok((s[id as usize].clone(), proof))
+                    })
+                    .collect::<FastCryptoResult<Vec<_>>>()
+            })
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+
+        Ok(ciphertexts
+            .into_iter()
+            .zip(messages)
+            .map(|(ciphertext, avid_message)| Message {
+                full_public_keys: full_public_keys.clone(),
+                shared: shared.clone(),
+                response_polynomial: response_polynomial.clone(),
+                roots: roots.clone(),
+                blinding_commit,
+                ciphertext,
+                avid_message,
+            })
+            .collect_vec())
     }
 
     fn random_oracle(&self) -> RandomOracle {
@@ -400,7 +427,17 @@ impl Receiver {
             response_polynomial,
             roots,
             shared,
+            avid_message,
         } = message;
+
+        roots
+            .iter()
+            .zip(avid_message)
+            .for_each(|(root, (shards, proof))| {
+                assert!(proof
+                    .verify_proof_with_unserialized_leaf(root, &shards, self.id as usize)
+                    .is_ok())
+            });
 
         if full_public_keys.len() != self.batch_size
             || response_polynomial.degree() != self.t as usize - 1
@@ -419,7 +456,8 @@ impl Receiver {
         }
 
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
-        shared.verify(&random_oracle_encryption)
+        shared
+            .verify(&random_oracle_encryption)
             .map_err(|_| InvalidMessage)?;
 
         // Decrypt my shares

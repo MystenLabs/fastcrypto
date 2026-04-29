@@ -240,13 +240,16 @@ mod tests {
 
             // Each receiver processes the message.
             // In this case, we assume all are honest and there are no complaints.
-            receivers.iter().zip(messages).for_each(|(receiver, message)| {
-                let output = assert_valid_batch(receiver.process_message(&message).unwrap());
-                presigning_outputs
-                    .get_mut(&receiver.id)
-                    .unwrap()
-                    .push(output);
-            });
+            receivers
+                .iter()
+                .zip(messages)
+                .for_each(|(receiver, message)| {
+                    let output = assert_valid_batch(receiver.process_message(&message).unwrap());
+                    presigning_outputs
+                        .get_mut(&receiver.id)
+                        .unwrap()
+                        .push(output);
+                });
         }
 
         // Each party can process their presigs locally from the secret shared nonces
