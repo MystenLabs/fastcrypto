@@ -7,6 +7,7 @@ use crate::types::{to_scalar, ShareIndex};
 use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, TooManyErrors};
 use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
+use reed_solomon_erasure::galois_8::ReedSolomon;
 
 /// Decoder for Reed-Solomon codes.
 /// This can correct up to (d-1)/2 errors, where d is the distance of the code.
@@ -123,6 +124,86 @@ impl RSDecoder {
     }
 }
 
+/// A wrapper struct for the Reed-Solomon erasure coding library.
+pub struct RSErasure(ReedSolomon);
+
+impl RSErasure {
+    /// Create a new Reed-Solomon erasure encoder/decoder.
+    ///
+    /// # Parameters
+    /// - `k`: Number of **data** shards (sometimes called the message length).
+    /// - `n`: Total number of shards, i.e. `k + (n-k)` where `n-k` are parity shards.
+    ///
+    /// # Errors
+    /// Returns [`FastCryptoError::InvalidInput`] if `k == 0`, `n <= k` or `n > 256`.
+    pub fn new(k: usize, n: usize) -> FastCryptoResult<Self> {
+        // `reed_solomon_erasure::galois_8` only supports up to 256 total shards.
+        if k == 0 || n <= k || n > 256 {
+            return Err(InvalidInput);
+        }
+        ReedSolomon::new(k, n - k)
+            .map_err(|_| InvalidInput)
+            .map(Self)
+    }
+
+    /// Encode data shards into a full set of `n` shards (data + parity).
+    ///
+    /// The input must contain exactly `k` data shards. This function will append `n-k`
+    /// parity shards and return the full vector.
+    ///
+    /// All shards must have the same length (as required by `reed_solomon_erasure`).
+    ///
+    /// Returns [`FastCryptoError::InvalidInput`] if encoding fails (for example if shard
+    /// sizes are inconsistent).
+    pub fn encode(&self, data: Vec<Vec<u8>>) -> FastCryptoResult<Vec<Vec<u8>>> {
+        if data.len() != self.0.data_shard_count() {
+            return Err(InputLengthWrong(self.0.data_shard_count()));
+        }
+
+        // `reed_solomon_erasure` requires all shards to have the same size, including parity.
+        let shard_len = data.first().map(|s| s.len()).unwrap_or(0);
+        if !data.iter().all(|s| s.len() == shard_len) {
+            return Err(InvalidInput);
+        }
+
+        let mut shards = data;
+        shards.resize(self.0.total_shard_count(), vec![0u8; shard_len]);
+        self.0.encode(&mut shards).map_err(|_| InvalidInput)?;
+        Ok(shards)
+    }
+
+    /// Reconstruct missing shards from a mix of present and absent shards.
+    ///
+    /// The input is a vector of length `n` where each entry is either `Some(shard)` if that
+    /// shard is available, or `None` if it is missing. If enough shards are present (at least
+    /// `k`), the missing shards will be reconstructed.
+    ///
+    /// The returned value contains all shards (data + parity) in index order.
+    ///
+    /// # Errors
+    /// - Returns [`FastCryptoError::InvalidInput`] if reconstruction fails (inconsistent shard sizes, wrong number of shards).
+    /// - Returns [`FastCryptoError::TooManyErrors`] if reconstruction succeeds, but the reconstructed set does not verify.
+    pub fn reconstruct(&self, shards: Vec<Option<Vec<u8>>>) -> FastCryptoResult<Vec<Vec<u8>>> {
+        let mut shards = shards;
+        self.0.reconstruct(&mut shards).map_err(|_| InvalidInput)?;
+
+        // `reconstruct` should have filled in every missing shard. If any are still absent,
+        // treat it as an invalid reconstruction.
+        let shards = shards
+            .into_iter()
+            .map(|s| s.ok_or(InvalidInput))
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+
+        // Ensure the reconstructed shards are consistent.
+        let verified = self.0.verify(&shards).map_err(|_| InvalidInput)?;
+        if !verified {
+            return Err(TooManyErrors(self.0.parity_shard_count()));
+        }
+
+        Ok(shards)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,5 +244,57 @@ mod tests {
             .decode(&received)
             .unwrap();
         assert_eq!(decoded_message, message);
+    }
+
+    #[test]
+    fn test_rs_erasure_encode_reconstruct_roundtrip() {
+        let k = 3;
+        let n = 5;
+        let rs = RSErasure::new(k, n).unwrap();
+
+        // All shards must have the same length.
+        let data = vec![b"hello".to_vec(), b"world".to_vec(), b"!!!!!".to_vec()];
+        let encoded = rs.encode(data.clone()).unwrap();
+        assert_eq!(encoded.len(), n);
+
+        // Drop up to `n-k` shards and reconstruct.
+        let mut shards: Vec<Option<Vec<u8>>> = encoded.into_iter().map(Some).collect();
+        shards[1] = None;
+        shards[4] = None;
+
+        let reconstructed = rs.reconstruct(shards).unwrap();
+        assert_eq!(reconstructed.len(), n);
+
+        // First `k` shards are the data shards.
+        assert_eq!(&reconstructed[..k], &data[..]);
+    }
+
+    #[test]
+    fn test_rs_erasure_reconstruct_too_few_shards() {
+        let k = 3;
+        let n = 5;
+        let rs = RSErasure::new(k, n).unwrap();
+
+        let data = vec![b"aaaaa".to_vec(), b"bbbbb".to_vec(), b"ccccc".to_vec()];
+        let encoded = rs.encode(data).unwrap();
+        let mut shards: Vec<Option<Vec<u8>>> = encoded.into_iter().map(Some).collect();
+
+        // Leave only 2 shards present (< k).
+        shards[0] = None;
+        shards[1] = None;
+        shards[2] = None;
+
+        assert!(matches!(rs.reconstruct(shards), Err(InvalidInput)));
+    }
+
+    #[test]
+    fn test_rs_erasure_new_invalid_params() {
+        // Invalid because n <= k.
+        assert!(matches!(RSErasure::new(3, 3), Err(InvalidInput)));
+        assert!(matches!(RSErasure::new(3, 2), Err(InvalidInput)));
+        // Invalid because k == 0.
+        assert!(matches!(RSErasure::new(0, 1), Err(InvalidInput)));
+        // Invalid because n > 256.
+        assert!(matches!(RSErasure::new(1, 257), Err(InvalidInput)));
     }
 }
