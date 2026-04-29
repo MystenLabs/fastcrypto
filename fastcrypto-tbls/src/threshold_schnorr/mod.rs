@@ -92,6 +92,7 @@ mod tests {
     use itertools::Itertools;
     use std::collections::HashMap;
     use std::hash::Hash;
+    use fastcrypto::error::FastCryptoResult;
 
     #[test]
     fn test_e2e() {
@@ -238,13 +239,20 @@ mod tests {
             // Each dealer creates a message
             let messages = dealer.create_message(&mut rng).unwrap();
 
+            let echo_messages = receivers
+                .iter()
+                .map(|receiver| receiver.echo_message(&messages[receiver.id as usize]))
+                .collect::<FastCryptoResult<Vec<_>>>()
+                .unwrap();
+
             // Each receiver processes the message.
             // In this case, we assume all are honest and there are no complaints.
             receivers
                 .iter()
                 .zip(messages)
-                .for_each(|(receiver, message)| {
-                    let output = assert_valid_batch(receiver.process_message(&message).unwrap());
+                .zip(&echo_messages)
+                .for_each(|((receiver, message), echo_message)| {
+                    let output = assert_valid_batch(receiver.process_message(&message, &echo_message).unwrap());
                     presigning_outputs
                         .get_mut(&receiver.id)
                         .unwrap()
