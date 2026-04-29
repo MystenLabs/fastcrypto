@@ -212,6 +212,7 @@ mod tests {
             let dealer: batch_avss::Dealer = batch_avss::Dealer::new(
                 nodes.clone(),
                 dealer_id,
+                f,
                 t,
                 sid.clone(),
                 batch_size_per_weight,
