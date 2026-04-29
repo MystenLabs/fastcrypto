@@ -286,6 +286,8 @@ impl Dealer {
             rng,
         );
 
+        //let (shared, parts) = ciphertext.into_parts();
+
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
         let challenge = compute_challenge(
             &self.random_oracle(),
