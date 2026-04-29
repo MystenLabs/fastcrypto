@@ -3,10 +3,13 @@
 #
 # Usage: ./extract.sh [PARAMETER_SET]
 #   PARAMETER_SET defaults to SLH-DSA-SHA2-128s — the only variant our code
-#   implements today. For sigGen/sigVer we pull only the "internal" group
-#   (preHash = "none", deterministic = true for sigGen), which is what
-#   slh_sign / slh_verify compute. pure + preHash variants would need the
-#   wrapper algorithms from FIPS 205 §10.
+#   implements today. We pull two ACVP categories:
+#     * preHash = "none"  → exercises slh_{sign,verify}_internal directly
+#                           (FIPS 205 Alg. 19/20).
+#     * preHash = "pure"  → exercises slh_{sign,verify} (FIPS 205 Alg. 22/24).
+#   For sigGen we keep both deterministic and non-deterministic groups.
+#   The preHash = "preHash" category needs HashSLH-DSA (FIPS 205 §10.4-§10.5),
+#   which we don't implement yet.
 #
 # Requires: curl, jq.
 
@@ -38,21 +41,31 @@ jq --arg p "$PARAM_SET" \
    '[.testGroups[] | select(.parameterSet == $p) | .tests[]]' \
    "$TMP/keygen.json" > "$OUT_DIR/${SLUG}_keygen.json"
 
-# sigGen: preHash=="none" and deterministic==true (matches slh_sign(sk, msg, None)).
-jq --arg p "$PARAM_SET" \
-   '[.testGroups[]
-     | select(.parameterSet == $p and .preHash == "none" and .deterministic == true)
-     | .tests[]
-     | {tcId, sk, pk, message, signature}]' \
-   "$TMP/siggen.json" > "$OUT_DIR/${SLUG}_siggen.json"
+# sigGen: emit one file per preHash mode we support. Each test inherits the
+# group's `deterministic` flag (so the consumer knows whether to pass
+# `additionalRandomness`) and, for "pure", the `context` field.
+for mode in none pure; do
+  jq --arg p "$PARAM_SET" --arg m "$mode" \
+     '[.testGroups[]
+       | select(.parameterSet == $p and .preHash == $m)
+       | . as $g
+       | .tests[]
+       | {tcId, deterministic: $g.deterministic, context, additionalRandomness,
+          sk, pk, message, signature}]' \
+     "$TMP/siggen.json" > "$OUT_DIR/${SLUG}_siggen_${mode}.json"
+done
 
-# sigVer: preHash=="none" (covers valid + all modified-sig / malformed negative cases).
-jq --arg p "$PARAM_SET" \
-   '[.testGroups[]
-     | select(.parameterSet == $p and .preHash == "none")
-     | .tests[]
-     | {tcId, testPassed, reason, pk, message, signature}]' \
-   "$TMP/sigver.json" > "$OUT_DIR/${SLUG}_sigver.json"
+# sigVer: same split. Includes valid + modified-sig / malformed negative cases.
+for mode in none pure; do
+  jq --arg p "$PARAM_SET" --arg m "$mode" \
+     '[.testGroups[]
+       | select(.parameterSet == $p and .preHash == $m)
+       | .tests[]
+       | {tcId, testPassed, reason, context, pk, message, signature}]' \
+     "$TMP/sigver.json" > "$OUT_DIR/${SLUG}_sigver_${mode}.json"
+done
 
 echo "Wrote:"
-wc -c "$OUT_DIR/${SLUG}_keygen.json" "$OUT_DIR/${SLUG}_siggen.json" "$OUT_DIR/${SLUG}_sigver.json"
+wc -c "$OUT_DIR/${SLUG}_keygen.json" \
+       "$OUT_DIR/${SLUG}_siggen_none.json" "$OUT_DIR/${SLUG}_siggen_pure.json" \
+       "$OUT_DIR/${SLUG}_sigver_none.json" "$OUT_DIR/${SLUG}_sigver_pure.json"

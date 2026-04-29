@@ -15,8 +15,8 @@ mod xmss;
 mod kats;
 
 pub use slh_dsa::{
-    slh_keygen, slh_sign, slh_verify, SlhDsaParams, SlhDsaPublicKey, SlhDsaSecretKey,
-    SlhDsaSignature,
+    slh_keygen, slh_sign, slh_sign_internal, slh_verify, slh_verify_internal, SlhDsaParams,
+    SlhDsaPublicKey, SlhDsaSecretKey, SlhDsaSignature,
 };
 
 /// FIPS 205 Section 4.2 — ADRS (Address)

@@ -27,11 +27,28 @@ bytes), security category, pk / sig bytes.
 | SLH-DSA-{SHA2,SHAKE}-192-24 | 24 | 21 | 1 | 21 | 25 | 9  | 3    | 32 | 3   | 48 |  7,752 |
 | SLH-DSA-{SHA2,SHAKE}-256-24 | 32 | 21 | 1 | 21 | 25 | 12 | 2    | 41 | 5   | 64 | 14,944 |
 
+## API
+
+Two pairs of top-level functions:
+
+- `slh_sign` / `slh_verify` — FIPS 205 §10 "pure" `SLH-DSA.{Sign,Verify}`
+  (Alg. 22 / 24). Takes a context string `ctx` (≤ 255 bytes; pass `b""` for
+  the common case). This is what callers should use.
+- `slh_sign_internal` / `slh_verify_internal` — FIPS 205 §9 internal
+  primitive (Alg. 19 / 20). Exposed only so ACVP-style KATs can target the
+  inner algorithm directly; not intended for production use.
+
+`HashSLH-DSA` (the §10 pre-hash wrapper) is not implemented yet.
+
 ## Run
 
 ```bash
 cargo test  -p fastcrypto --features experimental sphincs
 cargo bench -p fastcrypto --features experimental --bench winternitz_ots
+
+# NIST ACVP KATs (slow; ignored by default):
+cargo test -p fastcrypto --features experimental --release \
+    sphincs::kats -- --ignored --nocapture
 ```
 
 ## Signature sizes

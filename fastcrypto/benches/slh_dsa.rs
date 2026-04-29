@@ -23,21 +23,22 @@ fn seeds(n: usize) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
 
 fn slh_dsa_bench(c: &mut Criterion) {
     let msg = b"slh-dsa bench message".to_vec();
+    let ctx = b"";
 
     // ---- SHA2-128s: all three ops ----
     let params = SlhDsaParams::sha2_128s();
     let (sk_seed, sk_prf, pk_seed) = seeds(params.n);
     let (pk, sk) = slh_keygen(&params, &sk_seed, &sk_prf, &pk_seed);
-    let sig = slh_sign(&params, &sk, &msg, None);
+    let sig = slh_sign(&params, &sk, &msg, ctx, None).unwrap();
 
     c.bench_function("SLH-DSA/SHA2-128s/keygen", |b| {
         b.iter(|| slh_keygen(&params, &sk_seed, &sk_prf, &pk_seed))
     });
     c.bench_function("SLH-DSA/SHA2-128s/sign", |b| {
-        b.iter(|| slh_sign(&params, &sk, &msg, None))
+        b.iter(|| slh_sign(&params, &sk, &msg, ctx, None).unwrap())
     });
     c.bench_function("SLH-DSA/SHA2-128s/verify", |b| {
-        b.iter(|| slh_verify(&params, &pk, &msg, &sig))
+        b.iter(|| slh_verify(&params, &pk, &msg, &sig, ctx))
     });
 }
 

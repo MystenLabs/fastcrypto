@@ -3,7 +3,14 @@
 
 //! NIST ACVP-Server KATs for SLH-DSA-SHA2-128s.
 //!
-//! Fixtures under `kats/fixtures/` are extracted by `fixtures/extract.sh`.
+//! Fixtures under `kats/fixtures/` are extracted by `fixtures/extract.sh` and
+//! split by ACVP `preHash` mode:
+//!
+//!   * `*_none.json` exercises [`slh_sign_internal`] / [`slh_verify_internal`]
+//!     (FIPS 205 Alg. 19/20).
+//!   * `*_pure.json` exercises [`slh_sign`] / [`slh_verify`] (FIPS 205 Alg.
+//!     22/24), with the per-test `context` string.
+//!
 //! Each test is `#[ignore]`d by default (full keygen+sign runs for several
 //! minutes in debug mode). Run explicitly with:
 //!
@@ -11,8 +18,8 @@
 //!         sphincs::kats -- --ignored --nocapture
 
 use crate::sphincs::{
-    slh_keygen, slh_sign, slh_verify, SlhDsaParams, SlhDsaPublicKey, SlhDsaSecretKey,
-    SlhDsaSignature,
+    slh_keygen, slh_sign, slh_sign_internal, slh_verify, slh_verify_internal, SlhDsaParams,
+    SlhDsaPublicKey, SlhDsaSecretKey, SlhDsaSignature,
 };
 use serde::Deserialize;
 use std::path::PathBuf;
@@ -33,6 +40,10 @@ fn fixture(name: &str) -> String {
 
 fn hex(s: &str) -> Vec<u8> {
     hex::decode(s).expect("valid hex")
+}
+
+fn opt_hex(s: &Option<String>) -> Option<Vec<u8>> {
+    s.as_ref().map(|h| hex(h))
 }
 
 // ---------------- keyGen ----------------
@@ -77,12 +88,15 @@ fn kat_slh_dsa_sha2_128s_keygen() {
     println!("keygen: {} cases passed", cases.len());
 }
 
-// ---------------- sigGen (preHash=none, deterministic=true) ----------------
+// ---------------- sigGen (preHash=none, internal) ----------------
 
 #[derive(Deserialize)]
-struct SiggenCase {
+struct SiggenInternalCase {
     #[serde(rename = "tcId")]
     tc_id: u32,
+    deterministic: bool,
+    #[serde(rename = "additionalRandomness")]
+    additional_randomness: Option<String>,
     sk: String,
     pk: String,
     message: String,
@@ -91,38 +105,99 @@ struct SiggenCase {
 
 #[test]
 #[ignore]
-fn kat_slh_dsa_sha2_128s_siggen() {
+fn kat_slh_dsa_sha2_128s_siggen_internal() {
     let params = SlhDsaParams::sha2_128s();
-    let cases: Vec<SiggenCase> =
-        serde_json::from_str(&fixture("slh_dsa_sha2_128s_siggen.json")).unwrap();
+    let cases: Vec<SiggenInternalCase> =
+        serde_json::from_str(&fixture("slh_dsa_sha2_128s_siggen_none.json")).unwrap();
     assert!(!cases.is_empty());
 
     for c in &cases {
+        // ACVP invariant: deterministic groups omit `additionalRandomness`,
+        // randomized groups always supply it.
+        assert_eq!(
+            c.deterministic,
+            c.additional_randomness.is_none(),
+            "tcId={}: deterministic flag inconsistent with additionalRandomness presence",
+            c.tc_id
+        );
         let sk = SlhDsaSecretKey::from_bytes(&params, &hex(&c.sk)).unwrap();
         let pk = SlhDsaPublicKey::from_bytes(&params, &hex(&c.pk)).unwrap();
         let msg = hex(&c.message);
+        let addrnd = opt_hex(&c.additional_randomness);
 
-        let sig = slh_sign(&params, &sk, &msg, None);
+        let sig = slh_sign_internal(&params, &sk, &msg, addrnd.as_deref());
         assert_eq!(
             sig.to_bytes(),
             hex(&c.signature),
             "sig bytes mismatch, tcId={}",
             c.tc_id
         );
-        // Sanity: our own verify accepts the sig we produced.
         assert!(
-            slh_verify(&params, &pk, &msg, &sig),
+            slh_verify_internal(&params, &pk, &msg, &sig),
             "self-verify failed, tcId={}",
             c.tc_id
         );
     }
-    println!("siggen: {} cases passed", cases.len());
+    println!("siggen (internal): {} cases passed", cases.len());
 }
 
-// ---------------- sigVer (preHash=none) ----------------
+// ---------------- sigGen (preHash=pure, external) ----------------
 
 #[derive(Deserialize)]
-struct SigverCase {
+struct SiggenPureCase {
+    #[serde(rename = "tcId")]
+    tc_id: u32,
+    deterministic: bool,
+    context: String,
+    #[serde(rename = "additionalRandomness")]
+    additional_randomness: Option<String>,
+    sk: String,
+    pk: String,
+    message: String,
+    signature: String,
+}
+
+#[test]
+#[ignore]
+fn kat_slh_dsa_sha2_128s_siggen_pure() {
+    let params = SlhDsaParams::sha2_128s();
+    let cases: Vec<SiggenPureCase> =
+        serde_json::from_str(&fixture("slh_dsa_sha2_128s_siggen_pure.json")).unwrap();
+    assert!(!cases.is_empty());
+
+    for c in &cases {
+        assert_eq!(
+            c.deterministic,
+            c.additional_randomness.is_none(),
+            "tcId={}: deterministic flag inconsistent with additionalRandomness presence",
+            c.tc_id
+        );
+        let sk = SlhDsaSecretKey::from_bytes(&params, &hex(&c.sk)).unwrap();
+        let pk = SlhDsaPublicKey::from_bytes(&params, &hex(&c.pk)).unwrap();
+        let msg = hex(&c.message);
+        let ctx = hex(&c.context);
+        let addrnd = opt_hex(&c.additional_randomness);
+
+        let sig = slh_sign(&params, &sk, &msg, &ctx, addrnd.as_deref()).unwrap();
+        assert_eq!(
+            sig.to_bytes(),
+            hex(&c.signature),
+            "sig bytes mismatch, tcId={}",
+            c.tc_id
+        );
+        assert!(
+            slh_verify(&params, &pk, &msg, &sig, &ctx),
+            "self-verify failed, tcId={}",
+            c.tc_id
+        );
+    }
+    println!("siggen (pure): {} cases passed", cases.len());
+}
+
+// ---------------- sigVer (preHash=none, internal) ----------------
+
+#[derive(Deserialize)]
+struct SigverInternalCase {
     #[serde(rename = "tcId")]
     tc_id: u32,
     #[serde(rename = "testPassed")]
@@ -135,10 +210,10 @@ struct SigverCase {
 
 #[test]
 #[ignore]
-fn kat_slh_dsa_sha2_128s_sigver() {
+fn kat_slh_dsa_sha2_128s_sigver_internal() {
     let params = SlhDsaParams::sha2_128s();
-    let cases: Vec<SigverCase> =
-        serde_json::from_str(&fixture("slh_dsa_sha2_128s_sigver.json")).unwrap();
+    let cases: Vec<SigverInternalCase> =
+        serde_json::from_str(&fixture("slh_dsa_sha2_128s_sigver_none.json")).unwrap();
     assert!(!cases.is_empty());
 
     for c in &cases {
@@ -146,10 +221,9 @@ fn kat_slh_dsa_sha2_128s_sigver() {
         let msg = hex(&c.message);
         let sig_bytes = hex(&c.signature);
 
-        // Malformed-length sigs (too large / too small per ACVP reason) must be rejected
-        // at parse time; that maps to testPassed = false.
+        // Malformed-length sigs (per ACVP "reason") must be rejected at parse time.
         let got = match SlhDsaSignature::from_bytes(&params, &sig_bytes) {
-            Ok(sig) => slh_verify(&params, &pk, &msg, &sig),
+            Ok(sig) => slh_verify_internal(&params, &pk, &msg, &sig),
             Err(_) => false,
         };
         assert_eq!(
@@ -158,5 +232,47 @@ fn kat_slh_dsa_sha2_128s_sigver() {
             c.tc_id, c.reason
         );
     }
-    println!("sigver: {} cases passed", cases.len());
+    println!("sigver (internal): {} cases passed", cases.len());
+}
+
+// ---------------- sigVer (preHash=pure, external) ----------------
+
+#[derive(Deserialize)]
+struct SigverPureCase {
+    #[serde(rename = "tcId")]
+    tc_id: u32,
+    #[serde(rename = "testPassed")]
+    test_passed: bool,
+    reason: String,
+    context: String,
+    pk: String,
+    message: String,
+    signature: String,
+}
+
+#[test]
+#[ignore]
+fn kat_slh_dsa_sha2_128s_sigver_pure() {
+    let params = SlhDsaParams::sha2_128s();
+    let cases: Vec<SigverPureCase> =
+        serde_json::from_str(&fixture("slh_dsa_sha2_128s_sigver_pure.json")).unwrap();
+    assert!(!cases.is_empty());
+
+    for c in &cases {
+        let pk = SlhDsaPublicKey::from_bytes(&params, &hex(&c.pk)).unwrap();
+        let msg = hex(&c.message);
+        let ctx = hex(&c.context);
+        let sig_bytes = hex(&c.signature);
+
+        let got = match SlhDsaSignature::from_bytes(&params, &sig_bytes) {
+            Ok(sig) => slh_verify(&params, &pk, &msg, &sig, &ctx),
+            Err(_) => false,
+        };
+        assert_eq!(
+            got, c.test_passed,
+            "sigver mismatch, tcId={} reason=\"{}\"",
+            c.tc_id, c.reason
+        );
+    }
+    println!("sigver (pure): {} cases passed", cases.len());
 }

@@ -267,10 +267,13 @@ fn derive_fors_context(
     (md, idx_tree, idx_leaf, adrs)
 }
 
-/// FIPS 205 Alg. 19 — SLH-DSA signing (internal).
+/// FIPS 205 Alg. 19 — `slh_sign_internal`.
+///
+/// Signs `msg` directly with no message-preprocessing. End users should call
+/// [`slh_sign`] instead; this primitive is exposed for ACVP-style KATs.
 ///
 /// `addrnd`: optional randomizer; if `None` the deterministic variant uses `pk_seed`.
-pub fn slh_sign(
+pub fn slh_sign_internal(
     params: &SlhDsaParams,
     sk: &SlhDsaSecretKey,
     msg: &[u8],
@@ -301,8 +304,10 @@ pub fn slh_sign(
     }
 }
 
-/// FIPS 205 Alg. 20 — SLH-DSA verification.
-pub fn slh_verify(
+/// FIPS 205 Alg. 20 — `slh_verify_internal`.
+///
+/// Verifies `sig` over `msg` directly. End users should call [`slh_verify`] instead.
+pub fn slh_verify_internal(
     params: &SlhDsaParams,
     pk: &SlhDsaPublicKey,
     msg: &[u8],
@@ -322,6 +327,47 @@ pub fn slh_verify(
         idx_tree,
         idx_leaf,
     )
+}
+
+/// Build the §10 "pure" prefixed message: `0x00 ‖ len(ctx) ‖ ctx ‖ msg`.
+fn prefix_pure(ctx: &[u8], msg: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(2 + ctx.len() + msg.len());
+    out.push(0x00);
+    out.push(ctx.len() as u8);
+    out.extend_from_slice(ctx);
+    out.extend_from_slice(msg);
+    out
+}
+
+/// FIPS 205 Alg. 22 — `SLH-DSA.Sign` (pure).
+///
+/// `ctx` is an application-supplied context string (≤ 255 bytes). Use `b""` if
+/// no context is needed.
+pub fn slh_sign(
+    params: &SlhDsaParams,
+    sk: &SlhDsaSecretKey,
+    msg: &[u8],
+    ctx: &[u8],
+    addrnd: Option<&[u8]>,
+) -> FastCryptoResult<SlhDsaSignature> {
+    if ctx.len() > 255 {
+        return Err(FastCryptoError::InputTooLong(255));
+    }
+    Ok(slh_sign_internal(params, sk, &prefix_pure(ctx, msg), addrnd))
+}
+
+/// FIPS 205 Alg. 24 — `SLH-DSA.Verify` (pure).
+pub fn slh_verify(
+    params: &SlhDsaParams,
+    pk: &SlhDsaPublicKey,
+    msg: &[u8],
+    sig: &SlhDsaSignature,
+    ctx: &[u8],
+) -> bool {
+    if ctx.len() > 255 {
+        return false;
+    }
+    slh_verify_internal(params, pk, &prefix_pure(ctx, msg), sig)
 }
 
 // ---------------------------------------------------------------------------
@@ -401,18 +447,30 @@ mod tests {
         let expected_root = ht_pk_root(&params.hypertree, &sk_seed, &pk_seed);
         assert_eq!(pk.pk_root, expected_root, "pk_root mismatch");
 
-        let sig = slh_sign(&params, &sk, &msg, None);
+        let ctx = b"";
+        let sig = slh_sign(&params, &sk, &msg, ctx, None).unwrap();
         assert!(
-            slh_verify(&params, &pk, &msg, &sig),
+            slh_verify(&params, &pk, &msg, &sig, ctx),
             "valid sig must verify"
         );
 
         let mut bad_msg = msg.clone();
         bad_msg[0] ^= 1;
         assert!(
-            !slh_verify(&params, &pk, &bad_msg, &sig),
+            !slh_verify(&params, &pk, &bad_msg, &sig, ctx),
             "tampered msg must not verify"
         );
+
+        // Different ctx must not verify against a sig made with empty ctx.
+        assert!(
+            !slh_verify(&params, &pk, &msg, &sig, b"other"),
+            "ctx mismatch must not verify"
+        );
+
+        // ctx > 255 → sign returns error, verify returns false.
+        let big_ctx = vec![0u8; 256];
+        assert!(slh_sign(&params, &sk, &msg, &big_ctx, None).is_err());
+        assert!(!slh_verify(&params, &pk, &msg, &sig, &big_ctx));
 
         let mut bad_sig_r = sig.r.clone();
         bad_sig_r[0] ^= 1;
@@ -422,7 +480,7 @@ mod tests {
             ht_sig: sig.ht_sig,
         };
         assert!(
-            !slh_verify(&params, &pk, &msg, &bad_sig),
+            !slh_verify(&params, &pk, &msg, &bad_sig, ctx),
             "tampered R must not verify"
         );
     }
