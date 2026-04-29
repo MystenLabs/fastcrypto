@@ -9,8 +9,8 @@
 //! * The public keys along with the weights of each receiver are known to all parties and defined in the [Nodes] structure.
 //! * Define a new [Dealer] with the secrets who begins by calling [Dealer::create_message].
 
-use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
-use crate::nodes::{Nodes, PartyId};
+use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, SharedComponents};
+use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{create_secret_sharing, Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
@@ -22,8 +22,10 @@ use crate::types::{get_uniform_value, ShareIndex};
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
-use fastcrypto::hash::{HashFunction, Sha3_512};
+use fastcrypto::hash::{Blake2b256, HashFunction, Sha3_512};
+use fastcrypto::merkle;
 use fastcrypto::traits::AllowedRng;
+use fastcrypto::twisted_elgamal::Ciphertext;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -60,6 +62,7 @@ pub struct Message {
     blinding_commit: G,
     ciphertext: MultiRecipientEncryption<EG>,
     response_polynomial: Poly<S>,
+    roots: Vec<merkle::Node>,
 }
 
 /// The result of processing a message by a receiver: either valid shares or a complaint.
@@ -289,18 +292,29 @@ impl Dealer {
             rng,
         );
 
-        // let (shared, parts) = ciphertext.into_parts();
-        // let code = ErasureCoder::new(self.nodes.total_weight() as usize, (self.nodes.total_weight() - 2 * self.f) as usize)?;
-        // let roots = parts.iter().map(|part| {
-        //     let shards = code.encode(&part.ciphertext)?;
-        // })
+        let (shared, ciphertexts) = ciphertext.clone().into_parts();
+        let code = ErasureCoder::new(
+            self.nodes.total_weight() as usize,
+            (self.nodes.total_weight() - 2 * self.f) as usize,
+        )?;
+        let roots = ciphertexts
+            .iter()
+            .map(|part| {
+                let shards = code.encode(part)?;
+                let tree = fastcrypto::merkle::MerkleTree::<Blake2b256>::build_from_unserialized(
+                    shards.iter(),
+                )?;
+                Ok(tree.root())
+            })
+            .collect::<FastCryptoResult<Vec<_>>>()?;
 
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
         let challenge = compute_challenge(
             &self.random_oracle(),
             &full_public_keys,
             &blinding_commit,
-            &ciphertext,
+            &shared,
+            &roots,
         );
 
         // Get the first t evaluations for the response polynomial and use these to compute the coefficients
@@ -321,6 +335,7 @@ impl Dealer {
             blinding_commit,
             ciphertext,
             response_polynomial,
+            roots,
         })
     }
 
@@ -382,6 +397,7 @@ impl Receiver {
             blinding_commit,
             ciphertext,
             response_polynomial,
+            roots,
         } = message;
 
         if full_public_keys.len() != self.batch_size
@@ -541,21 +557,25 @@ fn compute_challenge(
     random_oracle: &RandomOracle,
     c: &[G],
     c_prime: &G,
-    e: &MultiRecipientEncryption<EG>,
+    shared: &SharedComponents<EG>,
+    roots: &[merkle::Node],
 ) -> Vec<S> {
     let random_oracle = random_oracle.extend(&Challenge.to_string());
-    let inner_hash = Sha3_512::digest(bcs::to_bytes(&(c.to_vec(), c_prime, e)).unwrap()).digest;
+    let inner_hash =
+        Sha3_512::digest(bcs::to_bytes(&(c.to_vec(), c_prime, shared, roots)).unwrap()).digest;
     (0..c.len())
         .map(|l| random_oracle.evaluate_to_group_element(&(l, inner_hash.to_vec())))
         .collect()
 }
 
 fn compute_challenge_from_message(random_oracle: &RandomOracle, message: &Message) -> Vec<S> {
+    let (shared, _) = message.ciphertext.clone().into_parts();
     compute_challenge(
         random_oracle,
         &message.full_public_keys,
         &message.blinding_commit,
-        &message.ciphertext,
+        &shared,
+        &message.roots,
     )
 }
 
@@ -570,11 +590,13 @@ mod tests {
     use crate::nodes::{Node, Nodes};
     use crate::polynomial::{Eval, Poly};
     use crate::threshold_schnorr::bcs::BCSSerialized;
+    use crate::threshold_schnorr::reed_solomon::ErasureCoder;
     use crate::threshold_schnorr::Extensions::Encryption;
     use crate::threshold_schnorr::{EG, G};
     use crate::types::ShareIndex;
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::GroupElement;
+    use fastcrypto::hash::Blake2b256;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use std::collections::HashMap;
@@ -906,12 +928,30 @@ mod tests {
                 rng,
             );
 
+            let (shared, ciphertexts) = ciphertext.clone().into_parts();
+            let code = ErasureCoder::new(
+                self.nodes.total_weight() as usize,
+                (self.nodes.total_weight() - 2 * self.f) as usize,
+            )?;
+            let roots = ciphertexts
+                .iter()
+                .map(|part| {
+                    let shards = code.encode(part)?;
+                    let tree =
+                        fastcrypto::merkle::MerkleTree::<Blake2b256>::build_from_unserialized(
+                            shards.iter(),
+                        )?;
+                    Ok(tree.root())
+                })
+                .collect::<FastCryptoResult<Vec<_>>>()?;
+
             // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
             let challenge = compute_challenge(
                 &self.random_oracle(),
                 &full_public_keys,
                 &blinding_commit,
-                &ciphertext,
+                &shared,
+                &roots,
             );
             let mut response_polynomial = blinding_poly;
             for (p_l, gamma_l) in polynomials.into_iter().zip_eq(&challenge) {
@@ -923,6 +963,7 @@ mod tests {
                 blinding_commit,
                 ciphertext,
                 response_polynomial,
+                roots,
             })
         }
     }

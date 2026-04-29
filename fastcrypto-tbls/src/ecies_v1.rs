@@ -208,22 +208,14 @@ where
         &self.proof
     }
 
-    pub fn into_parts(self) -> (SharedComponents<G>, Vec<EncryptedPart<G>>) {
+    pub fn into_parts(self) -> (SharedComponents<G>, Vec<Vec<u8>>) {
         let MultiRecipientEncryption {
             c,
             c_hat,
             encs,
             proof,
         } = self;
-        (
-            SharedComponents { c, c_hat, proof },
-            encs.into_iter()
-                .map(|enc| EncryptedPart {
-                    enc,
-                    g: PhantomData,
-                })
-                .collect(),
-        )
+        (SharedComponents { c, c_hat, proof }, encs)
     }
 
     fn encs_random_oracle(encryption_random_oracle: &RandomOracle) -> RandomOracle {
@@ -261,33 +253,27 @@ fn sym_cipher(k: &[u8; 64]) -> Aes256Ctr {
     )
 }
 
-impl<G: GroupElement + Serialize> EncryptedPart<G>
+impl<G: GroupElement + Serialize> SharedComponents<G>
 where
     <G as GroupElement>::ScalarType: FiatShamirChallenge + Zeroize,
     G: HashToGroupElement,
 {
     pub fn decrypt(
         &self,
-        common: &SharedComponents<G>,
+        enc: &[u8],
         sk: &PrivateKey<G>,
         encryption_random_oracle: &RandomOracle,
         receiver_index: usize,
     ) -> Vec<u8> {
         let enc_ro = MultiRecipientEncryption::<G>::encs_random_oracle(encryption_random_oracle);
-        let ephemeral_key = common.c * sk.0;
+        let ephemeral_key = self.c * sk.0;
         let k = enc_ro.evaluate(&(receiver_index, ephemeral_key));
         let cipher = sym_cipher(&k);
         cipher
-            .decrypt(&fixed_zero_nonce(), &self.enc)
+            .decrypt(&fixed_zero_nonce(), enc)
             .expect("Decrypt should never fail for CTR mode")
     }
-}
 
-impl<G: GroupElement + Serialize> SharedComponents<G>
-where
-    <G as GroupElement>::ScalarType: FiatShamirChallenge + Zeroize,
-    G: HashToGroupElement,
-{
     pub fn ephemeral_key(&self) -> &G {
         &self.c
     }
