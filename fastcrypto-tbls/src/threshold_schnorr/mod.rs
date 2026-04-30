@@ -86,13 +86,13 @@ mod tests {
     use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
     use crate::threshold_schnorr::{avss, batch_avss, EG, G, S};
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
+    use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use std::collections::HashMap;
     use std::hash::Hash;
-    use fastcrypto::error::FastCryptoResult;
 
     #[test]
     fn test_e2e() {
@@ -228,6 +228,7 @@ mod tests {
                         id as u16,
                         dealer_id,
                         t,
+                        f,
                         sid.clone(),
                         enc_secret_key.clone(),
                         batch_size_per_weight,
@@ -247,17 +248,17 @@ mod tests {
 
             // Each receiver processes the message.
             // In this case, we assume all are honest and there are no complaints.
-            receivers
-                .iter()
-                .zip(messages)
-                .zip(&echo_messages)
-                .for_each(|((receiver, message), echo_message)| {
-                    let output = assert_valid_batch(receiver.process_message(&message, &echo_message).unwrap());
+            receivers.iter().zip(messages).zip(&echo_messages).for_each(
+                |((receiver, message), echo_message)| {
+                    let output = assert_valid_batch(
+                        receiver.process_message(&message, &echo_message).unwrap(),
+                    );
                     presigning_outputs
                         .get_mut(&receiver.id)
                         .unwrap()
                         .push(output);
-                });
+                },
+            );
         }
 
         // Each party can process their presigs locally from the secret shared nonces
