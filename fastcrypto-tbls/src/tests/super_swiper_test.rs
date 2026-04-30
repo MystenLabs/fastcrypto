@@ -1,7 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// Epoch comparison tests for `Nodes::new_super_swiper_reduced` and `Nodes::new_reduced`.
+// Epoch comparison tests for `Nodes::new_super_swiper_reduced` (bilateral analysis,
+// `weights-bilateral.tex`), `Nodes::new_reduced`, `Nodes::new_reduced_with_f`, and
+// `Nodes::new_reduced_v2`.
 // Baseline: t=34%·W, L=75%·W, allowed_delta=8%·W. Alt: t=52%·W, L=80%·W, allowed_delta=8%·W.
 // Run: cargo test -p fastcrypto-tbls --lib super_swiper_test::tests -- --nocapture
 
@@ -125,6 +127,16 @@ mod tests {
         u16,
     ) -> FastCryptoResult<(Nodes<RistrettoPoint>, u16)>;
 
+    /// Reducers that take `(t, f)` natively and return `(reduced Nodes, t', f')`.
+    /// Used for `new_super_swiper_reduced` (bilateral) and `new_reduced_with_f` (shipping).
+    type ReduceWithFRistretto = fn(
+        Vec<Node<RistrettoPoint>>,
+        u16,
+        u16,
+        u16,
+        u16,
+    ) -> FastCryptoResult<(Nodes<RistrettoPoint>, u16, u16)>;
+
     /// Threshold `t`, liveness `L`, and reducer `allowed_delta` as fractions of total weight `W`.
     struct EpochChartParams {
         /// `t = floor((t_alpha * W).to_integer())` with `t_alpha = t_numer / t_denom`.
@@ -154,12 +166,24 @@ mod tests {
         }
     }
 
-    /// How `f_l` and scaled `f'_l` are derived from liveness `L`, threshold `t`, and precision loss.
+    /// How `f_l` and scaled `f'_l` are derived from liveness `L`, threshold `t`, and precision loss
+    /// for reducers (like `new_reduced`) that don't return `f'` natively.
     enum FFromLiveness {
-        /// `f_l = L - t - 3δ`, `f'_l = (f_l + δ) / d` (super swiper convention).
-        SuperSwiper,
         /// `f_l = L - t - δ`, `f'_l = f_l / d` (`new_reduced` convention).
         NewReduced,
+    }
+
+    /// Derive the bilateral-`f` from chart params for reducers that take `f` natively.
+    ///
+    /// Choose `f` so that the bilateral liveness statement `w(S) ≥ t + f + δ_allowed` is implied
+    /// by `w(S) ≥ L`, i.e. `f = L − t − allowed_delta`, capped by feasibility (`t > f`,
+    /// `t + 2f ≤ W`).
+    fn f_from_chart(w: u64, t: u16, liveness: u16, allowed_delta: u16) -> u16 {
+        let f_raw = u64::from(liveness)
+            .saturating_sub(u64::from(t))
+            .saturating_sub(u64::from(allowed_delta));
+        let f_capped = f_upper_bound(w, t).map(|cap| f_raw.min(cap)).unwrap_or(0);
+        u16::try_from(f_capped).unwrap_or(u16::MAX)
     }
 
     fn value_with_pct_of_w_prime(opt: Option<u16>, w_prime: Option<u16>) -> String {
@@ -226,9 +250,6 @@ mod tests {
 
                     let w = u64::from(original_total_weight);
                     let f_l = match f_from_liveness {
-                        FFromLiveness::SuperSwiper => {
-                            u64::from(liveness_weight).saturating_sub(u64::from(t) + 3 * delta_int)
-                        }
                         FFromLiveness::NewReduced => {
                             u64::from(liveness_weight).saturating_sub(u64::from(t) + delta_int)
                         }
@@ -236,7 +257,6 @@ mod tests {
                     let f_val = f_upper_bound(w, t).map(|cap| f_l.min(cap));
 
                     let f_prime_l = match f_from_liveness {
-                        FFromLiveness::SuperSwiper => (f_l + delta_int) / d_int,
                         FFromLiveness::NewReduced => f_l / d_int,
                     };
                     let f_prime_val = f_upper_bound(u64::from(w_p), new_t)
@@ -364,6 +384,459 @@ mod tests {
         }
 
         println!("✅ All epochs processed successfully ({})!", chart_title);
+    }
+
+    /// Like [`run_all_epochs_comparison_chart`], but for reducers that take `(t, f)` natively and
+    /// return `(reduced Nodes, t', f')`. Used by `new_super_swiper_reduced` (bilateral analysis,
+    /// `weights-bilateral.tex`) and `new_reduced_with_f` (shipping unilateral).
+    ///
+    /// `f` is derived from the chart's `(t, L, δ_allowed)` so that liveness in the bilateral
+    /// statement (`w(S) ≥ t + f + δ_allowed ⇒ w'(S) ≥ t' + f'`) is implied by `w(S) ≥ L`.
+    fn run_all_epochs_with_f_chart(
+        reducer: ReduceWithFRistretto,
+        chart_title: &str,
+        fail_label: &str,
+        params: &EpochChartParams,
+    ) {
+        let epochs = vec![100, 200, 400, 800, 974];
+        let mut results: Vec<EpochComparisonResult> = Vec::new();
+
+        println!(
+            "\n🔬 Testing weight reduction across multiple epochs ({})...\n  params: t = {}%·W, L = {}%·W, allowed_delta = {}%·W\n",
+            chart_title,
+            100.0 * (*params.t_alpha.numer() as f64) / (*params.t_alpha.denom() as f64),
+            params.liveness_pct * 100.0,
+            params.allowed_delta_pct * 100.0,
+        );
+
+        for epoch in epochs {
+            println!("📊 Processing epoch {}...", epoch);
+            let sui_weights = load_sui_validator_voting_power_for_epoch(epoch);
+            let scaled_weights = scale_weights_to_u16(&sui_weights);
+            let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
+            let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
+            let original_total_weight = original_nodes.total_weight();
+
+            let t = (params.t_alpha * original_total_weight as u64).to_integer() as u16;
+            let liveness_weight = (original_total_weight as f64 * params.liveness_pct) as u16;
+            let allowed_delta = (original_total_weight as f64 * params.allowed_delta_pct) as u16;
+            let f = f_from_chart(
+                u64::from(original_total_weight),
+                t,
+                liveness_weight,
+                allowed_delta,
+            );
+            let total_weight_lower_bound = 1u16;
+
+            let reduced_result = reducer(
+                nodes_vec.clone(),
+                t,
+                f,
+                allowed_delta,
+                total_weight_lower_bound,
+            );
+
+            let (w_prime, t_prime, f_prime, delta_str, d_str, f_orig) = match reduced_result {
+                Ok((reduced_nodes, new_t, new_f)) => {
+                    let w_p = reduced_nodes.total_weight();
+                    let original_weights: Vec<u64> =
+                        scaled_weights.iter().map(|&w| w as u64).collect();
+                    let reduced_weights: Vec<u64> =
+                        reduced_nodes.iter().map(|n| n.weight as u64).collect();
+                    let (precision_delta, d) =
+                        compute_precision_loss(&original_weights, &reduced_weights);
+                    let delta_val = Some(ratio_to_decimal(&precision_delta));
+                    let d_val = Some(ratio_to_decimal(&d));
+                    (
+                        Some(w_p),
+                        Some(new_t),
+                        Some(new_f),
+                        delta_val,
+                        d_val,
+                        Some(u64::from(f)),
+                    )
+                }
+                Err(_) => (
+                    None::<u16>,
+                    None::<u16>,
+                    None::<u16>,
+                    None::<String>,
+                    None::<String>,
+                    None::<u64>,
+                ),
+            };
+
+            let row: EpochComparisonResult = (
+                epoch,
+                Some(original_total_weight),
+                Some(t),
+                f_orig,
+                w_prime,
+                t_prime,
+                f_prime,
+                delta_str.clone(),
+                d_str.clone(),
+            );
+            results.push(row);
+
+            println!(
+                "  ✅ Epoch {}: W={}, t={}, f={}, W'={:?}, t'={:?}, f'={:?}, δ={:?}, d={:?}",
+                epoch, original_total_weight, t, f, w_prime, t_prime, f_prime, delta_str, d_str
+            );
+        }
+
+        let col_tpf = 20;
+        let separator = "=".repeat(120);
+        println!("\n{}", separator);
+        println!(
+            "📈 WEIGHT REDUCTION COMPARISON CHART — {} (t={}%·W, L={}%·W, δ_allow={}%·W)",
+            chart_title,
+            100.0 * (*params.t_alpha.numer() as f64) / (*params.t_alpha.denom() as f64),
+            params.liveness_pct * 100.0,
+            params.allowed_delta_pct * 100.0,
+        );
+        println!("{}", separator);
+        println!(
+            "{:<8} | {:<6} | {:<6} | {:<8} | {:<8} | {:<width$} | {:<width$} | {:<10} | {:<10}",
+            "Epoch",
+            "W",
+            "t",
+            "f",
+            "W'",
+            "t' (% W')",
+            "f' (% W')",
+            "delta",
+            "d",
+            width = col_tpf,
+        );
+        println!(
+            "{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}",
+            "-".repeat(8),
+            "-".repeat(6),
+            "-".repeat(6),
+            "-".repeat(8),
+            "-".repeat(8),
+            "-".repeat(col_tpf),
+            "-".repeat(col_tpf),
+            "-".repeat(10),
+            "-".repeat(10)
+        );
+        for (epoch, w, t_val, f_val, w_prime, t_prime, f_prime, delta, d) in &results {
+            let w_str = w
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let t_str = t_val
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let f_str = f_val
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let w_prime_str = w_prime
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            let t_prime_str = value_with_pct_of_w_prime(*t_prime, *w_prime);
+            let f_prime_str = value_with_pct_of_w_prime(*f_prime, *w_prime);
+            let delta_str = delta.clone().unwrap_or_else(|| "N/A".to_string());
+            let d_str = d.clone().unwrap_or_else(|| "N/A".to_string());
+            println!(
+                "{:<8} | {:<6} | {:<6} | {:<8} | {:<8} | {:<width$} | {:<width$} | {:<10} | {:<10}",
+                epoch,
+                w_str,
+                t_str,
+                f_str,
+                w_prime_str,
+                t_prime_str,
+                f_prime_str,
+                delta_str,
+                d_str,
+                width = col_tpf,
+            );
+        }
+        println!("{}", separator);
+        println!();
+
+        for (epoch, w, t_val, f_val, w_prime, t_prime, f_prime, delta, d) in &results {
+            assert!(
+                w.is_some() && t_val.is_some() && f_val.is_some(),
+                "Failed to calculate W, t, f for epoch {}",
+                epoch
+            );
+            assert!(
+                w_prime.is_some()
+                    && t_prime.is_some()
+                    && f_prime.is_some()
+                    && delta.is_some()
+                    && d.is_some(),
+                "{} failed for epoch {}",
+                fail_label,
+                epoch
+            );
+        }
+
+        println!("✅ All epochs processed successfully ({})!", chart_title);
+    }
+
+    /// Side-by-side: `new_super_swiper_reduced` (bilateral) and `new_reduced_with_f` (shipping
+    /// unilateral) on the same `(t, f, allowed_delta)` across all epochs.
+    fn run_all_epochs_super_swiper_vs_new_reduced_with_f(params: &EpochChartParams) {
+        let epochs = vec![100, 200, 400, 800, 974];
+
+        #[derive(Clone, Debug)]
+        struct AlgRow {
+            w_prime: Option<u16>,
+            t_prime: Option<u16>,
+            f_prime: Option<u16>,
+            delta: Option<String>,
+            d: Option<String>,
+        }
+
+        impl AlgRow {
+            fn empty() -> Self {
+                Self {
+                    w_prime: None,
+                    t_prime: None,
+                    f_prime: None,
+                    delta: None,
+                    d: None,
+                }
+            }
+        }
+
+        struct EpochRow {
+            epoch: u64,
+            w: u16,
+            t: u16,
+            f: u16,
+            allowed_delta: u16,
+            ss: AlgRow,
+            nrwf: AlgRow,
+        }
+
+        println!(
+            "\n🔬 super_swiper_reduced (bilateral) vs new_reduced_with_f across multiple epochs…\n  params: t = {}%·W, L = {}%·W, allowed_delta = {}%·W\n",
+            100.0 * (*params.t_alpha.numer() as f64) / (*params.t_alpha.denom() as f64),
+            params.liveness_pct * 100.0,
+            params.allowed_delta_pct * 100.0,
+        );
+
+        let run_one = |reduced: FastCryptoResult<(Nodes<RistrettoPoint>, u16, u16)>,
+                       scaled_weights: &[u16]|
+         -> AlgRow {
+            match reduced {
+                Ok((reduced_nodes, t_p, f_p)) => {
+                    let w_p = reduced_nodes.total_weight();
+                    let original_weights: Vec<u64> =
+                        scaled_weights.iter().map(|&w| w as u64).collect();
+                    let reduced_weights: Vec<u64> =
+                        reduced_nodes.iter().map(|n| n.weight as u64).collect();
+                    let (delta, d) = compute_precision_loss(&original_weights, &reduced_weights);
+                    AlgRow {
+                        w_prime: Some(w_p),
+                        t_prime: Some(t_p),
+                        f_prime: Some(f_p),
+                        delta: Some(ratio_to_decimal(&delta)),
+                        d: Some(ratio_to_decimal(&d)),
+                    }
+                }
+                Err(_) => AlgRow::empty(),
+            }
+        };
+
+        let mut rows: Vec<EpochRow> = Vec::new();
+        for epoch in &epochs {
+            println!("📊 Processing epoch {}...", epoch);
+            let sui_weights = load_sui_validator_voting_power_for_epoch(*epoch);
+            let scaled_weights = scale_weights_to_u16(&sui_weights);
+            let nodes_vec = create_test_nodes::<RistrettoPoint>(scaled_weights.clone());
+            let original_nodes = Nodes::new(nodes_vec.clone()).unwrap();
+            let w = original_nodes.total_weight();
+
+            let t = (params.t_alpha * w as u64).to_integer() as u16;
+            let liveness_weight = (w as f64 * params.liveness_pct) as u16;
+            let allowed_delta = (w as f64 * params.allowed_delta_pct) as u16;
+            let f = f_from_chart(u64::from(w), t, liveness_weight, allowed_delta);
+            let total_weight_lower_bound = 1u16;
+
+            let ss = run_one(
+                Nodes::new_super_swiper_reduced(
+                    nodes_vec.clone(),
+                    t,
+                    f,
+                    allowed_delta,
+                    total_weight_lower_bound,
+                ),
+                &scaled_weights,
+            );
+            let nrwf = run_one(
+                Nodes::new_reduced_with_f(nodes_vec, t, f, allowed_delta, total_weight_lower_bound),
+                &scaled_weights,
+            );
+
+            println!(
+                "  ✅ Epoch {}: W={}, t={}, f={}, allowed_delta={}",
+                epoch, w, t, f, allowed_delta
+            );
+            println!(
+                "       super_swiper:       W'={:?}, t'={:?}, f'={:?}, δ={:?}, d={:?}",
+                ss.w_prime, ss.t_prime, ss.f_prime, ss.delta, ss.d
+            );
+            println!(
+                "       new_reduced_with_f: W'={:?}, t'={:?}, f'={:?}, δ={:?}, d={:?}",
+                nrwf.w_prime, nrwf.t_prime, nrwf.f_prime, nrwf.delta, nrwf.d
+            );
+
+            rows.push(EpochRow {
+                epoch: *epoch,
+                w,
+                t,
+                f,
+                allowed_delta,
+                ss,
+                nrwf,
+            });
+        }
+
+        let col_w = 8;
+        let col_tpf = 12;
+        let col_dlt = 10;
+        let line_width = 8
+            + 3
+            + col_w
+            + 3
+            + col_w
+            + 3
+            + col_w
+            + 3
+            + col_w
+            + 3
+            + col_w
+            + 3
+            + col_tpf
+            + 3
+            + col_tpf
+            + 3
+            + col_dlt
+            + 3
+            + col_dlt
+            + 3
+            + col_w
+            + 3
+            + col_tpf
+            + 3
+            + col_tpf
+            + 3
+            + col_dlt
+            + 3
+            + col_dlt;
+        let sep = "=".repeat(line_width);
+        println!("\n{}", sep);
+        println!(
+            "📈 super_swiper_reduced (bilateral) vs new_reduced_with_f — t={}%·W, L={}%·W, δ_allow={}%·W",
+            100.0 * (*params.t_alpha.numer() as f64) / (*params.t_alpha.denom() as f64),
+            params.liveness_pct * 100.0,
+            params.allowed_delta_pct * 100.0,
+        );
+        println!("{}", sep);
+
+        // Header row 1: algorithm group labels.
+        println!(
+            "{:<8} | {:<width_w$} | {:<width_w$} | {:<width_w$} | {:<width_w$} | {label_super:<super_w$} | {label_nrwf:<nrwf_w$}",
+            "",
+            "",
+            "",
+            "",
+            "",
+            label_super = "── super_swiper (bilateral) ──",
+            label_nrwf = "── new_reduced_with_f ──",
+            width_w = col_w,
+            super_w = col_w + col_tpf + col_tpf + col_dlt + col_dlt + 4 * 3,
+            nrwf_w = col_w + col_tpf + col_tpf + col_dlt + col_dlt + 4 * 3,
+        );
+
+        // Header row 2: column labels.
+        println!(
+            "{:<8} | {:<width_w$} | {:<width_w$} | {:<width_w$} | {:<width_w$} | {:<width_w$} | {:<width_tpf$} | {:<width_tpf$} | {:<width_dlt$} | {:<width_dlt$} | {:<width_w$} | {:<width_tpf$} | {:<width_tpf$} | {:<width_dlt$} | {:<width_dlt$}",
+            "Epoch",
+            "W",
+            "t",
+            "f",
+            "δ_allow",
+            "W'",
+            "t' (% W')",
+            "f' (% W')",
+            "delta",
+            "d",
+            "W'",
+            "t' (% W')",
+            "f' (% W')",
+            "delta",
+            "d",
+            width_w = col_w,
+            width_tpf = col_tpf,
+            width_dlt = col_dlt,
+        );
+        println!(
+            "{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}-+-{}",
+            "-".repeat(8),
+            "-".repeat(col_w),
+            "-".repeat(col_w),
+            "-".repeat(col_w),
+            "-".repeat(col_w),
+            "-".repeat(col_w),
+            "-".repeat(col_tpf),
+            "-".repeat(col_tpf),
+            "-".repeat(col_dlt),
+            "-".repeat(col_dlt),
+            "-".repeat(col_w),
+            "-".repeat(col_tpf),
+            "-".repeat(col_tpf),
+            "-".repeat(col_dlt),
+            "-".repeat(col_dlt),
+        );
+
+        let na_or = |s: &Option<String>| s.clone().unwrap_or_else(|| "N/A".to_string());
+        let num_or = |x: Option<u16>| {
+            x.map(|v| v.to_string())
+                .unwrap_or_else(|| "N/A".to_string())
+        };
+        for r in &rows {
+            println!(
+                "{:<8} | {:<width_w$} | {:<width_w$} | {:<width_w$} | {:<width_w$} | {:<width_w$} | {:<width_tpf$} | {:<width_tpf$} | {:<width_dlt$} | {:<width_dlt$} | {:<width_w$} | {:<width_tpf$} | {:<width_tpf$} | {:<width_dlt$} | {:<width_dlt$}",
+                r.epoch,
+                r.w,
+                r.t,
+                r.f,
+                r.allowed_delta,
+                num_or(r.ss.w_prime),
+                value_with_pct_of_w_prime(r.ss.t_prime, r.ss.w_prime),
+                value_with_pct_of_w_prime(r.ss.f_prime, r.ss.w_prime),
+                na_or(&r.ss.delta),
+                na_or(&r.ss.d),
+                num_or(r.nrwf.w_prime),
+                value_with_pct_of_w_prime(r.nrwf.t_prime, r.nrwf.w_prime),
+                value_with_pct_of_w_prime(r.nrwf.f_prime, r.nrwf.w_prime),
+                na_or(&r.nrwf.delta),
+                na_or(&r.nrwf.d),
+                width_w = col_w,
+                width_tpf = col_tpf,
+                width_dlt = col_dlt,
+            );
+        }
+        println!("{}\n", sep);
+
+        for r in &rows {
+            assert!(
+                r.ss.w_prime.is_some() && r.ss.t_prime.is_some() && r.ss.f_prime.is_some(),
+                "new_super_swiper_reduced (bilateral) failed for epoch {}",
+                r.epoch
+            );
+            assert!(
+                r.nrwf.w_prime.is_some() && r.nrwf.t_prime.is_some() && r.nrwf.f_prime.is_some(),
+                "new_reduced_with_f failed for epoch {}",
+                r.epoch
+            );
+        }
+        println!("✅ All epochs: super_swiper_reduced vs new_reduced_with_f comparison complete.");
     }
 
     fn run_all_epochs_v2_chart(chart_title: &str, params: &EpochChartParams) {
@@ -584,14 +1057,17 @@ mod tests {
             .ok()
             .map(|(n, _)| n.total_weight());
 
+            // Bilateral super_swiper takes (t, f) natively; derive `f` from chart liveness.
+            let f = f_from_chart(u64::from(w), t, liveness_upper_bound, allowed_delta);
             let w_prime_super_swiper = Nodes::new_super_swiper_reduced(
                 nodes_vec.clone(),
                 t,
+                f,
                 allowed_delta,
                 total_weight_lower_bound,
             )
             .ok()
-            .map(|(n, _)| n.total_weight());
+            .map(|(n, _, _)| n.total_weight());
 
             let w_prime_new_reduced_v2 = Nodes::new_reduced_v2(
                 nodes_vec,
@@ -649,7 +1125,10 @@ mod tests {
             "-".repeat(col_w),
         );
         for r in &rows {
-            let fmt = |x: Option<u16>| x.map(|v| v.to_string()).unwrap_or_else(|| "N/A".to_string());
+            let fmt = |x: Option<u16>| {
+                x.map(|v| v.to_string())
+                    .unwrap_or_else(|| "N/A".to_string())
+            };
             println!(
                 "{:<8} | {:<width$} | {:<width$} | {:<width$} | {:<width$}",
                 r.epoch,
@@ -685,11 +1164,10 @@ mod tests {
     #[test]
     fn test_all_epochs_comparison() {
         let params = EpochChartParams::baseline_34_75_8();
-        run_all_epochs_comparison_chart(
+        run_all_epochs_with_f_chart(
             Nodes::new_super_swiper_reduced,
+            "new_super_swiper_reduced (bilateral)",
             "new_super_swiper_reduced",
-            "new_super_swiper_reduced",
-            FFromLiveness::SuperSwiper,
             &params,
         );
     }
@@ -709,11 +1187,10 @@ mod tests {
     #[test]
     fn test_all_epochs_comparison_super_swiper_t52_l80_delta8() {
         let params = EpochChartParams::t52_l80_delta8();
-        run_all_epochs_comparison_chart(
+        run_all_epochs_with_f_chart(
             Nodes::new_super_swiper_reduced,
+            "new_super_swiper_reduced (bilateral)",
             "new_super_swiper_reduced",
-            "new_super_swiper_reduced",
-            FFromLiveness::SuperSwiper,
             &params,
         );
     }
@@ -728,6 +1205,41 @@ mod tests {
             FFromLiveness::NewReduced,
             &params,
         );
+    }
+
+    #[test]
+    fn test_all_epochs_comparison_new_reduced_with_f() {
+        let params = EpochChartParams::baseline_34_75_8();
+        run_all_epochs_with_f_chart(
+            Nodes::new_reduced_with_f,
+            "new_reduced_with_f",
+            "new_reduced_with_f",
+            &params,
+        );
+    }
+
+    #[test]
+    fn test_all_epochs_comparison_new_reduced_with_f_t52_l80_delta8() {
+        let params = EpochChartParams::t52_l80_delta8();
+        run_all_epochs_with_f_chart(
+            Nodes::new_reduced_with_f,
+            "new_reduced_with_f",
+            "new_reduced_with_f",
+            &params,
+        );
+    }
+
+    /// Side-by-side: bilateral `new_super_swiper_reduced` vs shipping `new_reduced_with_f` on
+    /// the same `(t, f, allowed_delta)` across 5 epochs. Baseline params: t=34%, L=75%, δ_a=8%.
+    #[test]
+    fn test_all_epochs_super_swiper_vs_new_reduced_with_f() {
+        run_all_epochs_super_swiper_vs_new_reduced_with_f(&EpochChartParams::baseline_34_75_8());
+    }
+
+    /// Same side-by-side with the alternative chart params: t=52%, L=80%, δ_a=8%.
+    #[test]
+    fn test_all_epochs_super_swiper_vs_new_reduced_with_f_t52_l80_delta8() {
+        run_all_epochs_super_swiper_vs_new_reduced_with_f(&EpochChartParams::t52_l80_delta8());
     }
 
     #[test]

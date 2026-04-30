@@ -233,33 +233,53 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         ))
     }
 
-    /// Create a new set of nodes using the super_swiper algorithm for weight reduction.
+    /// Create a new set of nodes using the super_swiper algorithm under the **bilateral**
+    /// weight-reduction analysis (Appendix `weights-bilateral.tex`).
     ///
-    /// Algorithm:
-    /// 1. Outer loop: α from 0.10 to 0.90 in steps of 1/100. Inner loop: β from α + 0.01 to α + 0.20
-    ///    in steps of 1/100 (skip β ≥ 1). Pass each (α, β) to [`solve`](crate::weight_reduction::solve).
-    ///    Among pairs with 2·δ ≤ allowed_delta, W' ≥ total_weight_lower_bound, and β > α, keep the
-    ///    reduction with smallest W' (tie-break: smaller δ when W' is equal).
-    /// 2. Set t' = (t + δ)/d.
+    /// Stage 1 (search). Outer loop: α from 0.10 to 0.90 in steps of 1/100. Inner loop:
+    /// β from α + 0.01 to α + 0.20 in steps of 1/100 (skip β ≥ 1). Pass each (α, β) to
+    /// [`solve`](crate::weight_reduction::solve). Among candidates with W' ≥
+    /// `total_weight_lower_bound` that satisfy the bilateral feasibility criterion
+    ///
+    /// ```text
+    /// 3·δ + d  ≤  allowed_delta,
+    /// ```
+    ///
+    /// keep the reduction with smallest W' (tie-break: smaller δ when W' is equal).
+    /// Here `δ = Σ_i max(w_i − w'_i·d, 0)` and `d = W/W'` (exact ratios).
+    ///
+    /// Stage 2 (closed form). Given the original-space pair `(t, f)` (with `t > f` and
+    /// `t + 2f ≤ W`),
+    ///
+    /// ```text
+    /// t' = ⌈ (t + δ) / d ⌉,
+    /// f' = ⌊ (f + δ) / d ⌋.
+    /// ```
+    ///
+    /// Under these `(t', f')`, Theorem (Safety, Liveness, Byzantine removal) of the bilateral
+    /// analysis applies: a coalition with original weight ≥ `t + f + allowed_delta` clears the
+    /// reduced-space target `t' + f'`, while any Byzantine subset bounded by `f` in original
+    /// space contributes at most `f'` in the reduced space.
     ///
     /// # Parameters
-    /// - `nodes_vec`: Input nodes with weights
-    /// - `t`: Threshold
-    /// - `allowed_delta`: Used in the feasibility condition 2·δ ≤ allowed_delta
-    /// - `total_weight_lower_bound`: Minimum allowed total weight after reduction
+    /// - `nodes_vec`: Input nodes with original weights.
+    /// - `t`: Original-space safety threshold.
+    /// - `f`: Original-space Byzantine bound (`t > f`, `t + 2f ≤ W`).
+    /// - `allowed_delta`: Stage-1 budget bounding `3·δ + d`.
+    /// - `total_weight_lower_bound`: Minimum allowed reduced total weight `W'`.
     ///
     /// # Returns
-    /// A tuple of (reduced Nodes, new threshold t').
+    /// `(reduced Nodes, t', f')`, or `Err` if no Stage-1 candidate satisfies the criterion.
     pub fn new_super_swiper_reduced(
         nodes_vec: Vec<Node<G>>,
         t: u16,
+        f: u16,
         allowed_delta: u16,
         total_weight_lower_bound: u16,
-    ) -> FastCryptoResult<(Self, u16)> {
+    ) -> FastCryptoResult<(Self, u16, u16)> {
         let n = Self::new(nodes_vec)?;
         let original_total_weight = n.total_weight() as u64;
 
-        // Validate total_weight_lower_bound (similar to new_reduced)
         if total_weight_lower_bound > n.total_weight
             || total_weight_lower_bound == 0
             || original_total_weight == 0
@@ -267,7 +287,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        // Extract weights from nodes, sorted in descending order (required by super_swiper)
         let weights_sorted = n
             .nodes
             .iter()
@@ -276,10 +295,8 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             .rev()
             .collect_vec();
 
-        // Original weights for delta calculation (in original order)
         let original_weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
 
-        // Map from sorted index back to original index (computed once, used in loop)
         let indexed_weights: Vec<(usize, u16)> = n
             .nodes
             .iter()
@@ -289,11 +306,10 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             .rev()
             .collect_vec();
 
-        // Double loop: α ∈ [0.10, 0.90] step 1/100; β ∈ [α+0.01, α+0.20] step 1/100; β < 1.
+        // Stage 1: search (α, β) and keep the smallest W' (tie-break: smallest δ) satisfying 3δ + d ≤ allowed_delta.
         let allowed_delta_ratio = Ratio::from_integer(allowed_delta as u64);
-        let two = Ratio::from_integer(2u64);
+        let three = Ratio::from_integer(3u64);
         let one = Ratio::from_integer(1u64);
-        // Keep tuple field order (W', weights, δ, d) consistent everywhere to avoid mixing up δ and weights.
         let (new_total_weight, new_weights, delta, d) = {
             let mut best: Option<SuperSwiperBest> = None;
             for a_numer in 10u64..=90u64 {
@@ -318,7 +334,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                     let reduced_weights: Vec<u64> =
                         new_weights.iter().copied().map(u64::from).collect();
                     let (delta, d) = compute_precision_loss(&original_weights, &reduced_weights);
-                    if two * delta <= allowed_delta_ratio {
+                    if three * delta + d <= allowed_delta_ratio {
                         let take = match &best {
                             None => true,
                             Some((best_w, _, best_delta, _)) => {
@@ -335,11 +351,14 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             best.ok_or(FastCryptoError::InvalidInput)?
         };
 
-        // t' = (t + δ)/d
-        let t_prime = (Ratio::from_integer(t as u64) + delta) / d;
-        let t_prime_int = t_prime.to_integer();
+        // Stage 2: t' = ⌈(t + δ)/d⌉, f' = ⌊(f + δ)/d⌋.
+        let t_prime_int = ((Ratio::from_integer(t as u64) + delta) / d)
+            .ceil()
+            .to_integer();
+        let f_prime_int = ((Ratio::from_integer(f as u64) + delta) / d)
+            .floor()
+            .to_integer();
 
-        // Build and return the result
         let nodes = n
             .nodes
             .into_iter()
@@ -353,7 +372,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
         let accumulated_weights = Self::get_accumulated_weights(&nodes);
         let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
-        let new_t = t_prime_int as u16;
 
         Ok((
             Self {
@@ -362,7 +380,8 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                 accumulated_weights,
                 nodes_with_nonzero_weight,
             },
-            new_t,
+            t_prime_int as u16,
+            f_prime_int as u16,
         ))
     }
 
