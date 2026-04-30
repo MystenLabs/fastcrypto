@@ -3,13 +3,23 @@
 
 use crate::ecies_v1;
 use crate::types::ShareIndex;
+use crate::weight_reduction::solve;
+use crate::weight_reduction::weight_reduction_checks::compute_precision_loss;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
+use itertools::Itertools;
+use num_rational::Ratio;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
 pub type PartyId = u16;
+
+/// Best reduction candidate: per-party weights, reduced total weight W', precision loss δ, divisor d.
+type ReductionBest = (Vec<u16>, u64, Ratio<u64>, Ratio<u64>);
+
+/// Best super_swiper candidate: reduced total weight W', per-party weights, precision loss δ, divisor d.
+type SuperSwiperBest = (u64, Vec<u16>, Ratio<u64>, Ratio<u64>);
 
 /// Public parameters of a party.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -223,6 +233,158 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         ))
     }
 
+    /// Create a new set of nodes using the super_swiper algorithm under the **bilateral**
+    /// weight-reduction analysis (Appendix `weights-bilateral.tex`).
+    ///
+    /// Stage 1 (search). Outer loop: α from 0.10 to 0.90 in steps of 1/100. Inner loop:
+    /// β from α + 0.01 to α + 0.20 in steps of 1/100 (skip β ≥ 1). Pass each (α, β) to
+    /// [`solve`](crate::weight_reduction::solve). Among candidates with W' ≥
+    /// `total_weight_lower_bound` that satisfy the bilateral feasibility criterion
+    ///
+    /// ```text
+    /// 3·δ + d  ≤  allowed_delta,
+    /// ```
+    ///
+    /// keep the reduction with smallest W' (tie-break: smaller δ when W' is equal).
+    /// Here `δ = Σ_i max(w_i − w'_i·d, 0)` and `d = W/W'` (exact ratios).
+    ///
+    /// Stage 2 (closed form). Given the original-space pair `(t, f)` (with `t > f` and
+    /// `t + 2f ≤ W`),
+    ///
+    /// ```text
+    /// t' = ⌈ (t + δ) / d ⌉,
+    /// f' = ⌊ (f + δ) / d ⌋.
+    /// ```
+    ///
+    /// Under these `(t', f')`, Theorem (Safety, Liveness, Byzantine removal) of the bilateral
+    /// analysis applies: a coalition with original weight ≥ `t + f + allowed_delta` clears the
+    /// reduced-space target `t' + f'`, while any Byzantine subset bounded by `f` in original
+    /// space contributes at most `f'` in the reduced space.
+    ///
+    /// # Parameters
+    /// - `nodes_vec`: Input nodes with original weights.
+    /// - `t`: Original-space safety threshold.
+    /// - `f`: Original-space Byzantine bound (`t > f`, `t + 2f ≤ W`).
+    /// - `allowed_delta`: Stage-1 budget bounding `3·δ + d`.
+    /// - `total_weight_lower_bound`: Minimum allowed reduced total weight `W'`.
+    ///
+    /// # Returns
+    /// `(reduced Nodes, t', f')`, or `Err` if no Stage-1 candidate satisfies the criterion.
+    pub fn new_super_swiper_reduced(
+        nodes_vec: Vec<Node<G>>,
+        t: u16,
+        f: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
+    ) -> FastCryptoResult<(Self, u16, u16)> {
+        let n = Self::new(nodes_vec)?;
+        let original_total_weight = n.total_weight() as u64;
+
+        if total_weight_lower_bound > n.total_weight
+            || total_weight_lower_bound == 0
+            || original_total_weight == 0
+        {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        let weights_sorted = n
+            .nodes
+            .iter()
+            .map(|node| node.weight as u64)
+            .sorted()
+            .rev()
+            .collect_vec();
+
+        let original_weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
+
+        let indexed_weights: Vec<(usize, u16)> = n
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, node)| (i, node.weight))
+            .sorted_by_key(|(_, w)| *w)
+            .rev()
+            .collect_vec();
+
+        // Stage 1: search (α, β) and keep the smallest W' (tie-break: smallest δ) satisfying 3δ + d ≤ allowed_delta.
+        let allowed_delta_ratio = Ratio::from_integer(allowed_delta as u64);
+        let three = Ratio::from_integer(3u64);
+        let one = Ratio::from_integer(1u64);
+        let (new_total_weight, new_weights, delta, d) = {
+            let mut best: Option<SuperSwiperBest> = None;
+            for a_numer in 10u64..=90u64 {
+                let alpha = Ratio::new(a_numer, 100);
+                for b_extra_numer in 1u64..=20u64 {
+                    let beta = alpha + Ratio::new(b_extra_numer, 100);
+                    if beta >= one {
+                        continue;
+                    }
+                    let reduced_weights_sorted = solve(alpha, beta, &weights_sorted);
+                    let new_total_weight: u64 = reduced_weights_sorted.iter().sum();
+                    if new_total_weight < total_weight_lower_bound as u64 {
+                        continue;
+                    }
+                    let mut new_weights = vec![0u16; n.nodes.len()];
+                    for (idx_in_sorted, (original_idx, _)) in indexed_weights.iter().enumerate() {
+                        if idx_in_sorted < reduced_weights_sorted.len() {
+                            new_weights[*original_idx] =
+                                reduced_weights_sorted[idx_in_sorted] as u16;
+                        }
+                    }
+                    let reduced_weights: Vec<u64> =
+                        new_weights.iter().copied().map(u64::from).collect();
+                    let (delta, d) = compute_precision_loss(&original_weights, &reduced_weights);
+                    if three * delta + d <= allowed_delta_ratio {
+                        let take = match &best {
+                            None => true,
+                            Some((best_w, _, best_delta, _)) => {
+                                new_total_weight < *best_w
+                                    || (new_total_weight == *best_w && delta < *best_delta)
+                            }
+                        };
+                        if take {
+                            best = Some((new_total_weight, new_weights, delta, d));
+                        }
+                    }
+                }
+            }
+            best.ok_or(FastCryptoError::InvalidInput)?
+        };
+
+        // Stage 2: t' = ⌈(t + δ)/d⌉, f' = ⌊(f + δ)/d⌋.
+        let t_prime_int = ((Ratio::from_integer(t as u64) + delta) / d)
+            .ceil()
+            .to_integer();
+        let f_prime_int = ((Ratio::from_integer(f as u64) + delta) / d)
+            .floor()
+            .to_integer();
+
+        let nodes = n
+            .nodes
+            .into_iter()
+            .zip(new_weights)
+            .map(|(Node { id, pk, weight: _ }, new_weight)| Node {
+                id,
+                pk,
+                weight: new_weight,
+            })
+            .collect_vec();
+
+        let accumulated_weights = Self::get_accumulated_weights(&nodes);
+        let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
+
+        Ok((
+            Self {
+                nodes,
+                total_weight: new_total_weight as u16,
+                accumulated_weights,
+                nodes_with_nonzero_weight,
+            },
+            t_prime_int as u16,
+            f_prime_int as u16,
+        ))
+    }
+
     /// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
     /// Reduces weights up to an allowed delta in the original total weight.
     /// Finds the largest d such that:
@@ -255,8 +417,9 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             }
             // Compute the precision loss.
             // U16 is safe here since total_weight is u16.
-            let delta =
-                n.nodes.iter().map(|n| n.weight % d).sum::<u16>() + neg_mod(t, d) + neg_mod(f, d);
+            let delta = n.nodes.iter().map(|n| n.weight % d).sum::<u16>()
+                + Self::neg_mod(t, d)
+                + Self::neg_mod(f, d);
             if delta <= allowed_delta {
                 max_d = d;
             }
@@ -292,9 +455,122 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             new_f,
         ))
     }
-}
 
-/// Compute (-x) mod d = d * ceil(x/d) - x
-fn neg_mod(x: u16, d: u16) -> u16 {
-    (-(x as i32)).rem_euclid(d as i32) as u16
+    /// Weight reduction via floor division with exact precision loss (PROOF.md §Unilateral).
+    ///
+    /// Loops `div` from 100 down to 2, computing `w'_i = floor(w_i / div)` and exact
+    /// (δ, d) via [`compute_precision_loss`]. Keeps the solution with smallest W' whose
+    /// δ ≤ `allowed_delta`. Stops as soon as δ > `allowed_delta` (larger div ⇒ larger δ).
+    ///
+    /// Thresholds follow the unilateral formulas:
+    /// - `t' = t_min / d`
+    /// - `f' = (L - t_min - δ) / d`
+    ///
+    /// # Parameters
+    /// - `nodes_vec`: Input nodes with weights
+    /// - `t_min`: Safety threshold lower bound in original weight space
+    /// - `liveness_upper_bound`: `L` — upper bound in original space for `t' + f'`
+    /// - `allowed_delta`: Maximum acceptable precision loss δ
+    /// - `total_weight_lower_bound`: Minimum allowed total weight after reduction
+    ///
+    /// # Returns
+    /// `(reduced Nodes, t', f')` or error if no feasible reduction exists.
+    pub fn new_reduced_v2(
+        nodes_vec: Vec<Node<G>>,
+        t_min: u16,
+        liveness_upper_bound: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
+    ) -> FastCryptoResult<(Self, u16, u16)> {
+        let n = Self::new(nodes_vec)?;
+        if total_weight_lower_bound > n.total_weight
+            || total_weight_lower_bound == 0
+            || n.total_weight == 0
+        {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        let original_weights: Vec<u64> = n.nodes.iter().map(|node| node.weight as u64).collect();
+        let allowed_delta_ratio = Ratio::from_integer(allowed_delta as u64);
+
+        // Try a candidate divisor: w'_i = floor(w_i * scale / denom) where div = denom/scale.
+        // For coarse steps scale=1, denom=div. For fine steps scale=100, denom=div*100+k.
+        let try_div = |scale: u64, denom: u64| -> Option<ReductionBest> {
+            let new_weights: Vec<u16> = original_weights
+                .iter()
+                .map(|&w| (w * scale / denom) as u16)
+                .collect();
+            let new_total_weight: u64 = new_weights.iter().map(|&w| u64::from(w)).sum();
+            if new_total_weight < u64::from(total_weight_lower_bound) {
+                return None;
+            }
+            let reduced: Vec<u64> = new_weights.iter().copied().map(u64::from).collect();
+            let (delta, d) = compute_precision_loss(&original_weights, &reduced);
+            Some((new_weights, new_total_weight, delta, d))
+        };
+
+        let mut best: Option<ReductionBest> = None;
+        for div in 2..=100u64 {
+            if let Some((weights, w_prime, delta, d)) = try_div(1, div) {
+                if delta <= allowed_delta_ratio {
+                    best = Some((weights, w_prime, delta, d));
+                    continue;
+                }
+            }
+            // delta exceeded budget or W' too small — fine-scan the gap [div-1, div) in 0.01 steps.
+            // div = (div-1)*100 + k) / 100  for k = 1..99.
+            let base = (div - 1) * 100;
+            for k in 1..100u64 {
+                if let Some((weights, w_prime, delta, d)) = try_div(100, base + k) {
+                    if delta <= allowed_delta_ratio {
+                        best = Some((weights, w_prime, delta, d));
+                    } else {
+                        break;
+                    }
+                }
+            }
+            break;
+        }
+
+        let (new_weights, new_total_weight, delta, d) =
+            best.ok_or(FastCryptoError::InvalidInput)?;
+
+        // t' = t_min / d   (unilateral, PROOF.md)
+        let t_min_ratio = Ratio::from_integer(u64::from(t_min));
+        let new_t = (t_min_ratio / d).to_integer() as u16;
+
+        // f' = (L - t_min - δ) / d   (unilateral, PROOF.md)
+        let l_ratio = Ratio::from_integer(u64::from(liveness_upper_bound));
+        let new_f = ((l_ratio - t_min_ratio - delta) / d).to_integer() as u16;
+
+        let nodes = n
+            .nodes
+            .into_iter()
+            .zip(new_weights)
+            .map(|(Node { id, pk, weight: _ }, new_weight)| Node {
+                id,
+                pk,
+                weight: new_weight,
+            })
+            .collect::<Vec<_>>();
+
+        let accumulated_weights = Self::get_accumulated_weights(&nodes);
+        let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
+
+        Ok((
+            Self {
+                nodes,
+                total_weight: new_total_weight as u16,
+                accumulated_weights,
+                nodes_with_nonzero_weight,
+            },
+            new_t,
+            new_f,
+        ))
+    }
+
+    /// Compute (-x) mod d = d * ceil(x/d) - x
+    fn neg_mod(x: u16, d: u16) -> u16 {
+        (-(x as i32)).rem_euclid(d as i32) as u16
+    }
 }
