@@ -79,6 +79,14 @@ pub struct EchoMessage {
     pub pi_ij: merkle::MerkleProof,
 }
 
+pub enum Vote {
+    Vote {
+        digest: Digest<32>,
+        root: merkle::Node,
+    },
+    FaultyDealer,
+}
+
 /// The result of processing a message by a receiver: either valid shares or a complaint.
 #[allow(clippy::large_enum_variant)]
 pub enum ProcessedMessage {
@@ -97,7 +105,7 @@ pub struct ReceiverOutput {
 /// If we say that node <i>i</i> has a weight `W_i`, we have
 /// `indices().len() == shares_for_secret(i).len() == weight() = W_i`
 ///
-/// These can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
+/// These can be created either by decrypting the shares from the dealer (see [Receiver::process_echo_messages]) or by recovering them from complaint responses.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharesForNode {
     pub shares: Vec<ShareBatch>,
@@ -464,7 +472,7 @@ impl Receiver {
     /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
     ///
     /// 3. When f+t signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
-    pub fn process_message(
+    pub fn process_echo_messages(
         &self,
         message: &Message,
         echo_messages: &[EchoMessage],
@@ -478,39 +486,54 @@ impl Receiver {
             avid_message: _,
         } = message;
 
-        let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
-        shared
-            .verify(&random_oracle_encryption)
-            .map_err(|_| InvalidMessage)?;
+        if full_public_keys.len() != self.batch_size
+            || response_polynomial.degree() != self.t as usize - 1
+        {
+            return Err(InvalidMessage);
+        }
 
+        // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
+        let challenge = compute_challenge_from_message(&self.random_oracle(), message);
+        if G::generator() * response_polynomial.c0()
+            != blinding_commit
+                + G::multi_scalar_mul(&challenge, full_public_keys)
+                    .expect("Inputs have constant lengths")
+        {
+            return Err(InvalidMessage);
+        }
+
+        // Filter out invalid echo messages
+        let echo_messages = echo_messages
+            .iter()
+            .filter(|echo_message| {
+                // TODO: Check digest?
+                echo_message
+                    .pi_ij
+                    .verify_proof_with_unserialized_leaf(
+                        &echo_message.r_i,
+                        &echo_message.s_ij,
+                        echo_message.party as usize,
+                    )
+                    .is_ok()
+                    && echo_message
+                        .pi_i
+                        .verify_proof_with_unserialized_leaf(
+                            &echo_message.r,
+                            &echo_message.r_i,
+                            self.id as usize,
+                        )
+                        .is_ok()
+            })
+            .cloned()
+            .collect_vec();
+
+        let required_weight = self.nodes.total_weight() - self.f;
         if self
             .nodes
             .total_weight_of(echo_messages.iter().map(|echo_message| &echo_message.party))?
-            < self.nodes.total_weight() - 2 * self.f
+            < required_weight
         {
-            return Err(NotEnoughWeight(
-                (self.nodes.total_weight() - 2 * self.f) as usize,
-            ));
-        }
-        if echo_messages.iter().any(|echo_message| {
-            echo_message
-                .pi_ij
-                .verify_proof_with_unserialized_leaf(
-                    &echo_message.r_i,
-                    &echo_message.s_ij,
-                    echo_message.party as usize,
-                )
-                .is_err()
-                || echo_message
-                    .pi_i
-                    .verify_proof_with_unserialized_leaf(
-                        &echo_message.r,
-                        &echo_message.r_i,
-                        self.id as usize,
-                    )
-                    .is_err()
-        }) {
-            return Err(InvalidMessage);
+            return Err(NotEnoughWeight(required_weight as usize));
         }
 
         let shards: Vec<Option<Shard>> = self
@@ -538,34 +561,28 @@ impl Receiver {
             (self.nodes.total_weight() - 2 * self.f) as usize, // 2f parity shards
         )
         .expect("should not fail with valid parameters");
+
         let ciphertext = code.decode(shards)?;
-
-        if full_public_keys.len() != self.batch_size
-            || response_polynomial.degree() != self.t as usize - 1
-        {
-            let d = response_polynomial.degree();
-            return Err(InvalidMessage);
-        }
-
-        // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
-        let challenge = compute_challenge_from_message(&self.random_oracle(), message);
-        if G::generator() * response_polynomial.c0()
-            != blinding_commit
-                + G::multi_scalar_mul(&challenge, full_public_keys)
-                    .expect("Inputs have constant lengths")
-        {
-            warn!(
-                "batch_avss process_message: response polynomial does not match the blinding commitment and public keys"
-            );
-            return Err(InvalidMessage);
-        }
-
+        let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
+        shared
+            .verify(&random_oracle_encryption)
+            .map_err(|_| InvalidMessage)?;
         let plaintext = message.shared.decrypt(
             &ciphertext,
             &self.enc_secret_key,
             &self.random_oracle().extend(&Encryption.to_string()),
             self.id as usize,
         );
+
+        let new_shards = self
+            .nodes
+            .collect_to_nodes(code.encode(&ciphertext)?.into_iter())?;
+        let new_tree = MerkleTree::<Blake2b256>::build_from_unserialized(new_shards.iter())?;
+        let new_root = new_tree.root();
+
+        if new_root != message.avid_message[self.id as usize].0 {
+            return Err(InvalidMessage);
+        }
 
         match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
             // If there is an error in this scope, we create a complaint instead of returning an error
@@ -868,7 +885,11 @@ mod tests {
             .map(|((receiver, message), echo_message)| {
                 (
                     receiver.id,
-                    assert_valid(receiver.process_message(&message, &echo_message).unwrap()),
+                    assert_valid(
+                        receiver
+                            .process_echo_messages(&message, &echo_message)
+                            .unwrap(),
+                    ),
                 )
             })
             .collect::<HashMap<_, _>>();

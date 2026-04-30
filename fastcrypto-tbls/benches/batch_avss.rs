@@ -124,7 +124,7 @@ mod batch_avss_benches {
 
                 process.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.process_message(&message).unwrap()),
+                    |b| b.iter(|| r1.process_echo_messages(&message).unwrap()),
                 );
             }
         }
@@ -148,7 +148,7 @@ mod batch_avss_benches {
                         let message = d.create_message(&mut thread_rng()).unwrap();
                         let r =
                             setup_receiver(1, dealer_id as u16, t, w, &keys, batch_size_per_weight);
-                        assert_valid_batch(r.process_message(&message).unwrap())
+                        assert_valid_batch(r.process_echo_messages(&message).unwrap())
                     })
                     .collect_vec();
 

@@ -251,7 +251,9 @@ mod tests {
             receivers.iter().zip(messages).zip(&echo_messages).for_each(
                 |((receiver, message), echo_message)| {
                     let output = assert_valid_batch(
-                        receiver.process_message(&message, &echo_message).unwrap(),
+                        receiver
+                            .process_echo_messages(&message, &echo_message)
+                            .unwrap(),
                     );
                     presigning_outputs
                         .get_mut(&receiver.id)
