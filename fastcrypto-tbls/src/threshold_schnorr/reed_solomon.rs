@@ -264,6 +264,7 @@ mod tests {
                 *shard = None;
             }
 
+            let coder = ErasureCoder::new(n, k).unwrap();
             let recovered = coder.decode(opt_shards).unwrap();
             let shard_size = len.div_ceil(k);
             let expected_len = shard_size * k;
