@@ -63,7 +63,6 @@ pub struct Message {
     full_public_keys: Vec<G>,
     blinding_commit: G,
     shared: SharedComponents<EG>,
-    ciphertext: Vec<u8>,
     response_polynomial: Poly<S>,
     avid_message: Vec<(merkle::Node, Vec<Shard>, merkle::MerkleProof)>,
 }
@@ -372,15 +371,12 @@ impl Dealer {
                 .to_vec(),
         )?;
 
-        Ok(ciphertexts
-            .into_iter()
-            .zip(messages)
-            .map(|(ciphertext, avid_message)| Message {
+        Ok(messages.into_iter()
+            .map(|avid_message| Message {
                 full_public_keys: full_public_keys.clone(),
                 shared: shared.clone(),
                 response_polynomial: response_polynomial.clone(),
                 blinding_commit,
-                ciphertext,
                 avid_message,
             })
             .collect_vec())
@@ -480,7 +476,6 @@ impl Receiver {
         let Message {
             full_public_keys,
             blinding_commit,
-            ciphertext,
             response_polynomial,
             shared,
             avid_message: _,
@@ -563,6 +558,15 @@ impl Receiver {
         .expect("should not fail with valid parameters");
 
         let ciphertext = code.decode(shards)?;
+        let new_shards = self
+            .nodes
+            .collect_to_nodes(code.encode(&ciphertext)?.into_iter())?;
+        let new_tree = MerkleTree::<Blake2b256>::build_from_unserialized(new_shards.iter())?;
+        let new_root = new_tree.root();
+        if new_root != message.avid_message[self.id as usize].0 {
+            return Err(InvalidMessage);
+        }
+
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         shared
             .verify(&random_oracle_encryption)
@@ -573,17 +577,6 @@ impl Receiver {
             &self.random_oracle().extend(&Encryption.to_string()),
             self.id as usize,
         );
-
-        let new_shards = self
-            .nodes
-            .collect_to_nodes(code.encode(&ciphertext)?.into_iter())?;
-        let new_tree = MerkleTree::<Blake2b256>::build_from_unserialized(new_shards.iter())?;
-        let new_root = new_tree.root();
-
-        if new_root != message.avid_message[self.id as usize].0 {
-            return Err(InvalidMessage);
-        }
-
         match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
             // If there is an error in this scope, we create a complaint instead of returning an error
             verify_shares(
@@ -620,7 +613,7 @@ impl Receiver {
         let challenge = compute_challenge_from_message(&self.random_oracle(), message);
         complaint.check(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
-            &message.ciphertext,
+            &[],
             &message.shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
@@ -747,7 +740,6 @@ fn compute_common_message_hash(message: &Message) -> Digest<32> {
         shared,
         full_public_keys,
         blinding_commit,
-        ciphertext,
         response_polynomial,
         avid_message: _,
     } = message;
@@ -757,7 +749,6 @@ fn compute_common_message_hash(message: &Message) -> Digest<32> {
             shared,
             full_public_keys,
             blinding_commit,
-            ciphertext,
             response_polynomial,
         ))
         .unwrap(),
