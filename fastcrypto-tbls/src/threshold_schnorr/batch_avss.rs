@@ -384,20 +384,25 @@ impl Dealer {
                 .to_vec(),
         )?;
 
-        Ok(messages.into_iter()
+        Ok(messages
+            .into_iter()
             .map(|m| Message {
                 common: CommonMessage {
-                full_public_keys: full_public_keys.clone(),
-                shared: shared.clone(),
-                response_polynomial: response_polynomial.clone(),
-                blinding_commit,
-            },
-                avid: m.iter().map(|m| AvidMessage {
-                    root: m.0.clone(),
-                    shards: m.1.clone(),
-                    proof: m.2.clone(),
-                }).collect_vec()
-            }).collect_vec())
+                    full_public_keys: full_public_keys.clone(),
+                    shared: shared.clone(),
+                    response_polynomial: response_polynomial.clone(),
+                    blinding_commit,
+                },
+                avid: m
+                    .iter()
+                    .map(|m| AvidMessage {
+                        root: m.0.clone(),
+                        shards: m.1.clone(),
+                        proof: m.2.clone(),
+                    })
+                    .collect_vec(),
+            })
+            .collect_vec())
     }
 
     fn random_oracle(&self) -> RandomOracle {
@@ -445,16 +450,22 @@ impl Receiver {
     }
 
     pub fn echo_message(&self, message: &Message) -> FastCryptoResult<Vec<EchoMessage>> {
-        if message.avid.iter().any(|AvidMessage { root, shards, proof }| {
-            proof
-                .verify_proof_with_unserialized_leaf(root, &shards, self.id as usize)
-                .is_err()
-        }) {
+        if message.avid.iter().any(
+            |AvidMessage {
+                 root,
+                 shards,
+                 proof,
+             }| {
+                proof
+                    .verify_proof_with_unserialized_leaf(root, &shards, self.id as usize)
+                    .is_err()
+            },
+        ) {
             return Err(InvalidMessage);
         }
 
         let tree = MerkleTree::<Blake2b256>::build_from_unserialized(
-            message.avid.iter().map(| AvidMessage { root, .. }| root),
+            message.avid.iter().map(|AvidMessage { root, .. }| root),
         )?;
         let r = tree.root();
         let digest = compute_common_message_hash(message);
@@ -462,17 +473,26 @@ impl Receiver {
             .avid
             .iter()
             .enumerate()
-            .map(|(i, AvidMessage { root, shards, proof })| {
-                Ok(EchoMessage {
-                    party: self.id,
-                    r: r.clone(),
-                    pi_ij: proof.clone(),
-                    pi_i: tree.get_proof(i)?,
-                    r_i: root.clone(),
-                    s_ij: shards.clone(),
-                    hash: digest,
-                })
-            })
+            .map(
+                |(
+                    i,
+                    AvidMessage {
+                        root,
+                        shards,
+                        proof,
+                    },
+                )| {
+                    Ok(EchoMessage {
+                        party: self.id,
+                        r: r.clone(),
+                        pi_ij: proof.clone(),
+                        pi_i: tree.get_proof(i)?,
+                        r_i: root.clone(),
+                        s_ij: shards.clone(),
+                        hash: digest,
+                    })
+                },
+            )
             .collect::<FastCryptoResult<Vec<_>>>()
     }
 
@@ -489,7 +509,7 @@ impl Receiver {
     pub fn process_echo_messages(
         &self,
         echo_messages: &[EchoMessage],
-    ) -> FastCryptoResult<Vec<u8>> {
+    ) -> FastCryptoResult<(Vec<u8>, merkle::Node)> {
         // Filter out invalid echo messages
         let echo_messages = echo_messages
             .iter()
@@ -503,16 +523,28 @@ impl Receiver {
                     )
                     .is_ok()
                     && echo_message
-                    .pi_i
-                    .verify_proof_with_unserialized_leaf(
-                        &echo_message.r,
-                        &echo_message.r_i,
-                        self.id as usize,
-                    )
-                    .is_ok()
+                        .pi_i
+                        .verify_proof_with_unserialized_leaf(
+                            &echo_message.r,
+                            &echo_message.r_i,
+                            self.id as usize,
+                        )
+                        .is_ok()
             })
             .cloned()
             .collect_vec();
+
+        // TODO: It is up to the caller to ensure that all echo messages have the same digest and root.
+        let r = get_uniform_value(
+            echo_messages
+                .iter()
+                .cloned()
+                .map(|echo_message| echo_message.r),
+        )
+        .ok_or(InvalidMessage)?;
+        if get_uniform_value(echo_messages.iter().map(|echo_message| echo_message.hash)).is_none() {
+            return Err(InvalidMessage);
+        }
 
         let required_weight = self.nodes.total_weight() - self.f;
         if self
@@ -547,7 +579,7 @@ impl Receiver {
             self.nodes.total_weight() as usize,
             (self.nodes.total_weight() - 2 * self.f) as usize, // 2f parity shards
         )
-            .expect("should not fail with valid parameters");
+        .expect("should not fail with valid parameters");
 
         let ciphertext = code.decode(shards)?;
         let new_shards = self
@@ -559,7 +591,7 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        Ok(ciphertext)
+        Ok((ciphertext, r))
     }
 
     pub fn process_message(
@@ -585,8 +617,8 @@ impl Receiver {
         let challenge = compute_challenge_from_message(&self.random_oracle(), root, message);
         if G::generator() * response_polynomial.c0()
             != blinding_commit
-            + G::multi_scalar_mul(&challenge, full_public_keys)
-            .expect("Inputs have constant lengths")
+                + G::multi_scalar_mul(&challenge, full_public_keys)
+                    .expect("Inputs have constant lengths")
         {
             return Err(InvalidMessage);
         }
@@ -613,11 +645,10 @@ impl Receiver {
             )?;
             Ok(my_shares)
         }) {
-            Ok(my_shares) => Ok(ProcessedMessage::Valid(
-                ReceiverOutput {
-                    my_shares,
-                    public_keys: full_public_keys.clone(),
-                })),
+            Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
+                my_shares,
+                public_keys: full_public_keys.clone(),
+            })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
                 shared,
@@ -627,7 +658,6 @@ impl Receiver {
             ))),
         }
     }
-
 
     /// 4. Upon receiving a complaint, a receiver verifies it and responds with its shares.
     pub fn handle_complaint(
@@ -748,7 +778,11 @@ fn compute_challenge(
         .collect()
 }
 
-fn compute_challenge_from_message(random_oracle: &RandomOracle, root: &merkle::Node, message: &CommonMessage) -> Vec<S> {
+fn compute_challenge_from_message(
+    random_oracle: &RandomOracle,
+    root: &merkle::Node,
+    message: &CommonMessage,
+) -> Vec<S> {
     compute_challenge(
         random_oracle,
         &message.full_public_keys,
@@ -760,12 +794,13 @@ fn compute_challenge_from_message(random_oracle: &RandomOracle, root: &merkle::N
 
 fn compute_common_message_hash(message: &Message) -> Digest<32> {
     let Message {
-        common: CommonMessage {
-            shared,
-            full_public_keys,
-            blinding_commit,
-            response_polynomial,
-        },
+        common:
+            CommonMessage {
+                shared,
+                full_public_keys,
+                blinding_commit,
+                response_polynomial,
+            },
         ..
     } = message;
     let mut hasher = Blake2b256::new();
@@ -799,6 +834,7 @@ mod tests {
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::GroupElement;
     use fastcrypto::hash::Blake2b256;
+    use fastcrypto::merkle;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use std::collections::HashMap;
@@ -872,27 +908,32 @@ mod tests {
             .map(|(i, _)| echo_messages.iter().map(|em| em[i].clone()).collect_vec())
             .collect_vec();
 
-        let ciphertexts = receivers
+        let (ciphertexts, roots): (Vec<Vec<u8>>, Vec<merkle::Node>) = receivers
             .iter()
             .zip(messages.iter())
             .zip(echo_messages.iter())
             .map(|((receiver, message), echo_message)| {
-                        receiver
-                            .process_echo_messages(&echo_message)
-                            .unwrap()
+                receiver.process_echo_messages(&echo_message).unwrap()
             })
-            .collect_vec();
+            .unzip();
 
-        let all_shares = receivers.iter().zip(ciphertexts).zip(messages).map(|((receiver, ciphertext), message)| {
-            match receiver.process_message(
-                &echo_messages[receiver.id as usize][0].r,
-                &message.common,
-                &ciphertext,
-            ) {
-                Ok(ProcessedMessage::Valid(output)) => (receiver.id, output),
-                _ => panic!("All receivers should be able to process the message in the happy path"),
-            }
-        }).collect::<HashMap<_, _>>();
+        let all_shares = receivers
+            .iter()
+            .zip(ciphertexts)
+            .zip(messages)
+            .map(|((receiver, ciphertext), message)| {
+                match receiver.process_message(
+                    &roots[receiver.id as usize],
+                    &message.common,
+                    &ciphertext,
+                ) {
+                    Ok(ProcessedMessage::Valid(output)) => (receiver.id, output),
+                    _ => panic!(
+                        "All receivers should be able to process the message in the happy path"
+                    ),
+                }
+            })
+            .collect::<HashMap<_, _>>();
 
         let secrets = (0..dealer.batch_size)
             .map(|l| {
