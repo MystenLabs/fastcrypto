@@ -247,3 +247,149 @@ fn test_reduce_with_lower_bounds() {
     assert!(new_nodes2.total_weight() >= nodes.total_weight() / 3);
     assert!(new_nodes2.total_weight() < nodes.total_weight());
 }
+
+/// Sui mainnet voting-power snapshots embedded at compile time. Each file is a CSV
+/// `Validator Name,Voting Power` with a single header line and basis-point weights
+/// summing to 10000.
+const SUI_EPOCH_DATA: &[(&str, &str)] = &[
+    (
+        "100",
+        include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_100_details.txt"),
+    ),
+    (
+        "200",
+        include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_200_details.txt"),
+    ),
+    (
+        "400",
+        include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_400_details.txt"),
+    ),
+    (
+        "800",
+        include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_800_details.txt"),
+    ),
+    (
+        "974",
+        include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_974_details.txt"),
+    ),
+];
+
+fn parse_sui_epoch(contents: &str) -> Vec<u16> {
+    contents
+        .lines()
+        .skip(1)
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            let weight = line.rsplit(',').next().expect("non-empty CSV line").trim();
+            weight.parse::<u16>().expect("u16 voting power")
+        })
+        .collect()
+}
+
+fn build_sui_nodes(weights: &[u16]) -> Vec<Node<RistrettoPoint>> {
+    let sk = ecies_v1::PrivateKey::<RistrettoPoint>::new(&mut thread_rng());
+    let pk = ecies_v1::PublicKey::<RistrettoPoint>::from_private_key(&sk);
+    weights
+        .iter()
+        .enumerate()
+        .map(|(i, &w)| Node {
+            id: i as u16,
+            pk: pk.clone(),
+            weight: w,
+        })
+        .collect()
+}
+
+const SUI_ALLOWED_DELTA: u16 = 800;
+
+#[test]
+fn test_prop_reduce_vs_new_reduced_with_f() {
+    // Side-by-side comparison of the integer-only `new_reduced_with_f` against
+    // `prop_reduce` (integer downward sweep + 0.01-granularity fractional
+    // refinement above the first feasible integer). Since prop_reduce considers
+    // a strict superset of new_reduced_with_f's candidates, the reduced total
+    // weight (and ceilings t', f') must be ≤ those of new_reduced_with_f on
+    // every input.
+    let tf_pairs: &[(u16, u16)] = &[(3400, 3300), (5200, 2000)];
+
+    println!(
+        "\nnew_reduced_with_f vs prop_reduce on Sui epochs, δ_allowed = {}\n",
+        SUI_ALLOWED_DELTA
+    );
+    println!(
+        "| epoch |    t |    f | W'(new) | t'(new) | f'(new) | W'(prop) | t'(prop) | f'(prop) |"
+    );
+    println!(
+        "|------:|-----:|-----:|--------:|--------:|--------:|---------:|---------:|---------:|"
+    );
+
+    for (epoch_name, contents) in SUI_EPOCH_DATA {
+        let weights = parse_sui_epoch(contents);
+        let nodes_vec = build_sui_nodes(&weights);
+        // Sanity: Sui basis-point convention.
+        assert_eq!(
+            Nodes::<RistrettoPoint>::new(nodes_vec.clone())
+                .unwrap()
+                .total_weight(),
+            10000,
+            "epoch {} should sum to 10000",
+            epoch_name
+        );
+
+        for (t, f) in tf_pairs {
+            let (new_nodes, new_t, new_f) = Nodes::<RistrettoPoint>::new_reduced_with_f(
+                nodes_vec.clone(),
+                *t,
+                *f,
+                SUI_ALLOWED_DELTA,
+                1,
+            )
+            .unwrap();
+            let (prop_nodes, prop_t, prop_f) = Nodes::<RistrettoPoint>::prop_reduce(
+                nodes_vec.clone(),
+                *t,
+                *f,
+                SUI_ALLOWED_DELTA,
+                1,
+            )
+            .unwrap();
+
+            let new_w = new_nodes.total_weight();
+            let prop_w = prop_nodes.total_weight();
+
+            // prop is at least as good as new on (W', t', f').
+            assert!(
+                prop_w <= new_w,
+                "epoch {} (t={}, f={}): expected prop W' ≤ new W' (prop={}, new={})",
+                epoch_name,
+                t,
+                f,
+                prop_w,
+                new_w
+            );
+            assert!(
+                prop_t <= new_t,
+                "epoch {} (t={}, f={}): expected prop t' ≤ new t' (prop={}, new={})",
+                epoch_name,
+                t,
+                f,
+                prop_t,
+                new_t
+            );
+            assert!(
+                prop_f <= new_f,
+                "epoch {} (t={}, f={}): expected prop f' ≤ new f' (prop={}, new={})",
+                epoch_name,
+                t,
+                f,
+                prop_f,
+                new_f
+            );
+
+            println!(
+                "|  {:>3} | {:>4} | {:>4} | {:>7} | {:>7} | {:>7} | {:>8} | {:>8} | {:>8} |",
+                epoch_name, t, f, new_w, new_t, new_f, prop_w, prop_t, prop_f,
+            );
+        }
+    }
+}

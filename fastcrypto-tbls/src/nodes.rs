@@ -292,9 +292,132 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             new_f,
         ))
     }
+
+    /// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
+    /// Like [`Nodes::new_reduced_with_f`], but in addition to the integer divisor
+    /// sweep, fine-sweeps the unit interval above the first feasible integer at
+    /// granularity 0.01 to find a (possibly strictly larger) fractional divisor d.
+    /// Finds the largest d such that:
+    /// - The new threshold is ceil(t / d)
+    /// - The new threshold for Byzantine parties is ceil(f / d)
+    /// - The new weights are all divided by d (floor division)
+    /// - The precision loss, counted as the sum of remainders Σ_i (w_i mod d) plus the
+    ///   ceiling overheads (-t) mod d and (-f) mod d, is at most the allowed delta
+    ///
+    /// Operates on a 0.01-multiple grid for d (represented internally in u64
+    /// arithmetic via d_x100 = 100*d). The Stage-1 criterion is the natural
+    /// fractional-d extension of the one in `new_reduced_with_f`, with
+    /// (w mod d) := w - floor(w/d) * d ∈ [0, d) for any real d > 0; the
+    /// Safety, Liveness, and Byzantine-removal proofs go through verbatim.
+    /// Since prop_reduce considers a strict superset of `new_reduced_with_f`'s
+    /// candidates, its reduced total weight (and ceilings t', f') are always
+    /// ≤ those of `new_reduced_with_f`.
+    ///
+    /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
+    ///
+    /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To
+    /// get the best results, set it to 1.
+    pub fn prop_reduce(
+        nodes_vec: Vec<Node<G>>,
+        t: u16,
+        f: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
+    ) -> FastCryptoResult<(Self, u16, u16)> {
+        let n = Self::new(nodes_vec)?; // checks the input, etc
+        assert!(total_weight_lower_bound <= n.total_weight && total_weight_lower_bound > 0);
+        let allowed_delta_x100 = (allowed_delta as u64) * 100;
+        let mut max_d_x100: u32 = 100; // d = 1, no reduction
+                                       // Sweep d downward from 40 to 2. Going down, the first feasible integer
+                                       // is the largest feasible integer divisor (the criterion is non-monotone
+                                       // in d, so an upward sweep cannot break early). After locking onto the
+                                       // first feasible integer d, fine-sweep (d, d+1) at 0.01 in decreasing
+                                       // order to find the largest feasible fractional divisor in that interval.
+        'outer: for d in (2u16..=40).rev() {
+            // Continue if we are below the lower bound. (Going down, W' grows as
+            // d shrinks, so once W' clears the lower bound it stays cleared.)
+            // U16 is safe here since total_weight is u16.
+            let new_total_weight = n.nodes.iter().map(|n| n.weight / d).sum::<u16>();
+            if new_total_weight < total_weight_lower_bound {
+                continue;
+            }
+            // Compute the precision loss at integer d.
+            // U16 is safe here since total_weight is u16.
+            let delta =
+                n.nodes.iter().map(|n| n.weight % d).sum::<u16>() + neg_mod(t, d) + neg_mod(f, d);
+            if delta > allowed_delta {
+                continue;
+            }
+            // Integer d is feasible; lock it as the fallback.
+            max_d_x100 = (d as u32) * 100;
+            // Fine-sweep (d, d+1) at 0.01, largest-first. The first hit is the
+            // largest feasible 0.01-multiple in that interval.
+            for k in (1..100u32).rev() {
+                let d_x100 = (d as u32) * 100 + k;
+                let new_w_total = n
+                    .nodes
+                    .iter()
+                    .map(|n| ((n.weight as u32) * 100) / d_x100)
+                    .sum::<u32>();
+                if (new_w_total as u16) < total_weight_lower_bound {
+                    continue;
+                }
+                // Σ_i (w_i mod d) * 100 = W*100 − W' * d_x100 (telescopes by floor).
+                let sum_mod_x100 =
+                    (n.total_weight as u64) * 100 - (new_w_total as u64) * (d_x100 as u64);
+                let delta_x100 = sum_mod_x100 + neg_mod_x100(t, d_x100) + neg_mod_x100(f, d_x100);
+                if delta_x100 <= allowed_delta_x100 {
+                    max_d_x100 = d_x100;
+                    break;
+                }
+            }
+            break 'outer;
+        }
+        debug!(
+            "Nodes::prop_reduce reducing from {} with max_d_x100 {}, allowed_delta {}, total_weight_lower_bound {}",
+            n.total_weight, max_d_x100, allowed_delta, total_weight_lower_bound
+        );
+
+        let nodes = n
+            .nodes
+            .iter()
+            .map(|n| Node {
+                id: n.id,
+                pk: n.pk.clone(),
+                weight: (((n.weight as u32) * 100) / max_d_x100) as u16,
+            })
+            .collect::<Vec<_>>();
+        let accumulated_weights = Self::get_accumulated_weights(&nodes);
+        let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
+        // U16 is safe here since the original total_weight is u16.
+        let total_weight = nodes.iter().map(|n| n.weight).sum::<u16>();
+        let new_t = ((t as u64) * 100).div_ceil(max_d_x100 as u64) as u16;
+        let new_f = ((f as u64) * 100).div_ceil(max_d_x100 as u64) as u16;
+        Ok((
+            Self {
+                nodes,
+                total_weight,
+                accumulated_weights,
+                nodes_with_nonzero_weight,
+            },
+            new_t,
+            new_f,
+        ))
+    }
 }
 
 /// Compute (-x) mod d = d * ceil(x/d) - x
 fn neg_mod(x: u16, d: u16) -> u16 {
     (-(x as i32)).rem_euclid(d as i32) as u16
+}
+
+/// Compute ((-w) mod d) * 100 for the possibly-fractional divisor d = d_x100 / 100.
+/// Equals (ceil(w/d) * d - w) * 100, a non-negative integer in [0, d_x100).
+fn neg_mod_x100(w: u16, d_x100: u32) -> u64 {
+    let r = ((w as u64) * 100) % (d_x100 as u64);
+    if r == 0 {
+        0
+    } else {
+        (d_x100 as u64) - r
+    }
 }
