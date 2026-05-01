@@ -165,6 +165,7 @@ impl ErasureCoder {
         Ok(shards.into_iter().map(Shard).collect_vec())
     }
 
+    /// Note that the result may be padded with zeroes, and it is up to the caller to remove them.
     pub fn decode(&self, shards: Vec<Option<Shard>>) -> FastCryptoResult<Vec<u8>> {
         if shards.len() != self.0.total_shard_count() {
             return Err(InputTooShort(self.0.total_shard_count()));
