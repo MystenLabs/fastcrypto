@@ -13,6 +13,7 @@ use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, SharedComponents};
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{create_secret_sharing, Eval, Poly};
 use crate::random_oracle::RandomOracle;
+use crate::threshold_schnorr::batch_avss::DecryptedShares::{FaultyDealer, Valid};
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
@@ -90,12 +91,15 @@ pub struct EchoMessage {
     pub pi_ij: merkle::MerkleProof,
 }
 
-pub enum Vote {
-    Vote {
-        digest: Digest<32>,
-        root: merkle::Node,
-    },
-    FaultyDealer,
+pub struct ProcessedEchoMessages {
+    ciphertext: Vec<u8>,
+    root: merkle::Node,
+    r_j: merkle::Node,
+}
+
+pub enum DecryptedShares {
+    Valid(ReceiverOutput),
+    FaultyDealer { correctDec: bool },
 }
 
 /// The result of processing a message by a receiver: either valid shares or a complaint.
@@ -103,6 +107,7 @@ pub enum Vote {
 pub enum ProcessedMessage {
     Valid(ReceiverOutput),
     Complaint(Complaint),
+    Blame(EchoMessage),
 }
 
 /// The output of a receiver which is a batch of shares and public keys for all nonces.
@@ -509,7 +514,7 @@ impl Receiver {
     pub fn process_echo_messages(
         &self,
         echo_messages: &[EchoMessage],
-    ) -> FastCryptoResult<(Vec<u8>, merkle::Node)> {
+    ) -> FastCryptoResult<ProcessedEchoMessages> {
         // Filter out invalid echo messages
         let echo_messages = echo_messages
             .iter()
@@ -535,11 +540,18 @@ impl Receiver {
             .collect_vec();
 
         // TODO: It is up to the caller to ensure that all echo messages have the same digest and root.
-        let r = get_uniform_value(
+        let root = get_uniform_value(
             echo_messages
                 .iter()
                 .cloned()
                 .map(|echo_message| echo_message.r),
+        )
+        .ok_or(InvalidMessage)?;
+        let r_j = get_uniform_value(
+            echo_messages
+                .iter()
+                .cloned()
+                .map(|echo_message| echo_message.r_i),
         )
         .ok_or(InvalidMessage)?;
         if get_uniform_value(echo_messages.iter().map(|echo_message| echo_message.hash)).is_none() {
@@ -582,24 +594,43 @@ impl Receiver {
         .expect("should not fail with valid parameters");
 
         let ciphertext = code.decode(shards)?;
+        Ok(ProcessedEchoMessages {
+            ciphertext,
+            root,
+            r_j,
+        })
+    }
+
+    /// The check r_j' == r_j from the paper
+    pub fn verify_ciphertext(
+        &self,
+        ciphertext: &[u8],
+        root: &merkle::Node,
+    ) -> FastCryptoResult<()> {
+        let code = ErasureCoder::new(
+            self.nodes.total_weight() as usize,
+            (self.nodes.total_weight() - 2 * self.f) as usize, // 2f parity shards
+        )
+        .expect("should not fail with valid parameters");
+
         let new_shards = self
             .nodes
             .collect_to_nodes(code.encode(&ciphertext)?.into_iter())?;
         let new_tree = MerkleTree::<Blake2b256>::build_from_unserialized(new_shards.iter())?;
 
-        if new_tree.root() != echo_messages[0].r_i {
+        if new_tree.root() != *root {
             return Err(InvalidMessage);
         }
 
-        Ok((ciphertext, r))
+        Ok(())
     }
 
-    pub fn process_message(
+    /// If a party gets echo messages, the ciphertext verifies
+    pub fn decrypt_shares(
         &self,
-        root: &merkle::Node,
+        processed_echo_messages: ProcessedEchoMessages,
         message: &CommonMessage,
-        ciphertext: &[u8],
-    ) -> FastCryptoResult<ProcessedMessage> {
+    ) -> FastCryptoResult<DecryptedShares> {
         let CommonMessage {
             full_public_keys,
             blinding_commit,
@@ -607,14 +638,20 @@ impl Receiver {
             shared,
         } = message;
 
+        let ProcessedEchoMessages {
+            ciphertext,
+            root,
+            r_j,
+        } = processed_echo_messages;
         if full_public_keys.len() != self.batch_size
             || response_polynomial.degree() != self.t as usize - 1
         {
             return Err(InvalidMessage);
         }
 
+        // TODO: What should happen if these checks fail?
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
-        let challenge = compute_challenge_from_message(&self.random_oracle(), root, message);
+        let challenge = compute_challenge_from_message(&self.random_oracle(), &root, message);
         if G::generator() * response_polynomial.c0()
             != blinding_commit
                 + G::multi_scalar_mul(&challenge, full_public_keys)
@@ -623,39 +660,42 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
+        // Check r_j' == r_j from the paper
+        let faulty_dealer = self.verify_ciphertext(&ciphertext, &r_j).is_err();
+
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
-        shared
+        let decrypted_shares = shared
             .verify(&random_oracle_encryption)
-            .map_err(|_| InvalidMessage)?;
-        let plaintext = shared.decrypt(
-            &ciphertext,
-            &self.enc_secret_key,
-            &self.random_oracle().extend(&Encryption.to_string()),
-            self.id as usize,
-        );
-        match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
-            // If there is an error in this scope, we create a complaint instead of returning an error
-            verify_shares(
-                &my_shares,
-                &self.nodes,
-                self.id,
-                message,
-                &challenge,
-                self.batch_size,
-            )?;
-            Ok(my_shares)
-        }) {
-            Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
-                my_shares,
+            .map(|_| {
+                shared.decrypt(
+                    &ciphertext,
+                    &self.enc_secret_key,
+                    &random_oracle_encryption,
+                    self.id as usize,
+                )
+            })
+            .and_then(|plaintext| SharesForNode::from_bytes(&plaintext))
+            .and_then(|my_shares| {
+                verify_shares(
+                    &my_shares,
+                    &self.nodes,
+                    self.id,
+                    message,
+                    &challenge,
+                    self.batch_size,
+                )?;
+                Ok(my_shares)
+            });
+
+        if faulty_dealer || decrypted_shares.is_err() {
+            Ok(FaultyDealer {
+                correctDec: decrypted_shares.is_ok(),
+            })
+        } else {
+            Ok(Valid(ReceiverOutput {
+                my_shares: decrypted_shares?,
                 public_keys: full_public_keys.clone(),
-            })),
-            Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
-                self.id,
-                shared,
-                &self.enc_secret_key,
-                &self.random_oracle(),
-                &mut rand::thread_rng(),
-            ))),
+            }))
         }
     }
 
@@ -841,8 +881,8 @@ fn compute_common_message_hash(message: &Message) -> Digest<32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        compute_challenge, Complaint, Dealer, Message, ProcessedMessage, Receiver, ReceiverOutput,
-        ShareBatch, SharesForNode,
+        compute_challenge, Complaint, Dealer, DecryptedShares, Message, ProcessedEchoMessages,
+        ProcessedMessage, Receiver, ReceiverOutput, ShareBatch, SharesForNode,
     };
     use crate::ecies_v1;
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
@@ -930,31 +970,27 @@ mod tests {
             .map(|(i, _)| echo_messages.iter().map(|em| em[i].clone()).collect_vec())
             .collect_vec();
 
-        let (ciphertexts, roots): (Vec<Vec<u8>>, Vec<merkle::Node>) = receivers
+        let processed_echo_messages = receivers
             .iter()
             .zip(messages.iter())
             .zip(echo_messages.iter())
             .map(|((receiver, message), echo_message)| {
                 receiver.process_echo_messages(&echo_message).unwrap()
             })
-            .unzip();
+            .collect_vec();
 
         let all_shares = receivers
             .iter()
-            .zip(ciphertexts)
+            .zip(processed_echo_messages)
             .zip(messages)
-            .map(|((receiver, ciphertext), message)| {
-                match receiver.process_message(
-                    &roots[receiver.id as usize],
-                    &message.common,
-                    &ciphertext,
-                ) {
-                    Ok(ProcessedMessage::Valid(output)) => (receiver.id, output),
+            .map(
+                |((receiver, pem), message)| match receiver.decrypt_shares(pem, &message.common) {
+                    Ok(DecryptedShares::Valid(output)) => (receiver.id, output),
                     _ => panic!(
                         "All receivers should be able to process the message in the happy path"
                     ),
-                }
-            })
+                },
+            )
             .collect::<HashMap<_, _>>();
 
         let secrets = (0..dealer.batch_size)
