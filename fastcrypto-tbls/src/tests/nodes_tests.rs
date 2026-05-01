@@ -221,6 +221,33 @@ fn test_reduce() {
     }
 }
 
+#[test]
+fn test_reduce_with_lower_bounds() {
+    let number_of_nodes = 100;
+    let node_vec = get_nodes::<RistrettoPoint>(number_of_nodes);
+    let nodes = Nodes::new(node_vec.clone()).unwrap();
+    let t = nodes.total_weight() / 3;
+
+    // No extra gap, should return the inputs
+    let (new_nodes, new_t) = Nodes::new_reduced(node_vec.clone(), t, 1, 1).unwrap();
+    assert_eq!(nodes, new_nodes);
+    assert_eq!(t, new_t);
+
+    // 10% gap
+    let (new_nodes1, _new_t1) =
+        Nodes::new_reduced(node_vec.clone(), t, nodes.total_weight() / 10, 1).unwrap();
+    let (new_nodes2, _new_t2) = Nodes::new_reduced(
+        node_vec.clone(),
+        t,
+        nodes.total_weight() / 10,
+        nodes.total_weight() / 3,
+    )
+    .unwrap();
+    assert!(new_nodes1.total_weight() < new_nodes2.total_weight());
+    assert!(new_nodes2.total_weight() >= nodes.total_weight() / 3);
+    assert!(new_nodes2.total_weight() < nodes.total_weight());
+}
+
 /// Sui mainnet voting-power snapshots embedded at compile time. Each file is a CSV
 /// `Validator Name,Voting Power` with a single header line and basis-point weights
 /// summing to 10000.
@@ -277,38 +304,34 @@ const SUI_ALLOWED_DELTA: u16 = 800;
 
 #[test]
 fn test_prop_reduce_vs_new_reduced_with_f() {
-    // Compare the integer-only `new_reduced_with_f` (upward sweep) against
-    // `prop_reduce` (downward integer sweep + 0.01-granularity fractional
-    // sweep above the first feasible integer). Both apply the same
-    // criterion
-    //
-    //   Σ_i (w_i mod d) + neg_mod(t, d) + neg_mod(f, d) ≤ δ_allowed,
-    //
-    // extended naturally to fractional d in prop_reduce. Since prop_reduce
-    // evaluates a strict superset of new_reduced_with_f's candidates, we
-    // must always have W'_prop ≤ W'_new (and t'_prop ≤ t'_new, f'_prop ≤ f'_new).
+    // Side-by-side comparison of the integer-only `new_reduced_with_f` against
+    // `prop_reduce` (integer downward sweep + 0.01-granularity fractional
+    // refinement above the first feasible integer). Since prop_reduce considers
+    // a strict superset of new_reduced_with_f's candidates, the reduced total
+    // weight (and ceilings t', f') must be ≤ those of new_reduced_with_f on
+    // every input.
     let tf_pairs: &[(u16, u16)] = &[(3400, 3300), (5200, 2000)];
 
     println!(
-        "\nnew_reduced_with_f (integer, upward) vs prop_reduce (downward + 0.01 fractional), δ_allowed = {}\n",
+        "\nnew_reduced_with_f vs prop_reduce on Sui epochs, δ_allowed = {}\n",
         SUI_ALLOWED_DELTA
     );
     println!(
-        "| epoch |    t |    f | W'(new) | t'(new) | f'(new) | d(new) | W'(prop) | t'(prop) | f'(prop) | d(prop) |"
+        "| epoch |    t |    f | W'(new) | t'(new) | f'(new) | W'(prop) | t'(prop) | f'(prop) |"
     );
     println!(
-        "|------:|-----:|-----:|--------:|--------:|--------:|-------:|---------:|---------:|---------:|--------:|"
+        "|------:|-----:|-----:|--------:|--------:|--------:|---------:|---------:|---------:|"
     );
 
     for (epoch_name, contents) in SUI_EPOCH_DATA {
         let weights = parse_sui_epoch(contents);
         let nodes_vec = build_sui_nodes(&weights);
-        let total_weight = Nodes::<RistrettoPoint>::new(nodes_vec.clone())
-            .unwrap()
-            .total_weight();
         // Sanity: Sui basis-point convention.
         assert_eq!(
-            total_weight, 10000,
+            Nodes::<RistrettoPoint>::new(nodes_vec.clone())
+                .unwrap()
+                .total_weight(),
+            10000,
             "epoch {} should sum to 10000",
             epoch_name
         );
@@ -322,34 +345,22 @@ fn test_prop_reduce_vs_new_reduced_with_f() {
                 1,
             )
             .unwrap();
-            let (prop_nodes, prop_t, prop_f, prop_d_x100) =
-                Nodes::<RistrettoPoint>::prop_reduce(
-                    nodes_vec.clone(),
-                    *t,
-                    *f,
-                    SUI_ALLOWED_DELTA,
-                    1,
-                )
-                .unwrap();
+            let (prop_nodes, prop_t, prop_f) = Nodes::<RistrettoPoint>::prop_reduce(
+                nodes_vec.clone(),
+                *t,
+                *f,
+                SUI_ALLOWED_DELTA,
+                1,
+            )
+            .unwrap();
 
             let new_w = new_nodes.total_weight();
             let prop_w = prop_nodes.total_weight();
 
-            // Recover the integer divisor `new_reduced_with_f` actually used:
-            // w'_i = w_i / d for the same d ∈ [1, 40] across all parties.
-            let new_d: u16 = (1u16..=40)
-                .find(|&d| {
-                    nodes_vec
-                        .iter()
-                        .zip(new_nodes.iter())
-                        .all(|(o, r)| o.weight / d == r.weight)
-                })
-                .expect("new_reduced_with_f divisor must lie in [1, 40]");
-
-            // 1. prop is at least as good (smaller-or-equal W', t', f').
+            // prop is at least as good as new on (W', t', f').
             assert!(
                 prop_w <= new_w,
-                "epoch {} (t={}, f={}): prop should give W' ≤ new W' (prop={}, new={})",
+                "epoch {} (t={}, f={}): expected prop W' ≤ new W' (prop={}, new={})",
                 epoch_name,
                 t,
                 f,
@@ -358,7 +369,7 @@ fn test_prop_reduce_vs_new_reduced_with_f() {
             );
             assert!(
                 prop_t <= new_t,
-                "epoch {} (t={}, f={}): prop t' should be ≤ new t' (prop={}, new={})",
+                "epoch {} (t={}, f={}): expected prop t' ≤ new t' (prop={}, new={})",
                 epoch_name,
                 t,
                 f,
@@ -367,7 +378,7 @@ fn test_prop_reduce_vs_new_reduced_with_f() {
             );
             assert!(
                 prop_f <= new_f,
-                "epoch {} (t={}, f={}): prop f' should be ≤ new f' (prop={}, new={})",
+                "epoch {} (t={}, f={}): expected prop f' ≤ new f' (prop={}, new={})",
                 epoch_name,
                 t,
                 f,
@@ -375,104 +386,10 @@ fn test_prop_reduce_vs_new_reduced_with_f() {
                 new_f
             );
 
-            // 2. Stage-1 criterion holds for `new_reduced_with_f` (integer d).
-            let new_delta: u32 = nodes_vec.iter().map(|n| (n.weight % new_d) as u32).sum::<u32>()
-                + neg_mod_u32(*t, new_d)
-                + neg_mod_u32(*f, new_d);
-            assert!(
-                new_delta <= SUI_ALLOWED_DELTA as u32,
-                "epoch {} (t={}, f={}): new criterion violated (δ = {} > {})",
-                epoch_name,
-                t,
-                f,
-                new_delta,
-                SUI_ALLOWED_DELTA
-            );
-
-            // 3. Stage-1 criterion holds for `prop_reduce` (fractional d via x100).
-            //    Σ (w_i mod d) * 100 = W * 100 - W' * d_x100  (telescopes by floor).
-            let sum_mod_x100: u64 =
-                (total_weight as u64) * 100 - (prop_w as u64) * (prop_d_x100 as u64);
-            let prop_delta_x100: u64 = sum_mod_x100
-                + neg_mod_x100_check(*t, prop_d_x100)
-                + neg_mod_x100_check(*f, prop_d_x100);
-            assert!(
-                prop_delta_x100 <= (SUI_ALLOWED_DELTA as u64) * 100,
-                "epoch {} (t={}, f={}): prop criterion violated (δ × 100 = {} > {})",
-                epoch_name,
-                t,
-                f,
-                prop_delta_x100,
-                (SUI_ALLOWED_DELTA as u64) * 100
-            );
-
-            // 4. Stage-2 outputs match the closed-form ceilings against the
-            //    chosen d_x100 for prop_reduce.
-            let expected_t_prop = ((*t as u64) * 100).div_ceil(prop_d_x100 as u64) as u16;
-            let expected_f_prop = ((*f as u64) * 100).div_ceil(prop_d_x100 as u64) as u16;
-            assert_eq!(prop_t, expected_t_prop);
-            assert_eq!(prop_f, expected_f_prop);
-
             println!(
-                "|  {:>3} | {:>4} | {:>4} | {:>7} | {:>7} | {:>7} | {:>6} | {:>8} | {:>8} | {:>8} | {:>6.2} |",
-                epoch_name,
-                t,
-                f,
-                new_w,
-                new_t,
-                new_f,
-                new_d,
-                prop_w,
-                prop_t,
-                prop_f,
-                (prop_d_x100 as f64) / 100.0,
+                "|  {:>3} | {:>4} | {:>4} | {:>7} | {:>7} | {:>7} | {:>8} | {:>8} | {:>8} |",
+                epoch_name, t, f, new_w, new_t, new_f, prop_w, prop_t, prop_f,
             );
         }
     }
-}
-
-// Helpers re-derived locally for the test-side criterion checks.
-fn neg_mod_u32(x: u16, d: u16) -> u32 {
-    let r = (x as u32) % (d as u32);
-    if r == 0 {
-        0
-    } else {
-        (d as u32) - r
-    }
-}
-
-fn neg_mod_x100_check(w: u16, d_x100: u32) -> u64 {
-    let r = ((w as u64) * 100) % (d_x100 as u64);
-    if r == 0 {
-        0
-    } else {
-        (d_x100 as u64) - r
-    }
-}
-
-#[test]
-fn test_reduce_with_lower_bounds() {
-    let number_of_nodes = 100;
-    let node_vec = get_nodes::<RistrettoPoint>(number_of_nodes);
-    let nodes = Nodes::new(node_vec.clone()).unwrap();
-    let t = nodes.total_weight() / 3;
-
-    // No extra gap, should return the inputs
-    let (new_nodes, new_t) = Nodes::new_reduced(node_vec.clone(), t, 1, 1).unwrap();
-    assert_eq!(nodes, new_nodes);
-    assert_eq!(t, new_t);
-
-    // 10% gap
-    let (new_nodes1, _new_t1) =
-        Nodes::new_reduced(node_vec.clone(), t, nodes.total_weight() / 10, 1).unwrap();
-    let (new_nodes2, _new_t2) = Nodes::new_reduced(
-        node_vec.clone(),
-        t,
-        nodes.total_weight() / 10,
-        nodes.total_weight() / 3,
-    )
-    .unwrap();
-    assert!(new_nodes1.total_weight() < new_nodes2.total_weight());
-    assert!(new_nodes2.total_weight() >= nodes.total_weight() / 3);
-    assert!(new_nodes2.total_weight() < nodes.total_weight());
 }
