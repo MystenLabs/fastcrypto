@@ -21,7 +21,9 @@ use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption};
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::{get_uniform_value, ShareIndex};
-use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight};
+use fastcrypto::error::FastCryptoError::{
+    InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
+};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction, Sha3_512};
@@ -521,7 +523,10 @@ impl Receiver {
         }
 
         let tree = MerkleTree::<Blake2b256>::build_from_unserialized(
-            message.dispersal.iter().map(|AuthenticatedShards { root, .. }| root),
+            message
+                .dispersal
+                .iter()
+                .map(|AuthenticatedShards { root, .. }| root),
         )?;
         let r = tree.root();
         let digest = compute_common_message_hash(&message.common);
@@ -630,7 +635,11 @@ impl Receiver {
     }
 
     /// The check r_i' == r_i from the paper
-    fn check_avid_consistency(&self, ciphertext: &[u8], root: &merkle::Node) -> FastCryptoResult<()> {
+    fn check_avid_consistency(
+        &self,
+        ciphertext: &[u8],
+        root: &merkle::Node,
+    ) -> FastCryptoResult<()> {
         let new_shards = self
             .nodes
             .collect_to_nodes(self.code.encode(ciphertext)?.into_iter())?;
@@ -809,8 +818,7 @@ impl Receiver {
             return Err(InvalidProof);
         }
 
-        let challenge =
-            compute_challenge_from_message(&self.random_oracle(), &r, &message.common);
+        let challenge = compute_challenge_from_message(&self.random_oracle(), &r, &message.common);
         proof.check(
             accuser_pk,
             // TODO: Handle zero-padding
@@ -904,13 +912,10 @@ impl Receiver {
         let shards: Vec<Option<Shard>> = self
             .nodes
             .node_ids_iter()
-            .flat_map(
-                |id| match contributions.iter().find(|s| s.party == id) {
-                    Some(s) => s.shards.iter().map(|s| Some(s.clone())).collect_vec(),
-                    None => repeat_n(None, self.nodes.weight_of(id).unwrap() as usize)
-                        .collect_vec(),
-                },
-            )
+            .flat_map(|id| match contributions.iter().find(|s| s.party == id) {
+                Some(s) => s.shards.iter().map(|s| Some(s.clone())).collect_vec(),
+                None => repeat_n(None, self.nodes.weight_of(id).unwrap() as usize).collect_vec(),
+            })
             .collect();
 
         self.code.decode(shards)
@@ -934,8 +939,7 @@ impl Receiver {
         }
 
         let r = self.global_root(message)?;
-        let challenge =
-            compute_challenge_from_message(&self.random_oracle(), &r, &message.common);
+        let challenge = compute_challenge_from_message(&self.random_oracle(), &r, &message.common);
         let response_shares = responses
             .into_iter()
             .filter_map(|response| {
@@ -1176,14 +1180,14 @@ mod tests {
             .iter()
             .zip(processed_echo_messages)
             .zip(messages)
-            .map(
-                |((receiver, pem), message)| match receiver.verify_and_decrypt(pem, &message.common) {
+            .map(|((receiver, pem), message)| {
+                match receiver.verify_and_decrypt(pem, &message.common) {
                     Ok(DecryptionOutcome::Valid(output)) => (receiver.id, output),
                     _ => panic!(
                         "All receivers should be able to process the message in the happy path"
                     ),
-                },
-            )
+                }
+            })
             .collect::<HashMap<_, _>>();
 
         let secrets = (0..dealer.batch_size)
@@ -1297,7 +1301,10 @@ mod tests {
         let mut outcomes = outcomes;
         let complaint = match outcomes.remove(&victim_id).unwrap() {
             DecryptionOutcome::Complaint(c @ Complaint::Reveal { .. }) => c,
-            other => panic!("expected Reveal from victim, got {:?}", outcome_kind(&other)),
+            other => panic!(
+                "expected Reveal from victim, got {:?}",
+                outcome_kind(&other)
+            ),
         };
 
         // The other receivers each get a Valid output.
