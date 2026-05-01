@@ -292,10 +292,133 @@
 <a href=#292 id=292 data-nosnippet>292</a>            new_f,
 <a href=#293 id=293 data-nosnippet>293</a>        ))
 <a href=#294 id=294 data-nosnippet>294</a>    }
-<a href=#295 id=295 data-nosnippet>295</a>}
-<a href=#296 id=296 data-nosnippet>296</a>
-<a href=#297 id=297 data-nosnippet>297</a><span class="doccomment">/// Compute (-x) mod d = d * ceil(x/d) - x
-<a href=#298 id=298 data-nosnippet>298</a></span><span class="kw">fn </span>neg_mod(x: u16, d: u16) -&gt; u16 {
-<a href=#299 id=299 data-nosnippet>299</a>    (-(x <span class="kw">as </span>i32)).rem_euclid(d <span class="kw">as </span>i32) <span class="kw">as </span>u16
-<a href=#300 id=300 data-nosnippet>300</a>}
+<a href=#295 id=295 data-nosnippet>295</a>
+<a href=#296 id=296 data-nosnippet>296</a>    <span class="doccomment">/// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
+<a href=#297 id=297 data-nosnippet>297</a>    /// Like [`Nodes::new_reduced_with_f`], but in addition to the integer divisor
+<a href=#298 id=298 data-nosnippet>298</a>    /// sweep, fine-sweeps the unit interval above the first feasible integer at
+<a href=#299 id=299 data-nosnippet>299</a>    /// granularity 0.01 to find a (possibly strictly larger) fractional divisor d.
+<a href=#300 id=300 data-nosnippet>300</a>    /// Finds the largest d such that:
+<a href=#301 id=301 data-nosnippet>301</a>    /// - The new threshold is ceil(t / d)
+<a href=#302 id=302 data-nosnippet>302</a>    /// - The new threshold for Byzantine parties is ceil(f / d)
+<a href=#303 id=303 data-nosnippet>303</a>    /// - The new weights are all divided by d (floor division)
+<a href=#304 id=304 data-nosnippet>304</a>    /// - The precision loss, counted as the sum of remainders Σ_i (w_i mod d) plus the
+<a href=#305 id=305 data-nosnippet>305</a>    ///   ceiling overheads (-t) mod d and (-f) mod d, is at most the allowed delta
+<a href=#306 id=306 data-nosnippet>306</a>    ///
+<a href=#307 id=307 data-nosnippet>307</a>    /// Operates on a 0.01-multiple grid for d (represented internally in u64
+<a href=#308 id=308 data-nosnippet>308</a>    /// arithmetic via d_x100 = 100*d). The Stage-1 criterion is the natural
+<a href=#309 id=309 data-nosnippet>309</a>    /// fractional-d extension of the one in `new_reduced_with_f`, with
+<a href=#310 id=310 data-nosnippet>310</a>    /// (w mod d) := w - floor(w/d) * d ∈ [0, d) for any real d &gt; 0; the
+<a href=#311 id=311 data-nosnippet>311</a>    /// Safety, Liveness, and Byzantine-removal proofs go through verbatim.
+<a href=#312 id=312 data-nosnippet>312</a>    /// Since prop_reduce considers a strict superset of `new_reduced_with_f`'s
+<a href=#313 id=313 data-nosnippet>313</a>    /// candidates, its reduced total weight (and ceilings t', f') are always
+<a href=#314 id=314 data-nosnippet>314</a>    /// ≤ those of `new_reduced_with_f`.
+<a href=#315 id=315 data-nosnippet>315</a>    ///
+<a href=#316 id=316 data-nosnippet>316</a>    /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
+<a href=#317 id=317 data-nosnippet>317</a>    ///
+<a href=#318 id=318 data-nosnippet>318</a>    /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To
+<a href=#319 id=319 data-nosnippet>319</a>    /// get the best results, set it to 1.
+<a href=#320 id=320 data-nosnippet>320</a>    </span><span class="kw">pub fn </span>prop_reduce(
+<a href=#321 id=321 data-nosnippet>321</a>        nodes_vec: Vec&lt;Node&lt;G&gt;&gt;,
+<a href=#322 id=322 data-nosnippet>322</a>        t: u16,
+<a href=#323 id=323 data-nosnippet>323</a>        f: u16,
+<a href=#324 id=324 data-nosnippet>324</a>        allowed_delta: u16,
+<a href=#325 id=325 data-nosnippet>325</a>        total_weight_lower_bound: u16,
+<a href=#326 id=326 data-nosnippet>326</a>    ) -&gt; FastCryptoResult&lt;(<span class="self">Self</span>, u16, u16)&gt; {
+<a href=#327 id=327 data-nosnippet>327</a>        <span class="kw">let </span>n = <span class="self">Self</span>::new(nodes_vec)<span class="question-mark">?</span>; <span class="comment">// checks the input, etc
+<a href=#328 id=328 data-nosnippet>328</a>        </span><span class="macro">assert!</span>(total_weight_lower_bound &lt;= n.total_weight &amp;&amp; total_weight_lower_bound &gt; <span class="number">0</span>);
+<a href=#329 id=329 data-nosnippet>329</a>        <span class="kw">let </span>allowed_delta_x100 = (allowed_delta <span class="kw">as </span>u64) * <span class="number">100</span>;
+<a href=#330 id=330 data-nosnippet>330</a>        <span class="kw">let </span><span class="kw-2">mut </span>max_d_x100: u32 = <span class="number">100</span>; <span class="comment">// d = 1, no reduction
+<a href=#331 id=331 data-nosnippet>331</a>                                       // Sweep d downward from 40 to 2. Going down, the first feasible integer
+<a href=#332 id=332 data-nosnippet>332</a>                                       // is the largest feasible integer divisor (the criterion is non-monotone
+<a href=#333 id=333 data-nosnippet>333</a>                                       // in d, so an upward sweep cannot break early). After locking onto the
+<a href=#334 id=334 data-nosnippet>334</a>                                       // first feasible integer d, fine-sweep (d, d+1) at 0.01 in decreasing
+<a href=#335 id=335 data-nosnippet>335</a>                                       // order to find the largest feasible fractional divisor in that interval.
+<a href=#336 id=336 data-nosnippet>336</a>        </span><span class="lifetime">'outer</span>: <span class="kw">for </span>d <span class="kw">in </span>(<span class="number">2u16</span>..=<span class="number">40</span>).rev() {
+<a href=#337 id=337 data-nosnippet>337</a>            <span class="comment">// Continue if we are below the lower bound. (Going down, W' grows as
+<a href=#338 id=338 data-nosnippet>338</a>            // d shrinks, so once W' clears the lower bound it stays cleared.)
+<a href=#339 id=339 data-nosnippet>339</a>            // U16 is safe here since total_weight is u16.
+<a href=#340 id=340 data-nosnippet>340</a>            </span><span class="kw">let </span>new_total_weight = n.nodes.iter().map(|n| n.weight / d).sum::&lt;u16&gt;();
+<a href=#341 id=341 data-nosnippet>341</a>            <span class="kw">if </span>new_total_weight &lt; total_weight_lower_bound {
+<a href=#342 id=342 data-nosnippet>342</a>                <span class="kw">continue</span>;
+<a href=#343 id=343 data-nosnippet>343</a>            }
+<a href=#344 id=344 data-nosnippet>344</a>            <span class="comment">// Compute the precision loss at integer d.
+<a href=#345 id=345 data-nosnippet>345</a>            // U16 is safe here since total_weight is u16.
+<a href=#346 id=346 data-nosnippet>346</a>            </span><span class="kw">let </span>delta =
+<a href=#347 id=347 data-nosnippet>347</a>                n.nodes.iter().map(|n| n.weight % d).sum::&lt;u16&gt;() + neg_mod(t, d) + neg_mod(f, d);
+<a href=#348 id=348 data-nosnippet>348</a>            <span class="kw">if </span>delta &gt; allowed_delta {
+<a href=#349 id=349 data-nosnippet>349</a>                <span class="kw">continue</span>;
+<a href=#350 id=350 data-nosnippet>350</a>            }
+<a href=#351 id=351 data-nosnippet>351</a>            <span class="comment">// Integer d is feasible; lock it as the fallback.
+<a href=#352 id=352 data-nosnippet>352</a>            </span>max_d_x100 = (d <span class="kw">as </span>u32) * <span class="number">100</span>;
+<a href=#353 id=353 data-nosnippet>353</a>            <span class="comment">// Fine-sweep (d, d+1) at 0.01, largest-first. The first hit is the
+<a href=#354 id=354 data-nosnippet>354</a>            // largest feasible 0.01-multiple in that interval.
+<a href=#355 id=355 data-nosnippet>355</a>            </span><span class="kw">for </span>k <span class="kw">in </span>(<span class="number">1</span>..<span class="number">100u32</span>).rev() {
+<a href=#356 id=356 data-nosnippet>356</a>                <span class="kw">let </span>d_x100 = (d <span class="kw">as </span>u32) * <span class="number">100 </span>+ k;
+<a href=#357 id=357 data-nosnippet>357</a>                <span class="kw">let </span>new_w_total = n
+<a href=#358 id=358 data-nosnippet>358</a>                    .nodes
+<a href=#359 id=359 data-nosnippet>359</a>                    .iter()
+<a href=#360 id=360 data-nosnippet>360</a>                    .map(|n| ((n.weight <span class="kw">as </span>u32) * <span class="number">100</span>) / d_x100)
+<a href=#361 id=361 data-nosnippet>361</a>                    .sum::&lt;u32&gt;();
+<a href=#362 id=362 data-nosnippet>362</a>                <span class="kw">if </span>(new_w_total <span class="kw">as </span>u16) &lt; total_weight_lower_bound {
+<a href=#363 id=363 data-nosnippet>363</a>                    <span class="kw">continue</span>;
+<a href=#364 id=364 data-nosnippet>364</a>                }
+<a href=#365 id=365 data-nosnippet>365</a>                <span class="comment">// Σ_i (w_i mod d) * 100 = W*100 − W' * d_x100 (telescopes by floor).
+<a href=#366 id=366 data-nosnippet>366</a>                </span><span class="kw">let </span>sum_mod_x100 =
+<a href=#367 id=367 data-nosnippet>367</a>                    (n.total_weight <span class="kw">as </span>u64) * <span class="number">100 </span>- (new_w_total <span class="kw">as </span>u64) * (d_x100 <span class="kw">as </span>u64);
+<a href=#368 id=368 data-nosnippet>368</a>                <span class="kw">let </span>delta_x100 = sum_mod_x100 + neg_mod_x100(t, d_x100) + neg_mod_x100(f, d_x100);
+<a href=#369 id=369 data-nosnippet>369</a>                <span class="kw">if </span>delta_x100 &lt;= allowed_delta_x100 {
+<a href=#370 id=370 data-nosnippet>370</a>                    max_d_x100 = d_x100;
+<a href=#371 id=371 data-nosnippet>371</a>                    <span class="kw">break</span>;
+<a href=#372 id=372 data-nosnippet>372</a>                }
+<a href=#373 id=373 data-nosnippet>373</a>            }
+<a href=#374 id=374 data-nosnippet>374</a>            <span class="kw">break </span><span class="lifetime">'outer</span>;
+<a href=#375 id=375 data-nosnippet>375</a>        }
+<a href=#376 id=376 data-nosnippet>376</a>        <span class="macro">debug!</span>(
+<a href=#377 id=377 data-nosnippet>377</a>            <span class="string">"Nodes::prop_reduce reducing from {} with max_d_x100 {}, allowed_delta {}, total_weight_lower_bound {}"</span>,
+<a href=#378 id=378 data-nosnippet>378</a>            n.total_weight, max_d_x100, allowed_delta, total_weight_lower_bound
+<a href=#379 id=379 data-nosnippet>379</a>        );
+<a href=#380 id=380 data-nosnippet>380</a>
+<a href=#381 id=381 data-nosnippet>381</a>        <span class="kw">let </span>nodes = n
+<a href=#382 id=382 data-nosnippet>382</a>            .nodes
+<a href=#383 id=383 data-nosnippet>383</a>            .iter()
+<a href=#384 id=384 data-nosnippet>384</a>            .map(|n| Node {
+<a href=#385 id=385 data-nosnippet>385</a>                id: n.id,
+<a href=#386 id=386 data-nosnippet>386</a>                pk: n.pk.clone(),
+<a href=#387 id=387 data-nosnippet>387</a>                weight: (((n.weight <span class="kw">as </span>u32) * <span class="number">100</span>) / max_d_x100) <span class="kw">as </span>u16,
+<a href=#388 id=388 data-nosnippet>388</a>            })
+<a href=#389 id=389 data-nosnippet>389</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#390 id=390 data-nosnippet>390</a>        <span class="kw">let </span>accumulated_weights = <span class="self">Self</span>::get_accumulated_weights(<span class="kw-2">&amp;</span>nodes);
+<a href=#391 id=391 data-nosnippet>391</a>        <span class="kw">let </span>nodes_with_nonzero_weight = <span class="self">Self</span>::filter_nonzero_weights(<span class="kw-2">&amp;</span>nodes);
+<a href=#392 id=392 data-nosnippet>392</a>        <span class="comment">// U16 is safe here since the original total_weight is u16.
+<a href=#393 id=393 data-nosnippet>393</a>        </span><span class="kw">let </span>total_weight = nodes.iter().map(|n| n.weight).sum::&lt;u16&gt;();
+<a href=#394 id=394 data-nosnippet>394</a>        <span class="kw">let </span>new_t = ((t <span class="kw">as </span>u64) * <span class="number">100</span>).div_ceil(max_d_x100 <span class="kw">as </span>u64) <span class="kw">as </span>u16;
+<a href=#395 id=395 data-nosnippet>395</a>        <span class="kw">let </span>new_f = ((f <span class="kw">as </span>u64) * <span class="number">100</span>).div_ceil(max_d_x100 <span class="kw">as </span>u64) <span class="kw">as </span>u16;
+<a href=#396 id=396 data-nosnippet>396</a>        <span class="prelude-val">Ok</span>((
+<a href=#397 id=397 data-nosnippet>397</a>            <span class="self">Self </span>{
+<a href=#398 id=398 data-nosnippet>398</a>                nodes,
+<a href=#399 id=399 data-nosnippet>399</a>                total_weight,
+<a href=#400 id=400 data-nosnippet>400</a>                accumulated_weights,
+<a href=#401 id=401 data-nosnippet>401</a>                nodes_with_nonzero_weight,
+<a href=#402 id=402 data-nosnippet>402</a>            },
+<a href=#403 id=403 data-nosnippet>403</a>            new_t,
+<a href=#404 id=404 data-nosnippet>404</a>            new_f,
+<a href=#405 id=405 data-nosnippet>405</a>        ))
+<a href=#406 id=406 data-nosnippet>406</a>    }
+<a href=#407 id=407 data-nosnippet>407</a>}
+<a href=#408 id=408 data-nosnippet>408</a>
+<a href=#409 id=409 data-nosnippet>409</a><span class="doccomment">/// Compute (-x) mod d = d * ceil(x/d) - x
+<a href=#410 id=410 data-nosnippet>410</a></span><span class="kw">fn </span>neg_mod(x: u16, d: u16) -&gt; u16 {
+<a href=#411 id=411 data-nosnippet>411</a>    (-(x <span class="kw">as </span>i32)).rem_euclid(d <span class="kw">as </span>i32) <span class="kw">as </span>u16
+<a href=#412 id=412 data-nosnippet>412</a>}
+<a href=#413 id=413 data-nosnippet>413</a>
+<a href=#414 id=414 data-nosnippet>414</a><span class="doccomment">/// Compute ((-w) mod d) * 100 for the possibly-fractional divisor d = d_x100 / 100.
+<a href=#415 id=415 data-nosnippet>415</a>/// Equals (ceil(w/d) * d - w) * 100, a non-negative integer in [0, d_x100).
+<a href=#416 id=416 data-nosnippet>416</a></span><span class="kw">fn </span>neg_mod_x100(w: u16, d_x100: u32) -&gt; u64 {
+<a href=#417 id=417 data-nosnippet>417</a>    <span class="kw">let </span>r = ((w <span class="kw">as </span>u64) * <span class="number">100</span>) % (d_x100 <span class="kw">as </span>u64);
+<a href=#418 id=418 data-nosnippet>418</a>    <span class="kw">if </span>r == <span class="number">0 </span>{
+<a href=#419 id=419 data-nosnippet>419</a>        <span class="number">0
+<a href=#420 id=420 data-nosnippet>420</a>    </span>} <span class="kw">else </span>{
+<a href=#421 id=421 data-nosnippet>421</a>        (d_x100 <span class="kw">as </span>u64) - r
+<a href=#422 id=422 data-nosnippet>422</a>    }
+<a href=#423 id=423 data-nosnippet>423</a>}
 </code></pre></div></section></main></body></html>
