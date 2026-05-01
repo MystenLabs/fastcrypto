@@ -57,9 +57,7 @@ pub struct Receiver {
     t: u16,
     /// The total number of nonces that the receiver expects to receive from the dealer.
     batch_size: usize,
-    /// Reed-Solomon `(W, W - 2f)` coder over the dealer's per-receiver ciphertexts. Cached here
-    /// because every echo-processing / reveal / blame path encodes or decodes with the same
-    /// parameters.
+    /// Reed-Solomon `(W, W - 2f)` coder over the dealer's per-receiver ciphertexts.
     code: ErasureCoder,
 }
 
@@ -99,7 +97,7 @@ pub struct EchoMessage {
 pub struct ProcessedEchoMessages {
     ciphertext: Vec<u8>,
     r: merkle::Node,
-    r_j: merkle::Node,
+    r_i: merkle::Node,
     valid_echoes: Vec<EchoMessage>,
 }
 
@@ -108,33 +106,30 @@ pub enum DecryptionOutcome {
     Complaint(Complaint),
 }
 
-/// A complaint by a receiver after `decrypt_shares`. There are two flavors:
-/// * [Complaint::Reveal] — the receiver could not decrypt or verify its shares. Carries the
-///   reconstructed accuser's ciphertext + the proof binding it to the dealer's broadcast, plus a
-///   recovery package so the responder can re-decrypt and confirm the shares are invalid.
+/// A complaint by a receiver after `verify_and_decrypt`. There are two flavors:
+/// * [Complaint::Reveal] — the receiver could not decrypt or verify its shares.
 /// * [Complaint::Blame] — the receiver decrypted valid shares but the AVID dispersal was
-///   inconsistent. Carries authenticated shards so the responder can replay the reconstruction
-///   and observe that the re-encoded root does not match `r_j`.
+///   inconsistent.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Complaint {
     Reveal {
         proof: complaint::Complaint,
         // TODO: Handle zero-padding
         /// The reconstructed accuser's ciphertext. The responder re-encodes this and checks that
-        /// the resulting root matches `r_j`.
+        /// the resulting root matches `r_i`.
         ciphertext: Vec<u8>,
-        r_j: merkle::Node,
-        /// Proof that `r_j` sits under the global `r` at the accuser's leaf.
-        pi_j: merkle::MerkleProof,
+        r_i: merkle::Node,
+        /// Proof that `r_i` sits under the global `r` at the accuser's leaf.
+        pi_i: merkle::MerkleProof,
         /// `H(val)` from the dealer's broadcast, binding the complaint to a specific [CommonMessage].
         hash: Digest<32>,
     },
     Blame {
         accuser_id: PartyId,
-        r_j: merkle::Node,
-        /// Proof that `r_j` sits under the global `r` at `accuser_id`'s leaf.
-        pi_j: merkle::MerkleProof,
-        /// At least `W - 2f` weight worth of shards `s_{ji}`, each with a Merkle proof under `r_j`
+        r_i: merkle::Node,
+        /// Proof that `r_i` sits under the global `r` at `accuser_id`'s leaf.
+        pi_i: merkle::MerkleProof,
+        /// At least `W - 2f` weight worth of shards `s_{ji}`, each with a Merkle proof under `r_i`
         /// at the contributing party's leaf.
         shards: Vec<ShardContribution>,
         hash: Digest<32>,
@@ -142,12 +137,12 @@ pub enum Complaint {
 }
 
 /// One sender's contribution of shards toward reconstructing the accuser's ciphertext, with a
-/// Merkle proof binding the shards to the accuser's per-ciphertext root `r_j`.
+/// Merkle proof binding the shards to the accuser's per-ciphertext root `r_i`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ShardContribution {
     pub party: PartyId,
     pub shards: Vec<Shard>,
-    /// Proof that `shards` sits under the accuser's `r_j` at `party`'s leaf.
+    /// Proof that `shards` sits under the accuser's `r_i` at `party`'s leaf.
     pub proof: merkle::MerkleProof,
 }
 
@@ -588,7 +583,7 @@ impl Receiver {
             .cloned()
             .collect_vec();
 
-        let (r, r_j, _) = require_uniform_echo_metadata(&echo_messages)?;
+        let (r, r_i, _) = require_uniform_echo_metadata(&echo_messages)?;
 
         let required_weight = self.nodes.total_weight() - self.f;
         if self
@@ -603,7 +598,7 @@ impl Receiver {
         Ok(ProcessedEchoMessages {
             ciphertext,
             r,
-            r_j,
+            r_i,
             valid_echoes: echo_messages,
         })
     }
@@ -628,8 +623,8 @@ impl Receiver {
         self.code.decode(shards)
     }
 
-    /// The check r_j' == r_j from the paper
-    fn verify_ciphertext(&self, ciphertext: &[u8], root: &merkle::Node) -> FastCryptoResult<()> {
+    /// The check r_i' == r_i from the paper
+    fn check_avid_consistency(&self, ciphertext: &[u8], root: &merkle::Node) -> FastCryptoResult<()> {
         let new_shards = self
             .nodes
             .collect_to_nodes(self.code.encode(ciphertext)?.into_iter())?;
@@ -651,7 +646,7 @@ impl Receiver {
     ///
     /// If this function returns a [DecryptionOutcome::Complaint], the party should broadcast it
     /// to the other parties.
-    pub fn decrypt_shares(
+    pub fn verify_and_decrypt(
         &self,
         processed_echo_messages: ProcessedEchoMessages,
         message: &CommonMessage,
@@ -666,7 +661,7 @@ impl Receiver {
         let ProcessedEchoMessages {
             ciphertext,
             r,
-            r_j,
+            r_i,
             valid_echoes,
         } = processed_echo_messages;
         if full_public_keys.len() != self.batch_size
@@ -686,8 +681,8 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        // Check r_j' == r_j from the paper
-        let faulty_dealer = self.verify_ciphertext(&ciphertext, &r_j).is_err();
+        // Check r_i' == r_i from the paper
+        let faulty_dealer = self.check_avid_consistency(&ciphertext, &r_i).is_err();
 
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         let decrypted_shares = shared
@@ -720,11 +715,11 @@ impl Receiver {
                 public_keys: full_public_keys.clone(),
             })),
             (true, Ok(_)) => {
-                // The accuser packages the echoes' shard-level proofs (`pi_ij`, leaf-on-r_j) as
-                // ShardContributions, and lifts the `pi_i` (leaf-on-r) once into `pi_j`. This
+                // The accuser packages the echoes' shard-level proofs (`pi_ij`, leaf-on-r_i) as
+                // ShardContributions, and lifts the `pi_i` (leaf-on-r) once into `pi_i`. This
                 // gives the responder enough to replay the AVID inconsistency check.
                 let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
-                let pi_j = any_echo.pi_i.clone();
+                let pi_i = any_echo.pi_i.clone();
                 let hash = any_echo.hash;
                 let shards = valid_echoes
                     .into_iter()
@@ -736,8 +731,8 @@ impl Receiver {
                     .collect_vec();
                 Ok(DecryptionOutcome::Complaint(Complaint::Blame {
                     accuser_id: self.id,
-                    r_j,
-                    pi_j,
+                    r_i,
+                    pi_i,
                     shards,
                     hash,
                 }))
@@ -753,8 +748,8 @@ impl Receiver {
                         &mut rand::thread_rng(),
                     ),
                     ciphertext,
-                    r_j,
-                    pi_j: any_echo.pi_i.clone(),
+                    r_i,
+                    pi_i: any_echo.pi_i.clone(),
                     hash: any_echo.hash,
                 }))
             }
@@ -777,27 +772,27 @@ impl Receiver {
             Complaint::Reveal {
                 proof,
                 ciphertext,
-                r_j,
-                pi_j,
+                r_i,
+                pi_i,
                 hash,
             } => {
-                self.verify_reveal(message, root, proof, ciphertext, r_j, pi_j, hash)?;
+                self.verify_reveal(message, root, proof, ciphertext, r_i, pi_i, hash)?;
             }
             Complaint::Blame {
                 accuser_id,
-                r_j,
-                pi_j,
+                r_i,
+                pi_i,
                 shards,
                 hash,
             } => {
-                self.verify_blame(message, root, *accuser_id, r_j, pi_j, shards, hash)?;
+                self.verify_blame(message, root, *accuser_id, r_i, pi_i, shards, hash)?;
             }
         }
         Ok(ComplaintResponse::new(self.id, my_output.my_shares.clone()))
     }
 
     /// Verify a [Complaint::Reveal]: the ciphertext must be authenticated as the dealer's by
-    /// re-encoding under `r_j`, and decryption with the recovery package must yield invalid
+    /// re-encoding under `r_i`, and decryption with the recovery package must yield invalid
     /// shares.
     fn verify_reveal(
         &self,
@@ -805,18 +800,18 @@ impl Receiver {
         root: &merkle::Node,
         proof: &complaint::Complaint,
         ciphertext: &[u8],
-        r_j: &merkle::Node,
-        pi_j: &merkle::MerkleProof,
+        r_i: &merkle::Node,
+        pi_i: &merkle::MerkleProof,
         hash: &Digest<32>,
     ) -> FastCryptoResult<()> {
         let accuser_id = proof.accuser_id;
         let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
 
-        verify_outer_proof(root, r_j, pi_j, accuser_id)?;
+        verify_outer_proof(root, r_i, pi_i, accuser_id)?;
 
-        // Authenticate the ciphertext as the dealer's: re-encoding it must yield `r_j`.
+        // Authenticate the ciphertext as the dealer's: re-encoding it must yield `r_i`.
         if hash != &compute_common_message_hash(message)
-            || self.verify_ciphertext(ciphertext, r_j).is_err()
+            || self.check_avid_consistency(ciphertext, r_i).is_err()
         {
             return Err(InvalidProof);
         }
@@ -824,7 +819,7 @@ impl Receiver {
         let challenge = compute_challenge_from_message(&self.random_oracle(), root, message);
         proof.check(
             accuser_pk,
-            // TODO: Same padding issue as in `decrypt_shares` — `ciphertext` is shard-aligned and
+            // TODO: Same padding issue as in `verify_and_decrypt` — `ciphertext` is shard-aligned and
             // its trailing zeros decrypt to junk that breaks `bcs::from_bytes`. Truncate to the
             // unpadded length once that's carried on the wire.
             ciphertext,
@@ -844,15 +839,15 @@ impl Receiver {
     }
 
     /// Verify a [Complaint::Blame]: the accuser must have collected enough authenticated shards
-    /// whose re-encoded ciphertext root differs from the `r_j` the dealer committed to.
+    /// whose re-encoded ciphertext root differs from the `r_i` the dealer committed to.
     #[allow(clippy::too_many_arguments)]
     fn verify_blame(
         &self,
         message: &CommonMessage,
         root: &merkle::Node,
         accuser_id: PartyId,
-        r_j: &merkle::Node,
-        pi_j: &merkle::MerkleProof,
+        r_i: &merkle::Node,
+        pi_i: &merkle::MerkleProof,
         shards: &[ShardContribution],
         hash: &Digest<32>,
     ) -> FastCryptoResult<()> {
@@ -862,7 +857,7 @@ impl Receiver {
             return Err(InvalidProof);
         }
 
-        verify_outer_proof(root, r_j, pi_j, accuser_id)?;
+        verify_outer_proof(root, r_i, pi_i, accuser_id)?;
 
         if shards.iter().map(|s| s.party).unique().count() != shards.len() {
             return Err(InvalidProof);
@@ -870,7 +865,7 @@ impl Receiver {
 
         if shards.iter().any(|s| {
             s.proof
-                .verify_proof_with_unserialized_leaf(r_j, &s.shards, s.party as usize)
+                .verify_proof_with_unserialized_leaf(r_i, &s.shards, s.party as usize)
                 .is_err()
         }) {
             return Err(InvalidProof);
@@ -887,9 +882,9 @@ impl Receiver {
             .reconstruct_ciphertext_from_shard_contributions(shards)
             .map_err(|_| InvalidProof)?;
 
-        // The blame is valid iff re-encoding the recovered ciphertext does not match `r_j`:
+        // The blame is valid iff re-encoding the recovered ciphertext does not match `r_i`:
         // that mismatch is the proof of dealer misbehavior.
-        if self.verify_ciphertext(&ciphertext, r_j).is_ok() {
+        if self.check_avid_consistency(&ciphertext, r_i).is_ok() {
             return Err(InvalidProof);
         }
 
@@ -971,20 +966,20 @@ impl Receiver {
     }
 }
 
-/// Verify that `r_j` sits under the global `r` at the leaf indexed by `accuser_id`. Returns
+/// Verify that `r_i` sits under the global `r` at the leaf indexed by `accuser_id`. Returns
 /// `InvalidProof` on mismatch.
 fn verify_outer_proof(
     r: &merkle::Node,
-    r_j: &merkle::Node,
-    pi_j: &merkle::MerkleProof,
+    r_i: &merkle::Node,
+    pi_i: &merkle::MerkleProof,
     accuser_id: PartyId,
 ) -> FastCryptoResult<()> {
-    pi_j.verify_proof_with_unserialized_leaf(r, r_j, accuser_id as usize)
+    pi_i.verify_proof_with_unserialized_leaf(r, r_i, accuser_id as usize)
         .map_err(|_| InvalidProof)
 }
 
 /// Pull the per-echo metadata that must agree across the entire echo set: the global Merkle root
-/// `r`, the receiver's per-ciphertext root `r_j`, and the dealer's `H(val)`. Returns an error if
+/// `r`, the receiver's per-ciphertext root `r_i`, and the dealer's `H(val)`. Returns an error if
 /// any field is non-uniform (which would indicate inconsistent echoes / a faulty sender).
 fn require_uniform_echo_metadata(
     echoes: &[EchoMessage],
@@ -1167,7 +1162,7 @@ mod tests {
             .zip(processed_echo_messages)
             .zip(messages)
             .map(
-                |((receiver, pem), message)| match receiver.decrypt_shares(pem, &message.common) {
+                |((receiver, pem), message)| match receiver.verify_and_decrypt(pem, &message.common) {
                     Ok(DecryptionOutcome::Valid(output)) => (receiver.id, output),
                     _ => panic!(
                         "All receivers should be able to process the message in the happy path"
