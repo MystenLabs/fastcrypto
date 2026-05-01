@@ -114,11 +114,43 @@ pub fn aggregate_signatures(
     }
 
     // Interpolate the partial signatures to get the full signature.
-    let mut s = Poly::recover_c0(
+    let s = Poly::recover_c0(
         threshold,
         partial_signatures.iter().take(threshold as usize),
     )?;
 
+    finalize_schnorr_signature(
+        message,
+        public_presig,
+        beacon_value,
+        s,
+        verifying_key,
+        derivation_address,
+    )
+}
+
+/// Wrap an already-recovered signing scalar `s = f(0)` into a BIP-0340 Schnorr signature.
+///
+/// This is the second half of [aggregate_signatures], split out so callers that recover `s`
+/// through a different path (e.g. Reed–Solomon decoding, which yields `s` as the constant
+/// coefficient of the message polynomial) can reuse the BIP-0340 finalization without
+/// re-running Lagrange interpolation.
+///
+/// If a derivation index is provided, a new verifying key is derived for this index (see
+/// [derive_verifying_key]), and the signature is adjusted accordingly. The signature will
+/// be valid for the derived verifying key.
+///
+/// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
+/// `InvalidSignature` is returned if the aggregated signature does not verify.
+/// `InvalidInput` is returned if the provided verifying key is the identity element.
+pub fn finalize_schnorr_signature(
+    message: &[u8],
+    public_presig: &G,
+    beacon_value: &S,
+    mut s: S,
+    verifying_key: &G,
+    derivation_address: Option<&Address>,
+) -> FastCryptoResult<SchnorrSignature> {
     // Compute the nonce R for the signature.
     let r_g = public_presig + G::generator() * beacon_value;
     if r_g == G::zero() {
