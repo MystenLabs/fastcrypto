@@ -516,24 +516,6 @@ mod tests {
     //         .unwrap();
     // }
 
-    fn assert_valid_batch(
-        processed_message: batch_avss::ProcessedMessage,
-    ) -> batch_avss::ReceiverOutput {
-        if let batch_avss::ProcessedMessage::Valid(output) = processed_message {
-            output
-        } else {
-            panic!("Expected valid message");
-        }
-    }
-
-    fn assert_valid(processed_message: avss::ProcessedMessage) -> avss::PartialOutput {
-        if let avss::ProcessedMessage::Valid(output) = processed_message {
-            output
-        } else {
-            panic!("Expected valid message");
-        }
-    }
-
     /// Restrict a `HashMap` to a given set of keys.
     /// Panics if the given subset is not a subset of the maps' keys.
     pub(crate) fn restrict<T: Clone, I: Eq + Hash>(

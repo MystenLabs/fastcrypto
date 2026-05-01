@@ -13,9 +13,10 @@ use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, SharedComponents};
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{create_secret_sharing, Eval, Poly};
 use crate::random_oracle::RandomOracle;
-use crate::threshold_schnorr::batch_avss::DecryptedShares::{FaultyDealer, Valid};
+use crate::threshold_schnorr::batch_avss::DecryptedShares::{Blame, Reveal, Valid};
 use crate::threshold_schnorr::bcs::BCSSerialized;
-use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
+use crate::threshold_schnorr::complaint::Complaint;
+use crate::threshold_schnorr::complaint::ComplaintResponse;
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption};
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
@@ -93,21 +94,14 @@ pub struct EchoMessage {
 
 pub struct ProcessedEchoMessages {
     ciphertext: Vec<u8>,
-    root: merkle::Node,
+    r: merkle::Node,
     r_j: merkle::Node,
 }
 
 pub enum DecryptedShares {
     Valid(ReceiverOutput),
-    FaultyDealer { correctDec: bool },
-}
-
-/// The result of processing a message by a receiver: either valid shares or a complaint.
-#[allow(clippy::large_enum_variant)]
-pub enum ProcessedMessage {
-    Valid(ReceiverOutput),
-    Complaint(Complaint),
-    Blame(EchoMessage),
+    Reveal(Complaint),
+    Blame,
 }
 
 /// The output of a receiver which is a batch of shares and public keys for all nonces.
@@ -249,8 +243,8 @@ impl Dealer {
     ///
     /// * `nodes` defines the set of receivers and their weights.
     /// * `dealer_id` is the id of this dealer as a node.
-    /// * `t` is the number of shares that are needed to reconstruct the full key/signature.
     /// * `f` is the maximum number of Byzantine parties counted by weight.
+    /// * `t` is the number of shares that are needed to reconstruct the full key/signature.
     /// * `sid` is a session identifier that should be unique for each invocation, but the same for all parties.
     /// * `batch_size_per_weight` is the number of secrets a dealer should deal per weight it has.
     ///
@@ -279,7 +273,7 @@ impl Dealer {
         })
     }
 
-    /// 1. The Dealer generates shares for the secrets and broadcasts the encrypted shares.
+    /// 1. The Dealer generates shares for the secrets and creates a set of messages - one per receiver.
     pub fn create_message(&self, rng: &mut impl AllowedRng) -> FastCryptoResult<Vec<Message>> {
         let secrets = repeat_with(|| S::rand(rng))
             .take(self.batch_size)
@@ -421,6 +415,7 @@ impl Receiver {
     /// * `nodes` defines the set of receivers and what shares they should receive.
     /// * `id` is the id of this receiver.
     /// * `dealer_id` is the id of the dealer.
+    /// * `f` is the maximum number of Byzantine parties counted by weight.
     /// * `t` is the number of shares that are needed to reconstruct the full key/signature.
     /// * `sid` is a session identifier that should be unique for each invocation, but the same for all parties.
     /// * `enc_secret_key` is this Receivers' secret key for the distribution of nonces. The corresponding public key is defined in `nodes`.
@@ -454,6 +449,7 @@ impl Receiver {
         })
     }
 
+    /// 2. When a party receives its message, it verifies the Merkle tree path for it's shards and generates EchoMessages - one per party.
     pub fn echo_message(&self, message: &Message) -> FastCryptoResult<Vec<EchoMessage>> {
         if message.avid.iter().any(
             |AvidMessage {
@@ -501,16 +497,14 @@ impl Receiver {
             .collect::<FastCryptoResult<Vec<_>>>()
     }
 
-    /// 2. Each receiver processes the message, verifies and decrypts its shares.
+    /// 3. When a party has received at EchoMessages from parties with at least weight W - f, it
+    /// tries to process them. It first filters out invalid messages and checks if the EchoMessages
+    /// have the same digest, r and r_i values. If not, an InvalidMessage error is returned.
+    /// If the filtered set of EchoMessages does not have sufficient weight, an NotEnoughWeight error
+    /// is returned.
     ///
-    /// If this works, the receiver can store the shares and contribute a signature on the message to a certificate.
-    ///
-    /// This returns an [InvalidMessage] error if the ciphertext cannot be verified or if the commitments are invalid.
-    /// All honest receivers will reject such a message with the same error, and such a message should be ignored.
-    ///
-    /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
-    ///
-    /// 3. When f+t signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
+    /// If these checks succeed, the party reconstructs it's message (ciphertext) from the echoed
+    /// shards along with the r and r_i values.
     pub fn process_echo_messages(
         &self,
         echo_messages: &[EchoMessage],
@@ -540,7 +534,7 @@ impl Receiver {
             .collect_vec();
 
         // TODO: It is up to the caller to ensure that all echo messages have the same digest and root.
-        let root = get_uniform_value(
+        let r = get_uniform_value(
             echo_messages
                 .iter()
                 .cloned()
@@ -594,19 +588,11 @@ impl Receiver {
         .expect("should not fail with valid parameters");
 
         let ciphertext = code.decode(shards)?;
-        Ok(ProcessedEchoMessages {
-            ciphertext,
-            root,
-            r_j,
-        })
+        Ok(ProcessedEchoMessages { ciphertext, r, r_j })
     }
 
     /// The check r_j' == r_j from the paper
-    pub fn verify_ciphertext(
-        &self,
-        ciphertext: &[u8],
-        root: &merkle::Node,
-    ) -> FastCryptoResult<()> {
+    fn verify_ciphertext(&self, ciphertext: &[u8], root: &merkle::Node) -> FastCryptoResult<()> {
         let code = ErasureCoder::new(
             self.nodes.total_weight() as usize,
             (self.nodes.total_weight() - 2 * self.f) as usize, // 2f parity shards
@@ -625,7 +611,15 @@ impl Receiver {
         Ok(())
     }
 
-    /// If a party gets echo messages, the ciphertext verifies
+    /// 3. If the party also received a valid Message from the dealer, it can now decrypt its shares.
+    /// If this succeeds (returns a DecryptedShared::Valid), the party should return a signed vote to the dealer.
+    ///
+    /// When parties with weight at least W -f has submitted a vote, parties who didn't get a valid
+    /// Message from the dealer should request the CommonMessage part of that from the parties who voted.
+    /// Using this, the party can decrypt the shares and verify that the shares are valid.
+    ///
+    /// If this function returns Blame or Reveal, the party should broadcast a corresponding Blame or
+    /// Reveal message to the other parties.
     pub fn decrypt_shares(
         &self,
         processed_echo_messages: ProcessedEchoMessages,
@@ -638,11 +632,7 @@ impl Receiver {
             shared,
         } = message;
 
-        let ProcessedEchoMessages {
-            ciphertext,
-            root,
-            r_j,
-        } = processed_echo_messages;
+        let ProcessedEchoMessages { ciphertext, r, r_j } = processed_echo_messages;
         if full_public_keys.len() != self.batch_size
             || response_polynomial.degree() != self.t as usize - 1
         {
@@ -651,7 +641,7 @@ impl Receiver {
 
         // TODO: What should happen if these checks fail?
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
-        let challenge = compute_challenge_from_message(&self.random_oracle(), &root, message);
+        let challenge = compute_challenge_from_message(&self.random_oracle(), &r, message);
         if G::generator() * response_polynomial.c0()
             != blinding_commit
                 + G::multi_scalar_mul(&challenge, full_public_keys)
@@ -687,16 +677,30 @@ impl Receiver {
                 Ok(my_shares)
             });
 
-        if faulty_dealer || decrypted_shares.is_err() {
-            Ok(FaultyDealer {
-                correctDec: decrypted_shares.is_ok(),
-            })
-        } else {
-            Ok(Valid(ReceiverOutput {
-                my_shares: decrypted_shares?,
+        match (faulty_dealer, decrypted_shares) {
+            (false, Ok(my_shares)) => Ok(Valid(ReceiverOutput {
+                my_shares,
                 public_keys: full_public_keys.clone(),
-            }))
+            })),
+            (true, Ok(_)) => Ok(Blame),
+            (_, Err(_)) => Ok(Reveal(Complaint::create(
+                self.id,
+                &shared,
+                &self.enc_secret_key,
+                &self.random_oracle(),
+                &mut rand::thread_rng(),
+            ))),
         }
+    }
+
+    pub fn handle_blame(
+        &self,
+        message: &CommonMessage,
+        root: &merkle::Node,
+        blame: (), // TODO
+        my_output: &ReceiverOutput,
+    ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
+        panic!("Blame is not implemented");
     }
 
     /// 4. Upon receiving a complaint, a receiver verifies it and responds with its shares.
@@ -859,8 +863,8 @@ fn compute_common_message_hash(message: &Message) -> Digest<32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        compute_challenge, Complaint, Dealer, DecryptedShares, Message, ProcessedEchoMessages,
-        ProcessedMessage, Receiver, ReceiverOutput, ShareBatch, SharesForNode,
+        compute_challenge, Dealer, DecryptedShares, Message, ProcessedEchoMessages, Receiver,
+        ReceiverOutput, Reveal, ShareBatch, SharesForNode,
     };
     use crate::ecies_v1;
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
@@ -1271,20 +1275,4 @@ mod tests {
     //         })
     //     }
     // }
-
-    fn assert_valid(processed_message: ProcessedMessage) -> ReceiverOutput {
-        if let ProcessedMessage::Valid(output) = processed_message {
-            output
-        } else {
-            panic!("Expected valid message");
-        }
-    }
-
-    fn assert_complaint(processed_message: ProcessedMessage) -> Complaint {
-        if let ProcessedMessage::Complaint(complaint) = processed_message {
-            complaint
-        } else {
-            panic!("Expected complaint");
-        }
-    }
 }
