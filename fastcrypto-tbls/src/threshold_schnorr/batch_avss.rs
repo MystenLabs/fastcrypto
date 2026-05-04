@@ -112,9 +112,24 @@ pub struct ProcessedEchos {
 /// a complaint to broadcast instead.
 #[allow(clippy::large_enum_variant)]
 pub enum DecryptionOutcome {
-    Valid { output: ReceiverOutput, vote: Vote },
+    Valid {
+        output: ReceiverOutput,
+        vote: Vote,
+        /// State the party should retain to handle later [Reveal] / [Blame] requests via
+        /// [Receiver::handle_reveal] and [Receiver::handle_blame].
+        state: State,
+    },
     InvalidShares(Reveal),
     InvalidDispersal(Blame),
+}
+
+/// Context retained by a receiver after [Receiver::verify_and_decrypt] succeeds. Together with
+/// the [ReceiverOutput] it is sufficient to handle later [Reveal] / [Blame] requests.
+#[derive(Clone, Debug)]
+pub struct State {
+    pub common_message: CommonMessage,
+    pub global_root: merkle::Node,
+    pub recipient_root: merkle::Node,
 }
 
 /// The message a receiver broadcasts after `verify_and_decrypt`: a [Vote] endorsing the dealer's
@@ -600,8 +615,9 @@ impl Receiver {
     ///    If these checks succeed, the party reconstructs it's message (ciphertext) from the echoed
     ///    shards along with the r and r_i values.
     ///
-    ///    The party should keep its [ProcessedEchos] around in order to handle future requests
-    ///    through [Self::handle_reveal] and [Self::handle_blame].
+    ///    Once [Self::verify_and_decrypt] is called, the party should keep the resulting [State]
+    ///    around in order to handle future requests through [Self::handle_reveal] and
+    ///    [Self::handle_blame].
     pub fn process_echo_messages(
         &self,
         echo_messages: &[Echo],
@@ -723,8 +739,13 @@ impl Receiver {
                     public_keys: full_public_keys.clone(),
                 },
                 vote: Vote {
-                    global_root,
+                    global_root: global_root.clone(),
                     common_message_hash: compute_common_message_hash(common_message),
+                },
+                state: State {
+                    common_message: common_message.clone(),
+                    global_root,
+                    recipient_root,
                 },
             }),
             (true, Ok(_)) => {
@@ -768,8 +789,7 @@ impl Receiver {
     pub fn handle_reveal(
         &self,
         reveal: &Reveal,
-        processed_echos: &ProcessedEchos,
-        common_message: &CommonMessage,
+        state: &State,
         my_output: &ReceiverOutput,
     ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
         let Reveal {
@@ -781,7 +801,11 @@ impl Receiver {
         let accuser_weight = self.nodes.weight_of(accuser_id)?;
         let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
 
-        let ProcessedEchos { global_root, .. } = processed_echos;
+        let State {
+            common_message,
+            global_root,
+            ..
+        } = state;
 
         if common_message_hash != &compute_common_message_hash(common_message) {
             return Err(InvalidProof);
@@ -811,8 +835,7 @@ impl Receiver {
     pub fn handle_blame(
         &self,
         blame: &Blame,
-        processed_echos: &ProcessedEchos,
-        common_message: &CommonMessage,
+        state: &State,
         my_output: &ReceiverOutput,
     ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
         let Blame {
@@ -822,7 +845,11 @@ impl Receiver {
         } = blame;
         let accuser_id = *accuser_id;
 
-        let ProcessedEchos { recipient_root, .. } = processed_echos;
+        let State {
+            common_message,
+            recipient_root,
+            ..
+        } = state;
 
         if common_message_hash != &compute_common_message_hash(common_message)
             || shards.iter().map(|s| s.sender).unique().count() != shards.len()
@@ -1102,8 +1129,8 @@ fn compute_common_message_hash(message: &CommonMessage) -> Digest<32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Dealer, DecryptionOutcome, Message, ProcessedEchos, Receiver, ReceiverOutput, ShareBatch,
-        SharesForNode,
+        Dealer, DecryptionOutcome, Message, Receiver, ReceiverOutput, ShareBatch, SharesForNode,
+        State,
     };
     use crate::ecies_v1;
     use crate::ecies_v1::PublicKey;
@@ -1328,15 +1355,12 @@ mod tests {
             .map(|i| echo_messages.iter().map(|em| em[i].clone()).collect_vec())
             .collect_vec();
 
-        // Process echoes + verify_and_decrypt. Each receiver also keeps its [ProcessedEchos] in
-        // order to handle later complaints.
-        let mut pems: HashMap<u16, ProcessedEchos> = HashMap::new();
+        // Process echoes + verify_and_decrypt.
         let outcomes: HashMap<u16, DecryptionOutcome> = receivers
             .iter()
             .zip(echoes_per_recipient.iter())
             .map(|(r, echoes)| {
                 let pem = r.process_echo_messages(echoes).unwrap();
-                pems.insert(r.id, pem.clone());
                 (
                     r.id,
                     r.verify_and_decrypt(pem, &messages[r.id as usize].common)
@@ -1356,11 +1380,16 @@ mod tests {
             ),
         };
 
-        // The other receivers each get a Valid output.
+        // The other receivers each get a Valid output. Keep both `output` and `state` so the
+        // honest receivers can answer the victim's complaint.
+        let mut states: HashMap<u16, State> = HashMap::new();
         let mut outputs: HashMap<u16, ReceiverOutput> = outcomes
             .into_iter()
             .map(|(id, o)| match o {
-                DecryptionOutcome::Valid { output, .. } => (id, output),
+                DecryptionOutcome::Valid { output, state, .. } => {
+                    states.insert(id, state);
+                    (id, output)
+                }
                 other => panic!(
                     "expected Valid from honest receiver {id}, got {:?}",
                     outcome_kind(&other)
@@ -1375,8 +1404,7 @@ mod tests {
             .map(|r| {
                 r.handle_reveal(
                     &reveal,
-                    pems.get(&r.id).unwrap(),
-                    &messages[r.id as usize].common,
+                    states.get(&r.id).unwrap(),
                     outputs.get(&r.id).unwrap(),
                 )
                 .unwrap()
