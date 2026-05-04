@@ -100,6 +100,7 @@ pub struct Echo {
 }
 
 /// The receiver's reconstructed ciphertext together with the metadata extracted from the echoes.
+#[derive(Clone)]
 pub struct ProcessedEchos {
     ciphertext: Vec<u8>,
     global_root: merkle::Node,
@@ -589,6 +590,9 @@ impl Receiver {
     ///
     ///    If these checks succeed, the party reconstructs it's message (ciphertext) from the echoed
     ///    shards along with the r and r_i values.
+    ///
+    ///    The party should keep its [ProcessedEchos] around in order to handle future requests
+    ///    through [Self::handle_reveal] and [Self::handle_blame].
     pub fn process_echo_messages(
         &self,
         echo_messages: &[Echo],
@@ -639,7 +643,7 @@ impl Receiver {
     ///    appeared on the TOB/ABC channel.
     pub fn verify_and_decrypt(
         &self,
-        processed_echo_messages: ProcessedEchos,
+        processed_echos: ProcessedEchos,
         common_message: &CommonMessage,
     ) -> FastCryptoResult<DecryptionOutcome> {
         let CommonMessage {
@@ -659,14 +663,14 @@ impl Receiver {
             global_root,
             recipient_root,
             valid_echoes,
-        } = processed_echo_messages;
+        } = processed_echos;
 
         // TODO: What should happen if these checks fail?
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
         let challenge = compute_challenge_from_common_message(
             &self.random_oracle(),
             &global_root,
-            &common_message,
+            common_message,
         );
         if G::generator() * response_polynomial.c0()
             != blinding_commit
@@ -697,7 +701,7 @@ impl Receiver {
                     &my_shares,
                     &self.nodes,
                     self.id,
-                    &common_message,
+                    common_message,
                     &challenge,
                     self.batch_size,
                 )?;
@@ -713,7 +717,7 @@ impl Receiver {
                 },
                 vote: Vote {
                     global_root,
-                    common_message_hash: compute_common_message_hash(&common_message),
+                    common_message_hash: compute_common_message_hash(common_message),
                 },
             }),
             (true, Ok(_)) => {
@@ -752,11 +756,8 @@ impl Receiver {
     }
 
     /// 5. Upon receiving a [Reveal] from another party, verify it and respond with this party's
-    ///    own shares so the accuser can recover. The ciphertext must be authenticated as the dealer's
-    ///    by re-encoding under the locally-known `r_i`, and decryption with the recovery package must
-    ///    yield invalid shares. `message` is the dealer's full [Message] as this party received it;
-    ///    the verifier looks up the accuser's per-ciphertext root locally from
-    ///    `message.dispersal[accuser_id]` rather than trusting the complaint to carry it.
+    ///    own shares so the accuser can recover. Decryption with the recovery package must yield
+    ///    invalid shares against `common_message`.
     pub fn handle_reveal(
         &self,
         reveal: &Reveal,
@@ -772,24 +773,16 @@ impl Receiver {
         let accuser_id = proof.accuser_id;
         let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
 
-        let ProcessedEchos {
-            global_root,
-            recipient_root,
-            ..
-        } = processed_echos;
+        let ProcessedEchos { global_root, .. } = processed_echos;
 
-        if common_message_hash != &compute_common_message_hash(&common_message)
-            || self
-                .check_avid_consistency(ciphertext, &recipient_root)
-                .is_err()
-        {
+        if common_message_hash != &compute_common_message_hash(common_message) {
             return Err(InvalidProof);
         }
 
         let challenge = compute_challenge_from_common_message(
             &self.random_oracle(),
-            &global_root,
-            &common_message,
+            global_root,
+            common_message,
         );
         proof.check(
             accuser_pk,
@@ -801,7 +794,7 @@ impl Receiver {
                     shares,
                     &self.nodes,
                     accuser_id,
-                    &common_message,
+                    common_message,
                     &challenge,
                     self.batch_size,
                 )
@@ -828,14 +821,11 @@ impl Receiver {
         } = blame;
         let accuser_id = *accuser_id;
 
-        let ProcessedEchos {
-            recipient_root,
-            ..
-        } = processed_echos;
+        let ProcessedEchos { recipient_root, .. } = processed_echos;
 
-        if common_message_hash != &compute_common_message_hash(&common_message)
+        if common_message_hash != &compute_common_message_hash(common_message)
             || shards.iter().map(|s| s.sender).unique().count() != shards.len()
-            || shards.iter().any(|s| s.verify(&recipient_root).is_err())
+            || shards.iter().any(|s| s.verify(recipient_root).is_err())
         {
             return Err(InvalidProof);
         }
@@ -915,18 +905,6 @@ impl Receiver {
             return Err(InvalidMessage);
         }
         Ok(())
-    }
-
-    fn dispersal_root_for<'a>(
-        &self,
-        message: &'a Message,
-        accuser_id: PartyId,
-    ) -> FastCryptoResult<&'a merkle::Node> {
-        Ok(&message
-            .dispersal
-            .get(accuser_id as usize)
-            .ok_or(InvalidProof)?
-            .recipient_root)
     }
 
     /// 6. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
@@ -1156,7 +1134,8 @@ fn compute_common_message_hash(message: &CommonMessage) -> Digest<32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Dealer, DecryptionOutcome, Message, Receiver, ReceiverOutput, ShareBatch, SharesForNode,
+        Dealer, DecryptionOutcome, Message, ProcessedEchos, Receiver, ReceiverOutput, ShareBatch,
+        SharesForNode,
     };
     use crate::ecies_v1;
     use crate::ecies_v1::PublicKey;
@@ -1271,7 +1250,7 @@ mod tests {
             })
             .collect_vec();
 
-        let processed_echo_messages = receivers
+        let processed_echos = receivers
             .iter()
             .zip(messages.iter())
             .zip(echoes_by_recipient.iter())
@@ -1280,7 +1259,7 @@ mod tests {
 
         let all_shares = receivers
             .iter()
-            .zip(processed_echo_messages)
+            .zip(processed_echos)
             .zip(messages)
             .map(|((receiver, pem), message)| {
                 let output =
@@ -1381,12 +1360,15 @@ mod tests {
             .map(|i| echo_messages.iter().map(|em| em[i].clone()).collect_vec())
             .collect_vec();
 
-        // Process echoes + verify_and_decrypt
+        // Process echoes + verify_and_decrypt. Each receiver also keeps its [ProcessedEchos] in
+        // order to handle later complaints.
+        let mut pems: HashMap<u16, ProcessedEchos> = HashMap::new();
         let outcomes: HashMap<u16, DecryptionOutcome> = receivers
             .iter()
             .zip(echoes_per_recipient.iter())
             .map(|(r, echoes)| {
                 let pem = r.process_echo_messages(echoes).unwrap();
+                pems.insert(r.id, pem.clone());
                 (
                     r.id,
                     r.verify_and_decrypt(pem, &messages[r.id as usize].common)
@@ -1424,7 +1406,9 @@ mod tests {
             .filter(|r| r.id != victim_id)
             .map(|r| {
                 r.handle_reveal(
-                    &messages[r.id as usize],
+                    &reveal,
+                    pems.get(&r.id).unwrap(),
+                    &messages[r.id as usize].common,
                     outputs.get(&r.id).unwrap(),
                 )
                 .unwrap()
