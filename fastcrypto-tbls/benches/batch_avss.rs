@@ -188,7 +188,9 @@ mod batch_avss_benches {
                             .process_echo_messages(&echoes_for_party_1)
                             .unwrap();
                         assert_valid_batch(
-                            receivers[1].verify_and_decrypt(pem, &messages[1]).unwrap(),
+                            receivers[1]
+                                .verify_and_decrypt(pem, &messages[1].common)
+                                .unwrap(),
                         )
                     })
                     .collect_vec();
