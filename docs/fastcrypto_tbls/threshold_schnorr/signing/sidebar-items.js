@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["aggregate_signatures","generate_partial_signatures"]};
+window.SIDEBAR_ITEMS = {"fn":["aggregate_signatures","finalize_schnorr_signature","generate_partial_signatures"]};
