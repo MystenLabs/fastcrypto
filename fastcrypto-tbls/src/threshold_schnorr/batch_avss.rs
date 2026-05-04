@@ -116,7 +116,6 @@ pub enum DecryptionOutcome {
 pub enum Complaint {
     Reveal {
         proof: complaint::Complaint,
-        // TODO: Handle zero-padding
         /// The reconstructed accuser's ciphertext. The responder re-encodes this and checks that
         /// the resulting root matches the dealer-committed `r_i` they have locally.
         ciphertext: Vec<u8>,
@@ -199,7 +198,26 @@ impl ShareBatch {
     }
 }
 
+/// Byte-width of a BCS-serialized [S] scalar — the secp256k1 scalar serializes to 32 bytes.
+const SCALAR_BYTES: usize = 32;
+
 impl SharesForNode {
+    /// BCS-serialized length of a `SharesForNode` for a node of the given weight at the given
+    /// batch size. Equals the per-receiver ciphertext length, since AES-CTR is length-preserving.
+    ///
+    /// Layout:
+    /// ```text
+    /// SharesForNode = Vec<ShareBatch>
+    ///   = ULEB128(weight) + weight × ShareBatch
+    /// ShareBatch
+    ///   = NonZeroU16 (= 2 bytes) + Vec<S> + S
+    ///   = 2 + ULEB128(batch_size) + (batch_size + 1) × SCALAR_BYTES
+    /// ```
+    fn bcs_serialized_size(weight: usize, batch_size: usize) -> usize {
+        uleb128_len(weight)
+            + weight * (2 + uleb128_len(batch_size) + (batch_size + 1) * SCALAR_BYTES)
+    }
+
     /// Get the weight of this node (number of shares it has).
     pub fn weight(&self) -> u16 {
         self.shares.len() as u16
@@ -605,7 +623,12 @@ impl Receiver {
             return Err(NotEnoughWeight(required_weight as usize));
         }
 
-        let ciphertext = self.reconstruct_ciphertext_from_echoes(&echo_messages)?;
+        let ciphertext = self.reconstruct_ciphertext(self.id, |id| {
+            echo_messages
+                .iter()
+                .find(|e| e.party == id)
+                .map(|e| e.s_ij.clone())
+        })?;
         Ok(ProcessedEchoMessages {
             ciphertext,
             r,
@@ -614,24 +637,37 @@ impl Receiver {
         })
     }
 
-    /// Reed-Solomon decode a ciphertext from a set of authenticated [EchoMessage]s. Each echo
-    /// contributes `Some` shards for its sender's leaves; missing senders contribute `None`
-    /// erasures. The caller is responsible for having verified the echoes' Merkle proofs and
-    /// for ensuring the set has enough weight (≥ `W - 2f`) to decode.
-    fn reconstruct_ciphertext_from_echoes(
+    /// Reed-Solomon decode the ciphertext for `accuser_id` from a set of authenticated shard
+    /// contributions exposed via `shards_for(party_id) -> Option<Vec<Shard>>`. Fails if the
+    /// contributing weight is below `W - 2f` (too few contributions to reconstruct), or if a
+    /// party's contribution has a shard count that doesn't match its weight. The caller is
+    /// responsible for having authenticated the shards via their Merkle proofs.
+    fn reconstruct_ciphertext(
         &self,
-        echoes: &[EchoMessage],
+        accuser_id: PartyId,
+        shards_for: impl Fn(PartyId) -> Option<Vec<Shard>>,
     ) -> FastCryptoResult<Vec<u8>> {
         let shards: Vec<Option<Shard>> = self
             .nodes
             .node_ids_iter()
-            .flat_map(|id| match echoes.iter().find(|e| e.party == id) {
-                Some(e) => e.s_ij.iter().map(|s| Some(s.clone())).collect_vec(),
-                None => repeat_n(None, self.nodes.weight_of(id).unwrap() as usize).collect_vec(),
+            .map(|id| -> FastCryptoResult<Vec<Option<Shard>>> {
+                let weight = self.nodes.weight_of(id).expect("valid party id") as usize;
+                match shards_for(id) {
+                    Some(ss) if ss.len() == weight => Ok(ss.into_iter().map(Some).collect()),
+                    // Fail if a contributor's shard count doesn't match its weight.
+                    Some(_) => Err(InvalidInput),
+                    None => Ok(vec![None; weight]),
+                }
             })
-            .collect();
+            .flatten_ok()
+            .collect::<FastCryptoResult<Vec<_>>>()?;
 
-        self.code.decode(shards)
+        let mut ciphertext = self.code.decode(shards)?;
+        // Reed-Solomon `decode` returns shard-aligned padding; trim back to the original encrypted
+        // blob length.
+        let weight = self.nodes.weight_of(accuser_id)? as usize;
+        ciphertext.truncate(SharesForNode::bcs_serialized_size(weight, self.batch_size));
+        Ok(ciphertext)
     }
 
     /// The check r_i' == r_i from the paper
@@ -703,8 +739,7 @@ impl Receiver {
         let decrypted_shares = shared
             .verify(&random_oracle_encryption)
             .map(|_| {
-                // TODO: Handle zero-padding
-                shared.decrypt(
+                        shared.decrypt(
                     &ciphertext,
                     &self.enc_secret_key,
                     &random_oracle_encryption,
@@ -730,10 +765,9 @@ impl Receiver {
                 public_keys: full_public_keys.clone(),
             })),
             (true, Ok(_)) => {
-                // The accuser packages the echoes' shard-level proofs (`pi_ij`, leaf-on-r_i) as
-                // The accuser packages each echo's shard-level proof (`pi_ij`, leaf-on-r_i) as a
-                // ShardContribution. The responder looks up r_i locally from their own copy of the
-                // dealer's [Message], so it doesn't have to be transmitted.
+                // Repackage each echo's per-shard proof as a ShardContribution. r_i stays
+                // implicit — the responder reads it from its own [Message] rather than receiving
+                // it via the complaint.
                 let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
                 let hash = any_echo.hash;
                 let shards = valid_echoes
@@ -821,8 +855,7 @@ impl Receiver {
         let challenge = compute_challenge_from_message(&self.random_oracle(), &r, &message.common);
         proof.check(
             accuser_pk,
-            // TODO: Handle zero-padding
-            ciphertext,
+                ciphertext,
             &message.common.shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
@@ -873,7 +906,12 @@ impl Receiver {
         }
 
         let ciphertext = self
-            .reconstruct_ciphertext_from_shard_contributions(shards)
+            .reconstruct_ciphertext(accuser_id, |id| {
+                shards
+                    .iter()
+                    .find(|s| s.party == id)
+                    .map(|s| s.shards.clone())
+            })
             .map_err(|_| InvalidProof)?;
 
         // The blame is valid iff re-encoding the recovered ciphertext does not match `r_i`.
@@ -903,23 +941,6 @@ impl Receiver {
         .root())
     }
 
-    /// Sibling of [Self::reconstruct_ciphertext_from_echoes] that operates on a slice of
-    /// [ShardContribution] (the shape carried by [Complaint::Blame]).
-    fn reconstruct_ciphertext_from_shard_contributions(
-        &self,
-        contributions: &[ShardContribution],
-    ) -> FastCryptoResult<Vec<u8>> {
-        let shards: Vec<Option<Shard>> = self
-            .nodes
-            .node_ids_iter()
-            .flat_map(|id| match contributions.iter().find(|s| s.party == id) {
-                Some(s) => s.shards.iter().map(|s| Some(s.clone())).collect_vec(),
-                None => repeat_n(None, self.nodes.weight_of(id).unwrap() as usize).collect_vec(),
-            })
-            .collect();
-
-        self.code.decode(shards)
-    }
 
     /// 5. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
     ///    Fails if there are not enough valid responses to recover the shares or if any of the responses come from an invalid party.
@@ -975,9 +996,20 @@ impl Receiver {
     }
 }
 
+/// Number of bytes BCS uses to encode `x` as an unsigned LEB128 length prefix.
+fn uleb128_len(x: usize) -> usize {
+    let mut len = 1;
+    let mut v = x >> 7;
+    while v != 0 {
+        len += 1;
+        v >>= 7;
+    }
+    len
+}
+
 /// Pull the per-echo metadata that must agree across the entire echo set: the global Merkle root
 /// `r`, the receiver's per-ciphertext root `r_i`, and the dealer's `H(val)`. Returns an error if
-/// any field is non-uniform (which would indicate inconsistent echoes / a faulty sender).
+/// any field is non-uniform.
 fn require_uniform_echo_metadata(
     echoes: &[EchoMessage],
 ) -> FastCryptoResult<(merkle::Node, merkle::Node, Digest<32>)> {
@@ -1098,6 +1130,37 @@ mod tests {
     use itertools::Itertools;
     use std::collections::HashMap;
     use std::iter::repeat_with;
+
+    #[test]
+    fn test_bcs_serialized_size_matches_serialization() {
+        // For every (weight, batch_size) in the matrix, build a real `SharesForNode` and BCS-
+        // serialize it; the byte length must agree with `SharesForNode::bcs_serialized_size`. Cases
+        // straddle the ULEB128 single-byte/two-byte boundary at 128 in both dimensions.
+        use crate::threshold_schnorr::S;
+        use fastcrypto::groups::Scalar;
+
+        let dummy_index = ShareIndex::try_from(1u16).unwrap();
+        let zero_scalar = S::zero();
+        for &weight in &[1usize, 2, 5, 10, 100, 127, 128, 200] {
+            for &batch_size in &[1usize, 2, 3, 7, 50, 127, 128, 200] {
+                let shares_for_node = SharesForNode {
+                    shares: (0..weight)
+                        .map(|_| ShareBatch {
+                            index: dummy_index,
+                            batch: vec![zero_scalar; batch_size],
+                            blinding_share: zero_scalar,
+                        })
+                        .collect(),
+                };
+                let actual = shares_for_node.to_bytes().len();
+                let formula = SharesForNode::bcs_serialized_size(weight, batch_size);
+                assert_eq!(
+                    actual, formula,
+                    "weight={weight}, batch_size={batch_size}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn test_happy_path() {
