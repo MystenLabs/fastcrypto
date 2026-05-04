@@ -130,12 +130,12 @@ mod batch_avss_benches {
                     .map(|id| setup_receiver(id, 0, f, t, w, &keys, batch_size_per_weight))
                     .collect();
                 let messages = d0.create_message(&mut thread_rng()).unwrap();
-                let echoes: Vec<Vec<batch_avss::EchoMessage>> = receivers
+                let echoes: Vec<Vec<batch_avss::Echo>> = receivers
                     .iter()
                     .enumerate()
                     .map(|(i, r)| r.echo_message(&messages[i]).unwrap())
                     .collect();
-                let echoes_for_party_1: Vec<batch_avss::EchoMessage> =
+                let echoes_for_party_1: Vec<batch_avss::Echo> =
                     echoes.iter().map(|em| em[1].clone()).collect();
                 let r1 = &receivers[1];
 
@@ -177,12 +177,12 @@ mod batch_avss_benches {
                                 )
                             })
                             .collect();
-                        let echoes: Vec<Vec<batch_avss::EchoMessage>> = receivers
+                        let echoes: Vec<Vec<batch_avss::Echo>> = receivers
                             .iter()
                             .enumerate()
                             .map(|(i, r)| r.echo_message(&messages[i]).unwrap())
                             .collect();
-                        let echoes_for_party_1: Vec<batch_avss::EchoMessage> =
+                        let echoes_for_party_1: Vec<batch_avss::Echo> =
                             echoes.iter().map(|em| em[1].clone()).collect();
                         let pem = receivers[1]
                             .process_echo_messages(&echoes_for_party_1)

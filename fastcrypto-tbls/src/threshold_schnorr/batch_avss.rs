@@ -78,31 +78,33 @@ pub struct CommonMessage {
     response_polynomial: Poly<S>,
 }
 
+/// One recipient's shards for one ciphertext, with a Merkle proof binding them to the
+/// per-ciphertext root the dealer committed to.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthenticatedShards {
-    root: merkle::Node,
+    recipient_root: merkle::Node,
     shards: Vec<Shard>,
-    shards_proof: merkle::MerkleProof,
+    proof: merkle::MerkleProof,
 }
 
 /// One sender's echo to a single recipient: their shard for the recipient's ciphertext, with
 /// Merkle proofs binding it to the dealer's broadcast.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EchoMessage {
+pub struct Echo {
     sender: PartyId,
     global_root: merkle::Node,
-    /// Proof that `authenticated_shards.root` sits under `global_root` at the recipient's leaf.
+    /// Proof that `authenticated_shards.recipient_root` sits under `global_root` at the recipient's leaf.
     recipient_root_proof: merkle::MerkleProof,
     authenticated_shards: AuthenticatedShards,
     common_message_hash: Digest<32>,
 }
 
 /// The receiver's reconstructed ciphertext together with the metadata extracted from the echoes.
-pub struct ProcessedEchoMessages {
+pub struct ProcessedEchos {
     ciphertext: Vec<u8>,
     global_root: merkle::Node,
     recipient_root: merkle::Node,
-    valid_echoes: Vec<EchoMessage>,
+    valid_echoes: Vec<Echo>,
 }
 
 /// The result of [Receiver::verify_and_decrypt]: either valid shares plus a vote to broadcast, or
@@ -155,7 +157,7 @@ pub struct ShardContribution {
     pub sender: PartyId,
     pub shards: Vec<Shard>,
     /// Proof that `shards` sits under the accuser's `recipient_root` at `sender`'s leaf.
-    pub shards_proof: merkle::MerkleProof,
+    pub proof: merkle::MerkleProof,
 }
 
 /// The output of a receiver which is a batch of shares and public keys for all nonces.
@@ -189,10 +191,13 @@ pub struct ShareBatch {
 }
 
 impl AuthenticatedShards {
-    /// Verify that `shards` are the leaf at `leaf_index` under `root` using `shards_proof`.
+    /// Verify that `shards` are the leaf at `leaf_index` under `recipient_root` using `proof`.
     fn verify(&self, leaf_index: usize) -> FastCryptoResult<()> {
-        self.shards_proof
-            .verify_proof_with_unserialized_leaf(&self.root, &self.shards, leaf_index)
+        self.proof.verify_proof_with_unserialized_leaf(
+            &self.recipient_root,
+            &self.shards,
+            leaf_index,
+        )
     }
 }
 
@@ -462,9 +467,9 @@ impl Dealer {
                     .zip(&roots)
                     .map(|((s, tree), root)| {
                         Ok(AuthenticatedShards {
-                            root: root.clone(),
+                            recipient_root: root.clone(),
                             shards: s[id as usize].clone(),
-                            shards_proof: tree.get_proof(id as usize)?,
+                            proof: tree.get_proof(id as usize)?,
                         })
                     })
                     .collect::<FastCryptoResult<Vec<_>>>()
@@ -563,8 +568,8 @@ impl Receiver {
         })
     }
 
-    /// 2. When a party receives its message, it verifies the Merkle tree path for it's shards and generates EchoMessages - one per party.
-    pub fn echo_message(&self, message: &Message) -> FastCryptoResult<Vec<EchoMessage>> {
+    /// 2. When a party receives its message, it verifies the Merkle tree path for it's shards and generates Echos - one per party.
+    pub fn echo_message(&self, message: &Message) -> FastCryptoResult<Vec<Echo>> {
         if message
             .dispersal
             .iter()
@@ -574,38 +579,38 @@ impl Receiver {
         }
 
         let tree = MerkleTree::<Blake2b256>::build_from_unserialized(
-            message.dispersal.iter().map(|auth| &auth.root),
+            message.dispersal.iter().map(|auth| &auth.recipient_root),
         )?;
         let global_root = tree.root();
-        let digest = compute_common_message_hash(&message.common);
+        let common_message_hash = compute_common_message_hash(&message.common);
         message
             .dispersal
             .iter()
             .enumerate()
             .map(|(i, authenticated_shards)| {
-                Ok(EchoMessage {
+                Ok(Echo {
                     sender: self.id,
                     global_root: global_root.clone(),
                     recipient_root_proof: tree.get_proof(i)?,
                     authenticated_shards: authenticated_shards.clone(),
-                    common_message_hash: digest,
+                    common_message_hash,
                 })
             })
             .collect::<FastCryptoResult<Vec<_>>>()
     }
 
-    /// 3. When a party has received EchoMessages from parties with at least weight W - f, it
-    ///    tries to process them. It first filters out invalid messages and checks if the EchoMessages
+    /// 3. When a party has received Echos from parties with at least weight W - f, it
+    ///    tries to process them. It first filters out invalid messages and checks if the Echos
     ///    have the same digest, r and r_i values. If not, an InvalidMessage error is returned.
-    ///    If the filtered set of EchoMessages does not have sufficient weight, an NotEnoughWeight error
+    ///    If the filtered set of Echos does not have sufficient weight, an NotEnoughWeight error
     ///    is returned.
     ///
     ///    If these checks succeed, the party reconstructs it's message (ciphertext) from the echoed
     ///    shards along with the r and r_i values.
     pub fn process_echo_messages(
         &self,
-        echo_messages: &[EchoMessage],
-    ) -> FastCryptoResult<ProcessedEchoMessages> {
+        echo_messages: &[Echo],
+    ) -> FastCryptoResult<ProcessedEchos> {
         // Filter out invalid echo messages
         let valid_echoes = echo_messages
             .iter()
@@ -618,7 +623,7 @@ impl Receiver {
                         .recipient_root_proof
                         .verify_proof_with_unserialized_leaf(
                             &echo_message.global_root,
-                            &echo_message.authenticated_shards.root,
+                            &echo_message.authenticated_shards.recipient_root,
                             self.id as usize,
                         )
                         .is_ok()
@@ -643,7 +648,7 @@ impl Receiver {
                 .find(|e| e.sender == id)
                 .map(|e| e.authenticated_shards.shards.clone())
         })?;
-        Ok(ProcessedEchoMessages {
+        Ok(ProcessedEchos {
             ciphertext,
             global_root,
             recipient_root,
@@ -716,7 +721,7 @@ impl Receiver {
     ///    appeared on the TOB/ABC channel.
     pub fn verify_and_decrypt(
         &self,
-        processed_echo_messages: ProcessedEchoMessages,
+        processed_echo_messages: ProcessedEchos,
         message: &Message,
     ) -> FastCryptoResult<DecryptionOutcome> {
         let CommonMessage {
@@ -726,7 +731,7 @@ impl Receiver {
             shared,
         } = &message.common;
 
-        let ProcessedEchoMessages {
+        let ProcessedEchos {
             ciphertext,
             global_root,
             recipient_root,
@@ -802,7 +807,7 @@ impl Receiver {
                     .map(|e| ShardContribution {
                         sender: e.sender,
                         shards: e.authenticated_shards.shards,
-                        shards_proof: e.authenticated_shards.shards_proof,
+                        proof: e.authenticated_shards.proof,
                     })
                     .collect_vec();
                 Ok(DecryptionOutcome::InvalidDispersal(Blame {
@@ -906,7 +911,7 @@ impl Receiver {
         }
 
         if shards.iter().any(|s| {
-            s.shards_proof
+            s.proof
                 .verify_proof_with_unserialized_leaf(recipient_root, &s.shards, s.sender as usize)
                 .is_err()
         }) {
@@ -949,12 +954,12 @@ impl Receiver {
             .dispersal
             .get(accuser_id as usize)
             .ok_or(InvalidProof)?
-            .root)
+            .recipient_root)
     }
 
     fn global_root(&self, message: &Message) -> FastCryptoResult<merkle::Node> {
         Ok(MerkleTree::<Blake2b256>::build_from_unserialized(
-            message.dispersal.iter().map(|s| &s.root),
+            message.dispersal.iter().map(|s| &s.recipient_root),
         )?
         .root())
     }
@@ -1028,12 +1033,12 @@ fn uleb128_len(x: usize) -> usize {
 /// `r`, the receiver's per-ciphertext root `r_i`, and the dealer's `H(val)`. Returns an error if
 /// any field is non-uniform.
 fn require_uniform_echo_metadata(
-    echoes: &[EchoMessage],
+    echoes: &[Echo],
 ) -> FastCryptoResult<(merkle::Node, merkle::Node, Digest<32>)> {
     get_uniform_value(echoes.iter().map(|e| {
         (
             e.global_root.clone(),
-            e.authenticated_shards.root.clone(),
+            e.authenticated_shards.recipient_root.clone(),
             e.common_message_hash,
         )
     }))
@@ -1259,14 +1264,10 @@ mod tests {
             .iter()
             .zip(processed_echo_messages)
             .zip(messages)
-            .map(
-                |((receiver, pem), message)| match receiver.verify_and_decrypt(pem, &message) {
-                    Ok(DecryptionOutcome::Valid { output, .. }) => (receiver.id, output),
-                    _ => panic!(
-                        "All receivers should be able to process the message in the happy path"
-                    ),
-                },
-            )
+            .map(|((receiver, pem), message)| {
+                let output = assert_valid(receiver.verify_and_decrypt(pem, &message).unwrap());
+                (receiver.id, output)
+            })
             .collect::<HashMap<_, _>>();
 
         let secrets = (0..dealer.batch_size)
@@ -1428,6 +1429,13 @@ mod tests {
                 })
                 .collect_vec();
             Poly::recover_c0(t, shares.into_iter()).unwrap();
+        }
+    }
+
+    fn assert_valid(outcome: DecryptionOutcome) -> ReceiverOutput {
+        match outcome {
+            DecryptionOutcome::Valid { output, .. } => output,
+            other => panic!("expected valid outcome, got {:?}", outcome_kind(&other)),
         }
     }
 
