@@ -86,6 +86,8 @@ pub struct AuthenticatedShards {
     proof: merkle::MerkleProof,
 }
 
+/// One sender's echo to a single recipient: their shard for the recipient's ciphertext, with
+/// Merkle proofs binding it to the dealer's broadcast.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EchoMessage {
     party: PartyId,
@@ -97,6 +99,7 @@ pub struct EchoMessage {
     pub pi_ij: merkle::MerkleProof,
 }
 
+/// The receiver's reconstructed ciphertext together with the metadata extracted from the echoes.
 pub struct ProcessedEchoMessages {
     ciphertext: Vec<u8>,
     r: merkle::Node,
@@ -104,6 +107,8 @@ pub struct ProcessedEchoMessages {
     valid_echoes: Vec<EchoMessage>,
 }
 
+/// The result of [Receiver::verify_and_decrypt]: either valid shares plus a vote to broadcast, or
+/// a complaint to broadcast instead.
 pub enum DecryptionOutcome {
     Valid {
         output: ReceiverOutput,
@@ -127,7 +132,7 @@ impl DecryptionOutcome {
 }
 
 /// The message a receiver broadcasts after `verify_and_decrypt`: a [Vote] endorsing the dealer's
-/// broadcast on the happy path, or a [Reveal] / [Blame] complaint otherwise.
+/// broadcast or a [Reveal] / [Blame] complaint otherwise.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Response {
     Vote(Vote),
@@ -731,14 +736,14 @@ impl Receiver {
     pub fn verify_and_decrypt(
         &self,
         processed_echo_messages: ProcessedEchoMessages,
-        message: &CommonMessage,
+        message: &Message,
     ) -> FastCryptoResult<DecryptionOutcome> {
         let CommonMessage {
             full_public_keys,
             blinding_commit,
             response_polynomial,
             shared,
-        } = message;
+        } = &message.common;
 
         let ProcessedEchoMessages {
             ciphertext,
@@ -754,7 +759,8 @@ impl Receiver {
 
         // TODO: What should happen if these checks fail?
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
-        let challenge = compute_challenge_from_message(&self.random_oracle(), &r, message);
+        let challenge =
+            compute_challenge_from_message(&self.random_oracle(), &r, &message.common);
         if G::generator() * response_polynomial.c0()
             != blinding_commit
                 + G::multi_scalar_mul(&challenge, full_public_keys)
@@ -783,7 +789,7 @@ impl Receiver {
                     &my_shares,
                     &self.nodes,
                     self.id,
-                    message,
+                    &message.common,
                     &challenge,
                     self.batch_size,
                 )?;
@@ -802,7 +808,7 @@ impl Receiver {
                 },
                 vote: Vote {
                     r,
-                    hash: compute_common_message_hash(message),
+                    hash: compute_common_message_hash(&message.common),
                 },
             }),
             (true, Ok(_)) => {
@@ -1222,24 +1228,24 @@ mod tests {
 
         let messages = dealer.create_message(&mut rng).unwrap();
 
-        let echo_messages = receivers
+        let echoes_by_sender = receivers
             .iter()
             .map(|receiver| receiver.echo_message(&messages[receiver.id as usize]))
             .collect::<FastCryptoResult<Vec<_>>>()
             .unwrap();
 
-        let echo_messages = receivers
+        let echoes_by_recipient = receivers
             .iter()
             .enumerate()
-            .map(|(i, _)| echo_messages.iter().map(|em| em[i].clone()).collect_vec())
+            .map(|(i, _)| echoes_by_sender.iter().map(|em| em[i].clone()).collect_vec())
             .collect_vec();
 
         let processed_echo_messages = receivers
             .iter()
             .zip(messages.iter())
-            .zip(echo_messages.iter())
-            .map(|((receiver, _message), echo_message)| {
-                receiver.process_echo_messages(echo_message).unwrap()
+            .zip(echoes_by_recipient.iter())
+            .map(|((receiver, _message), echoes)| {
+                receiver.process_echo_messages(echoes).unwrap()
             })
             .collect_vec();
 
@@ -1248,7 +1254,7 @@ mod tests {
             .zip(processed_echo_messages)
             .zip(messages)
             .map(|((receiver, pem), message)| {
-                match receiver.verify_and_decrypt(pem, &message.common) {
+                match receiver.verify_and_decrypt(pem, &message) {
                     Ok(DecryptionOutcome::Valid { output, .. }) => (receiver.id, output),
                     _ => panic!(
                         "All receivers should be able to process the message in the happy path"
@@ -1357,7 +1363,7 @@ mod tests {
                 let pem = r.process_echo_messages(echoes).unwrap();
                 (
                     r.id,
-                    r.verify_and_decrypt(pem, &messages[r.id as usize].common)
+                    r.verify_and_decrypt(pem, &messages[r.id as usize])
                         .unwrap(),
                 )
             })
@@ -1444,280 +1450,4 @@ mod tests {
             })
         }
     }
-    //
-    // #[test]
-    // #[allow(clippy::single_match)]
-    // fn test_happy_path_non_equal_weights() {
-    //     // No complaints, all honest
-    //     let t = 4;
-    //     let f = 3;
-    //     let weights: Vec<u16> = vec![1, 2, 3, 4];
-    //     let batch_size_per_weight = 3;
-    //
-    //     let mut rng = rand::thread_rng();
-    //     let sks = weights
-    //         .iter()
-    //         .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
-    //         .collect::<Vec<_>>();
-    //     let nodes = Nodes::new(
-    //         weights
-    //             .into_iter()
-    //             .enumerate()
-    //             .map(|(i, weight)| Node {
-    //                 id: i as u16,
-    //                 pk: PublicKey::from_private_key(&sks[i]),
-    //                 weight,
-    //             })
-    //             .collect_vec(),
-    //     )
-    //     .unwrap();
-    //
-    //     let dealer_id = 2;
-    //     let sid = b"tbls test".to_vec();
-    //     let dealer: Dealer = Dealer::new(
-    //         nodes.clone(),
-    //         dealer_id,
-    //         f,
-    //         t,
-    //         sid.clone(),
-    //         batch_size_per_weight,
-    //     )
-    //     .unwrap();
-    //
-    //     let receivers = sks
-    //         .into_iter()
-    //         .enumerate()
-    //         .map(|(i, secret_key)| {
-    //             Receiver::new(
-    //                 nodes.clone(),
-    //                 i as u16,
-    //                 dealer_id,
-    //                 t,
-    //                 sid.clone(),
-    //                 secret_key,
-    //                 batch_size_per_weight,
-    //             )
-    //             .unwrap()
-    //         })
-    //         .collect_vec();
-    //
-    //     let message = dealer.create_message(&mut rng).unwrap();
-    //
-    //     let all_shares = receivers
-    //         .iter()
-    //         .flat_map(|receiver| {
-    //             assert_valid(receiver.process_message(&message).unwrap())
-    //                 .my_shares
-    //                 .shares
-    //         })
-    //         .collect::<Vec<_>>();
-    //
-    //     let secrets = (0..dealer.batch_size)
-    //         .map(|l| {
-    //             Poly::recover_c0(
-    //                 t,
-    //                 all_shares.iter().take(t as usize).map(|s| Eval {
-    //                     index: s.index,
-    //                     value: s.batch[l],
-    //                 }),
-    //             )
-    //             .unwrap()
-    //         })
-    //         .collect::<Vec<_>>();
-    //
-    //     assert_eq!(secrets, secrets);
-    // }
-    //
-    // #[test]
-    // fn test_share_recovery() {
-    //     let t = 3;
-    //     let f = 2;
-    //     let n = 7;
-    //     let batch_size_per_weight: u16 = 3;
-    //
-    //     let mut rng = rand::thread_rng();
-    //     let sks = (0..n)
-    //         .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
-    //         .collect::<Vec<_>>();
-    //     let nodes = Nodes::new(
-    //         sks.iter()
-    //             .enumerate()
-    //             .map(|(id, sk)| Node {
-    //                 id: id as u16,
-    //                 pk: PublicKey::from_private_key(sk),
-    //                 weight: 1,
-    //             })
-    //             .collect::<Vec<_>>(),
-    //     )
-    //     .unwrap();
-    //
-    //     let sid = b"tbls test".to_vec();
-    //
-    //     let dealer_id = 1;
-    //     let dealer: Dealer = Dealer::new(
-    //         nodes.clone(),
-    //         dealer_id,
-    //         f,
-    //         t,
-    //         sid.clone(),
-    //         batch_size_per_weight,
-    //     )
-    //     .unwrap();
-    //
-    //     let receivers = sks
-    //         .into_iter()
-    //         .enumerate()
-    //         .map(|(id, secret_key)| {
-    //             Receiver::new(
-    //                 nodes.clone(),
-    //                 id as u16,
-    //                 dealer_id,
-    //                 t,
-    //                 sid.clone(),
-    //                 secret_key,
-    //                 batch_size_per_weight,
-    //             )
-    //             .unwrap()
-    //         })
-    //         .collect::<Vec<_>>();
-    //
-    //     let message = dealer.create_message_cheating(&mut rng).unwrap();
-    //
-    //     let mut all_shares = receivers
-    //         .iter()
-    //         .map(|receiver| (receiver.id, receiver.process_message(&message).unwrap()))
-    //         .collect::<HashMap<_, _>>();
-    //
-    //     let complaint = assert_complaint(all_shares.remove(&receivers[0].id).unwrap());
-    //     let mut all_shares = all_shares
-    //         .into_iter()
-    //         .map(|(id, pm)| (id, assert_valid(pm)))
-    //         .collect::<HashMap<_, _>>();
-    //
-    //     let responses = receivers
-    //         .iter()
-    //         .skip(1)
-    //         .map(|r| {
-    //             r.handle_complaint(&message, &complaint, all_shares.get(&r.id).unwrap())
-    //                 .unwrap()
-    //         })
-    //         .collect::<Vec<_>>();
-    //     let shares = receivers[0].recover(&message, responses).unwrap();
-    //     all_shares.insert(receivers[0].id, shares);
-    //
-    //     // Recover with the first f+1 shares, including the reconstructed
-    //     let secrets = (0..dealer.batch_size)
-    //         .map(|l| {
-    //             let shares = all_shares
-    //                 .iter()
-    //                 .map(|(id, s)| (*id, s.my_shares.shares[0].batch[l]))
-    //                 .collect::<Vec<_>>();
-    //             Poly::recover_c0(
-    //                 t,
-    //                 shares.iter().take(t as usize).map(|(id, v)| Eval {
-    //                     index: ShareIndex::try_from(id + 1).unwrap(),
-    //                     value: *v,
-    //                 }),
-    //             )
-    //             .unwrap()
-    //         })
-    //         .collect::<Vec<_>>();
-    //
-    //     assert_eq!(secrets, secrets);
-    // }
-    //
-    // impl Dealer {
-    //     /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares. This also returns the nonces to be secret shared along with their corresponding public keys.
-    //     pub fn create_message_cheating(
-    //         &self,
-    //         rng: &mut impl AllowedRng,
-    //     ) -> FastCryptoResult<Message> {
-    //         let polynomials = repeat_with(|| Poly::rand(self.t - 1, rng))
-    //             .take(self.batch_size)
-    //             .collect_vec();
-    //
-    //         // Compute the (full) public keys for all secrets
-    //         let full_public_keys = polynomials
-    //             .iter()
-    //             .map(|p| G::generator() * p.c0())
-    //             .collect_vec();
-    //
-    //         // "blinding" polynomial as defined in https://eprint.iacr.org/2023/536.pdf.
-    //         let blinding_poly = Poly::rand(self.t - 1, rng);
-    //         let blinding_commit = G::generator() * blinding_poly.c0();
-    //
-    //         // Encrypt all shares to the receivers
-    //         let mut pk_and_msgs = self
-    //             .nodes
-    //             .iter()
-    //             .map(|node| (node.pk.clone(), self.nodes.share_ids_of(node.id).unwrap()))
-    //             .map(|(public_key, share_ids)| {
-    //                 (
-    //                     public_key,
-    //                     SharesForNode {
-    //                         shares: share_ids
-    //                             .into_iter()
-    //                             .map(|index| ShareBatch {
-    //                                 index,
-    //                                 batch: polynomials
-    //                                     .iter()
-    //                                     .map(|p_l| p_l.eval(index).value)
-    //                                     .collect_vec(),
-    //                                 blinding_share: blinding_poly.eval(index).value,
-    //                             })
-    //                             .collect_vec(),
-    //                     },
-    //                 )
-    //             })
-    //             .map(|(pk, shares_for_node)| (pk, shares_for_node.to_bytes()))
-    //             .collect_vec();
-    //
-    //         // Modify the first share of the first receiver to simulate a cheating dealer
-    //         pk_and_msgs[0].1[7] ^= 1;
-    //
-    //         let ciphertext = MultiRecipientEncryption::encrypt(
-    //             &pk_and_msgs,
-    //             &self.random_oracle().extend(&Encryption.to_string()),
-    //             rng,
-    //         );
-    //
-    //         let (shared, ciphertexts) = ciphertext.clone().into_parts();
-    //         let code = ErasureCoder::new(
-    //             self.nodes.total_weight() as usize,
-    //             (self.nodes.total_weight() - 2 * self.f) as usize,
-    //         )?;
-    //         let roots = ciphertexts
-    //             .iter()
-    //             .map(|part| {
-    //                 let shards = code.encode(part)?;
-    //                 let tree =
-    //                     fastcrypto::merkle::MerkleTree::<Blake2b256>::build_from_unserialized(
-    //                         shards.iter(),
-    //                     )?;
-    //                 Ok(tree.root())
-    //             })
-    //             .collect::<FastCryptoResult<Vec<_>>>()?;
-    //
-    //         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
-    //         let challenge = compute_challenge(
-    //             &self.random_oracle(),
-    //             &full_public_keys,
-    //             &blinding_commit,
-    //             &shared,
-    //             &roots,
-    //         );
-    //         let mut response_polynomial = blinding_poly;
-    //         for (p_l, gamma_l) in polynomials.into_iter().zip_eq(&challenge) {
-    //             response_polynomial += &(p_l * gamma_l);
-    //         }
-    //
-    //         Ok(Message {
-    //             full_public_keys,
-    //             blinding_commit,
-    //             ciphertext,
-    //             response_polynomial,
-    //             roots,
-    //         })
-    //     }
-    // }
 }
