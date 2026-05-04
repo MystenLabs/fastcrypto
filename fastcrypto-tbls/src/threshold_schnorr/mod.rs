@@ -505,8 +505,8 @@ mod tests {
     }
 
     fn assert_valid_batch(outcome: batch_avss::DecryptionOutcome) -> batch_avss::ReceiverOutput {
-        match outcome {
-            batch_avss::DecryptionOutcome::Valid { output, .. } => output,
+        match outcome.kind {
+            batch_avss::OutcomeKind::Valid { output, .. } => output,
             _ => panic!("expected valid batch_avss output"),
         }
     }
