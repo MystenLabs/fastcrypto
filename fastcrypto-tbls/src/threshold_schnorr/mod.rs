@@ -239,7 +239,7 @@ mod tests {
             // Each receiver produces echoes addressed to every party.
             let echoes: Vec<Vec<batch_avss::Echo>> = receivers
                 .iter()
-                .map(|r| r.echo_message(&messages[r.id as usize]).unwrap())
+                .map(|r| r.echo(&messages[r.id as usize]).unwrap())
                 .collect();
 
             // Bundle echoes per recipient: echoes_per_recipient[i] = echoes addressed to party i.
@@ -250,7 +250,7 @@ mod tests {
             // Each receiver processes the message.
             // In this case, we assume all are honest and there are no complaints.
             for ((r, echoes), msg) in receivers.iter().zip(&echoes_per_recipient).zip(&messages) {
-                let pem = r.process_echo_messages(echoes).unwrap();
+                let pem = r.process_echos(echoes).unwrap();
                 let output = assert_valid_batch(r.verify_and_decrypt(pem, &msg.common).unwrap());
                 presigning_outputs.get_mut(&r.id).unwrap().push(output);
             }

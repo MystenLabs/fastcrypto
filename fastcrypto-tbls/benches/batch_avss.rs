@@ -133,7 +133,7 @@ mod batch_avss_benches {
                 let echoes: Vec<Vec<batch_avss::Echo>> = receivers
                     .iter()
                     .enumerate()
-                    .map(|(i, r)| r.echo_message(&messages[i]).unwrap())
+                    .map(|(i, r)| r.echo(&messages[i]).unwrap())
                     .collect();
                 let echoes_for_party_1: Vec<batch_avss::Echo> =
                     echoes.iter().map(|em| em[1].clone()).collect();
@@ -141,7 +141,7 @@ mod batch_avss_benches {
 
                 process.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.process_echo_messages(&echoes_for_party_1).unwrap()),
+                    |b| b.iter(|| r1.process_echos(&echoes_for_party_1).unwrap()),
                 );
             }
         }
@@ -180,13 +180,11 @@ mod batch_avss_benches {
                         let echoes: Vec<Vec<batch_avss::Echo>> = receivers
                             .iter()
                             .enumerate()
-                            .map(|(i, r)| r.echo_message(&messages[i]).unwrap())
+                            .map(|(i, r)| r.echo(&messages[i]).unwrap())
                             .collect();
                         let echoes_for_party_1: Vec<batch_avss::Echo> =
                             echoes.iter().map(|em| em[1].clone()).collect();
-                        let pem = receivers[1]
-                            .process_echo_messages(&echoes_for_party_1)
-                            .unwrap();
+                        let pem = receivers[1].process_echos(&echoes_for_party_1).unwrap();
                         assert_valid_batch(
                             receivers[1]
                                 .verify_and_decrypt(pem, &messages[1].common)
