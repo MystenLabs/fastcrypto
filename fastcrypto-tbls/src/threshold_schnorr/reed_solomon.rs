@@ -196,7 +196,7 @@ impl ErasureCoder {
             .take(self.0.data_shard_count())
             .flatten()
             .collect_vec();
-        if data.len() > expected_len {
+        if data.len() < expected_len {
             return Err(InvalidInput);
         }
         data.truncate(expected_len);
