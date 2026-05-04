@@ -254,7 +254,19 @@ impl SharesForNode {
         })
     }
 
-    fn verify(&self, message: &CommonMessage, challenge: &[S]) -> FastCryptoResult<()> {
+    fn verify(
+        &self,
+        nodes: &Nodes<EG>,
+        receiver: PartyId,
+        message: &CommonMessage,
+        challenge: &[S],
+        expected_batch_size: usize,
+    ) -> FastCryptoResult<()> {
+        if self.weight() != nodes.weight_of(receiver)?
+            || self.try_uniform_batch_size()? != expected_batch_size
+        {
+            return Err(InvalidMessage);
+        }
         for shares in &self.shares {
             shares.verify(message, challenge)?;
         }
@@ -697,8 +709,7 @@ impl Receiver {
             })
             .and_then(SharesForNode::from_bytes)
             .and_then(|my_shares| {
-                verify_shares(
-                    &my_shares,
+                my_shares.verify(
                     &self.nodes,
                     self.id,
                     common_message,
@@ -790,8 +801,7 @@ impl Receiver {
             &common_message.shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
-                verify_shares(
-                    shares,
+                shares.verify(
                     &self.nodes,
                     accuser_id,
                     common_message,
@@ -935,7 +945,13 @@ impl Receiver {
             .filter_map(|response| {
                 response
                     .shares
-                    .verify(&message.common, &challenge)
+                    .verify(
+                        &self.nodes,
+                        response.responder_id,
+                        &message.common,
+                        &challenge,
+                        self.batch_size,
+                    )
                     .ok()
                     .map(|_| response.shares)
             })
@@ -948,7 +964,13 @@ impl Receiver {
         }
 
         let my_shares = SharesForNode::recover(self, &response_shares)?;
-        my_shares.verify(&message.common, &challenge)?;
+        my_shares.verify(
+            &self.nodes,
+            self.id,
+            &message.common,
+            &challenge,
+            self.batch_size,
+        )?;
 
         Ok(ReceiverOutput {
             my_shares,
@@ -1039,47 +1061,6 @@ fn require_uniform_echo_metadata(
         )
     }))
     .ok_or(InvalidMessage)
-}
-
-/// Verify a set of shares receiver from a Dealer
-fn verify_shares(
-    shares: &SharesForNode,
-    nodes: &Nodes<EG>,
-    receiver: PartyId,
-    message: &CommonMessage,
-    challenge: &[S],
-    expected_batch_size: usize,
-) -> FastCryptoResult<()> {
-    let expected_weight = nodes.weight_of(receiver)?;
-    if shares.weight() != expected_weight {
-        warn!(
-            "batch_avss verify_shares: shares weight {} does not match expected {} for receiver {}",
-            shares.weight(),
-            expected_weight,
-            receiver,
-        );
-        return Err(InvalidMessage);
-    }
-    // Skip the batch-size check for a zero-weight node, which holds no shares.
-    if !shares.shares.is_empty() {
-        let actual_batch_size = shares.try_uniform_batch_size()?;
-        if actual_batch_size != expected_batch_size {
-            warn!(
-                "batch_avss verify_shares: shares batch_size {} does not match expected {} for receiver {}",
-                actual_batch_size,
-                expected_batch_size,
-                receiver,
-            );
-            return Err(InvalidMessage);
-        }
-    }
-    shares.verify(message, challenge).map_err(|e| {
-        warn!(
-            "batch_avss verify_shares: cryptographic share verification failed for receiver {}: {e:?}",
-            receiver,
-        );
-        e
-    })
 }
 
 fn compute_challenge(
