@@ -214,6 +214,17 @@ impl Echo {
     }
 }
 
+impl ShardContribution {
+    /// Verify that `shards` are the leaf at `sender` under `recipient_root` using `proof`.
+    fn verify(&self, recipient_root: &merkle::Node) -> FastCryptoResult<()> {
+        self.proof.verify_proof_with_unserialized_leaf(
+            recipient_root,
+            &self.shards,
+            self.sender as usize,
+        )
+    }
+}
+
 impl DecryptionOutcome {
     /// Reduce this outcome to the message the party should broadcast to others: a [Vote] when
     /// the dealer's broadcast verified, otherwise the [InvalidShares] or [InvalidDispersal] itself.
@@ -905,11 +916,7 @@ impl Receiver {
             return Err(InvalidProof);
         }
 
-        if shards.iter().any(|s| {
-            s.proof
-                .verify_proof_with_unserialized_leaf(recipient_root, &s.shards, s.sender as usize)
-                .is_err()
-        }) {
+        if shards.iter().any(|s| s.verify(recipient_root).is_err()) {
             return Err(InvalidProof);
         }
 
