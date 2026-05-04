@@ -759,8 +759,9 @@ impl Receiver {
     ///    `message.dispersal[accuser_id]` rather than trusting the complaint to carry it.
     pub fn handle_reveal(
         &self,
-        message: &Message,
         reveal: &Reveal,
+        processed_echos: &ProcessedEchos,
+        common_message: &CommonMessage,
         my_output: &ReceiverOutput,
     ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
         let Reveal {
@@ -770,33 +771,37 @@ impl Receiver {
         } = reveal;
         let accuser_id = proof.accuser_id;
         let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
-        let recipient_root = self.dispersal_root_for(message, accuser_id)?;
 
-        if common_message_hash != &compute_common_message_hash(&message.common)
+        let ProcessedEchos {
+            global_root,
+            recipient_root,
+            ..
+        } = processed_echos;
+
+        if common_message_hash != &compute_common_message_hash(&common_message)
             || self
-                .check_avid_consistency(ciphertext, recipient_root)
+                .check_avid_consistency(ciphertext, &recipient_root)
                 .is_err()
         {
             return Err(InvalidProof);
         }
 
-        let global_root = global_tree_from_message(message)?.root();
         let challenge = compute_challenge_from_common_message(
             &self.random_oracle(),
             &global_root,
-            &message.common,
+            &common_message,
         );
         proof.check(
             accuser_pk,
             ciphertext,
-            &message.common.shared,
+            &common_message.shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
                 verify_shares(
                     shares,
                     &self.nodes,
                     accuser_id,
-                    &message.common,
+                    &common_message,
                     &challenge,
                     self.batch_size,
                 )
@@ -811,8 +816,9 @@ impl Receiver {
     /// `r_i`. On success, respond with this party's own shares.
     pub fn handle_blame(
         &self,
-        message: &Message,
         blame: &Blame,
+        processed_echos: &ProcessedEchos,
+        common_message: &CommonMessage,
         my_output: &ReceiverOutput,
     ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
         let Blame {
@@ -821,11 +827,15 @@ impl Receiver {
             common_message_hash,
         } = blame;
         let accuser_id = *accuser_id;
-        let recipient_root = self.dispersal_root_for(message, accuser_id)?;
 
-        if common_message_hash != &compute_common_message_hash(&message.common)
+        let ProcessedEchos {
+            recipient_root,
+            ..
+        } = processed_echos;
+
+        if common_message_hash != &compute_common_message_hash(&common_message)
             || shards.iter().map(|s| s.sender).unique().count() != shards.len()
-            || shards.iter().any(|s| s.verify(recipient_root).is_err())
+            || shards.iter().any(|s| s.verify(&recipient_root).is_err())
         {
             return Err(InvalidProof);
         }
@@ -1393,7 +1403,6 @@ mod tests {
             .map(|r| {
                 r.handle_reveal(
                     &messages[r.id as usize],
-                    &reveal,
                     outputs.get(&r.id).unwrap(),
                 )
                 .unwrap()
