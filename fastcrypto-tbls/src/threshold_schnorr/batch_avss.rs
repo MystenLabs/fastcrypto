@@ -25,6 +25,7 @@ use fastcrypto::error::FastCryptoError::{
     InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
 };
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use fastcrypto::groups::secp256k1::SCALAR_SIZE_IN_BYTES;
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction, Sha3_512};
 use fastcrypto::merkle;
@@ -104,35 +105,62 @@ pub struct ProcessedEchoMessages {
 }
 
 pub enum DecryptionOutcome {
-    Valid(ReceiverOutput),
-    Complaint(Complaint),
+    Valid {
+        output: ReceiverOutput,
+        vote: Vote,
+    },
+    Reveal(Reveal),
+    Blame(Blame),
 }
 
-/// A complaint by a receiver after `verify_and_decrypt`. There are two flavors:
-/// * [Complaint::Reveal] — the receiver could not decrypt or verify its shares.
-/// * [Complaint::Blame] — the receiver decrypted valid shares but the AVID dispersal was
-///   inconsistent.
+impl DecryptionOutcome {
+    /// Reduce this outcome to the message the party should broadcast to others: a [Vote] when
+    /// the dealer's broadcast verified, otherwise the [Reveal] or [Blame] itself. The receiver's
+    /// local [ReceiverOutput] (in the Valid case) is consumed and not part of the wire format.
+    pub fn into_response(self) -> Response {
+        match self {
+            DecryptionOutcome::Valid { vote, .. } => Response::Vote(vote),
+            DecryptionOutcome::Reveal(r) => Response::Reveal(r),
+            DecryptionOutcome::Blame(b) => Response::Blame(b),
+        }
+    }
+}
+
+/// The message a receiver broadcasts after `verify_and_decrypt`: a [Vote] endorsing the dealer's
+/// broadcast on the happy path, or a [Reveal] / [Blame] complaint otherwise.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Complaint {
-    Reveal {
-        proof: complaint::Complaint,
-        /// The reconstructed accuser's ciphertext. The responder re-encodes this and checks that
-        /// the resulting root matches the dealer-committed `r_i` they have locally.
-        ciphertext: Vec<u8>,
-        /// `H(val)` from the dealer's broadcast, binding the complaint to a specific [CommonMessage].
-        hash: Digest<32>,
-    },
-    Blame {
-        accuser_id: PartyId,
-        /// At least `W - 2f` weight worth of shards `s_{ji}`, each with a Merkle proof under the
-        /// dealer-committed `r_i` at the contributing party's leaf.
-        shards: Vec<ShardContribution>,
-        hash: Digest<32>,
-    },
+pub enum Response {
+    Vote(Vote),
+    Reveal(Reveal),
+    Blame(Blame),
 }
 
-/// One sender's contribution of shards toward reconstructing the accuser's ciphertext, with a
-/// Merkle proof binding the shards to the accuser's per-ciphertext root `r_i`.
+/// An endorsement of the dealer's broadcast.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Vote {
+    pub r: merkle::Node,
+    pub hash: Digest<32>,
+}
+
+/// A complaint by a receiver who could not decrypt or verify its shares.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Reveal {
+    pub proof: complaint::Complaint,
+    pub ciphertext: Vec<u8>,
+    /// `H(val)` from the dealer's broadcast, binding the complaint to a specific [CommonMessage].
+    pub hash: Digest<32>,
+}
+
+/// A complaint by a receiver who decrypted valid shares but found the AVID dispersal
+/// inconsistent.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Blame {
+    pub accuser_id: PartyId,
+    pub shards: Vec<ShardContribution>,
+    pub hash: Digest<32>,
+}
+
+/// One sender's contribution of shards toward reconstructing the accuser's ciphertext.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ShardContribution {
     pub party: PartyId,
@@ -198,12 +226,9 @@ impl ShareBatch {
     }
 }
 
-/// Byte-width of a BCS-serialized [S] scalar — the secp256k1 scalar serializes to 32 bytes.
-const SCALAR_BYTES: usize = 32;
-
 impl SharesForNode {
     /// BCS-serialized length of a `SharesForNode` for a node of the given weight at the given
-    /// batch size. Equals the per-receiver ciphertext length, since AES-CTR is length-preserving.
+    /// batch size.
     ///
     /// Layout:
     /// ```text
@@ -211,11 +236,14 @@ impl SharesForNode {
     ///   = ULEB128(weight) + weight × ShareBatch
     /// ShareBatch
     ///   = NonZeroU16 (= 2 bytes) + Vec<S> + S
-    ///   = 2 + ULEB128(batch_size) + (batch_size + 1) × SCALAR_BYTES
+    ///   = 2 + ULEB128(batch_size) + (batch_size + 1) × SCALAR_SIZE_IN_BYTES
     /// ```
     fn bcs_serialized_size(weight: usize, batch_size: usize) -> usize {
+        // TODO: A bit of a hack — this hardcodes the BCS layout of `SharesForNode`/`ShareBatch`
+        // and the 32-byte scalar size. Any change to those types' fields silently invalidates
+        // this formula; the unit test catches it but only within the tested ranges.
         uleb128_len(weight)
-            + weight * (2 + uleb128_len(batch_size) + (batch_size + 1) * SCALAR_BYTES)
+            + weight * (2 + uleb128_len(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES)
     }
 
     /// Get the weight of this node (number of shares it has).
@@ -690,13 +718,16 @@ impl Receiver {
 
     /// 3. If the party also received a valid Message from the dealer, it can now decrypt its shares.
     /// If this succeeds (returns a DecryptionOutcome::Valid), the party should return a signed vote to the dealer.
+    /// The vote payload can be obtained by calling [DecryptionOutcome::into_response] on the
+    /// outcome, which yields a [Response::Vote] for the caller to sign.
     ///
     /// When parties with weight at least W -f has submitted a vote, parties who didn't get a valid
     /// Message from the dealer should request the CommonMessage part of that from the parties who voted.
     /// Using this, the party can decrypt the shares and verify that the shares are valid.
     ///
-    /// If this function returns a [DecryptionOutcome::Complaint], the party should broadcast it
-    /// to the other parties.
+    /// If this function returns a [Reveal] or [Blame] outcome, the party should broadcast it
+    /// to the other parties — but only after at least `W - f` votes from other parties have
+    /// appeared on the TOB/ABC channel.
     pub fn verify_and_decrypt(
         &self,
         processed_echo_messages: ProcessedEchoMessages,
@@ -759,11 +790,21 @@ impl Receiver {
                 Ok(my_shares)
             });
 
+        // TODO: Revisit this dispatch — confirm each (faulty_dealer, decrypted_shares) combination
+        // produces the right outcome (Valid / Blame / Reveal) under both honest and Byzantine
+        // dealer behavior, including the (false, Err) case where the AVID layer agreed but
+        // decryption still failed.
         match (faulty_dealer, decrypted_shares) {
-            (false, Ok(my_shares)) => Ok(Valid(ReceiverOutput {
-                my_shares,
-                public_keys: full_public_keys.clone(),
-            })),
+            (false, Ok(my_shares)) => Ok(Valid {
+                output: ReceiverOutput {
+                    my_shares,
+                    public_keys: full_public_keys.clone(),
+                },
+                vote: Vote {
+                    r,
+                    hash: compute_common_message_hash(message),
+                },
+            }),
             (true, Ok(_)) => {
                 // Repackage each echo's per-shard proof as a ShardContribution. r_i stays
                 // implicit — the responder reads it from its own [Message] rather than receiving
@@ -778,7 +819,7 @@ impl Receiver {
                         proof: e.pi_ij,
                     })
                     .collect_vec();
-                Ok(DecryptionOutcome::Complaint(Complaint::Blame {
+                Ok(DecryptionOutcome::Blame(Blame {
                     accuser_id: self.id,
                     shards,
                     hash,
@@ -786,7 +827,7 @@ impl Receiver {
             }
             (_, Err(_)) => {
                 let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
-                Ok(DecryptionOutcome::Complaint(Complaint::Reveal {
+                Ok(DecryptionOutcome::Reveal(Reveal {
                     proof: complaint::Complaint::create(
                         self.id,
                         &shared,
@@ -801,46 +842,23 @@ impl Receiver {
         }
     }
 
-    /// 4. Upon receiving a [Complaint] from another party, verify it and, if valid, respond with
-    /// this party's own shares so the accuser can recover. `message` is the dealer's full
-    /// [Message] as this party received it; the verifier looks up the accuser's per-ciphertext
-    /// root locally from `message.dispersal[accuser_id]` rather than trusting the complaint to
-    /// carry it.
-    pub fn handle_complaint(
+    /// 4. Upon receiving a [Reveal] from another party, verify it and respond with this party's
+    /// own shares so the accuser can recover. The ciphertext must be authenticated as the dealer's
+    /// by re-encoding under the locally-known `r_i`, and decryption with the recovery package must
+    /// yield invalid shares. `message` is the dealer's full [Message] as this party received it;
+    /// the verifier looks up the accuser's per-ciphertext root locally from
+    /// `message.dispersal[accuser_id]` rather than trusting the complaint to carry it.
+    pub fn handle_reveal(
         &self,
         message: &Message,
-        complaint: &Complaint,
+        reveal: &Reveal,
         my_output: &ReceiverOutput,
     ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
-        match complaint {
-            Complaint::Reveal {
-                proof,
-                ciphertext,
-                hash,
-            } => {
-                self.verify_reveal(message, proof, ciphertext, hash)?;
-            }
-            Complaint::Blame {
-                accuser_id,
-                shards,
-                hash,
-            } => {
-                self.verify_blame(message, *accuser_id, shards, hash)?;
-            }
-        }
-        Ok(ComplaintResponse::new(self.id, my_output.my_shares.clone()))
-    }
-
-    /// Verify a [Complaint::Reveal]: the ciphertext must be authenticated as the dealer's by
-    /// re-encoding under the locally-known `r_i`, and decryption with the recovery package must
-    /// yield invalid shares.
-    fn verify_reveal(
-        &self,
-        message: &Message,
-        proof: &complaint::Complaint,
-        ciphertext: &[u8],
-        hash: &Digest<32>,
-    ) -> FastCryptoResult<()> {
+        let Reveal {
+            proof,
+            ciphertext,
+            hash,
+        } = reveal;
         let accuser_id = proof.accuser_id;
         let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
         let r_i = self.dispersal_root_for(message, accuser_id)?;
@@ -855,7 +873,7 @@ impl Receiver {
         let challenge = compute_challenge_from_message(&self.random_oracle(), &r, &message.common);
         proof.check(
             accuser_pk,
-                ciphertext,
+            ciphertext,
             &message.common.shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
@@ -868,18 +886,26 @@ impl Receiver {
                     self.batch_size,
                 )
             },
-        )
+        )?;
+
+        Ok(ComplaintResponse::new(self.id, my_output.my_shares.clone()))
     }
 
-    /// Verify a [Complaint::Blame]: the accuser must have collected enough authenticated shards
-    /// whose re-encoded ciphertext root differs from the locally-known `r_i`.
-    fn verify_blame(
+    /// Counterpart to [Self::handle_reveal] for [Blame]. The accuser must have collected enough
+    /// authenticated shards whose re-encoded ciphertext root differs from the locally-known
+    /// `r_i`. On success, respond with this party's own shares.
+    pub fn handle_blame(
         &self,
         message: &Message,
-        accuser_id: PartyId,
-        shards: &[ShardContribution],
-        hash: &Digest<32>,
-    ) -> FastCryptoResult<()> {
+        blame: &Blame,
+        my_output: &ReceiverOutput,
+    ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
+        let Blame {
+            accuser_id,
+            shards,
+            hash,
+        } = blame;
+        let accuser_id = *accuser_id;
         let r_i = self.dispersal_root_for(message, accuser_id)?;
 
         if hash != &compute_common_message_hash(&message.common) {
@@ -919,7 +945,7 @@ impl Receiver {
             return Err(InvalidProof);
         }
 
-        Ok(())
+        Ok(ComplaintResponse::new(self.id, my_output.my_shares.clone()))
     }
 
     fn dispersal_root_for<'a>(
@@ -1088,8 +1114,8 @@ fn compute_common_message_hash(message: &CommonMessage) -> Digest<32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        compute_challenge, Complaint, Dealer, DecryptionOutcome, Message, ProcessedEchoMessages,
-        Receiver, ReceiverOutput, ShareBatch, SharesForNode,
+        compute_challenge, Dealer, DecryptionOutcome, Message, ProcessedEchoMessages, Receiver,
+        ReceiverOutput, ShareBatch, SharesForNode,
     };
     use crate::ecies_v1;
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
@@ -1223,7 +1249,7 @@ mod tests {
             .zip(messages)
             .map(|((receiver, pem), message)| {
                 match receiver.verify_and_decrypt(pem, &message.common) {
-                    Ok(DecryptionOutcome::Valid(output)) => (receiver.id, output),
+                    Ok(DecryptionOutcome::Valid { output, .. }) => (receiver.id, output),
                     _ => panic!(
                         "All receivers should be able to process the message in the happy path"
                     ),
@@ -1340,8 +1366,8 @@ mod tests {
         // Receiver 0 (the targeted victim) emits a Reveal complaint.
         let victim_id = 0u16;
         let mut outcomes = outcomes;
-        let complaint = match outcomes.remove(&victim_id).unwrap() {
-            DecryptionOutcome::Complaint(c @ Complaint::Reveal { .. }) => c,
+        let reveal = match outcomes.remove(&victim_id).unwrap() {
+            DecryptionOutcome::Reveal(r) => r,
             other => panic!(
                 "expected Reveal from victim, got {:?}",
                 outcome_kind(&other)
@@ -1352,7 +1378,7 @@ mod tests {
         let mut outputs: HashMap<u16, ReceiverOutput> = outcomes
             .into_iter()
             .map(|(id, o)| match o {
-                DecryptionOutcome::Valid(out) => (id, out),
+                DecryptionOutcome::Valid { output, .. } => (id, output),
                 other => panic!(
                     "expected Valid from honest receiver {id}, got {:?}",
                     outcome_kind(&other)
@@ -1365,9 +1391,9 @@ mod tests {
             .iter()
             .filter(|r| r.id != victim_id)
             .map(|r| {
-                r.handle_complaint(
+                r.handle_reveal(
                     &messages[r.id as usize],
-                    &complaint,
+                    &reveal,
                     outputs.get(&r.id).unwrap(),
                 )
                 .unwrap()
@@ -1396,9 +1422,9 @@ mod tests {
 
     fn outcome_kind(outcome: &DecryptionOutcome) -> &'static str {
         match outcome {
-            DecryptionOutcome::Valid(_) => "Valid",
-            DecryptionOutcome::Complaint(Complaint::Reveal { .. }) => "Reveal",
-            DecryptionOutcome::Complaint(Complaint::Blame { .. }) => "Blame",
+            DecryptionOutcome::Valid { .. } => "Valid",
+            DecryptionOutcome::Reveal(_) => "Reveal",
+            DecryptionOutcome::Blame(_) => "Blame",
         }
     }
 
