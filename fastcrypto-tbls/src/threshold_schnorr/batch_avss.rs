@@ -66,7 +66,7 @@ pub struct Receiver {
 /// The message broadcast by the dealer.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
-    common: CommonMessage,
+    pub common: CommonMessage,
     dispersal: Vec<AuthenticatedShards>,
 }
 
@@ -625,13 +625,13 @@ impl Receiver {
         })
     }
 
-    /// 4. If the party also received a valid Message from the dealer, it can now decrypt its shares.
+    /// 4. If the party also received a valid [Message] from the dealer, it can now decrypt its shares using the [CommonMessage] part of the message.
     ///    If this succeeds (returns a DecryptionOutcome::Valid), the party should return a signed vote to the dealer.
     ///    The vote payload can be obtained by calling [DecryptionOutcome::into_response] on the
     ///    outcome, which yields a [Response::Vote] for the caller to sign.
     ///
     ///    When parties with weight at least W -f has submitted a vote, parties who didn't get a valid
-    ///    Message from the dealer should request the CommonMessage part of that from the parties who voted.
+    ///    [Message] from the dealer should request the [CommonMessage] part of that from the parties who voted.
     ///    Using this, the party can decrypt the shares and verify that the shares are valid.
     ///
     ///    If this function returns an [InvalidShares] or [InvalidDispersal] outcome, the party should broadcast it
@@ -640,14 +640,14 @@ impl Receiver {
     pub fn verify_and_decrypt(
         &self,
         processed_echo_messages: ProcessedEchos,
-        message: &Message,
+        common_message: &CommonMessage,
     ) -> FastCryptoResult<DecryptionOutcome> {
         let CommonMessage {
             full_public_keys,
             blinding_commit,
             response_polynomial,
             shared,
-        } = &message.common;
+        } = &common_message;
         if full_public_keys.len() != self.batch_size
             || response_polynomial.degree() != self.t as usize - 1
         {
@@ -666,7 +666,7 @@ impl Receiver {
         let challenge = compute_challenge_from_common_message(
             &self.random_oracle(),
             &global_root,
-            &message.common,
+            &common_message,
         );
         if G::generator() * response_polynomial.c0()
             != blinding_commit
@@ -676,7 +676,6 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        // Check r_i' == r_i from the paper
         let faulty_dealer = self
             .check_avid_consistency(&ciphertext, &recipient_root)
             .is_err();
@@ -698,7 +697,7 @@ impl Receiver {
                     &my_shares,
                     &self.nodes,
                     self.id,
-                    &message.common,
+                    &common_message,
                     &challenge,
                     self.batch_size,
                 )?;
@@ -714,7 +713,7 @@ impl Receiver {
                 },
                 vote: Vote {
                     global_root,
-                    common_message_hash: compute_common_message_hash(&message.common),
+                    common_message_hash: compute_common_message_hash(&common_message),
                 },
             }),
             (true, Ok(_)) => {
@@ -1252,7 +1251,8 @@ mod tests {
             .zip(processed_echo_messages)
             .zip(messages)
             .map(|((receiver, pem), message)| {
-                let output = assert_valid(receiver.verify_and_decrypt(pem, &message).unwrap());
+                let output =
+                    assert_valid(receiver.verify_and_decrypt(pem, &message.common).unwrap());
                 (receiver.id, output)
             })
             .collect::<HashMap<_, _>>();
@@ -1357,7 +1357,8 @@ mod tests {
                 let pem = r.process_echo_messages(echoes).unwrap();
                 (
                     r.id,
-                    r.verify_and_decrypt(pem, &messages[r.id as usize]).unwrap(),
+                    r.verify_and_decrypt(pem, &messages[r.id as usize].common)
+                        .unwrap(),
                 )
             })
             .collect();

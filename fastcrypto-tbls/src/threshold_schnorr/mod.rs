@@ -251,7 +251,7 @@ mod tests {
             // In this case, we assume all are honest and there are no complaints.
             for ((r, echoes), msg) in receivers.iter().zip(&echoes_per_recipient).zip(&messages) {
                 let pem = r.process_echo_messages(echoes).unwrap();
-                let output = assert_valid_batch(r.verify_and_decrypt(pem, msg).unwrap());
+                let output = assert_valid_batch(r.verify_and_decrypt(pem, &msg.common).unwrap());
                 presigning_outputs.get_mut(&r.id).unwrap().push(output);
             }
         }
