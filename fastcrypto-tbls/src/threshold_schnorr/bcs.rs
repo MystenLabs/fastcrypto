@@ -11,10 +11,10 @@ pub trait BCSSerialized: Serialize + for<'de> Deserialize<'de> {
         bcs::to_bytes(self).unwrap()
     }
 
-    fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self>
+    fn from_bytes(bytes: impl AsRef<[u8]>) -> FastCryptoResult<Self>
     where
         Self: Sized,
     {
-        bcs::from_bytes(bytes).map_err(|_| InvalidInput)
+        bcs::from_bytes(bytes.as_ref()).map_err(|_| InvalidInput)
     }
 }
