@@ -132,7 +132,7 @@ pub struct ErasureCoder(ReedSolomon);
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Shard(Vec<u8>);
+pub struct Shard(pub(crate) Vec<u8>);
 
 impl ErasureCoder {
     /// Create a new erasure encoder/decoder.
