@@ -91,11 +91,10 @@ pub struct AuthenticatedShards {
 pub struct EchoMessage {
     sender: PartyId,
     global_root: merkle::Node,
+    /// Proof that `authenticated_shards.root` sits under `global_root` at the recipient's leaf.
     recipient_root_proof: merkle::MerkleProof,
-    recipient_root: merkle::Node,
-    shards: Vec<Shard>,
+    authenticated_shards: AuthenticatedShards,
     common_message_hash: Digest<32>,
-    shards_proof: merkle::MerkleProof,
 }
 
 /// The receiver's reconstructed ciphertext together with the metadata extracted from the echoes.
@@ -113,19 +112,6 @@ pub enum DecryptionOutcome {
     Valid { output: ReceiverOutput, vote: Vote },
     InvalidShares(Reveal),
     InvalidDispersal(Blame),
-}
-
-impl DecryptionOutcome {
-    /// Reduce this outcome to the message the party should broadcast to others: a [Vote] when
-    /// the dealer's broadcast verified, otherwise the [InvalidShares] or [InvalidDispersal] itself. The receiver's
-    /// local [ReceiverOutput] (in the Valid case) is consumed and not part of the wire format.
-    pub fn into_response(self) -> Response {
-        match self {
-            DecryptionOutcome::Valid { vote, .. } => Response::Vote(vote),
-            DecryptionOutcome::InvalidShares(r) => Response::InvalidShares(r),
-            DecryptionOutcome::InvalidDispersal(b) => Response::InvalidDispersal(b),
-        }
-    }
 }
 
 /// The message a receiver broadcasts after `verify_and_decrypt`: a [Vote] endorsing the dealer's
@@ -200,6 +186,28 @@ pub struct ShareBatch {
 
     /// The share for the blinding polynomial.
     pub blinding_share: S,
+}
+
+impl AuthenticatedShards {
+    /// Verify that `shards` are the leaf at `leaf_index` under `root` using `shards_proof`.
+    fn verify(&self, leaf_index: usize) -> FastCryptoResult<()> {
+        self.shards_proof
+            .verify_proof_with_unserialized_leaf(&self.root, &self.shards, leaf_index)
+    }
+}
+
+impl DecryptionOutcome {
+    /// Reduce this outcome to the message the party should broadcast to others: a [Vote] when
+    /// the dealer's broadcast verified, otherwise the [InvalidShares] or [InvalidDispersal] itself.
+    /// The receiver's local [ReceiverOutput] (in the Valid case) is consumed and not part of the
+    /// wire format.
+    pub fn into_response(self) -> Response {
+        match self {
+            DecryptionOutcome::Valid { vote, .. } => Response::Vote(vote),
+            DecryptionOutcome::InvalidShares(r) => Response::InvalidShares(r),
+            DecryptionOutcome::InvalidDispersal(b) => Response::InvalidDispersal(b),
+        }
+    }
 }
 
 impl ShareBatch {
@@ -556,18 +564,11 @@ impl Receiver {
 
     /// 2. When a party receives its message, it verifies the Merkle tree path for it's shards and generates EchoMessages - one per party.
     pub fn echo_message(&self, message: &Message) -> FastCryptoResult<Vec<EchoMessage>> {
-        if message.dispersal.iter().any(
-            |AuthenticatedShards {
-                 root,
-                 shards,
-                 shards_proof,
-                 ..
-             }| {
-                shards_proof
-                    .verify_proof_with_unserialized_leaf(root, &shards, self.id as usize)
-                    .is_err()
-            },
-        ) {
+        if message
+            .dispersal
+            .iter()
+            .any(|auth| auth.verify(self.id as usize).is_err())
+        {
             return Err(InvalidMessage);
         }
 
@@ -575,39 +576,27 @@ impl Receiver {
             message
                 .dispersal
                 .iter()
-                .map(|AuthenticatedShards { root, .. }| root),
+                .map(|auth| &auth.root),
         )?;
-        let r = tree.root();
+        let global_root = tree.root();
         let digest = compute_common_message_hash(&message.common);
         message
             .dispersal
             .iter()
             .enumerate()
-            .map(
-                |(
-                    i,
-                    AuthenticatedShards {
-                        root,
-                        shards,
-                        shards_proof,
-                        ..
-                    },
-                )| {
-                    Ok(EchoMessage {
-                        sender: self.id,
-                        global_root: r.clone(),
-                        recipient_root_proof: tree.get_proof(i)?,
-                        recipient_root: root.clone(),
-                        shards: shards.clone(),
-                        common_message_hash: digest,
-                        shards_proof: shards_proof.clone(),
-                    })
-                },
-            )
+            .map(|(i, authenticated_shards)| {
+                Ok(EchoMessage {
+                    sender: self.id,
+                    global_root: global_root.clone(),
+                    recipient_root_proof: tree.get_proof(i)?,
+                    authenticated_shards: authenticated_shards.clone(),
+                    common_message_hash: digest,
+                })
+            })
             .collect::<FastCryptoResult<Vec<_>>>()
     }
 
-    /// 3. When a party has received at EchoMessages from parties with at least weight W - f, it
+    /// 3. When a party has received EchoMessages from parties with at least weight W - f, it
     ///    tries to process them. It first filters out invalid messages and checks if the EchoMessages
     ///    have the same digest, r and r_i values. If not, an InvalidMessage error is returned.
     ///    If the filtered set of EchoMessages does not have sufficient weight, an NotEnoughWeight error
@@ -624,18 +613,14 @@ impl Receiver {
             .iter()
             .filter(|echo_message| {
                 echo_message
-                    .shards_proof
-                    .verify_proof_with_unserialized_leaf(
-                        &echo_message.recipient_root,
-                        &echo_message.shards,
-                        echo_message.sender as usize,
-                    )
+                    .authenticated_shards
+                    .verify(echo_message.sender as usize)
                     .is_ok()
                     && echo_message
                         .recipient_root_proof
                         .verify_proof_with_unserialized_leaf(
                             &echo_message.global_root,
-                            &echo_message.recipient_root,
+                            &echo_message.authenticated_shards.root,
                             self.id as usize,
                         )
                         .is_ok()
@@ -659,7 +644,7 @@ impl Receiver {
             echo_messages
                 .iter()
                 .find(|e| e.sender == id)
-                .map(|e| e.shards.clone())
+                .map(|e| e.authenticated_shards.shards.clone())
         })?;
         Ok(ProcessedEchoMessages {
             ciphertext,
@@ -819,8 +804,8 @@ impl Receiver {
                     .into_iter()
                     .map(|e| ShardContribution {
                         sender: e.sender,
-                        shards: e.shards,
-                        shards_proof: e.shards_proof,
+                        shards: e.authenticated_shards.shards,
+                        shards_proof: e.authenticated_shards.shards_proof,
                     })
                     .collect_vec();
                 Ok(DecryptionOutcome::InvalidDispersal(Blame {
@@ -1051,7 +1036,7 @@ fn require_uniform_echo_metadata(
     get_uniform_value(echoes.iter().map(|e| {
         (
             e.global_root.clone(),
-            e.recipient_root.clone(),
+            e.authenticated_shards.root.clone(),
             e.common_message_hash,
         )
     }))
