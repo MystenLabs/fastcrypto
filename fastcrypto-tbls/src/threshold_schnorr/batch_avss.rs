@@ -13,7 +13,6 @@ use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, SharedComponents};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{create_secret_sharing, Eval, Poly};
 use crate::random_oracle::RandomOracle;
-use crate::threshold_schnorr::batch_avss::DecryptionOutcome::Valid;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint;
 use crate::threshold_schnorr::complaint::ComplaintResponse;
@@ -108,23 +107,23 @@ pub struct ProcessedEchos {
     valid_echoes: Vec<Echo>,
 }
 
-/// The result of [Receiver::verify_and_decrypt]: either valid shares plus a vote to broadcast, or
-/// a complaint to broadcast instead.
+/// The result of [Receiver::verify_and_decrypt]. Carries the per-receiver [State] (sufficient,
+/// together with a [ReceiverOutput], to handle later [Reveal] / [Blame] requests and to call
+/// [Receiver::recover]) plus an [OutcomeKind] describing what the receiver actually got.
+pub struct DecryptionOutcome {
+    pub state: State,
+    pub kind: OutcomeKind,
+}
+
 #[allow(clippy::large_enum_variant)]
-pub enum DecryptionOutcome {
-    Valid {
-        output: ReceiverOutput,
-        vote: Vote,
-        /// State the party should retain to handle later [Reveal] / [Blame] requests via
-        /// [Receiver::handle_reveal] and [Receiver::handle_blame].
-        state: State,
-    },
+pub enum OutcomeKind {
+    Valid { output: ReceiverOutput, vote: Vote },
     InvalidShares(Reveal),
     InvalidDispersal(Blame),
 }
 
-/// Context retained by a receiver after [Receiver::verify_and_decrypt] succeeds. Together with
-/// the [ReceiverOutput] it is sufficient to handle later [Reveal] / [Blame] requests.
+/// Context retained by a receiver after [Receiver::verify_and_decrypt]. Together with the
+/// [ReceiverOutput] it is sufficient to handle later [Reveal] / [Blame] requests.
 #[derive(Clone, Debug)]
 pub struct State {
     pub common_message: CommonMessage,
@@ -218,13 +217,13 @@ pub struct ShareBatch {
 impl DecryptionOutcome {
     /// Reduce this outcome to the message the party should broadcast to others: a [Vote] when
     /// the dealer's broadcast verified, otherwise the [InvalidShares] or [InvalidDispersal] itself.
-    /// The receiver's local [ReceiverOutput] (in the Valid case) is consumed and not part of the
-    /// wire format.
+    /// The receiver's local [ReceiverOutput] (in the Valid case) and [State] are consumed and
+    /// not part of the wire format.
     pub fn into_response(self) -> Response {
-        match self {
-            DecryptionOutcome::Valid { vote, .. } => Response::Vote(vote),
-            DecryptionOutcome::InvalidShares(r) => Response::InvalidShares(r),
-            DecryptionOutcome::InvalidDispersal(b) => Response::InvalidDispersal(b),
+        match self.kind {
+            OutcomeKind::Valid { vote, .. } => Response::Vote(vote),
+            OutcomeKind::InvalidShares(r) => Response::InvalidShares(r),
+            OutcomeKind::InvalidDispersal(b) => Response::InvalidDispersal(b),
         }
     }
 }
@@ -742,22 +741,23 @@ impl Receiver {
                 Ok(my_shares)
             });
 
+        let state = State {
+            common_message: common_message.clone(),
+            global_root: global_root.clone(),
+        };
+
         // TODO: Revisit this dispatch.
-        match (faulty_dealer, decrypted_shares) {
-            (false, Ok(my_shares)) => Ok(Valid {
+        let kind = match (faulty_dealer, decrypted_shares) {
+            (false, Ok(my_shares)) => OutcomeKind::Valid {
                 output: ReceiverOutput {
                     my_shares,
                     public_keys: full_public_keys.clone(),
                 },
                 vote: Vote {
-                    global_root: global_root.clone(),
+                    global_root,
                     common_message_hash: compute_common_message_hash(common_message),
                 },
-                state: State {
-                    common_message: common_message.clone(),
-                    global_root,
-                },
-            }),
+            },
             (true, Ok(_)) => {
                 let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
                 let common_message_hash = any_echo.common_message_hash;
@@ -770,19 +770,19 @@ impl Receiver {
                         proof: e.authenticated_shards.proof,
                     })
                     .collect_vec();
-                Ok(DecryptionOutcome::InvalidDispersal(Blame {
+                OutcomeKind::InvalidDispersal(Blame {
                     accuser_id: self.id,
                     shards,
                     recipient_root,
                     recipient_root_proof,
                     common_message_hash,
-                }))
+                })
             }
             (_, Err(_)) => {
                 let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
                 let common_message_hash = any_echo.common_message_hash;
                 let recipient_root_proof = any_echo.recipient_root_proof.clone();
-                Ok(DecryptionOutcome::InvalidShares(Reveal {
+                OutcomeKind::InvalidShares(Reveal {
                     proof: complaint::Complaint::create(
                         self.id,
                         shared,
@@ -794,9 +794,10 @@ impl Receiver {
                     recipient_root,
                     recipient_root_proof,
                     common_message_hash,
-                }))
+                })
             }
-        }
+        };
+        Ok(DecryptionOutcome { state, kind })
     }
 
     /// 5. Upon receiving a [Reveal] from another party, verify it and respond with this party's
@@ -974,7 +975,7 @@ impl Receiver {
     ///    Fails if there are not enough valid responses to recover the shares or if any of the responses come from an invalid party.
     pub fn recover(
         &self,
-        message: &Message,
+        state: &State,
         responses: Vec<ComplaintResponse<SharesForNode>>,
     ) -> FastCryptoResult<ReceiverOutput> {
         // TODO: This fails if one of the responses has an invalid responder_id. We could probably just ignore those instead.
@@ -987,11 +988,14 @@ impl Receiver {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
 
-        let global_root = global_tree_from_message(message)?.root();
+        let State {
+            common_message,
+            global_root,
+        } = state;
         let challenge = compute_challenge_from_common_message(
             &self.random_oracle(),
-            &global_root,
-            &message.common,
+            global_root,
+            common_message,
         );
         let response_shares = responses
             .into_iter()
@@ -1003,7 +1007,7 @@ impl Receiver {
             })
             .filter_map(|(weight, shares)| {
                 shares
-                    .verify(&message.common, &challenge, weight, self.batch_size)
+                    .verify(common_message, &challenge, weight, self.batch_size)
                     .ok()
                     .map(|_| shares)
             })
@@ -1017,7 +1021,7 @@ impl Receiver {
 
         let my_shares = SharesForNode::recover(self, &response_shares)?;
         my_shares.verify(
-            &message.common,
+            common_message,
             &challenge,
             self.nodes.weight_of(self.id)?,
             self.batch_size,
@@ -1025,7 +1029,7 @@ impl Receiver {
 
         Ok(ReceiverOutput {
             my_shares,
-            public_keys: message.common.full_public_keys.clone(),
+            public_keys: common_message.full_public_keys.clone(),
         })
     }
 
@@ -1166,8 +1170,8 @@ fn compute_common_message_hash(message: &CommonMessage) -> Digest<32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Dealer, DecryptionOutcome, Message, Receiver, ReceiverOutput, ShareBatch, SharesForNode,
-        State,
+        Dealer, DecryptionOutcome, Message, OutcomeKind, Receiver, ReceiverOutput, ShareBatch,
+        SharesForNode, State,
     };
     use crate::ecies_v1;
     use crate::ecies_v1::PublicKey;
@@ -1409,11 +1413,15 @@ mod tests {
         // Receiver 0 (the targeted victim) emits a InvalidShares complaint.
         let victim_id = 0u16;
         let mut outcomes = outcomes;
-        let reveal = match outcomes.remove(&victim_id).unwrap() {
-            DecryptionOutcome::InvalidShares(r) => r,
-            other => panic!(
+        let DecryptionOutcome {
+            state: victim_state,
+            kind: victim_kind,
+        } = outcomes.remove(&victim_id).unwrap();
+        let reveal = match victim_kind {
+            OutcomeKind::InvalidShares(r) => r,
+            ref other => panic!(
                 "expected InvalidShares from victim, got {:?}",
-                outcome_kind(&other)
+                outcome_kind(other)
             ),
         };
 
@@ -1422,15 +1430,17 @@ mod tests {
         let mut states: HashMap<u16, State> = HashMap::new();
         let mut outputs: HashMap<u16, ReceiverOutput> = outcomes
             .into_iter()
-            .map(|(id, o)| match o {
-                DecryptionOutcome::Valid { output, state, .. } => {
-                    states.insert(id, state);
-                    (id, output)
-                }
-                other => panic!(
-                    "expected Valid from honest receiver {id}, got {:?}",
-                    outcome_kind(&other)
-                ),
+            .map(|(id, o)| {
+                let DecryptionOutcome { state, kind } = o;
+                states.insert(id, state);
+                let output = match kind {
+                    OutcomeKind::Valid { output, .. } => output,
+                    ref other => panic!(
+                        "expected Valid from honest receiver {id}, got {:?}",
+                        outcome_kind(other)
+                    ),
+                };
+                (id, output)
             })
             .collect();
 
@@ -1450,7 +1460,7 @@ mod tests {
 
         // Victim recovers via interpolation across t responses.
         let recovered = receivers[victim_id as usize]
-            .recover(&messages[victim_id as usize], responses)
+            .recover(&victim_state, responses)
             .unwrap();
         outputs.insert(victim_id, recovered);
 
@@ -1568,11 +1578,15 @@ mod tests {
 
         // Receiver 0 emits an InvalidDispersal complaint.
         let mut outcomes = outcomes;
-        let blame = match outcomes.remove(&victim_id).unwrap() {
-            DecryptionOutcome::InvalidDispersal(b) => b,
-            other => panic!(
+        let DecryptionOutcome {
+            state: victim_state,
+            kind: victim_kind,
+        } = outcomes.remove(&victim_id).unwrap();
+        let blame = match victim_kind {
+            OutcomeKind::InvalidDispersal(b) => b,
+            ref other => panic!(
                 "expected InvalidDispersal from victim, got {:?}",
-                outcome_kind(&other)
+                outcome_kind(other)
             ),
         };
 
@@ -1581,15 +1595,17 @@ mod tests {
         let mut states: HashMap<u16, State> = HashMap::new();
         let mut outputs: HashMap<u16, ReceiverOutput> = outcomes
             .into_iter()
-            .map(|(id, o)| match o {
-                DecryptionOutcome::Valid { output, state, .. } => {
-                    states.insert(id, state);
-                    (id, output)
-                }
-                other => panic!(
-                    "expected Valid from honest receiver {id}, got {:?}",
-                    outcome_kind(&other)
-                ),
+            .map(|(id, o)| {
+                let DecryptionOutcome { state, kind } = o;
+                states.insert(id, state);
+                let output = match kind {
+                    OutcomeKind::Valid { output, .. } => output,
+                    ref other => panic!(
+                        "expected Valid from honest receiver {id}, got {:?}",
+                        outcome_kind(other)
+                    ),
+                };
+                (id, output)
             })
             .collect();
 
@@ -1609,7 +1625,7 @@ mod tests {
 
         // Victim recovers via interpolation across t responses.
         let recovered = receivers[victim_id as usize]
-            .recover(&messages[victim_id as usize], responses)
+            .recover(&victim_state, responses)
             .unwrap();
         outputs.insert(victim_id, recovered);
 
@@ -1628,17 +1644,17 @@ mod tests {
     }
 
     fn assert_valid(outcome: DecryptionOutcome) -> ReceiverOutput {
-        match outcome {
-            DecryptionOutcome::Valid { output, .. } => output,
-            other => panic!("expected valid outcome, got {:?}", outcome_kind(&other)),
+        match outcome.kind {
+            OutcomeKind::Valid { output, .. } => output,
+            ref other => panic!("expected valid outcome, got {:?}", outcome_kind(other)),
         }
     }
 
-    fn outcome_kind(outcome: &DecryptionOutcome) -> &'static str {
-        match outcome {
-            DecryptionOutcome::Valid { .. } => "Valid",
-            DecryptionOutcome::InvalidShares(_) => "InvalidShares",
-            DecryptionOutcome::InvalidDispersal(_) => "InvalidDispersal",
+    fn outcome_kind(kind: &OutcomeKind) -> &'static str {
+        match kind {
+            OutcomeKind::Valid { .. } => "Valid",
+            OutcomeKind::InvalidShares(_) => "InvalidShares",
+            OutcomeKind::InvalidDispersal(_) => "InvalidDispersal",
         }
     }
 
