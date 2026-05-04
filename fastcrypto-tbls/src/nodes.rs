@@ -163,7 +163,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     /// Returns error if the number of items does not match the total weight.
     pub fn collect_to_nodes<T>(
         &self,
-        items: impl Iterator<Item = T> + ExactSizeIterator,
+        items: impl ExactSizeIterator<Item = T>,
     ) -> FastCryptoResult<Vec<Vec<T>>> {
         if items.len() != self.total_weight as usize {
             return Err(FastCryptoError::InvalidInput);

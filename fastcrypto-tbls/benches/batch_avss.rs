@@ -23,9 +23,11 @@ pub fn generate_ecies_keys(
         .collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn setup_receiver(
     id: PartyId,
     dealer_id: PartyId,
+    f: u16,
     threshold: u16,
     weight: u16, // Per node
     keys: &[(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)],
@@ -43,6 +45,7 @@ pub fn setup_receiver(
         Nodes::new(nodes).unwrap(),
         id,
         dealer_id,
+        f,
         threshold,
         b"avss".to_vec(),
         keys.get(id as usize).unwrap().1.clone(),
@@ -53,6 +56,7 @@ pub fn setup_receiver(
 
 pub fn setup_dealer(
     dealer_id: u16,
+    f: u16,
     threshold: u16,
     weight: u16, // Per node
     keys: &[(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)],
@@ -69,6 +73,7 @@ pub fn setup_dealer(
     batch_avss::Dealer::new(
         Nodes::new(nodes).unwrap(),
         dealer_id,
+        f,
         threshold,
         b"avss".to_vec(),
         batch_size_per_weight,
@@ -100,8 +105,9 @@ mod batch_avss_benches {
                 let w = total_w / n;
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
+                let f = t.saturating_sub(1);
                 let keys = generate_ecies_keys(*n);
-                let d0 = setup_dealer(0, t, w, &keys, batch_size_per_weight);
+                let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
                 create.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| b.iter(|| d0.create_message(&mut thread_rng())),
@@ -117,14 +123,25 @@ mod batch_avss_benches {
                 let w = total_w / n;
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
+                let f = t.saturating_sub(1);
                 let keys = generate_ecies_keys(*n);
-                let d0 = setup_dealer(0, t, w, &keys, batch_size_per_weight);
-                let r1 = setup_receiver(1, 0, t, w, &keys, batch_size_per_weight);
-                let message = d0.create_message(&mut thread_rng()).unwrap();
+                let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
+                let receivers: Vec<batch_avss::Receiver> = (0..*n)
+                    .map(|id| setup_receiver(id, 0, f, t, w, &keys, batch_size_per_weight))
+                    .collect();
+                let messages = d0.create_message(&mut thread_rng()).unwrap();
+                let echoes: Vec<Vec<batch_avss::EchoMessage>> = receivers
+                    .iter()
+                    .enumerate()
+                    .map(|(i, r)| r.echo_message(&messages[i]).unwrap())
+                    .collect();
+                let echoes_for_party_1: Vec<batch_avss::EchoMessage> =
+                    echoes.iter().map(|em| em[1].clone()).collect();
+                let r1 = &receivers[1];
 
                 process.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.process_echo_messages(&message).unwrap()),
+                    |b| b.iter(|| r1.process_echo_messages(&echoes_for_party_1).unwrap()),
                 );
             }
         }
@@ -136,19 +153,43 @@ mod batch_avss_benches {
                 let w = total_w / n;
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
+                let f = t.saturating_sub(1);
                 let keys = generate_ecies_keys(*n);
                 let quorum = (2 * n / 3 + 1) as usize;
                 let dealers: Vec<Dealer> = (0..quorum)
-                    .map(|id| setup_dealer(id as u16, t, w, &keys, batch_size_per_weight))
+                    .map(|id| setup_dealer(id as u16, f, t, w, &keys, batch_size_per_weight))
                     .collect();
                 let outputs = dealers
                     .iter()
                     .enumerate()
                     .map(|(dealer_id, d)| {
-                        let message = d.create_message(&mut thread_rng()).unwrap();
-                        let r =
-                            setup_receiver(1, dealer_id as u16, t, w, &keys, batch_size_per_weight);
-                        assert_valid_batch(r.process_echo_messages(&message).unwrap())
+                        let messages = d.create_message(&mut thread_rng()).unwrap();
+                        let receivers: Vec<batch_avss::Receiver> = (0..*n)
+                            .map(|id| {
+                                setup_receiver(
+                                    id,
+                                    dealer_id as u16,
+                                    f,
+                                    t,
+                                    w,
+                                    &keys,
+                                    batch_size_per_weight,
+                                )
+                            })
+                            .collect();
+                        let echoes: Vec<Vec<batch_avss::EchoMessage>> = receivers
+                            .iter()
+                            .enumerate()
+                            .map(|(i, r)| r.echo_message(&messages[i]).unwrap())
+                            .collect();
+                        let echoes_for_party_1: Vec<batch_avss::EchoMessage> =
+                            echoes.iter().map(|em| em[1].clone()).collect();
+                        let pem = receivers[1]
+                            .process_echo_messages(&echoes_for_party_1)
+                            .unwrap();
+                        assert_valid_batch(
+                            receivers[1].verify_and_decrypt(pem, &messages[1]).unwrap(),
+                        )
                     })
                     .collect_vec();
 
@@ -196,12 +237,9 @@ mod batch_avss_benches {
 
 criterion_main!(batch_avss_benches::batch_avss_benches);
 
-fn assert_valid_batch(
-    processed_message: batch_avss::ProcessedMessage,
-) -> batch_avss::ReceiverOutput {
-    if let batch_avss::ProcessedMessage::Valid(output) = processed_message {
-        output
-    } else {
-        panic!("Expected valid message");
+fn assert_valid_batch(outcome: batch_avss::DecryptionOutcome) -> batch_avss::ReceiverOutput {
+    match outcome {
+        batch_avss::DecryptionOutcome::Valid { output, .. } => output,
+        _ => panic!("Expected valid outcome"),
     }
 }

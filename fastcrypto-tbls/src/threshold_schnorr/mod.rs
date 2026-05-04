@@ -86,7 +86,6 @@ mod tests {
     use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
     use crate::threshold_schnorr::{avss, batch_avss, EG, G, S};
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
-    use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
@@ -250,9 +249,7 @@ mod tests {
 
             // Each receiver processes the message.
             // In this case, we assume all are honest and there are no complaints.
-            for ((r, echoes), msg) in
-                receivers.iter().zip(&echoes_per_recipient).zip(&messages)
-            {
+            for ((r, echoes), msg) in receivers.iter().zip(&echoes_per_recipient).zip(&messages) {
                 let pem = r.process_echo_messages(echoes).unwrap();
                 let output = assert_valid_batch(r.verify_and_decrypt(pem, msg).unwrap());
                 presigning_outputs.get_mut(&r.id).unwrap().push(output);
@@ -436,12 +433,7 @@ mod tests {
         assert_eq!(G::generator() * sk, vk);
 
         // Check commitments on the reshared secret from the first dealer
-        let commitment_1 = merged_shares
-            .get(&0)
-            .unwrap()
-            .commitments
-            .first()
-            .unwrap();
+        let commitment_1 = merged_shares.get(&0).unwrap().commitments.first().unwrap();
         let secret_1 = merged_shares
             .get(&0)
             .unwrap()
@@ -504,7 +496,6 @@ mod tests {
             .verify(message_2, &signature_2)
             .unwrap();
     }
-
 
     fn assert_valid(pm: avss::ProcessedMessage) -> avss::PartialOutput {
         match pm {
