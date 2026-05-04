@@ -746,7 +746,6 @@ impl Receiver {
             global_root: global_root.clone(),
         };
 
-        // TODO: Revisit this dispatch.
         let kind = match (faulty_dealer, decrypted_shares) {
             (false, Ok(my_shares)) => OutcomeKind::Valid {
                 output: ReceiverOutput {
@@ -758,7 +757,7 @@ impl Receiver {
                     common_message_hash: compute_common_message_hash(common_message),
                 },
             },
-            (true, Ok(_)) => {
+            (true, _) => {
                 let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
                 let common_message_hash = any_echo.common_message_hash;
                 let recipient_root_proof = any_echo.recipient_root_proof.clone();
@@ -778,7 +777,7 @@ impl Receiver {
                     common_message_hash,
                 })
             }
-            (_, Err(_)) => {
+            (false, Err(_)) => {
                 let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
                 let common_message_hash = any_echo.common_message_hash;
                 let recipient_root_proof = any_echo.recipient_root_proof.clone();
@@ -923,54 +922,6 @@ impl Receiver {
         Ok(ComplaintResponse::new(self.id, my_output.my_shares.clone()))
     }
 
-    /// Reed-Solomon decode the ciphertext for `accuser_id` from a set of authenticated shard
-    /// contributions exposed via `shards_for(party_id) -> Option<Vec<Shard>>`. Fails if the
-    /// contributing weight is below `W - 2f` (too few contributions to reconstruct), or if a
-    /// party's contribution has a shard count that doesn't match its weight. The caller is
-    /// responsible for having authenticated the shards via their Merkle proofs.
-    fn reconstruct_ciphertext(
-        &self,
-        accuser_id: PartyId,
-        shards_for: impl Fn(PartyId) -> Option<Vec<Shard>>,
-    ) -> FastCryptoResult<Vec<u8>> {
-        let shards: Vec<Option<Shard>> = self
-            .nodes
-            .node_ids_iter()
-            .map(|id| -> FastCryptoResult<Vec<Option<Shard>>> {
-                let weight = self.nodes.weight_of(id).expect("valid party id") as usize;
-                match shards_for(id) {
-                    Some(ss) if ss.len() == weight => Ok(ss.into_iter().map(Some).collect()),
-                    // Fail if a contributor's shard count doesn't match its weight.
-                    Some(_) => Err(InvalidInput),
-                    None => Ok(vec![None; weight]),
-                }
-            })
-            .flatten_ok()
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-
-        // The encryption used, counter-mode, is length-preserving, so the length of the ciphertext is equal to the length of the plaintext.
-        let expected_length = SharesForNode::bcs_serialized_size(
-            self.nodes.weight_of(accuser_id)? as usize,
-            self.batch_size,
-        );
-        self.code.decode(shards, expected_length)
-    }
-
-    /// The check r_i' == r_i from the paper
-    fn check_avid_consistency(
-        &self,
-        ciphertext: &[u8],
-        expected_root: &merkle::Node,
-    ) -> FastCryptoResult<()> {
-        let new_shards = self
-            .nodes
-            .collect_to_nodes(self.code.encode(ciphertext)?.into_iter())?;
-        if recipient_tree(&new_shards)?.root() != *expected_root {
-            return Err(InvalidMessage);
-        }
-        Ok(())
-    }
-
     /// 6. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
     ///    Fails if there are not enough valid responses to recover the shares or if any of the responses come from an invalid party.
     pub fn recover(
@@ -1039,6 +990,54 @@ impl Receiver {
 
     fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
+    }
+
+    /// Reed-Solomon decode the ciphertext for `accuser_id` from a set of authenticated shard
+    /// contributions exposed via `shards_for(party_id) -> Option<Vec<Shard>>`. Fails if the
+    /// contributing weight is below `W - 2f` (too few contributions to reconstruct), or if a
+    /// party's contribution has a shard count that doesn't match its weight. The caller is
+    /// responsible for having authenticated the shards via their Merkle proofs.
+    fn reconstruct_ciphertext(
+        &self,
+        accuser_id: PartyId,
+        shards_for: impl Fn(PartyId) -> Option<Vec<Shard>>,
+    ) -> FastCryptoResult<Vec<u8>> {
+        let shards: Vec<Option<Shard>> = self
+            .nodes
+            .node_ids_iter()
+            .map(|id| -> FastCryptoResult<Vec<Option<Shard>>> {
+                let weight = self.nodes.weight_of(id).expect("valid party id") as usize;
+                match shards_for(id) {
+                    Some(ss) if ss.len() == weight => Ok(ss.into_iter().map(Some).collect()),
+                    // Fail if a contributor's shard count doesn't match its weight.
+                    Some(_) => Err(InvalidInput),
+                    None => Ok(vec![None; weight]),
+                }
+            })
+            .flatten_ok()
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+
+        // The encryption used, counter-mode, is length-preserving, so the length of the ciphertext is equal to the length of the plaintext.
+        let expected_length = SharesForNode::bcs_serialized_size(
+            self.nodes.weight_of(accuser_id)? as usize,
+            self.batch_size,
+        );
+        self.code.decode(shards, expected_length)
+    }
+
+    /// The check r_i' == r_i from the paper
+    fn check_avid_consistency(
+        &self,
+        ciphertext: &[u8],
+        expected_root: &merkle::Node,
+    ) -> FastCryptoResult<()> {
+        let new_shards = self
+            .nodes
+            .collect_to_nodes(self.code.encode(ciphertext)?.into_iter())?;
+        if recipient_tree(&new_shards)?.root() != *expected_root {
+            return Err(InvalidMessage);
+        }
+        Ok(())
     }
 }
 
