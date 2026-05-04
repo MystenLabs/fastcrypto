@@ -190,41 +190,6 @@ pub struct ShareBatch {
     pub blinding_share: S,
 }
 
-impl AuthenticatedShards {
-    /// Verify that `shards` are the leaf at `leaf_index` under `recipient_root` using `proof`.
-    fn verify(&self, leaf_index: usize) -> FastCryptoResult<()> {
-        self.proof.verify_proof_with_unserialized_leaf(
-            &self.recipient_root,
-            &self.shards,
-            leaf_index,
-        )
-    }
-}
-
-impl Echo {
-    /// Verify both Merkle proofs in this echo.
-    fn verify(&self, recipient_id: PartyId) -> FastCryptoResult<()> {
-        self.authenticated_shards.verify(self.sender as usize)?;
-        self.recipient_root_proof
-            .verify_proof_with_unserialized_leaf(
-                &self.global_root,
-                &self.authenticated_shards.recipient_root,
-                recipient_id as usize,
-            )
-    }
-}
-
-impl ShardContribution {
-    /// Verify that `shards` are the leaf at `sender` under `recipient_root` using `proof`.
-    fn verify(&self, recipient_root: &merkle::Node) -> FastCryptoResult<()> {
-        self.proof.verify_proof_with_unserialized_leaf(
-            recipient_root,
-            &self.shards,
-            self.sender as usize,
-        )
-    }
-}
-
 impl DecryptionOutcome {
     /// Reduce this outcome to the message the party should broadcast to others: a [Vote] when
     /// the dealer's broadcast verified, otherwise the [InvalidShares] or [InvalidDispersal] itself.
@@ -474,10 +439,11 @@ impl Dealer {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
-        let trees = shards
+        let recipient_trees = shards
             .iter()
             .map(recipient_tree)
             .collect::<FastCryptoResult<Vec<_>>>()?;
+        let recipient_roots = recipient_trees.iter().map(MerkleTree::root);
 
         let dispersals: Vec<Vec<AuthenticatedShards>> = self
             .nodes
@@ -485,10 +451,11 @@ impl Dealer {
             .map(|id| {
                 shards
                     .iter()
-                    .zip(&trees)
-                    .map(|(s, tree)| {
+                    .zip(&recipient_trees)
+                    .zip(recipient_roots.clone())
+                    .map(|((s, tree), recipient_root)| {
                         Ok(AuthenticatedShards {
-                            recipient_root: tree.root(),
+                            recipient_root,
                             shards: s[id as usize].clone(),
                             proof: tree.get_proof(id as usize)?,
                         })
@@ -497,9 +464,7 @@ impl Dealer {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
-        let global_root =
-            MerkleTree::<Blake2b256>::build_from_unserialized(trees.iter().map(MerkleTree::root))?
-                .root();
+        let global_root = global_tree(recipient_roots)?.root();
 
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
         let challenge = compute_challenge(
@@ -591,7 +556,7 @@ impl Receiver {
         })
     }
 
-    /// 2. When a party receives its message, it verifies the Merkle tree path for it's shards and generates Echos - one per party.
+    /// 2. When a party receives its message, it verifies the Merkle tree path for its shards and generates Echos, one per party.
     pub fn echo_message(&self, message: &Message) -> FastCryptoResult<Vec<Echo>> {
         if message
             .dispersal
@@ -601,8 +566,8 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        let tree = self.global_tree(message)?;
-        let global_root = tree.root();
+        let global_tree = global_tree_from_message(message)?;
+        let global_root = global_tree.root();
         let common_message_hash = compute_common_message_hash(&message.common);
         message
             .dispersal
@@ -612,7 +577,7 @@ impl Receiver {
                 Ok(Echo {
                     sender: self.id,
                     global_root: global_root.clone(),
-                    recipient_root_proof: tree.get_proof(i)?,
+                    recipient_root_proof: global_tree.get_proof(i)?,
                     authenticated_shards: authenticated_shards.clone(),
                     common_message_hash,
                 })
@@ -664,55 +629,6 @@ impl Receiver {
         })
     }
 
-    /// Reed-Solomon decode the ciphertext for `accuser_id` from a set of authenticated shard
-    /// contributions exposed via `shards_for(party_id) -> Option<Vec<Shard>>`. Fails if the
-    /// contributing weight is below `W - 2f` (too few contributions to reconstruct), or if a
-    /// party's contribution has a shard count that doesn't match its weight. The caller is
-    /// responsible for having authenticated the shards via their Merkle proofs.
-    fn reconstruct_ciphertext(
-        &self,
-        accuser_id: PartyId,
-        shards_for: impl Fn(PartyId) -> Option<Vec<Shard>>,
-    ) -> FastCryptoResult<Vec<u8>> {
-        let shards: Vec<Option<Shard>> = self
-            .nodes
-            .node_ids_iter()
-            .map(|id| -> FastCryptoResult<Vec<Option<Shard>>> {
-                let weight = self.nodes.weight_of(id).expect("valid party id") as usize;
-                match shards_for(id) {
-                    Some(ss) if ss.len() == weight => Ok(ss.into_iter().map(Some).collect()),
-                    // Fail if a contributor's shard count doesn't match its weight.
-                    Some(_) => Err(InvalidInput),
-                    None => Ok(vec![None; weight]),
-                }
-            })
-            .flatten_ok()
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-
-        let mut ciphertext = self.code.decode(shards)?;
-        // Reed-Solomon `decode` returns shard-aligned padding; trim back to the original encrypted
-        // blob length.
-        let weight = self.nodes.weight_of(accuser_id)? as usize;
-        ciphertext.truncate(SharesForNode::bcs_serialized_size(weight, self.batch_size));
-        Ok(ciphertext)
-    }
-
-    /// The check r_i' == r_i from the paper
-    fn check_avid_consistency(
-        &self,
-        ciphertext: &[u8],
-        root: &merkle::Node,
-    ) -> FastCryptoResult<()> {
-        let new_shards = self
-            .nodes
-            .collect_to_nodes(self.code.encode(ciphertext)?.into_iter())?;
-        if recipient_tree(&new_shards)?.root() != *root {
-            return Err(InvalidMessage);
-        }
-
-        Ok(())
-    }
-
     /// 4. If the party also received a valid Message from the dealer, it can now decrypt its shares.
     ///    If this succeeds (returns a DecryptionOutcome::Valid), the party should return a signed vote to the dealer.
     ///    The vote payload can be obtained by calling [DecryptionOutcome::into_response] on the
@@ -722,8 +638,8 @@ impl Receiver {
     ///    Message from the dealer should request the CommonMessage part of that from the parties who voted.
     ///    Using this, the party can decrypt the shares and verify that the shares are valid.
     ///
-    ///    If this function returns a [InvalidShares] or [InvalidDispersal] outcome, the party should broadcast it
-    ///    to the other parties — but only after at least `W - f` votes from other parties have
+    ///    If this function returns an [InvalidShares] or [InvalidDispersal] outcome, the party should broadcast it
+    ///    to the other parties, but only after at least `W - f` votes from other parties have
     ///    appeared on the TOB/ABC channel.
     pub fn verify_and_decrypt(
         &self,
@@ -736,6 +652,11 @@ impl Receiver {
             response_polynomial,
             shared,
         } = &message.common;
+        if full_public_keys.len() != self.batch_size
+            || response_polynomial.degree() != self.t as usize - 1
+        {
+            return Err(InvalidMessage);
+        }
 
         let ProcessedEchos {
             ciphertext,
@@ -743,16 +664,14 @@ impl Receiver {
             recipient_root,
             valid_echoes,
         } = processed_echo_messages;
-        if full_public_keys.len() != self.batch_size
-            || response_polynomial.degree() != self.t as usize - 1
-        {
-            return Err(InvalidMessage);
-        }
 
         // TODO: What should happen if these checks fail?
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
-        let challenge =
-            compute_challenge_from_message(&self.random_oracle(), &global_root, &message.common);
+        let challenge = compute_challenge_from_common_message(
+            &self.random_oracle(),
+            &global_root,
+            &message.common,
+        );
         if G::generator() * response_polynomial.c0()
             != blinding_commit
                 + G::multi_scalar_mul(&challenge, full_public_keys)
@@ -777,7 +696,7 @@ impl Receiver {
                     self.id as usize,
                 )
             })
-            .and_then(|plaintext| SharesForNode::from_bytes(&plaintext))
+            .and_then(SharesForNode::from_bytes)
             .and_then(|my_shares| {
                 verify_shares(
                     &my_shares,
@@ -803,9 +722,7 @@ impl Receiver {
                 },
             }),
             (true, Ok(_)) => {
-                // Repackage each echo's per-shard proof as a ShardContribution. r_i stays
-                // implicit — the responder reads it from its own [Message] rather than receiving
-                // it via the complaint.
+                // Repackage each echo's per-shard proof as a ShardContribution
                 let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
                 let common_message_hash = any_echo.common_message_hash;
                 let shards = valid_echoes
@@ -859,7 +776,6 @@ impl Receiver {
         let accuser_id = proof.accuser_id;
         let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
         let recipient_root = self.dispersal_root_for(message, accuser_id)?;
-        let global_root = self.global_tree(message)?.root();
 
         if common_message_hash != &compute_common_message_hash(&message.common)
             || self
@@ -869,8 +785,12 @@ impl Receiver {
             return Err(InvalidProof);
         }
 
-        let challenge =
-            compute_challenge_from_message(&self.random_oracle(), &global_root, &message.common);
+        let global_root = global_tree_from_message(message)?.root();
+        let challenge = compute_challenge_from_common_message(
+            &self.random_oracle(),
+            &global_root,
+            &message.common,
+        );
         proof.check(
             accuser_pk,
             ciphertext,
@@ -908,15 +828,10 @@ impl Receiver {
         let accuser_id = *accuser_id;
         let recipient_root = self.dispersal_root_for(message, accuser_id)?;
 
-        if common_message_hash != &compute_common_message_hash(&message.common) {
-            return Err(InvalidProof);
-        }
-
-        if shards.iter().map(|s| s.sender).unique().count() != shards.len() {
-            return Err(InvalidProof);
-        }
-
-        if shards.iter().any(|s| s.verify(recipient_root).is_err()) {
+        if common_message_hash != &compute_common_message_hash(&message.common)
+            || shards.iter().map(|s| s.sender).unique().count() != shards.len()
+            || shards.iter().any(|s| s.verify(recipient_root).is_err())
+        {
             return Err(InvalidProof);
         }
 
@@ -947,6 +862,56 @@ impl Receiver {
         Ok(ComplaintResponse::new(self.id, my_output.my_shares.clone()))
     }
 
+    /// Reed-Solomon decode the ciphertext for `accuser_id` from a set of authenticated shard
+    /// contributions exposed via `shards_for(party_id) -> Option<Vec<Shard>>`. Fails if the
+    /// contributing weight is below `W - 2f` (too few contributions to reconstruct), or if a
+    /// party's contribution has a shard count that doesn't match its weight. The caller is
+    /// responsible for having authenticated the shards via their Merkle proofs.
+    fn reconstruct_ciphertext(
+        &self,
+        accuser_id: PartyId,
+        shards_for: impl Fn(PartyId) -> Option<Vec<Shard>>,
+    ) -> FastCryptoResult<Vec<u8>> {
+        let shards: Vec<Option<Shard>> = self
+            .nodes
+            .node_ids_iter()
+            .map(|id| -> FastCryptoResult<Vec<Option<Shard>>> {
+                let weight = self.nodes.weight_of(id).expect("valid party id") as usize;
+                match shards_for(id) {
+                    Some(ss) if ss.len() == weight => Ok(ss.into_iter().map(Some).collect()),
+                    // Fail if a contributor's shard count doesn't match its weight.
+                    Some(_) => Err(InvalidInput),
+                    None => Ok(vec![None; weight]),
+                }
+            })
+            .flatten_ok()
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+
+        let mut ciphertext = self.code.decode(shards)?;
+        // Reed-Solomon `decode` returns shard-aligned padding; trim back to the original encrypted blob length.
+        // The encryption used, counter-mode, is length-preserving, so the length of the ciphertext is equal to the length of the plaintext.
+        ciphertext.truncate(SharesForNode::bcs_serialized_size(
+            self.nodes.weight_of(accuser_id)? as usize,
+            self.batch_size,
+        ));
+        Ok(ciphertext)
+    }
+
+    /// The check r_i' == r_i from the paper
+    fn check_avid_consistency(
+        &self,
+        ciphertext: &[u8],
+        expected_root: &merkle::Node,
+    ) -> FastCryptoResult<()> {
+        let new_shards = self
+            .nodes
+            .collect_to_nodes(self.code.encode(ciphertext)?.into_iter())?;
+        if recipient_tree(&new_shards)?.root() != *expected_root {
+            return Err(InvalidMessage);
+        }
+        Ok(())
+    }
+
     fn dispersal_root_for<'a>(
         &self,
         message: &'a Message,
@@ -957,12 +922,6 @@ impl Receiver {
             .get(accuser_id as usize)
             .ok_or(InvalidProof)?
             .recipient_root)
-    }
-
-    fn global_tree(&self, message: &Message) -> FastCryptoResult<MerkleTree<Blake2b256>> {
-        MerkleTree::<Blake2b256>::build_from_unserialized(
-            message.dispersal.iter().map(|s| &s.recipient_root),
-        )
     }
 
     /// 6. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
@@ -982,8 +941,12 @@ impl Receiver {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
 
-        let r = self.global_tree(message)?.root();
-        let challenge = compute_challenge_from_message(&self.random_oracle(), &r, &message.common);
+        let global_root = global_tree_from_message(message)?.root();
+        let challenge = compute_challenge_from_common_message(
+            &self.random_oracle(),
+            &global_root,
+            &message.common,
+        );
         let response_shares = responses
             .into_iter()
             .filter_map(|response| {
@@ -1019,6 +982,58 @@ impl Receiver {
     }
 }
 
+impl AuthenticatedShards {
+    /// Verify that `shards` are the leaf at `leaf_index` under `recipient_root` using `proof`.
+    fn verify(&self, leaf_index: usize) -> FastCryptoResult<()> {
+        self.proof.verify_proof_with_unserialized_leaf(
+            &self.recipient_root,
+            &self.shards,
+            leaf_index,
+        )
+    }
+}
+
+impl Echo {
+    /// Verify both Merkle proofs in this echo.
+    fn verify(&self, recipient_id: PartyId) -> FastCryptoResult<()> {
+        self.authenticated_shards.verify(self.sender as usize)?;
+        self.recipient_root_proof
+            .verify_proof_with_unserialized_leaf(
+                &self.global_root,
+                &self.authenticated_shards.recipient_root,
+                recipient_id as usize,
+            )
+    }
+}
+
+impl ShardContribution {
+    /// Verify that `shards` are the leaf at `sender` under `recipient_root` using `proof`.
+    fn verify(&self, recipient_root: &merkle::Node) -> FastCryptoResult<()> {
+        self.proof.verify_proof_with_unserialized_leaf(
+            recipient_root,
+            &self.shards,
+            self.sender as usize,
+        )
+    }
+}
+
+/// Build the per-recipient Merkle tree over `shards` (per-node grouped shard chunks of one
+/// ciphertext). The root of this tree is the per-recipient `recipient_root`.
+#[allow(clippy::ptr_arg)]
+fn recipient_tree(shards: &Vec<Vec<Shard>>) -> FastCryptoResult<MerkleTree<Blake2b256>> {
+    MerkleTree::<Blake2b256>::build_from_unserialized(shards.iter())
+}
+
+fn global_tree(
+    recipient_roots: impl ExactSizeIterator<Item = merkle::Node>,
+) -> FastCryptoResult<MerkleTree<Blake2b256>> {
+    MerkleTree::<Blake2b256>::build_from_unserialized(recipient_roots)
+}
+
+fn global_tree_from_message(message: &Message) -> FastCryptoResult<MerkleTree<Blake2b256>> {
+    global_tree(message.dispersal.iter().map(|s| s.recipient_root.clone()))
+}
+
 /// Number of bytes BCS uses to encode `x` as an unsigned LEB128 length prefix.
 fn uleb128_len(x: usize) -> usize {
     let mut len = 1;
@@ -1028,16 +1043,6 @@ fn uleb128_len(x: usize) -> usize {
         v >>= 7;
     }
     len
-}
-
-/// Pull the per-echo metadata that must agree across the entire echo set: the global Merkle root
-/// `r`, the receiver's per-ciphertext root `r_i`, and the dealer's `H(val)`. Returns an error if
-/// any field is non-uniform.
-/// Build the per-recipient Merkle tree over `shards` (per-node grouped shard chunks of one
-/// ciphertext). The root of this tree is the per-recipient `recipient_root`.
-#[allow(clippy::ptr_arg)]
-fn recipient_tree(shards: &Vec<Vec<Shard>>) -> FastCryptoResult<MerkleTree<Blake2b256>> {
-    MerkleTree::<Blake2b256>::build_from_unserialized(shards.iter())
 }
 
 fn require_uniform_echo_metadata(
@@ -1109,7 +1114,7 @@ fn compute_challenge(
         .collect()
 }
 
-fn compute_challenge_from_message(
+fn compute_challenge_from_common_message(
     random_oracle: &RandomOracle,
     root: &merkle::Node,
     message: &CommonMessage,
