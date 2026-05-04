@@ -95,11 +95,12 @@ mod tests {
     use std::hash::Hash;
     #[test]
     fn test_e2e() {
-        // 4 parties with weights [1, 2, 2, 2], total weight 7. No complaints, all honest.
+        // No complaints, all honest
         let t = 3;
         let f = 2;
-        let weights: [u16; 4] = [1, 2, 2, 2];
+        let weights = [1, 2, 2, 2];
         let n = weights.len();
+
         let batch_size_per_weight: u16 = 10;
 
         let mut rng = rand::thread_rng();
@@ -120,19 +121,19 @@ mod tests {
         .unwrap();
 
         //
-        // DKG (via avss)
+        // DKG
         //
 
-        // Map from each party to the outputs it has received from each dealer.
-        let mut dkg_outputs: HashMap<PartyId, HashMap<PartyId, avss::PartialOutput>> =
-            HashMap::new();
+        // Map from each party to the outputs it has received
+        let mut dkg_outputs = HashMap::<PartyId, HashMap<PartyId, avss::PartialOutput>>::new();
         nodes.node_ids_iter().for_each(|id| {
             dkg_outputs.insert(id, HashMap::new());
         });
 
         for dealer_id in nodes.node_ids_iter() {
-            let sid = format!("dkg-test-session-{dealer_id}").into_bytes();
-            let dealer = avss::Dealer::new(None, nodes.clone(), t, sid.clone()).unwrap();
+            let sid = format!("dkg-test-session-{}", dealer_id).into_bytes();
+            let dealer: avss::Dealer =
+                avss::Dealer::new(None, nodes.clone(), t, sid.clone()).unwrap();
             let receivers = sks
                 .iter()
                 .enumerate()
@@ -151,31 +152,22 @@ mod tests {
             // Each dealer creates a message
             let message = dealer.create_message(&mut rng);
 
-            // Each receiver processes the message. In this case, we assume all are honest and
-            // there are no complaints.
-            receivers.iter().for_each(|r| {
-                let pm = r.process_message(&message).unwrap();
-                let output = match pm {
-                    avss::ProcessedMessage::Valid(po) => po,
-                    avss::ProcessedMessage::Complaint(_) => {
-                        panic!("expected valid avss output")
-                    }
-                };
+            // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
+            receivers.iter().for_each(|receiver| {
+                let output = assert_valid(receiver.process_message(&message).unwrap());
                 dkg_outputs
-                    .get_mut(&r.id())
+                    .get_mut(&receiver.id())
                     .unwrap()
                     .insert(dealer_id, output);
             });
         }
 
-        // The dealers to form the certificate should have weight >= t, and are the ones whose
-        // outputs will be used to create the final shares.
+        // The dealers to form the certificate should have weight >= t, and are the ones whose outputs will be used to create the final shares.
         let dkg_cert = [PartyId::from(1u8), PartyId::from(2u8)];
 
-        // Now, each party has collected their outputs from all dealers. We use the outputs from
-        // the dealers in `dkg_cert` to create the final shares for signing. Each party should
-        // still keep the outputs from all dealers until the end of the epoch to handle complaints.
-        let merged_shares: HashMap<PartyId, avss::ReceiverOutput> = nodes
+        // Now, each party has collected their outputs from all dealers. We use the output from the dealers in dkg_cert create the final shares for signing.
+        // Each party should still keep the outputs from all dealers until the end of the epoch to handle complaints.
+        let merged_shares = nodes
             .iter()
             .map(|node| {
                 (
@@ -188,13 +180,13 @@ mod tests {
                     .unwrap(),
                 )
             })
-            .collect();
+            .collect::<HashMap<_, _>>();
 
-        // All receivers should now have the same verifying key.
-        let vk = get_uniform_value(merged_shares.values().map(|out| out.vk)).unwrap();
+        // All receivers should now have the same verifying key
+        let vk = get_uniform_value(merged_shares.values().map(|output| output.vk)).unwrap();
 
-        // For testing, we now recover the secret key from t shares and check that the secret
-        // key matches the verifying key. In practice, the parties should never do this.
+        // For testing, we now recover the secret key from t shares and check that the secret key matches the verification key.
+        // In practice, the parties should never do this...
         let shares = merged_shares
             .values()
             .flat_map(|output| output.my_shares.shares.clone())
@@ -203,20 +195,19 @@ mod tests {
         assert_eq!(G::generator() * sk, vk);
 
         //
-        // PRESIGNING (via batch_avss)
+        // PRESIGNING
         //
 
-        // Generate a batch of nonces for each party's share.
-        let mut presigning_outputs: HashMap<PartyId, Vec<batch_avss::ReceiverOutput>> =
-            HashMap::new();
+        // Generate a batch of nonces for each party's share
+        let mut presigning_outputs = HashMap::<PartyId, Vec<batch_avss::ReceiverOutput>>::new();
         nodes.node_ids_iter().for_each(|id| {
             presigning_outputs.insert(id, Vec::new());
         });
 
         // Each dealer generates a batch of presigs per share they control.
         for dealer_id in nodes.node_ids_iter() {
-            let sid = format!("presig-test-session-{dealer_id}").into_bytes();
-            let dealer = batch_avss::Dealer::new(
+            let sid = format!("presig-test-session-{}", dealer_id).into_bytes();
+            let dealer: batch_avss::Dealer = batch_avss::Dealer::new(
                 nodes.clone(),
                 dealer_id,
                 f,
@@ -257,23 +248,19 @@ mod tests {
                 .map(|i| echoes.iter().map(|em| em[i].clone()).collect())
                 .collect();
 
-            // Each receiver processes the message. In this case, we assume all are honest and
-            // there are no complaints.
+            // Each receiver processes the message.
+            // In this case, we assume all are honest and there are no complaints.
             for ((r, echoes), msg) in
                 receivers.iter().zip(&echoes_per_recipient).zip(&messages)
             {
                 let pem = r.process_echo_messages(echoes).unwrap();
-                let outcome = r.verify_and_decrypt(pem, msg).unwrap();
-                let output = match outcome {
-                    batch_avss::DecryptionOutcome::Valid { output, .. } => output,
-                    _ => panic!("expected valid presigning output"),
-                };
+                let output = assert_valid_batch(r.verify_and_decrypt(pem, msg).unwrap());
                 presigning_outputs.get_mut(&r.id).unwrap().push(output);
             }
         }
 
-        // Each party can process their presigs locally from the secret-shared nonces.
-        let mut presigs: HashMap<PartyId, Presignatures> = presigning_outputs
+        // Each party can process their presigs locally from the secret shared nonces
+        let mut presigs = presigning_outputs
             .into_iter()
             .map(|(id, outputs)| {
                 (
@@ -281,11 +268,10 @@ mod tests {
                     Presignatures::new(outputs, batch_size_per_weight, f as usize).unwrap(),
                 )
             })
-            .collect();
+            .collect::<HashMap<_, _>>();
         assert_eq!(
             presigs.get(&PartyId::from(1u8)).unwrap().len(),
-            batch_size_per_weight as usize
-                * (weights.iter().sum::<u16>() as usize - f as usize)
+            batch_size_per_weight as usize * (weights.iter().sum::<u16>() as usize - f as usize)
         );
 
         //
@@ -294,10 +280,10 @@ mod tests {
 
         let message = b"Hello, world!";
 
-        // Mock a value from the random beacon.
+        // Mock a value from the random beacon
         let beacon_value = S::rand(&mut rng);
 
-        // Each party generates their partial signatures.
+        // Each party generates their partial signatures
         let partial_signatures = nodes
             .iter()
             .map(|node| {
@@ -313,11 +299,15 @@ mod tests {
             })
             .collect_vec();
 
-        // The public parts should all be the same.
-        let public_presig =
-            get_uniform_value(partial_signatures.iter().map(|p| p.0)).unwrap();
+        // The public parts should all be the same
+        let public_presig = get_uniform_value(
+            partial_signatures
+                .iter()
+                .map(|partial_signature| partial_signature.0),
+        )
+        .unwrap();
 
-        // Aggregate partial signatures.
+        // Aggregate partial signatures
         let signature = aggregate_signatures(
             message,
             &public_presig,
@@ -332,7 +322,7 @@ mod tests {
         )
         .unwrap();
 
-        // Check that this produced a valid signature.
+        // Check that this produced a valid signature
         SchnorrPublicKey::try_from(&vk)
             .unwrap()
             .verify(message, &signature)
@@ -342,26 +332,24 @@ mod tests {
         // KEY ROTATION
         //
 
-        // Map from each party to the ordered list of outputs it has received. Here, each party
-        // will act as dealer multiple times — once per share they have.
-        let mut dkg_outputs_after_rotation: HashMap<
-            (PartyId, ShareIndex),
-            avss::PartialOutput,
-        > = HashMap::new();
+        // Map from each party to the ordered list of outputs it has received.
+        // Here, each party will act as dealer multiple times -- once per share they have.
+        let mut dkg_outputs_after_rotation =
+            HashMap::<(PartyId, ShareIndex), avss::PartialOutput>::new();
 
         for dealer_id in nodes.node_ids_iter() {
             for share_index in nodes.share_ids_of(dealer_id).unwrap() {
                 let sid =
-                    format!("key-rotation-test-session-{dealer_id}-{share_index}").into_bytes();
+                    format!("key-rotation-test-session-{}-{}", dealer_id, share_index).into_bytes();
 
-                // Each dealer uses their existing share as the secret to reshare.
+                // Each dealer uses their existing share as the secret to reshare
                 let secret = merged_shares
                     .get(&dealer_id)
                     .unwrap()
                     .share_for_index(share_index)
                     .unwrap()
                     .value;
-                let dealer =
+                let dealer: avss::Dealer =
                     avss::Dealer::new(Some(secret), nodes.clone(), t, sid.clone()).unwrap();
 
                 let receivers = sks
@@ -388,32 +376,23 @@ mod tests {
                 // Each dealer creates a message
                 let message = dealer.create_message(&mut rng);
 
-                // Each receiver processes the message. In this case, we assume all are honest and
-                // there are no complaints.
-                receivers.iter().for_each(|r| {
-                    let pm = r.process_message(&message).unwrap();
-                    let output = match pm {
-                        avss::ProcessedMessage::Valid(po) => po,
-                        avss::ProcessedMessage::Complaint(_) => {
-                            panic!("expected valid avss output")
-                        }
-                    };
-                    dkg_outputs_after_rotation.insert((r.id(), share_index), output);
+                // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
+                receivers.iter().for_each(|receiver| {
+                    let output = assert_valid(receiver.process_message(&message).unwrap());
+                    dkg_outputs_after_rotation.insert((receiver.id(), share_index), output);
                 });
             }
         }
 
-        // The first t dealers (counted by weight) form the certificate and are the ones whose
-        // outputs will be used to create the final shares.
+        // The first t dealers (counted by weight) form the certificate and are the ones whose outputs will be used to create the final shares.
         let key_rotation_cert = [PartyId::from(1u8), PartyId::from(2u8)];
-        let share_indices_in_cert: Vec<ShareIndex> = key_rotation_cert
+        let share_indices_in_cert = key_rotation_cert
             .iter()
             .flat_map(|id| nodes.share_ids_of(*id).unwrap())
             .collect_vec();
 
-        // Now, each party has collected their outputs from all dealers and can form their new
-        // shares from the ones in the certificate.
-        let merged_shares: HashMap<PartyId, avss::ReceiverOutput> = nodes
+        // Now, each party has collected their outputs from all dealers and can form their new shares from the ones in the certificate.
+        let merged_shares = nodes
             .node_ids_iter()
             .map(|receiver_id| {
                 let my_shares_from_cert = share_indices_in_cert
@@ -440,15 +419,15 @@ mod tests {
                     .unwrap(),
                 )
             })
-            .collect();
+            .collect::<HashMap<_, _>>();
 
-        // The verifying key should be the same as before.
+        // The verifying key should be the same as  before
         for output in merged_shares.values() {
             assert_eq!(output.vk, vk);
         }
 
-        // For testing, we now recover the secret key from t shares and check that the secret key
-        // matches the verifying key. In practice, the parties should never do this.
+        // For testing, we now recover the secret key from t shares and check that the secret key matches the verification key.
+        // In practice, the parties should never do this...
         let shares = merged_shares
             .values()
             .flat_map(|output| output.my_shares.shares.clone())
@@ -456,7 +435,7 @@ mod tests {
         let sk = Poly::recover_c0(t, shares).unwrap();
         assert_eq!(G::generator() * sk, vk);
 
-        // Check commitments on the reshared secret from the first dealer.
+        // Check commitments on the reshared secret from the first dealer
         let commitment_1 = merged_shares
             .get(&0)
             .unwrap()
@@ -472,15 +451,15 @@ mod tests {
         assert_eq!(G::generator() * secret_1, commitment_1.value);
 
         //
-        // SIGNING (again with rotated shares)
+        // SIGNING (again)
         //
 
         let message_2 = b"Hello again, world!";
 
-        // Mock a value from the random beacon.
+        // Mock a value from the random beacon
         let beacon_value = S::rand(&mut rng);
 
-        // Each party generates their partial signatures.
+        // Each party generates their partial signatures
         let partial_signatures = nodes
             .iter()
             .map(|node| {
@@ -496,11 +475,15 @@ mod tests {
             })
             .collect_vec();
 
-        // The public parts should all be the same.
-        let public_presig =
-            get_uniform_value(partial_signatures.iter().map(|p| p.0)).unwrap();
+        // The public parts should all be the same
+        let public_presig = get_uniform_value(
+            partial_signatures
+                .iter()
+                .map(|partial_signature| partial_signature.0),
+        )
+        .unwrap();
 
-        // Aggregate partial signatures.
+        // Aggregate partial signatures
         let signature_2 = aggregate_signatures(
             message_2,
             &public_presig,
@@ -515,13 +498,27 @@ mod tests {
         )
         .unwrap();
 
-        // Check that this produced a valid signature.
+        // Check that this produced a valid signature
         SchnorrPublicKey::try_from(&vk)
             .unwrap()
             .verify(message_2, &signature_2)
             .unwrap();
     }
 
+
+    fn assert_valid(pm: avss::ProcessedMessage) -> avss::PartialOutput {
+        match pm {
+            avss::ProcessedMessage::Valid(po) => po,
+            avss::ProcessedMessage::Complaint(_) => panic!("expected valid avss output"),
+        }
+    }
+
+    fn assert_valid_batch(outcome: batch_avss::DecryptionOutcome) -> batch_avss::ReceiverOutput {
+        match outcome {
+            batch_avss::DecryptionOutcome::Valid { output, .. } => output,
+            _ => panic!("expected valid batch_avss output"),
+        }
+    }
 
     /// Restrict a `HashMap` to a given set of keys.
     /// Panics if the given subset is not a subset of the maps' keys.
