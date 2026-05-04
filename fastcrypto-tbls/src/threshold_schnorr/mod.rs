@@ -237,13 +237,13 @@ mod tests {
             let messages = dealer.create_message(&mut rng).unwrap();
 
             // Each receiver produces echoes addressed to every party.
-            let echoes: Vec<Vec<batch_avss::EchoMessage>> = receivers
+            let echoes: Vec<Vec<batch_avss::Echo>> = receivers
                 .iter()
                 .map(|r| r.echo_message(&messages[r.id as usize]).unwrap())
                 .collect();
 
             // Bundle echoes per recipient: echoes_per_recipient[i] = echoes addressed to party i.
-            let echoes_per_recipient: Vec<Vec<batch_avss::EchoMessage>> = (0..n)
+            let echoes_per_recipient: Vec<Vec<batch_avss::Echo>> = (0..n)
                 .map(|i| echoes.iter().map(|em| em[i].clone()).collect())
                 .collect();
 
