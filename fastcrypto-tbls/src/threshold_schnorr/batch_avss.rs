@@ -123,7 +123,8 @@ pub enum OutcomeKind {
 }
 
 /// Context retained by a receiver after [Receiver::verify_and_decrypt]. Together with the
-/// [ReceiverOutput] it is sufficient to handle later [Reveal] / [Blame] requests.
+/// [ReceiverOutput] it is sufficient to handle later [Reveal] / [Blame] requests and to call
+/// [Receiver::recover].
 #[derive(Clone, Debug)]
 pub struct State {
     pub common_message: CommonMessage,
@@ -888,7 +889,7 @@ impl Receiver {
             .verify_proof_with_unserialized_leaf(global_root, recipient_root, accuser_id as usize)
             .map_err(|_| InvalidProof)?;
 
-        if shards.iter().map(|s| s.sender).unique().count() != shards.len()
+        if !shards.iter().map(|s| s.sender).all_unique()
             || shards.iter().any(|s| s.verify(recipient_root).is_err())
         {
             return Err(InvalidProof);
