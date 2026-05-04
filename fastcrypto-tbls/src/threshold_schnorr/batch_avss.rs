@@ -256,15 +256,12 @@ impl SharesForNode {
 
     fn verify(
         &self,
-        nodes: &Nodes<EG>,
-        receiver: PartyId,
         message: &CommonMessage,
         challenge: &[S],
+        weight: u16,
         expected_batch_size: usize,
     ) -> FastCryptoResult<()> {
-        if self.weight() != nodes.weight_of(receiver)?
-            || self.try_uniform_batch_size()? != expected_batch_size
-        {
+        if self.weight() != weight || self.try_uniform_batch_size()? != expected_batch_size {
             return Err(InvalidMessage);
         }
         for shares in &self.shares {
@@ -710,10 +707,9 @@ impl Receiver {
             .and_then(SharesForNode::from_bytes)
             .and_then(|my_shares| {
                 my_shares.verify(
-                    &self.nodes,
-                    self.id,
                     common_message,
                     &challenge,
+                    self.nodes.weight_of(self.id)?,
                     self.batch_size,
                 )?;
                 Ok(my_shares)
@@ -782,6 +778,7 @@ impl Receiver {
             common_message_hash,
         } = reveal;
         let accuser_id = proof.accuser_id;
+        let accuser_weight = self.nodes.weight_of(accuser_id)?;
         let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
 
         let ProcessedEchos { global_root, .. } = processed_echos;
@@ -801,13 +798,7 @@ impl Receiver {
             &common_message.shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
-                shares.verify(
-                    &self.nodes,
-                    accuser_id,
-                    common_message,
-                    &challenge,
-                    self.batch_size,
-                )
+                shares.verify(common_message, &challenge, accuser_weight, self.batch_size)
             },
         )?;
 
@@ -892,14 +883,12 @@ impl Receiver {
             .flatten_ok()
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
-        let mut ciphertext = self.code.decode(shards)?;
-        // Reed-Solomon `decode` returns shard-aligned padding; trim back to the original encrypted blob length.
         // The encryption used, counter-mode, is length-preserving, so the length of the ciphertext is equal to the length of the plaintext.
-        ciphertext.truncate(SharesForNode::bcs_serialized_size(
+        let expected_length = SharesForNode::bcs_serialized_size(
             self.nodes.weight_of(accuser_id)? as usize,
             self.batch_size,
-        ));
-        Ok(ciphertext)
+        );
+        self.code.decode(shards, expected_length)
     }
 
     /// The check r_i' == r_i from the paper
@@ -943,17 +932,16 @@ impl Receiver {
         let response_shares = responses
             .into_iter()
             .filter_map(|response| {
-                response
-                    .shares
-                    .verify(
-                        &self.nodes,
-                        response.responder_id,
-                        &message.common,
-                        &challenge,
-                        self.batch_size,
-                    )
+                self.nodes
+                    .weight_of(response.responder_id)
+                    .map(|w| (w, response.shares))
                     .ok()
-                    .map(|_| response.shares)
+            })
+            .filter_map(|(weight, shares)| {
+                shares
+                    .verify(&message.common, &challenge, weight, self.batch_size)
+                    .ok()
+                    .map(|_| shares)
             })
             .collect_vec();
 
@@ -965,10 +953,9 @@ impl Receiver {
 
         let my_shares = SharesForNode::recover(self, &response_shares)?;
         my_shares.verify(
-            &self.nodes,
-            self.id,
             &message.common,
             &challenge,
+            self.nodes.weight_of(self.id)?,
             self.batch_size,
         )?;
 

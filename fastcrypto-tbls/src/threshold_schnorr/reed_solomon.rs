@@ -166,7 +166,11 @@ impl ErasureCoder {
     }
 
     /// Note that the result may be padded with zeroes, and it is up to the caller to remove them.
-    pub fn decode(&self, shards: Vec<Option<Shard>>) -> FastCryptoResult<Vec<u8>> {
+    pub fn decode(
+        &self,
+        shards: Vec<Option<Shard>>,
+        expected_len: usize,
+    ) -> FastCryptoResult<Vec<u8>> {
         if shards.len() != self.0.total_shard_count() {
             return Err(InputTooShort(self.0.total_shard_count()));
         }
@@ -187,11 +191,15 @@ impl ErasureCoder {
             return Err(TooManyErrors(0)); // This is just an erasure code, so we can't correct errors.
         }
 
-        let data = shards
+        let mut data = shards
             .into_iter()
             .take(self.0.data_shard_count())
             .flatten()
             .collect_vec();
+        if data.len() > expected_len {
+            return Err(InvalidInput);
+        }
+        data.truncate(expected_len);
         Ok(data)
     }
 }
@@ -266,12 +274,8 @@ mod tests {
             }
 
             let coder = ErasureCoder::new(n, k).unwrap();
-            let recovered = coder.decode(opt_shards).unwrap();
-            let shard_size = len.div_ceil(k);
-            let expected_len = shard_size * k;
-            assert_eq!(recovered.len(), expected_len);
-            assert_eq!(&recovered[..len], &data);
-            assert!(recovered[len..].iter().all(|&b| b == 0));
+            let recovered = coder.decode(opt_shards, len).unwrap();
+            assert_eq!(recovered, data);
         }
     }
 
@@ -289,7 +293,7 @@ mod tests {
             *shard = None;
         }
 
-        assert!(matches!(coder.decode(opt_shards), Err(InvalidInput)));
+        assert!(matches!(coder.decode(opt_shards, 123), Err(InvalidInput)));
     }
 
     #[test]
@@ -305,6 +309,9 @@ mod tests {
         shards[0].0[0] ^= 1;
         let opt_shards = shards.into_iter().map(Some).collect_vec();
 
-        assert!(matches!(coder.decode(opt_shards), Err(TooManyErrors(_))));
+        assert!(matches!(
+            coder.decode(opt_shards, 200),
+            Err(TooManyErrors(_))
+        ));
     }
 }
