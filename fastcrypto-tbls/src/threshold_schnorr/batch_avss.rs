@@ -187,7 +187,7 @@ pub struct ReceiverOutput {
 /// If we say that node <i>i</i> has a weight `W_i`, we have
 /// `indices().len() == shares_for_secret(i).len() == weight() = W_i`
 ///
-/// These can be created either by decrypting the shares from the dealer (see [Receiver::process_echo_messages]) or by recovering them from complaint responses.
+/// These can be created either by decrypting the shares from the dealer (see [Receiver::process_echos]) or by recovering them from complaint responses.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharesForNode {
     pub shares: Vec<ShareBatch>,
@@ -353,8 +353,8 @@ impl Dealer {
     ///
     /// * `nodes` defines the set of receivers and their weights.
     /// * `dealer_id` is the id of this dealer as a node.
-    /// * `f` is the maximum number of Byzantine parties counted by weight.
     /// * `t` is the number of shares that are needed to reconstruct the full key/signature.
+    /// * `f` is the maximum number of Byzantine parties counted by weight.
     /// * `sid` is a session identifier that should be unique for each invocation, but the same for all parties.
     /// * `batch_size_per_weight` is the number of secrets a dealer should deal per weight it has.
     ///
@@ -577,7 +577,7 @@ impl Receiver {
     }
 
     /// 2. When a party receives its message, it verifies the Merkle tree path for its shards and generates Echos, one per party.
-    pub fn echo_message(&self, message: &Message) -> FastCryptoResult<Vec<Echo>> {
+    pub fn echo(&self, message: &Message) -> FastCryptoResult<Vec<Echo>> {
         if message
             .dispersal
             .iter()
@@ -618,14 +618,11 @@ impl Receiver {
     ///    Once [Self::verify_and_decrypt] is called, the party should keep the resulting [State]
     ///    around in order to handle future requests through [Self::handle_reveal] and
     ///    [Self::handle_blame].
-    pub fn process_echo_messages(
-        &self,
-        echo_messages: &[Echo],
-    ) -> FastCryptoResult<ProcessedEchos> {
+    pub fn process_echos(&self, echos: &[Echo]) -> FastCryptoResult<ProcessedEchos> {
         // Filter out invalid echo messages
-        let valid_echoes = echo_messages
+        let valid_echoes = echos
             .iter()
-            .filter(|echo_message| echo_message.verify(self.id).is_ok())
+            .filter(|echo| echo.verify(self.id).is_ok())
             .cloned()
             .collect_vec();
 
@@ -634,7 +631,7 @@ impl Receiver {
         let required_weight = self.nodes.total_weight() - self.f;
         if self
             .nodes
-            .total_weight_of(valid_echoes.iter().map(|echo_message| &echo_message.sender))?
+            .total_weight_of(valid_echoes.iter().map(|echo| &echo.sender))?
             < required_weight
         {
             return Err(NotEnoughWeight(required_weight as usize));
@@ -1230,7 +1227,7 @@ mod tests {
 
         let echoes_by_sender = receivers
             .iter()
-            .map(|receiver| receiver.echo_message(&messages[receiver.id as usize]))
+            .map(|receiver| receiver.echo(&messages[receiver.id as usize]))
             .collect::<FastCryptoResult<Vec<_>>>()
             .unwrap();
 
@@ -1249,7 +1246,7 @@ mod tests {
             .iter()
             .zip(messages.iter())
             .zip(echoes_by_recipient.iter())
-            .map(|((receiver, _message), echoes)| receiver.process_echo_messages(echoes).unwrap())
+            .map(|((receiver, _message), echoes)| receiver.process_echos(echoes).unwrap())
             .collect_vec();
 
         let all_shares = receivers
@@ -1347,12 +1344,12 @@ mod tests {
         let messages = dealer.create_message_cheating(&mut rng).unwrap();
 
         // Echo phase
-        let echo_messages = receivers
+        let echos = receivers
             .iter()
-            .map(|r| r.echo_message(&messages[r.id as usize]).unwrap())
+            .map(|r| r.echo(&messages[r.id as usize]).unwrap())
             .collect_vec();
         let echoes_per_recipient = (0..n)
-            .map(|i| echo_messages.iter().map(|em| em[i].clone()).collect_vec())
+            .map(|i| echos.iter().map(|em| em[i].clone()).collect_vec())
             .collect_vec();
 
         // Process echoes + verify_and_decrypt.
@@ -1360,7 +1357,7 @@ mod tests {
             .iter()
             .zip(echoes_per_recipient.iter())
             .map(|(r, echoes)| {
-                let pem = r.process_echo_messages(echoes).unwrap();
+                let pem = r.process_echos(echoes).unwrap();
                 (
                     r.id,
                     r.verify_and_decrypt(pem, &messages[r.id as usize].common)
