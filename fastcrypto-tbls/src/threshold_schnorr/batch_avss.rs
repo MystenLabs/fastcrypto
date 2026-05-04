@@ -450,6 +450,8 @@ impl Dealer {
             .map(MerkleTree::<Blake2b256>::build_from_unserialized)
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
+        let roots: Vec<merkle::Node> = trees.iter().map(MerkleTree::root).collect();
+
         let dispersals: Vec<Vec<AuthenticatedShards>> = self
             .nodes
             .node_ids_iter()
@@ -457,9 +459,10 @@ impl Dealer {
                 shards
                     .iter()
                     .zip(&trees)
-                    .map(|(s, tree)| {
+                    .zip(&roots)
+                    .map(|((s, tree), root)| {
                         Ok(AuthenticatedShards {
-                            root: tree.root(),
+                            root: root.clone(),
                             shards: s[id as usize].clone(),
                             shards_proof: tree.get_proof(id as usize)?,
                         })
@@ -468,9 +471,7 @@ impl Dealer {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
-        let root =
-            MerkleTree::<Blake2b256>::build_from_unserialized(trees.iter().map(MerkleTree::root))?
-                .root();
+        let global_root = MerkleTree::<Blake2b256>::build_from_unserialized(roots.iter())?.root();
 
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
         let challenge = compute_challenge(
@@ -478,7 +479,7 @@ impl Dealer {
             &full_public_keys,
             &blinding_commit,
             &shared,
-            &root,
+            &global_root,
         );
 
         // Get the first t evaluations for the response polynomial and use these to compute the coefficients
@@ -573,10 +574,7 @@ impl Receiver {
         }
 
         let tree = MerkleTree::<Blake2b256>::build_from_unserialized(
-            message
-                .dispersal
-                .iter()
-                .map(|auth| &auth.root),
+            message.dispersal.iter().map(|auth| &auth.root),
         )?;
         let global_root = tree.root();
         let digest = compute_common_message_hash(&message.common);
@@ -609,7 +607,7 @@ impl Receiver {
         echo_messages: &[EchoMessage],
     ) -> FastCryptoResult<ProcessedEchoMessages> {
         // Filter out invalid echo messages
-        let echo_messages = echo_messages
+        let valid_echoes = echo_messages
             .iter()
             .filter(|echo_message| {
                 echo_message
@@ -628,20 +626,19 @@ impl Receiver {
             .cloned()
             .collect_vec();
 
-        let (global_root, recipient_root, _) = require_uniform_echo_metadata(&echo_messages)?;
+        let (global_root, recipient_root, _) = require_uniform_echo_metadata(&valid_echoes)?;
 
         let required_weight = self.nodes.total_weight() - self.f;
-        if self.nodes.total_weight_of(
-            echo_messages
-                .iter()
-                .map(|echo_message| &echo_message.sender),
-        )? < required_weight
+        if self
+            .nodes
+            .total_weight_of(valid_echoes.iter().map(|echo_message| &echo_message.sender))?
+            < required_weight
         {
             return Err(NotEnoughWeight(required_weight as usize));
         }
 
         let ciphertext = self.reconstruct_ciphertext(self.id, |id| {
-            echo_messages
+            valid_echoes
                 .iter()
                 .find(|e| e.sender == id)
                 .map(|e| e.authenticated_shards.shards.clone())
@@ -650,7 +647,7 @@ impl Receiver {
             ciphertext,
             global_root,
             recipient_root,
-            valid_echoes: echo_messages,
+            valid_echoes,
         })
     }
 
