@@ -232,25 +232,6 @@ impl ShareBatch {
 }
 
 impl SharesForNode {
-    /// BCS-serialized length of a `SharesForNode` for a node of the given weight at the given
-    /// batch size.
-    ///
-    /// Layout:
-    /// ```text
-    /// SharesForNode = Vec<ShareBatch>
-    ///   = ULEB128(weight) + weight × ShareBatch
-    /// ShareBatch
-    ///   = NonZeroU16 (= 2 bytes) + Vec<S> + S
-    ///   = 2 + ULEB128(batch_size) + (batch_size + 1) × SCALAR_SIZE_IN_BYTES
-    /// ```
-    fn bcs_serialized_size(weight: usize, batch_size: usize) -> usize {
-        // TODO: A bit of a hack — this hardcodes the BCS layout of `SharesForNode`/`ShareBatch`
-        // and the 32-byte scalar size. Any change to those types' fields silently invalidates
-        // this formula; the unit test catches it but only within the tested ranges.
-        uleb128_len(weight)
-            + weight * (2 + uleb128_len(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES)
-    }
-
     /// Get the weight of this node (number of shares it has).
     pub fn weight(&self) -> u16 {
         self.shares.len() as u16
@@ -323,6 +304,21 @@ impl SharesForNode {
             .collect::<FastCryptoResult<Vec<_>>>()?;
         Ok(Self { shares })
     }
+
+    /// BCS-serialized length of a `SharesForNode` for a node of the given weight at the given
+    /// batch size.
+    fn bcs_serialized_size(weight: usize, batch_size: usize) -> usize {
+        // Layout:
+        // SharesForNode = Vec<ShareBatch>
+        //   = ULEB128(weight) + weight × ShareBatch
+        // ShareBatch
+        //   = NonZeroU16 (= 2 bytes) + Vec<S> + S
+        //   = 2 + ULEB128(batch_size) + (batch_size + 1) × SCALAR_SIZE_IN_BYTES
+
+        // TODO: A bit of a hack — this hardcodes the BCS layout of `SharesForNode`
+        uleb128_len(weight)
+            + weight * (2 + uleb128_len(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES)
+    }
 }
 
 impl BCSSerialized for SharesForNode {}
@@ -367,8 +363,7 @@ impl Dealer {
         self.create_message_with_mutation(rng, |_| {})
     }
 
-    /// Like [Self::create_message] but exposes a mutation hook over the pre-encryption
-    /// per-receiver plaintexts so tests can simulate a faulty dealer by corrupting one slot.
+    /// Like [Self::create_message] but exposes a mutation hook over the plaintexts so tests can simulate a faulty dealer by corrupting one slot.
     fn create_message_with_mutation(
         &self,
         rng: &mut impl AllowedRng,
@@ -572,13 +567,14 @@ impl Receiver {
         message
             .dispersal
             .iter()
+            .cloned()
             .enumerate()
             .map(|(i, authenticated_shards)| {
                 Ok(Echo {
                     sender: self.id,
                     global_root: global_root.clone(),
                     recipient_root_proof: global_tree.get_proof(i)?,
-                    authenticated_shards: authenticated_shards.clone(),
+                    authenticated_shards,
                     common_message_hash,
                 })
             })
