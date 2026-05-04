@@ -201,6 +201,19 @@ impl AuthenticatedShards {
     }
 }
 
+impl Echo {
+    /// Verify both Merkle proofs in this echo.
+    fn verify(&self, recipient_id: PartyId) -> FastCryptoResult<()> {
+        self.authenticated_shards.verify(self.sender as usize)?;
+        self.recipient_root_proof
+            .verify_proof_with_unserialized_leaf(
+                &self.global_root,
+                &self.authenticated_shards.recipient_root,
+                recipient_id as usize,
+            )
+    }
+}
+
 impl DecryptionOutcome {
     /// Reduce this outcome to the message the party should broadcast to others: a [Vote] when
     /// the dealer's broadcast verified, otherwise the [InvalidShares] or [InvalidDispersal] itself.
@@ -452,10 +465,8 @@ impl Dealer {
 
         let trees = shards
             .iter()
-            .map(MerkleTree::<Blake2b256>::build_from_unserialized)
+            .map(recipient_tree)
             .collect::<FastCryptoResult<Vec<_>>>()?;
-
-        let roots: Vec<merkle::Node> = trees.iter().map(MerkleTree::root).collect();
 
         let dispersals: Vec<Vec<AuthenticatedShards>> = self
             .nodes
@@ -464,10 +475,9 @@ impl Dealer {
                 shards
                     .iter()
                     .zip(&trees)
-                    .zip(&roots)
-                    .map(|((s, tree), root)| {
+                    .map(|(s, tree)| {
                         Ok(AuthenticatedShards {
-                            recipient_root: root.clone(),
+                            recipient_root: tree.root(),
                             shards: s[id as usize].clone(),
                             proof: tree.get_proof(id as usize)?,
                         })
@@ -476,7 +486,9 @@ impl Dealer {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
-        let global_root = MerkleTree::<Blake2b256>::build_from_unserialized(roots.iter())?.root();
+        let global_root =
+            MerkleTree::<Blake2b256>::build_from_unserialized(trees.iter().map(MerkleTree::root))?
+                .root();
 
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
         let challenge = compute_challenge(
@@ -578,9 +590,7 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        let tree = MerkleTree::<Blake2b256>::build_from_unserialized(
-            message.dispersal.iter().map(|auth| &auth.recipient_root),
-        )?;
+        let tree = self.global_tree(message)?;
         let global_root = tree.root();
         let common_message_hash = compute_common_message_hash(&message.common);
         message
@@ -614,20 +624,7 @@ impl Receiver {
         // Filter out invalid echo messages
         let valid_echoes = echo_messages
             .iter()
-            .filter(|echo_message| {
-                echo_message
-                    .authenticated_shards
-                    .verify(echo_message.sender as usize)
-                    .is_ok()
-                    && echo_message
-                        .recipient_root_proof
-                        .verify_proof_with_unserialized_leaf(
-                            &echo_message.global_root,
-                            &echo_message.authenticated_shards.recipient_root,
-                            self.id as usize,
-                        )
-                        .is_ok()
-            })
+            .filter(|echo_message| echo_message.verify(self.id).is_ok())
             .cloned()
             .collect_vec();
 
@@ -698,9 +695,7 @@ impl Receiver {
         let new_shards = self
             .nodes
             .collect_to_nodes(self.code.encode(ciphertext)?.into_iter())?;
-        let new_tree = MerkleTree::<Blake2b256>::build_from_unserialized(new_shards.iter())?;
-
-        if new_tree.root() != *root {
+        if recipient_tree(&new_shards)?.root() != *root {
             return Err(InvalidMessage);
         }
 
@@ -853,7 +848,7 @@ impl Receiver {
         let accuser_id = proof.accuser_id;
         let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
         let recipient_root = self.dispersal_root_for(message, accuser_id)?;
-        let global_root = self.global_root(message)?;
+        let global_root = self.global_tree(message)?.root();
 
         if common_message_hash != &compute_common_message_hash(&message.common)
             || self
@@ -957,11 +952,10 @@ impl Receiver {
             .recipient_root)
     }
 
-    fn global_root(&self, message: &Message) -> FastCryptoResult<merkle::Node> {
-        Ok(MerkleTree::<Blake2b256>::build_from_unserialized(
+    fn global_tree(&self, message: &Message) -> FastCryptoResult<MerkleTree<Blake2b256>> {
+        MerkleTree::<Blake2b256>::build_from_unserialized(
             message.dispersal.iter().map(|s| &s.recipient_root),
-        )?
-        .root())
+        )
     }
 
     /// 6. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
@@ -981,7 +975,7 @@ impl Receiver {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
 
-        let r = self.global_root(message)?;
+        let r = self.global_tree(message)?.root();
         let challenge = compute_challenge_from_message(&self.random_oracle(), &r, &message.common);
         let response_shares = responses
             .into_iter()
@@ -1032,6 +1026,13 @@ fn uleb128_len(x: usize) -> usize {
 /// Pull the per-echo metadata that must agree across the entire echo set: the global Merkle root
 /// `r`, the receiver's per-ciphertext root `r_i`, and the dealer's `H(val)`. Returns an error if
 /// any field is non-uniform.
+/// Build the per-recipient Merkle tree over `shards` (per-node grouped shard chunks of one
+/// ciphertext). The root of this tree is the per-recipient `recipient_root`.
+#[allow(clippy::ptr_arg)]
+fn recipient_tree(shards: &Vec<Vec<Shard>>) -> FastCryptoResult<MerkleTree<Blake2b256>> {
+    MerkleTree::<Blake2b256>::build_from_unserialized(shards.iter())
+}
+
 fn require_uniform_echo_metadata(
     echoes: &[Echo],
 ) -> FastCryptoResult<(merkle::Node, merkle::Node, Digest<32>)> {
