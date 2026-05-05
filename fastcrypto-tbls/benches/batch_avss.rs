@@ -257,8 +257,8 @@ mod batch_avss_benches {
 criterion_main!(batch_avss_benches::batch_avss_benches);
 
 fn assert_valid_batch(outcome: batch_avss::DecryptionOutcome) -> batch_avss::ReceiverOutput {
-    match outcome.kind {
-        batch_avss::OutcomeKind::Valid { output, .. } => output,
+    match outcome {
+        batch_avss::DecryptionOutcome::Valid { output, .. } => output,
         _ => panic!("Expected valid outcome"),
     }
 }
