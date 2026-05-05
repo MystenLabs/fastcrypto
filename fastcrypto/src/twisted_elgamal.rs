@@ -356,6 +356,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
         sender_public_key: &PublicKey,
         recipient_encryption_keys: &[PublicKey],
         ciphertexts: &[MultiRecipientCiphertext; N],
+        rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
         // Fiat-Shamir challenge
         let c = Self::challenge(
@@ -370,18 +371,21 @@ impl<const N: usize> KeyConsistencyProof<N> {
         // Number of recipients
         let m = recipient_encryption_keys.len();
 
+        // Random base scalar used for MSM verification
+        let msm_rnd = RistrettoScalar::rand(rng);
+
         // Compute inner scalars mu_ij = Hash("mu", c, i, j) for all i and j used in check 1
         let mu: Vec<RistrettoScalar> = (0..N)
-            .flat_map(|i| (0..m).map(move |j| fiat_shamir_challenge(&("mu", &c, i, j))))
+            .flat_map(|i| (0..m).map(move |j| fiat_shamir_challenge(&("mu", &msm_rnd, i, j))))
             .collect();
 
         // Compute inner scalars rho_i = Hash("rho", c, i) for all i used in check 2
-        let rho: [RistrettoScalar; N] = from_fn(|i| fiat_shamir_challenge(&("rho", &c, i)));
+        let rho: [RistrettoScalar; N] = from_fn(|i| fiat_shamir_challenge(&("rho", &msm_rnd, i)));
 
         // Compute outer scalars alpha = Hash("alpha", c) and beta = Hash("beta", c) combining the three zero-expressions:
         //   (check 1) + alpha * (check 2) + beta * (check 3) == 0
-        let alpha = fiat_shamir_challenge(&("alpha", &c));
-        let beta = fiat_shamir_challenge(&("beta", &c));
+        let alpha = fiat_shamir_challenge(&("alpha", &msm_rnd));
+        let beta = fiat_shamir_challenge(&("beta", &msm_rnd));
 
         // Check 2: compute sum_i(rho_i * z_1i) and sum_i(rho_i * z_2i)
         let rho_z1 = RistrettoScalar::inner_product(rho, self.z1);
@@ -542,6 +546,7 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
             sender_public_key,
             recipient_encryption_keys,
             &self.ciphertexts,
+            rng,
         )
     }
 
@@ -731,13 +736,13 @@ fn test_key_consistency_proof() {
 
     // Verification passes with correct sender public key
     assert!(proof
-        .verify(&pk_snd, std::slice::from_ref(&pk_rcv), &ciphertexts)
+        .verify(&pk_snd, std::slice::from_ref(&pk_rcv), &ciphertexts, &mut rng)
         .is_ok());
 
     // Verification fails with a different sender public key
     let (other_pk_snd, _) = generate_keypair(&mut rng);
     assert!(proof
-        .verify(&other_pk_snd, &[pk_rcv], &ciphertexts)
+        .verify(&other_pk_snd, &[pk_rcv], &ciphertexts, &mut rng)
         .is_err());
 }
 
