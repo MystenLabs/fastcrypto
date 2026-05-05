@@ -189,9 +189,13 @@ mod batch_avss_benches {
                             .collect();
                         let echoes_for_party_1: Vec<batch_avss::Echo> =
                             echoes.iter().map(|em| em[1].clone()).collect();
-                        let pem = receivers[1]
+                        let pem = match receivers[1]
                             .decode_ciphertext_for_party(&echoes_for_party_1, receivers[1].id)
-                            .unwrap();
+                            .unwrap()
+                        {
+                            batch_avss::DecodeOutcome::Decoded(d) => d,
+                            _ => panic!("expected Decoded outcome"),
+                        };
                         assert_valid_batch(
                             receivers[1]
                                 .verify_and_decrypt(pem, &messages[1].common)

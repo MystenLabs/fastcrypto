@@ -107,6 +107,19 @@ pub struct DecodedCiphertext {
     valid_echoes: Vec<Echo>,
 }
 
+/// The result of [Receiver::decode_ciphertext_for_party]: either a successfully reconstructed
+/// ciphertext whose AVID dispersal is consistent, or an [InvalidDispersal] [Blame] when the
+/// re-encoded ciphertext disagrees with the dealer's `r_i`. The Blame variant additionally
+/// surfaces the dealer's `global_root` so the accuser can later assemble a [State].
+#[allow(clippy::large_enum_variant)]
+pub enum DecodeOutcome {
+    Decoded(DecodedCiphertext),
+    InvalidDispersal {
+        blame: Blame,
+        global_root: merkle::Node,
+    },
+}
+
 /// The result of [Receiver::verify_and_decrypt]. Carries the per-receiver [State] (sufficient,
 /// together with a [ReceiverOutput], to handle later [Reveal] / [Blame] requests and to call
 /// [Receiver::recover]) plus an [OutcomeKind] describing what the receiver actually got.
@@ -119,7 +132,6 @@ pub struct DecryptionOutcome {
 pub enum OutcomeKind {
     Valid { output: ReceiverOutput, vote: Vote },
     InvalidShares(Reveal),
-    InvalidDispersal(Blame),
 }
 
 /// Context retained by a receiver after [Receiver::verify_and_decrypt]. Together with the
@@ -495,7 +507,7 @@ impl Receiver {
         &self,
         echos: &[Echo],
         party: PartyId,
-    ) -> FastCryptoResult<DecodedCiphertext> {
+    ) -> FastCryptoResult<DecodeOutcome> {
         // Filter out invalid echo messages
         let valid_echoes = echos
             .iter()
@@ -503,7 +515,8 @@ impl Receiver {
             .cloned()
             .collect_vec();
 
-        let (global_root, recipient_root, _) = require_uniform_echo_metadata(&valid_echoes)?;
+        let (global_root, recipient_root, common_message_hash) =
+            require_uniform_echo_metadata(&valid_echoes)?;
 
         // TODO: Double-check that this is ok
         let required_weight = self.nodes.total_weight() - 2 * self.f;
@@ -515,18 +528,49 @@ impl Receiver {
             return Err(NotEnoughWeight(required_weight as usize));
         }
 
-        self.reconstruct_ciphertext(party, |id| {
+        let ciphertext = self.reconstruct_ciphertext(party, |id| {
             valid_echoes
                 .iter()
                 .find(|e| e.sender == id)
                 .map(|e| e.authenticated_shards.shards.clone())
-        })
-        .map(|ciphertext| DecodedCiphertext {
+        })?;
+
+        // If re-encoding the recovered ciphertext doesn't yield `recipient_root`, the dealer's
+        // dispersal is inconsistent — package the contributed shards as a [Blame].
+        if self
+            .check_avid_consistency(&ciphertext, &recipient_root)
+            .is_err()
+        {
+            let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
+            let header = ComplaintHeader {
+                recipient_root,
+                recipient_root_proof: any_echo.recipient_root_proof.clone(),
+                common_message_hash,
+            };
+            let shards = valid_echoes
+                .into_iter()
+                .map(|e| ShardContribution {
+                    sender: e.sender,
+                    shards: e.authenticated_shards.shards,
+                    proof: e.authenticated_shards.proof,
+                })
+                .collect_vec();
+            return Ok(DecodeOutcome::InvalidDispersal {
+                blame: Blame {
+                    accuser_id: party,
+                    shards,
+                    header,
+                },
+                global_root,
+            });
+        }
+
+        Ok(DecodeOutcome::Decoded(DecodedCiphertext {
             ciphertext,
             global_root,
             recipient_root,
             valid_echoes,
-        })
+        }))
     }
 
     /// 4. If the party also received a valid [Message] from the dealer, it can now decrypt its shares using the [CommonMessage] part of the message.
@@ -579,10 +623,6 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        let faulty_dealer = self
-            .check_avid_consistency(&ciphertext, &recipient_root)
-            .is_err();
-
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         let decrypted_shares = shared
             .verify(&random_oracle_encryption)
@@ -611,13 +651,8 @@ impl Receiver {
         };
 
         let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
-        let header = ComplaintHeader {
-            recipient_root,
-            recipient_root_proof: any_echo.recipient_root_proof.clone(),
-            common_message_hash: compute_common_message_hash(common_message),
-        };
-        let kind = match (faulty_dealer, decrypted_shares) {
-            (false, Ok(my_shares)) => OutcomeKind::Valid {
+        let kind = match decrypted_shares {
+            Ok(my_shares) => OutcomeKind::Valid {
                 output: ReceiverOutput {
                     my_shares,
                     public_keys: full_public_keys.clone(),
@@ -627,22 +662,7 @@ impl Receiver {
                     common_message_hash: any_echo.common_message_hash,
                 },
             },
-            (true, _) => {
-                let shards = valid_echoes
-                    .into_iter()
-                    .map(|e| ShardContribution {
-                        sender: e.sender,
-                        shards: e.authenticated_shards.shards,
-                        proof: e.authenticated_shards.proof,
-                    })
-                    .collect_vec();
-                OutcomeKind::InvalidDispersal(Blame {
-                    accuser_id: self.id,
-                    shards,
-                    header,
-                })
-            }
-            (false, Err(_)) => OutcomeKind::InvalidShares(Reveal {
+            Err(_) => OutcomeKind::InvalidShares(Reveal {
                 proof: complaint::Complaint::create(
                     self.id,
                     shared,
@@ -651,7 +671,11 @@ impl Receiver {
                     &mut rand::thread_rng(),
                 ),
                 ciphertext,
-                header,
+                header: ComplaintHeader {
+                    recipient_root,
+                    recipient_root_proof: any_echo.recipient_root_proof.clone(),
+                    common_message_hash: compute_common_message_hash(common_message),
+                },
             }),
         };
         Ok(DecryptionOutcome { state, kind })
@@ -879,14 +903,13 @@ impl Receiver {
 
 impl DecryptionOutcome {
     /// Reduce this outcome to the message the party should broadcast to others: a [Vote] when
-    /// the dealer's broadcast verified, otherwise the [InvalidShares] or [InvalidDispersal] itself.
-    /// The receiver's local [ReceiverOutput] (in the Valid case) and [State] are consumed and
-    /// not part of the wire format.
+    /// the dealer's broadcast verified, otherwise the [InvalidShares] complaint itself. The
+    /// receiver's local [ReceiverOutput] (in the Valid case) and [State] are consumed and not
+    /// part of the wire format.
     pub fn into_response(self) -> Response {
         match self.kind {
             OutcomeKind::Valid { vote, .. } => Response::Vote(vote),
             OutcomeKind::InvalidShares(r) => Response::InvalidShares(r),
-            OutcomeKind::InvalidDispersal(b) => Response::InvalidDispersal(b),
         }
     }
 }
@@ -1165,8 +1188,8 @@ fn compute_common_message_hash(message: &CommonMessage) -> Digest<32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Dealer, DecryptionOutcome, Message, OutcomeKind, Receiver, ReceiverOutput, ShareBatch,
-        SharesForNode, State,
+        Dealer, DecodeOutcome, DecodedCiphertext, DecryptionOutcome, Message, OutcomeKind,
+        Receiver, ReceiverOutput, ShareBatch, SharesForNode, State,
     };
     use crate::ecies_v1;
     use crate::ecies_v1::PublicKey;
@@ -1286,9 +1309,11 @@ mod tests {
             .zip(messages.iter())
             .zip(echoes_by_recipient.iter())
             .map(|((receiver, _message), echoes)| {
-                receiver
-                    .decode_ciphertext_for_party(echoes, receiver.id)
-                    .unwrap()
+                assert_decoded(
+                    receiver
+                        .decode_ciphertext_for_party(echoes, receiver.id)
+                        .unwrap(),
+                )
             })
             .collect_vec();
 
@@ -1395,12 +1420,13 @@ mod tests {
             .map(|i| echos.iter().map(|em| em[i].clone()).collect_vec())
             .collect_vec();
 
-        // Process echoes + verify_and_decrypt.
+        // Process echoes + verify_and_decrypt. AVID is consistent for everyone in this test, so
+        // every decode yields a Decoded outcome.
         let outcomes: HashMap<u16, DecryptionOutcome> = receivers
             .iter()
             .zip(echoes_per_recipient.iter())
             .map(|(r, echoes)| {
-                let pem = r.decode_ciphertext_for_party(echoes, r.id).unwrap();
+                let pem = assert_decoded(r.decode_ciphertext_for_party(echoes, r.id).unwrap());
                 (
                     r.id,
                     r.verify_and_decrypt(pem, &messages[r.id as usize].common)
@@ -1561,41 +1587,37 @@ mod tests {
             })
             .collect_vec();
 
-        // Process echoes + verify_and_decrypt.
-        let outcomes: HashMap<u16, DecryptionOutcome> = receivers
+        // Decode each receiver's ciphertext. The victim hits the AVID inconsistency at the
+        // decode stage and gets a [DecodeOutcome::InvalidDispersal] directly; everyone else
+        // gets a [DecodeOutcome::Decoded] that they can pass through `verify_and_decrypt`.
+        let mut decode_outcomes: HashMap<u16, DecodeOutcome> = receivers
             .iter()
             .zip(echoes_per_recipient.iter())
-            .map(|(r, echoes)| {
-                let pem = r.decode_ciphertext_for_party(echoes, r.id).unwrap();
-                (
-                    r.id,
-                    r.verify_and_decrypt(pem, &messages[r.id as usize].common)
-                        .unwrap(),
-                )
-            })
+            .map(|(r, echoes)| (r.id, r.decode_ciphertext_for_party(echoes, r.id).unwrap()))
             .collect();
 
-        // Receiver 0 emits an InvalidDispersal complaint.
-        let mut outcomes = outcomes;
-        let DecryptionOutcome {
-            state: victim_state,
-            kind: victim_kind,
-        } = outcomes.remove(&victim_id).unwrap();
-        let blame = match victim_kind {
-            OutcomeKind::InvalidDispersal(b) => b,
-            ref other => panic!(
-                "expected InvalidDispersal from victim, got {:?}",
-                outcome_kind(other)
+        let (blame, victim_state) = match decode_outcomes.remove(&victim_id).unwrap() {
+            DecodeOutcome::InvalidDispersal { blame, global_root } => (
+                blame,
+                State {
+                    common_message: messages[victim_id as usize].common.clone(),
+                    global_root,
+                },
             ),
+            DecodeOutcome::Decoded(_) => panic!("expected InvalidDispersal from victim"),
         };
 
         // The other receivers each get a Valid output. Keep both `output` and `state` so the
         // honest receivers can answer the victim's complaint.
         let mut states: HashMap<u16, State> = HashMap::new();
-        let mut outputs: HashMap<u16, ReceiverOutput> = outcomes
+        let mut outputs: HashMap<u16, ReceiverOutput> = decode_outcomes
             .into_iter()
-            .map(|(id, o)| {
-                let DecryptionOutcome { state, kind } = o;
+            .map(|(id, decoded)| {
+                let pem = assert_decoded(decoded);
+                let outcome = receivers[id as usize]
+                    .verify_and_decrypt(pem, &messages[id as usize].common)
+                    .unwrap();
+                let DecryptionOutcome { state, kind } = outcome;
                 states.insert(id, state);
                 let output = match kind {
                     OutcomeKind::Valid { output, .. } => output,
@@ -1649,11 +1671,19 @@ mod tests {
         }
     }
 
+    fn assert_decoded(outcome: DecodeOutcome) -> DecodedCiphertext {
+        match outcome {
+            DecodeOutcome::Decoded(d) => d,
+            DecodeOutcome::InvalidDispersal { .. } => {
+                panic!("expected Decoded outcome, got InvalidDispersal")
+            }
+        }
+    }
+
     fn outcome_kind(kind: &OutcomeKind) -> &'static str {
         match kind {
             OutcomeKind::Valid { .. } => "Valid",
             OutcomeKind::InvalidShares(_) => "InvalidShares",
-            OutcomeKind::InvalidDispersal(_) => "InvalidDispersal",
         }
     }
 
