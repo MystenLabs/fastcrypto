@@ -250,7 +250,7 @@ mod tests {
             // Each receiver processes the message.
             // In this case, we assume all are honest and there are no complaints.
             for ((r, echoes), msg) in receivers.iter().zip(&echoes_per_recipient).zip(&messages) {
-                let pem = r.process_echos(echoes).unwrap();
+                let pem = r.decode_ciphertext_for_party(echoes, r.id).unwrap();
                 let output = assert_valid_batch(r.verify_and_decrypt(pem, &msg.common).unwrap());
                 presigning_outputs.get_mut(&r.id).unwrap().push(output);
             }

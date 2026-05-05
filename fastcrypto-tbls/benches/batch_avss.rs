@@ -141,7 +141,12 @@ mod batch_avss_benches {
 
                 process.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.process_echos(&echoes_for_party_1).unwrap()),
+                    |b| {
+                        b.iter(|| {
+                            r1.decode_ciphertext_for_party(&echoes_for_party_1, r1.id)
+                                .unwrap()
+                        })
+                    },
                 );
             }
         }
@@ -184,7 +189,9 @@ mod batch_avss_benches {
                             .collect();
                         let echoes_for_party_1: Vec<batch_avss::Echo> =
                             echoes.iter().map(|em| em[1].clone()).collect();
-                        let pem = receivers[1].process_echos(&echoes_for_party_1).unwrap();
+                        let pem = receivers[1]
+                            .decode_ciphertext_for_party(&echoes_for_party_1, receivers[1].id)
+                            .unwrap();
                         assert_valid_batch(
                             receivers[1]
                                 .verify_and_decrypt(pem, &messages[1].common)
