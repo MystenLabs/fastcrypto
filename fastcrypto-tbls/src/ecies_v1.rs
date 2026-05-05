@@ -8,6 +8,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, Scalar};
 use fastcrypto::traits::{AllowedRng, ToFromBytes};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::marker::PhantomData;
 use typenum::consts::{U16, U32};
 use typenum::Unsigned;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -45,8 +46,21 @@ pub const AES_KEY_LENGTH: usize = 32;
 pub struct MultiRecipientEncryption<G: GroupElement> {
     c: G,
     c_hat: G,
-    encs: Vec<Vec<u8>>,
+    pub(crate) encs: Vec<Vec<u8>>,
     proof: DdhTupleNizk<G>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SharedComponents<G: GroupElement> {
+    c: G,
+    c_hat: G,
+    proof: DdhTupleNizk<G>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EncryptedPart<G> {
+    enc: Vec<u8>,
+    g: PhantomData<G>,
 }
 
 impl<G: GroupElement + Serialize> MultiRecipientEncryption<G>
@@ -194,6 +208,24 @@ where
         &self.proof
     }
 
+    pub fn into_parts(self) -> (SharedComponents<G>, Vec<Vec<u8>>) {
+        let MultiRecipientEncryption {
+            c,
+            c_hat,
+            encs,
+            proof,
+        } = self;
+        (SharedComponents { c, c_hat, proof }, encs)
+    }
+
+    pub fn shared(&self) -> SharedComponents<G> {
+        SharedComponents {
+            c: self.c,
+            c_hat: self.c_hat,
+            proof: self.proof.clone(),
+        }
+    }
+
     fn encs_random_oracle(encryption_random_oracle: &RandomOracle) -> RandomOracle {
         encryption_random_oracle.extend("encs")
     }
@@ -227,6 +259,92 @@ fn sym_cipher(k: &[u8; 64]) -> Aes256Ctr {
         AesKey::<U32>::from_bytes(&k[0..U32::USIZE])
             .expect("New shouldn't fail as use fixed size key is used"),
     )
+}
+
+impl<G: GroupElement + Serialize> SharedComponents<G>
+where
+    <G as GroupElement>::ScalarType: FiatShamirChallenge + Zeroize,
+    G: HashToGroupElement,
+{
+    pub fn decrypt(
+        &self,
+        enc: &[u8],
+        sk: &PrivateKey<G>,
+        encryption_random_oracle: &RandomOracle,
+        receiver_index: usize,
+    ) -> Vec<u8> {
+        let enc_ro = MultiRecipientEncryption::<G>::encs_random_oracle(encryption_random_oracle);
+        let ephemeral_key = self.c * sk.0;
+        let k = enc_ro.evaluate(&(receiver_index, ephemeral_key));
+        let cipher = sym_cipher(&k);
+        cipher
+            .decrypt(&fixed_zero_nonce(), enc)
+            .expect("Decrypt should never fail for CTR mode")
+    }
+
+    pub fn ephemeral_key(&self) -> &G {
+        &self.c
+    }
+
+    pub fn verify(&self, encryption_random_oracle: &RandomOracle) -> FastCryptoResult<()> {
+        let g_hat = G::hash_to_group_element(
+            &MultiRecipientEncryption::<G>::g_hat_random_oracle(encryption_random_oracle)
+                .evaluate(&self.c),
+        );
+        self.proof.verify(
+            &g_hat,
+            &self.c,
+            &self.c_hat,
+            &MultiRecipientEncryption::<G>::zk_random_oracle(encryption_random_oracle),
+        )
+    }
+
+    pub fn create_recovery_package<R: AllowedRng>(
+        &self,
+        sk: &PrivateKey<G>,
+        recovery_random_oracle: &RandomOracle,
+        rng: &mut R,
+    ) -> RecoveryPackage<G> {
+        let pk = G::generator() * sk.0;
+        let ephemeral_key = self.c * sk.0;
+
+        let proof = DdhTupleNizk::<G>::create(
+            &sk.0,
+            &self.c,
+            &pk,
+            &ephemeral_key,
+            recovery_random_oracle,
+            rng,
+        );
+
+        RecoveryPackage {
+            ephemeral_key,
+            proof,
+        }
+    }
+
+    pub fn decrypt_with_recovery_package(
+        &self,
+        enc: &[u8],
+        pkg: &RecoveryPackage<G>,
+        recovery_random_oracle: &RandomOracle,
+        encryption_random_oracle: &RandomOracle,
+        receiver_pk: &PublicKey<G>,
+        receiver_index: usize,
+    ) -> FastCryptoResult<Vec<u8>> {
+        pkg.proof.verify(
+            &self.c,
+            &receiver_pk.0,
+            &pkg.ephemeral_key,
+            recovery_random_oracle,
+        )?;
+        let encs_ro = MultiRecipientEncryption::<G>::encs_random_oracle(encryption_random_oracle);
+        let k = encs_ro.evaluate(&(receiver_index, pkg.ephemeral_key));
+        let cipher = sym_cipher(&k);
+        Ok(cipher
+            .decrypt(&fixed_zero_nonce(), enc)
+            .expect("Decrypt should never fail for CTR mode"))
+    }
 }
 
 impl<G> PrivateKey<G>
