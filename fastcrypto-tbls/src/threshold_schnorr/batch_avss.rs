@@ -100,7 +100,7 @@ pub struct Echo {
 
 /// The receiver's reconstructed ciphertext together with the metadata extracted from the echoes.
 #[derive(Clone)]
-pub struct ProcessedEchos {
+pub struct DecodedCiphertext {
     ciphertext: Vec<u8>,
     global_root: merkle::Node,
     recipient_root: merkle::Node,
@@ -495,7 +495,7 @@ impl Receiver {
         &self,
         echos: &[Echo],
         party: PartyId,
-    ) -> FastCryptoResult<ProcessedEchos> {
+    ) -> FastCryptoResult<DecodedCiphertext> {
         // Filter out invalid echo messages
         let valid_echoes = echos
             .iter()
@@ -521,7 +521,7 @@ impl Receiver {
                 .find(|e| e.sender == id)
                 .map(|e| e.authenticated_shards.shards.clone())
         })
-        .map(|ciphertext| ProcessedEchos {
+        .map(|ciphertext| DecodedCiphertext {
             ciphertext,
             global_root,
             recipient_root,
@@ -543,7 +543,7 @@ impl Receiver {
     ///    appeared on the TOB/ABC channel.
     pub fn verify_and_decrypt(
         &self,
-        processed_echos: ProcessedEchos,
+        decoded_ciphertext: DecodedCiphertext,
         common_message: &CommonMessage,
     ) -> FastCryptoResult<DecryptionOutcome> {
         let CommonMessage {
@@ -558,12 +558,12 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        let ProcessedEchos {
+        let DecodedCiphertext {
             ciphertext,
             global_root,
             recipient_root,
             valid_echoes,
-        } = processed_echos;
+        } = decoded_ciphertext;
 
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
         let challenge = compute_challenge_from_common_message(
@@ -746,8 +746,14 @@ impl Receiver {
             })
             .map_err(|_| InvalidProof)?;
 
-        self.check_avid_consistency(&ciphertext, &header.recipient_root)
-            .map_err(|_| InvalidProof)?;
+        // The blame is valid iff re-encoding the recovered ciphertext does not match the
+        // accuser's `r_i`.
+        if self
+            .check_avid_consistency(&ciphertext, &header.recipient_root)
+            .is_ok()
+        {
+            return Err(InvalidProof);
+        }
 
         Ok(ComplaintResponse::new(self.id, my_output.my_shares.clone()))
     }
@@ -1275,7 +1281,7 @@ mod tests {
             })
             .collect_vec();
 
-        let processed_echos = receivers
+        let decoded_ciphertext = receivers
             .iter()
             .zip(messages.iter())
             .zip(echoes_by_recipient.iter())
@@ -1288,7 +1294,7 @@ mod tests {
 
         let all_shares = receivers
             .iter()
-            .zip(processed_echos)
+            .zip(decoded_ciphertext)
             .zip(messages)
             .map(|((receiver, pem), message)| {
                 let output =
