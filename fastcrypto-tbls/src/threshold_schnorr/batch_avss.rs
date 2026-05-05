@@ -153,13 +153,7 @@ pub struct Vote {
 pub struct Reveal {
     pub proof: complaint::Complaint,
     pub ciphertext: Vec<u8>,
-    /// The accuser's per-ciphertext Merkle root, with a proof binding it under the dealer's
-    /// `global_root` at the accuser's leaf. Without this, a malicious accuser could submit any
-    /// ciphertext that decrypts to invalid shares and trick honest parties into responding.
-    pub recipient_root: merkle::Node,
-    pub recipient_root_proof: merkle::MerkleProof,
-    /// `H(val)` from the dealer's broadcast, binding the complaint to a specific [CommonMessage].
-    pub common_message_hash: Digest<32>,
+    pub header: ComplaintHeader,
 }
 
 /// A complaint by a receiver who decrypted valid shares but found the AVID dispersal
@@ -168,9 +162,15 @@ pub struct Reveal {
 pub struct Blame {
     pub accuser_id: PartyId,
     pub shards: Vec<ShardContribution>,
-    /// The accuser's per-ciphertext Merkle root, with a proof binding it under the dealer's
-    /// `global_root` at the accuser's leaf. Verifiers check the contributed shards against this
-    /// root.
+    pub header: ComplaintHeader,
+}
+
+/// Fields common to [Reveal] and [Blame] that bind the complaint to the dealer's broadcast.
+/// `recipient_root` is the accuser's per-ciphertext Merkle root, `recipient_root_proof` binds
+/// it under `global_root` at the accuser's leaf, and `common_message_hash` is `H(val)` from the
+/// dealer's broadcast.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ComplaintHeader {
     pub recipient_root: merkle::Node,
     pub recipient_root_proof: merkle::MerkleProof,
     pub common_message_hash: Digest<32>,
@@ -226,6 +226,24 @@ impl DecryptionOutcome {
             OutcomeKind::InvalidShares(r) => Response::InvalidShares(r),
             OutcomeKind::InvalidDispersal(b) => Response::InvalidDispersal(b),
         }
+    }
+}
+
+impl ComplaintHeader {
+    /// Verify the header against the verifier's [State]: `common_message_hash` matches
+    /// `state.common_message`, and `recipient_root` is bound under `state.global_root` at
+    /// `accuser_id`'s leaf.
+    fn verify(&self, state: &State, accuser_id: PartyId) -> FastCryptoResult<()> {
+        if self.common_message_hash != compute_common_message_hash(&state.common_message) {
+            return Err(InvalidProof);
+        }
+        self.recipient_root_proof
+            .verify_proof_with_unserialized_leaf(
+                &state.global_root,
+                &self.recipient_root,
+                accuser_id as usize,
+            )
+            .map_err(|_| InvalidProof)
     }
 }
 
@@ -760,8 +778,11 @@ impl Receiver {
             },
             (true, _) => {
                 let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
-                let common_message_hash = any_echo.common_message_hash;
-                let recipient_root_proof = any_echo.recipient_root_proof.clone();
+                let header = ComplaintHeader {
+                    recipient_root,
+                    recipient_root_proof: any_echo.recipient_root_proof.clone(),
+                    common_message_hash: any_echo.common_message_hash,
+                };
                 let shards = valid_echoes
                     .into_iter()
                     .map(|e| ShardContribution {
@@ -773,15 +794,16 @@ impl Receiver {
                 OutcomeKind::InvalidDispersal(Blame {
                     accuser_id: self.id,
                     shards,
-                    recipient_root,
-                    recipient_root_proof,
-                    common_message_hash,
+                    header,
                 })
             }
             (false, Err(_)) => {
                 let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
-                let common_message_hash = any_echo.common_message_hash;
-                let recipient_root_proof = any_echo.recipient_root_proof.clone();
+                let header = ComplaintHeader {
+                    recipient_root,
+                    recipient_root_proof: any_echo.recipient_root_proof.clone(),
+                    common_message_hash: any_echo.common_message_hash,
+                };
                 OutcomeKind::InvalidShares(Reveal {
                     proof: complaint::Complaint::create(
                         self.id,
@@ -791,9 +813,7 @@ impl Receiver {
                         &mut rand::thread_rng(),
                     ),
                     ciphertext,
-                    recipient_root,
-                    recipient_root_proof,
-                    common_message_hash,
+                    header,
                 })
             }
         };
@@ -814,35 +834,26 @@ impl Receiver {
         let Reveal {
             proof,
             ciphertext,
-            recipient_root,
-            recipient_root_proof,
-            common_message_hash,
+            header,
         } = reveal;
         let accuser_id = proof.accuser_id;
-        let accuser_weight = self.nodes.weight_of(accuser_id)?;
-        let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
+
+        header.verify(state, accuser_id)?;
+
+        self.check_avid_consistency(ciphertext, &header.recipient_root)
+            .map_err(|_| InvalidProof)?;
 
         let State {
             common_message,
             global_root,
         } = state;
-
-        if common_message_hash != &compute_common_message_hash(common_message) {
-            return Err(InvalidProof);
-        }
-
-        recipient_root_proof
-            .verify_proof_with_unserialized_leaf(global_root, recipient_root, accuser_id as usize)
-            .map_err(|_| InvalidProof)?;
-
-        self.check_avid_consistency(ciphertext, recipient_root)
-            .map_err(|_| InvalidProof)?;
-
         let challenge = compute_challenge_from_common_message(
             &self.random_oracle(),
             global_root,
             common_message,
         );
+        let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
+        let accuser_weight = self.nodes.weight_of(accuser_id)?;
         proof.check(
             accuser_pk,
             ciphertext,
@@ -870,24 +881,12 @@ impl Receiver {
         let Blame {
             accuser_id,
             shards,
-            recipient_root,
-            recipient_root_proof,
-            common_message_hash,
+            header,
         } = blame;
         let accuser_id = *accuser_id;
+        let recipient_root = &header.recipient_root;
 
-        let State {
-            common_message,
-            global_root,
-        } = state;
-
-        if common_message_hash != &compute_common_message_hash(common_message) {
-            return Err(InvalidProof);
-        }
-
-        recipient_root_proof
-            .verify_proof_with_unserialized_leaf(global_root, recipient_root, accuser_id as usize)
-            .map_err(|_| InvalidProof)?;
+        header.verify(state, accuser_id)?;
 
         if !shards.iter().map(|s| s.sender).all_unique()
             || shards.iter().any(|s| s.verify(recipient_root).is_err())
