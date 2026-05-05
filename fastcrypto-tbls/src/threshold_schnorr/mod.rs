@@ -250,7 +250,10 @@ mod tests {
             // Each receiver processes the message.
             // In this case, we assume all are honest and there are no complaints.
             for ((r, echoes), msg) in receivers.iter().zip(&echoes_per_recipient).zip(&messages) {
-                let pem = match r.decode_ciphertext_for_party(echoes, r.id).unwrap() {
+                let pem = match r
+                    .decode_ciphertext_for_party(echoes, r.id, &msg.common)
+                    .unwrap()
+                {
                     batch_avss::DecodeOutcome::Decoded(d) => d,
                     _ => panic!("expected Decoded outcome"),
                 };

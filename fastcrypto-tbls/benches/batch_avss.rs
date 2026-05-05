@@ -143,8 +143,12 @@ mod batch_avss_benches {
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            r1.decode_ciphertext_for_party(&echoes_for_party_1, r1.id)
-                                .unwrap()
+                            r1.decode_ciphertext_for_party(
+                                &echoes_for_party_1,
+                                r1.id,
+                                &messages[1].common,
+                            )
+                            .unwrap()
                         })
                     },
                 );
@@ -190,7 +194,11 @@ mod batch_avss_benches {
                         let echoes_for_party_1: Vec<batch_avss::Echo> =
                             echoes.iter().map(|em| em[1].clone()).collect();
                         let pem = match receivers[1]
-                            .decode_ciphertext_for_party(&echoes_for_party_1, receivers[1].id)
+                            .decode_ciphertext_for_party(
+                                &echoes_for_party_1,
+                                receivers[1].id,
+                                &messages[1].common,
+                            )
                             .unwrap()
                         {
                             batch_avss::DecodeOutcome::Decoded(d) => d,
