@@ -719,7 +719,6 @@ impl Receiver {
             valid_echoes,
         } = processed_echos;
 
-        // TODO: What should happen if these checks fail?
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
         let challenge = compute_challenge_from_common_message(
             &self.random_oracle(),
@@ -765,6 +764,12 @@ impl Receiver {
             global_root: global_root.clone(),
         };
 
+        let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
+        let header = ComplaintHeader {
+            recipient_root,
+            recipient_root_proof: any_echo.recipient_root_proof.clone(),
+            common_message_hash: any_echo.common_message_hash,
+        };
         let kind = match (faulty_dealer, decrypted_shares) {
             (false, Ok(my_shares)) => OutcomeKind::Valid {
                 output: ReceiverOutput {
@@ -773,16 +778,10 @@ impl Receiver {
                 },
                 vote: Vote {
                     global_root,
-                    common_message_hash: compute_common_message_hash(common_message),
+                    common_message_hash: any_echo.common_message_hash,
                 },
             },
             (true, _) => {
-                let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
-                let header = ComplaintHeader {
-                    recipient_root,
-                    recipient_root_proof: any_echo.recipient_root_proof.clone(),
-                    common_message_hash: any_echo.common_message_hash,
-                };
                 let shards = valid_echoes
                     .into_iter()
                     .map(|e| ShardContribution {
@@ -797,25 +796,17 @@ impl Receiver {
                     header,
                 })
             }
-            (false, Err(_)) => {
-                let any_echo = valid_echoes.first().ok_or(InvalidMessage)?;
-                let header = ComplaintHeader {
-                    recipient_root,
-                    recipient_root_proof: any_echo.recipient_root_proof.clone(),
-                    common_message_hash: any_echo.common_message_hash,
-                };
-                OutcomeKind::InvalidShares(Reveal {
-                    proof: complaint::Complaint::create(
-                        self.id,
-                        shared,
-                        &self.enc_secret_key,
-                        &self.random_oracle(),
-                        &mut rand::thread_rng(),
-                    ),
-                    ciphertext,
-                    header,
-                })
-            }
+            (false, Err(_)) => OutcomeKind::InvalidShares(Reveal {
+                proof: complaint::Complaint::create(
+                    self.id,
+                    shared,
+                    &self.enc_secret_key,
+                    &self.random_oracle(),
+                    &mut rand::thread_rng(),
+                ),
+                ciphertext,
+                header,
+            }),
         };
         Ok(DecryptionOutcome { state, kind })
     }
@@ -839,7 +830,6 @@ impl Receiver {
         let accuser_id = proof.accuser_id;
 
         header.verify(state, accuser_id)?;
-
         self.check_avid_consistency(ciphertext, &header.recipient_root)
             .map_err(|_| InvalidProof)?;
 
@@ -883,13 +873,13 @@ impl Receiver {
             shards,
             header,
         } = blame;
-        let accuser_id = *accuser_id;
-        let recipient_root = &header.recipient_root;
 
-        header.verify(state, accuser_id)?;
+        header.verify(state, *accuser_id)?;
 
         if !shards.iter().map(|s| s.sender).all_unique()
-            || shards.iter().any(|s| s.verify(recipient_root).is_err())
+            || shards
+                .iter()
+                .any(|s| s.verify(&header.recipient_root).is_err())
         {
             return Err(InvalidProof);
         }
@@ -902,7 +892,7 @@ impl Receiver {
         }
 
         let ciphertext = self
-            .reconstruct_ciphertext(accuser_id, |id| {
+            .reconstruct_ciphertext(*accuser_id, |id| {
                 shards
                     .iter()
                     .find(|s| s.sender == id)
@@ -910,14 +900,8 @@ impl Receiver {
             })
             .map_err(|_| InvalidProof)?;
 
-        // The blame is valid iff re-encoding the recovered ciphertext does not match the
-        // accuser's `r_i`.
-        if self
-            .check_avid_consistency(&ciphertext, recipient_root)
-            .is_ok()
-        {
-            return Err(InvalidProof);
-        }
+        self.check_avid_consistency(&ciphertext, &header.recipient_root)
+            .map_err(|_| InvalidProof)?;
 
         Ok(ComplaintResponse::new(self.id, my_output.my_shares.clone()))
     }
