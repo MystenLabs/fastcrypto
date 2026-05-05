@@ -50,7 +50,7 @@ pub struct Dealer {
 /// This represents a Receiver in the AVSS who receives shares from the [Dealer].
 #[allow(dead_code)]
 pub struct Receiver {
-    pub(crate) id: PartyId,
+    pub id: PartyId,
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
     sid: Vec<u8>,
@@ -196,7 +196,7 @@ pub struct ReceiverOutput {
 /// If we say that node <i>i</i> has a weight `W_i`, we have
 /// `indices().len() == shares_for_secret(i).len() == weight() = W_i`
 ///
-/// These can be created either by decrypting the shares from the dealer (see [Receiver::process_echos]) or by recovering them from complaint responses.
+/// These can be created either by decrypting the shares from the dealer (see [Receiver::decode_ciphertext_for_party]) or by recovering them from complaint responses.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharesForNode {
     pub shares: Vec<ShareBatch>,
@@ -214,148 +214,6 @@ pub struct ShareBatch {
     /// The share for the blinding polynomial.
     pub blinding_share: S,
 }
-
-impl DecryptionOutcome {
-    /// Reduce this outcome to the message the party should broadcast to others: a [Vote] when
-    /// the dealer's broadcast verified, otherwise the [InvalidShares] or [InvalidDispersal] itself.
-    /// The receiver's local [ReceiverOutput] (in the Valid case) and [State] are consumed and
-    /// not part of the wire format.
-    pub fn into_response(self) -> Response {
-        match self.kind {
-            OutcomeKind::Valid { vote, .. } => Response::Vote(vote),
-            OutcomeKind::InvalidShares(r) => Response::InvalidShares(r),
-            OutcomeKind::InvalidDispersal(b) => Response::InvalidDispersal(b),
-        }
-    }
-}
-
-impl ShareBatch {
-    /// Verify a batch of shares using the given challenge.
-    fn verify(&self, message: &CommonMessage, challenge: &[S]) -> FastCryptoResult<()> {
-        if challenge.len() != self.batch_size() {
-            return Err(InvalidInput);
-        }
-
-        // Verify that r' + sum_l r_l * gamma_l == p''(i)
-        if self
-            .batch
-            .iter()
-            .zip_eq(challenge)
-            .fold(self.blinding_share, |acc, (r_l, gamma_l)| {
-                acc + r_l * gamma_l
-            })
-            != message.response_polynomial.eval(self.index).value
-        {
-            return Err(InvalidInput);
-        }
-        Ok(())
-    }
-
-    fn batch_size(&self) -> usize {
-        self.batch.len()
-    }
-}
-
-impl SharesForNode {
-    /// Get the weight of this node (number of shares it has).
-    pub fn weight(&self) -> u16 {
-        self.shares.len() as u16
-    }
-
-    /// If all shares have the same batch size, return that.
-    /// Otherwise, return an InvalidInput error.
-    pub fn try_uniform_batch_size(&self) -> FastCryptoResult<usize> {
-        // TODO: Should we cache this? It's called twice per dealer -- once when verifying shares received from a dealer and then again during presigning.
-        get_uniform_value(self.shares.iter().map(ShareBatch::batch_size)).ok_or(InvalidInput)
-    }
-
-    /// Get all shares this node has for the <i>i</i>-th secret/nonce in the batch.
-    /// This panics if `i` is larger than or equal to the batch size.
-    pub fn shares_for_secret(&self, i: usize) -> impl Iterator<Item = Eval<S>> + '_ {
-        self.shares.iter().map(move |s| Eval {
-            index: s.index,
-            value: s.batch[i],
-        })
-    }
-
-    fn verify(
-        &self,
-        message: &CommonMessage,
-        challenge: &[S],
-        weight: u16,
-        expected_batch_size: usize,
-    ) -> FastCryptoResult<()> {
-        if self.weight() != weight || self.try_uniform_batch_size()? != expected_batch_size {
-            return Err(InvalidMessage);
-        }
-        for shares in &self.shares {
-            shares.verify(message, challenge)?;
-        }
-        Ok(())
-    }
-
-    /// Recover the shares for this node.
-    ///
-    /// Fails if `other_shares` is empty or if the batch sizes of all shares in `other_shares` are not equal to the expected batch size.
-    fn recover(receiver: &Receiver, other_shares: &[Self]) -> FastCryptoResult<Self> {
-        if other_shares.is_empty() {
-            return Err(InvalidInput);
-        }
-
-        let shares = receiver
-            .my_indices()
-            .into_iter()
-            .map(|index| {
-                let batch = (0..receiver.batch_size)
-                    .map(|i| {
-                        let evaluations = other_shares
-                            .iter()
-                            .flat_map(|s| s.shares_for_secret(i))
-                            .collect_vec();
-                        Poly::recover_at(index, &evaluations).unwrap().value
-                    })
-                    .collect_vec();
-
-                let blinding_share = Poly::recover_at(
-                    index,
-                    &other_shares
-                        .iter()
-                        .flat_map(|s| &s.shares)
-                        .map(|share| Eval {
-                            index: share.index,
-                            value: share.blinding_share,
-                        })
-                        .collect_vec(),
-                )?
-                .value;
-
-                Ok(ShareBatch {
-                    index,
-                    batch,
-                    blinding_share,
-                })
-            })
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        Ok(Self { shares })
-    }
-
-    /// BCS-serialized length of a `SharesForNode` for a node of the given weight at the given
-    /// batch size.
-    fn bcs_serialized_size(weight: usize, batch_size: usize) -> usize {
-        // Layout:
-        // SharesForNode = Vec<ShareBatch>
-        //   = ULEB128(weight) + weight × ShareBatch
-        // ShareBatch
-        //   = NonZeroU16 (= 2 bytes) + Vec<S> + S
-        //   = 2 + ULEB128(batch_size) + (batch_size + 1) × SCALAR_SIZE_IN_BYTES
-
-        // TODO: A bit of a hack — this hardcodes the BCS layout of `SharesForNode`
-        uleb128_len(weight)
-            + weight * (2 + uleb128_len(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES)
-    }
-}
-
-impl BCSSerialized for SharesForNode {}
 
 impl Dealer {
     /// Create a new dealer.
@@ -621,7 +479,7 @@ impl Receiver {
             .collect::<FastCryptoResult<Vec<_>>>()
     }
 
-    /// 3. When a party has received [Echo]s from parties with at least weight W - f, it
+    /// 3. When a party has received [Echo]s from parties with at least weight W - 2f, it
     ///    tries to process them. It first filters out invalid messages and checks if the [Echo]s
     ///    have the same digest, r and r_i values. If not, an [InvalidMessage] error is returned.
     ///    If the filtered set of [Echo]s does not have sufficient weight, an [NotEnoughWeight] error
@@ -633,17 +491,22 @@ impl Receiver {
     ///    Once [Self::verify_and_decrypt] is called, the party should keep the resulting [State]
     ///    around in order to handle future requests through [Self::handle_reveal] and
     ///    [Self::handle_blame].
-    pub fn process_echos(&self, echos: &[Echo]) -> FastCryptoResult<ProcessedEchos> {
+    pub fn decode_ciphertext_for_party(
+        &self,
+        echos: &[Echo],
+        party: PartyId,
+    ) -> FastCryptoResult<ProcessedEchos> {
         // Filter out invalid echo messages
         let valid_echoes = echos
             .iter()
-            .filter(|echo| echo.verify(self.id).is_ok())
+            .filter(|echo| echo.verify(party).is_ok())
             .cloned()
             .collect_vec();
 
         let (global_root, recipient_root, _) = require_uniform_echo_metadata(&valid_echoes)?;
 
-        let required_weight = self.nodes.total_weight() - self.f;
+        // TODO: Double-check that this is ok
+        let required_weight = self.nodes.total_weight() - 2 * self.f;
         if self
             .nodes
             .total_weight_of(valid_echoes.iter().map(|echo| &echo.sender))?
@@ -652,13 +515,13 @@ impl Receiver {
             return Err(NotEnoughWeight(required_weight as usize));
         }
 
-        let ciphertext = self.reconstruct_ciphertext(self.id, |id| {
+        self.reconstruct_ciphertext(party, |id| {
             valid_echoes
                 .iter()
                 .find(|e| e.sender == id)
                 .map(|e| e.authenticated_shards.shards.clone())
-        })?;
-        Ok(ProcessedEchos {
+        })
+        .map(|ciphertext| ProcessedEchos {
             ciphertext,
             global_root,
             recipient_root,
@@ -751,7 +614,7 @@ impl Receiver {
         let header = ComplaintHeader {
             recipient_root,
             recipient_root_proof: any_echo.recipient_root_proof.clone(),
-            common_message_hash: any_echo.common_message_hash,
+            common_message_hash: compute_common_message_hash(common_message),
         };
         let kind = match (faulty_dealer, decrypted_shares) {
             (false, Ok(my_shares)) => OutcomeKind::Valid {
@@ -1007,6 +870,148 @@ impl Receiver {
         Ok(())
     }
 }
+
+impl DecryptionOutcome {
+    /// Reduce this outcome to the message the party should broadcast to others: a [Vote] when
+    /// the dealer's broadcast verified, otherwise the [InvalidShares] or [InvalidDispersal] itself.
+    /// The receiver's local [ReceiverOutput] (in the Valid case) and [State] are consumed and
+    /// not part of the wire format.
+    pub fn into_response(self) -> Response {
+        match self.kind {
+            OutcomeKind::Valid { vote, .. } => Response::Vote(vote),
+            OutcomeKind::InvalidShares(r) => Response::InvalidShares(r),
+            OutcomeKind::InvalidDispersal(b) => Response::InvalidDispersal(b),
+        }
+    }
+}
+
+impl ShareBatch {
+    /// Verify a batch of shares using the given challenge.
+    fn verify(&self, message: &CommonMessage, challenge: &[S]) -> FastCryptoResult<()> {
+        if challenge.len() != self.batch_size() {
+            return Err(InvalidInput);
+        }
+
+        // Verify that r' + sum_l r_l * gamma_l == p''(i)
+        if self
+            .batch
+            .iter()
+            .zip_eq(challenge)
+            .fold(self.blinding_share, |acc, (r_l, gamma_l)| {
+                acc + r_l * gamma_l
+            })
+            != message.response_polynomial.eval(self.index).value
+        {
+            return Err(InvalidInput);
+        }
+        Ok(())
+    }
+
+    fn batch_size(&self) -> usize {
+        self.batch.len()
+    }
+}
+
+impl SharesForNode {
+    /// Get the weight of this node (number of shares it has).
+    pub fn weight(&self) -> u16 {
+        self.shares.len() as u16
+    }
+
+    /// If all shares have the same batch size, return that.
+    /// Otherwise, return an InvalidInput error.
+    pub fn try_uniform_batch_size(&self) -> FastCryptoResult<usize> {
+        // TODO: Should we cache this? It's called twice per dealer -- once when verifying shares received from a dealer and then again during presigning.
+        get_uniform_value(self.shares.iter().map(ShareBatch::batch_size)).ok_or(InvalidInput)
+    }
+
+    /// Get all shares this node has for the <i>i</i>-th secret/nonce in the batch.
+    /// This panics if `i` is larger than or equal to the batch size.
+    pub fn shares_for_secret(&self, i: usize) -> impl Iterator<Item = Eval<S>> + '_ {
+        self.shares.iter().map(move |s| Eval {
+            index: s.index,
+            value: s.batch[i],
+        })
+    }
+
+    fn verify(
+        &self,
+        message: &CommonMessage,
+        challenge: &[S],
+        weight: u16,
+        expected_batch_size: usize,
+    ) -> FastCryptoResult<()> {
+        if self.weight() != weight || self.try_uniform_batch_size()? != expected_batch_size {
+            return Err(InvalidMessage);
+        }
+        for shares in &self.shares {
+            shares.verify(message, challenge)?;
+        }
+        Ok(())
+    }
+
+    /// Recover the shares for this node.
+    ///
+    /// Fails if `other_shares` is empty or if the batch sizes of all shares in `other_shares` are not equal to the expected batch size.
+    fn recover(receiver: &Receiver, other_shares: &[Self]) -> FastCryptoResult<Self> {
+        if other_shares.is_empty() {
+            return Err(InvalidInput);
+        }
+
+        let shares = receiver
+            .my_indices()
+            .into_iter()
+            .map(|index| {
+                let batch = (0..receiver.batch_size)
+                    .map(|i| {
+                        let evaluations = other_shares
+                            .iter()
+                            .flat_map(|s| s.shares_for_secret(i))
+                            .collect_vec();
+                        Poly::recover_at(index, &evaluations).unwrap().value
+                    })
+                    .collect_vec();
+
+                let blinding_share = Poly::recover_at(
+                    index,
+                    &other_shares
+                        .iter()
+                        .flat_map(|s| &s.shares)
+                        .map(|share| Eval {
+                            index: share.index,
+                            value: share.blinding_share,
+                        })
+                        .collect_vec(),
+                )?
+                .value;
+
+                Ok(ShareBatch {
+                    index,
+                    batch,
+                    blinding_share,
+                })
+            })
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+        Ok(Self { shares })
+    }
+
+    /// BCS-serialized length of a `SharesForNode` for a node of the given weight at the given
+    /// batch size.
+    fn bcs_serialized_size(weight: usize, batch_size: usize) -> usize {
+        // Layout:
+        // SharesForNode = Vec<ShareBatch>
+        //   = ULEB128(weight) + weight × ShareBatch
+        // ShareBatch
+        //   = NonZeroU16 (= 2 bytes) + Vec<S> + S
+        //   = 2 + ULEB128(batch_size) + (batch_size + 1) × SCALAR_SIZE_IN_BYTES
+
+        // TODO: A bit of a hack — this hardcodes the BCS layout of `SharesForNode`
+        uleb128_len(weight)
+            + weight * (2 + uleb128_len(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES)
+    }
+}
+
+impl BCSSerialized for SharesForNode {}
 
 impl AuthenticatedShards {
     /// Verify that `shards` are the leaf at `leaf_index` under `recipient_root` using `proof`.
@@ -1274,7 +1279,11 @@ mod tests {
             .iter()
             .zip(messages.iter())
             .zip(echoes_by_recipient.iter())
-            .map(|((receiver, _message), echoes)| receiver.process_echos(echoes).unwrap())
+            .map(|((receiver, _message), echoes)| {
+                receiver
+                    .decode_ciphertext_for_party(echoes, receiver.id)
+                    .unwrap()
+            })
             .collect_vec();
 
         let all_shares = receivers
@@ -1385,7 +1394,7 @@ mod tests {
             .iter()
             .zip(echoes_per_recipient.iter())
             .map(|(r, echoes)| {
-                let pem = r.process_echos(echoes).unwrap();
+                let pem = r.decode_ciphertext_for_party(echoes, r.id).unwrap();
                 (
                     r.id,
                     r.verify_and_decrypt(pem, &messages[r.id as usize].common)
@@ -1551,7 +1560,7 @@ mod tests {
             .iter()
             .zip(echoes_per_recipient.iter())
             .map(|(r, echoes)| {
-                let pem = r.process_echos(echoes).unwrap();
+                let pem = r.decode_ciphertext_for_party(echoes, r.id).unwrap();
                 (
                     r.id,
                     r.verify_and_decrypt(pem, &messages[r.id as usize].common)
