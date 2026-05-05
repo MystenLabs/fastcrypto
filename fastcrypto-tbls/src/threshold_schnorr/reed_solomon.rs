@@ -152,6 +152,8 @@ impl ErasureCoder {
             .map(Self)
     }
 
+    /// Encode `data` into `n` shards of equal size, the first `k` of which hold the (zero-padded)
+    /// data and the remaining `n - k` parity. Any `k` shards suffice to reconstruct the data.
     pub fn encode(&self, data: &[u8]) -> FastCryptoResult<Vec<Shard>> {
         // Define a shard size such that the data can be contained in `k` shards.
         let shard_size = data.len().div_ceil(self.0.data_shard_count());
@@ -165,7 +167,9 @@ impl ErasureCoder {
         Ok(shards.into_iter().map(Shard).collect_vec())
     }
 
-    /// Note that the result may be padded with zeroes, and it is up to the caller to remove them.
+    /// Reconstruct the original data from `n` (possibly missing) shards, returning the first
+    /// `expected_len` bytes. Fails if more than `n - k` shards are missing or if the present
+    /// shards are inconsistent with any single codeword.
     pub fn decode(
         &self,
         shards: Vec<Option<Shard>>,
