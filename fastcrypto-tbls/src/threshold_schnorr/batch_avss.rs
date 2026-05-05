@@ -229,24 +229,6 @@ impl DecryptionOutcome {
     }
 }
 
-impl ComplaintHeader {
-    /// Verify the header against the verifier's [State]: `common_message_hash` matches
-    /// `state.common_message`, and `recipient_root` is bound under `state.global_root` at
-    /// `accuser_id`'s leaf.
-    fn verify(&self, state: &State, accuser_id: PartyId) -> FastCryptoResult<()> {
-        if self.common_message_hash != compute_common_message_hash(&state.common_message) {
-            return Err(InvalidProof);
-        }
-        self.recipient_root_proof
-            .verify_proof_with_unserialized_leaf(
-                &state.global_root,
-                &self.recipient_root,
-                accuser_id as usize,
-            )
-            .map_err(|_| InvalidProof)
-    }
-}
-
 impl ShareBatch {
     /// Verify a batch of shares using the given challenge.
     fn verify(&self, message: &CommonMessage, challenge: &[S]) -> FastCryptoResult<()> {
@@ -608,7 +590,8 @@ impl Receiver {
         })
     }
 
-    /// 2. When a party receives its message, it verifies the Merkle tree path for its shards and generates Echos, one per party.
+    /// 2. When a party receives its [Message], it verifies the Merkle tree path for its shards and
+    ///    generates [Echo]s, one per party ordered by their ID.
     pub fn echo(&self, message: &Message) -> FastCryptoResult<Vec<Echo>> {
         if message
             .dispersal
@@ -638,10 +621,10 @@ impl Receiver {
             .collect::<FastCryptoResult<Vec<_>>>()
     }
 
-    /// 3. When a party has received Echos from parties with at least weight W - f, it
-    ///    tries to process them. It first filters out invalid messages and checks if the Echos
-    ///    have the same digest, r and r_i values. If not, an InvalidMessage error is returned.
-    ///    If the filtered set of Echos does not have sufficient weight, an NotEnoughWeight error
+    /// 3. When a party has received [Echo]s from parties with at least weight W - f, it
+    ///    tries to process them. It first filters out invalid messages and checks if the [Echo]s
+    ///    have the same digest, r and r_i values. If not, an [InvalidMessage] error is returned.
+    ///    If the filtered set of [Echo]s does not have sufficient weight, an [NotEnoughWeight] error
     ///    is returned.
     ///
     ///    If these checks succeed, the party reconstructs it's message (ciphertext) from the echoed
@@ -1057,6 +1040,24 @@ impl ShardContribution {
             &self.shards,
             self.sender as usize,
         )
+    }
+}
+
+impl ComplaintHeader {
+    /// Verify the header against the verifier's [State]: `common_message_hash` matches
+    /// `state.common_message`, and `recipient_root` is bound under `state.global_root` at
+    /// `accuser_id`'s leaf.
+    fn verify(&self, state: &State, accuser_id: PartyId) -> FastCryptoResult<()> {
+        if self.common_message_hash != compute_common_message_hash(&state.common_message) {
+            return Err(InvalidProof);
+        }
+        self.recipient_root_proof
+            .verify_proof_with_unserialized_leaf(
+                &state.global_root,
+                &self.recipient_root,
+                accuser_id as usize,
+            )
+            .map_err(|_| InvalidProof)
     }
 }
 
