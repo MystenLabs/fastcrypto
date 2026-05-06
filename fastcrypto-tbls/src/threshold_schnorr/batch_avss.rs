@@ -570,13 +570,11 @@ impl Receiver {
                 self.check_avid_consistency(&ct, recipient_root)?;
                 Ok(DecodeOutcome::Decoded(ct))
             })
-            .unwrap_or_else(|_| {
-                DecodeOutcome::InvalidDispersal(Blame {
-                    accuser_id: self.id,
-                    shards,
-                    common_message_hash,
-                })
-            }))
+            .unwrap_or(DecodeOutcome::InvalidDispersal(Blame {
+                accuser_id: self.id,
+                shards,
+                common_message_hash,
+            })))
     }
 
     /// 4. Decrypt and verify the receiver's own shares from a successfully decoded ciphertext.
