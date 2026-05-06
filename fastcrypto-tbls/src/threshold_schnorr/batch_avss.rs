@@ -152,16 +152,6 @@ pub enum DecryptionOutcome {
     InvalidShares(Reveal),
 }
 
-/// The message a receiver broadcasts after `verify_and_decrypt`: a [Vote] endorsing the dealer's
-/// broadcast or a [InvalidShares] / [InvalidDispersal] complaint otherwise.
-#[allow(clippy::large_enum_variant)]
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Response {
-    Vote(Vote),
-    InvalidShares(Reveal),
-    InvalidDispersal(Blame),
-}
-
 /// An endorsement of the dealer's broadcast.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Vote {
@@ -871,19 +861,6 @@ impl ShardContribution {
             &self.shards,
             self.sender as usize,
         )
-    }
-}
-
-impl DecryptionOutcome {
-    /// Reduce this outcome to the message the party should broadcast to others: a [Vote] when
-    /// the dealer's broadcast verified, otherwise the [InvalidShares] complaint itself. The
-    /// receiver's local [ReceiverOutput] (in the Valid case) is consumed and not part of the
-    /// wire format.
-    pub fn into_response(self) -> Response {
-        match self {
-            DecryptionOutcome::Valid { vote, .. } => Response::Vote(vote),
-            DecryptionOutcome::InvalidShares(r) => Response::InvalidShares(r),
-        }
     }
 }
 
