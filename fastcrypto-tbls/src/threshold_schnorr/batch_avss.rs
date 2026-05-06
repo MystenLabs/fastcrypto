@@ -839,7 +839,7 @@ impl Receiver {
         let shards_matrix = self
             .nodes
             .node_ids_iter()
-            .map(|id| -> Vec<Option<Shard>> {
+            .flat_map(|id| -> Vec<Option<Shard>> {
                 let weight = self.nodes.weight_of(id).expect("valid party id") as usize;
                 match shards.get(&id) {
                     // If the shards exist and are consistent with the weight, put them in the matrix. Otherwise, add a None, corresponding to an erasure.
@@ -849,7 +849,6 @@ impl Receiver {
                     _ => vec![None; weight],
                 }
             })
-            .flatten()
             .collect_vec();
 
         // The encryption used, counter-mode, is length-preserving, so the length of the ciphertext is equal to the length of the plaintext.
