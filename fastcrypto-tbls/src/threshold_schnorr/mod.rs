@@ -254,7 +254,7 @@ mod tests {
                     batch_avss::DecodeOutcome::Decoded(d) => d,
                     _ => panic!("expected Decoded outcome"),
                 };
-                let output = assert_valid_batch(r.verify_and_decrypt(pem, &msg.common).unwrap());
+                let output = assert_valid_batch(r.verify_and_decrypt(&pem, &msg.common).unwrap());
                 presigning_outputs.get_mut(&r.id).unwrap().push(output);
             }
         }
