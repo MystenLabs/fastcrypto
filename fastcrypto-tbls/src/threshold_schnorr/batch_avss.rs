@@ -469,7 +469,7 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        let common_message_hash = compute_common_message_hash(&message.common);
+        let common_message_hash = message.common.hash();
         Ok(message
             .dispersal
             .iter()
@@ -491,10 +491,7 @@ impl Receiver {
         common_message: &CommonMessage,
     ) -> FastCryptoResult<DecodeOutcome> {
         common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
-        let recipient_root = common_message
-            .recipient_roots
-            .get(self.id as usize)
-            .ok_or(InvalidInput)?;
+        let recipient_root = common_message.recipient_root(self.id)?;
 
         // Filter out invalid echo messages: each echo's shards proof must verify against the
         // dealer's `r_{self.id}`.
@@ -504,8 +501,10 @@ impl Receiver {
             .cloned()
             .collect_vec();
 
-        let common_message_hash = require_uniform_common_message_hash(&valid_echoes)?;
-        if common_message_hash != compute_common_message_hash(common_message) {
+        let common_message_hash =
+            get_uniform_value(valid_echoes.iter().map(|e| e.common_message_hash))
+                .ok_or(InvalidMessage)?;
+        if common_message_hash != common_message.hash() {
             return Err(InvalidMessage);
         }
 
@@ -527,7 +526,7 @@ impl Receiver {
             .map(|e| (e.sender, e.authenticated_shards))
             .collect();
         let decoded = self
-            .reconstruct_ciphertext(self.id, |id| shards.get(&id).map(|a| a.shards.clone()))
+            .reconstruct_ciphertext(self.id, &shards)
             .ok()
             .filter(|ct| self.check_avid_consistency(ct, recipient_root).is_ok());
 
@@ -561,7 +560,7 @@ impl Receiver {
             .verify(&random_oracle_encryption)
             .map_err(|_| InvalidMessage)?;
 
-        let common_message_hash = compute_common_message_hash(common_message);
+        let common_message_hash = common_message.hash();
         let plaintext = shared.decrypt(
             &ciphertext,
             &self.enc_secret_key,
@@ -619,13 +618,10 @@ impl Receiver {
         } = reveal;
         let accuser_id = proof.accuser_id;
 
-        if *common_message_hash != compute_common_message_hash(common_message) {
+        if *common_message_hash != common_message.hash() {
             return Err(InvalidProof);
         }
-        let recipient_root = common_message
-            .recipient_roots
-            .get(accuser_id as usize)
-            .ok_or(InvalidProof)?;
+        let recipient_root = common_message.recipient_root(accuser_id)?;
         self.check_avid_consistency(reveal_ciphertext, recipient_root)
             .map_err(|_| InvalidProof)?;
         let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
@@ -663,13 +659,10 @@ impl Receiver {
             common_message_hash,
         } = blame;
 
-        if *common_message_hash != compute_common_message_hash(common_message) {
+        if *common_message_hash != common_message.hash() {
             return Err(InvalidProof);
         }
-        let recipient_root = common_message
-            .recipient_roots
-            .get(*accuser_id as usize)
-            .ok_or(InvalidProof)?;
+        let recipient_root = common_message.recipient_root(*accuser_id)?;
 
         if shards
             .iter()
@@ -687,9 +680,7 @@ impl Receiver {
         // lie on a single codeword) or decode to a ciphertext whose re-encoding doesn't match
         // the accuser's `r_i`.
         let dispersal_consistent = self
-            .reconstruct_ciphertext(*accuser_id, |id| {
-                shards.get(&id).map(|auth| auth.shards.clone())
-            })
+            .reconstruct_ciphertext(*accuser_id, shards)
             .ok()
             .is_some_and(|ct| self.check_avid_consistency(&ct, recipient_root).is_ok());
         if dispersal_consistent {
@@ -726,17 +717,8 @@ impl Receiver {
         common_message: &CommonMessage,
         responses: Vec<ComplaintResponse>,
     ) -> FastCryptoResult<ReceiverOutput> {
-        // TODO: This fails if one of the responses has an invalid responder_id. We could probably just ignore those instead.
-
         let challenge = common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
 
-        // Sanity check that we have enough responses (by weight) to recover the shares.
-        let total_response_weight = self
-            .nodes
-            .total_weight_of(responses.iter().map(|response| &response.responder_id))?;
-        if total_response_weight < self.t {
-            return Err(FastCryptoError::InputTooShort(self.t as usize));
-        }
         // Each response carries the responder's own dealer-encrypted ciphertext plus an ECIES
         // recovery package. Authenticate the ciphertext under the dealer's broadcast, decrypt
         // it via the recovery package, then sanity-check the shares against the response
@@ -752,9 +734,7 @@ impl Receiver {
                     .pk
                     .clone();
                 let weight = self.nodes.weight_of(response.responder_id).ok()?;
-                let recipient_root = common_message
-                    .recipient_roots
-                    .get(response.responder_id as usize)?;
+                let recipient_root = common_message.recipient_root(response.responder_id).ok()?;
                 self.check_avid_consistency(&response.ciphertext, recipient_root)
                     .ok()?;
                 let plaintext = common_message
@@ -807,22 +787,24 @@ impl Receiver {
     }
 
     /// Reed-Solomon decode the ciphertext for `accuser_id` from a set of authenticated shard
-    /// contributions exposed via `shards_for(party_id) -> Option<Vec<Shard>>`. Fails if the
-    /// contributing weight is below `W - 2f` (too few contributions to reconstruct), or if a
-    /// party's contribution has a shard count that doesn't match its weight. The caller is
-    /// responsible for having authenticated the shards via their Merkle proofs.
+    /// contributions, keyed by sender id. Fails if the contributing weight is below `W - 2f`
+    /// (too few contributions to reconstruct), or if a party's contribution has a shard count
+    /// that doesn't match its weight. The caller is responsible for having authenticated the
+    /// shards via their Merkle proofs.
     fn reconstruct_ciphertext(
         &self,
         accuser_id: PartyId,
-        shards_for: impl Fn(PartyId) -> Option<Vec<Shard>>,
+        shards: &BTreeMap<PartyId, AuthenticatedShards>,
     ) -> FastCryptoResult<Vec<u8>> {
-        let shards: Vec<Option<Shard>> = self
+        let opt_shards: Vec<Option<Shard>> = self
             .nodes
             .node_ids_iter()
             .map(|id| -> FastCryptoResult<Vec<Option<Shard>>> {
                 let weight = self.nodes.weight_of(id).expect("valid party id") as usize;
-                match shards_for(id) {
-                    Some(ss) if ss.len() == weight => Ok(ss.into_iter().map(Some).collect()),
+                match shards.get(&id) {
+                    Some(auth) if auth.shards.len() == weight => {
+                        Ok(auth.shards.iter().cloned().map(Some).collect())
+                    }
                     // Fail if a contributor's shard count doesn't match its weight.
                     Some(_) => Err(InvalidInput),
                     None => Ok(vec![None; weight]),
@@ -836,7 +818,7 @@ impl Receiver {
             self.nodes.weight_of(accuser_id)? as usize,
             self.batch_size,
         );
-        self.code.decode(shards, expected_length)
+        self.code.decode(opt_shards, expected_length)
     }
 
     /// The check r_i' == r_i from the paper
@@ -879,6 +861,29 @@ impl CommonMessage {
             return Err(InvalidMessage);
         }
         Ok(challenge)
+    }
+
+    /// Blake2b hash of the BCS-serialized [CommonMessage]. Used to bind echoes and complaints
+    /// to a specific dealer broadcast.
+    fn hash(&self) -> Digest {
+        let mut hasher = Blake2b256::new();
+        hasher.update(
+            bcs::to_bytes(&(
+                &self.shared,
+                &self.full_public_keys,
+                &self.blinding_commit,
+                &self.response_polynomial,
+                &self.recipient_roots,
+            ))
+            .unwrap(),
+        );
+        hasher.finalize()
+    }
+
+    /// The dealer's per-recipient Merkle root for `id`. Returns [InvalidProof] if `id` is
+    /// out of range.
+    fn recipient_root(&self, id: PartyId) -> FastCryptoResult<&merkle::Node> {
+        self.recipient_roots.get(id as usize).ok_or(InvalidProof)
     }
 }
 
@@ -1045,11 +1050,6 @@ fn uleb128_len(x: usize) -> usize {
     len
 }
 
-/// Require that every echo's `common_message_hash` agrees and return that hash.
-fn require_uniform_common_message_hash(echoes: &[Echo]) -> FastCryptoResult<Digest> {
-    get_uniform_value(echoes.iter().map(|e| e.common_message_hash)).ok_or(InvalidMessage)
-}
-
 fn compute_challenge(
     random_oracle: &RandomOracle,
     c: &[G],
@@ -1077,28 +1077,6 @@ fn compute_challenge_from_common_message(
         &message.shared,
         &message.recipient_roots,
     )
-}
-
-fn compute_common_message_hash(message: &CommonMessage) -> Digest {
-    let CommonMessage {
-        shared,
-        full_public_keys,
-        blinding_commit,
-        response_polynomial,
-        recipient_roots,
-    } = message;
-    let mut hasher = Blake2b256::new();
-    hasher.update(
-        bcs::to_bytes(&(
-            shared,
-            full_public_keys,
-            blinding_commit,
-            response_polynomial,
-            recipient_roots,
-        ))
-        .unwrap(),
-    );
-    hasher.finalize()
 }
 
 #[cfg(test)]
