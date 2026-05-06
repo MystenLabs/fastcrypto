@@ -326,15 +326,13 @@ impl<const N: usize> KeyConsistencyProof<N> {
         blindings: &[Blinding; N],
         rng: &mut impl AllowedRng,
     ) -> Self {
-        
         let a: [_; N] = from_fn(|_| RistrettoScalar::rand(rng));
         let b: [_; N] = from_fn(|_| RistrettoScalar::rand(rng));
 
         let a1: [_; N] = from_fn(|i| *G * a[i] + *H * b[i]);
         let a2: [_; N] = from_fn(|i| *G * b[i]);
 
-        let rho =
-            Self::challenge_rho(sender_public_key, recipient_encryption_keys, ciphertexts);
+        let rho = Self::challenge_rho(sender_public_key, recipient_encryption_keys, ciphertexts);
 
         let recipient_pk_points: Vec<RistrettoPoint> =
             recipient_encryption_keys.iter().map(|pk| pk.0).collect();
@@ -389,9 +387,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
         ciphertexts: &[MultiRecipientCiphertext; N],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
-
-        let rho =
-            Self::challenge_rho(sender_public_key, recipient_encryption_keys, ciphertexts);
+        let rho = Self::challenge_rho(sender_public_key, recipient_encryption_keys, ciphertexts);
 
         let recipient_pk_points: Vec<RistrettoPoint> =
             recipient_encryption_keys.iter().map(|pk| pk.0).collect();
@@ -782,7 +778,12 @@ fn test_key_consistency_proof() {
 
     // Verification passes with correct sender public key
     assert!(proof
-        .verify(&pk_snd, std::slice::from_ref(&pk_rcv), &ciphertexts, &mut rng)
+        .verify(
+            &pk_snd,
+            std::slice::from_ref(&pk_rcv),
+            &ciphertexts,
+            &mut rng
+        )
         .is_ok());
 
     // Verification fails with a different sender public key
