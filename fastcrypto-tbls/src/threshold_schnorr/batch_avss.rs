@@ -1,18 +1,17 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Asynchronous verifiable secret sharing (AVSS) for a batch of random nonces, with batch size
-//! proportional to the [Dealer]'s weight. An AVID layer based on Reed-Solomon `(W, W − 2f)` and
-//! per-recipient Merkle commitments lets each receiver authenticate the dealer's broadcast even
-//! if they did not receive it directly.
+//! Asynchronous verifiable secret sharing (AVSS) for a batch of random nonces.
+//! An AVID layer based on Reed-Solomon `(W, W − 2f)` and per-recipient Merkle commitments lets each
+//! receiver authenticate the dealer's broadcast even if they did not receive it directly.
 //!
 //! # Setup
 //!
-//! * Each receiver holds an ECIES key pair from [crate::ecies_v1]; the public keys are
+//! * Each receiver holds an ECIES key pair from [crate::ecies_v1]. The public keys are
 //!   advertised through the shared [Nodes] structure together with each party's weight.
-//! * One party is designated [Dealer] and constructs a [Dealer] with the same `nodes`, `f`
+//! * One party is designated dealer and constructs a [Dealer] with `nodes`, `f`
 //!   (Byzantine bound by weight), `t` (recovery threshold), session id, and
-//!   `batch_size_per_weight`. Every receiver constructs a [Receiver] with matching parameters.
+//!   `batch_size_per_weight`. The receivers uses a [Receiver] with matching parameters.
 //!
 //! # Happy path
 //!
@@ -25,11 +24,16 @@
 //!    [DecryptionOutcome::Valid] containing this party's [ReceiverOutput] and a [Vote] to
 //!    broadcast on the TOB/ABC channel.
 //!
+//! Receivers should keep the common part of the message, [CommonMessage], and all echos it has received
+//! for the lifetime of the protocol since these are needed to handle complaints.
+//!
 //! # Complaint paths
 //!
-//! When a receiver gets [DecryptionOutcome::InvalidShares] or
-//! [DecodeOutcome::InvalidDispersal] (decryption produced bad shares, or AVID dispersal is
-//! inconsistent), they broadcast the [Reveal] / [Blame] complaint after at least `W − f` votes
+//! If a receiver in [Receiver::decode_ciphertext_for_party] detects that AVID dispersal is
+//! inconsistent, it returns a [Blame] complaint. If a receiver in [Receiver::verify_and_decrypt]
+//! detects that its encryption is invalid or if its shares are invalid, it returns a [Reveal] complaint.
+//!
+//! They broadcast the [Reveal] / [Blame] complaint after at least `W − f` votes
 //! have accrued. Other receivers validate via [Receiver::handle_reveal] /
 //! [Receiver::handle_blame] and respond with their own shares; the accuser then calls
 //! [Receiver::recover] once `≥ t` weight of valid responses has arrived to interpolate their
