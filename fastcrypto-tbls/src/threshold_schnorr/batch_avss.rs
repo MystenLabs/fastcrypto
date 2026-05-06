@@ -48,9 +48,9 @@
 //!    fetches [CommonMessage] / echoes from a voter, then runs steps 3–4 (without sending a
 //!    [Vote]).
 //!
-//! Receivers should retain their [Message], [Echo]s, and decoded ciphertext for the lifetime of
-//! the session — they are needed for complaint validation, or in case other receivers ask for
-//! them.
+//! Receivers should retain the [CommonMessage] for the lifetime of the session — it is required
+//! to validate complaints and build a [ComplaintResponse]. The [Echo]s and the decoded
+//! ciphertext should also be kept so laggards (step 7) can fetch them.
 //!
 //! # Complaint paths
 //!
@@ -169,8 +169,9 @@ pub struct Echo {
 }
 
 /// The result of [Receiver::decode_ciphertext]: either a successfully reconstructed
-/// ciphertext whose AVID dispersal is consistent, or a [Blame] when the re-encoded ciphertext
-/// disagrees with the dealer's `r_i`.
+/// ciphertext whose AVID dispersal is consistent, or a [Blame] when the collected shards either
+/// fail to RS-decode or decode to a ciphertext whose re-encoding disagrees with the dealer's
+/// `r_i`.
 #[allow(clippy::large_enum_variant)]
 pub enum DecodeOutcome {
     Decoded(Vec<u8>),
@@ -195,7 +196,6 @@ pub struct Vote {
 pub struct Reveal {
     pub proof: complaint::Complaint,
     pub ciphertext: Vec<u8>,
-    /// Hash binding the complaint to a specific [CommonMessage].
     pub common_message_hash: Digest,
 }
 
@@ -207,7 +207,6 @@ pub struct Reveal {
 pub struct Blame {
     pub accuser_id: PartyId,
     pub shards: BTreeMap<PartyId, AuthenticatedShards>,
-    /// Hash binding the complaint to a specific [CommonMessage].
     pub common_message_hash: Digest,
 }
 
@@ -233,7 +232,8 @@ pub struct ReceiverOutput {
 /// If we say that node <i>i</i> has a weight `W_i`, we have
 /// `indices().len() == shares_for_secret(i).len() == weight() = W_i`
 ///
-/// These can be created either by decrypting the shares from the dealer (see [Receiver::decode_ciphertext]) or by recovering them from complaint responses.
+/// Produced by [Receiver::verify_and_decrypt] on the happy path, or by [Receiver::recover]
+/// from complaint responses.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharesForNode {
     pub shares: Vec<ShareBatch>,
@@ -516,6 +516,9 @@ impl Receiver {
     /// 3. Reconstruct this receiver's ciphertext from received [Echo]s. Returns
     ///    [DecodeOutcome::Decoded] when the AVID dispersal is consistent with the dealer's
     ///    `r_{self.id}`, or [DecodeOutcome::InvalidDispersal] (a [Blame]) when it isn't.
+    ///
+    ///    Invalid echos are filtered out here and a [NotEnoughWeight] error is returned
+    ///    if the valid echoes don't contribute `≥ W−2f` weight.
     pub fn decode_ciphertext(
         &self,
         echos: &[Echo],
@@ -556,19 +559,21 @@ impl Receiver {
             .into_iter()
             .map(|e| (e.sender, e.authenticated_shards))
             .collect();
-        let decoded = self
-            .reconstruct_ciphertext(self.id, &shards)
-            .ok()
-            .filter(|ct| self.check_avid_consistency(ct, recipient_root).is_ok());
 
-        Ok(match decoded {
-            Some(ct) => DecodeOutcome::Decoded(ct),
-            None => DecodeOutcome::InvalidDispersal(Blame {
-                accuser_id: self.id,
-                shards,
-                common_message_hash,
-            }),
-        })
+        Ok(self
+            .reconstruct_ciphertext(self.id, &shards)
+            .and_then(|ct| {
+                self.check_avid_consistency(&ct, recipient_root)?;
+                Ok(ct)
+            })
+            .map(DecodeOutcome::Decoded)
+            .unwrap_or_else(|_| {
+                DecodeOutcome::InvalidDispersal(Blame {
+                    accuser_id: self.id,
+                    shards,
+                    common_message_hash,
+                })
+            }))
     }
 
     /// 4. Decrypt and verify the receiver's own shares from a successfully decoded ciphertext.
@@ -598,16 +603,18 @@ impl Receiver {
             &random_oracle_encryption,
             self.id as usize,
         );
-        match SharesForNode::from_bytes(plaintext).and_then(|my_shares| {
-            my_shares.verify(
-                common_message,
-                &challenge,
-                self.nodes.weight_of(self.id)?,
-                self.batch_size,
-            )?;
-            Ok(my_shares)
-        }) {
-            Ok(my_shares) => Ok(DecryptionOutcome::Valid {
+
+        SharesForNode::from_bytes(plaintext)
+            .and_then(|my_shares| {
+                my_shares.verify(
+                    common_message,
+                    &challenge,
+                    self.nodes.weight_of(self.id)?,
+                    self.batch_size,
+                )?;
+                Ok(my_shares)
+            })
+            .map(|my_shares| DecryptionOutcome::Valid {
                 output: ReceiverOutput {
                     my_shares,
                     public_keys: full_public_keys.clone(),
@@ -615,19 +622,20 @@ impl Receiver {
                 vote: Vote {
                     common_message_hash,
                 },
-            }),
-            Err(_) => Ok(DecryptionOutcome::InvalidShares(Reveal {
-                proof: complaint::Complaint::create(
-                    self.id,
-                    shared,
-                    &self.enc_secret_key,
-                    &self.random_oracle(),
-                    &mut rand::thread_rng(),
-                ),
-                ciphertext,
-                common_message_hash,
-            })),
-        }
+            })
+            .or_else(|_| {
+                Ok(DecryptionOutcome::InvalidShares(Reveal {
+                    proof: complaint::Complaint::create(
+                        self.id,
+                        shared,
+                        &self.enc_secret_key,
+                        &self.random_oracle(),
+                        &mut rand::thread_rng(),
+                    ),
+                    ciphertext,
+                    common_message_hash,
+                }))
+            })
     }
 
     /// 5a. Validate a [Reveal] complaint and respond with this party's own shares so the
@@ -647,16 +655,15 @@ impl Receiver {
             ciphertext: reveal_ciphertext,
             common_message_hash,
         } = reveal;
-        let accuser_id = proof.accuser_id;
 
         if *common_message_hash != common_message.hash() {
             return Err(InvalidProof);
         }
-        let recipient_root = common_message.recipient_root(accuser_id)?;
+        let recipient_root = common_message.recipient_root(proof.accuser_id)?;
         self.check_avid_consistency(reveal_ciphertext, recipient_root)
             .map_err(|_| InvalidProof)?;
-        let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
-        let accuser_weight = self.nodes.weight_of(accuser_id)?;
+        let accuser_pk = &self.nodes.node_id_to_node(proof.accuser_id)?.pk;
+        let accuser_weight = self.nodes.weight_of(proof.accuser_id)?;
         proof.check(
             accuser_pk,
             reveal_ciphertext,
@@ -710,11 +717,11 @@ impl Receiver {
         // The blame is valid iff the contributed shards either fail to RS-decode (they don't
         // lie on a single codeword) or decode to a ciphertext whose re-encoding doesn't match
         // the accuser's `r_i`.
-        let dispersal_consistent = self
+        if self
             .reconstruct_ciphertext(*accuser_id, shards)
             .ok()
-            .is_some_and(|ct| self.check_avid_consistency(&ct, recipient_root).is_ok());
-        if dispersal_consistent {
+            .is_some_and(|ct| self.check_avid_consistency(&ct, recipient_root).is_ok())
+        {
             return Err(InvalidProof);
         }
 
@@ -741,8 +748,11 @@ impl Receiver {
         }
     }
 
-    /// 6. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
-    ///    Fails if there are not enough valid responses to recover the shares or if any of the responses come from an invalid party.
+    /// 6. Recover the accuser's own shares from a set of [ComplaintResponse]s. Each response is
+    ///    AVID-bound to the dealer's broadcast, decrypted via its recovery package, and the
+    ///    shares are checked against `p''`; responses that don't authenticate are silently
+    ///    dropped. Fails if `common_message` is malformed, the surviving responses contribute
+    ///    `< t` weight, or the interpolated shares fail final verification.
     pub fn recover(
         &self,
         common_message: &CommonMessage,
