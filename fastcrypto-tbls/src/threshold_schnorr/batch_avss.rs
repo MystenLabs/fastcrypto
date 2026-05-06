@@ -519,37 +519,26 @@ impl Receiver {
             return Err(NotEnoughWeight(required_weight as usize));
         }
 
-        // Try to RS-decode the ciphertext. Two failure modes both indicate an inconsistent
-        // dealer dispersal: (a) decode fails outright because the echoed shards don't lie on a
-        // single codeword, or (b) decode succeeds but re-encoding the result yields a tree root
-        // different from the dealer's `r_{self.id}`. Both produce a self-contained [Blame]
-        // carrying the collected shards as evidence.
-        let try_decode = self.reconstruct_ciphertext(self.id, |id| {
-            valid_echoes
-                .iter()
-                .find(|e| e.sender == id)
-                .map(|e| e.authenticated_shards.shards.clone())
-        });
-        let dispersal_consistent = try_decode
-            .as_ref()
+        // Try to RS-decode the ciphertext and re-encode it. The dispersal is consistent iff
+        // both succeed and the re-encoded root matches `r_{self.id}`. Otherwise the dealer's
+        // dispersal is inconsistent — package the collected shards into a self-contained [Blame].
+        let shards: BTreeMap<PartyId, AuthenticatedShards> = valid_echoes
+            .into_iter()
+            .map(|e| (e.sender, e.authenticated_shards))
+            .collect();
+        let decoded = self
+            .reconstruct_ciphertext(self.id, |id| shards.get(&id).map(|a| a.shards.clone()))
             .ok()
-            .is_some_and(|ct| self.check_avid_consistency(ct, recipient_root).is_ok());
+            .filter(|ct| self.check_avid_consistency(ct, recipient_root).is_ok());
 
-        if !dispersal_consistent {
-            let shards: BTreeMap<PartyId, AuthenticatedShards> = valid_echoes
-                .into_iter()
-                .map(|e| (e.sender, e.authenticated_shards))
-                .collect();
-            return Ok(DecodeOutcome::InvalidDispersal(Blame {
+        Ok(match decoded {
+            Some(ct) => DecodeOutcome::Decoded(ct),
+            None => DecodeOutcome::InvalidDispersal(Blame {
                 accuser_id: self.id,
                 shards,
                 common_message_hash,
-            }));
-        }
-
-        Ok(DecodeOutcome::Decoded(
-            try_decode.expect("just verified Ok"),
-        ))
+            }),
+        })
     }
 
     /// 4. Decrypt and verify the receiver's own shares from a successfully decoded ciphertext.
