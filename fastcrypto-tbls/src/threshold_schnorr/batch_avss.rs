@@ -568,9 +568,8 @@ impl Receiver {
             .reconstruct_ciphertext(self.id, &shards)
             .and_then(|ct| {
                 self.check_avid_consistency(&ct, recipient_root)?;
-                Ok(ct)
+                Ok(DecodeOutcome::Decoded(ct))
             })
-            .map(DecodeOutcome::Decoded)
             .unwrap_or_else(|_| {
                 DecodeOutcome::InvalidDispersal(Blame {
                     accuser_id: self.id,
