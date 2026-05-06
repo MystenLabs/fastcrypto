@@ -1207,11 +1207,7 @@ mod tests {
             .zip(messages.iter())
             .zip(echoes_by_recipient.iter())
             .map(|((receiver, message), echoes)| {
-                assert_decoded(
-                    receiver
-                        .decode_ciphertext(echoes, &message.common)
-                        .unwrap(),
-                )
+                assert_decoded(receiver.decode_ciphertext(echoes, &message.common).unwrap())
             })
             .collect_vec();
 
