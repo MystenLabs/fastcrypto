@@ -374,8 +374,7 @@ impl Dealer {
             .iter()
             .map(recipient_tree)
             .collect::<FastCryptoResult<Vec<_>>>()?;
-        let recipient_roots: Vec<merkle::Node> =
-            recipient_trees.iter().map(MerkleTree::root).collect();
+        let recipient_roots = recipient_trees.iter().map(MerkleTree::root).collect_vec();
 
         let dispersals: Vec<Vec<AuthenticatedShards>> = self
             .nodes
@@ -528,9 +527,14 @@ impl Receiver {
         let recipient_root = common_message.recipient_root(self.id)?;
 
         // Filter out invalid echo messages: each echo's shards proof must verify against the
-        // dealer's `r_{self.id}`.
+        // dealer's `r_{self.id}` and the number of shards must be equal to the weight of the sender.
         let valid_echoes = echos
             .iter()
+            .filter(|echo| {
+                self.nodes
+                    .weight_of(echo.sender)
+                    .is_ok_and(|w| echo.authenticated_shards.shards.len() == w as usize)
+            })
             .filter(|echo| echo.verify(recipient_root).is_ok())
             .cloned()
             .collect_vec();
@@ -705,8 +709,9 @@ impl Receiver {
         if shards
             .iter()
             .any(|(sender, auth)| auth.verify(*sender as usize, recipient_root).is_err())
+        // TODO: Check this
         {
-            return Err(InvalidProof);
+            return Ok(self.build_complaint_response(common_message, ciphertext));
         }
 
         let weight_of_shards = self.nodes.total_weight_of(shards.keys())?;
@@ -767,36 +772,30 @@ impl Receiver {
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         let response_shares = responses
             .into_iter()
-            .filter_map(|response| {
+            .map(|response| {
                 let responder_pk = self
                     .nodes
-                    .node_id_to_node(response.responder_id)
-                    .ok()?
+                    .node_id_to_node(response.responder_id)?
                     .pk
                     .clone();
-                let weight = self.nodes.weight_of(response.responder_id).ok()?;
-                let recipient_root = common_message.recipient_root(response.responder_id).ok()?;
-                self.check_avid_consistency(&response.ciphertext, recipient_root)
-                    .ok()?;
-                let plaintext = common_message
-                    .shared
-                    .decrypt_with_recovery_package(
-                        &response.ciphertext,
-                        &response.recovery_package,
-                        &self
-                            .random_oracle()
-                            .extend(&Recovery(response.responder_id).to_string()),
-                        &random_oracle_encryption,
-                        &responder_pk,
-                        response.responder_id as usize,
-                    )
-                    .ok()?;
-                let shares = SharesForNode::from_bytes(&plaintext).ok()?;
-                shares
-                    .verify(common_message, &challenge, weight, self.batch_size)
-                    .ok()?;
-                Some(shares)
+                let weight = self.nodes.weight_of(response.responder_id)?;
+                let recipient_root = common_message.recipient_root(response.responder_id)?;
+                self.check_avid_consistency(&response.ciphertext, recipient_root)?;
+                let plaintext = common_message.shared.decrypt_with_recovery_package(
+                    &response.ciphertext,
+                    &response.recovery_package,
+                    &self
+                        .random_oracle()
+                        .extend(&Recovery(response.responder_id).to_string()),
+                    &random_oracle_encryption,
+                    &responder_pk,
+                    response.responder_id as usize,
+                )?;
+                let shares = SharesForNode::from_bytes(&plaintext)?;
+                shares.verify(common_message, &challenge, weight, self.batch_size)?;
+                Ok(shares)
             })
+            .filter_map(FastCryptoResult::ok)
             .collect_vec();
 
         // Compute the total weight of the valid responses
@@ -837,29 +836,28 @@ impl Receiver {
         accuser_id: PartyId,
         shards: &BTreeMap<PartyId, AuthenticatedShards>,
     ) -> FastCryptoResult<Vec<u8>> {
-        let opt_shards: Vec<Option<Shard>> = self
+        let shards_matrix = self
             .nodes
             .node_ids_iter()
-            .map(|id| -> FastCryptoResult<Vec<Option<Shard>>> {
+            .map(|id| -> Vec<Option<Shard>> {
                 let weight = self.nodes.weight_of(id).expect("valid party id") as usize;
                 match shards.get(&id) {
+                    // If the shards exist and are consistent with the weight, put them in the matrix. Otherwise, add a None, corresponding to an erasure.
                     Some(auth) if auth.shards.len() == weight => {
-                        Ok(auth.shards.iter().cloned().map(Some).collect())
+                        auth.shards.iter().cloned().map(Some).collect_vec()
                     }
-                    // Fail if a contributor's shard count doesn't match its weight.
-                    Some(_) => Err(InvalidInput),
-                    None => Ok(vec![None; weight]),
+                    _ => vec![None; weight],
                 }
             })
-            .flatten_ok()
-            .collect::<FastCryptoResult<Vec<_>>>()?;
+            .flatten()
+            .collect_vec();
 
         // The encryption used, counter-mode, is length-preserving, so the length of the ciphertext is equal to the length of the plaintext.
         let expected_length = SharesForNode::bcs_serialized_size(
             self.nodes.weight_of(accuser_id)? as usize,
             self.batch_size,
         );
-        self.code.decode(opt_shards, expected_length)
+        self.code.decode(shards_matrix, expected_length)
     }
 
     /// The check r_i' == r_i from the paper
