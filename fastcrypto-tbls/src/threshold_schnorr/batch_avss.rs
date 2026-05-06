@@ -182,7 +182,7 @@ pub enum DecodeOutcome {
 #[allow(clippy::large_enum_variant)]
 pub enum DecryptionOutcome {
     Valid { output: ReceiverOutput, vote: Vote },
-    InvalidShares(Reveal),
+    Invalid(Reveal),
 }
 
 /// An endorsement of the dealer's broadcast.
@@ -582,10 +582,10 @@ impl Receiver {
 
     /// 4. Decrypt and verify the receiver's own shares from a successfully decoded ciphertext.
     ///    Yields [DecryptionOutcome::Valid] (with a [Vote] to broadcast) when shares verify, or
-    ///    [DecryptionOutcome::InvalidShares] (a [Reveal]) otherwise.
+    ///    [DecryptionOutcome::Invalid] (a [Reveal]) otherwise.
     pub fn verify_and_decrypt(
         &self,
-        ciphertext: Vec<u8>,
+        ciphertext: &[u8],
         common_message: &CommonMessage,
     ) -> FastCryptoResult<DecryptionOutcome> {
         let challenge = common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
@@ -602,7 +602,7 @@ impl Receiver {
 
         let common_message_hash = common_message.hash();
         let plaintext = shared.decrypt(
-            &ciphertext,
+            ciphertext,
             &self.enc_secret_key,
             &random_oracle_encryption,
             self.id as usize,
@@ -628,7 +628,7 @@ impl Receiver {
                 },
             })
             .or_else(|_| {
-                Ok(DecryptionOutcome::InvalidShares(Reveal {
+                Ok(DecryptionOutcome::Invalid(Reveal {
                     proof: complaint::Complaint::create(
                         self.id,
                         shared,
@@ -636,7 +636,7 @@ impl Receiver {
                         &self.random_oracle(),
                         &mut rand::thread_rng(),
                     ),
-                    ciphertext,
+                    ciphertext: ciphertext.to_vec(),
                     common_message_hash,
                 }))
             })
@@ -1251,7 +1251,7 @@ mod tests {
             .zip(messages)
             .map(|((receiver, pem), message)| {
                 let output =
-                    assert_valid(receiver.verify_and_decrypt(pem, &message.common).unwrap());
+                    assert_valid(receiver.verify_and_decrypt(&pem, &message.common).unwrap());
                 (receiver.id, output)
             })
             .collect::<HashMap<_, _>>();
@@ -1284,7 +1284,7 @@ mod tests {
     fn test_share_recovery() {
         // Dealer is honest at the AVID layer (consistent dispersal) but flips a byte in
         // receiver 0's plaintext, so receiver 0's decryption succeeds but the resulting
-        // SharesForNode fails verification — triggering a InvalidShares complaint. The other receivers
+        // SharesForNode fails verification — triggering an Invalid complaint. The other receivers
         // verify the complaint and respond with their own shares; receiver 0 reconstructs.
         let t = 3;
         let f = 2;
@@ -1362,19 +1362,19 @@ mod tests {
                 ciphertexts.insert(r.id, pem.clone());
                 (
                     r.id,
-                    r.verify_and_decrypt(pem, &messages[r.id as usize].common)
+                    r.verify_and_decrypt(&pem, &messages[r.id as usize].common)
                         .unwrap(),
                 )
             })
             .collect();
 
-        // Receiver 0 (the targeted victim) emits a InvalidShares complaint.
+        // Receiver 0 (the targeted victim) emits an Invalid complaint.
         let victim_id = 0u16;
         let mut outcomes = outcomes;
         let reveal = match outcomes.remove(&victim_id).unwrap() {
-            DecryptionOutcome::InvalidShares(r) => r,
+            DecryptionOutcome::Invalid(r) => r,
             ref other => panic!(
-                "expected InvalidShares from victim, got {:?}",
+                "expected Invalid from victim, got {:?}",
                 outcome_kind(other)
             ),
         };
@@ -1536,7 +1536,7 @@ mod tests {
                 let pem = assert_decoded(decoded);
                 ciphertexts.insert(id, pem.clone());
                 let outcome = receivers[id as usize]
-                    .verify_and_decrypt(pem, &messages[id as usize].common)
+                    .verify_and_decrypt(&pem, &messages[id as usize].common)
                     .unwrap();
                 let output = match outcome {
                     DecryptionOutcome::Valid { output, .. } => output,
@@ -1602,7 +1602,7 @@ mod tests {
     fn outcome_kind(outcome: &DecryptionOutcome) -> &'static str {
         match outcome {
             DecryptionOutcome::Valid { .. } => "Valid",
-            DecryptionOutcome::InvalidShares(_) => "InvalidShares",
+            DecryptionOutcome::Invalid(_) => "Invalid",
         }
     }
 
