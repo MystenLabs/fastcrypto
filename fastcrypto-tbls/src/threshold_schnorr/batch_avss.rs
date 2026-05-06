@@ -1,13 +1,39 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implementation of an asynchronous verifiable secret sharing (AVSS) protocol to distribute secret shares for a batch of random nonces.
-//! The size of the batch is proportional to the [Dealer]'s weight.
+//! Asynchronous verifiable secret sharing (AVSS) for a batch of random nonces, with batch size
+//! proportional to the [Dealer]'s weight. An AVID layer based on Reed-Solomon `(W, W − 2f)` and
+//! per-recipient Merkle commitments lets each receiver authenticate the dealer's broadcast even
+//! if they did not receive it directly.
 //!
-//! Before the protocol starts, the following setup is needed:
-//! * Each receiver has a encryption key pair (ECIES) and these public keys are known to all parties.
-//! * The public keys along with the weights of each receiver are known to all parties and defined in the [Nodes] structure.
-//! * Define a new [Dealer] with the secrets who begins by calling [Dealer::create_message].
+//! # Setup
+//!
+//! * Each receiver holds an ECIES key pair from [crate::ecies_v1]; the public keys are
+//!   advertised through the shared [Nodes] structure together with each party's weight.
+//! * One party is designated [Dealer] and constructs a [Dealer] with the same `nodes`, `f`
+//!   (Byzantine bound by weight), `t` (recovery threshold), session id, and
+//!   `batch_size_per_weight`. Every receiver constructs a [Receiver] with matching parameters.
+//!
+//! # Happy path
+//!
+//! 1. The dealer calls [Dealer::create_message] and sends each [Message] to its recipient.
+//! 2. Every receiver calls [Receiver::echo] and broadcasts each resulting [Echo] to the
+//!    indexed recipient.
+//! 3. Each receiver collects [Echo]s and runs [Receiver::decode_ciphertext_for_party] for their
+//!    own id, yielding a [DecodeOutcome::Decoded] ciphertext.
+//! 4. They feed the ciphertext to [Receiver::verify_and_decrypt], which yields a
+//!    [DecryptionOutcome::Valid] containing this party's [ReceiverOutput] and a [Vote] to
+//!    broadcast on the TOB/ABC channel.
+//!
+//! # Complaint paths
+//!
+//! When a receiver gets [DecryptionOutcome::InvalidShares] or
+//! [DecodeOutcome::InvalidDispersal] (decryption produced bad shares, or AVID dispersal is
+//! inconsistent), they broadcast the [Reveal] / [Blame] complaint after at least `W − f` votes
+//! have accrued. Other receivers validate via [Receiver::handle_reveal] /
+//! [Receiver::handle_blame] and respond with their own shares; the accuser then calls
+//! [Receiver::recover] once `≥ t` weight of valid responses has arrived to interpolate their
+//! shares.
 
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, SharedComponents};
 use crate::nodes::{Nodes, PartyId};
@@ -26,7 +52,7 @@ use fastcrypto::error::FastCryptoError::{
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::secp256k1::SCALAR_SIZE_IN_BYTES;
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
-use fastcrypto::hash::{Blake2b256, Digest, HashFunction, Sha3_512};
+use fastcrypto::hash::{Blake2b256, HashFunction, Sha3_512};
 use fastcrypto::merkle;
 use fastcrypto::merkle::MerkleTree;
 use fastcrypto::traits::AllowedRng;
@@ -34,6 +60,9 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::iter::repeat_with;
+
+/// Blake2b digest used to bind echoes/complaints to a specific [CommonMessage].
+pub type Digest = fastcrypto::hash::Digest<{ Blake2b256::OUTPUT_SIZE }>;
 
 /// This represents a Dealer in the AVSS.
 /// There is exactly one dealer who creates the shares and broadcasts the encrypted shares.
@@ -62,21 +91,25 @@ pub struct Receiver {
     code: ErasureCoder,
 }
 
-/// The message broadcast by the dealer.
+/// The dealer's per-recipient message: the shared [CommonMessage] plus the receiver's own
+/// [AuthenticatedShards] entries (one per ciphertext, indexed by recipient id).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
     pub common: CommonMessage,
     dispersal: Vec<AuthenticatedShards>,
 }
 
+/// The shared part of the dealer's broadcast — identical for every receiver and required by
+/// every later step ([Receiver::decode_ciphertext_for_party], [Receiver::verify_and_decrypt],
+/// [Receiver::handle_reveal], [Receiver::handle_blame], [Receiver::recover]). Receivers should
+/// keep it around for the lifetime of the session. A receiver that didn't get a [Message] from
+/// the dealer should fetch the [CommonMessage] from another receiver who did.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CommonMessage {
     full_public_keys: Vec<G>,
     blinding_commit: G,
     shared: SharedComponents<EG>,
     response_polynomial: Poly<S>,
-    /// Per-recipient Merkle roots committing to the dealer's RS shards. Used both for AVID
-    /// consistency checks and as input to the challenge derivation.
     recipient_roots: Vec<merkle::Node>,
 }
 
@@ -95,7 +128,7 @@ pub struct AuthenticatedShards {
 pub struct Echo {
     sender: PartyId,
     authenticated_shards: AuthenticatedShards,
-    common_message_hash: Digest<32>,
+    common_message_hash: Digest,
 }
 
 /// The result of [Receiver::decode_ciphertext_for_party]: either a successfully reconstructed
@@ -127,7 +160,7 @@ pub enum Response {
 /// An endorsement of the dealer's broadcast.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Vote {
-    pub common_message_hash: Digest<32>,
+    pub common_message_hash: Digest,
 }
 
 /// A complaint by a receiver who could not decrypt or verify its shares.
@@ -136,7 +169,7 @@ pub struct Reveal {
     pub proof: complaint::Complaint,
     pub ciphertext: Vec<u8>,
     /// Hash binding the complaint to a specific [CommonMessage].
-    pub common_message_hash: Digest<32>,
+    pub common_message_hash: Digest,
 }
 
 /// A complaint by a receiver who decrypted valid shares but found the AVID dispersal
@@ -146,7 +179,7 @@ pub struct Reveal {
 pub struct Blame {
     pub accuser_id: PartyId,
     /// Hash binding the complaint to a specific [CommonMessage].
-    pub common_message_hash: Digest<32>,
+    pub common_message_hash: Digest,
 }
 
 /// The output of a receiver which is a batch of shares and public keys for all nonces.
@@ -214,7 +247,9 @@ impl Dealer {
         })
     }
 
-    /// 1. The Dealer generates shares for the secrets and creates a set of messages - one per receiver.
+    /// 1. Build one [Message] per receiver. Each carries a shared [CommonMessage] (with the
+    ///    public commitments and the per-recipient Merkle roots) and the recipient's own
+    ///    [AuthenticatedShards] entries. Sent point-to-point to the corresponding receiver.
     pub fn create_message(&self, rng: &mut impl AllowedRng) -> FastCryptoResult<Vec<Message>> {
         self.create_message_with_mutation(rng, |_| {}, |_| {})
     }
@@ -410,8 +445,8 @@ impl Receiver {
         })
     }
 
-    /// 2. When a party receives its [Message], it verifies the Merkle tree path for its shards and
-    ///    generates [Echo]s, one per party ordered by their ID.
+    /// 2. Verify the dispersal entries against `recipient_roots` and emit one [Echo] per
+    ///    recipient (indexed by recipient id) for the receiver to broadcast.
     pub fn echo(&self, message: &Message) -> FastCryptoResult<Vec<Echo>> {
         if message.dispersal.len() != message.common.recipient_roots.len() {
             return Err(InvalidMessage);
@@ -438,18 +473,10 @@ impl Receiver {
             .collect())
     }
 
-    /// 3. When a party has received [Echo]s from parties with at least weight W - 2f, it
-    ///    tries to process them. It first filters out invalid messages and checks if the [Echo]s
-    ///    have the same digest, r and r_i values. If not, an [InvalidMessage] error is returned.
-    ///    If the filtered set of [Echo]s does not have sufficient weight, an [NotEnoughWeight] error
-    ///    is returned.
-    ///
-    ///    If these checks succeed, the party reconstructs it's message (ciphertext) from the echoed
-    ///    shards along with the r and r_i values.
-    ///
-    ///    Once [Self::verify_and_decrypt] is called, the party should keep the resulting [State]
-    ///    around in order to handle future requests through [Self::handle_reveal] and
-    ///    [Self::handle_blame].
+    /// 3. Reconstruct the ciphertext for `party` from received [Echo]s. Returns
+    ///    [DecodeOutcome::Decoded] when the AVID dispersal is consistent with the dealer's
+    ///    `r_party`, or [DecodeOutcome::InvalidDispersal] (a [Blame]) when it isn't. Also called
+    ///    by [Self::handle_blame] to validate complaints.
     pub fn decode_ciphertext_for_party(
         &self,
         echos: &[Echo],
@@ -512,18 +539,9 @@ impl Receiver {
         ))
     }
 
-    /// 4. If the party also received a valid [Message] from the dealer, it can now decrypt its shares using the [CommonMessage] part of the message.
-    ///    If this succeeds (returns a DecryptionOutcome::Valid), the party should return a signed vote to the dealer.
-    ///    The vote payload can be obtained by calling [DecryptionOutcome::into_response] on the
-    ///    outcome, which yields a [Response::Vote] for the caller to sign.
-    ///
-    ///    When parties with weight at least W -f has submitted a vote, parties who didn't get a valid
-    ///    [Message] from the dealer should request the [CommonMessage] part of that from the parties who voted.
-    ///    Using this, the party can decrypt the shares and verify that the shares are valid.
-    ///
-    ///    If this function returns an [InvalidShares] or [InvalidDispersal] outcome, the party should broadcast it
-    ///    to the other parties, but only after at least `W - f` votes from other parties have
-    ///    appeared on the TOB/ABC channel.
+    /// 4. Decrypt and verify the receiver's own shares from a successfully decoded ciphertext.
+    ///    Yields [DecryptionOutcome::Valid] (with a [Vote] to broadcast) when shares verify, or
+    ///    [DecryptionOutcome::InvalidShares] (a [Reveal]) otherwise.
     pub fn verify_and_decrypt(
         &self,
         ciphertext: Vec<u8>,
@@ -600,11 +618,10 @@ impl Receiver {
         }
     }
 
-    /// 5. Upon receiving a [Reveal] from another party, verify it and respond with this party's
-    ///    own shares so the accuser can recover. The accuser's `recipient_root` must sit under
-    ///    the dealer's `global_root` at the accuser's leaf, the ciphertext must re-encode to
-    ///    that root (binding it to the dealer's broadcast), and decryption with the recovery
-    ///    package must yield invalid shares against `common_message`.
+    /// 5a. Validate a [Reveal] complaint and respond with this party's own shares so the
+    ///     accuser can recover. Accepts iff the ciphertext is bound to the dealer's broadcast
+    ///     (re-encodes to `recipient_roots[accuser_id]`) and the recovery package decrypts it
+    ///     to invalid shares.
     pub fn handle_reveal(
         &self,
         reveal: &Reveal,
@@ -645,12 +662,9 @@ impl Receiver {
         Ok(ComplaintResponse::new(self.id, my_output.my_shares.clone()))
     }
 
-    /// Counterpart to [Self::handle_reveal] for [InvalidDispersal]. Re-runs the AVID decode for
-    /// the accuser; `echoes` should be the verifier's locally observed echoes (in a broadcast
-    /// model, every echo seen on the wire — `decode_ciphertext_for_party` filters internally to
-    /// the ones whose proofs verify under `r_accuser_id`). The blame is valid iff that decode
-    /// produces an [DecodeOutcome::InvalidDispersal] outcome. On success, respond with this
-    /// party's own shares.
+    /// 5b. Validate a [Blame] complaint and respond with this party's own shares. Accepts iff
+    ///     re-running [Self::decode_ciphertext_for_party] for `accuser_id` against the
+    ///     verifier's locally observed `echoes` yields [DecodeOutcome::InvalidDispersal].
     pub fn handle_blame(
         &self,
         blame: &Blame,
@@ -675,8 +689,8 @@ impl Receiver {
         }
     }
 
-    /// 6. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
-    ///    Fails if there are not enough valid responses to recover the shares or if any of the responses come from an invalid party.
+    /// 6. After broadcasting a complaint, reconstruct this receiver's shares by Lagrange-
+    ///    interpolating across at least `t` weight of valid [ComplaintResponse]s.
     pub fn recover(
         &self,
         common_message: &CommonMessage,
@@ -964,7 +978,7 @@ fn uleb128_len(x: usize) -> usize {
 }
 
 /// Require that every echo's `common_message_hash` agrees and return that hash.
-fn require_uniform_common_message_hash(echoes: &[Echo]) -> FastCryptoResult<Digest<32>> {
+fn require_uniform_common_message_hash(echoes: &[Echo]) -> FastCryptoResult<Digest> {
     get_uniform_value(echoes.iter().map(|e| e.common_message_hash)).ok_or(InvalidMessage)
 }
 
@@ -997,7 +1011,7 @@ fn compute_challenge_from_common_message(
     )
 }
 
-fn compute_common_message_hash(message: &CommonMessage) -> Digest<32> {
+fn compute_common_message_hash(message: &CommonMessage) -> Digest {
     let CommonMessage {
         shared,
         full_public_keys,
