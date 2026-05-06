@@ -557,29 +557,26 @@ impl Receiver {
         } = &common_message;
 
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
-        let decrypted_shares = shared
+        shared
             .verify(&random_oracle_encryption)
-            .map(|_| {
-                shared.decrypt(
-                    &ciphertext,
-                    &self.enc_secret_key,
-                    &random_oracle_encryption,
-                    self.id as usize,
-                )
-            })
-            .and_then(SharesForNode::from_bytes)
-            .and_then(|my_shares| {
-                my_shares.verify(
-                    common_message,
-                    &challenge,
-                    self.nodes.weight_of(self.id)?,
-                    self.batch_size,
-                )?;
-                Ok(my_shares)
-            });
+            .map_err(|_| InvalidMessage)?;
 
         let common_message_hash = compute_common_message_hash(common_message);
-        match decrypted_shares {
+        let plaintext = shared.decrypt(
+            &ciphertext,
+            &self.enc_secret_key,
+            &random_oracle_encryption,
+            self.id as usize,
+        );
+        match SharesForNode::from_bytes(plaintext).and_then(|my_shares| {
+            my_shares.verify(
+                common_message,
+                &challenge,
+                self.nodes.weight_of(self.id)?,
+                self.batch_size,
+            )?;
+            Ok(my_shares)
+        }) {
             Ok(my_shares) => Ok(DecryptionOutcome::Valid {
                 output: ReceiverOutput {
                     my_shares,
@@ -744,7 +741,7 @@ impl Receiver {
         // recovery package. Authenticate the ciphertext under the dealer's broadcast, decrypt
         // it via the recovery package, then sanity-check the shares against the response
         // polynomial. Any failure drops the response.
-        let encryption_ro = self.random_oracle().extend(&Encryption.to_string());
+        let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         let response_shares = responses
             .into_iter()
             .filter_map(|response| {
@@ -768,7 +765,7 @@ impl Receiver {
                         &self
                             .random_oracle()
                             .extend(&Recovery(response.responder_id).to_string()),
-                        &encryption_ro,
+                        &random_oracle_encryption,
                         &responder_pk,
                         response.responder_id as usize,
                     )
