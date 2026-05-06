@@ -30,8 +30,9 @@
 //! # Complaint paths
 //!
 //! If a receiver in [Receiver::decode_ciphertext] detects that AVID dispersal is
-//! inconsistent, it returns a self-contained [Blame] carrying the collected [ShardContribution]s
-//! as evidence. If a receiver in [Receiver::verify_and_decrypt] detects that decryption fails
+//! inconsistent, it returns a self-contained [Blame] carrying the collected per-sender
+//! [AuthenticatedShards] as evidence. If a receiver in [Receiver::verify_and_decrypt] detects
+//! that decryption fails
 //! or yields shares that don't verify, it returns a [Reveal] complaint.
 //!
 //! The accuser broadcasts the [Reveal] / [Blame] after at least `W − f` votes have accrued on
@@ -62,6 +63,7 @@ use fastcrypto::merkle::MerkleTree;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::iter::repeat_with;
 
@@ -166,26 +168,16 @@ pub struct Reveal {
     pub common_message_hash: Digest,
 }
 
-/// A complaint by a receiver who found the AVID dispersal inconsistent. Self-contained:
-/// carries the accuser's collected shard contributions so verifiers can re-run the AVID check
-/// without needing to observe echoes addressed to the accuser.
+/// A complaint by a receiver who found the AVID dispersal inconsistent. Self-contained: carries
+/// the accuser's collected per-sender [AuthenticatedShards] so verifiers can re-run the AVID
+/// check without needing to observe echoes addressed to the accuser. The map keys are sender
+/// ids, which both deduplicates contributions and gives O(log n) lookup during reconstruction.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Blame {
     pub accuser_id: PartyId,
-    pub shards: Vec<ShardContribution>,
+    pub shards: BTreeMap<PartyId, AuthenticatedShards>,
     /// Hash binding the complaint to a specific [CommonMessage].
     pub common_message_hash: Digest,
-}
-
-/// An entry in [Blame::shards]: one sender's shards for the accuser's ciphertext, with a Merkle
-/// proof under `recipient_roots[accuser_id]` at `sender`'s leaf. A [Blame] carries enough of
-/// these to attempt RS-decoding the accuser's ciphertext; the complaint is valid iff that
-/// decode either fails or re-encodes to a tree root different from `recipient_roots[accuser_id]`.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ShardContribution {
-    pub sender: PartyId,
-    pub shards: Vec<Shard>,
-    pub proof: merkle::MerkleProof,
 }
 
 /// A responder's reply to a [Reveal] / [Blame] complaint. Carries the responder's own dealer-
@@ -544,14 +536,10 @@ impl Receiver {
             .is_some_and(|ct| self.check_avid_consistency(ct, recipient_root).is_ok());
 
         if !dispersal_consistent {
-            let shards = valid_echoes
+            let shards: BTreeMap<PartyId, AuthenticatedShards> = valid_echoes
                 .into_iter()
-                .map(|e| ShardContribution {
-                    sender: e.sender,
-                    shards: e.authenticated_shards.shards,
-                    proof: e.authenticated_shards.proof,
-                })
-                .collect_vec();
+                .map(|e| (e.sender, e.authenticated_shards))
+                .collect();
             return Ok(DecodeOutcome::InvalidDispersal(Blame {
                 accuser_id: self.id,
                 shards,
@@ -634,7 +622,7 @@ impl Receiver {
         &self,
         reveal: &Reveal,
         common_message: &CommonMessage,
-        ciphertext: &[u8],
+        ciphertext: Vec<u8>,
     ) -> FastCryptoResult<ComplaintResponse> {
         let challenge = common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
 
@@ -670,15 +658,16 @@ impl Receiver {
     }
 
     /// 5b. Validate a [Blame] complaint and respond with this party's own shares. Accepts iff
-    ///     the carried [ShardContribution]s authenticate under
-    ///     `common_message.recipient_roots[accuser_id]`, contribute `≥ W − 2f` weight from
-    ///     unique senders, and either fail to RS-decode or decode to a ciphertext whose
-    ///     re-encoding doesn't match the accuser's `r_i`.
+    ///     each entry in `blame.shards` authenticates under
+    ///     `common_message.recipient_roots[accuser_id]` at its sender's leaf, the senders
+    ///     contribute `≥ W − 2f` weight, and the resulting set of shards either fails to
+    ///     RS-decode or decodes to a ciphertext whose re-encoding doesn't match the accuser's
+    ///     `r_i`.
     pub fn handle_blame(
         &self,
         blame: &Blame,
         common_message: &CommonMessage,
-        ciphertext: &[u8],
+        ciphertext: Vec<u8>,
     ) -> FastCryptoResult<ComplaintResponse> {
         common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
 
@@ -696,15 +685,14 @@ impl Receiver {
             .get(*accuser_id as usize)
             .ok_or(InvalidProof)?;
 
-        if !shards.iter().map(|s| s.sender).all_unique()
-            || shards.iter().any(|s| s.verify(recipient_root).is_err())
+        if shards
+            .iter()
+            .any(|(sender, auth)| auth.verify(*sender as usize, recipient_root).is_err())
         {
             return Err(InvalidProof);
         }
 
-        let weight_of_shards = self
-            .nodes
-            .total_weight_of(shards.iter().map(|s| &s.sender))?;
+        let weight_of_shards = self.nodes.total_weight_of(shards.keys())?;
         if weight_of_shards < self.nodes.total_weight() - 2 * self.f {
             return Err(InvalidProof);
         }
@@ -714,10 +702,7 @@ impl Receiver {
         // the accuser's `r_i`.
         let dispersal_consistent = self
             .reconstruct_ciphertext(*accuser_id, |id| {
-                shards
-                    .iter()
-                    .find(|s| s.sender == id)
-                    .map(|s| s.shards.clone())
+                shards.get(&id).map(|auth| auth.shards.clone())
             })
             .ok()
             .is_some_and(|ct| self.check_avid_consistency(&ct, recipient_root).is_ok());
@@ -734,7 +719,7 @@ impl Receiver {
     fn build_complaint_response(
         &self,
         common_message: &CommonMessage,
-        ciphertext: &[u8],
+        ciphertext: Vec<u8>,
     ) -> ComplaintResponse {
         let recovery_package = common_message.shared.create_recovery_package(
             &self.enc_secret_key,
@@ -743,7 +728,7 @@ impl Receiver {
         );
         ComplaintResponse {
             responder_id: self.id,
-            ciphertext: ciphertext.to_vec(),
+            ciphertext,
             recovery_package,
         }
     }
@@ -908,16 +893,6 @@ impl CommonMessage {
             return Err(InvalidMessage);
         }
         Ok(challenge)
-    }
-}
-
-impl ShardContribution {
-    fn verify(&self, recipient_root: &merkle::Node) -> FastCryptoResult<()> {
-        self.proof.verify_proof_with_unserialized_leaf(
-            recipient_root,
-            &self.shards,
-            self.sender as usize,
-        )
     }
 }
 
@@ -1422,7 +1397,7 @@ mod tests {
                 r.handle_reveal(
                     &reveal,
                     &messages[r.id as usize].common,
-                    ciphertexts.get(&r.id).unwrap(),
+                    ciphertexts.get(&r.id).unwrap().clone(),
                 )
                 .unwrap()
             })
@@ -1580,7 +1555,7 @@ mod tests {
                 r.handle_blame(
                     &blame,
                     &messages[r.id as usize].common,
-                    ciphertexts.get(&r.id).unwrap(),
+                    ciphertexts.get(&r.id).unwrap().clone(),
                 )
                 .unwrap()
             })
