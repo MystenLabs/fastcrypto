@@ -2,44 +2,75 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Asynchronous verifiable secret sharing (AVSS) for a batch of random nonces.
-//! An AVID layer based on Reed-Solomon `(W, W − 2f)` and per-recipient Merkle commitments lets each
-//! receiver authenticate the dealer's broadcast even if they did not receive it directly.
 //!
-//! # Setup
+//! # What it does
 //!
-//! * Each receiver holds an ECIES key pair from [crate::ecies_v1]. The public keys are
-//!   advertised through the shared [Nodes] structure together with each party's weight.
-//! * One party is designated dealer and constructs a [Dealer] with `nodes`, `f`
-//!   (Byzantine bound by weight), `t` (recovery threshold), session id, and
-//!   `batch_size_per_weight`. The receivers uses a [Receiver] with matching parameters.
+//! A single dealer commits to a batch of `L` random nonces `r_1, …, r_L` and distributes
+//! shares to `n` weighted receivers forming a `t`-of-`W` threshold (with `W = Σ_j w_j` total
+//! weight, `f` the Byzantine bound by weight, and `L = w_dealer · BATCH_SIZE`). Every honest
+//! receiver `j` ends up with `p_l(i_{j,1}), …, p_l(i_{j,w_j})` for every secret `r_l`, where
+//! `p_l` is a degree-`(t−1)` polynomial with `p_l(0) = r_l`. Any `≥ t` valid shares reconstruct
+//! `r_l`.
+//!
+//! # Two layers
+//!
+//! The dealer's broadcast (the [CommonMessage]) carries the public commitments
+//! `c_l = g^{r_l}`, the blinding commitment `c' = g^{r'}`, the *response polynomial* `p''(X)`,
+//! and the per-recipient Merkle roots `r_1, …, r_n`.
+//!
+//! **AVID layer.** The dealer encrypts each receiver's shares under multi-recipient ECIES,
+//! RS-encodes the per-recipient ciphertexts under a `(W, W−2f)` code, and Merkle-commits each
+//! ciphertext's shards into the root `r_i`. Receivers exchange small [Echo]s so any quorum can
+//! reconstruct a ciphertext even if the dealer didn't reach them directly.
+//!
+//! **AVSS layer.** Each receiver decrypts their own ciphertext to get their shares. The
+//! response polynomial `p''(X) = p'(X) + Σ_l γ_l · p_l(X)` — a degree-`(t−1)` linear
+//! combination of all `L` sharing polynomials plus a blinding `p'`, where `γ_l` is a
+//! Fiat-Shamir challenge over *all* dealer commitments — lets the receiver verify their shares
+//! with one polynomial identity (construction from [eprint/2023/536](https://eprint.iacr.org/2023/536)).
+//! Because `γ` binds to every public root, the dealer can't equivocate later.
 //!
 //! # Happy path
 //!
-//! 1. The dealer calls [Dealer::create_message] and sends each [Message] to its recipient.
-//! 2. Every receiver calls [Receiver::echo] and broadcasts each resulting [Echo] to the
-//!    indexed recipient.
-//! 3. Each receiver collects [Echo]s and runs [Receiver::decode_ciphertext] for their
-//!    own id, yielding a [DecodeOutcome::Decoded] ciphertext.
-//! 4. They feed the ciphertext to [Receiver::verify_and_decrypt], which yields a
-//!    [DecryptionOutcome::Valid] containing this party's [ReceiverOutput] and a [Vote] to
-//!    broadcast on the TOB/ABC channel if both this and [Receiver::decode_ciphertext] succeeded.
+//! 1. **Dealer.** Build a [Message] per receiver and send it point-to-point.
+//! 2. **Echo.** Each receiver verifies their dispersal entry and sends an [Echo] to every other
+//!    recipient with their shard for that recipient's ciphertext.
+//! 3. **Decode.** Collect `≥ W−2f` valid echoes for the same [CommonMessage] and run
+//!    [Receiver::decode_ciphertext].
+//! 4. **Verify-and-decrypt.** Run the polynomial commitment check
+//!    `g^{p''(0)} = c' · ∏ c_l^{γ_l}`, decrypt the ciphertext, and verify each share pointwise
+//!    against `p''`.
+//! 5. **Vote.** Once enough valid echoes have been collected in step 2 and step 4 succeeds, the
+//!    receiver sends a [Vote] to the dealer.
+//! 6. The dealer collects `≥ W−f` votes (by weight) into a certificate posted on the TOB. The
+//!    broadcast is now *certified* — every party agrees on `common_message_hash`.
+//! 7. A receiver that saw the certificate but missed the original [Message] or enough echoes
+//!    fetches [CommonMessage] / echoes from a voter, then runs steps 3–4 (without sending a
+//!    [Vote]).
 //!
-//! Receivers should keep the common part of the message, [CommonMessage], for the lifetime of
-//! the protocol since it is needed to handle complaints.
+//! Receivers should retain their [Message], [Echo]s, and decoded ciphertext for the lifetime of
+//! the session — they are needed for complaint validation, or in case other receivers ask for
+//! them.
 //!
 //! # Complaint paths
 //!
-//! If a receiver in [Receiver::decode_ciphertext] detects that AVID dispersal is
-//! inconsistent, it returns a self-contained [Blame] carrying the collected per-sender
-//! [AuthenticatedShards] as evidence. If a receiver in [Receiver::verify_and_decrypt] detects
-//! that decryption fails
-//! or yields shares that don't verify, it returns a [Reveal] complaint.
+//! Complaints are broadcast only after the certificate is in place; the certificate is what
+//! pins down the [CommonMessage] every validation hinges on.
 //!
-//! The accuser broadcasts the [Reveal] / [Blame] after at least `W − f` votes have accrued on
-//! the TOB/ABC channel. Other receivers validate it via [Receiver::handle_reveal] /
-//! [Receiver::handle_blame] and respond with their own shares. Once `≥ t` weight of valid
-//! responses has arrived, the accuser calls [Receiver::recover] to interpolate their own
-//! shares from those responses.
+//! - **[Reveal]** (encryption-layer fault, raised in step 4). Decryption fails or the shares
+//!   don't satisfy `p''`. The accuser publishes a `Reveal` with their ciphertext and an ECIES
+//!   recovery package; verifiers re-bind the ciphertext to the dealer's broadcast and use the
+//!   recovery package to confirm decryption yields invalid shares.
+//! - **[Blame]** (dispersal-layer fault, raised in step 3). RS-decode fails or the recovered
+//!   ciphertext doesn't re-encode to `recipient_roots[accuser]`. The accuser publishes a
+//!   `Blame` with the collected per-sender [AuthenticatedShards] as evidence; verifiers re-run
+//!   the same decode-and-re-encode check on the carried shards.
+//!
+//! Verifiers respond to a valid complaint with a [ComplaintResponse] carrying their own
+//! ciphertext plus a recovery package. The accuser AVID-binds each responder's ciphertext,
+//! decrypts via the recovery package, verifies the shares against `p''`, and
+//! Lagrange-interpolates once `≥ t` weight of valid responses has accrued
+//! (see [Receiver::recover]).
 
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, RecoveryPackage, SharedComponents};
 use crate::nodes::{Nodes, PartyId};
