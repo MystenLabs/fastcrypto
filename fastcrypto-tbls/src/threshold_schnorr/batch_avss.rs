@@ -22,7 +22,7 @@
 //!    own id, yielding a [DecodeOutcome::Decoded] ciphertext.
 //! 4. They feed the ciphertext to [Receiver::verify_and_decrypt], which yields a
 //!    [DecryptionOutcome::Valid] containing this party's [ReceiverOutput] and a [Vote] to
-//!    broadcast on the TOB/ABC channel.
+//!    broadcast on the TOB/ABC channel if both this and [Receiver::decode_ciphertext] succeeded.
 //!
 //! Receivers should keep the common part of the message, [CommonMessage], for the lifetime of
 //! the protocol since it is needed to handle complaints.
