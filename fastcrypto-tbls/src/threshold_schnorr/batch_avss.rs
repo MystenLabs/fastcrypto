@@ -40,15 +40,14 @@
 //! responses has arrived, the accuser calls [Receiver::recover] to interpolate their own
 //! shares from those responses.
 
-use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, SharedComponents};
+use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, RecoveryPackage, SharedComponents};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{create_secret_sharing, Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint;
-use crate::threshold_schnorr::complaint::ComplaintResponse;
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
-use crate::threshold_schnorr::Extensions::{Challenge, Encryption};
+use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::{get_uniform_value, ShareIndex};
 use fastcrypto::error::FastCryptoError::{
@@ -178,13 +177,26 @@ pub struct Blame {
     pub common_message_hash: Digest,
 }
 
-/// One sender's contribution toward reconstructing the accuser's ciphertext: their shards plus
-/// a Merkle proof binding them under `recipient_roots[accuser_id]` at `sender`'s leaf.
+/// An entry in [Blame::shards]: one sender's shards for the accuser's ciphertext, with a Merkle
+/// proof under `recipient_roots[accuser_id]` at `sender`'s leaf. A [Blame] carries enough of
+/// these to attempt RS-decoding the accuser's ciphertext; the complaint is valid iff that
+/// decode either fails or re-encodes to a tree root different from `recipient_roots[accuser_id]`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ShardContribution {
     pub sender: PartyId,
     pub shards: Vec<Shard>,
     pub proof: merkle::MerkleProof,
+}
+
+/// A responder's reply to a [Reveal] / [Blame] complaint. Carries the responder's own dealer-
+/// encrypted ciphertext together with an ECIES recovery package, so the accuser can
+/// independently authenticate the responder's shares against the dealer's broadcast and
+/// extract them via decryption.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ComplaintResponse {
+    pub responder_id: PartyId,
+    pub ciphertext: Vec<u8>,
+    pub recovery_package: RecoveryPackage<EG>,
 }
 
 /// The output of a receiver which is a batch of shares and public keys for all nonces.
@@ -622,13 +634,13 @@ impl Receiver {
         &self,
         reveal: &Reveal,
         common_message: &CommonMessage,
-        my_output: &ReceiverOutput,
-    ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
+        ciphertext: &[u8],
+    ) -> FastCryptoResult<ComplaintResponse> {
         let challenge = common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
 
         let Reveal {
             proof,
-            ciphertext,
+            ciphertext: reveal_ciphertext,
             common_message_hash,
         } = reveal;
         let accuser_id = proof.accuser_id;
@@ -640,13 +652,13 @@ impl Receiver {
             .recipient_roots
             .get(accuser_id as usize)
             .ok_or(InvalidProof)?;
-        self.check_avid_consistency(ciphertext, recipient_root)
+        self.check_avid_consistency(reveal_ciphertext, recipient_root)
             .map_err(|_| InvalidProof)?;
         let accuser_pk = &self.nodes.node_id_to_node(accuser_id)?.pk;
         let accuser_weight = self.nodes.weight_of(accuser_id)?;
         proof.check(
             accuser_pk,
-            ciphertext,
+            reveal_ciphertext,
             &common_message.shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
@@ -654,7 +666,7 @@ impl Receiver {
             },
         )?;
 
-        Ok(ComplaintResponse::new(self.id, my_output.my_shares.clone()))
+        Ok(self.build_complaint_response(common_message, ciphertext))
     }
 
     /// 5b. Validate a [Blame] complaint and respond with this party's own shares. Accepts iff
@@ -666,8 +678,8 @@ impl Receiver {
         &self,
         blame: &Blame,
         common_message: &CommonMessage,
-        my_output: &ReceiverOutput,
-    ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
+        ciphertext: &[u8],
+    ) -> FastCryptoResult<ComplaintResponse> {
         common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
 
         let Blame {
@@ -713,7 +725,27 @@ impl Receiver {
             return Err(InvalidProof);
         }
 
-        Ok(ComplaintResponse::new(self.id, my_output.my_shares.clone()))
+        Ok(self.build_complaint_response(common_message, ciphertext))
+    }
+
+    /// Build a [ComplaintResponse] for an answered [Reveal] / [Blame]: package this party's own
+    /// dealer-encrypted ciphertext together with an ECIES recovery package, so the accuser can
+    /// decrypt and authenticate the responder's shares.
+    fn build_complaint_response(
+        &self,
+        common_message: &CommonMessage,
+        ciphertext: &[u8],
+    ) -> ComplaintResponse {
+        let recovery_package = common_message.shared.create_recovery_package(
+            &self.enc_secret_key,
+            &self.random_oracle().extend(&Recovery(self.id).to_string()),
+            &mut rand::thread_rng(),
+        );
+        ComplaintResponse {
+            responder_id: self.id,
+            ciphertext: ciphertext.to_vec(),
+            recovery_package,
+        }
     }
 
     /// 6. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
@@ -721,7 +753,7 @@ impl Receiver {
     pub fn recover(
         &self,
         common_message: &CommonMessage,
-        responses: Vec<ComplaintResponse<SharesForNode>>,
+        responses: Vec<ComplaintResponse>,
     ) -> FastCryptoResult<ReceiverOutput> {
         // TODO: This fails if one of the responses has an invalid responder_id. We could probably just ignore those instead.
 
@@ -734,19 +766,44 @@ impl Receiver {
         if total_response_weight < self.t {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
+        // Each response carries the responder's own dealer-encrypted ciphertext plus an ECIES
+        // recovery package. Authenticate the ciphertext under the dealer's broadcast, decrypt
+        // it via the recovery package, then sanity-check the shares against the response
+        // polynomial. Any failure drops the response.
+        let encryption_ro = self.random_oracle().extend(&Encryption.to_string());
         let response_shares = responses
             .into_iter()
             .filter_map(|response| {
-                self.nodes
-                    .weight_of(response.responder_id)
-                    .map(|w| (w, response.shares))
-                    .ok()
-            })
-            .filter_map(|(weight, shares)| {
+                let responder_pk = self
+                    .nodes
+                    .node_id_to_node(response.responder_id)
+                    .ok()?
+                    .pk
+                    .clone();
+                let weight = self.nodes.weight_of(response.responder_id).ok()?;
+                let recipient_root = common_message
+                    .recipient_roots
+                    .get(response.responder_id as usize)?;
+                self.check_avid_consistency(&response.ciphertext, recipient_root)
+                    .ok()?;
+                let plaintext = common_message
+                    .shared
+                    .decrypt_with_recovery_package(
+                        &response.ciphertext,
+                        &response.recovery_package,
+                        &self
+                            .random_oracle()
+                            .extend(&Recovery(response.responder_id).to_string()),
+                        &encryption_ro,
+                        &responder_pk,
+                        response.responder_id as usize,
+                    )
+                    .ok()?;
+                let shares = SharesForNode::from_bytes(&plaintext).ok()?;
                 shares
                     .verify(common_message, &challenge, weight, self.batch_size)
-                    .ok()
-                    .map(|_| shares)
+                    .ok()?;
+                Some(shares)
             })
             .collect_vec();
 
@@ -1316,6 +1373,7 @@ mod tests {
 
         // Process echoes + verify_and_decrypt. AVID is consistent for everyone in this test, so
         // every decode yields a Decoded outcome.
+        let mut ciphertexts: HashMap<u16, Vec<u8>> = HashMap::new();
         let outcomes: HashMap<u16, DecryptionOutcome> = receivers
             .iter()
             .zip(echoes_per_recipient.iter())
@@ -1324,6 +1382,7 @@ mod tests {
                     r.decode_ciphertext(echoes, &messages[r.id as usize].common)
                         .unwrap(),
                 );
+                ciphertexts.insert(r.id, pem.clone());
                 (
                     r.id,
                     r.verify_and_decrypt(pem, &messages[r.id as usize].common)
@@ -1355,7 +1414,7 @@ mod tests {
             })
             .collect();
 
-        // Each non-victim verifies the complaint and returns their shares.
+        // Each non-victim verifies the complaint and returns their own ciphertext + recovery package.
         let responses = receivers
             .iter()
             .filter(|r| r.id != victim_id)
@@ -1363,7 +1422,7 @@ mod tests {
                 r.handle_reveal(
                     &reveal,
                     &messages[r.id as usize].common,
-                    outputs.get(&r.id).unwrap(),
+                    ciphertexts.get(&r.id).unwrap(),
                 )
                 .unwrap()
             })
@@ -1493,10 +1552,12 @@ mod tests {
             DecodeOutcome::Decoded(_) => panic!("expected InvalidDispersal from victim"),
         };
         // The other receivers each get a Valid output.
+        let mut ciphertexts: HashMap<u16, Vec<u8>> = HashMap::new();
         let mut outputs: HashMap<u16, ReceiverOutput> = decode_outcomes
             .into_iter()
             .map(|(id, decoded)| {
                 let pem = assert_decoded(decoded);
+                ciphertexts.insert(id, pem.clone());
                 let outcome = receivers[id as usize]
                     .verify_and_decrypt(pem, &messages[id as usize].common)
                     .unwrap();
@@ -1511,7 +1572,7 @@ mod tests {
             })
             .collect();
 
-        // Each non-victim verifies the complaint and returns their shares.
+        // Each non-victim verifies the complaint and returns their own ciphertext + recovery package.
         let responses = receivers
             .iter()
             .filter(|r| r.id != victim_id)
@@ -1519,7 +1580,7 @@ mod tests {
                 r.handle_blame(
                     &blame,
                     &messages[r.id as usize].common,
-                    outputs.get(&r.id).unwrap(),
+                    ciphertexts.get(&r.id).unwrap(),
                 )
                 .unwrap()
             })
