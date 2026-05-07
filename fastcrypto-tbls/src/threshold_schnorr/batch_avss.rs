@@ -48,8 +48,8 @@
 //!    fetches [CommonMessage] / echoes from a voter, then runs steps 3–4 (without sending a
 //!    [Vote]).
 //!
-//! Receivers should retain the [CommonMessage] for the lifetime of the session — it is required
-//! to validate complaints and build a [ComplaintResponse]. The [Echo]s and the decoded
+//! Receivers should retain the [VerifiedCommonMessage] for the lifetime of the session — it is
+//! required to validate complaints and build a [ComplaintResponse]. The [Echo]s and the decoded
 //! ciphertext should also be kept so laggards (step 7) can fetch them.
 //!
 //! # Complaint paths
@@ -728,7 +728,7 @@ impl Receiver {
             .iter()
             .any(|(sender, auth)| auth.verify(*sender as usize, recipient_root).is_err())
         {
-            return Ok(self.build_complaint_response(common_message, ciphertext));
+            return Err(InvalidProof);
         }
 
         let weight_of_shards = self.nodes.total_weight_of(shards.keys())?;
@@ -856,10 +856,10 @@ impl Receiver {
     }
 
     /// Reed-Solomon decode the ciphertext for `accuser_id` from a set of authenticated shard
-    /// contributions, keyed by sender id. Fails if the contributing weight is below `W - 2f`
-    /// (too few contributions to reconstruct), or if a party's contribution has a shard count
-    /// that doesn't match its weight. The caller is responsible for having authenticated the
-    /// shards via their Merkle proofs.
+    /// contributions, keyed by sender id. Missing senders and senders whose shard count
+    /// doesn't match their weight are treated as erasures, so RS decoding fails if those
+    /// account for more than `2f` of the total weight. The caller is responsible for having
+    /// authenticated the shards via their Merkle proofs.
     fn reconstruct_ciphertext(
         &self,
         accuser_id: PartyId,
@@ -888,7 +888,8 @@ impl Receiver {
         self.code.decode(shards_matrix, expected_length)
     }
 
-    /// The check r_i' == r_i from the paper
+    /// RS-encode `ciphertext`, rebuild the per-recipient Merkle tree, and check its root matches
+    /// the dealer's `expected_root`. Errors with [InvalidMessage] on mismatch.
     fn check_avid_consistency(
         &self,
         ciphertext: &[u8],
