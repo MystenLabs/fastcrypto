@@ -237,10 +237,10 @@ mod tests {
             let messages = dealer.create_message(&mut rng).unwrap();
 
             // Each receiver produces echoes addressed to every party.
-            let echoes: Vec<Vec<batch_avss::Echo>> = receivers
+            let (verified_commons, echoes): (Vec<_>, Vec<Vec<batch_avss::Echo>>) = receivers
                 .iter()
                 .map(|r| r.echo(&messages[r.id as usize]).unwrap())
-                .collect();
+                .unzip();
 
             // Bundle echoes per recipient: echoes_per_recipient[i] = echoes addressed to party i.
             let echoes_per_recipient: Vec<Vec<batch_avss::Echo>> = (0..n)
@@ -249,16 +249,20 @@ mod tests {
 
             // Each receiver processes the message.
             // In this case, we assume all are honest and there are no complaints.
-            for ((r, echoes), msg) in receivers.iter().zip(&echoes_per_recipient).zip(&messages) {
+            for ((r, echoes), vcm) in receivers
+                .iter()
+                .zip(&echoes_per_recipient)
+                .zip(&verified_commons)
+            {
                 let verified = echoes
                     .iter()
-                    .map(|e| r.verify_echo(e.clone(), &msg.common).unwrap())
+                    .map(|e| r.verify_echo(e.clone(), vcm).unwrap())
                     .collect::<Vec<_>>();
-                let pem = match r.decode_ciphertext(&verified, &msg.common).unwrap() {
+                let pem = match r.decode_ciphertext(&verified, vcm).unwrap() {
                     batch_avss::DecodeOutcome::Decoded(d) => d,
                     _ => panic!("expected Decoded outcome"),
                 };
-                let output = assert_valid_batch(r.verify_and_decrypt(&pem, &msg.common).unwrap());
+                let output = assert_valid_batch(r.verify_and_decrypt(&pem, vcm).unwrap());
                 presigning_outputs.get_mut(&r.id).unwrap().push(output);
             }
         }
