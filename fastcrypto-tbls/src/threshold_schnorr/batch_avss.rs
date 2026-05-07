@@ -227,6 +227,12 @@ pub struct ComplaintResponse {
     pub recovery_package: RecoveryPackage<EG>,
 }
 
+/// A [ComplaintResponse] that has been verified by [Receiver::verify_complaint_response]: the
+/// carried ciphertext is AVID-bound to the dealer's broadcast, decryption via the recovery
+/// package yielded shares satisfying the dealer's response polynomial.
+#[derive(Clone, Debug)]
+pub struct VerifiedComplaintResponse(SharesForNode);
+
 /// The output of a receiver which is a batch of shares and public keys for all nonces.
 #[derive(Debug, Clone)]
 pub struct ReceiverOutput {
@@ -518,8 +524,10 @@ impl Receiver {
             .collect())
     }
 
-    /// Convenience wrapper around [Echo::verify] that looks up the sender's weight from
-    /// [Self::nodes] and uses [Self::id] as the recipient.
+    /// Verify an [Echo] addressed to this receiver against `common_message`: the sender's shard
+    /// count matches their advertised weight, the Merkle proof checks against the receiver's
+    /// `recipient_root`, and the echo's `common_message_hash` matches. Returns a [VerifiedEcho]
+    /// suitable for [Self::decode_ciphertext].
     pub fn verify_echo(
         &self,
         echo: Echo,
@@ -541,7 +549,6 @@ impl Receiver {
         common_message: &CommonMessage,
     ) -> FastCryptoResult<DecodeOutcome> {
         common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
-        let recipient_root = common_message.recipient_root(self.id)?;
 
         let required_weight = self.nodes.total_weight() - 2 * self.f;
         if self
@@ -564,7 +571,7 @@ impl Receiver {
         Ok(self
             .reconstruct_ciphertext(self.id, &shards)
             .and_then(|ct| {
-                self.check_avid_consistency(&ct, recipient_root)?;
+                self.check_avid_consistency(&ct, common_message.recipient_root(self.id)?)?;
                 Ok(DecodeOutcome::Decoded(ct))
             })
             .unwrap_or(DecodeOutcome::InvalidDispersal(Blame {
@@ -747,52 +754,53 @@ impl Receiver {
         }
     }
 
-    /// 6. Recover the accuser's own shares from a set of [ComplaintResponse]s. Each response is
-    ///    AVID-bound to the dealer's broadcast, decrypted via its recovery package, and the
-    ///    shares are checked against `p''`; responses that don't authenticate are silently
-    ///    dropped. Fails if `common_message` is malformed, the surviving responses contribute
-    ///    `< t` weight, or the interpolated shares fail final verification.
+    /// Verify a [ComplaintResponse] against `common_message`: confirm that the responder's
+    /// ciphertext is the one the dealer broadcast to them, that the recovery package decrypts
+    /// it, and that the recovered shares are the ones the dealer dealt. Returns a
+    /// [VerifiedComplaintResponse] suitable for [Self::recover].
+    pub fn verify_complaint_response(
+        &self,
+        response: ComplaintResponse,
+        common_message: &CommonMessage,
+    ) -> FastCryptoResult<VerifiedComplaintResponse> {
+        let challenge =
+            compute_challenge_from_common_message(&self.random_oracle(), common_message);
+        let responder_pk = self
+            .nodes
+            .node_id_to_node(response.responder_id)?
+            .pk
+            .clone();
+        let weight = self.nodes.weight_of(response.responder_id)?;
+        let recipient_root = common_message.recipient_root(response.responder_id)?;
+        self.check_avid_consistency(&response.ciphertext, recipient_root)?;
+        let plaintext = common_message.shared.decrypt_with_recovery_package(
+            &response.ciphertext,
+            &response.recovery_package,
+            &self
+                .random_oracle()
+                .extend(&Recovery(response.responder_id).to_string()),
+            &self.random_oracle().extend(&Encryption.to_string()),
+            &responder_pk,
+            response.responder_id as usize,
+        )?;
+        let shares = SharesForNode::from_bytes(&plaintext)?;
+        shares.verify(common_message, &challenge, weight, self.batch_size)?;
+        Ok(VerifiedComplaintResponse(shares))
+    }
+
+    /// 6. Recover the accuser's own shares from a quorum of [VerifiedComplaintResponse]s.
+    ///    Responses must already be validated via [Self::verify_complaint_response]. Fails if
+    ///    `common_message` is malformed, the responses contribute `< t` weight, or the
+    ///    interpolated shares fail final verification.
     pub fn recover(
         &self,
         common_message: &CommonMessage,
-        responses: Vec<ComplaintResponse>,
+        responses: Vec<VerifiedComplaintResponse>,
     ) -> FastCryptoResult<ReceiverOutput> {
         let challenge = common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
 
-        // Each response carries the responder's own dealer-encrypted ciphertext plus an ECIES
-        // recovery package. Authenticate the ciphertext under the dealer's broadcast, decrypt
-        // it via the recovery package, then sanity-check the shares against the response
-        // polynomial. Any failure drops the response.
-        let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
-        let response_shares = responses
-            .into_iter()
-            .map(|response| {
-                let responder_pk = self
-                    .nodes
-                    .node_id_to_node(response.responder_id)?
-                    .pk
-                    .clone();
-                let weight = self.nodes.weight_of(response.responder_id)?;
-                let recipient_root = common_message.recipient_root(response.responder_id)?;
-                self.check_avid_consistency(&response.ciphertext, recipient_root)?;
-                let plaintext = common_message.shared.decrypt_with_recovery_package(
-                    &response.ciphertext,
-                    &response.recovery_package,
-                    &self
-                        .random_oracle()
-                        .extend(&Recovery(response.responder_id).to_string()),
-                    &random_oracle_encryption,
-                    &responder_pk,
-                    response.responder_id as usize,
-                )?;
-                let shares = SharesForNode::from_bytes(&plaintext)?;
-                shares.verify(common_message, &challenge, weight, self.batch_size)?;
-                Ok(shares)
-            })
-            .filter_map(FastCryptoResult::ok)
-            .collect_vec();
+        let response_shares: Vec<SharesForNode> = responses.into_iter().map(|v| v.0).collect();
 
-        // Compute the total weight of the valid responses
         let response_weight: u16 = response_shares.iter().map(SharesForNode::weight).sum();
         if response_weight < self.t {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
@@ -1429,10 +1437,14 @@ mod tests {
             })
             .collect_vec();
 
-        // Victim recovers via interpolation across t responses.
-        let recovered = receivers[victim_id as usize]
-            .recover(&messages[victim_id as usize].common, responses)
-            .unwrap();
+        // Victim verifies and then recovers via interpolation across t responses.
+        let victim = &receivers[victim_id as usize];
+        let common = &messages[victim_id as usize].common;
+        let verified_responses = responses
+            .into_iter()
+            .map(|r| victim.verify_complaint_response(r, common).unwrap())
+            .collect_vec();
+        let recovered = victim.recover(common, verified_responses).unwrap();
         outputs.insert(victim_id, recovered);
 
         // Sanity: every receiver now holds verifiable shares for every secret.
@@ -1594,10 +1606,14 @@ mod tests {
             })
             .collect_vec();
 
-        // Victim recovers via interpolation across t responses.
-        let recovered = receivers[victim_id as usize]
-            .recover(&messages[victim_id as usize].common, responses)
-            .unwrap();
+        // Victim verifies and then recovers via interpolation across t responses.
+        let victim = &receivers[victim_id as usize];
+        let common = &messages[victim_id as usize].common;
+        let verified_responses = responses
+            .into_iter()
+            .map(|r| victim.verify_complaint_response(r, common).unwrap())
+            .collect_vec();
+        let recovered = victim.recover(common, verified_responses).unwrap();
         outputs.insert(victim_id, recovered);
 
         // Sanity: every receiver now holds verifiable shares for every secret.
