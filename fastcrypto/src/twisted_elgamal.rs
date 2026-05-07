@@ -297,27 +297,18 @@ impl<const N: usize> KeyConsistencyProof<N> {
     ///
     ///   (W1) Pedersen openings: C_i = r_i * G + u_i * H  for all i
     ///   (W2) Key recombination: (sum_i 2^{32i} * u_i) * G = U
-    ///   (W3) Auditor handles:   D_ij = r_i * S_j  for all i, j
+    ///   (W3) Decryption handles: D_ij = r_i * S_j  for all i, j
     ///
     /// The proof is a 5-message sigma protocol made non-interactive via Fiat-Shamir, with two
     /// challenges:
     ///
-    ///   Round 1: Sample a_i, b_i and send the round-1 commitments
-    ///              a1[i] = a_i * G + b_i * H        (Pedersen)
-    ///              a2[i] = b_i * G                  (key recombination)
-    ///
-    ///   Round 2: rho = challenge_rho(statement) — m batching scalars derived from the statement.
-    ///
-    ///   Round 3: Send the batched auditor commitment
-    ///              a3[i] = a_i * S_rho   where  S_rho = sum_j rho_j * pk_j.
-    ///            This collapses the m per-recipient auditor commitments into one per limb,
-    ///            making the proof size constant in m.
-    ///
-    ///   Round 4: c = challenge_c(statement, rho, a1, a2, a3) — sigma-protocol challenge.
-    ///
-    ///   Round 5: Send the responses
-    ///              z1[i] = a_i + c * r_i
-    ///              z2[i] = b_i + c * u_i.
+    ///   Round 1: Sample a_i, b_i and send the round-1 commitments a1[i] = a_i * G + b_i * H (Pedersen) and
+    ///            a2[i] = b_i * G (key recombination).
+    ///   Round 2: Compute m batching scalars rho = challenge_rho(statement).
+    ///   Round 3: Send the batched auditor commitment a3[i] = a_i * S_rho where S_rho = sum_j rho_j * pk_j.
+    ///            This collapses the m per-recipient auditor commitments into one per limb, making the proof size constant in m.
+    ///   Round 4: Compute the main sigma protocol challenge c = challenge_c(statement, rho, a1, a2, a3).
+    ///   Round 5: Send the responses z1[i] = a_i + c * r_i and z2[i] = b_i + c * u_i.
     pub fn prove(
         sender_private_key_limbs: &[u32; N],
         sender_public_key: &PublicKey,
@@ -360,26 +351,22 @@ impl<const N: usize> KeyConsistencyProof<N> {
     /// Verify the consistency proof. The three groups of equations that must hold are:
     ///
     ///   Check 1 (Pedersen commitment): For each limb i, the prover knows the blinding r_i and message u_i
-    ///   opening the commitment C_i = r_i * G + u_i * H:
-    ///     z1[i] * G + z2[i] * H == a1[i] + c * C_i
+    ///   opening the commitment C_i = r_i * G + u_i * H: z1[i] * G + z2[i] * H == a1[i] + c * C_i.
     ///
     ///   Check 2 (key recombination): The encrypted 32-bit key limbs u_i reconstruct to the private
-    ///   key corresponding to U:
-    ///     (sum_i 2^{32i} * z2[i]) * G == (sum_i 2^{32i} * a2[i]) + c * U
+    ///   key corresponding to U: (sum_i 2^{32i} * z2[i]) * G == (sum_i 2^{32i} * a2[i]) + c * U.
     ///
-    ///   Check 3 (auditor, batched against rho): For each limb i, each decryption handle was
-    ///   formed with the same blinding r_i used in the commitment:
-    ///     z1[i] * S_rho == a3[i] + c * D_rho[i]
+    ///   Check 3 (decryption handle consistency, batched against rho): For each limb i, each decryption handle was
+    ///   formed with the same blinding r_i used in the commitment: z1[i] * S_rho == a3[i] + c * D_rho[i]
     ///   where S_rho = sum_j rho_j * pk_j and D_rho[i] = sum_j rho_j * D_ij.
     ///
     /// All 2n+1 equations are consolidated into a single MSM using verifier-side hash-derived
     /// scalars from a fresh random seed `msm_seed`:
     ///   - w_ped[i] = Hash("w_ped", msm_seed, i): inner weights for the N Pedersen equations
-    ///   - w_aud[i] = Hash("w_aud", msm_seed, i): inner weights for the N auditor equations
+    ///   - w_dec[i] = Hash("w_dec", msm_seed, i): inner weights for the N decryption handle equations
     ///   - w_rec    = Hash("w_rec", msm_seed):    outer weight for the key recombination equation
     ///
-    /// The combined zero-check is
-    ///   sum_i w_ped[i] * (Pedersen)_i + w_rec * (Recomb) + sum_i w_aud[i] * (Auditor)_i == 0_G
+    /// The combined check is sum_i w_ped[i] * (Pedersen)_i + w_rec * (Recomb) + sum_i w_dec[i] * (DecryptionHandle)_i == 0.
     pub fn verify(
         &self,
         sender_public_key: &PublicKey,
@@ -412,8 +399,8 @@ impl<const N: usize> KeyConsistencyProof<N> {
         let msm_seed = RistrettoScalar::rand(rng);
         let w_ped: [RistrettoScalar; N] =
             from_fn(|i| fiat_shamir_challenge(&("w_ped", &msm_seed, i)));
-        let w_aud: [RistrettoScalar; N] =
-            from_fn(|i| fiat_shamir_challenge(&("w_aud", &msm_seed, i)));
+        let w_dec: [RistrettoScalar; N] =
+            from_fn(|i| fiat_shamir_challenge(&("w_dec", &msm_seed, i)));
         let w_rec = fiat_shamir_challenge(&("w_rec", &msm_seed));
 
         let b = RistrettoScalar::from(1u64 << 32);
@@ -421,7 +408,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
         // Coefficients on the fixed points:
         //   on G:     sum_i w_ped[i] * z1[i] + w_rec * sum_i 2^{32i} * z2[i]
         //   on H:     sum_i w_ped[i] * z2[i]
-        //   on S_rho: sum_i w_aud[i] * z1[i]
+        //   on S_rho: sum_i w_dec[i] * z1[i]
         //   on U:     -w_rec * c
         let coef_g = RistrettoScalar::inner_product(w_ped, self.z1)
             + w_rec
@@ -430,14 +417,14 @@ impl<const N: usize> KeyConsistencyProof<N> {
                     self.z2,
                 );
         let coef_h = RistrettoScalar::inner_product(w_ped, self.z2);
-        let coef_s_rho = RistrettoScalar::inner_product(w_aud, self.z1);
+        let coef_s_rho = RistrettoScalar::inner_product(w_dec, self.z1);
         let coef_u = -(w_rec * c);
 
         let mut scalars: Vec<RistrettoScalar> = vec![coef_g, coef_h, coef_s_rho, coef_u];
         let mut points: Vec<RistrettoPoint> = vec![*G, *H, s_rho, sender_public_key.0];
 
-        // Per-limb terms (5N): a1[i], C_i, a2[i], a3[i], D_rho[i]
-        let mut w_rec_pow = w_rec; // w_rec * 2^{32 * 0} = w_rec
+        // Per-limb terms (5n): a1[i], C_i, a2[i], a3[i], D_rho[i]
+        let mut w_rec_pow = w_rec;
         for i in 0..N {
             // Pedersen contributions
             scalars.push(-w_ped[i]);
@@ -447,10 +434,10 @@ impl<const N: usize> KeyConsistencyProof<N> {
             // Recombination contribution
             scalars.push(-w_rec_pow);
             points.push(self.a2[i]);
-            // Auditor contributions
-            scalars.push(-w_aud[i]);
+            // Decryption handle  contributions
+            scalars.push(-w_dec[i]);
             points.push(self.a3[i]);
-            scalars.push(-(c * w_aud[i]));
+            scalars.push(-(c * w_dec[i]));
             points.push(d_rho[i]);
             w_rec_pow *= b;
         }
