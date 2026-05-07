@@ -361,7 +361,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
     ///   where S_rho = sum_j rho_j * pk_j and D_rho[i] = sum_j rho_j * D_ij.
     ///
     /// All 2n+1 equations are consolidated into a single MSM using verifier-side hash-derived
-    /// scalars from a fresh random seed `msm_seed`:
+    /// scalars from a fresh random seed msm_seed:
     ///   - w_ped[i] = Hash("w_ped", msm_seed, i): inner weights for the N Pedersen equations
     ///   - w_dec[i] = Hash("w_dec", msm_seed, i): inner weights for the N decryption handle equations
     ///   - w_rec    = Hash("w_rec", msm_seed):    outer weight for the key recombination equation
