@@ -293,7 +293,7 @@ impl MultiRecipientCiphertext {
 }
 
 impl<const N: usize> KeyConsistencyProof<N> {
-    /// Construct the consistency proof, showing that the prover knows witness `(r_i, u_i)_{i=1..N}` satisfying:
+    /// Construct the consistency proof, showing that the prover knows witness (r_i, u_i)_{i=1..N} satisfying:
     ///
     ///   (W1) Pedersen openings: C_i = r_i * G + u_i * H  for all i
     ///   (W2) Key recombination: (sum_i 2^{32i} * u_i) * G = U
@@ -305,8 +305,8 @@ impl<const N: usize> KeyConsistencyProof<N> {
     ///   Round 1: Sample a_i, b_i and send the round-1 commitments a1[i] = a_i * G + b_i * H (Pedersen) and
     ///            a2[i] = b_i * G (key recombination).
     ///   Round 2: Compute m batching scalars rho = challenge_rho(statement).
-    ///   Round 3: Send the batched auditor commitment a3[i] = a_i * S_rho where S_rho = sum_j rho_j * pk_j.
-    ///            This collapses the m per-recipient auditor commitments into one per limb, making the proof size constant in m.
+    ///   Round 3: Send the batched decryption handle commitment a3[i] = a_i * S_rho where S_rho = sum_j rho_j * pk_j.
+    ///            This collapses the m per-recipient decryption handle commitments into one per limb, making the proof size constant in m.
     ///   Round 4: Compute the main sigma protocol challenge c = challenge_c(statement, rho, a1, a2, a3).
     ///   Round 5: Send the responses z1[i] = a_i + c * r_i and z2[i] = b_i + c * u_i.
     pub fn prove(
