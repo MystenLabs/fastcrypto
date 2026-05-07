@@ -165,8 +165,14 @@ pub struct AuthenticatedShards {
 pub struct Echo {
     sender: PartyId,
     authenticated_shards: AuthenticatedShards,
-    common_message_hash: Digest,
+    pub common_message_hash: Digest,
 }
+
+/// An [Echo] that has been verified by [Receiver::verify_echo] against a specific
+/// [CommonMessage]: the sender's shard count matches their weight, the Merkle proof checks out
+/// against the receiver's `recipient_root`, and the echo's `common_message_hash` matches.
+#[derive(Clone, Debug)]
+pub struct VerifiedEcho(Echo);
 
 /// The result of [Receiver::decode_ciphertext]: either a successfully reconstructed
 /// ciphertext whose AVID dispersal is consistent, or a [Blame] when the collected shards either
@@ -512,45 +518,35 @@ impl Receiver {
             .collect())
     }
 
-    /// 3. Reconstruct this receiver's ciphertext from received [Echo]s. Returns
+    /// Convenience wrapper around [Echo::verify] that looks up the sender's weight from
+    /// [Self::nodes] and uses [Self::id] as the recipient.
+    pub fn verify_echo(
+        &self,
+        echo: Echo,
+        common_message: &CommonMessage,
+    ) -> FastCryptoResult<VerifiedEcho> {
+        let weight = self.nodes.weight_of(echo.sender)?;
+        echo.verify(weight, self.id, common_message)
+    }
+
+    /// 3. Reconstruct this receiver's ciphertext from a quorum of [VerifiedEcho]s. Returns
     ///    [DecodeOutcome::Decoded] when the AVID dispersal is consistent with the dealer's
     ///    `r_{self.id}`, or [DecodeOutcome::InvalidDispersal] (a [Blame]) when it isn't.
     ///
-    ///    Invalid echos are filtered out here and a [NotEnoughWeight] error is returned
-    ///    if the valid echoes don't contribute `≥ W−2f` weight.
+    ///    Echoes must already be validated via [Self::verify_echo]. Returns [NotEnoughWeight] if
+    ///    the senders contribute `< W − 2f` weight.
     pub fn decode_ciphertext(
         &self,
-        echos: &[Echo],
+        echos: &[VerifiedEcho],
         common_message: &CommonMessage,
     ) -> FastCryptoResult<DecodeOutcome> {
         common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
         let recipient_root = common_message.recipient_root(self.id)?;
 
-        // Filter out invalid echo messages: each echo's shards proof must verify against the
-        // dealer's `r_{self.id}` and the number of shards must be equal to the weight of the sender.
-        let valid_echoes = echos
-            .iter()
-            .filter(|echo| {
-                self.nodes
-                    .weight_of(echo.sender)
-                    .is_ok_and(|w| echo.authenticated_shards.shards.len() == w as usize)
-            })
-            .filter(|echo| echo.verify(recipient_root).is_ok())
-            .cloned()
-            .collect_vec();
-
-        let common_message_hash =
-            get_uniform_value(valid_echoes.iter().map(|e| e.common_message_hash))
-                .ok_or(InvalidMessage)?;
-        if common_message_hash != common_message.hash() {
-            return Err(InvalidMessage);
-        }
-
-        // TODO: Double-check that this is ok
         let required_weight = self.nodes.total_weight() - 2 * self.f;
         if self
             .nodes
-            .total_weight_of(valid_echoes.iter().map(|echo| &echo.sender))?
+            .total_weight_of(echos.iter().map(|e| &e.0.sender))?
             < required_weight
         {
             return Err(NotEnoughWeight(required_weight as usize));
@@ -559,9 +555,10 @@ impl Receiver {
         // Try to RS-decode the ciphertext and re-encode it. The dispersal is consistent iff
         // both succeed and the re-encoded root matches `r_{self.id}`. Otherwise the dealer's
         // dispersal is inconsistent — package the collected shards into a self-contained [Blame].
-        let shards: BTreeMap<PartyId, AuthenticatedShards> = valid_echoes
-            .into_iter()
-            .map(|e| (e.sender, e.authenticated_shards))
+        let shards: BTreeMap<PartyId, AuthenticatedShards> = echos
+            .iter()
+            .cloned()
+            .map(|e| (e.0.sender, e.0.authenticated_shards))
             .collect();
 
         Ok(self
@@ -573,7 +570,7 @@ impl Receiver {
             .unwrap_or(DecodeOutcome::InvalidDispersal(Blame {
                 accuser_id: self.id,
                 shards,
-                common_message_hash,
+                common_message_hash: common_message.hash(),
             })))
     }
 
@@ -1059,11 +1056,26 @@ impl AuthenticatedShards {
 }
 
 impl Echo {
-    /// Verify the shard's Merkle proof against `recipient_root` (the dealer's `r_i` for the
-    /// recipient this echo is addressed to) at `sender`'s leaf.
-    fn verify(&self, recipient_root: &merkle::Node) -> FastCryptoResult<()> {
-        self.authenticated_shards
-            .verify(self.sender as usize, recipient_root)
+    /// Verify this echo against `common_message` for the recipient `receiver_id`: the sender's
+    /// shard count matches `sender_weight`, the Merkle proof checks against
+    /// `recipient_roots[receiver_id]`, and the echo's `common_message_hash` matches.
+    fn verify(
+        self,
+        sender_weight: u16,
+        receiver_id: PartyId,
+        common_message: &CommonMessage,
+    ) -> FastCryptoResult<VerifiedEcho> {
+        if self.authenticated_shards.shards.len() != sender_weight as usize {
+            return Err(InvalidMessage);
+        }
+        self.authenticated_shards.verify(
+            self.sender as usize,
+            common_message.recipient_root(receiver_id)?,
+        )?;
+        if self.common_message_hash != common_message.hash() {
+            return Err(InvalidMessage);
+        }
+        Ok(VerifiedEcho(self))
     }
 }
 
@@ -1238,7 +1250,15 @@ mod tests {
             .zip(messages.iter())
             .zip(echoes_by_recipient.iter())
             .map(|((receiver, message), echoes)| {
-                assert_decoded(receiver.decode_ciphertext(echoes, &message.common).unwrap())
+                let verified = echoes
+                    .iter()
+                    .map(|e| receiver.verify_echo(e.clone(), &message.common).unwrap())
+                    .collect_vec();
+                assert_decoded(
+                    receiver
+                        .decode_ciphertext(&verified, &message.common)
+                        .unwrap(),
+                )
             })
             .collect_vec();
 
@@ -1352,8 +1372,15 @@ mod tests {
             .iter()
             .zip(echoes_per_recipient.iter())
             .map(|(r, echoes)| {
+                let verified = echoes
+                    .iter()
+                    .map(|e| {
+                        r.verify_echo(e.clone(), &messages[r.id as usize].common)
+                            .unwrap()
+                    })
+                    .collect_vec();
                 let pem = assert_decoded(
-                    r.decode_ciphertext(echoes, &messages[r.id as usize].common)
+                    r.decode_ciphertext(&verified, &messages[r.id as usize].common)
                         .unwrap(),
                 );
                 ciphertexts.insert(r.id, pem.clone());
@@ -1513,9 +1540,16 @@ mod tests {
             .iter()
             .zip(echoes_per_recipient.iter())
             .map(|(r, echoes)| {
+                let verified = echoes
+                    .iter()
+                    .map(|e| {
+                        r.verify_echo(e.clone(), &messages[r.id as usize].common)
+                            .unwrap()
+                    })
+                    .collect_vec();
                 (
                     r.id,
-                    r.decode_ciphertext(echoes, &messages[r.id as usize].common)
+                    r.decode_ciphertext(&verified, &messages[r.id as usize].common)
                         .unwrap(),
                 )
             })

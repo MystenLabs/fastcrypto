@@ -135,8 +135,14 @@ mod batch_avss_benches {
                     .enumerate()
                     .map(|(i, r)| r.echo(&messages[i]).unwrap())
                     .collect();
-                let echoes_for_party_1: Vec<batch_avss::Echo> =
-                    echoes.iter().map(|em| em[1].clone()).collect();
+                let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
+                    .iter()
+                    .map(|em| {
+                        receivers[1]
+                            .verify_echo(em[1].clone(), &messages[1].common)
+                            .unwrap()
+                    })
+                    .collect();
                 let r1 = &receivers[1];
 
                 process.bench_function(
@@ -187,8 +193,14 @@ mod batch_avss_benches {
                             .enumerate()
                             .map(|(i, r)| r.echo(&messages[i]).unwrap())
                             .collect();
-                        let echoes_for_party_1: Vec<batch_avss::Echo> =
-                            echoes.iter().map(|em| em[1].clone()).collect();
+                        let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
+                            .iter()
+                            .map(|em| {
+                                receivers[1]
+                                    .verify_echo(em[1].clone(), &messages[1].common)
+                                    .unwrap()
+                            })
+                            .collect();
                         let pem = match receivers[1]
                             .decode_ciphertext(&echoes_for_party_1, &messages[1].common)
                             .unwrap()
