@@ -763,28 +763,35 @@ impl Receiver {
         response: ComplaintResponse,
         common_message: &CommonMessage,
     ) -> FastCryptoResult<VerifiedComplaintResponse> {
-        let challenge =
-            compute_challenge_from_common_message(&self.random_oracle(), common_message);
-        let responder_pk = self
-            .nodes
-            .node_id_to_node(response.responder_id)?
-            .pk
-            .clone();
-        let weight = self.nodes.weight_of(response.responder_id)?;
-        let recipient_root = common_message.recipient_root(response.responder_id)?;
-        self.check_avid_consistency(&response.ciphertext, recipient_root)?;
-        let plaintext = common_message.shared.decrypt_with_recovery_package(
-            &response.ciphertext,
-            &response.recovery_package,
-            &self
-                .random_oracle()
-                .extend(&Recovery(response.responder_id).to_string()),
-            &self.random_oracle().extend(&Encryption.to_string()),
-            &responder_pk,
-            response.responder_id as usize,
+        let ComplaintResponse {
+            responder_id,
+            ciphertext,
+            recovery_package,
+        } = response;
+
+        self.check_avid_consistency(&ciphertext, common_message.recipient_root(responder_id)?)?;
+        let responder = self.nodes.node_id_to_node(responder_id)?;
+        let shares = common_message
+            .shared
+            .decrypt_with_recovery_package(
+                &ciphertext,
+                &recovery_package,
+                &self
+                    .random_oracle()
+                    .extend(&Recovery(responder_id).to_string()),
+                &self.random_oracle().extend(&Encryption.to_string()),
+                &responder.pk,
+                responder_id as usize,
+            )
+            .and_then(SharesForNode::from_bytes)?;
+
+        shares.verify(
+            common_message,
+            &compute_challenge_from_common_message(&self.random_oracle(), common_message),
+            responder.weight,
+            self.batch_size,
         )?;
-        let shares = SharesForNode::from_bytes(&plaintext)?;
-        shares.verify(common_message, &challenge, weight, self.batch_size)?;
+
         Ok(VerifiedComplaintResponse(shares))
     }
 
@@ -797,15 +804,13 @@ impl Receiver {
         common_message: &CommonMessage,
         responses: Vec<VerifiedComplaintResponse>,
     ) -> FastCryptoResult<ReceiverOutput> {
-        let challenge = common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
-
         let response_shares: Vec<SharesForNode> = responses.into_iter().map(|v| v.0).collect();
-
         let response_weight: u16 = response_shares.iter().map(SharesForNode::weight).sum();
         if response_weight < self.t {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
 
+        let challenge = common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
         let my_shares = SharesForNode::recover(self, &response_shares)?;
         my_shares.verify(
             common_message,
