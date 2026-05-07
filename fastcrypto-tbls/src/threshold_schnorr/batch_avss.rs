@@ -61,10 +61,12 @@
 //!   don't satisfy `p''`. The accuser publishes a `Reveal` with their ciphertext and an ECIES
 //!   recovery package; verifiers re-bind the ciphertext to the dealer's broadcast and use the
 //!   recovery package to confirm decryption yields invalid shares.
-//! - **[Blame]** (dispersal-layer fault, raised in step 3). RS-decode fails or the recovered
-//!   ciphertext doesn't re-encode to `recipient_roots[accuser]`. The accuser publishes a
-//!   `Blame` with the collected per-sender [AuthenticatedShards] as evidence; verifiers re-run
-//!   the same decode-and-re-encode check on the carried shards.
+//! - **[Blame]** (dispersal-layer fault, raised in step 3). When [Receiver::decode_ciphertext]
+//!   returns [DecodeOutcome::InvalidDispersal], **hold** the [Blame] — do not broadcast yet.
+//!   If a certificate for the same `common_message_hash` later lands on the TOB, publish it; if
+//!   a different [CommonMessage] gets certified instead, discard the held [Blame] and re-decode
+//!   against echoes for the certified common. Verifiers re-run the same decode-and-re-encode
+//!   check on the carried shards.
 //!
 //! Verifiers respond to a valid complaint with a [ComplaintResponse] carrying their own
 //! ciphertext plus a recovery package. The accuser AVID-binds each responder's ciphertext,
@@ -182,6 +184,11 @@ pub struct VerifiedEcho(Echo);
 /// ciphertext whose AVID dispersal is consistent, or a [Blame] when the collected shards either
 /// fail to RS-decode or decode to a ciphertext whose re-encoding disagrees with the dealer's
 /// `r_i`.
+///
+/// On `InvalidDispersal`, do **not** broadcast the [Blame] immediately: hold it until the same
+/// `common_message_hash` is certified on the TOB, then publish. If a *different* [CommonMessage]
+/// gets certified instead, discard the held [Blame] and re-decode against the echoes for the
+/// certified common.
 #[allow(clippy::large_enum_variant)]
 pub enum DecodeOutcome {
     Decoded(Vec<u8>),
@@ -213,6 +220,9 @@ pub struct Reveal {
 /// the accuser's collected per-sender [AuthenticatedShards] so verifiers can re-run the AVID
 /// check without needing to observe echoes addressed to the accuser. The map keys are sender
 /// ids, which both deduplicates contributions and gives O(log n) lookup during reconstruction.
+///
+/// Do not broadcast a [Blame] until the matching `common_message_hash` has been certified on the
+/// TOB; see [DecodeOutcome::InvalidDispersal].
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Blame {
     pub accuser_id: PartyId,
