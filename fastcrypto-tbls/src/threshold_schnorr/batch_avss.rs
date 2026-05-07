@@ -685,15 +685,14 @@ impl Receiver {
         let recipient_root = common_message.recipient_root(proof.accuser_id)?;
         self.check_avid_consistency(reveal_ciphertext, recipient_root)
             .map_err(|_| InvalidProof)?;
-        let accuser_pk = &self.nodes.node_id_to_node(proof.accuser_id)?.pk;
-        let accuser_weight = self.nodes.weight_of(proof.accuser_id)?;
+        let accuser = self.nodes.node_id_to_node(proof.accuser_id)?;
         proof.check(
-            accuser_pk,
+            &accuser.pk,
             reveal_ciphertext,
             &common_message.shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
-                shares.verify(common_message, &challenge, accuser_weight, self.batch_size)
+                shares.verify(common_message, &challenge, accuser.weight, self.batch_size)
             },
         )?;
 
@@ -728,7 +727,6 @@ impl Receiver {
         if shards
             .iter()
             .any(|(sender, auth)| auth.verify(*sender as usize, recipient_root).is_err())
-        // TODO: Check this
         {
             return Ok(self.build_complaint_response(common_message, ciphertext));
         }
@@ -826,7 +824,7 @@ impl Receiver {
         common_message: &VerifiedCommonMessage,
         responses: Vec<VerifiedComplaintResponse>,
     ) -> FastCryptoResult<ReceiverOutput> {
-        let response_shares: Vec<SharesForNode> = responses.into_iter().map(|v| v.0).collect();
+        let response_shares = responses.into_iter().map(|v| v.0).collect_vec();
         let response_weight: u16 = response_shares.iter().map(SharesForNode::weight).sum();
         if response_weight < self.t {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
@@ -910,7 +908,7 @@ impl CommonMessage {
     /// Verify the dealer's commitments: the lengths/degree of the published values are
     /// well-formed and `g^{p''(0)} = c' · ∏ c_l^{γ_l}`. Consumes `self` and returns a
     /// [VerifiedCommonMessage] on success.
-    pub fn verify(
+    fn verify(
         self,
         t: u16,
         batch_size: usize,
@@ -992,7 +990,6 @@ impl SharesForNode {
     /// If all shares have the same batch size, return that.
     /// Otherwise, return an InvalidInput error.
     pub fn try_uniform_batch_size(&self) -> FastCryptoResult<usize> {
-        // TODO: Should we cache this? It's called twice per dealer -- once when verifying shares received from a dealer and then again during presigning.
         get_uniform_value(self.shares.iter().map(ShareBatch::batch_size)).ok_or(InvalidInput)
     }
 
