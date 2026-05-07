@@ -88,7 +88,7 @@ use fastcrypto::error::FastCryptoError::{
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::secp256k1::SCALAR_SIZE_IN_BYTES;
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
-use fastcrypto::hash::{Blake2b256, HashFunction, Sha3_512};
+use fastcrypto::hash::{Blake2b256, HashFunction};
 use fastcrypto::merkle;
 use fastcrypto::merkle::MerkleTree;
 use fastcrypto::traits::AllowedRng;
@@ -136,11 +136,9 @@ pub struct Message {
     dispersal: Vec<AuthenticatedShards>,
 }
 
-/// The shared part of the dealer's broadcast — identical for every receiver and required by
-/// every later step ([Receiver::decode_ciphertext], [Receiver::verify_and_decrypt],
-/// [Receiver::handle_reveal], [Receiver::handle_blame], [Receiver::recover]). Receivers should
-/// keep it around for the lifetime of the session. A receiver that didn't get a [Message] from
-/// the dealer should fetch the [CommonMessage] from another receiver who did.
+/// The shared part of the dealer's broadcast — identical for every receiver. Receivers must run
+/// it through [Receiver::verify_common_message] before any further step; the resulting
+/// [VerifiedCommonMessage] is what every later API consumes.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CommonMessage {
     full_public_keys: Vec<G>,
@@ -149,6 +147,12 @@ pub struct CommonMessage {
     response_polynomial: Poly<S>,
     recipient_roots: Vec<merkle::Node>,
 }
+
+/// A [CommonMessage] that has been validated against the dealer's commitments. Receivers
+/// should keep it around for the lifetime of the session.
+// TODO: We can cache the hash and challenge here if it makes sense.
+#[derive(Clone, Debug)]
+pub struct VerifiedCommonMessage(pub CommonMessage);
 
 /// One recipient's shards for one ciphertext, with a Merkle proof verifying against the
 /// corresponding `recipient_root` from [CommonMessage].
@@ -497,8 +501,10 @@ impl Receiver {
     }
 
     /// 2. Verify the dispersal entries against `recipient_roots` and emit one [Echo] per
-    ///    recipient (indexed by recipient id) for the receiver to broadcast.
-    pub fn echo(&self, message: &Message) -> FastCryptoResult<Vec<Echo>> {
+    ///    recipient (indexed by recipient id) for the receiver to broadcast. Also returns the
+    ///    [VerifiedCommonMessage] that the receiver should keep around for the rest of the
+    ///    session.
+    pub fn echo(&self, message: &Message) -> FastCryptoResult<(VerifiedCommonMessage, Vec<Echo>)> {
         if message.dispersal.len() != message.common.recipient_roots.len() {
             return Err(InvalidMessage);
         }
@@ -511,8 +517,9 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        let common_message_hash = message.common.hash();
-        Ok(message
+        let verified_common_message = self.verify_common_message(message.common.clone())?;
+        let common_message_hash = verified_common_message.0.hash();
+        let echoes = message
             .dispersal
             .iter()
             .cloned()
@@ -521,7 +528,17 @@ impl Receiver {
                 authenticated_shards,
                 common_message_hash,
             })
-            .collect())
+            .collect();
+        Ok((verified_common_message, echoes))
+    }
+
+    /// Run the dealer's commitments through [CommonMessage::verify] using this receiver's `t`,
+    /// `batch_size`, and session id. Returns the resulting [VerifiedCommonMessage].
+    pub fn verify_common_message(
+        &self,
+        common_message: CommonMessage,
+    ) -> FastCryptoResult<VerifiedCommonMessage> {
+        common_message.verify(self.t, self.batch_size, &self.random_oracle())
     }
 
     /// Verify an [Echo] addressed to this receiver against `common_message`: the sender's shard
@@ -531,10 +548,10 @@ impl Receiver {
     pub fn verify_echo(
         &self,
         echo: Echo,
-        common_message: &CommonMessage,
+        common_message: &VerifiedCommonMessage,
     ) -> FastCryptoResult<VerifiedEcho> {
         let weight = self.nodes.weight_of(echo.sender)?;
-        echo.verify(weight, self.id, common_message)
+        echo.verify(weight, self.id, &common_message.0)
     }
 
     /// 3. Reconstruct this receiver's ciphertext from a quorum of [VerifiedEcho]s. Returns
@@ -546,10 +563,8 @@ impl Receiver {
     pub fn decode_ciphertext(
         &self,
         echos: &[VerifiedEcho],
-        common_message: &CommonMessage,
+        common_message: &VerifiedCommonMessage,
     ) -> FastCryptoResult<DecodeOutcome> {
-        common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
-
         let required_weight = self.nodes.total_weight() - 2 * self.f;
         if self
             .nodes
@@ -571,13 +586,13 @@ impl Receiver {
         Ok(self
             .reconstruct_ciphertext(self.id, &shards)
             .and_then(|ct| {
-                self.check_avid_consistency(&ct, common_message.recipient_root(self.id)?)?;
+                self.check_avid_consistency(&ct, common_message.0.recipient_root(self.id)?)?;
                 Ok(DecodeOutcome::Decoded(ct))
             })
             .unwrap_or(DecodeOutcome::InvalidDispersal(Blame {
                 accuser_id: self.id,
                 shards,
-                common_message_hash: common_message.hash(),
+                common_message_hash: common_message.0.hash(),
             })))
     }
 
@@ -587,9 +602,11 @@ impl Receiver {
     pub fn verify_and_decrypt(
         &self,
         ciphertext: &[u8],
-        common_message: &CommonMessage,
+        common_message: &VerifiedCommonMessage,
     ) -> FastCryptoResult<DecryptionOutcome> {
-        let challenge = common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
+        let common_message = &common_message.0;
+        let challenge =
+            compute_challenge_from_common_message(&self.random_oracle(), common_message);
         let CommonMessage {
             full_public_keys,
             shared,
@@ -600,8 +617,6 @@ impl Receiver {
         shared
             .verify(&random_oracle_encryption)
             .map_err(|_| InvalidMessage)?;
-
-        let common_message_hash = common_message.hash();
         let plaintext = shared.decrypt(
             ciphertext,
             &self.enc_secret_key,
@@ -609,6 +624,7 @@ impl Receiver {
             self.id as usize,
         );
 
+        let common_message_hash = common_message.hash();
         SharesForNode::from_bytes(plaintext)
             .and_then(|my_shares| {
                 my_shares.verify(
@@ -650,10 +666,12 @@ impl Receiver {
     pub fn handle_reveal(
         &self,
         reveal: &Reveal,
-        common_message: &CommonMessage,
+        common_message: &VerifiedCommonMessage,
         ciphertext: Vec<u8>,
     ) -> FastCryptoResult<ComplaintResponse> {
-        let challenge = common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
+        let common_message = &common_message.0;
+        let challenge =
+            compute_challenge_from_common_message(&self.random_oracle(), common_message);
 
         let Reveal {
             proof,
@@ -691,10 +709,10 @@ impl Receiver {
     pub fn handle_blame(
         &self,
         blame: &Blame,
-        common_message: &CommonMessage,
+        common_message: &VerifiedCommonMessage,
         ciphertext: Vec<u8>,
     ) -> FastCryptoResult<ComplaintResponse> {
-        common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
+        let common_message = &common_message.0;
 
         let Blame {
             accuser_id,
@@ -761,8 +779,12 @@ impl Receiver {
     pub fn verify_complaint_response(
         &self,
         response: ComplaintResponse,
-        common_message: &CommonMessage,
+        common_message: &VerifiedCommonMessage,
     ) -> FastCryptoResult<VerifiedComplaintResponse> {
+        let common_message = &common_message.0;
+        let challenge =
+            compute_challenge_from_common_message(&self.random_oracle(), common_message);
+
         let ComplaintResponse {
             responder_id,
             ciphertext,
@@ -787,7 +809,7 @@ impl Receiver {
 
         shares.verify(
             common_message,
-            &compute_challenge_from_common_message(&self.random_oracle(), common_message),
+            &challenge,
             responder.weight,
             self.batch_size,
         )?;
@@ -801,7 +823,7 @@ impl Receiver {
     ///    interpolated shares fail final verification.
     pub fn recover(
         &self,
-        common_message: &CommonMessage,
+        common_message: &VerifiedCommonMessage,
         responses: Vec<VerifiedComplaintResponse>,
     ) -> FastCryptoResult<ReceiverOutput> {
         let response_shares: Vec<SharesForNode> = responses.into_iter().map(|v| v.0).collect();
@@ -810,7 +832,9 @@ impl Receiver {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
 
-        let challenge = common_message.verify(self.t, self.batch_size, &self.random_oracle())?;
+        let common_message = &common_message.0;
+        let challenge =
+            compute_challenge_from_common_message(&self.random_oracle(), common_message);
         let my_shares = SharesForNode::recover(self, &response_shares)?;
         my_shares.verify(
             common_message,
@@ -884,20 +908,20 @@ impl Receiver {
 
 impl CommonMessage {
     /// Verify the dealer's commitments: the lengths/degree of the published values are
-    /// well-formed and `g^{p''(0)} = c' · ∏ c_l^{γ_l}`. Returns the Fiat-Shamir challenge `γ`
-    /// so the caller can reuse it for per-share verification.
-    fn verify(
-        &self,
+    /// well-formed and `g^{p''(0)} = c' · ∏ c_l^{γ_l}`. Consumes `self` and returns a
+    /// [VerifiedCommonMessage] on success.
+    pub fn verify(
+        self,
         t: u16,
         batch_size: usize,
         random_oracle: &RandomOracle,
-    ) -> FastCryptoResult<Vec<S>> {
+    ) -> FastCryptoResult<VerifiedCommonMessage> {
         if self.full_public_keys.len() != batch_size
             || self.response_polynomial.degree() != t as usize - 1
         {
             return Err(InvalidMessage);
         }
-        let challenge = compute_challenge_from_common_message(random_oracle, self);
+        let challenge = compute_challenge_from_common_message(random_oracle, &self);
         if G::generator() * self.response_polynomial.c0()
             != self.blinding_commit
                 + G::multi_scalar_mul(&challenge, &self.full_public_keys)
@@ -905,7 +929,7 @@ impl CommonMessage {
         {
             return Err(InvalidMessage);
         }
-        Ok(challenge)
+        Ok(VerifiedCommonMessage(self))
     }
 
     /// Blake2b hash of the BCS-serialized [CommonMessage]. Used to bind echoes and complaints
@@ -1119,7 +1143,7 @@ fn compute_challenge(
 ) -> Vec<S> {
     let random_oracle = random_oracle.extend(&Challenge.to_string());
     let inner_hash =
-        Sha3_512::digest(bcs::to_bytes(&(c.to_vec(), c_prime, shared, recipient_roots)).unwrap())
+        Blake2b256::digest(bcs::to_bytes(&(c.to_vec(), c_prime, shared, recipient_roots)).unwrap())
             .digest;
     (0..c.len())
         .map(|l| random_oracle.evaluate_to_group_element(&(l, inner_hash.to_vec())))
@@ -1241,11 +1265,10 @@ mod tests {
 
         let messages = dealer.create_message(&mut rng).unwrap();
 
-        let echoes_by_sender = receivers
+        let (verified_commons, echoes_by_sender): (Vec<_>, Vec<_>) = receivers
             .iter()
-            .map(|receiver| receiver.echo(&messages[receiver.id as usize]))
-            .collect::<FastCryptoResult<Vec<_>>>()
-            .unwrap();
+            .map(|receiver| receiver.echo(&messages[receiver.id as usize]).unwrap())
+            .unzip();
 
         let echoes_by_recipient = receivers
             .iter()
@@ -1260,28 +1283,23 @@ mod tests {
 
         let decoded_ciphertext = receivers
             .iter()
-            .zip(messages.iter())
+            .zip(verified_commons.iter())
             .zip(echoes_by_recipient.iter())
-            .map(|((receiver, message), echoes)| {
+            .map(|((receiver, vcm), echoes)| {
                 let verified = echoes
                     .iter()
-                    .map(|e| receiver.verify_echo(e.clone(), &message.common).unwrap())
+                    .map(|e| receiver.verify_echo(e.clone(), vcm).unwrap())
                     .collect_vec();
-                assert_decoded(
-                    receiver
-                        .decode_ciphertext(&verified, &message.common)
-                        .unwrap(),
-                )
+                assert_decoded(receiver.decode_ciphertext(&verified, vcm).unwrap())
             })
             .collect_vec();
 
         let all_shares = receivers
             .iter()
+            .zip(verified_commons.iter())
             .zip(decoded_ciphertext)
-            .zip(messages)
-            .map(|((receiver, pem), message)| {
-                let output =
-                    assert_valid(receiver.verify_and_decrypt(&pem, &message.common).unwrap());
+            .map(|((receiver, vcm), pem)| {
+                let output = assert_valid(receiver.verify_and_decrypt(&pem, vcm).unwrap());
                 (receiver.id, output)
             })
             .collect::<HashMap<_, _>>();
@@ -1370,10 +1388,10 @@ mod tests {
         let messages = dealer.create_message_cheating(&mut rng).unwrap();
 
         // Echo phase
-        let echos = receivers
+        let (verified_commons, echos): (Vec<_>, Vec<_>) = receivers
             .iter()
             .map(|r| r.echo(&messages[r.id as usize]).unwrap())
-            .collect_vec();
+            .unzip();
         let echoes_per_recipient = (0..n)
             .map(|i| echos.iter().map(|em| em[i].clone()).collect_vec())
             .collect_vec();
@@ -1383,25 +1401,16 @@ mod tests {
         let mut ciphertexts: HashMap<u16, Vec<u8>> = HashMap::new();
         let outcomes: HashMap<u16, DecryptionOutcome> = receivers
             .iter()
+            .zip(verified_commons.iter())
             .zip(echoes_per_recipient.iter())
-            .map(|(r, echoes)| {
+            .map(|((r, vcm), echoes)| {
                 let verified = echoes
                     .iter()
-                    .map(|e| {
-                        r.verify_echo(e.clone(), &messages[r.id as usize].common)
-                            .unwrap()
-                    })
+                    .map(|e| r.verify_echo(e.clone(), vcm).unwrap())
                     .collect_vec();
-                let pem = assert_decoded(
-                    r.decode_ciphertext(&verified, &messages[r.id as usize].common)
-                        .unwrap(),
-                );
+                let pem = assert_decoded(r.decode_ciphertext(&verified, vcm).unwrap());
                 ciphertexts.insert(r.id, pem.clone());
-                (
-                    r.id,
-                    r.verify_and_decrypt(&pem, &messages[r.id as usize].common)
-                        .unwrap(),
-                )
+                (r.id, r.verify_and_decrypt(&pem, vcm).unwrap())
             })
             .collect();
 
@@ -1431,25 +1440,22 @@ mod tests {
         // Each non-victim verifies the complaint and returns their own ciphertext + recovery package.
         let responses = receivers
             .iter()
-            .filter(|r| r.id != victim_id)
-            .map(|r| {
-                r.handle_reveal(
-                    &reveal,
-                    &messages[r.id as usize].common,
-                    ciphertexts.get(&r.id).unwrap().clone(),
-                )
-                .unwrap()
+            .zip(verified_commons.iter())
+            .filter(|(r, _)| r.id != victim_id)
+            .map(|(r, vcm)| {
+                r.handle_reveal(&reveal, vcm, ciphertexts.get(&r.id).unwrap().clone())
+                    .unwrap()
             })
             .collect_vec();
 
         // Victim verifies and then recovers via interpolation across t responses.
         let victim = &receivers[victim_id as usize];
-        let common = &messages[victim_id as usize].common;
+        let vcm = &verified_commons[victim_id as usize];
         let verified_responses = responses
             .into_iter()
-            .map(|r| victim.verify_complaint_response(r, common).unwrap())
+            .map(|r| victim.verify_complaint_response(r, vcm).unwrap())
             .collect_vec();
-        let recovered = victim.recover(common, verified_responses).unwrap();
+        let recovered = victim.recover(vcm, verified_responses).unwrap();
         outputs.insert(victim_id, recovered);
 
         // Sanity: every receiver now holds verifiable shares for every secret.
@@ -1528,10 +1534,10 @@ mod tests {
         let victim_id = 0u16;
 
         // Echo phase
-        let echos = receivers
+        let (verified_commons, echos): (Vec<_>, Vec<_>) = receivers
             .iter()
             .map(|r| r.echo(&messages[r.id as usize]).unwrap())
-            .collect_vec();
+            .unzip();
 
         // Bundle echoes per recipient. For the victim, simulate the last f senders being silent
         // (their corrupted shards would otherwise make the receiver's decode fail outright).
@@ -1555,20 +1561,14 @@ mod tests {
         // gets a [DecodeOutcome::Decoded] that they can pass through `verify_and_decrypt`.
         let mut decode_outcomes: HashMap<u16, DecodeOutcome> = receivers
             .iter()
+            .zip(verified_commons.iter())
             .zip(echoes_per_recipient.iter())
-            .map(|(r, echoes)| {
+            .map(|((r, vcm), echoes)| {
                 let verified = echoes
                     .iter()
-                    .map(|e| {
-                        r.verify_echo(e.clone(), &messages[r.id as usize].common)
-                            .unwrap()
-                    })
+                    .map(|e| r.verify_echo(e.clone(), vcm).unwrap())
                     .collect_vec();
-                (
-                    r.id,
-                    r.decode_ciphertext(&verified, &messages[r.id as usize].common)
-                        .unwrap(),
-                )
+                (r.id, r.decode_ciphertext(&verified, vcm).unwrap())
             })
             .collect();
 
@@ -1584,7 +1584,7 @@ mod tests {
                 let pem = assert_decoded(decoded);
                 ciphertexts.insert(id, pem.clone());
                 let outcome = receivers[id as usize]
-                    .verify_and_decrypt(&pem, &messages[id as usize].common)
+                    .verify_and_decrypt(&pem, &verified_commons[id as usize])
                     .unwrap();
                 let output = match outcome {
                     DecryptionOutcome::Valid { output, .. } => output,
@@ -1600,25 +1600,22 @@ mod tests {
         // Each non-victim verifies the complaint and returns their own ciphertext + recovery package.
         let responses = receivers
             .iter()
-            .filter(|r| r.id != victim_id)
-            .map(|r| {
-                r.handle_blame(
-                    &blame,
-                    &messages[r.id as usize].common,
-                    ciphertexts.get(&r.id).unwrap().clone(),
-                )
-                .unwrap()
+            .zip(verified_commons.iter())
+            .filter(|(r, _)| r.id != victim_id)
+            .map(|(r, vcm)| {
+                r.handle_blame(&blame, vcm, ciphertexts.get(&r.id).unwrap().clone())
+                    .unwrap()
             })
             .collect_vec();
 
         // Victim verifies and then recovers via interpolation across t responses.
         let victim = &receivers[victim_id as usize];
-        let common = &messages[victim_id as usize].common;
+        let vcm = &verified_commons[victim_id as usize];
         let verified_responses = responses
             .into_iter()
-            .map(|r| victim.verify_complaint_response(r, common).unwrap())
+            .map(|r| victim.verify_complaint_response(r, vcm).unwrap())
             .collect_vec();
-        let recovered = victim.recover(common, verified_responses).unwrap();
+        let recovered = victim.recover(vcm, verified_responses).unwrap();
         outputs.insert(victim_id, recovered);
 
         // Sanity: every receiver now holds verifiable shares for every secret.

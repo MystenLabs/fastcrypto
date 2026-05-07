@@ -130,29 +130,28 @@ mod batch_avss_benches {
                     .map(|id| setup_receiver(id, 0, f, t, w, &keys, batch_size_per_weight))
                     .collect();
                 let messages = d0.create_message(&mut thread_rng()).unwrap();
+                let mut vcm = None;
                 let echoes: Vec<Vec<batch_avss::Echo>> = receivers
                     .iter()
                     .enumerate()
-                    .map(|(i, r)| r.echo(&messages[i]).unwrap())
+                    .map(|(i, r)| {
+                        let (v, e) = r.echo(&messages[i]).unwrap();
+                        if i == 1 {
+                            vcm = Some(v);
+                        }
+                        e
+                    })
                     .collect();
+                let vcm = vcm.unwrap();
                 let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                     .iter()
-                    .map(|em| {
-                        receivers[1]
-                            .verify_echo(em[1].clone(), &messages[1].common)
-                            .unwrap()
-                    })
+                    .map(|em| receivers[1].verify_echo(em[1].clone(), &vcm).unwrap())
                     .collect();
                 let r1 = &receivers[1];
 
                 process.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| {
-                        b.iter(|| {
-                            r1.decode_ciphertext(&echoes_for_party_1, &messages[1].common)
-                                .unwrap()
-                        })
-                    },
+                    |b| b.iter(|| r1.decode_ciphertext(&echoes_for_party_1, &vcm).unwrap()),
                 );
             }
         }
@@ -188,31 +187,31 @@ mod batch_avss_benches {
                                 )
                             })
                             .collect();
+                        let mut vcm = None;
                         let echoes: Vec<Vec<batch_avss::Echo>> = receivers
                             .iter()
                             .enumerate()
-                            .map(|(i, r)| r.echo(&messages[i]).unwrap())
-                            .collect();
-                        let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
-                            .iter()
-                            .map(|em| {
-                                receivers[1]
-                                    .verify_echo(em[1].clone(), &messages[1].common)
-                                    .unwrap()
+                            .map(|(i, r)| {
+                                let (v, e) = r.echo(&messages[i]).unwrap();
+                                if i == 1 {
+                                    vcm = Some(v);
+                                }
+                                e
                             })
                             .collect();
+                        let vcm = vcm.unwrap();
+                        let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
+                            .iter()
+                            .map(|em| receivers[1].verify_echo(em[1].clone(), &vcm).unwrap())
+                            .collect();
                         let pem = match receivers[1]
-                            .decode_ciphertext(&echoes_for_party_1, &messages[1].common)
+                            .decode_ciphertext(&echoes_for_party_1, &vcm)
                             .unwrap()
                         {
                             batch_avss::DecodeOutcome::Decoded(d) => d,
                             _ => panic!("expected Decoded outcome"),
                         };
-                        assert_valid_batch(
-                            receivers[1]
-                                .verify_and_decrypt(&pem, &messages[1].common)
-                                .unwrap(),
-                        )
+                        assert_valid_batch(receivers[1].verify_and_decrypt(&pem, &vcm).unwrap())
                     })
                     .collect_vec();
 
