@@ -7,14 +7,14 @@
 //!
 //! A single dealer commits to a batch of `L` random nonces `r_1, …, r_L` and distributes
 //! shares to `n` weighted receivers forming a `t`-of-`W` threshold (with `W = Σ_j w_j` total
-//! weight, `f` the Byzantine bound by weight, and `L = w_dealer · BATCH_SIZE`). Every honest
+//! weight, `f` the Byzantine bound by weight, and `L = w_dealer · BATCH_SIZE`). In case of a honest dealer, every honest
 //! receiver `j` ends up with `p_l(i_{j,1}), …, p_l(i_{j,w_j})` for every secret `r_l`, where
 //! `p_l` is a degree-`(t−1)` polynomial with `p_l(0) = r_l`. Any `≥ t` valid shares reconstruct
 //! `r_l`.
 //!
 //! # Two layers
 //!
-//! The dealer's broadcast (the [CommonMessage]) carries the public commitments
+//! The dealer's broadcast (the [CommonMessage]) carries the public nonces
 //! `c_l = g^{r_l}`, the blinding commitment `c' = g^{r'}`, the *response polynomial* `p''(X)`,
 //! and the per-recipient Merkle roots `r_1, …, r_n`.
 //!
