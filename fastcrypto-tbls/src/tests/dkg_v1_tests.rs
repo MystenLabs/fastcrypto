@@ -1108,6 +1108,7 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
     // Compute the observers output. The Observer has no shares but only the vss_pk
     let obs_output = observer.observe_dkg(all_messages).unwrap();
     assert_eq!(obs_output.vss_pk, o0.vss_pk);
+    assert!(obs_output.shares.is_none());
 
     // Use the shares to sign the message.
     let sig0 = S::partial_sign(&o0.shares.as_ref().unwrap()[0], &MSG);
@@ -1234,8 +1235,9 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
 
     assert_eq!(no0.vss_pk.c0(), o0.vss_pk.c0());
 
-    // The Observer sees the same vss_pk
+    // The Observer sees the same vss_pk and produces no shares
     assert_eq!(observer_output_2.vss_pk, no0.vss_pk);
+    assert!(observer_output_2.shares.is_none());
 
     // Use the shares to sign the message.
     let sig0 = S::partial_sign(&no0.shares.as_ref().unwrap()[0], &MSG);
