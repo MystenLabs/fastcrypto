@@ -1010,7 +1010,6 @@ where
 {
     /// 1. Create a new ECIES private key and send the public key to all parties.
     /// 2. After *all* parties have sent their ECIES public keys, create the (same) set of nodes.
-
     /// 3. Create a new Party instance with the ECIES private key and the set of nodes.
     pub fn new(
         nodes: Nodes<EG>,
@@ -1151,7 +1150,7 @@ where
     ///
     ///    We split this function into two parts: process_message and merge, so that the caller can
     ///    process messages concurrently and then merge the results.
-
+    ///
     ///    [process_message] processes a message and returns an intermediate object ProcessedMessage.
     ///
     ///    Returns error InvalidMessage if the message is invalid and should be ignored (note that we
@@ -1371,7 +1370,7 @@ where
     }
 
     /// Execute the previous two steps together.
-    pub fn complete<R: AllowedRng>(
+    pub fn complete(
         &self,
         used_messages: &[Message<G, EG>],
         confirmations: &[Confirmation<EG>],

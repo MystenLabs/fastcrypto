@@ -1118,7 +1118,7 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
     S::partial_verify(&o0.vss_pk, &MSG, &sig1).unwrap();
     S::partial_verify(&o0.vss_pk, &MSG, &sig2).unwrap();
 
-    let sigs = vec![sig0, sig1, sig2];
+    let sigs = [sig0, sig1, sig2];
     let sig = S::aggregate(d0.t(), sigs.iter()).unwrap();
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
 
@@ -1246,7 +1246,7 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
     S::partial_verify(&no0.vss_pk, &MSG, &sig1).unwrap();
     S::partial_verify(&no0.vss_pk, &MSG, &sig2).unwrap();
 
-    let sigs = vec![sig0, sig1, sig2];
+    let sigs = [sig0, sig1, sig2];
     let sig = S::aggregate(nd0.t(), sigs.iter()).unwrap();
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
 
