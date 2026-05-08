@@ -126,8 +126,6 @@ pub struct Receiver {
     t: u16,
     /// The total number of nonces that the receiver expects to receive from the dealer.
     batch_size: usize,
-    /// Reed-Solomon `(W, W - 2f)` coder over the dealer's per-receiver ciphertexts.
-    code: ErasureCoder,
 }
 
 /// The dealer's per-recipient message: the shared [CommonMessage] plus the receiver's own
@@ -498,10 +496,14 @@ impl Receiver {
         // The dealer is expected to deal a number of nonces proportional to it's weight
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
 
-        let code = ErasureCoder::new(
-            nodes.total_weight() as usize,
-            (nodes.total_weight() - 2 * f) as usize, // 2f parity shards
-        )?;
+        // Constraints required by the Reed-Solomon `(W, W − 2f)` coder:
+        //   * f ≥ 1            (so n − k = 2f > 0, i.e. there is at least one parity shard)
+        //   * W > 2f           (so k = W − 2f > 0, i.e. there is at least one data shard)
+        //   * W ≤ 65536        (Reed-Solomon over GF(2^16))
+        let w = nodes.total_weight() as usize;
+        if f == 0 || w <= 2 * f as usize || w > 65536 {
+            return Err(InvalidInput);
+        }
 
         Ok(Self {
             id,
@@ -511,8 +513,16 @@ impl Receiver {
             f,
             t,
             batch_size,
-            code,
         })
+    }
+
+    /// Reed-Solomon `(W, W − 2f)` coder over the dealer's per-receiver ciphertexts.
+    fn get_coder(&self) -> ErasureCoder {
+        ErasureCoder::new(
+            self.nodes.total_weight() as usize,
+            (self.nodes.total_weight() - 2 * self.f) as usize,
+        )
+        .expect("parameters were validated in Receiver::new")
     }
 
     /// 2. Verify the dispersal entries against `recipient_roots` and emit one [Echo] per
@@ -906,7 +916,7 @@ impl Receiver {
             self.nodes.weight_of(accuser_id)? as usize,
             self.batch_size,
         );
-        self.code.decode(shards_matrix, expected_length)
+        self.get_coder().decode(shards_matrix, expected_length)
     }
 
     /// RS-encode `ciphertext`, rebuild the per-recipient Merkle tree, and check its root matches
@@ -918,7 +928,7 @@ impl Receiver {
     ) -> FastCryptoResult<()> {
         let new_shards = self
             .nodes
-            .collect_to_nodes(self.code.encode(ciphertext)?.into_iter())?;
+            .collect_to_nodes(self.get_coder().encode(ciphertext)?.into_iter())?;
         if recipient_tree(&new_shards)?.root() != *expected_root {
             return Err(InvalidMessage);
         }
