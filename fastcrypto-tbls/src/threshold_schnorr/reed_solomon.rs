@@ -159,11 +159,11 @@ impl ErasureCoder {
             return Err(InvalidInput);
         }
         // GF(2^16) elements are pairs of bytes; size each shard to a whole number of pairs.
-        let elems_per_shard = data.len().div_ceil(2 * self.0.data_shard_count());
-        let bytes_per_shard = 2 * elems_per_shard;
-        let mut padded = data.to_vec();
-        padded.resize(bytes_per_shard * self.0.total_shard_count(), 0);
-        let mut shards: Vec<Vec<[u8; 2]>> = padded
+        let shard_size = data.len().div_ceil(2 * self.0.data_shard_count());
+        let bytes_per_shard = 2 * shard_size;
+        let mut data = data.to_vec();
+        data.resize(bytes_per_shard * self.0.total_shard_count(), 0);
+        let mut shards: Vec<Vec<[u8; 2]>> = data
             .chunks_exact(bytes_per_shard)
             .map(bytes_to_elems)
             .collect_vec();
