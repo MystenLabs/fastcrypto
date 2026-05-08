@@ -1136,15 +1136,14 @@ fn get_coder(nodes: &Nodes<EG>, f: u16) -> ErasureCoder {
     .expect("parameters were validated by validate_parameters")
 }
 
-/// Validate the protocol parameters `(t, f, W)`:
-///   * `f ≥ 1` and `W > 2f` and `W ≤ 65536` — required by the Reed-Solomon `(W, W − 2f)` coder
-///     over GF(2^16).
+/// Validate the protocol parameters `(t, f, W)`.
+///   * It is possible to create a Reed-Solomon `(W, W − 2f)` coder
 ///   * `1 ≤ t ≤ W` — recovery threshold is well-defined and reachable by the total weight.
 fn validate_parameters(t: u16, f: u16, total_weight: u16) -> FastCryptoResult<()> {
-    let w = total_weight as usize;
-    if f == 0 || w <= 2 * f as usize || w > 65536 || t == 0 || t > total_weight {
+    if f == 0 || total_weight <= 2 * f || t == 0 || t > total_weight {
         return Err(InvalidInput);
     }
+    ErasureCoder::check_parameters(total_weight as usize, (total_weight - 2 * f) as usize)?;
     Ok(())
 }
 

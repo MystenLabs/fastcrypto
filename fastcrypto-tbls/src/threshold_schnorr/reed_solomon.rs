@@ -152,6 +152,13 @@ impl ErasureCoder {
             .map(Self)
     }
 
+    pub fn check_parameters(n: usize, k: usize) -> FastCryptoResult<()> {
+        if k == 0 || n <= k || n > 65536 {
+            return Err(InvalidInput);
+        }
+        Ok(())
+    }
+
     /// Encode `data` into `n` shards of equal size, the first `k` of which hold the (zero-padded)
     /// data and the remaining `n - k` parity. Any `k` shards suffice to reconstruct the data.
     pub fn encode(&self, data: &[u8]) -> FastCryptoResult<Vec<Shard>> {
