@@ -42,20 +42,20 @@ where
     pub old_t: Option<u16>, // Used only for key rotation
 }
 
-/// Assumptions for all messages below:
+/// Assumptions:
 /// - The high-level protocol is responsible for verifying that the 'sender' is correct in the
 ///   following messages (based on the chain's authentication).
-/// - The high-level protocol is responsible for ensuring that all parties see the same order of messages.
+/// - The high-level protocol is responsible that all parties see the same order of messages.
 ///
-/// A [Complaint] is a fraud claim against a dealer that created invalid encrypted shares.
+/// A complaint/fraud claim against a dealer that created invalid encrypted share.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Complaint<EG: GroupElement> {
     pub(crate) accused_sender: PartyId,
     pub(crate) proof: RecoveryPackage<EG>,
 }
 
-/// A [Confirmation] is sent by a party during the second phase of the protocol. It includes
-/// complaints created by receivers of invalid encrypted shares (if any).
+/// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
+/// created by receiver of invalid encrypted shares (if any).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Confirmation<EG: GroupElement> {
     pub sender: PartyId,
@@ -81,8 +81,8 @@ pub struct Output<G: GroupElement, EG: GroupElement> {
     pub shares: Option<Vec<Share<G::ScalarType>>>, // None if some shares are missing or weight is zero.
 }
 
-/// A [Message] is sent by a dealer during the first phase of the protocol. It holds the
-/// VSS public commitment and the encrypted shares for all receivers.
+/// [Message] holds all encrypted shares a dealer sends during the first phase of the
+/// protocol.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Message<G: GroupElement, EG: GroupElement> {
     pub sender: PartyId,
@@ -165,8 +165,7 @@ where
     }
 }
 
-/// A [ProcessedMessage] is the local result of a party processing a received [Message]: the
-/// original message, the receiver's decrypted shares (if any), and an optional [Complaint].
+/// Wrapper for collecting everything related to a processed message.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessedMessage<G: GroupElement, EG: GroupElement> {
     pub message: Message<G, EG>,
@@ -175,7 +174,7 @@ pub struct ProcessedMessage<G: GroupElement, EG: GroupElement> {
     pub complaint: Option<Complaint<EG>>,
 }
 
-/// Unique [ProcessedMessage]s used in the protocol (deduplicated by sender).
+/// Unique processed messages that are being used in the protocol.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UsedProcessedMessages<G: GroupElement, EG: GroupElement>(
     pub Vec<ProcessedMessage<G, EG>>,
@@ -195,8 +194,7 @@ impl<G: GroupElement, EG: GroupElement> From<&[ProcessedMessage<G, EG>]>
     }
 }
 
-/// [ProcessedMessage]s that were not excluded after the third phase of the protocol (i.e.,
-/// after processing complaints).
+/// Processed messages that were not excluded after the third phase of the protocol.
 pub struct VerifiedProcessedMessages<G: GroupElement, EG: GroupElement>(
     Vec<ProcessedMessage<G, EG>>,
 );
@@ -776,7 +774,7 @@ where
         }
     }
 
-    /// Run `process_confirmations` and then `aggregate` on the result.
+    /// Execute the previous two steps together.
     pub fn complete<R: AllowedRng>(
         &self,
         messages: &UsedProcessedMessages<G, EG>,
