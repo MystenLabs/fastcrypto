@@ -323,15 +323,12 @@ impl Dealer {
     /// Like [Self::create_message] but exposes mutation hooks for tests: `mutate_plaintexts` runs
     /// before encryption, and `mutate_shards` runs after RS-encoding (and before the per-recipient
     /// Merkle trees are built), so tests can simulate a faulty dealer at either layer.
+    #[cfg_attr(not(test), allow(unused_variables, unused_mut))]
     fn create_message_with_mutation(
         &self,
         rng: &mut impl AllowedRng,
-        #[cfg_attr(not(test), allow(unused_variables))] mutate_plaintexts: impl FnOnce(
-            &mut [(crate::ecies_v1::PublicKey<EG>, Vec<u8>)],
-        ),
-        #[cfg_attr(not(test), allow(unused_variables))] mutate_shards: impl FnOnce(
-            &mut Vec<Vec<Vec<Shard>>>,
-        ),
+        mutate_plaintexts: impl FnOnce(&mut [(crate::ecies_v1::PublicKey<EG>, Vec<u8>)]),
+        mutate_shards: impl FnOnce(&mut Vec<Vec<Vec<Shard>>>),
     ) -> FastCryptoResult<Vec<Message>> {
         let secrets = repeat_with(|| S::rand(rng))
             .take(self.batch_size)
@@ -354,7 +351,6 @@ impl Dealer {
             .collect_vec();
 
         // Encrypt all shares to the receivers
-        #[cfg_attr(not(test), allow(unused_mut))]
         let mut pk_and_msgs = self
             .nodes
             .iter()
@@ -392,7 +388,6 @@ impl Dealer {
             (self.nodes.total_weight() - 2 * self.f) as usize, // 2f parity shards
         )?;
 
-        #[cfg_attr(not(test), allow(unused_mut))]
         let mut shards: Vec<Vec<Vec<Shard>>> = ciphertexts
             .iter()
             .map(|c| {
