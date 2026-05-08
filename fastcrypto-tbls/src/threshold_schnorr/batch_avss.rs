@@ -297,9 +297,7 @@ impl Dealer {
         sid: Vec<u8>,
         batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
-        if t > nodes.total_weight() {
-            return Err(InvalidInput);
-        }
+        validate_parameters(t, f, nodes.total_weight())?;
         // Each dealer deals a number of nonces proportional to their weight.
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
         Ok(Self {
@@ -381,10 +379,7 @@ impl Dealer {
         );
 
         let (shared, ciphertexts) = ciphertext.clone().into_parts();
-        let code = ErasureCoder::new(
-            self.nodes.total_weight() as usize,
-            (self.nodes.total_weight() - 2 * self.f) as usize, // 2f parity shards
-        )?;
+        let code = get_coder(&self.nodes, self.f);
 
         let mut shards: Vec<Vec<Vec<Shard>>> = ciphertexts
             .iter()
@@ -496,14 +491,7 @@ impl Receiver {
         // The dealer is expected to deal a number of nonces proportional to it's weight
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
 
-        // Constraints required by the Reed-Solomon `(W, W − 2f)` coder:
-        //   * f ≥ 1            (so n − k = 2f > 0, i.e. there is at least one parity shard)
-        //   * W > 2f           (so k = W − 2f > 0, i.e. there is at least one data shard)
-        //   * W ≤ 65536        (Reed-Solomon over GF(2^16))
-        let w = nodes.total_weight() as usize;
-        if f == 0 || w <= 2 * f as usize || w > 65536 {
-            return Err(InvalidInput);
-        }
+        validate_parameters(t, f, nodes.total_weight())?;
 
         Ok(Self {
             id,
@@ -514,15 +502,6 @@ impl Receiver {
             t,
             batch_size,
         })
-    }
-
-    /// Reed-Solomon `(W, W − 2f)` coder over the dealer's per-receiver ciphertexts.
-    fn get_coder(&self) -> ErasureCoder {
-        ErasureCoder::new(
-            self.nodes.total_weight() as usize,
-            (self.nodes.total_weight() - 2 * self.f) as usize,
-        )
-        .expect("parameters were validated in Receiver::new")
     }
 
     /// 2. Verify the dispersal entries against `recipient_roots` and emit one [Echo] per
@@ -916,7 +895,7 @@ impl Receiver {
             self.nodes.weight_of(accuser_id)? as usize,
             self.batch_size,
         );
-        self.get_coder().decode(shards_matrix, expected_length)
+        get_coder(&self.nodes, self.f).decode(shards_matrix, expected_length)
     }
 
     /// RS-encode `ciphertext`, rebuild the per-recipient Merkle tree, and check its root matches
@@ -926,9 +905,11 @@ impl Receiver {
         ciphertext: &[u8],
         expected_root: &merkle::Node,
     ) -> FastCryptoResult<()> {
-        let new_shards = self
-            .nodes
-            .collect_to_nodes(self.get_coder().encode(ciphertext)?.into_iter())?;
+        let new_shards = self.nodes.collect_to_nodes(
+            get_coder(&self.nodes, self.f)
+                .encode(ciphertext)?
+                .into_iter(),
+        )?;
         if recipient_tree(&new_shards)?.root() != *expected_root {
             return Err(InvalidMessage);
         }
@@ -1143,6 +1124,28 @@ impl Echo {
         }
         Ok(VerifiedEcho(self))
     }
+}
+
+/// Reed-Solomon `(W, W − 2f)` coder over the per-receiver ciphertexts. Requires the parameters
+/// to have been validated via [validate_parameters].
+fn get_coder(nodes: &Nodes<EG>, f: u16) -> ErasureCoder {
+    ErasureCoder::new(
+        nodes.total_weight() as usize,
+        (nodes.total_weight() - 2 * f) as usize,
+    )
+    .expect("parameters were validated by validate_parameters")
+}
+
+/// Validate the protocol parameters `(t, f, W)`:
+///   * `f ≥ 1` and `W > 2f` and `W ≤ 65536` — required by the Reed-Solomon `(W, W − 2f)` coder
+///     over GF(2^16).
+///   * `1 ≤ t ≤ W` — recovery threshold is well-defined and reachable by the total weight.
+fn validate_parameters(t: u16, f: u16, total_weight: u16) -> FastCryptoResult<()> {
+    let w = total_weight as usize;
+    if f == 0 || w <= 2 * f as usize || w > 65536 || t == 0 || t > total_weight {
+        return Err(InvalidInput);
+    }
+    Ok(())
 }
 
 /// Build the per-recipient Merkle tree over `shards` (per-node grouped shard chunks of one
