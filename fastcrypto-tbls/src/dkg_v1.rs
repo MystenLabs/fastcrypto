@@ -92,6 +92,79 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
     pub encrypted_shares: ecies_v1::MultiRecipientEncryption<EG>,
 }
 
+impl<G, EG> Message<G, EG>
+where
+    G: GroupElement,
+    EG: GroupElement + HashToGroupElement + Serialize,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
+{
+    /// Sanity checks that can be done by any party on a received message.
+    fn sanity_check(
+        &self,
+        nodes: &Nodes<EG>,
+        t: u16,
+        encryption_random_oracle: impl Fn(PartyId) -> RandomOracle,
+    ) -> FastCryptoResult<()> {
+        let node = nodes
+            .node_id_to_node(self.sender)
+            .tap_err(|_| {
+                warn!(
+                    "DKG: Message sanity check failed, invalid id {}",
+                    self.sender
+                )
+            })
+            .map_err(|_| FastCryptoError::InvalidMessage)?;
+        if node.weight == 0 {
+            warn!(
+                "DKG: Message sanity check failed for id {}, zero weight",
+                self.sender
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        };
+
+        if t as usize != self.vss_pk.degree_bound() + 1 {
+            warn!(
+                "DKG: Message sanity check failed for id {}, expected degree={}, got {}",
+                self.sender,
+                t - 1,
+                self.vss_pk.degree_bound()
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        }
+
+        if *self.vss_pk.c0() == G::zero() {
+            warn!(
+                "DKG: Message sanity check failed for id {}, zero c0",
+                self.sender,
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        }
+
+        if nodes.num_nodes() != self.encrypted_shares.len() {
+            warn!(
+                "DKG: Message sanity check failed for id {}, expected encrypted_shares.len={}, got {}",
+                self.sender,
+                nodes.num_nodes(),
+                self.encrypted_shares.len()
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        }
+
+        let encryption_ro = encryption_random_oracle(self.sender);
+        self.encrypted_shares
+            .verify(&encryption_ro)
+            .tap_err(|e| {
+                warn!("DKG: Message sanity check failed for id {}, verify with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}",
+                    self.sender,
+                    encryption_ro,
+                    self.encrypted_shares.ephemeral_key(),
+                    self.encrypted_shares.proof(),
+                    e)
+            })
+            .map_err(|_| FastCryptoError::InvalidMessage)
+    }
+}
+
 /// Wrapper for collecting everything related to a processed message.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessedMessage<G: GroupElement, EG: GroupElement> {
@@ -293,68 +366,6 @@ where
         })
     }
 
-    // Sanity checks that can be done by any party on a received message.
-    fn sanity_check_message(&self, msg: &Message<G, EG>) -> FastCryptoResult<()> {
-        let node = self
-            .nodes
-            .node_id_to_node(msg.sender)
-            .tap_err(|_| {
-                warn!(
-                    "DKG: Message sanity check failed, invalid id {}",
-                    msg.sender
-                )
-            })
-            .map_err(|_| FastCryptoError::InvalidMessage)?;
-        if node.weight == 0 {
-            warn!(
-                "DKG: Message sanity check failed for id {}, zero weight",
-                msg.sender
-            );
-            return Err(FastCryptoError::InvalidMessage);
-        };
-
-        if self.t as usize != msg.vss_pk.degree_bound() + 1 {
-            warn!(
-                "DKG: Message sanity check failed for id {}, expected degree={}, got {}",
-                msg.sender,
-                self.t - 1,
-                msg.vss_pk.degree_bound()
-            );
-            return Err(FastCryptoError::InvalidMessage);
-        }
-
-        if *msg.vss_pk.c0() == G::zero() {
-            warn!(
-                "DKG: Message sanity check failed for id {}, zero c0",
-                msg.sender,
-            );
-            return Err(FastCryptoError::InvalidMessage);
-        }
-
-        if self.nodes.num_nodes() != msg.encrypted_shares.len() {
-            warn!(
-                "DKG: Message sanity check failed for id {}, expected encrypted_shares.len={}, got {}",
-                msg.sender,
-                self.nodes.num_nodes(),
-                msg.encrypted_shares.len()
-            );
-            return Err(FastCryptoError::InvalidMessage);
-        }
-
-        let encryption_ro = self.encryption_random_oracle(msg.sender);
-        msg.encrypted_shares
-            .verify(&encryption_ro)
-            .tap_err(|e| {
-                warn!("DKG: Message sanity check failed for id {}, verify with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}",
-                    msg.sender,
-                    encryption_ro,
-                    msg.encrypted_shares.ephemeral_key(),
-                    msg.encrypted_shares.proof(),
-                    e)
-            })
-            .map_err(|_| FastCryptoError::InvalidMessage)
-    }
-
     /// 5. Process a message and create the second message to be broadcasted.
     ///    The second message contains the list of complaints on invalid shares. In addition, it
     ///    returns a set of valid shares (so far).
@@ -380,7 +391,9 @@ where
             message.vss_pk.c0()
         );
         // Ignore if invalid (and other honest parties will ignore as well).
-        self.sanity_check_message(&message)?;
+        message.sanity_check(&self.nodes, self.t, |sender| {
+            self.encryption_random_oracle(sender)
+        })?;
 
         let my_share_ids = self.nodes.share_ids_of(self.id).expect("my id is valid");
         let encryption_ro = self.encryption_random_oracle(message.sender);
@@ -1082,68 +1095,6 @@ where
         self.t
     }
 
-    // Sanity checks that can be done by any party on a received message.
-    fn sanity_check_message(&self, msg: &Message<G, EG>) -> FastCryptoResult<()> {
-        let node = self
-            .nodes
-            .node_id_to_node(msg.sender)
-            .tap_err(|_| {
-                warn!(
-                    "DKG: Message sanity check failed, invalid id {}",
-                    msg.sender
-                )
-            })
-            .map_err(|_| FastCryptoError::InvalidMessage)?;
-        if node.weight == 0 {
-            warn!(
-                "DKG: Message sanity check failed for id {}, zero weight",
-                msg.sender
-            );
-            return Err(FastCryptoError::InvalidMessage);
-        };
-
-        if self.t as usize != msg.vss_pk.degree_bound() + 1 {
-            warn!(
-                "DKG: Message sanity check failed for id {}, expected degree={}, got {}",
-                msg.sender,
-                self.t - 1,
-                msg.vss_pk.degree_bound()
-            );
-            return Err(FastCryptoError::InvalidMessage);
-        }
-
-        if *msg.vss_pk.c0() == G::zero() {
-            warn!(
-                "DKG: Message sanity check failed for id {}, zero c0",
-                msg.sender,
-            );
-            return Err(FastCryptoError::InvalidMessage);
-        }
-
-        if self.nodes.num_nodes() != msg.encrypted_shares.len() {
-            warn!(
-                "DKG: Message sanity check failed for id {}, expected encrypted_shares.len={}, got {}",
-                msg.sender,
-                self.nodes.num_nodes(),
-                msg.encrypted_shares.len()
-            );
-            return Err(FastCryptoError::InvalidMessage);
-        }
-
-        let encryption_ro = self.encryption_random_oracle(msg.sender);
-        msg.encrypted_shares
-            .verify(&encryption_ro)
-            .tap_err(|e| {
-                warn!("DKG: Message sanity check failed for id {}, verify with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}",
-                    msg.sender,
-                    encryption_ro,
-                    msg.encrypted_shares.ephemeral_key(),
-                    msg.encrypted_shares.proof(),
-                    e)
-            })
-            .map_err(|_| FastCryptoError::InvalidMessage)
-    }
-
     /// 5. Process a message and create the second message to be broadcasted.
     ///    The second message contains the list of complaints on invalid shares. In addition, it
     ///    returns a set of valid shares (so far).
@@ -1165,7 +1116,9 @@ where
             message.vss_pk.c0()
         );
         // Ignore if invalid (and other honest parties will ignore as well).
-        self.sanity_check_message(&message)
+        message.sanity_check(&self.nodes, self.t, |sender| {
+            self.encryption_random_oracle(sender)
+        })
     }
 
     /// Alternative to process_message for a known vss.c0 public key, useful for key rotation.
