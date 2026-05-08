@@ -60,7 +60,7 @@ pub struct SharedComponents<G: GroupElement> {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EncryptedPart<G> {
     enc: Vec<u8>,
-    g: PhantomData<G>,
+    _g: PhantomData<G>,
 }
 
 impl<G: GroupElement + Serialize> MultiRecipientEncryption<G>
