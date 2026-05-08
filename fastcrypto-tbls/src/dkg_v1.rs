@@ -999,16 +999,6 @@ where
     g: PhantomData<G>,
 }
 
-/// [Output] is the final output of the DKG protocol in case it runs
-/// successfully. It can be used later with [ThresholdBls], see examples in tests.
-///
-/// If shares is None, the object can only be used for verifying (partial and full) signatures.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ObserverOutput<G: GroupElement, EG: GroupElement> {
-    pub nodes: Nodes<EG>,
-    pub vss_pk: Poly<G>,
-}
-
 /// An observer of a the DKG ceremony.
 ///
 /// Can be instantiated with G1Curve or G2Curve.
@@ -1058,11 +1048,12 @@ where
     }
 
     /// Compute the output of a DKG protocol given all the dealer messages from the protocol.
-    /// If successful, return the ObserverOutput which contains the verifying key.
+    /// If successful, return the Output which contains the verifying key. The shares field will
+    /// be None since the observer does not hold any shares.
     pub fn observe_dkg(
         &self,
         all_messages: Vec<Message<G, EG>>,
-    ) -> FastCryptoResult<ObserverOutput<G, EG>> {
+    ) -> FastCryptoResult<Output<G, EG>> {
         all_messages
             .iter()
             .try_for_each(|m| self.process_message(m.clone()))?;
@@ -1071,13 +1062,14 @@ where
     }
 
     /// Compute the output of a key rotation protocol given all the dealer messages from the protocol.
-    /// If successful, return the ObserverOutput which contains the verifying key.
+    /// If successful, return the Output which contains the verifying key. The shares field will
+    /// be None since the observer does not hold any shares.
     pub fn observe_key_rotation(
         &self,
         all_messages: Vec<Message<G, EG>>,
         expected_pks: &[G],
         new_to_old_party_ids: &HashMap<PartyId, PartyId>,
-    ) -> FastCryptoResult<ObserverOutput<G, EG>> {
+    ) -> FastCryptoResult<Output<G, EG>> {
         all_messages
             .iter()
             .zip(expected_pks)
@@ -1361,7 +1353,7 @@ where
     }
 
     /// 8. Aggregate the valid shares (as returned from the previous step) and the public key.
-    pub(crate) fn aggregate(&self, verified_messages: &[Message<G, EG>]) -> ObserverOutput<G, EG> {
+    pub(crate) fn aggregate(&self, verified_messages: &[Message<G, EG>]) -> Output<G, EG> {
         debug!(
             "Aggregating shares from {} verified messages",
             verified_messages.len()
@@ -1371,9 +1363,10 @@ where
             .iter()
             .fold(Poly::zero(), |acc, m| acc + &m.vss_pk);
 
-        ObserverOutput {
+        Output {
             nodes: self.nodes.clone(),
             vss_pk,
+            shares: None,
         }
     }
 
@@ -1382,7 +1375,7 @@ where
         &self,
         used_messages: &[Message<G, EG>],
         confirmations: &[Confirmation<EG>],
-    ) -> FastCryptoResult<ObserverOutput<G, EG>> {
+    ) -> FastCryptoResult<Output<G, EG>> {
         let verified_messages = self.process_confirmations(used_messages, confirmations)?;
         Ok(self.aggregate(&verified_messages))
     }
@@ -1392,7 +1385,7 @@ where
     pub fn complete_optimistic(
         &self,
         used_messages: &[Message<G, EG>],
-    ) -> FastCryptoResult<ObserverOutput<G, EG>> {
+    ) -> FastCryptoResult<Output<G, EG>> {
         // Do not filter out any messages, assume all are valid.
         Ok(self.aggregate(used_messages))
     }
@@ -1404,7 +1397,7 @@ where
         used_messages: &[Message<G, EG>],
         // Mapping party id from new committee to its id in the previous committee
         new_to_old_party_ids: &HashMap<PartyId, PartyId>,
-    ) -> FastCryptoResult<ObserverOutput<G, EG>> {
+    ) -> FastCryptoResult<Output<G, EG>> {
         // Check that all weights are 1.
         if self.nodes.iter().any(|n| n.weight != 1) {
             return Err(FastCryptoError::InvalidInput);
@@ -1453,9 +1446,10 @@ where
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(ObserverOutput {
+        Ok(Output {
             nodes: self.nodes.clone(),
             vss_pk: vss_pk.into(),
+            shares: None,
         })
     }
 

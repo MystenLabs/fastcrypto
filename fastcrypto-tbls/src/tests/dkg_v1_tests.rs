@@ -1181,7 +1181,7 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
         .iter()
         .zip(expected_pks.iter())
         .map(|(m, epk)| {
-            nd0.process_message_and_check_pk(m.clone(), epk, &mut thread_rng())
+            nd0.process_message_with_checks(m.clone(), &Some(*epk), &None, &mut thread_rng())
                 .unwrap()
         })
         .collect::<Vec<_>>();
@@ -1193,7 +1193,7 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
         .iter()
         .zip(expected_pks.iter())
         .map(|(m, epk)| {
-            nd1.process_message_and_check_pk(m.clone(), epk, &mut thread_rng())
+            nd1.process_message_with_checks(m.clone(), &Some(*epk), &None, &mut thread_rng())
                 .unwrap()
         })
         .collect::<Vec<_>>();
@@ -1203,7 +1203,7 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
         .iter()
         .zip(expected_pks.iter())
         .map(|(m, epk)| {
-            nd2.process_message_and_check_pk(m.clone(), epk, &mut thread_rng())
+            nd2.process_message_with_checks(m.clone(), &Some(*epk), &None, &mut thread_rng())
                 .unwrap()
         })
         .collect::<Vec<_>>();
