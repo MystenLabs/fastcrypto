@@ -516,9 +516,9 @@ impl Receiver {
     }
 
     /// 2. Verify the dispersal entries against `recipient_roots` and emit one [Echo] per
-    ///    recipient (indexed by recipient id) for the receiver to broadcast. Also returns the
-    ///    [VerifiedCommonMessage] that the receiver should keep around for the rest of the
-    ///    session.
+    ///    recipient (indexed by recipient id) for the receiver to broadcast — including one
+    ///    addressed to the receiver itself. Also returns the [VerifiedCommonMessage] that the
+    ///    receiver should keep around for the rest of the session.
     pub fn echo(&self, message: &Message) -> FastCryptoResult<(VerifiedCommonMessage, Vec<Echo>)> {
         let n = self.nodes.num_nodes();
         if message.dispersal.len() != n || message.common.recipient_roots.len() != n {
