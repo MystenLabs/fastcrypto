@@ -1063,7 +1063,7 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
     )
     .unwrap();
 
-    let observer = Observer::<G, EG>::new_advanced(nodes.clone(), t, ro.clone(), None).unwrap();
+    let observer = Observer::<G, EG>::new(nodes.clone(), t, ro.clone(), None).unwrap();
 
     let msg0 = d0.create_message(&mut thread_rng()).unwrap();
     let msg1 = d1.create_message(&mut thread_rng()).unwrap();
@@ -1084,7 +1084,7 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
         .iter()
         .map(|m| d1.process_message(m.clone(), &mut thread_rng()).unwrap())
         .collect::<Vec<_>>();
-    let (_, used_msgs1) = d1.merge(proc_msg1).unwrap();
+    let (conf1, used_msgs1) = d1.merge(proc_msg1).unwrap();
 
     let proc_msg2 = &all_messages
         .iter()
@@ -1106,7 +1106,10 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
     // Run DKG as observer:
 
     // Compute the observers output. The Observer has no shares but only the vss_pk
-    let obs_output = observer.observe_dkg(all_messages).unwrap();
+    let all_confirmations = vec![conf0, conf1, conf2];
+    let obs_output = observer
+        .observe_dkg(all_messages, &all_confirmations)
+        .unwrap();
     assert_eq!(obs_output.vss_pk, o0.vss_pk);
     assert!(obs_output.shares.is_none());
 
@@ -1163,10 +1166,6 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
     )
     .unwrap();
 
-    // An observer for the key rotation
-    let observer_2 =
-        Observer::<G, EG>::new_advanced(nnodes.clone(), nt, ro.clone(), Some(2)).unwrap();
-
     let msg0 = nd0.create_message(&mut thread_rng()).unwrap();
     let msg1 = nd1.create_message(&mut thread_rng()).unwrap();
 
@@ -1175,7 +1174,7 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
         o0.vss_pk.eval(ShareIndex::new(1).unwrap()).value,
     ];
 
-    let all_messages = vec![msg0, msg1];
+    let all_messages = [msg0, msg1];
 
     // merge() should succeed and ignore duplicates and include 1 complaint
     let proc_msg0 = &all_messages
@@ -1222,11 +1221,6 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
         .complete_optimistic_key_rotation(&used_msgs2, &new_sender_to_old_map)
         .unwrap();
 
-    // The Observer can process all messages.
-    let observer_output_2 = observer_2
-        .observe_key_rotation(all_messages, &expected_pks, &new_sender_to_old_map)
-        .unwrap();
-
     assert!(no0.shares.is_some());
     assert!(no1.shares.is_some());
     assert!(no2.shares.is_some());
@@ -1234,10 +1228,6 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
     assert_eq!(no0.vss_pk, no2.vss_pk);
 
     assert_eq!(no0.vss_pk.c0(), o0.vss_pk.c0());
-
-    // The Observer sees the same vss_pk and produces no shares
-    assert_eq!(observer_output_2.vss_pk, no0.vss_pk);
-    assert!(observer_output_2.shares.is_none());
 
     // Use the shares to sign the message.
     let sig0 = S::partial_sign(&no0.shares.as_ref().unwrap()[0], &MSG);
@@ -1251,7 +1241,7 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
     let sigs = [sig0, sig1, sig2];
     let sig = S::aggregate(nd0.t(), sigs.iter()).unwrap();
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
-
-    // The Observer can verify the signature
-    S::verify(observer_output_2.vss_pk.c0(), &MSG, &sig).unwrap();
+    // Key rotation preserves the verifying key, so the signature also verifies under the key
+    // that the observer derived during DKG.
+    S::verify(obs_output.vss_pk.c0(), &MSG, &sig).unwrap();
 }
