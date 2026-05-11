@@ -1046,14 +1046,10 @@ where
         self.t
     }
 
-    /// 5. Process a message and create the second message to be broadcasted.
-    ///    The second message contains the list of complaints on invalid shares. In addition, it
-    ///    returns a set of valid shares (so far).
+    /// 1. Sanity-check a received message.
     ///
     ///    We split this function into two parts: process_message and merge, so that the caller can
     ///    process messages concurrently and then merge the results.
-    ///
-    ///    [process_message] processes a message and returns an intermediate object ProcessedMessage.
     ///
     ///    Returns error InvalidMessage if the message is invalid and should be ignored (note that we
     ///    could count it as part of the f+1 messages we wait for, but it's also safe to ignore it
@@ -1072,6 +1068,12 @@ where
         })
     }
 
+    /// 2. Merge results from multiple processed messages.
+    ///
+    ///    Returns NotEnoughInputs if the threshold t is not met.
+    ///
+    ///    Assumptions: processed_messages is the result of process_message on the same set of
+    ///    messages on all parties.
     pub fn merge(
         &self,
         processed_messages: Vec<Message<G, EG>>,
@@ -1109,7 +1111,7 @@ where
         Ok(filtered_messages)
     }
 
-    /// 7. Process all confirmations, check all complaints, and update the local set of
+    /// 3. Process all confirmations, check all complaints, and update the local set of
     ///    valid shares accordingly.
     ///
     ///    Returns NotEnoughInputs if the threshold minimal_threshold is not met.
@@ -1236,7 +1238,7 @@ where
         Ok(verified_messages)
     }
 
-    /// 8. Aggregate the valid shares (as returned from the previous step) and the public key.
+    /// 4. Aggregate the public key from the valid messages (as returned from the previous step).
     pub(crate) fn aggregate(&self, verified_messages: &[Message<G, EG>]) -> Output<G, EG> {
         debug!(
             "Aggregating shares from {} verified messages",
