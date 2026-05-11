@@ -183,10 +183,7 @@ impl ErasureCoder {
             .map(bytes_to_elements)
             .collect::<FastCryptoResult<_>>()?;
         self.0.encode(&mut shards).map_err(|_| InvalidInput)?;
-        Ok(shards
-            .into_iter()
-            .map(|s| Shard(s.into_iter().flatten().collect()))
-            .collect_vec())
+        Ok(shards.into_iter().map(|s| Shard(s.concat())).collect_vec())
     }
 
     /// Reconstruct the original data from `n` (possibly missing) shards, returning the first
@@ -201,13 +198,12 @@ impl ErasureCoder {
             return Err(InputLengthWrong(self.0.total_shard_count()));
         }
 
-        if shards.iter().filter(|s| s.is_none()).count() > self.0.parity_shard_count() {
-            return Err(InvalidInput);
-        }
-
         let mut shards: Vec<Option<Vec<Element>>> = shards
             .into_iter()
-            .map(|s| s.map(|s| bytes_to_elements(&s.0)).transpose())
+            .map(|opt| {
+                opt.map(|Shard(bytes)| bytes_to_elements(&bytes))
+                    .transpose()
+            })
             .collect::<FastCryptoResult<_>>()?;
         self.0.reconstruct(&mut shards).map_err(|_| InvalidInput)?;
         let shards = shards
@@ -226,12 +222,9 @@ impl ErasureCoder {
             .flatten()
             .flatten()
             .collect();
-        if data.len() < expected_len {
-            return Err(InvalidInput);
-        }
         // The bytes past `expected_len` are zero-padding inserted by `encode`; reject anything
         // that doesn't match.
-        if data[expected_len..].iter().any(|&b| b != 0) {
+        if data.len() < expected_len || data[expected_len..].iter().any(|&b| b != 0) {
             return Err(InvalidInput);
         }
         data.truncate(expected_len);
