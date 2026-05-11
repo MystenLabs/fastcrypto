@@ -79,7 +79,7 @@ use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{create_secret_sharing, Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
-use crate::threshold_schnorr::complaint;
+use crate::threshold_schnorr::recovery_proof;
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
@@ -210,7 +210,7 @@ pub struct Vote {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RevealComplaint {
     pub accuser_id: PartyId,
-    pub proof: complaint::RecoveryProof,
+    pub proof: recovery_proof::RecoveryProof,
     pub ciphertext: Vec<u8>,
     pub common_message_hash: Digest,
 }
@@ -658,7 +658,7 @@ impl Receiver {
             .or_else(|_| {
                 Ok(DecryptionOutcome::Invalid(RevealComplaint {
                     accuser_id: self.id,
-                    proof: complaint::RecoveryProof::create(
+                    proof: recovery_proof::RecoveryProof::create(
                         self.id,
                         shared,
                         &self.enc_secret_key,
