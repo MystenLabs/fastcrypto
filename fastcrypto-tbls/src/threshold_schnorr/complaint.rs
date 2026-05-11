@@ -80,11 +80,3 @@ impl RecoveryProof {
         ))
     }
 }
-
-/// A response to a complaint, containing the responder's shares. Constructed only via
-/// `Receiver::handle_complaint`, which gates on `Complaint::check`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ComplaintResponse<S> {
-    pub(crate) responder_id: PartyId,
-    pub(crate) shares: S,
-}
