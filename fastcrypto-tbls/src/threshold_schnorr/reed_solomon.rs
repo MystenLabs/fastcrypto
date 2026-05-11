@@ -4,9 +4,7 @@
 use crate::polynomial::{Eval, MonicLinear, Poly};
 use crate::threshold_schnorr::S;
 use crate::types::{to_scalar, ShareIndex};
-use fastcrypto::error::FastCryptoError::{
-    InputLengthWrong, InputTooShort, InvalidInput, TooManyErrors,
-};
+use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, TooManyErrors};
 use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
 use reed_solomon_erasure::galois_16::ReedSolomon;
@@ -130,6 +128,12 @@ impl RSDecoder {
 /// A wrapper struct for the Reed-Solomon erasure coding library.
 pub struct ErasureCoder(ReedSolomon);
 
+/// An element of `GF(2^16)` as represented by the underlying coder.
+type Element = [u8; ELEMENT_SIZE_IN_BYTES];
+
+/// Size in bytes of one `GF(2^16)` element.
+const ELEMENT_SIZE_IN_BYTES: usize = 2;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Shard(pub(crate) Vec<u8>);
@@ -167,14 +171,16 @@ impl ErasureCoder {
         if data.is_empty() {
             return Err(InvalidInput);
         }
-        // GF(2^16) elements are pairs of bytes; size each shard to a whole number of pairs.
-        let shard_size = data.len().div_ceil(2 * self.0.data_shard_count());
-        let bytes_per_shard = 2 * shard_size;
+        // Size each shard to a whole number of field elements.
+        let shard_size = data
+            .len()
+            .div_ceil(ELEMENT_SIZE_IN_BYTES * self.0.data_shard_count());
+        let bytes_per_shard = ELEMENT_SIZE_IN_BYTES * shard_size;
         let mut data = data.to_vec();
         data.resize(bytes_per_shard * self.0.total_shard_count(), 0);
-        let mut shards: Vec<Vec<[u8; 2]>> = data
+        let mut shards: Vec<Vec<Element>> = data
             .chunks_exact(bytes_per_shard)
-            .map(bytes_to_elems)
+            .map(bytes_to_elements)
             .collect::<FastCryptoResult<_>>()?;
         self.0.encode(&mut shards).map_err(|_| InvalidInput)?;
         Ok(shards
@@ -192,16 +198,16 @@ impl ErasureCoder {
         expected_len: usize,
     ) -> FastCryptoResult<Vec<u8>> {
         if shards.len() != self.0.total_shard_count() {
-            return Err(InputTooShort(self.0.total_shard_count()));
+            return Err(InputLengthWrong(self.0.total_shard_count()));
         }
 
         if shards.iter().filter(|s| s.is_none()).count() > self.0.parity_shard_count() {
             return Err(InvalidInput);
         }
 
-        let mut shards: Vec<Option<Vec<[u8; 2]>>> = shards
+        let mut shards: Vec<Option<Vec<Element>>> = shards
             .into_iter()
-            .map(|s| s.map(|s| bytes_to_elems(&s.0)).transpose())
+            .map(|s| s.map(|s| bytes_to_elements(&s.0)).transpose())
             .collect::<FastCryptoResult<_>>()?;
         self.0.reconstruct(&mut shards).map_err(|_| InvalidInput)?;
         let shards = shards
@@ -223,16 +229,26 @@ impl ErasureCoder {
         if data.len() < expected_len {
             return Err(InvalidInput);
         }
+        // The bytes past `expected_len` are zero-padding inserted by `encode`; reject anything
+        // that doesn't match.
+        if data[expected_len..].iter().any(|&b| b != 0) {
+            return Err(InvalidInput);
+        }
         data.truncate(expected_len);
         Ok(data)
     }
 }
 
-fn bytes_to_elems(bytes: &[u8]) -> FastCryptoResult<Vec<[u8; 2]>> {
-    if !bytes.len().is_multiple_of(2) {
+/// Reinterpret `bytes` as a sequence of [Element]s. Fails with [`InvalidInput`] if the input
+/// length is not a multiple of [`ELEMENT_SIZE_IN_BYTES`].
+fn bytes_to_elements(bytes: &[u8]) -> FastCryptoResult<Vec<Element>> {
+    if !bytes.len().is_multiple_of(ELEMENT_SIZE_IN_BYTES) {
         return Err(InvalidInput);
     }
-    Ok(bytes.chunks_exact(2).map(|p| [p[0], p[1]]).collect())
+    Ok(bytes
+        .chunks_exact(ELEMENT_SIZE_IN_BYTES)
+        .map(|p| p.try_into().expect("chunk has ELEMENT_SIZE_IN_BYTES bytes"))
+        .collect())
 }
 
 #[cfg(test)]
