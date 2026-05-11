@@ -116,6 +116,71 @@ mod batch_avss_benches {
         }
 
         {
+            let mut verify_common: BenchmarkGroup<_> = c.benchmark_group(format!(
+                "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) verify_common_message"
+            ));
+            for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
+                let w = total_w / n;
+                let total_w = w * n;
+                let t = total_w / 3 - 1;
+                let f = t.saturating_sub(1);
+                let keys = generate_ecies_keys(*n);
+                let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
+                let r1 = setup_receiver(1, 0, f, t, w, &keys, batch_size_per_weight);
+                let messages = d0.create_message(&mut thread_rng()).unwrap();
+                let common = messages[1].common.clone();
+                verify_common.bench_function(
+                    format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
+                    |b| b.iter(|| r1.verify_common_message(common.clone()).unwrap()),
+                );
+            }
+        }
+
+        {
+            let mut echo: BenchmarkGroup<_> = c.benchmark_group(format!(
+                "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) echo"
+            ));
+            for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
+                let w = total_w / n;
+                let total_w = w * n;
+                let t = total_w / 3 - 1;
+                let f = t.saturating_sub(1);
+                let keys = generate_ecies_keys(*n);
+                let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
+                let r1 = setup_receiver(1, 0, f, t, w, &keys, batch_size_per_weight);
+                let messages = d0.create_message(&mut thread_rng()).unwrap();
+                let message = &messages[1];
+                echo.bench_function(
+                    format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
+                    |b| b.iter(|| r1.echo(message).unwrap()),
+                );
+            }
+        }
+
+        {
+            let mut verify_echo: BenchmarkGroup<_> = c.benchmark_group(format!(
+                "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) verify_echo"
+            ));
+            for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
+                let w = total_w / n;
+                let total_w = w * n;
+                let t = total_w / 3 - 1;
+                let f = t.saturating_sub(1);
+                let keys = generate_ecies_keys(*n);
+                let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
+                let r0 = setup_receiver(0, 0, f, t, w, &keys, batch_size_per_weight);
+                let r1 = setup_receiver(1, 0, f, t, w, &keys, batch_size_per_weight);
+                let messages = d0.create_message(&mut thread_rng()).unwrap();
+                let (vcm, echoes_from_r0) = r0.echo(&messages[0]).unwrap();
+                let echo_for_r1 = echoes_from_r0[1].clone();
+                verify_echo.bench_function(
+                    format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
+                    |b| b.iter(|| r1.verify_echo(echo_for_r1.clone(), &vcm).unwrap()),
+                );
+            }
+        }
+
+        {
             let mut process: BenchmarkGroup<_> = c.benchmark_group(format!(
                 "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) process_message"
             ));
@@ -152,6 +217,51 @@ mod batch_avss_benches {
                 process.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| b.iter(|| r1.decode_ciphertext(&echoes_for_party_1, &vcm).unwrap()),
+                );
+            }
+        }
+
+        {
+            let mut verify_decrypt: BenchmarkGroup<_> = c.benchmark_group(format!(
+                "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) verify_and_decrypt"
+            ));
+            for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
+                let w = total_w / n;
+                let total_w = w * n;
+                let t = total_w / 3 - 1;
+                let f = t.saturating_sub(1);
+                let keys = generate_ecies_keys(*n);
+                let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
+                let receivers: Vec<batch_avss::Receiver> = (0..*n)
+                    .map(|id| setup_receiver(id, 0, f, t, w, &keys, batch_size_per_weight))
+                    .collect();
+                let messages = d0.create_message(&mut thread_rng()).unwrap();
+                let mut vcm = None;
+                let echoes: Vec<Vec<batch_avss::Echo>> = receivers
+                    .iter()
+                    .enumerate()
+                    .map(|(i, r)| {
+                        let (v, e) = r.echo(&messages[i]).unwrap();
+                        if i == 1 {
+                            vcm = Some(v);
+                        }
+                        e
+                    })
+                    .collect();
+                let vcm = vcm.unwrap();
+                let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
+                    .iter()
+                    .map(|em| receivers[1].verify_echo(em[1].clone(), &vcm).unwrap())
+                    .collect();
+                let r1 = &receivers[1];
+                let pem = match r1.decode_ciphertext(&echoes_for_party_1, &vcm).unwrap() {
+                    batch_avss::DecodeOutcome::Decoded(d) => d,
+                    _ => panic!("expected Decoded outcome"),
+                };
+
+                verify_decrypt.bench_function(
+                    format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
+                    |b| b.iter(|| r1.verify_and_decrypt(&pem, &vcm).unwrap()),
                 );
             }
         }
