@@ -999,7 +999,7 @@ where
     }
 }
 
-/// Party in the DKG protocol.
+/// Observer of the DKG protocol.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Observer<G: GroupElement, EG: GroupElement>
 where
@@ -1008,7 +1008,6 @@ where
     pub(crate) nodes: Nodes<EG>,
     pub t: u16,
     pub random_oracle: RandomOracle,
-    pub old_t: Option<u16>, // Used only for key rotation
     g: PhantomData<G>,
 }
 
@@ -1021,19 +1020,16 @@ where
     EG: GroupElement + Serialize + HashToGroupElement + DeserializeOwned,
     EG::ScalarType: FiatShamirChallenge + Zeroize,
 {
-    /// Create a new Observer for a DKG or key rotation invocation.
+    /// Create a new Observer for a DKG invocation.
     ///
-    /// `nodes` and `random_oracle` must match what the parties use. `old_t` is the previous
-    /// committee's threshold and should be set only when observing key rotation, otherwise
-    /// `None`.
+    /// `nodes` and `random_oracle` must match what the parties use.
     pub fn new(
         nodes: Nodes<EG>,
         t: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
         random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
-        old_t: Option<u16>,          // Used only for key rotation
     ) -> FastCryptoResult<Self> {
         // Sanity check that the threshold makes sense.
-        if t > nodes.total_weight() || t == 0 || old_t.is_some_and(|ot| ot == 0) {
+        if t > nodes.total_weight() || t == 0 {
             return Err(FastCryptoError::InvalidInput);
         }
 
@@ -1041,24 +1037,8 @@ where
             nodes,
             t,
             random_oracle,
-            old_t,
             g: PhantomData,
         })
-    }
-
-    /// Compute the output of a DKG protocol given all the dealer messages and confirmations from
-    /// the protocol. If successful, return the Output which contains the verifying key. The shares
-    /// field will be None since the observer does not hold any shares.
-    pub fn observe_dkg(
-        &self,
-        all_messages: Vec<Message<G, EG>>,
-        confirmations: &[Confirmation<EG>],
-    ) -> FastCryptoResult<Output<G, EG>> {
-        all_messages
-            .iter()
-            .try_for_each(|m| self.process_message(m.clone()))?;
-        let used_messages = self.merge(all_messages)?;
-        self.complete(&used_messages, confirmations)
     }
 
     /// The threshold needed to reconstruct the full key/signature.
@@ -1111,8 +1091,7 @@ where
                     .weight as u32
             })
             .sum::<u32>();
-        let required_t = self.old_t.unwrap_or(self.t);
-        if total_weight < (required_t as u32) {
+        if total_weight < (self.t as u32) {
             debug!("Merge failed with total weight {total_weight}");
             return Err(FastCryptoError::NotEnoughInputs);
         }

@@ -1063,7 +1063,7 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
     )
     .unwrap();
 
-    let observer = Observer::<G, EG>::new(nodes.clone(), t, ro.clone(), None).unwrap();
+    let observer = Observer::<G, EG>::new(nodes.clone(), t, ro.clone()).unwrap();
 
     let msg0 = d0.create_message(&mut thread_rng()).unwrap();
     let msg1 = d1.create_message(&mut thread_rng()).unwrap();
@@ -1103,12 +1103,15 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
     assert_eq!(o0.vss_pk, o1.vss_pk);
     assert_eq!(o0.vss_pk, o2.vss_pk);
 
-    // Run DKG as observer:
-
-    // Compute the observers output. The Observer has no shares but only the vss_pk
+    // Run DKG as observer using the streaming API: process_message → merge → complete.
+    // The Observer has no shares, only the vss_pk.
+    for m in &all_messages {
+        observer.process_message(m.clone()).unwrap();
+    }
+    let used_messages = observer.merge(all_messages).unwrap();
     let all_confirmations = vec![conf0, conf1, conf2];
     let obs_output = observer
-        .observe_dkg(all_messages, &all_confirmations)
+        .complete(&used_messages, &all_confirmations)
         .unwrap();
     assert_eq!(obs_output.vss_pk, o0.vss_pk);
     assert!(obs_output.shares.is_none());
