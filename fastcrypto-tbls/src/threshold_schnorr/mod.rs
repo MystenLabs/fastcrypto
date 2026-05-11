@@ -32,10 +32,10 @@ use std::fmt::{Display, Formatter};
 pub mod avss;
 pub mod batch_avss;
 mod bcs;
-pub mod complaint;
 pub mod key_derivation;
 mod pascal_matrix;
 pub mod presigning;
+pub mod recovery_proof;
 pub mod reed_solomon;
 pub mod signing;
 

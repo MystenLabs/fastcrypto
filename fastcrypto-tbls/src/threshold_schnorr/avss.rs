@@ -14,7 +14,7 @@ use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
-use crate::threshold_schnorr::complaint::RecoveryProof;
+use crate::threshold_schnorr::recovery_proof::RecoveryProof;
 use crate::threshold_schnorr::Extensions::Encryption;
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types;
