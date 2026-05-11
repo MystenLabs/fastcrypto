@@ -144,6 +144,8 @@ impl ErasureCoder {
     /// # Errors
     /// Returns [`FastCryptoError::InvalidInput`] if `k == 0`, `n <= k` or `n > 65536`.
     pub fn new(n: usize, k: usize) -> FastCryptoResult<Self> {
+        // The code is defined over GF(2^16), which has 2^16 = 65536 elements; n cannot exceed
+        // that or the evaluation points would collide.
         if k == 0 || n <= k || n > 65536 {
             return Err(InvalidInput);
         }
@@ -173,10 +175,8 @@ impl ErasureCoder {
         let mut shards: Vec<Vec<[u8; 2]>> = data
             .chunks_exact(bytes_per_shard)
             .map(bytes_to_elems)
-            .collect_vec();
-        self.0
-            .encode(&mut shards)
-            .expect("Inputs are well-formed (non-empty data, equal-sized non-empty shards, exact total_shard_count)");
+            .collect::<FastCryptoResult<_>>()?;
+        self.0.encode(&mut shards).map_err(|_| InvalidInput)?;
         Ok(shards
             .into_iter()
             .map(|s| Shard(s.into_iter().flatten().collect()))
@@ -201,15 +201,7 @@ impl ErasureCoder {
 
         let mut shards: Vec<Option<Vec<[u8; 2]>>> = shards
             .into_iter()
-            .map(|s| {
-                s.map(|s| {
-                    if s.0.len() % 2 != 0 {
-                        return Err(InvalidInput);
-                    }
-                    Ok(bytes_to_elems(&s.0))
-                })
-                .transpose()
-            })
+            .map(|s| s.map(|s| bytes_to_elems(&s.0)).transpose())
             .collect::<FastCryptoResult<_>>()?;
         self.0.reconstruct(&mut shards).map_err(|_| InvalidInput)?;
         let shards = shards
@@ -236,8 +228,11 @@ impl ErasureCoder {
     }
 }
 
-fn bytes_to_elems(bytes: &[u8]) -> Vec<[u8; 2]> {
-    bytes.chunks_exact(2).map(|p| [p[0], p[1]]).collect()
+fn bytes_to_elems(bytes: &[u8]) -> FastCryptoResult<Vec<[u8; 2]>> {
+    if !bytes.len().is_multiple_of(2) {
+        return Err(InvalidInput);
+    }
+    Ok(bytes.chunks_exact(2).map(|p| [p[0], p[1]]).collect())
 }
 
 #[cfg(test)]
