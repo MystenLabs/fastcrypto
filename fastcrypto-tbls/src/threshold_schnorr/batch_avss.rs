@@ -209,7 +209,8 @@ pub struct Vote {
 /// A complaint by a receiver who could not decrypt or verify its shares.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RevealComplaint {
-    pub proof: complaint::Complaint,
+    pub accuser_id: PartyId,
+    pub proof: complaint::RecoveryProof,
     pub ciphertext: Vec<u8>,
     pub common_message_hash: Digest,
 }
@@ -656,7 +657,8 @@ impl Receiver {
             })
             .or_else(|_| {
                 Ok(DecryptionOutcome::Invalid(RevealComplaint {
-                    proof: complaint::Complaint::create(
+                    accuser_id: self.id,
+                    proof: complaint::RecoveryProof::create(
                         self.id,
                         shared,
                         &self.enc_secret_key,
@@ -684,6 +686,7 @@ impl Receiver {
             compute_challenge_from_common_message(&self.random_oracle(), common_message);
 
         let RevealComplaint {
+            accuser_id,
             proof,
             ciphertext: reveal_ciphertext,
             common_message_hash,
@@ -692,11 +695,12 @@ impl Receiver {
         if *common_message_hash != common_message.hash() {
             return Err(InvalidProof);
         }
-        let recipient_root = common_message.recipient_root(proof.accuser_id)?;
+        let recipient_root = common_message.recipient_root(*accuser_id)?;
         self.check_avid_consistency(reveal_ciphertext, recipient_root)
             .map_err(|_| InvalidProof)?;
-        let accuser = self.nodes.node_id_to_node(proof.accuser_id)?;
+        let accuser = self.nodes.node_id_to_node(*accuser_id)?;
         proof.check(
+            *accuser_id,
             &accuser.pk,
             reveal_ciphertext,
             &common_message.ciphertext_shared,
