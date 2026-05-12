@@ -28,7 +28,7 @@ pub(crate) fn derive_verifying_key_internal(vk: &G, address: &Address) -> G {
     vk + G::generator() * compute_tweak(vk, address)
 }
 
-/// Derive a new verifying key from an existing one and a Sui addreess.
+/// Derive a new verifying key from an existing one and a Sui address.
 /// This will be a valid BIP-0340 Schnorr public key.
 pub fn derive_verifying_key(vk: &G, address: &Address) -> SchnorrPublicKey {
     SchnorrPublicKey::try_from(&derive_verifying_key_internal(vk, address)).expect("is never zero")
