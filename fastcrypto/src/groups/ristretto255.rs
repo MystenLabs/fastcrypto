@@ -10,7 +10,7 @@ use crate::groups::{
     Doubling, FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement,
     MultiScalarMul, Scalar,
 };
-use crate::hash::Sha512;
+use crate::hash::{ReverseWrapper, Sha512};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use crate::{
@@ -23,6 +23,7 @@ use curve25519_dalek::scalar::Scalar as ExternalScalar;
 use curve25519_dalek::traits::{Identity, VartimeMultiscalarMul};
 use derive_more::{Add, Div, Neg, Sub};
 use elliptic_curve::group::GroupEncoding;
+use elliptic_curve::hash2curve::{ExpandMsg, ExpandMsgXmd, Expander};
 use elliptic_curve::Field;
 use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Add, Div, Mul};
@@ -30,6 +31,7 @@ use zeroize::Zeroize;
 
 pub const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
 pub const RISTRETTO_SCALAR_BYTE_LENGTH: usize = 32;
+pub const DST: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_";
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Add, Sub, Neg, GroupOpsExtend)]
@@ -39,8 +41,21 @@ impl RistrettoPoint {
     /// Construct a RistrettoPoint from the given data using a Ristretto-flavoured Elligator 2 map.
     /// If the input bytes are uniformly distributed, the resulting point will be uniformly
     /// distributed over the Ristretto group.
+    ///
+    /// This is called `ristretto255_map` in RFC9380 and is defined in the [RFC9496 draft](https://www.rfc-editor.org/rfc/rfc9496.html#name-element-derivation).
     pub fn from_uniform_bytes(bytes: &[u8; 64]) -> Self {
         RistrettoPoint(ExternalPoint::from_uniform_bytes(bytes))
+    }
+
+    /// Implementation of `hash_to_ristretto255` using the `ristretto255_XMD:SHA-512_R255MAP_RO_` suite,
+    /// following the specifications in [RFC9380](https://www.rfc-editor.org/rfc/rfc9380.html#appendix-B).
+    pub fn hash_to_ristretto255(msg: &[u8]) -> Self {
+        let mut bytes = [0u8; 64];
+        let mut expanded_message =
+            ExpandMsgXmd::<<Sha512 as ReverseWrapper>::Variant>::expand_message(&[msg], &[DST], 64)
+                .unwrap();
+        expanded_message.fill_bytes(&mut bytes);
+        Self::from_uniform_bytes(&bytes)
     }
 }
 
@@ -94,6 +109,7 @@ impl GroupElement for RistrettoPoint {
 }
 
 impl HashToGroupElement for RistrettoPoint {
+    /// Hash the message using SHA-512 without any DST and derive a point as defined in [Self::from_uniform_bytes].
     fn hash_to_group_element(msg: &[u8]) -> Self {
         Self::from_uniform_bytes(&Sha512::digest(msg).digest)
     }
