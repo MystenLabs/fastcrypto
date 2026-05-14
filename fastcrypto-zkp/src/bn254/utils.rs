@@ -18,9 +18,9 @@ use std::str::FromStr;
 use super::zk_login::hash_ascii_str_to_field;
 
 const ZK_LOGIN_AUTHENTICATOR_FLAG: u8 = 0x05;
-const MAX_KEY_CLAIM_NAME_LENGTH: u8 = 32;
-const MAX_KEY_CLAIM_VALUE_LENGTH: u8 = 115;
-const MAX_AUD_VALUE_LENGTH: u8 = 145;
+const MAX_KEY_CLAIM_NAME_LENGTH: u16 = 32;
+const MAX_KEY_CLAIM_VALUE_LENGTH: u16 = 115;
+const MAX_AUD_VALUE_LENGTH: u16 = 145;
 
 /// Calculate the Sui address based on address seed and address params.
 pub fn get_zk_login_address(

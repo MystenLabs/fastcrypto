@@ -4,18 +4,16 @@
 use std::str::FromStr;
 
 use crate::bn254::utils::{
-    gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_zk_login_address,
+    gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_proof, get_zk_login_address,
 };
 use crate::bn254::zk_login::big_int_array_to_bits;
 use crate::bn254::zk_login::bitarray_to_bytearray;
 use crate::bn254::zk_login::poseidon_zk_login;
-use crate::bn254::zk_login::OIDCProvider;
 use crate::bn254::zk_login::{
-    base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
-    parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId,
+    base64_to_bitarray, convert_base, decode_base64_url, fetch_jwks, hash_ascii_str_to_field,
+    hash_to_field, parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId, OIDCProvider,
 };
-use crate::bn254::zk_login_api::ZkLoginEnv;
-use crate::bn254::zk_login_api::{verify_zk_login_id, verify_zk_login_iss, Bn254Fr};
+use crate::bn254::zk_login_api::{verify_zk_login_id, verify_zk_login_iss, Bn254Fr, ZkLoginEnv};
 use crate::bn254::{
     zk_login::{ZkLoginInputs, JWK},
     zk_login_api::verify_zk_login,
@@ -27,7 +25,7 @@ use ark_std::rand::SeedableRng;
 use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::jwt_utils::JWTHeader;
+use fastcrypto::jwt_utils::{parse_and_validate_jwt, JWTHeader};
 use fastcrypto::traits::KeyPair;
 use im::hashmap::HashMap as ImHashMap;
 use num_bigint::BigUint;
@@ -650,6 +648,81 @@ fn test_alternative_iss_for_google() {
         &ZkLoginEnv::Test,
     );
     assert!(invalid_res.is_err());
+}
+
+#[tokio::test]
+async fn test_zklogin_v2() {
+    let max_epoch = 10;
+    let jwt_randomness = "100681567828351849884072155819400689117";
+    let user_salt = "129390038577185583942388216820280642146";
+
+    // Generate an ephemeral key pair
+    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
+    let mut eph_pubkey = vec![0x00];
+    eph_pubkey.extend(kp.public().as_ref());
+    let kp_bigint = BigUint::from_bytes_be(&eph_pubkey).to_string();
+
+    // Get nonce
+    let nonce = get_nonce(kp.public().as_ref(), max_epoch, jwt_randomness).unwrap();
+
+    // Get JWT from 8192-bit key endpoint
+    let client = reqwest::Client::new();
+    let iss = OIDCProvider::TestIssuerKey8192.get_config().iss;
+    let response = client
+        .post(format!(
+            "https://jwt-tester.mystenlabs.com/8192/jwt?nonce={}&iss={}&sub={}",
+            nonce, iss, "test"
+        ))
+        .header("Content-Type", "application/json")
+        .header("Content-Length", "0")
+        .send()
+        .await
+        .unwrap();
+    let jwt_response: serde_json::Value = response.json().await.unwrap();
+    let parsed_token = jwt_response["jwt"].as_str().unwrap().to_string();
+
+    // Get a proof from the V2 endpoint
+    let reader = get_proof(
+        &parsed_token,
+        max_epoch,
+        jwt_randomness,
+        &kp_bigint,
+        user_salt,
+        "http://185.209.177.123:8080/v2",
+    )
+    .await
+    .expect("get_proof failed");
+
+    // Get sub and aud
+    let (sub, aud, _) =
+        parse_and_validate_jwt(&parsed_token).expect("parse_and_validate_jwt failed");
+
+    // Get the address seed
+    let address_seed =
+        gen_address_seed(user_salt, "sub", &sub, &aud).expect("gen_address_seed failed");
+
+    let zk_login_inputs =
+        ZkLoginInputs::from_reader(reader, &address_seed).expect("from_reader failed");
+
+    // Fetch the 8192-bit RSA JWK
+    let jwks_vec = fetch_jwks(&OIDCProvider::TestIssuerKey8192, &client, false)
+        .await
+        .unwrap();
+
+    let mut all_jwk = ImHashMap::new();
+    for (jwk_id, jwk) in jwks_vec {
+        all_jwk.insert(jwk_id, jwk);
+    }
+
+    // V2 proof should verify using TEST_VERIFYING_KEY_V2
+    let res_v2 = verify_zk_login(
+        &zk_login_inputs,
+        max_epoch,
+        &eph_pubkey,
+        &all_jwk,
+        &ZkLoginEnv::Test,
+    );
+    assert!(res_v2.is_ok());
 }
 
 #[test]
