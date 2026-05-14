@@ -1480,6 +1480,7 @@ dependencies = [
  "im",
  "itertools 0.12.1",
  "lazy_static",
+ "merlin",
  "neptune",
  "num-bigint 0.4.6",
  "once_cell",
