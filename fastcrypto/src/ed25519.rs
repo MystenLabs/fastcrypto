@@ -408,8 +408,6 @@ impl AsRef<[u8]> for Ed25519AggregateSignature {
 
 impl ToFromBytes for Ed25519AggregateSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // Reject inputs whose length is not a multiple of the signature length. Otherwise
-        // `chunks_exact` would silently drop trailing bytes, making the encoding non-canonical.
         if !bytes.len().is_multiple_of(ED25519_SIGNATURE_LENGTH) {
             return Err(InvalidInput);
         }
