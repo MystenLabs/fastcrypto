@@ -545,7 +545,6 @@ mod tests {
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::Poly;
-    use crate::types::{IndexedValue, ShareIndex};
     use crate::threshold_schnorr::avss::{Dealer, Message, Receiver};
     use crate::threshold_schnorr::avss::{PartialOutput, ProcessedMessage};
     use crate::threshold_schnorr::avss::{ReceiverOutput, SharesForNode};
@@ -554,6 +553,7 @@ mod tests {
     use crate::threshold_schnorr::tests::restrict;
     use crate::threshold_schnorr::Extensions::Encryption;
     use crate::threshold_schnorr::{EG, G, S};
+    use crate::types::{IndexedValue, ShareIndex};
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
@@ -1010,8 +1010,7 @@ mod tests {
             .map(|r| {
                 (
                     r.id(),
-                    assert_valid(r.process_message(&message).unwrap())
-                        .into_receiver_output(&nodes),
+                    assert_valid(r.process_message(&message).unwrap()).into_receiver_output(&nodes),
                 )
             })
             .collect();
