@@ -446,13 +446,9 @@ impl ReceiverOutput {
 
         let my_indices = nodes.share_ids_of(my_id)?;
 
-        // We only need to compute the lagrange coefficients for one of the indices this party controls
-        let lagrange_coefficients: Vec<S> = Poly::get_lagrange_coefficients_for_c0(
+        let lagrange_coefficients: Vec<S> = Poly::<G>::get_lagrange_coefficients_for_c0(
             t,
-            outputs.iter().map(|output| Eval {
-                index: output.index,
-                value: output.value.share_for_index(my_indices[0]).unwrap().value,
-            }),
+            outputs.iter().map(|output| output.index),
         )
         .map(|c| c.1.iter().map(|s| s * c.0).collect_vec())?;
 

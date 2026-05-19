@@ -201,19 +201,19 @@ impl<C: GroupElement> Poly<C> {
 
     pub(crate) fn get_lagrange_coefficients_for_c0(
         t: u16,
-        shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
+        indices: impl Iterator<Item = impl Borrow<ShareIndex>>,
     ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {
-        Self::get_lagrange_coefficients_for(0, t, shares)
+        Self::get_lagrange_coefficients_for(0, t, indices)
     }
 
-    /// Expects exactly t unique shares.
+    /// Expects exactly t unique indices.
     /// Returns an error if x is one of the indices.
     fn get_lagrange_coefficients_for(
         x: u128,
         t: u16,
-        shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
+        indices: impl Iterator<Item = impl Borrow<ShareIndex>>,
     ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {
-        let indices = shares.map(|s| s.borrow().index.get() as u128).collect_vec();
+        let indices = indices.map(|i| i.borrow().get() as u128).collect_vec();
         if !indices.iter().all_unique() || indices.len() != t as usize || indices.contains(&x) {
             return Err(FastCryptoError::InvalidInput);
         }
@@ -258,7 +258,8 @@ impl<C: GroupElement> Poly<C> {
         t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
     ) -> FastCryptoResult<C> {
-        let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares.clone())?;
+        let coeffs =
+            Self::get_lagrange_coefficients_for_c0(t, shares.clone().map(|s| s.borrow().index))?;
         Ok(C::sum(
             shares
                 .map(|s| s.borrow().value)
@@ -362,7 +363,7 @@ impl<C: Scalar> Poly<C> {
         let lagrange_coefficients = Self::get_lagrange_coefficients_for(
             index.get() as u128,
             points.len() as u16,
-            points.iter(),
+            points.iter().map(|p| p.index),
         )?;
         let value = C::sum(
             lagrange_coefficients
@@ -489,7 +490,8 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
         t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
     ) -> Result<C, FastCryptoError> {
-        let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares.clone())?;
+        let coeffs =
+            Self::get_lagrange_coefficients_for_c0(t, shares.clone().map(|s| s.borrow().index))?;
         let plain_shares = shares.map(|s| s.borrow().value).collect::<Vec<_>>();
         let res = C::multi_scalar_mul(&coeffs.1, &plain_shares).expect("sizes match") * coeffs.0;
         Ok(res)
