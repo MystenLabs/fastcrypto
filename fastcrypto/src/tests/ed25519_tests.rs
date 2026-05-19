@@ -427,6 +427,13 @@ fn test_to_from_bytes_aggregate_signatures() {
     let serialized = sig.as_bytes();
     let deserialized = Ed25519AggregateSignature::from_bytes(serialized).unwrap();
     assert_eq!(deserialized, sig);
+
+    // Inputs whose length is not a multiple of the signature length must be rejected instead of
+    // silently dropping the trailing bytes.
+    let mut with_trailing_byte = serialized.to_vec();
+    with_trailing_byte.push(0);
+    assert!(Ed25519AggregateSignature::from_bytes(&with_trailing_byte).is_err());
+    assert!(Ed25519AggregateSignature::from_bytes(&[0u8; 1]).is_err());
 }
 
 #[test]
