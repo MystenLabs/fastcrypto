@@ -131,7 +131,16 @@ pub trait MultiScalarMul: GroupElement {
     fn multi_scalar_mul(scalars: &[Self::ScalarType], points: &[Self]) -> FastCryptoResult<Self>;
 }
 
-/// Faster deserialization in case the input is trusted (otherwise it can be insecure).
+/// Deserialization from a byte array that skips validation of the result.
+///
+/// This is faster than [`crate::serde_helpers::ToFromByteArray::from_byte_array`], but it does
+/// *not* check that the result is a canonical, valid element: for curve points the subgroup
+/// membership check is skipped, and for scalars the canonical range check is skipped. It is only
+/// safe to use when the input is known to come from a trusted source. For attacker-controlled or
+/// otherwise untrusted input, use [`crate::serde_helpers::ToFromByteArray::from_byte_array`]
+/// instead.
 pub trait FromTrustedByteArray<const LENGTH: usize>: Sized {
+    /// Deserialize a trusted byte array without validating the result. See the
+    /// [trait documentation](FromTrustedByteArray) for the validation that is skipped.
     fn from_trusted_byte_array(bytes: &[u8; LENGTH]) -> FastCryptoResult<Self>;
 }
