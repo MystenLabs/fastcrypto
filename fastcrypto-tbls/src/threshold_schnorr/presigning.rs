@@ -19,18 +19,18 @@ impl Iterator for Presignatures {
     type Item = (Vec<S>, G);
 
     fn next(&mut self) -> Option<Self::Item> {
+        // `public` is the source of truth for the length: it always has one entry per nonce,
+        // whereas `secret` is empty for a zero-weight party. The secret and public multipliers
+        // are constructed with equal length (checked in `Presignatures::new`), so whenever
+        // `public` yields, every secret multiplier yields too.
+        let public = self.public.next()?;
         let secret = self
             .secret
             .iter_mut()
             .map(Iterator::next)
-            .collect::<Option<Vec<_>>>();
-        let public = self.public.next();
-
-        match (secret, public) {
-            (Some(s), Some(p)) => Some((s, p)),
-            (None, None) => None,
-            _ => unreachable!(),
-        }
+            .collect::<Option<Vec<_>>>()
+            .expect("secret and public multipliers have equal length");
+        Some((secret, public))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -61,14 +61,14 @@ impl Presignatures {
             return Err(InvalidInput);
         }
 
-        // Each node should deal a batch sized proportional to their weight, and the total weight of the outputs should be at least t + f
+        // Each dealer deals a batch sized proportional to their weight, and the total weight of
+        // the outputs should be at least t + f. We recover each dealer's weight from the number
+        // of public keys (one per dealt nonce) rather than from this party's own shares, since
+        // a zero-weight party holds no shares to read the batch size from.
         let weights = outputs
             .iter()
             .map(|o| {
-                let batch_size = o
-                    .my_shares
-                    .try_uniform_batch_size()
-                    .expect("Checked in batch_avss");
+                let batch_size = o.public_keys.len();
                 (batch_size % batch_size_per_weight as usize == 0)
                     .then_some(batch_size / batch_size_per_weight as usize)
                     .ok_or(InvalidInput)
@@ -116,14 +116,49 @@ impl Presignatures {
                 .collect_vec(),
         );
 
-        // Sanity checks that the size of the multipliers matches the expected number of nonces that this presigning will give
+        // Sanity checks that the size of the multipliers matches the expected number of nonces
+        // that this presigning will give. `secret` is empty for a zero-weight party, in which
+        // case the `all` check holds vacuously.
         let expected_len = (total_weight_of_outputs - f) * batch_size_per_weight as usize;
-        assert_eq!(
-            get_uniform_value(secret.iter().map(|s| s.len())).unwrap(),
-            expected_len
-        );
+        assert!(secret.iter().all(|s| s.len() == expected_len));
         assert_eq!(public.len(), expected_len);
 
         Ok(Self { secret, public })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Presignatures;
+    use crate::threshold_schnorr::batch_avss::{ReceiverOutput, SharesForNode};
+    use crate::threshold_schnorr::G;
+    use fastcrypto::groups::GroupElement;
+
+    #[test]
+    fn test_new_with_zero_weight_party() {
+        // A zero-weight party holds no shares, so every ReceiverOutput it gets has an empty
+        // `my_shares`. Presignatures::new (and iterating the result) must handle this without
+        // panicking, yielding presignatures with empty secret components.
+        let batch_size_per_weight: u16 = 2;
+        let f = 1;
+
+        // Two dealers, each of weight 1, so each output has batch_size_per_weight * 1 = 2
+        // public keys and no shares for this (zero-weight) party.
+        let outputs = (0..2)
+            .map(|_| ReceiverOutput {
+                my_shares: SharesForNode { shares: vec![] },
+                public_keys: vec![G::generator(); batch_size_per_weight as usize],
+            })
+            .collect::<Vec<_>>();
+
+        let presignatures = Presignatures::new(outputs, batch_size_per_weight, f).unwrap();
+
+        let total_weight_of_outputs = 2;
+        let expected_len = (total_weight_of_outputs - f) * batch_size_per_weight as usize;
+        assert_eq!(presignatures.len(), expected_len);
+
+        let tuples = presignatures.collect::<Vec<_>>();
+        assert_eq!(tuples.len(), expected_len);
+        assert!(tuples.iter().all(|(secret, _public)| secret.is_empty()));
     }
 }
