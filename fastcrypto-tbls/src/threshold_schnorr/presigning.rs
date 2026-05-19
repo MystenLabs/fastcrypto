@@ -19,10 +19,7 @@ impl Iterator for Presignatures {
     type Item = (Vec<S>, G);
 
     fn next(&mut self) -> Option<Self::Item> {
-        // `public` is the source of truth for the length: it always has one entry per nonce,
-        // whereas `secret` is empty for a zero-weight party. The secret and public multipliers
-        // are constructed with equal length (checked in `Presignatures::new`), so whenever
-        // `public` yields, every secret multiplier yields too.
+        // `public` drives the length; `secret` is empty for a zero-weight party.
         let public = self.public.next()?;
         let secret = self
             .secret
@@ -61,10 +58,7 @@ impl Presignatures {
             return Err(InvalidInput);
         }
 
-        // Each dealer deals a batch sized proportional to their weight, and the total weight of
-        // the outputs should be at least t + f. We recover each dealer's weight from the number
-        // of public keys (one per dealt nonce) rather than from this party's own shares, since
-        // a zero-weight party holds no shares to read the batch size from.
+        // Recover each dealer's weight from its public key count, which works even for a zero-weight party.
         let weights = outputs
             .iter()
             .map(|o| {
@@ -116,9 +110,7 @@ impl Presignatures {
                 .collect_vec(),
         );
 
-        // Sanity checks that the size of the multipliers matches the expected number of nonces
-        // that this presigning will give. `secret` is empty for a zero-weight party, in which
-        // case the `all` check holds vacuously.
+        // Sanity check that the multiplier sizes match the expected nonce count.
         let expected_len = (total_weight_of_outputs - f) * batch_size_per_weight as usize;
         assert!(secret.iter().all(|s| s.len() == expected_len));
         assert_eq!(public.len(), expected_len);
@@ -136,14 +128,11 @@ mod tests {
 
     #[test]
     fn test_new_with_zero_weight_party() {
-        // A zero-weight party holds no shares, so every ReceiverOutput it gets has an empty
-        // `my_shares`. Presignatures::new (and iterating the result) must handle this without
-        // panicking, yielding presignatures with empty secret components.
+        // A zero-weight party gets ReceiverOutputs with empty shares; this must not panic.
         let batch_size_per_weight: u16 = 2;
         let f = 1;
 
-        // Two dealers, each of weight 1, so each output has batch_size_per_weight * 1 = 2
-        // public keys and no shares for this (zero-weight) party.
+        // Two weight-1 dealers: each output has batch_size_per_weight public keys, no shares.
         let outputs = (0..2)
             .map(|_| ReceiverOutput {
                 my_shares: SharesForNode { shares: vec![] },

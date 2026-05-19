@@ -958,9 +958,7 @@ mod tests {
 
     #[test]
     fn test_key_rotation_with_zero_weight_node() {
-        // Node 0 has weight 0 (as can happen after weight reduction). It holds no shares but
-        // must still be able to complete key rotation, recovering the verifying key without
-        // panicking.
+        // Node 0 has weight 0: it holds no shares but must still complete key rotation.
         let t = 3;
         let weights = [0u16, 2, 1, 1];
         let n = weights.len();
@@ -1062,8 +1060,7 @@ mod tests {
             })
             .collect();
 
-        // The verifying key is preserved, and the zero-weight node holds no shares while the
-        // others hold one share per unit of weight.
+        // The verifying key is preserved; each node holds one share per unit of weight.
         for (id, output) in &new_outputs {
             assert_eq!(output.vk, vk);
             assert_eq!(

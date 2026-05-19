@@ -522,9 +522,7 @@ fn verify_shares(
     if shares.weight() != nodes.weight_of(receiver)? {
         return Err(InvalidMessage);
     }
-    // A zero-weight node holds no shares, so there is no batch size to check and `verify` below
-    // is a no-op. `try_uniform_batch_size` errors on an empty share set, so it is only meaningful
-    // when the node actually has shares.
+    // Skip the batch-size check for a zero-weight node, which holds no shares.
     if !shares.shares.is_empty() && shares.try_uniform_batch_size()? != expected_batch_size {
         return Err(InvalidMessage);
     }
@@ -745,8 +743,7 @@ mod tests {
 
     #[test]
     fn test_happy_path_with_zero_weight_node() {
-        // Node 1 has weight 0 (as can happen after weight reduction). It receives no shares, but
-        // the protocol must complete for every node without raising a spurious complaint.
+        // Node 1 has weight 0: it receives no shares but the protocol must still complete.
         let t = 4;
         let weights: Vec<u16> = vec![1, 0, 3, 4];
         let batch_size_per_weight = 3;
