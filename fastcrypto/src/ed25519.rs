@@ -555,7 +555,7 @@ impl<'de> DeserializeAs<'de, ed25519_consensus::Signature> for SingleSignature {
     {
         let bytes = if deserializer.is_human_readable() {
             let s = String::deserialize(deserializer)?;
-            base64ct::Base64::decode_vec(&s).map_err(to_custom_error::<'de, D, _>)?
+            Base64::decode(&s).map_err(to_custom_error::<'de, D, _>)?
         } else {
             SerdeBytes::deserialize_as(deserializer)?
         };
