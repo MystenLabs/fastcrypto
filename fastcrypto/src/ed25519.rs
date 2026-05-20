@@ -408,11 +408,15 @@ impl AsRef<[u8]> for Ed25519AggregateSignature {
 
 impl ToFromBytes for Ed25519AggregateSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        if !bytes.len().is_multiple_of(ED25519_SIGNATURE_LENGTH) {
+            return Err(InvalidInput);
+        }
         let sigs = bytes
             .chunks_exact(ED25519_SIGNATURE_LENGTH)
-            .map(|chunk| <Ed25519Signature as traits::ToFromBytes>::from_bytes(chunk).unwrap())
-            .map(|s| s.sig)
-            .collect();
+            .map(|chunk| {
+                <Ed25519Signature as traits::ToFromBytes>::from_bytes(chunk).map(|s| s.sig)
+            })
+            .collect::<Result<_, _>>()?;
         Ok(Ed25519AggregateSignature {
             sigs,
             bytes: OnceCell::new(),
@@ -551,7 +555,7 @@ impl<'de> DeserializeAs<'de, ed25519_consensus::Signature> for SingleSignature {
     {
         let bytes = if deserializer.is_human_readable() {
             let s = String::deserialize(deserializer)?;
-            base64ct::Base64::decode_vec(&s).map_err(to_custom_error::<'de, D, _>)?
+            Base64::decode(&s).map_err(to_custom_error::<'de, D, _>)?
         } else {
             SerdeBytes::deserialize_as(deserializer)?
         };
