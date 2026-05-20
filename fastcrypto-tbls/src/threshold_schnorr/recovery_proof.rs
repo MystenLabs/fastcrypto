@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::ecies_v1;
-use crate::ecies_v1::{RecoveryPackage, SharedComponents};
+use crate::ecies_v1::{Ciphertext, RecoveryPackage, SharedComponents};
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
@@ -28,7 +28,7 @@ impl RecoveryProof {
         &self,
         accuser_id: PartyId,
         enc_pk: &ecies_v1::PublicKey<EG>,
-        ciphertext: &[u8],
+        ciphertext: &Ciphertext,
         shared: &SharedComponents<EG>,
         random_oracle: &RandomOracle,
         verifier: impl Fn(&S) -> FastCryptoResult<()>,

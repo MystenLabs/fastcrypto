@@ -206,11 +206,11 @@ mod tests {
         // Each dealer generates a batch of presigs per share they control.
         for dealer_id in nodes.node_ids_iter() {
             let sid = format!("presig-test-session-{}", dealer_id).into_bytes();
+            let params = batch_avss::Parameters { t, f };
             let dealer: batch_avss::Dealer = batch_avss::Dealer::new(
                 nodes.clone(),
                 dealer_id,
-                f,
-                t,
+                params,
                 sid.clone(),
                 batch_size_per_weight,
             )
@@ -223,8 +223,7 @@ mod tests {
                         nodes.clone(),
                         id as u16,
                         dealer_id,
-                        f,
-                        t,
+                        params,
                         sid.clone(),
                         enc_secret_key.clone(),
                         batch_size_per_weight,
@@ -233,36 +232,11 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
 
-            // Each dealer creates a message
-            let messages = dealer.create_message(&mut rng).unwrap();
-
-            // Each receiver produces echoes addressed to every party.
-            let (verified_commons, echoes): (Vec<_>, Vec<Vec<batch_avss::Echo>>) = receivers
-                .iter()
-                .map(|r| r.echo(&messages[r.id as usize]).unwrap())
-                .unzip();
-
-            // Bundle echoes per recipient: echoes_per_recipient[i] = echoes addressed to party i.
-            let echoes_per_recipient: Vec<Vec<batch_avss::Echo>> = (0..n)
-                .map(|i| echoes.iter().map(|em| em[i].clone()).collect())
-                .collect();
-
-            // Each receiver processes the message.
-            // In this case, we assume all are honest and there are no complaints.
-            for ((r, echoes), vcm) in receivers
-                .iter()
-                .zip(&echoes_per_recipient)
-                .zip(&verified_commons)
-            {
-                let verified = echoes
-                    .iter()
-                    .map(|e| r.verify_echo(e.clone(), vcm).unwrap())
-                    .collect::<Vec<_>>();
-                let pem = match r.decode_ciphertext(&verified, vcm).unwrap() {
-                    batch_avss::DecodeOutcome::Decoded(d) => d,
-                    _ => panic!("expected Decoded outcome"),
-                };
-                let output = assert_valid_batch(r.verify_and_decrypt(&pem, vcm).unwrap());
+            // Optimistic phase: every receiver confirms, so no pessimistic AVID phase is needed.
+            let (_, opt_messages) = dealer.create_optimistic_messages(&mut rng).unwrap();
+            for r in &receivers {
+                let (output, _confirm, _verified_common) =
+                    r.process_optimistic(&opt_messages[r.id as usize]).unwrap();
                 presigning_outputs.get_mut(&r.id).unwrap().push(output);
             }
         }
@@ -512,13 +486,6 @@ mod tests {
         match pm {
             avss::ProcessedMessage::Valid(po) => po,
             avss::ProcessedMessage::Complaint(_) => panic!("expected valid avss output"),
-        }
-    }
-
-    fn assert_valid_batch(outcome: batch_avss::DecryptionOutcome) -> batch_avss::ReceiverOutput {
-        match outcome {
-            batch_avss::DecryptionOutcome::Valid { output, .. } => output,
-            _ => panic!("expected valid batch_avss output"),
         }
     }
 

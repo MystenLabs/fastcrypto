@@ -134,6 +134,11 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             .ok_or(FastCryptoError::InvalidInput)
     }
 
+    /// Returns true iff `party_id` corresponds to a node in this set.
+    pub fn is_valid_id(&self, party_id: PartyId) -> bool {
+        (party_id as usize) < self.nodes.len()
+    }
+
     /// Get the share ids of a node (ordered). Returns error if the node does not exist.
     pub fn share_ids_of(&self, id: PartyId) -> FastCryptoResult<Vec<ShareIndex>> {
         // Check if the input is valid.
@@ -166,7 +171,9 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         items: impl ExactSizeIterator<Item = T>,
     ) -> FastCryptoResult<Vec<Vec<T>>> {
         if items.len() != self.total_weight as usize {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(FastCryptoError::InputLengthWrong(
+                self.total_weight as usize,
+            ));
         }
         let mut items = items;
         Ok(self

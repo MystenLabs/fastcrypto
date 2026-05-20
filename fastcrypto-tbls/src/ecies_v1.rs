@@ -40,13 +40,27 @@ pub struct RecoveryPackage<G: GroupElement> {
 
 pub const AES_KEY_LENGTH: usize = 32;
 
+/// A single recipient's ECIES ciphertext, as produced by [MultiRecipientEncryption::encrypt].
+/// Combined with the [SharedComponents] this is enough to decrypt the recipient's message.
+/// Wire-format-identical to `Vec<u8>` via `#[serde(transparent)]` / `#[repr(transparent)]`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+#[repr(transparent)]
+pub struct Ciphertext(pub Vec<u8>);
+
+impl AsRef<[u8]> for Ciphertext {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 /// Multi-recipient encryption with a proof-of-possession of the ephemeral key.
 /// (rG, r RO1(rG), {AES(k=RO2(rPK_i), m_i)}_i, DDH-NIZK(G, RO1(rG), rG, r RO1(rG)) )
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MultiRecipientEncryption<G: GroupElement> {
     c: G,
     c_hat: G,
-    pub(crate) encs: Vec<Vec<u8>>,
+    pub(crate) encs: Vec<Ciphertext>,
     proof: DdhTupleNizk<G>,
 }
 
@@ -97,7 +111,7 @@ where
                 let k = encs_ro.evaluate(&(receiver_index, pk_r));
                 let cipher = sym_cipher(&k);
                 // Since k is fresh per encryption, we can safely use a fixed nonce.
-                cipher.encrypt(&fixed_zero_nonce(), msg)
+                Ciphertext(cipher.encrypt(&fixed_zero_nonce(), msg))
             })
             .collect::<Vec<_>>();
 
@@ -122,7 +136,7 @@ where
         // Encryptions should not be empty.
         self.encs
             .iter()
-            .all(|e| !e.is_empty())
+            .all(|e| !e.0.is_empty())
             .then_some(())
             .ok_or(FastCryptoError::InvalidInput)
     }
@@ -140,7 +154,7 @@ where
         let k = enc_ro.evaluate(&(receiver_index, ephemeral_key));
         let cipher = sym_cipher(&k);
         cipher
-            .decrypt(&fixed_zero_nonce(), &self.encs[receiver_index])
+            .decrypt(&fixed_zero_nonce(), &self.encs[receiver_index].0)
             .expect("Decrypt should never fail for CTR mode")
     }
 
@@ -189,7 +203,7 @@ where
         let k = encs_ro.evaluate(&(receiver_index, pkg.ephemeral_key));
         let cipher = sym_cipher(&k);
         Ok(cipher
-            .decrypt(&fixed_zero_nonce(), &self.encs[receiver_index])
+            .decrypt(&fixed_zero_nonce(), &self.encs[receiver_index].0)
             .expect("Decrypt should never fail for CTR mode"))
     }
 
@@ -208,7 +222,7 @@ where
         &self.proof
     }
 
-    pub fn into_parts(self) -> (SharedComponents<G>, Vec<Vec<u8>>) {
+    pub fn into_parts(self) -> (SharedComponents<G>, Vec<Ciphertext>) {
         let MultiRecipientEncryption {
             c,
             c_hat,
@@ -268,7 +282,7 @@ where
 {
     pub fn decrypt(
         &self,
-        enc: &[u8],
+        enc: &Ciphertext,
         sk: &PrivateKey<G>,
         encryption_random_oracle: &RandomOracle,
         receiver_index: usize,
@@ -278,7 +292,7 @@ where
         let k = enc_ro.evaluate(&(receiver_index, ephemeral_key));
         let cipher = sym_cipher(&k);
         cipher
-            .decrypt(&fixed_zero_nonce(), enc)
+            .decrypt(&fixed_zero_nonce(), &enc.0)
             .expect("Decrypt should never fail for CTR mode")
     }
 
@@ -325,7 +339,7 @@ where
 
     pub fn decrypt_with_recovery_package(
         &self,
-        enc: &[u8],
+        enc: &Ciphertext,
         pkg: &RecoveryPackage<G>,
         recovery_random_oracle: &RandomOracle,
         encryption_random_oracle: &RandomOracle,
@@ -342,7 +356,7 @@ where
         let k = encs_ro.evaluate(&(receiver_index, pkg.ephemeral_key));
         let cipher = sym_cipher(&k);
         Ok(cipher
-            .decrypt(&fixed_zero_nonce(), enc)
+            .decrypt(&fixed_zero_nonce(), &enc.0)
             .expect("Decrypt should never fail for CTR mode"))
     }
 }
