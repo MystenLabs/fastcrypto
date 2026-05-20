@@ -83,9 +83,43 @@ pub fn setup_dealer(
 
 mod batch_avss_benches {
     use super::*;
-    use fastcrypto_tbls::threshold_schnorr::batch_avss::Dealer;
+    use fastcrypto::traits::AllowedRng;
+    use fastcrypto_tbls::threshold_schnorr::batch_avss::{
+        self, CommonMessage, Dealer, PessimisticMessage,
+    };
     use fastcrypto_tbls::threshold_schnorr::presigning::Presignatures;
     use itertools::Itertools;
+    use std::collections::BTreeSet;
+
+    /// Run a "one straggler" pessimistic round: receivers 1..n are treated as having confirmed
+    /// in the optimistic phase, receiver 0 is the straggler. Returns `v` and the per-recipient
+    /// pessimistic [PessimisticMessage]s. The certificate is manufactured directly from `v.hash()` — no
+    /// actual `process_optimistic` calls are run, keeping bench setup cheap.
+    fn pessimistic_with_one_straggler(
+        dealer: &Dealer,
+        n: u16,
+        rng: &mut impl AllowedRng,
+    ) -> (CommonMessage, Vec<PessimisticMessage>) {
+        let (state, _) = dealer.create_optimistic_messages(rng).unwrap();
+        let common = state.common().clone();
+        let hash = common.hash(&dealer.random_oracle());
+        let confirms = (1..n)
+            .map(|id| {
+                (
+                    id,
+                    batch_avss::Confirm {
+                        common_message_hash: hash,
+                    },
+                )
+            })
+            .collect();
+        let pending: BTreeSet<PartyId> = std::iter::once(0u16).collect();
+        let certificate = batch_avss::OptimisticCertificate { confirms };
+        let messages = dealer
+            .create_pessimistic_messages(&state, pending, certificate)
+            .unwrap();
+        (common, messages)
+    }
 
     fn all_batch_avss(c: &mut Criterion) {
         batch_avss(c, 1);
@@ -99,7 +133,7 @@ mod batch_avss_benches {
 
         {
             let mut create: BenchmarkGroup<_> = c.benchmark_group(format!(
-                "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) create_message"
+                "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) create_optimistic_messages"
             ));
             for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
                 let w = total_w / n;
@@ -110,7 +144,7 @@ mod batch_avss_benches {
                 let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
                 create.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| d0.create_message(&mut thread_rng())),
+                    |b| b.iter(|| d0.create_optimistic_messages(&mut thread_rng())),
                 );
             }
         }
@@ -127,8 +161,7 @@ mod batch_avss_benches {
                 let keys = generate_ecies_keys(*n);
                 let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
                 let r1 = setup_receiver(1, 0, f, t, w, &keys, batch_size_per_weight);
-                let messages = d0.create_message(&mut thread_rng()).unwrap();
-                let common = messages[1].common.clone();
+                let (common, _) = pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
                 verify_common.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| b.iter(|| r1.verify_common_message(common.clone()).unwrap()),
@@ -148,11 +181,12 @@ mod batch_avss_benches {
                 let keys = generate_ecies_keys(*n);
                 let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
                 let r1 = setup_receiver(1, 0, f, t, w, &keys, batch_size_per_weight);
-                let messages = d0.create_message(&mut thread_rng()).unwrap();
+                let (common, messages) = pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
+                let vcm = r1.verify_common_message(common).unwrap();
                 let message = &messages[1];
                 echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.echo(message).unwrap()),
+                    |b| b.iter(|| r1.echo(message, &vcm).unwrap()),
                 );
             }
         }
@@ -170,12 +204,15 @@ mod batch_avss_benches {
                 let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
                 let r0 = setup_receiver(0, 0, f, t, w, &keys, batch_size_per_weight);
                 let r1 = setup_receiver(1, 0, f, t, w, &keys, batch_size_per_weight);
-                let messages = d0.create_message(&mut thread_rng()).unwrap();
-                let (vcm, echoes_from_r0) = r0.echo(&messages[0]).unwrap();
+                let (common, messages) = pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
+                let vcm0 = r0.verify_common_message(common.clone()).unwrap();
+                let vcm1 = r1.verify_common_message(common).unwrap();
+                let (_, echoes_from_r0, _) = r0.echo(&messages[0], &vcm0).unwrap();
                 let echo_for_r1 = echoes_from_r0[1].clone();
+                let (vm1, _, _) = r1.echo(&messages[r1.id as usize], &vcm1).unwrap();
                 verify_echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.verify_echo(echo_for_r1.clone(), &vcm).unwrap()),
+                    |b| b.iter(|| r1.verify_echo(echo_for_r1.clone(), &vm1).unwrap()),
                 );
             }
         }
@@ -194,29 +231,30 @@ mod batch_avss_benches {
                 let receivers: Vec<batch_avss::Receiver> = (0..*n)
                     .map(|id| setup_receiver(id, 0, f, t, w, &keys, batch_size_per_weight))
                     .collect();
-                let messages = d0.create_message(&mut thread_rng()).unwrap();
-                let mut vcm = None;
+                let (common, messages) = pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
+                let mut vm = None;
                 let echoes: Vec<Vec<batch_avss::Echo>> = receivers
                     .iter()
                     .enumerate()
                     .map(|(i, r)| {
-                        let (v, e) = r.echo(&messages[i]).unwrap();
+                        let vcm = r.verify_common_message(common.clone()).unwrap();
+                        let (v, e, _) = r.echo(&messages[i], &vcm).unwrap();
                         if i == 1 {
-                            vcm = Some(v);
+                            vm = Some(v);
                         }
                         e
                     })
                     .collect();
-                let vcm = vcm.unwrap();
+                let vm = vm.unwrap();
                 let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                     .iter()
-                    .map(|em| receivers[1].verify_echo(em[1].clone(), &vcm).unwrap())
+                    .map(|em| receivers[1].verify_echo(em[1].clone(), &vm).unwrap())
                     .collect();
                 let r1 = &receivers[1];
 
                 process.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.decode_ciphertext(&echoes_for_party_1, &vcm).unwrap()),
+                    |b| b.iter(|| r1.decode_ciphertext(&echoes_for_party_1, &vm).unwrap()),
                 );
             }
         }
@@ -235,33 +273,34 @@ mod batch_avss_benches {
                 let receivers: Vec<batch_avss::Receiver> = (0..*n)
                     .map(|id| setup_receiver(id, 0, f, t, w, &keys, batch_size_per_weight))
                     .collect();
-                let messages = d0.create_message(&mut thread_rng()).unwrap();
-                let mut vcm = None;
+                let (common, messages) = pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
+                let mut vm = None;
                 let echoes: Vec<Vec<batch_avss::Echo>> = receivers
                     .iter()
                     .enumerate()
                     .map(|(i, r)| {
-                        let (v, e) = r.echo(&messages[i]).unwrap();
+                        let vcm = r.verify_common_message(common.clone()).unwrap();
+                        let (v, e, _) = r.echo(&messages[i], &vcm).unwrap();
                         if i == 1 {
-                            vcm = Some(v);
+                            vm = Some(v);
                         }
                         e
                     })
                     .collect();
-                let vcm = vcm.unwrap();
+                let vm = vm.unwrap();
                 let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                     .iter()
-                    .map(|em| receivers[1].verify_echo(em[1].clone(), &vcm).unwrap())
+                    .map(|em| receivers[1].verify_echo(em[1].clone(), &vm).unwrap())
                     .collect();
                 let r1 = &receivers[1];
-                let pem = match r1.decode_ciphertext(&echoes_for_party_1, &vcm).unwrap() {
+                let pem = match r1.decode_ciphertext(&echoes_for_party_1, &vm).unwrap() {
                     batch_avss::DecodeOutcome::Decoded(d) => d,
                     _ => panic!("expected Decoded outcome"),
                 };
 
                 verify_decrypt.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.verify_and_decrypt(&pem, &vcm).unwrap()),
+                    |b| b.iter(|| r1.verify_and_decrypt(&pem, &vm.verified_common).unwrap()),
                 );
             }
         }
@@ -283,7 +322,8 @@ mod batch_avss_benches {
                     .iter()
                     .enumerate()
                     .map(|(dealer_id, d)| {
-                        let messages = d.create_message(&mut thread_rng()).unwrap();
+                        let (common, messages) =
+                            pessimistic_with_one_straggler(d, *n, &mut thread_rng());
                         let receivers: Vec<batch_avss::Receiver> = (0..*n)
                             .map(|id| {
                                 setup_receiver(
@@ -297,31 +337,36 @@ mod batch_avss_benches {
                                 )
                             })
                             .collect();
-                        let mut vcm = None;
+                        let mut vm = None;
                         let echoes: Vec<Vec<batch_avss::Echo>> = receivers
                             .iter()
                             .enumerate()
                             .map(|(i, r)| {
-                                let (v, e) = r.echo(&messages[i]).unwrap();
+                                let vcm = r.verify_common_message(common.clone()).unwrap();
+                                let (v, e, _) = r.echo(&messages[i], &vcm).unwrap();
                                 if i == 1 {
-                                    vcm = Some(v);
+                                    vm = Some(v);
                                 }
                                 e
                             })
                             .collect();
-                        let vcm = vcm.unwrap();
+                        let vm = vm.unwrap();
                         let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                             .iter()
-                            .map(|em| receivers[1].verify_echo(em[1].clone(), &vcm).unwrap())
+                            .map(|em| receivers[1].verify_echo(em[1].clone(), &vm).unwrap())
                             .collect();
                         let pem = match receivers[1]
-                            .decode_ciphertext(&echoes_for_party_1, &vcm)
+                            .decode_ciphertext(&echoes_for_party_1, &vm)
                             .unwrap()
                         {
                             batch_avss::DecodeOutcome::Decoded(d) => d,
                             _ => panic!("expected Decoded outcome"),
                         };
-                        assert_valid_batch(receivers[1].verify_and_decrypt(&pem, &vcm).unwrap())
+                        assert_valid_batch(
+                            receivers[1]
+                                .verify_and_decrypt(&pem, &vm.verified_common)
+                                .unwrap(),
+                        )
                     })
                     .collect_vec();
 

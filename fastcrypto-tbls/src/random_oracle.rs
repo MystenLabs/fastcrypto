@@ -37,7 +37,7 @@ impl RandomOracle {
     }
 
     /// Evaluate the random oracle on a given input.
-    pub fn evaluate<T: Serialize>(&self, obj: &T) -> [u8; 64] {
+    pub fn evaluate<T: Serialize + ?Sized>(&self, obj: &T) -> [u8; 64] {
         let mut hasher = Sha3_512::default();
         let len: u32 = self
             .prefix

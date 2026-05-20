@@ -3,76 +3,52 @@
 
 //! Asynchronous verifiable secret sharing (AVSS) for a batch of random nonces.
 //!
-//! # What it does
+//! A dealer shares `L = w_dealer · BATCH_SIZE` nonces among `n` weighted receivers under a
+//! `t`-of-`W` threshold (`W = Σ_j w_j`, `f` is the Byzantine bound by weight). Each secret
+//! `r_l` is shared via a degree-`(t−1)` polynomial `p_l` with `p_l(0) = r_l`; any `≥ t` valid
+//! shares reconstruct it. The dealer's shared broadcast `v` ([CommonMessage]) carries public
+//! commitments `c_l = g^{r_l}`, a blinding `c' = g^{r'}`, a Fiat-Shamir-randomized *response
+//! polynomial* `p''(X) = p'(X) + Σ_l γ_l · p_l(X)`
+//! ([eprint/2023/536](https://eprint.iacr.org/2023/536)) that lets receivers verify shares
+//! with one polynomial identity, and per-recipient ciphertext hashes `h_j = H(E_j)` that pin
+//! every encryption (so `γ` binds them).
 //!
-//! A single dealer commits to a batch of `L` random nonces `r_1, …, r_L` and distributes
-//! shares to `n` weighted receivers forming a `t`-of-`W` threshold (with `W = Σ_j w_j` total
-//! weight, `f` the Byzantine bound by weight, and `L = w_dealer · BATCH_SIZE`). In case of a honest dealer, every honest
-//! receiver `j` ends up with `p_l(i_{j,1}), …, p_l(i_{j,w_j})` for every secret `r_l`, where
-//! `p_l` is a degree-`(t−1)` polynomial with `p_l(0) = r_l`. Any `≥ t` valid shares reconstruct
-//! `r_l`.
+//! # Optimistic path
 //!
-//! # Two layers
+//! Dealer sends each receiver `(v, E_j)` ([Dealer::create_optimistic_messages]). Receivers
+//! decrypt, verify, and return a signed [Confirm] over `H(v)` — or silently ignore on failure
+//! ([Receiver::process_optimistic]). The dealer collects `≥ t + f` weight of confirms into an
+//! [OptimisticCertificate]; if everyone confirmed, done.
 //!
-//! The dealer's broadcast (the [CommonMessage]) carries the public nonces
-//! `c_l = g^{r_l}`, the blinding commitment `c' = g^{r'}`, the *response polynomial* `p''(X)`,
-//! and the per-recipient Merkle roots `r_1, …, r_n`.
+//! # Pessimistic path (AVID for stragglers)
 //!
-//! **AVID layer.** The dealer encrypts each receiver's shares under multi-recipient ECIES,
-//! RS-encodes the per-recipient ciphertexts under a `(W, W−2f)` code, and Merkle-commits each
-//! ciphertext's shards into the root `r_i`. Receivers exchange small [Echo]s so any quorum can
-//! reconstruct a ciphertext even if the dealer didn't reach them directly.
+//! For receivers `I` (the *pending recipients*) that didn't confirm, the dealer RS-encodes
+//! their `E_i`, Merkle-commits the per-recipient shards, and sends each receiver a
+//! [PessimisticMessage] with one [DispersalEntry] per `i ∈ I` plus the [OptimisticCertificate]
+//! ([Dealer::create_pessimistic_messages]). Receivers verify the certificate and their shards,
+//! then emit one [Echo] per `i ∈ I` and — if not a pending recipient — a [Vote] over `H(v)`
+//! ([Receiver::echo]). Each `i ∈ I` decodes `E_i` from `≥ W − 2f` [VerifiedEcho]s
+//! ([Receiver::decode_ciphertext]), decrypts and verifies ([Receiver::verify_and_decrypt]),
+//! and emits its own [Vote]. The dealer aggregates `≥ W − f` votes into a TOB-posted
+//! certificate. Laggards fetch `v` and echoes from a voter and run the same steps without
+//! re-voting.
 //!
-//! **AVSS layer.** Each receiver decrypts their own ciphertext to get their shares. The
-//! response polynomial `p''(X) = p'(X) + Σ_l γ_l · p_l(X)` — a degree-`(t−1)` linear
-//! combination of all `L` sharing polynomials plus a blinding `p'`, where `γ_l` is a
-//! Fiat-Shamir challenge over *all* dealer commitments — lets the receiver verify their shares
-//! with one polynomial identity (construction from [eprint/2023/536](https://eprint.iacr.org/2023/536)).
-//! Because `γ` binds to every public root, the dealer can't equivocate later.
-//!
-//! # Happy path
-//!
-//! 1. **Dealer.** Build a [Message] per receiver and send it point-to-point.
-//! 2. **Echo.** Each receiver verifies their dispersal entry and sends an [Echo] to every other
-//!    recipient with their shard for that recipient's ciphertext.
-//! 3. **Decode.** Collect `≥ W−2f` valid echoes for the same [CommonMessage] and run
-//!    [Receiver::decode_ciphertext].
-//! 4. **Verify-and-decrypt.** Run the polynomial commitment check
-//!    `g^{p''(0)} = c' · ∏ c_l^{γ_l}`, decrypt the ciphertext, and verify each share pointwise
-//!    against `p''`.
-//! 5. **Vote.** Once enough valid echoes have been collected in step 2 and step 4 succeeds, the
-//!    receiver sends a [Vote] to the dealer.
-//! 6. The dealer collects `≥ W−f` votes (by weight) into a certificate posted on the TOB. The
-//!    broadcast is now *certified* — every party agrees on `common_message_hash`.
-//! 7. A receiver that saw the certificate but missed the original [Message] or enough echoes
-//!    fetches [CommonMessage] / echoes from a voter, then runs steps 3–4 (without sending a
-//!    [Vote]).
-//!
-//! Receivers should retain the [VerifiedCommonMessage] for the lifetime of the session — it is
-//! required to validate complaints and build a [ComplaintResponse]. The [Echo]s and the decoded
-//! ciphertext should also be kept so laggards (step 7) can fetch them.
+//! Receivers must retain `v` ([VerifiedCommonMessage]) for the session. Confirmers should keep
+//! their own `E_j`; AVID participants should keep their echoes and decoded ciphertext.
 //!
 //! # Complaint paths
 //!
-//! Complaints are broadcast only after the certificate is in place; the certificate is what
-//! pins down the [CommonMessage] every validation hinges on.
+//! Broadcast only after the TOB certificate pins `H(v)`.
 //!
-//! - **[RevealComplaint]** (encryption-layer fault, raised in step 4). Decryption fails or the shares
-//!   don't satisfy `p''`. The accuser publishes a `RevealComplaint` with their ciphertext and an ECIES
-//!   recovery package; verifiers re-bind the ciphertext to the dealer's broadcast and use the
-//!   recovery package to confirm decryption yields invalid shares.
-//! - **[BlameComplaint]** (dispersal-layer fault, raised in step 3). When [Receiver::decode_ciphertext]
-//!   returns [DecodeOutcome::InvalidDispersal], **hold** the [BlameComplaint] — do not broadcast yet.
-//!   If a certificate for the same `common_message_hash` later lands on the TOB, publish it; if
-//!   a different [CommonMessage] gets certified instead, discard the held [BlameComplaint] and re-decode
-//!   against echoes for the certified common. Verifiers re-run the same decode-and-re-encode
-//!   check on the carried shards.
+//! - **[RevealComplaint]** (encryption-layer fault). Decryption fails or shares don't satisfy
+//!   `p''`. Accuser publishes its ciphertext plus an ECIES recovery package.
+//! - **[BlameComplaint]** (dispersal-layer fault, [DecodeOutcome::InvalidDispersal]). Hold
+//!   until the matching `common_message_hash` is certified (or discard if a different `v`
+//!   wins), then publish. Verifiers re-run the decode-and-re-encode check.
 //!
-//! Verifiers respond to a valid complaint with a [ComplaintResponse] carrying their own
-//! ciphertext plus a recovery package. The accuser AVID-binds each responder's ciphertext,
-//! decrypts via the recovery package, verifies the shares against `p''`, and
-//! Lagrange-interpolates once `≥ t` weight of valid responses has accrued
-//! (see [Receiver::recover]).
+//! Verifiers respond with a [ComplaintResponse] (their ciphertext + recovery package); the
+//! accuser pins each response against `h_responder`, decrypts, verifies, and
+//! Lagrange-interpolates once `≥ t` weight has accrued ([Receiver::recover]).
 
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, RecoveryPackage, SharedComponents};
 use crate::nodes::{Nodes, PartyId};
@@ -81,7 +57,9 @@ use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::recovery_proof;
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
-use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
+use crate::threshold_schnorr::Extensions::{
+    Challenge, CiphertextHash, CommonMessageHash, Encryption, Recovery,
+};
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::{get_uniform_value, ShareIndex};
 use fastcrypto::error::FastCryptoError::{
@@ -96,15 +74,15 @@ use fastcrypto::merkle::MerkleTree;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 use std::iter::repeat_with;
 
-/// Blake2b digest used to bind echoes/complaints to a specific [CommonMessage].
-pub type Digest = fastcrypto::hash::Digest<{ Blake2b256::OUTPUT_SIZE }>;
+/// RandomOracle (SHA3-512) digest used to bind echoes/complaints to a specific [CommonMessage].
+pub type Digest = fastcrypto::hash::Digest<64>;
 
-/// This represents a Dealer in the AVSS.
-/// There is exactly one dealer who creates the shares and broadcasts the encrypted shares.
+/// The AVSS dealer. Exactly one per session; creates the shares and broadcasts the encrypted
+/// shares to every receiver.
 #[allow(dead_code)]
 pub struct Dealer {
     f: u16,
@@ -115,7 +93,7 @@ pub struct Dealer {
     batch_size: usize,
 }
 
-/// This represents a Receiver in the AVSS who receives shares from the [Dealer].
+/// An AVSS receiver, holding the shares the [Dealer] dealt to it.
 #[allow(dead_code)]
 pub struct Receiver {
     pub id: PartyId,
@@ -128,34 +106,111 @@ pub struct Receiver {
     batch_size: usize,
 }
 
-/// The dealer's per-recipient message: the shared [CommonMessage] plus the receiver's own
-/// [AuthenticatedShards] entries (one per ciphertext, indexed by recipient id).
+/// The dealer's per-recipient message for the AVID (pessimistic) phase: one [DispersalEntry]
+/// per pending recipient `i ∈ I` (the senders who didn't confirm in the optimistic phase), and
+/// the optimistic-phase certificate that pinned `v`. The shared [CommonMessage] (`v`) is *not*
+/// included — receivers are expected to already hold it from the optimistic phase, or to fetch
+/// it from a party in the certificate.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Message {
-    pub common: CommonMessage,
-    dispersal: Vec<AuthenticatedShards>,
+pub struct PessimisticMessage {
+    /// `dispersal[i]` carries receiver `i`'s Merkle root together with this receiver's shards
+    /// for `i`'s ciphertext (authenticated against the same root). Keys are the pending
+    /// recipients `I`.
+    pub dispersal: BTreeMap<PartyId, DispersalEntry>,
+    /// Optimistic certificate covering `H(v)`. Required — the AVID phase only runs after the
+    /// optimistic phase has produced a certificate.
+    pub certificate: OptimisticCertificate,
 }
 
-/// The shared part of the dealer's broadcast — identical for every receiver. Receivers must run
-/// it through [Receiver::verify_common_message] before any further step; the resulting
-/// [VerifiedCommonMessage] is what every later API consumes.
+/// One pending recipient's slice of the AVID dispersal: their Merkle root over the full set of
+/// per-sender shards for their ciphertext, plus this receiver's shards authenticated against
+/// that root.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DispersalEntry {
+    /// Merkle root over the receiver's ciphertext shards (the per-recipient `r_i`).
+    pub recipient_root: merkle::Node,
+    /// This receiver's shards for the recipient's ciphertext, authenticated against
+    /// `recipient_root`.
+    pub authenticated_shards: AuthenticatedShards,
+}
+
+/// The shared part of the dealer's broadcast (`v`) — identical for every receiver in both
+/// phases.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CommonMessage {
     full_public_keys: Vec<G>,
     blinding_commit: G,
     ciphertext_shared: SharedComponents<EG>,
     response_polynomial: Poly<S>,
-    recipient_roots: Vec<merkle::Node>,
+    ciphertext_hashes: Vec<Digest>,
 }
 
 /// A [CommonMessage] that has been validated against the dealer's commitments. Receivers
 /// should keep it around for the lifetime of the session.
 // TODO: We can cache the hash and challenge here if it makes sense.
 #[derive(Clone, Debug)]
-pub struct VerifiedCommonMessage(pub CommonMessage);
+pub struct VerifiedCommonMessage {
+    common: CommonMessage,
+    /// Cached `CommonMessage::hash` under the session [RandomOracle]; computed once in
+    /// [CommonMessage::verify] and reused by every downstream API.
+    hash: Digest,
+}
 
-/// One recipient's shards for one ciphertext, with a Merkle proof verifying against the
-/// corresponding `recipient_root` from [CommonMessage].
+/// A fully-validated dispersal context: a [PessimisticMessage] paired with its
+/// [VerifiedCommonMessage]. Produced by [Receiver::echo]; consumed by every AVID-layer call.
+#[derive(Clone, Debug)]
+pub struct VerifiedMessage {
+    pub message: PessimisticMessage,
+    pub verified_common: VerifiedCommonMessage,
+}
+
+impl VerifiedMessage {
+    fn common(&self) -> &CommonMessage {
+        self.verified_common.common()
+    }
+
+    fn recipient_root(&self, party: PartyId) -> FastCryptoResult<&merkle::Node> {
+        self.message
+            .dispersal
+            .get(&party)
+            .map(|d| &d.recipient_root)
+            .ok_or(InvalidProof)
+    }
+}
+
+/// The dealer's per-recipient optimistic-phase message: just the receiver's ciphertext `E_j`
+/// and the shared `v` ([CommonMessage]).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OptimisticMessage {
+    pub common: CommonMessage,
+    pub ciphertext: Vec<u8>,
+}
+
+/// A receiver's optimistic-phase acknowledgement that they successfully decrypted and verified
+/// their shares against `v`. The library is signature-agnostic; the caller signs the certificate
+/// out-of-band.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Confirm {
+    pub common_message_hash: Digest,
+}
+
+/// A collection of [Confirm]s indexed by their senders. Validated by
+/// [OptimisticCertificate::verify].
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OptimisticCertificate {
+    pub confirms: BTreeMap<PartyId, Confirm>,
+}
+
+/// Dealer state carried from the optimistic to the pessimistic phase: `v` plus the
+/// per-recipient ciphertexts.
+#[derive(Clone, Debug)]
+pub struct DealerState {
+    common: CommonMessage,
+    ciphertexts: Vec<Vec<u8>>,
+}
+
+/// One sender's shards for one recipient's ciphertext, with a Merkle proof against the
+/// corresponding [DispersalEntry::recipient_root].
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthenticatedShards {
     shards: Vec<Shard>,
@@ -163,8 +218,7 @@ pub struct AuthenticatedShards {
 }
 
 /// One sender's echo to a single recipient: their shard for the recipient's ciphertext, with a
-/// proof that verifies against the recipient's [CommonMessage::recipient_roots] entry, plus a
-/// hash binding the echo to a specific [CommonMessage].
+/// proof that verifies against the recipient's [DispersalEntry::recipient_root].
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Echo {
     sender: PartyId,
@@ -215,13 +269,16 @@ pub struct RevealComplaint {
     pub common_message_hash: Digest,
 }
 
-/// A complaint by a receiver who found the AVID dispersal inconsistent. Self-contained: carries
-/// the accuser's collected per-sender [AuthenticatedShards] so verifiers can re-run the AVID
-/// check without needing to observe echoes addressed to the accuser. The map keys are sender
-/// ids, which both deduplicates contributions and gives O(log n) lookup during reconstruction.
+/// A complaint by a receiver who found the AVID dispersal inconsistent. Carries the accuser's
+/// collected per-sender [AuthenticatedShards] so verifiers can re-run the decode-and-re-encode
+/// check without observing the accuser's echoes.
 ///
-/// Do not broadcast a [BlameComplaint] until the matching `common_message_hash` has been certified on the
-/// TOB; see [DecodeOutcome::InvalidDispersal].
+/// `accuser_id` is unauthenticated at this layer — anyone can craft a [BlameComplaint] for any
+/// `accuser_id`. The library is signature-agnostic; the caller is responsible for attributing
+/// the complaint to a specific sender (e.g. via a signature on the wire).
+///
+/// Do not broadcast until the matching `common_message_hash` is certified on the TOB; see
+/// [DecodeOutcome::InvalidDispersal].
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlameComplaint {
     pub accuser_id: PartyId,
@@ -229,10 +286,9 @@ pub struct BlameComplaint {
     pub common_message_hash: Digest,
 }
 
-/// A responder's reply to a [RevealComplaint] / [BlameComplaint] complaint. Carries the responder's own dealer-
-/// encrypted ciphertext together with an ECIES recovery package, so the accuser can
-/// independently authenticate the responder's shares against the dealer's broadcast and
-/// extract them via decryption.
+/// A responder's reply to a [RevealComplaint] / [BlameComplaint]: their dealer-encrypted
+/// ciphertext plus an ECIES recovery package, so the accuser can authenticate and decrypt the
+/// responder's shares.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ComplaintResponse {
     pub responder_id: PartyId,
@@ -310,23 +366,124 @@ impl Dealer {
         })
     }
 
-    /// 1. Build one [Message] per receiver. Each carries a shared [CommonMessage] (with the
-    ///    public commitments and the per-recipient Merkle roots) and the recipient's own
-    ///    [AuthenticatedShards] entries. Sent point-to-point to the corresponding receiver.
-    pub fn create_message(&self, rng: &mut impl AllowedRng) -> FastCryptoResult<Vec<Message>> {
-        self.create_message_with_mutation(rng, |_| {}, |_| {})
+    /// 1. Build the optimistic-phase messages: encrypt shares for every receiver and bundle each
+    ///    receiver's ciphertext with `v`. Returns a [DealerState] that can be used to produce the
+    ///    pessimistic-phase messages later, after the dealer has collected a certificate.
+    pub fn create_optimistic_messages(
+        &self,
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<(DealerState, Vec<OptimisticMessage>)> {
+        let state = self.create_encrypted_shares_with_mutation(rng, |_| {})?;
+        let messages = state
+            .ciphertexts
+            .iter()
+            .map(|ct| OptimisticMessage {
+                common: state.common.clone(),
+                ciphertext: ct.clone(),
+            })
+            .collect_vec();
+        Ok((state, messages))
     }
 
-    /// Like [Self::create_message] but exposes mutation hooks for tests: `mutate_plaintexts` runs
-    /// before encryption, and `mutate_shards` runs after RS-encoding (and before the per-recipient
-    /// Merkle trees are built), so tests can simulate a faulty dealer at either layer.
+    /// Build a [PessimisticMessage] per receiver dispersing the existing `E_i` for
+    /// `i ∈ pending_recipients` (reusing the ciphertexts from `state` keeps `h_i = H(E_i)` in
+    /// `v`). Every message bundles the optimistic-phase `certificate`.
+    pub fn create_pessimistic_messages(
+        &self,
+        state: &DealerState,
+        pending_recipients: BTreeSet<PartyId>,
+        certificate: OptimisticCertificate,
+    ) -> FastCryptoResult<Vec<PessimisticMessage>> {
+        self.create_pessimistic_messages_with_mutation(
+            state,
+            pending_recipients,
+            certificate,
+            |_| {},
+        )
+    }
+
+    /// Like [Self::create_pessimistic_messages] but exposes the test mutation hook on the
+    /// per-recipient RS shards (before the Merkle trees are built).
     #[cfg_attr(not(test), allow(unused_variables, unused_mut))]
-    fn create_message_with_mutation(
+    fn create_pessimistic_messages_with_mutation(
+        &self,
+        state: &DealerState,
+        pending_recipients: BTreeSet<PartyId>,
+        certificate: OptimisticCertificate,
+        mutate_shards: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
+    ) -> FastCryptoResult<Vec<PessimisticMessage>> {
+        // Validate pending_recipients ⊆ all_ids.
+        let all_ids: BTreeSet<PartyId> = self.nodes.node_ids_iter().collect();
+        if !pending_recipients.is_subset(&all_ids) {
+            return Err(InvalidInput);
+        }
+
+        let code = get_coder(&self.nodes, self.f);
+
+        // RS-encode each pending recipient's ciphertext and bucket shards by sender.
+        let mut shards_by_recipient: BTreeMap<PartyId, Vec<Vec<Shard>>> = pending_recipients
+            .iter()
+            .map(|&i| {
+                let shards = code
+                    .encode(&state.ciphertexts[i as usize])
+                    .expect("non-empty ciphertext");
+                let by_sender = self.nodes.collect_to_nodes(shards.into_iter())?;
+                Ok((i, by_sender))
+            })
+            .collect::<FastCryptoResult<_>>()?;
+
+        #[cfg(test)]
+        mutate_shards(&mut shards_by_recipient);
+
+        // Build per-recipient Merkle trees.
+        let recipient_trees: BTreeMap<PartyId, MerkleTree<Blake2b256>> = shards_by_recipient
+            .iter()
+            .map(|(&i, shards)| Ok((i, recipient_tree(shards)?)))
+            .collect::<FastCryptoResult<_>>()?;
+
+        // For each receiver j, bundle their per-recipient DispersalEntry (root + j's shards
+        // with proof).
+        let messages = self
+            .nodes
+            .node_ids_iter()
+            .map(|j| {
+                let dispersal: BTreeMap<PartyId, DispersalEntry> = pending_recipients
+                    .iter()
+                    .map(|&i| {
+                        let tree = recipient_trees.get(&i).expect("populated above");
+                        let shards = shards_by_recipient.get(&i).expect("populated above")
+                            [j as usize]
+                            .clone();
+                        Ok((
+                            i,
+                            DispersalEntry {
+                                recipient_root: tree.root(),
+                                authenticated_shards: AuthenticatedShards {
+                                    shards,
+                                    proof: tree.get_proof(j as usize)?,
+                                },
+                            },
+                        ))
+                    })
+                    .collect::<FastCryptoResult<_>>()?;
+                Ok(PessimisticMessage {
+                    dispersal,
+                    certificate: certificate.clone(),
+                })
+            })
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+
+        Ok(messages)
+    }
+
+    /// Encrypt shares, build `v`, and return the dealer state. Test mutation hook runs after the
+    /// per-recipient plaintexts are constructed and before encryption.
+    #[cfg_attr(not(test), allow(unused_variables, unused_mut))]
+    fn create_encrypted_shares_with_mutation(
         &self,
         rng: &mut impl AllowedRng,
         mutate_plaintexts: impl FnOnce(&mut [(crate::ecies_v1::PublicKey<EG>, Vec<u8>)]),
-        mutate_shards: impl FnOnce(&mut Vec<Vec<Vec<Shard>>>),
-    ) -> FastCryptoResult<Vec<Message>> {
+    ) -> FastCryptoResult<DealerState> {
         let secrets = repeat_with(|| S::rand(rng))
             .take(self.batch_size)
             .collect_vec();
@@ -373,58 +530,28 @@ impl Dealer {
         #[cfg(test)]
         mutate_plaintexts(&mut pk_and_msgs);
 
-        let ciphertext = MultiRecipientEncryption::encrypt(
+        let encryption = MultiRecipientEncryption::encrypt(
             &pk_and_msgs,
             &self.random_oracle().extend(&Encryption.to_string()),
             rng,
         );
+        let (ciphertext_shared, ciphertexts) = encryption.into_parts();
 
-        let (shared, ciphertexts) = ciphertext.clone().into_parts();
-        let code = get_coder(&self.nodes, self.f);
-
-        let mut shards: Vec<Vec<Vec<Shard>>> = ciphertexts
+        // Hashes of per-recipient ciphertexts pin the encryptions into `v` so the challenge γ
+        // binds to them (and so a receiver can verify `H(E_j) = h_j` in the optimistic path).
+        let random_oracle = self.random_oracle();
+        let ciphertext_hashes = ciphertexts
             .iter()
-            .map(|c| {
-                // Every node has positive weight, so each per-recipient ciphertext is non-empty
-                // and `code.encode` cannot return `InvalidInput`.
-                let shards = code.encode(c).expect("non-empty ciphertext"); // One shard per weight
-                self.nodes.collect_to_nodes(shards.into_iter()) // Grouped to nodes by weight
-            })
-            .collect::<FastCryptoResult<Vec<_>>>()?;
+            .map(|c| hash_ciphertext(&random_oracle, c))
+            .collect_vec();
 
-        #[cfg(test)]
-        mutate_shards(&mut shards);
-
-        let recipient_trees = shards
-            .iter()
-            .map(recipient_tree)
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        let recipient_roots = recipient_trees.iter().map(MerkleTree::root).collect_vec();
-
-        let dispersals: Vec<Vec<AuthenticatedShards>> = self
-            .nodes
-            .node_ids_iter()
-            .map(|id| {
-                shards
-                    .iter()
-                    .zip(&recipient_trees)
-                    .map(|(s, tree)| {
-                        Ok(AuthenticatedShards {
-                            shards: s[id as usize].clone(),
-                            proof: tree.get_proof(id as usize)?,
-                        })
-                    })
-                    .collect::<FastCryptoResult<Vec<_>>>()
-            })
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-
-        // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
+        // "response" polynomial from https://eprint.iacr.org/2023/536.pdf
         let challenge = compute_challenge(
             &self.random_oracle(),
             &full_public_keys,
             &blinding_commit,
-            &shared,
-            &recipient_roots,
+            &ciphertext_shared,
+            &ciphertext_hashes,
         );
 
         // Get the first t evaluations for the response polynomial and use these to compute the coefficients
@@ -442,22 +569,19 @@ impl Dealer {
 
         let common = CommonMessage {
             full_public_keys,
-            ciphertext_shared: shared,
-            response_polynomial,
             blinding_commit,
-            recipient_roots,
+            ciphertext_shared,
+            response_polynomial,
+            ciphertext_hashes,
         };
 
-        Ok(dispersals
-            .into_iter()
-            .map(|dispersal| Message {
-                common: common.clone(),
-                dispersal,
-            })
-            .collect_vec())
+        Ok(DealerState {
+            common,
+            ciphertexts,
+        })
     }
 
-    fn random_oracle(&self) -> RandomOracle {
+    pub fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
     }
 }
@@ -505,72 +629,149 @@ impl Receiver {
         })
     }
 
-    /// 2. Verify the dispersal entries against `recipient_roots` and emit one [Echo] per
-    ///    recipient (indexed by recipient id) for the receiver to broadcast — including one
-    ///    addressed to the receiver itself. Also returns the [VerifiedCommonMessage] that the
-    ///    receiver should keep around for the rest of the session.
-    pub fn echo(&self, message: &Message) -> FastCryptoResult<(VerifiedCommonMessage, Vec<Echo>)> {
-        let n = self.nodes.num_nodes();
-        if message.dispersal.len() != n || message.common.recipient_roots.len() != n {
-            return Err(InvalidMessage);
+    /// **Optimistic-phase entry point.** Verify `v`, check `H(E_j) = h_j`, decrypt the
+    /// receiver's ciphertext, and verify the shares. On success returns the [ReceiverOutput],
+    /// a [Confirm] for the dealer, and the [VerifiedCommonMessage] (retain for the session).
+    /// On any failure the receiver ignores the optimistic message — no complaint is raised.
+    pub fn process_optimistic(
+        &self,
+        message: &OptimisticMessage,
+    ) -> FastCryptoResult<(ReceiverOutput, Confirm, VerifiedCommonMessage)> {
+        // The `H(E_j) = h_j` rebind is enforced inside `verify_and_decrypt`.
+        let verified_common = self.verify_common_message(message.common.clone())?;
+        match self.verify_and_decrypt(&message.ciphertext, &verified_common)? {
+            DecryptionOutcome::Valid { output, vote } => Ok((
+                output,
+                Confirm {
+                    common_message_hash: vote.common_message_hash,
+                },
+                verified_common,
+            )),
+            DecryptionOutcome::Invalid(_) => Err(InvalidMessage),
         }
+    }
+
+    /// 2. Verify the AVID-phase [PessimisticMessage] against a previously verified `v`
+    ///    ([VerifiedCommonMessage]) and emit one [Echo] per pending recipient. The receiver is
+    ///    expected to already hold `v` from the optimistic phase (or to have fetched it from a
+    ///    party in `message.certificate`). Returns a [VerifiedMessage] for the AVID-layer calls.
+    ///
+    ///    The returned `Option<Vote>` is `Some(Vote{H(v)})` iff this receiver is *not* a pending
+    ///    recipient — i.e. a confirmer just relaying echoes. Pending recipients return `None`
+    ///    here and only produce their [Vote] later via [Self::verify_and_decrypt].
+    pub fn echo(
+        &self,
+        message: &PessimisticMessage,
+        verified_common: &VerifiedCommonMessage,
+    ) -> FastCryptoResult<(VerifiedMessage, Vec<Echo>, Option<Vote>)> {
         if message
             .dispersal
-            .iter()
-            .zip(&message.common.recipient_roots)
-            .any(|(auth, root)| auth.verify(self.id as usize, root).is_err())
+            .keys()
+            .any(|i| self.nodes.node_id_to_node(*i).is_err())
         {
             return Err(InvalidMessage);
         }
 
-        let verified_common_message = self.verify_common_message(message.common.clone())?;
-        let common_message_hash = verified_common_message.0.hash();
+        // Verify the optimistic certificate: every confirm signs H(v), confirmers contribute
+        // ≥ t + f weight, and the certifier set is disjoint from pending recipients.
+        message
+            .certificate
+            .verify(&self.nodes, verified_common, self.t + self.f)?;
+
+        if message
+            .certificate
+            .participants()
+            .any(|p| message.dispersal.contains_key(&p))
+        {
+            return Err(InvalidProof);
+        }
+
+        // Verify dispersal entries: each entry's `authenticated_shards` is this receiver's
+        // shard for `i`'s ciphertext, authenticated against `recipient_root` at leaf self.id.
+        if message.dispersal.values().any(|entry| {
+            entry
+                .authenticated_shards
+                .verify(self.id as usize, &entry.recipient_root)
+                .is_err()
+        }) {
+            return Err(InvalidMessage);
+        }
+
+        let common_message_hash = *verified_common.hash();
         let echoes = message
             .dispersal
-            .iter()
-            .cloned()
-            .map(|authenticated_shards| Echo {
+            .values()
+            .map(|entry| Echo {
                 sender: self.id,
-                authenticated_shards,
+                authenticated_shards: entry.authenticated_shards.clone(),
                 common_message_hash,
             })
             .collect();
-        Ok((verified_common_message, echoes))
+        // Non-pending receivers (confirmers) attest to `v` here. Pending receivers wait until
+        // after `verify_and_decrypt` to vote.
+        let vote = message
+            .certificate
+            .participants()
+            .any(|p| p == self.id)
+            .then_some(Vote {
+                common_message_hash,
+            });
+        Ok((
+            VerifiedMessage {
+                message: message.clone(),
+                verified_common: verified_common.clone(),
+            },
+            echoes,
+            vote,
+        ))
     }
 
-    /// Run the dealer's commitments through [CommonMessage::verify] using this receiver's `t`,
-    /// `batch_size`, and session id. Returns the resulting [VerifiedCommonMessage].
+    /// Verify a [CommonMessage] (See [CommonMessage::verify]) and returns the resulting [VerifiedCommonMessage].
     pub fn verify_common_message(
         &self,
         common_message: CommonMessage,
     ) -> FastCryptoResult<VerifiedCommonMessage> {
-        common_message.verify(self.t, self.batch_size, &self.random_oracle())
+        common_message.verify(
+            self.t,
+            self.batch_size,
+            self.nodes.num_nodes(),
+            &self.random_oracle(),
+        )
     }
 
-    /// Verify an [Echo] addressed to this receiver against `common_message`: the sender's shard
-    /// count matches their advertised weight, the Merkle proof checks against the receiver's
-    /// `recipient_root`, and the echo's `common_message_hash` matches. Returns a [VerifiedEcho]
-    /// suitable for [Self::decode_ciphertext].
+    /// Verify an [Echo] addressed to this receiver against `verified_message`: the sender's
+    /// shard count matches their advertised weight, the Merkle proof checks against the
+    /// receiver's `recipient_root`, and the echo's `common_message_hash` matches. Returns a
+    /// [VerifiedEcho] suitable for [Self::decode_ciphertext].
+    ///
+    /// Precondition: `self.id ∈ verified_message.pending_recipients()`. Echoes are only
+    /// meaningful for pending recipients; confirmers calling this for themselves get
+    /// [InvalidInput].
     pub fn verify_echo(
         &self,
         echo: Echo,
-        common_message: &VerifiedCommonMessage,
+        verified_message: &VerifiedMessage,
     ) -> FastCryptoResult<VerifiedEcho> {
+        if !verified_message.message.dispersal.contains_key(&self.id) {
+            return Err(InvalidInput);
+        }
         let weight = self.nodes.weight_of(echo.sender)?;
-        echo.verify(weight, self.id, &common_message.0)
+        let recipient_root = verified_message.recipient_root(self.id)?;
+        echo.verify(
+            weight,
+            verified_message.verified_common.hash(),
+            recipient_root,
+        )
     }
 
-    /// 3. Reconstruct this receiver's ciphertext from a quorum of [VerifiedEcho]s. Returns
-    ///    [DecodeOutcome::Decoded] when the AVID dispersal is consistent with the dealer's
-    ///    `r_{self.id}`, or [DecodeOutcome::InvalidDispersal] (a [BlameComplaint]) when it isn't.
-    ///
-    ///    Echoes must already be validated via [Self::verify_echo] and must come from distinct
-    ///    senders — duplicates yield [InvalidInput]. Returns [NotEnoughWeight] if the senders
-    ///    contribute `< W − 2f` weight.
+    /// 3. Reconstruct this receiver's ciphertext from a quorum of distinct-sender
+    ///    [VerifiedEcho]s (`≥ W − 2f` weight; duplicates yield [InvalidInput], short weight
+    ///    yields [NotEnoughWeight]). Returns [DecodeOutcome::Decoded] when the dispersal is
+    ///    consistent, or [DecodeOutcome::InvalidDispersal] (a [BlameComplaint]) otherwise.
     pub fn decode_ciphertext(
         &self,
         echos: &[VerifiedEcho],
-        common_message: &VerifiedCommonMessage,
+        verified_message: &VerifiedMessage,
     ) -> FastCryptoResult<DecodeOutcome> {
         if !echos.iter().map(|e| e.0.sender).all_unique() {
             return Err(InvalidInput);
@@ -594,40 +795,54 @@ impl Receiver {
             .map(|e| (e.0.sender, e.0.authenticated_shards))
             .collect();
 
+        let recipient_root = verified_message.recipient_root(self.id)?;
         Ok(self
             .reconstruct_ciphertext(self.id, &shards)
             .and_then(|ct| {
-                self.check_avid_consistency(&ct, common_message.0.recipient_root(self.id)?)?;
+                self.check_avid_consistency(&ct, recipient_root)?;
                 Ok(DecodeOutcome::Decoded(ct))
             })
             .unwrap_or(DecodeOutcome::InvalidDispersal(BlameComplaint {
                 accuser_id: self.id,
                 shards,
-                common_message_hash: common_message.0.hash(),
+                common_message_hash: *verified_message.verified_common.hash(),
             })))
     }
 
     /// 4. Decrypt and verify the receiver's own shares from a successfully decoded ciphertext.
     ///    Yields [DecryptionOutcome::Valid] (with a [Vote] to broadcast) when shares verify, or
-    ///    [DecryptionOutcome::Invalid] (a [RevealComplaint]) otherwise.
+    ///    [DecryptionOutcome::Invalid] (a [RevealComplaint]) otherwise. Rejects with
+    ///    [InvalidMessage] if the ciphertext doesn't match the hash pinned in `v` — without
+    ///    this rebind, a malicious dealer could disperse a different ciphertext via AVID.
     pub fn verify_and_decrypt(
         &self,
         ciphertext: &[u8],
         common_message: &VerifiedCommonMessage,
     ) -> FastCryptoResult<DecryptionOutcome> {
-        let common_message = &common_message.0;
-        let challenge =
-            compute_challenge_from_common_message(&self.random_oracle(), common_message);
+        let common_message_hash = *common_message.hash();
+        let common_message = common_message.common();
+
+        // Bind `ciphertext` to its hash in `v`. Closes the AVID-disperse-different-E_i hole:
+        // the dealer is committed to `E_i = ciphertext_hashes[i]` in `v`, so any other
+        // ciphertext (however well-formed against the Merkle root) is rejected here.
+        let expected_hash = common_message
+            .ciphertext_hash(self.id)
+            .ok_or(InvalidMessage)?;
+        let random_oracle = self.random_oracle();
+        if hash_ciphertext(&random_oracle, ciphertext) != *expected_hash {
+            return Err(InvalidMessage);
+        }
+
+        let challenge = compute_challenge_from_common_message(&random_oracle, common_message);
         let CommonMessage {
             full_public_keys,
             ciphertext_shared: shared,
             ..
         } = &common_message;
 
+        // `shared` was already NIZK-verified by `CommonMessage::verify` when constructing the
+        // `VerifiedCommonMessage`.
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
-        shared
-            .verify(&random_oracle_encryption)
-            .map_err(|_| InvalidMessage)?;
         let plaintext = shared.decrypt(
             ciphertext,
             &self.enc_secret_key,
@@ -635,13 +850,12 @@ impl Receiver {
             self.id as usize,
         );
 
-        let common_message_hash = common_message.hash();
         SharesForNode::from_bytes(plaintext)
             .and_then(|my_shares| {
                 my_shares.verify(
                     common_message,
                     &challenge,
-                    self.nodes.weight_of(self.id)?,
+                    &self.nodes.share_ids_of(self.id)?,
                     self.batch_size,
                 )?;
                 Ok(my_shares)
@@ -673,15 +887,15 @@ impl Receiver {
 
     /// 5a. Validate a [RevealComplaint] complaint and respond with this party's own shares so the
     ///     accuser can recover. Accepts iff the ciphertext is bound to the dealer's broadcast
-    ///     (re-encodes to `recipient_roots[accuser_id]`) and the recovery package decrypts it
+    ///     (re-encodes to `dispersal[accuser_id].recipient_root`) and the recovery package decrypts it
     ///     to invalid shares.
     pub fn handle_reveal(
         &self,
         reveal: &RevealComplaint,
-        common_message: &VerifiedCommonMessage,
+        verified_message: &VerifiedMessage,
         ciphertext: Vec<u8>,
     ) -> FastCryptoResult<ComplaintResponse> {
-        let common_message = &common_message.0;
+        let common_message = verified_message.common();
         let challenge =
             compute_challenge_from_common_message(&self.random_oracle(), common_message);
 
@@ -692,13 +906,14 @@ impl Receiver {
             common_message_hash,
         } = reveal;
 
-        if *common_message_hash != common_message.hash() {
+        if common_message_hash != verified_message.verified_common.hash() {
             return Err(InvalidProof);
         }
-        let recipient_root = common_message.recipient_root(*accuser_id)?;
+        let recipient_root = verified_message.recipient_root(*accuser_id)?;
         self.check_avid_consistency(reveal_ciphertext, recipient_root)
             .map_err(|_| InvalidProof)?;
         let accuser = self.nodes.node_id_to_node(*accuser_id)?;
+        let accuser_indices = self.nodes.share_ids_of(*accuser_id)?;
         proof.check(
             *accuser_id,
             &accuser.pk,
@@ -706,26 +921,29 @@ impl Receiver {
             &common_message.ciphertext_shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
-                shares.verify(common_message, &challenge, accuser.weight, self.batch_size)
+                shares.verify(
+                    common_message,
+                    &challenge,
+                    &accuser_indices,
+                    self.batch_size,
+                )
             },
         )?;
 
         Ok(self.build_complaint_response(common_message, ciphertext))
     }
 
-    /// 5b. Validate a [BlameComplaint] complaint and respond with this party's own shares. Accepts iff
-    ///     each entry in `blame.shards` authenticates under
-    ///     `common_message.recipient_roots[accuser_id]` at its sender's leaf, the senders
-    ///     contribute `≥ W − 2f` weight, and the resulting set of shards either fails to
-    ///     RS-decode or decodes to a ciphertext whose re-encoding doesn't match the accuser's
-    ///     `r_i`.
+    /// 5b. Validate a [BlameComplaint] and respond with this party's shares. Accepts iff the
+    ///     entries in `blame.shards` Merkle-authenticate under
+    ///     `dispersal[accuser_id].recipient_root`, contribute `≥ W − 2f` weight, and either
+    ///     fail to RS-decode or decode to a ciphertext whose re-encoding doesn't match `r_i`.
     pub fn handle_blame(
         &self,
         blame: &BlameComplaint,
-        common_message: &VerifiedCommonMessage,
+        verified_message: &VerifiedMessage,
         ciphertext: Vec<u8>,
     ) -> FastCryptoResult<ComplaintResponse> {
-        let common_message = &common_message.0;
+        let common_message = verified_message.common();
 
         let BlameComplaint {
             accuser_id,
@@ -733,10 +951,10 @@ impl Receiver {
             common_message_hash,
         } = blame;
 
-        if *common_message_hash != common_message.hash() {
+        if common_message_hash != verified_message.verified_common.hash() {
             return Err(InvalidProof);
         }
-        let recipient_root = common_message.recipient_root(*accuser_id)?;
+        let recipient_root = verified_message.recipient_root(*accuser_id)?;
 
         if shards
             .iter()
@@ -791,9 +1009,9 @@ impl Receiver {
     pub fn verify_complaint_response(
         &self,
         response: ComplaintResponse,
-        common_message: &VerifiedCommonMessage,
+        verified_message: &VerifiedMessage,
     ) -> FastCryptoResult<VerifiedComplaintResponse> {
-        let common_message = &common_message.0;
+        let common_message = verified_message.common();
         let challenge =
             compute_challenge_from_common_message(&self.random_oracle(), common_message);
 
@@ -803,7 +1021,16 @@ impl Receiver {
             recovery_package,
         } = response;
 
-        self.check_avid_consistency(&ciphertext, common_message.recipient_root(responder_id)?)?;
+        // The responder may be a confirmer (not in `pending_recipients`), so their dispersal
+        // entries — and hence their `recipient_root` — aren't in the [PessimisticMessage].
+        // Instead, verify the responder's ciphertext against `v`'s `ciphertext_hashes`, which
+        // pin every receiver's ciphertext in `v`.
+        let expected_hash = common_message
+            .ciphertext_hash(responder_id)
+            .ok_or(InvalidProof)?;
+        if hash_ciphertext(&self.random_oracle(), &ciphertext) != *expected_hash {
+            return Err(InvalidProof);
+        }
         let responder = self.nodes.node_id_to_node(responder_id)?;
         let shares = common_message
             .ciphertext_shared
@@ -822,7 +1049,7 @@ impl Receiver {
         shares.verify(
             common_message,
             &challenge,
-            responder.weight,
+            &self.nodes.share_ids_of(responder_id)?,
             self.batch_size,
         )?;
 
@@ -835,7 +1062,7 @@ impl Receiver {
     ///    interpolated shares fail final verification.
     pub fn recover(
         &self,
-        common_message: &VerifiedCommonMessage,
+        verified_message: &VerifiedMessage,
         responses: Vec<VerifiedComplaintResponse>,
     ) -> FastCryptoResult<ReceiverOutput> {
         let response_shares = responses.into_iter().map(|v| v.0).collect_vec();
@@ -844,14 +1071,14 @@ impl Receiver {
             return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
 
-        let common_message = &common_message.0;
+        let common_message = verified_message.common();
         let challenge =
             compute_challenge_from_common_message(&self.random_oracle(), common_message);
         let my_shares = SharesForNode::recover(self, &response_shares)?;
         my_shares.verify(
             common_message,
             &challenge,
-            self.nodes.weight_of(self.id)?,
+            &self.nodes.share_ids_of(self.id)?,
             self.batch_size,
         )?;
 
@@ -921,21 +1148,89 @@ impl Receiver {
     }
 }
 
+impl OptimisticCertificate {
+    /// The set of confirmers who signed this certificate.
+    pub fn participants(&self) -> impl Iterator<Item = PartyId> + '_ {
+        self.confirms.keys().copied()
+    }
+
+    /// Verify the certificate against `verified_common`: every confirm is for the same
+    /// `common_message_hash`, and the senders contribute `≥ min_weight` weight.
+    pub fn verify(
+        &self,
+        nodes: &Nodes<EG>,
+        verified_common: &VerifiedCommonMessage,
+        min_weight: u16,
+    ) -> FastCryptoResult<()> {
+        let hash = verified_common.hash();
+        if self
+            .confirms
+            .values()
+            .any(|c| &c.common_message_hash != hash)
+        {
+            return Err(InvalidProof);
+        }
+        if nodes.total_weight_of(self.confirms.keys())? < min_weight {
+            return Err(NotEnoughWeight(min_weight as usize));
+        }
+        Ok(())
+    }
+}
+
+impl DealerState {
+    /// The shared `v` ([CommonMessage]) committed in the optimistic phase.
+    pub fn common(&self) -> &CommonMessage {
+        &self.common
+    }
+
+    /// Test-only: per-recipient ciphertext at the given index.
+    #[cfg(test)]
+    fn ciphertexts_at(&self, i: usize) -> &Vec<u8> {
+        &self.ciphertexts[i]
+    }
+}
+
+impl PessimisticMessage {
+    /// The set of pending recipients `I` — the receivers whose shares this [PessimisticMessage]
+    /// is dispersing.
+    pub fn pending_recipients(&self) -> impl Iterator<Item = PartyId> + '_ {
+        self.dispersal.keys().copied()
+    }
+}
+
+impl VerifiedCommonMessage {
+    /// The validated [CommonMessage].
+    pub fn common(&self) -> &CommonMessage {
+        &self.common
+    }
+
+    /// The [CommonMessage]'s hash, computed once during verification and cached.
+    pub fn hash(&self) -> &Digest {
+        &self.hash
+    }
+}
+
 impl CommonMessage {
-    /// Verify the dealer's commitments: the lengths/degree of the published values are
-    /// well-formed and `g^{p''(0)} = c' · ∏ c_l^{γ_l}`. Consumes `self` and returns a
-    /// [VerifiedCommonMessage] on success.
+    /// Verify the dealer's commitments: lengths/degree are well-formed, the encryption NIZK in
+    /// `ciphertext_shared` checks, and `g^{p''(0)} = c' · ∏ c_l^{γ_l}`. Consumes `self` and
+    /// returns a [VerifiedCommonMessage] on success.
     fn verify(
         self,
         t: u16,
         batch_size: usize,
+        num_nodes: usize,
         random_oracle: &RandomOracle,
     ) -> FastCryptoResult<VerifiedCommonMessage> {
-        if self.full_public_keys.len() != batch_size
+        if t == 0
+            || self.full_public_keys.len() != batch_size
             || self.response_polynomial.degree() != t as usize - 1
+            || self.ciphertext_hashes.len() != num_nodes
         {
             return Err(InvalidMessage);
         }
+        self.ciphertext_shared
+            .verify(&random_oracle.extend(&Encryption.to_string()))
+            .map_err(|_| InvalidMessage)?;
         let challenge = compute_challenge_from_common_message(random_oracle, &self);
         if G::generator() * self.response_polynomial.c0()
             != self.blinding_commit
@@ -944,30 +1239,23 @@ impl CommonMessage {
         {
             return Err(InvalidMessage);
         }
-        Ok(VerifiedCommonMessage(self))
+        let hash = self.hash(random_oracle);
+        Ok(VerifiedCommonMessage { common: self, hash })
     }
 
-    /// Blake2b hash of the BCS-serialized [CommonMessage]. Used to bind echoes and complaints
-    /// to a specific dealer broadcast.
-    fn hash(&self) -> Digest {
-        let mut hasher = Blake2b256::new();
-        hasher.update(
-            bcs::to_bytes(&(
-                &self.ciphertext_shared,
-                &self.full_public_keys,
-                &self.blinding_commit,
-                &self.response_polynomial,
-                &self.recipient_roots,
-            ))
-            .unwrap(),
-        );
-        hasher.finalize()
+    /// Canonical hash of this [CommonMessage] under the session [RandomOracle]. Used to bind
+    /// echoes and complaints to a specific dealer broadcast. Usually you want the cached
+    /// [VerifiedCommonMessage::hash] instead.
+    pub fn hash(&self, random_oracle: &RandomOracle) -> Digest {
+        Digest::new(
+            random_oracle
+                .extend(&CommonMessageHash.to_string())
+                .evaluate(self),
+        )
     }
 
-    /// The dealer's per-recipient Merkle root for `id`. Returns [InvalidProof] if `id` is
-    /// out of range.
-    fn recipient_root(&self, id: PartyId) -> FastCryptoResult<&merkle::Node> {
-        self.recipient_roots.get(id as usize).ok_or(InvalidProof)
+    pub fn ciphertext_hash(&self, id: PartyId) -> Option<&Digest> {
+        self.ciphertext_hashes.get(id as usize)
     }
 }
 
@@ -1023,10 +1311,20 @@ impl SharesForNode {
         &self,
         message: &CommonMessage,
         challenge: &[S],
-        weight: u16,
+        expected_indices: &[ShareIndex],
         expected_batch_size: usize,
     ) -> FastCryptoResult<()> {
-        if self.weight() != weight || self.try_uniform_batch_size()? != expected_batch_size {
+        if self.try_uniform_batch_size()? != expected_batch_size {
+            return Err(InvalidMessage);
+        }
+        // Pin shares to the exact set of indices the dealer was supposed to assign to this
+        // party. Without this, a malicious dealer could swap indices: the pointwise
+        // `p''(index)` check below would still pass (all evaluations of `p''` are valid), but
+        // the receiver would end up holding shares at unexpected positions — a footgun for
+        // downstream consumers that assume `shares[i].index == share_ids_of(id)[i]`.
+        let actual: BTreeSet<ShareIndex> = self.shares.iter().map(|s| s.index).collect();
+        let expected: BTreeSet<ShareIndex> = expected_indices.iter().copied().collect();
+        if actual != expected {
             return Err(InvalidMessage);
         }
         for shares in &self.shares {
@@ -1053,9 +1351,9 @@ impl SharesForNode {
                             .iter()
                             .flat_map(|s| s.shares_for_secret(i))
                             .collect_vec();
-                        Poly::recover_at(index, &evaluations).unwrap().value
+                        Ok(Poly::recover_at(index, &evaluations)?.value)
                     })
-                    .collect_vec();
+                    .collect::<FastCryptoResult<Vec<_>>>()?;
 
                 let blinding_share = Poly::recover_at(
                     index,
@@ -1107,23 +1405,21 @@ impl AuthenticatedShards {
 }
 
 impl Echo {
-    /// Verify this echo against `common_message` for the recipient `receiver_id`: the sender's
-    /// shard count matches `sender_weight`, the Merkle proof checks against
-    /// `recipient_roots[receiver_id]`, and the echo's `common_message_hash` matches.
+    /// Verify this echo for the recipient: the sender's shard count matches `sender_weight`,
+    /// the Merkle proof checks against `recipient_root`, and the echo's `common_message_hash`
+    /// matches `expected_hash`.
     fn verify(
         self,
         sender_weight: u16,
-        receiver_id: PartyId,
-        common_message: &CommonMessage,
+        expected_hash: &Digest,
+        recipient_root: &merkle::Node,
     ) -> FastCryptoResult<VerifiedEcho> {
         if self.authenticated_shards.shards.len() != sender_weight as usize {
             return Err(InvalidMessage);
         }
-        self.authenticated_shards.verify(
-            self.sender as usize,
-            common_message.recipient_root(receiver_id)?,
-        )?;
-        if self.common_message_hash != common_message.hash() {
+        self.authenticated_shards
+            .verify(self.sender as usize, recipient_root)?;
+        if &self.common_message_hash != expected_hash {
             return Err(InvalidMessage);
         }
         Ok(VerifiedEcho(self))
@@ -1151,6 +1447,17 @@ fn validate_parameters(t: u16, f: u16, total_weight: u16) -> FastCryptoResult<()
     Ok(())
 }
 
+/// Hash a per-recipient ciphertext under the session [RandomOracle]. Used in
+/// [CommonMessage::ciphertext_hashes] so the dealer's encryptions are committed in `v`. The
+/// session-scoped domain separator prevents cross-session collisions on the same ciphertext.
+fn hash_ciphertext(random_oracle: &RandomOracle, ciphertext: &[u8]) -> Digest {
+    Digest::new(
+        random_oracle
+            .extend(&CiphertextHash.to_string())
+            .evaluate(ciphertext),
+    )
+}
+
 /// Build the per-recipient Merkle tree over `shards` (per-node grouped shard chunks of one
 /// ciphertext). The root of this tree is the per-recipient `recipient_root`.
 #[allow(clippy::ptr_arg)]
@@ -1174,12 +1481,13 @@ fn compute_challenge(
     c: &[G],
     c_prime: &G,
     shared: &SharedComponents<EG>,
-    recipient_roots: &[merkle::Node],
+    ciphertext_hashes: &[Digest],
 ) -> Vec<S> {
     let random_oracle = random_oracle.extend(&Challenge.to_string());
-    let inner_hash =
-        Blake2b256::digest(bcs::to_bytes(&(c.to_vec(), c_prime, shared, recipient_roots)).unwrap())
-            .digest;
+    let inner_hash = Blake2b256::digest(
+        bcs::to_bytes(&(c.to_vec(), c_prime, shared, ciphertext_hashes)).unwrap(),
+    )
+    .digest;
     (0..c.len())
         .map(|l| random_oracle.evaluate_to_group_element(&(l, inner_hash.to_vec())))
         .collect()
@@ -1194,27 +1502,28 @@ fn compute_challenge_from_common_message(
         &message.full_public_keys,
         &message.blinding_commit,
         &message.ciphertext_shared,
-        &message.recipient_roots,
+        &message.ciphertext_hashes,
     )
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        Dealer, DecodeOutcome, DecryptionOutcome, Message, Receiver, ReceiverOutput, ShareBatch,
-        SharesForNode,
+        Confirm, Dealer, DealerState, DecodeOutcome, DecryptionOutcome, OptimisticCertificate,
+        OptimisticMessage, PessimisticMessage, Receiver, ReceiverOutput, ShareBatch, SharesForNode,
+        VerifiedEcho,
     };
     use crate::ecies_v1;
     use crate::ecies_v1::PublicKey;
-    use crate::nodes::{Node, Nodes};
+    use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::{Eval, Poly};
     use crate::threshold_schnorr::bcs::BCSSerialized;
-    use crate::threshold_schnorr::EG;
+    use crate::threshold_schnorr::{batch_avss, EG};
     use crate::types::ShareIndex;
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, BTreeSet, HashMap};
 
     #[test]
     fn test_bcs_serialized_size_matches_serialization() {
@@ -1245,134 +1554,13 @@ mod tests {
     }
 
     #[test]
-    fn test_happy_path() {
-        // No complaints, all honest. All have weight 1
+    fn test_optimistic_then_pessimistic() {
+        // 5 of 7 parties confirm in the optimistic phase; the remaining 2 receive their shares
+        // via the pessimistic AVID phase, gated on the optimistic certificate.
         let t = 3;
         let f = 2;
-        let n = 7;
+        let n = 7u16;
         let batch_size_per_weight = 3;
-
-        let mut rng = rand::thread_rng();
-        let sks = (0..n)
-            .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
-            .collect::<Vec<_>>();
-        let nodes = Nodes::new(
-            sks.iter()
-                .enumerate()
-                .map(|(i, sk)| Node {
-                    id: i as u16,
-                    pk: PublicKey::from_private_key(sk),
-                    weight: 1,
-                })
-                .collect::<Vec<_>>(),
-        )
-        .unwrap();
-
-        let sid = b"tbls test".to_vec();
-        let dealer_id = 0;
-        let dealer: Dealer = Dealer::new(
-            nodes.clone(),
-            dealer_id,
-            f,
-            t,
-            sid.clone(),
-            batch_size_per_weight,
-        )
-        .unwrap();
-
-        let receivers = sks
-            .into_iter()
-            .enumerate()
-            .map(|(id, secret_key)| {
-                Receiver::new(
-                    nodes.clone(),
-                    id as u16,
-                    dealer_id,
-                    f,
-                    t,
-                    sid.clone(),
-                    secret_key,
-                    batch_size_per_weight,
-                )
-                .unwrap()
-            })
-            .collect_vec();
-
-        let messages = dealer.create_message(&mut rng).unwrap();
-
-        let (verified_commons, echoes_by_sender): (Vec<_>, Vec<_>) = receivers
-            .iter()
-            .map(|receiver| receiver.echo(&messages[receiver.id as usize]).unwrap())
-            .unzip();
-
-        let echoes_by_recipient = receivers
-            .iter()
-            .enumerate()
-            .map(|(i, _)| {
-                echoes_by_sender
-                    .iter()
-                    .map(|em| em[i].clone())
-                    .collect_vec()
-            })
-            .collect_vec();
-
-        let decoded_ciphertext = receivers
-            .iter()
-            .zip(verified_commons.iter())
-            .zip(echoes_by_recipient.iter())
-            .map(|((receiver, vcm), echoes)| {
-                let verified = echoes
-                    .iter()
-                    .map(|e| receiver.verify_echo(e.clone(), vcm).unwrap())
-                    .collect_vec();
-                assert_decoded(receiver.decode_ciphertext(&verified, vcm).unwrap())
-            })
-            .collect_vec();
-
-        let all_shares = receivers
-            .iter()
-            .zip(verified_commons.iter())
-            .zip(decoded_ciphertext)
-            .map(|((receiver, vcm), pem)| {
-                let output = assert_valid(receiver.verify_and_decrypt(&pem, vcm).unwrap());
-                (receiver.id, output)
-            })
-            .collect::<HashMap<_, _>>();
-
-        let secrets = (0..dealer.batch_size)
-            .map(|l| {
-                let shares = receivers
-                    .iter()
-                    .map(|r| {
-                        (
-                            r.id,
-                            all_shares.get(&r.id).unwrap().my_shares.shares[0].batch[l], // Each receiver has a single share (weight=1 for all nodes)
-                        )
-                    })
-                    .collect_vec();
-                Poly::recover_c0(
-                    t,
-                    shares.iter().take(t as usize).map(|(id, v)| Eval {
-                        index: ShareIndex::try_from(id + 1).unwrap(),
-                        value: *v,
-                    }),
-                )
-                .unwrap()
-            })
-            .collect_vec();
-
-        assert_eq!(secrets, secrets);
-    }
-    #[test]
-    fn test_share_recovery() {
-        // Dealer is honest at the AVID layer (consistent dispersal) but flips a byte in
-        // receiver 0's plaintext, so receiver 0's decryption succeeds but the resulting
-        // SharesForNode fails verification — triggering an Invalid complaint. The other receivers
-        // verify the complaint and respond with their own shares; receiver 0 reconstructs.
-        let t = 3;
-        let f = 2;
-        let n = 7;
-        let batch_size_per_weight: u16 = 3;
 
         let mut rng = rand::thread_rng();
         let sks = (0..n)
@@ -1390,8 +1578,8 @@ mod tests {
         )
         .unwrap();
 
-        let sid = b"tbls test".to_vec();
-        let dealer_id = 1;
+        let sid = b"opt test".to_vec();
+        let dealer_id = 0;
         let dealer = Dealer::new(
             nodes.clone(),
             dealer_id,
@@ -1405,7 +1593,7 @@ mod tests {
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(id, secret_key)| {
+            .map(|(id, sk)| {
                 Receiver::new(
                     nodes.clone(),
                     id as u16,
@@ -1413,87 +1601,177 @@ mod tests {
                     f,
                     t,
                     sid.clone(),
-                    secret_key,
+                    sk,
                     batch_size_per_weight,
                 )
                 .unwrap()
             })
             .collect_vec();
 
-        let messages = dealer.create_message_cheating(&mut rng).unwrap();
+        // Optimistic phase: only parties 0..=4 confirm; 5 and 6 are stragglers.
+        let (state, optimistic_messages) = dealer.create_optimistic_messages(&mut rng).unwrap();
+        let confirmers: Vec<PartyId> = (0u16..=4).collect();
+        let pending: BTreeSet<PartyId> = [5u16, 6].into_iter().collect();
+        let mut confirms = BTreeMap::new();
+        for id in &confirmers {
+            let (_output, confirm, _verified_common) = receivers[*id as usize]
+                .process_optimistic(&optimistic_messages[*id as usize])
+                .unwrap();
+            confirms.insert(*id, confirm);
+        }
+        // weight check: 5 confirmers @ weight 1 = 5 >= t + f = 5.
+        let certificate = OptimisticCertificate { confirms };
+        let vcm = receivers[0]
+            .verify_common_message(state.common.clone())
+            .unwrap();
+        certificate
+            .verify(&nodes, &vcm, t + f)
+            .expect("certificate should verify");
 
-        // Echo phase
-        let (verified_commons, echos): (Vec<_>, Vec<_>) = receivers
-            .iter()
-            .map(|r| r.echo(&messages[r.id as usize]).unwrap())
-            .unzip();
-        let echoes_per_recipient = (0..n)
-            .map(|i| echos.iter().map(|em| em[i].clone()).collect_vec())
-            .collect_vec();
+        // Pessimistic phase: dispersal for parties in I = {5, 6}.
+        let messages = dealer
+            .create_pessimistic_messages(&state, pending.clone(), certificate)
+            .unwrap();
 
-        // Process echoes + verify_and_decrypt. AVID is consistent for everyone in this test, so
-        // every decode yields a Decoded outcome.
-        let mut ciphertexts: HashMap<u16, Vec<u8>> = HashMap::new();
-        let outcomes: HashMap<u16, DecryptionOutcome> = receivers
-            .iter()
-            .zip(verified_commons.iter())
-            .zip(echoes_per_recipient.iter())
-            .map(|((r, vcm), echoes)| {
-                let verified = echoes
-                    .iter()
-                    .map(|e| r.verify_echo(e.clone(), vcm).unwrap())
-                    .collect_vec();
-                let pem = assert_decoded(r.decode_ciphertext(&verified, vcm).unwrap());
-                ciphertexts.insert(r.id, pem.clone());
-                (r.id, r.verify_and_decrypt(&pem, vcm).unwrap())
+        // All receivers verify v (which they already have from the optimistic phase) and echo
+        // for I. Confirmers (not in `pending`) also emit a Vote over `H(v)`; pending recipients
+        // return `None` here and only vote after `verify_and_decrypt`.
+        let mut verified_messages = Vec::with_capacity(receivers.len());
+        let mut echos = Vec::with_capacity(receivers.len());
+        for r in &receivers {
+            let vcm = r.verify_common_message(state.common.clone()).unwrap();
+            let (vm, echoes, vote) = r.echo(&messages[r.id as usize], &vcm).unwrap();
+            assert_eq!(vote.is_some(), !pending.contains(&r.id));
+            verified_messages.push(vm);
+            echos.push(echoes);
+        }
+
+        // Each receiver j sends echoes only for recipients in pending_recipients (= 2 echoes).
+        for echo_set in &echos {
+            assert_eq!(echo_set.len(), pending.len());
+        }
+
+        // For each i in pending, gather all echoes addressed to i and decode.
+        for &i in &pending {
+            let echoes_for_i: Vec<batch_avss::Echo> = echos
+                .iter()
+                .map(|em| {
+                    // echo j -> recipient indexed in BTreeMap iteration order over pending
+                    let position = pending.iter().position(|p| *p == i).unwrap();
+                    em[position].clone()
+                })
+                .collect();
+            let r = &receivers[i as usize];
+            let vm = &verified_messages[i as usize];
+            let verified_echos = echoes_for_i
+                .into_iter()
+                .map(|e| r.verify_echo(e, vm).unwrap())
+                .collect_vec();
+            let pem = assert_decoded(r.decode_ciphertext(&verified_echos, vm).unwrap());
+            assert_valid(r.verify_and_decrypt(&pem, &vm.verified_common).unwrap());
+        }
+    }
+
+    #[test]
+    fn test_share_recovery() {
+        // Cheating dealer flips a byte in receiver 0's plaintext. Receivers 1..n succeed in the
+        // optimistic phase and confirm; receiver 0 fails to confirm and lands in the pessimistic
+        // phase, where their AVID-recovered ciphertext decrypts to bad shares — triggering an
+        // Invalid complaint. Confirmers respond and receiver 0 recovers.
+        let t = 3u16;
+        let f = 2u16;
+        let n = 7u16;
+        let batch_size_per_weight: u16 = 3;
+        let victim_id = 0u16;
+        let (dealer, receivers) = uniform_session(n, t, f, batch_size_per_weight);
+
+        let mut rng = rand::thread_rng();
+        let state = dealer.create_encrypted_shares_cheating(&mut rng).unwrap();
+        let common = state.common().clone();
+        let opt_messages: Vec<OptimisticMessage> = (0..n)
+            .map(|i| OptimisticMessage {
+                common: common.clone(),
+                ciphertext: state.ciphertexts_at(i as usize).clone(),
             })
             .collect();
 
-        // Receiver 0 (the targeted victim) emits an Invalid complaint.
-        let victim_id = 0u16;
-        let mut outcomes = outcomes;
-        let reveal = match outcomes.remove(&victim_id).unwrap() {
+        // Optimistic: receivers 1..n confirm; receiver 0's decryption fails.
+        let mut outputs: HashMap<u16, ReceiverOutput> = HashMap::new();
+        let mut confirms: BTreeMap<PartyId, Confirm> = BTreeMap::new();
+        for r in receivers.iter().filter(|r| r.id != victim_id) {
+            let (out, c, _) = r.process_optimistic(&opt_messages[r.id as usize]).unwrap();
+            outputs.insert(r.id, out);
+            confirms.insert(r.id, c);
+        }
+        assert!(receivers[victim_id as usize]
+            .process_optimistic(&opt_messages[victim_id as usize])
+            .is_err());
+
+        let pending: BTreeSet<PartyId> = std::iter::once(victim_id).collect();
+        let certificate = OptimisticCertificate { confirms };
+        let messages = dealer
+            .create_pessimistic_messages(&state, pending, certificate)
+            .unwrap();
+
+        // Receiver 0 verifies their PessimisticMessage and produces their own echo (the only entry, for
+        // themselves). Other receivers each emit one echo addressed to receiver 0.
+        let vcm0 = receivers[victim_id as usize]
+            .verify_common_message(common.clone())
+            .unwrap();
+        let (vm0, _, vote0) = receivers[victim_id as usize]
+            .echo(&messages[victim_id as usize], &vcm0)
+            .unwrap();
+        assert!(vote0.is_none(), "pending recipient must not vote at echo");
+        let echoes_for_victim: Vec<VerifiedEcho> = receivers
+            .iter()
+            .map(|r| {
+                let vcm = r.verify_common_message(common.clone()).unwrap();
+                let (_, echoes, _) = r.echo(&messages[r.id as usize], &vcm).unwrap();
+                receivers[victim_id as usize]
+                    .verify_echo(echoes[0].clone(), &vm0)
+                    .unwrap()
+            })
+            .collect();
+        let pem = assert_decoded(
+            receivers[victim_id as usize]
+                .decode_ciphertext(&echoes_for_victim, &vm0)
+                .unwrap(),
+        );
+        let reveal = match receivers[victim_id as usize]
+            .verify_and_decrypt(&pem, &vm0.verified_common)
+            .unwrap()
+        {
             DecryptionOutcome::Invalid(r) => r,
-            ref other => panic!(
-                "expected Invalid from victim, got {:?}",
-                outcome_kind(other)
-            ),
+            other => panic!("expected Invalid, got {:?}", outcome_kind(&other)),
         };
 
-        // The other receivers each get a Valid output.
-        let mut outputs: HashMap<u16, ReceiverOutput> = outcomes
-            .into_iter()
-            .map(|(id, o)| match o {
-                DecryptionOutcome::Valid { output, .. } => (id, output),
-                ref other => panic!(
-                    "expected Valid from honest receiver {id}, got {:?}",
-                    outcome_kind(other)
-                ),
-            })
-            .collect();
-
-        // Each non-victim verifies the complaint and returns their own ciphertext + recovery package.
+        // Confirmers handle the Reveal using their own ciphertexts from the optimistic phase.
         let responses = receivers
             .iter()
-            .zip(verified_commons.iter())
-            .filter(|(r, _)| r.id != victim_id)
-            .map(|(r, vcm)| {
-                r.handle_reveal(&reveal, vcm, ciphertexts.get(&r.id).unwrap().clone())
+            .filter(|r| r.id != victim_id)
+            .map(|r| {
+                let vcm = r.verify_common_message(common.clone()).unwrap();
+                let (vm, _, vote) = r.echo(&messages[r.id as usize], &vcm).unwrap();
+                assert!(vote.is_some(), "non-pending receiver must vote at echo");
+                r.handle_reveal(&reveal, &vm, state.ciphertexts_at(r.id as usize).clone())
                     .unwrap()
             })
             .collect_vec();
 
-        // Victim verifies and then recovers via interpolation across t responses.
-        let victim = &receivers[victim_id as usize];
-        let vcm = &verified_commons[victim_id as usize];
         let verified_responses = responses
             .into_iter()
-            .map(|r| victim.verify_complaint_response(r, vcm).unwrap())
+            .map(|r| {
+                receivers[victim_id as usize]
+                    .verify_complaint_response(r, &vm0)
+                    .unwrap()
+            })
             .collect_vec();
-        let recovered = victim.recover(vcm, verified_responses).unwrap();
+        let recovered = receivers[victim_id as usize]
+            .recover(&vm0, verified_responses)
+            .unwrap();
         outputs.insert(victim_id, recovered);
 
-        // Sanity: every receiver now holds verifiable shares for every secret.
+        // Sanity: t shares (taken from any t receivers) recover the secret.
         for l in 0..dealer.batch_size {
             let shares = receivers
                 .iter()
@@ -1509,16 +1787,112 @@ mod tests {
 
     #[test]
     fn test_share_recovery_blame() {
-        // Dealer is honest at the share layer (decryption yields valid shares) but corrupts the
-        // last f senders' shards for receiver 0's ciphertext. Receiver 0 collects the W - f
-        // unaffected echoes, decodes the original ciphertext, decrypts valid shares, but
-        // re-encoding the recovered ciphertext yields a tree root different from the dealer's
-        // r_0 — triggering an InvalidDispersal complaint.
-        let t = 3;
-        let f = 2;
-        let n = 7;
+        // Receivers 1..n confirm in the optimistic phase. Receiver 0 is treated as a straggler
+        // (no optimistic confirm) and goes through the pessimistic phase. The dealer corrupts
+        // the AVID shards for receiver 0's ciphertext, so receiver 0's decode_ciphertext yields
+        // an InvalidDispersal complaint. Confirmers respond and receiver 0 recovers.
+        let t = 3u16;
+        let f = 2u16;
+        let n = 7u16;
         let batch_size_per_weight: u16 = 3;
+        let victim_id = 0u16;
+        let (dealer, receivers) = uniform_session(n, t, f, batch_size_per_weight);
 
+        let mut rng = rand::thread_rng();
+        let (state, opt_messages) = dealer.create_optimistic_messages(&mut rng).unwrap();
+        let common = state.common().clone();
+
+        // Optimistic: receivers 1..n confirm; receiver 0 is simulated as not having received
+        // the optimistic message.
+        let mut outputs: HashMap<u16, ReceiverOutput> = HashMap::new();
+        let mut confirms: BTreeMap<PartyId, Confirm> = BTreeMap::new();
+        for r in receivers.iter().filter(|r| r.id != victim_id) {
+            let (out, c, _) = r.process_optimistic(&opt_messages[r.id as usize]).unwrap();
+            outputs.insert(r.id, out);
+            confirms.insert(r.id, c);
+        }
+
+        let pending: BTreeSet<PartyId> = std::iter::once(victim_id).collect();
+        let certificate = OptimisticCertificate { confirms };
+        let messages = dealer
+            .pessimistic_with_corrupted_dispersal(&state, pending, certificate)
+            .unwrap();
+
+        // Receiver 0 collects echoes for their own ciphertext. With f senders' shards corrupted,
+        // the W − f remaining honest echoes still fall short of the (W − 2f) RS-decode quorum
+        // when combined with the corrupted ones — so we simulate the last `f` senders being
+        // silent (their corrupted shards would otherwise short-circuit the decoder).
+        let vcm0 = receivers[victim_id as usize]
+            .verify_common_message(common.clone())
+            .unwrap();
+        let (vm0, _, _) = receivers[victim_id as usize]
+            .echo(&messages[victim_id as usize], &vcm0)
+            .unwrap();
+        let echoes_for_victim: Vec<VerifiedEcho> = receivers
+            .iter()
+            .take((n - f) as usize)
+            .map(|r| {
+                let vcm = r.verify_common_message(common.clone()).unwrap();
+                let (_, echoes, _) = r.echo(&messages[r.id as usize], &vcm).unwrap();
+                receivers[victim_id as usize]
+                    .verify_echo(echoes[0].clone(), &vm0)
+                    .unwrap()
+            })
+            .collect();
+
+        let blame = match receivers[victim_id as usize]
+            .decode_ciphertext(&echoes_for_victim, &vm0)
+            .unwrap()
+        {
+            DecodeOutcome::InvalidDispersal(blame) => blame,
+            DecodeOutcome::Decoded(_) => panic!("expected InvalidDispersal from victim"),
+        };
+
+        // Confirmers handle the Blame using their own ciphertexts.
+        let responses = receivers
+            .iter()
+            .filter(|r| r.id != victim_id)
+            .map(|r| {
+                let vcm = r.verify_common_message(common.clone()).unwrap();
+                let (vm, _, _) = r.echo(&messages[r.id as usize], &vcm).unwrap();
+                r.handle_blame(&blame, &vm, state.ciphertexts_at(r.id as usize).clone())
+                    .unwrap()
+            })
+            .collect_vec();
+
+        let verified_responses = responses
+            .into_iter()
+            .map(|r| {
+                receivers[victim_id as usize]
+                    .verify_complaint_response(r, &vm0)
+                    .unwrap()
+            })
+            .collect_vec();
+        let recovered = receivers[victim_id as usize]
+            .recover(&vm0, verified_responses)
+            .unwrap();
+        outputs.insert(victim_id, recovered);
+
+        for l in 0..dealer.batch_size {
+            let shares = receivers
+                .iter()
+                .take(t as usize)
+                .map(|r| Eval {
+                    index: ShareIndex::try_from(r.id + 1).unwrap(),
+                    value: outputs.get(&r.id).unwrap().my_shares.shares[0].batch[l],
+                })
+                .collect_vec();
+            Poly::recover_c0(t, shares.into_iter()).unwrap();
+        }
+    }
+
+    /// Build a uniform-weight Dealer and matching set of Receivers for tests.
+    fn uniform_session(
+        n: u16,
+        t: u16,
+        f: u16,
+        batch_size_per_weight: u16,
+    ) -> (Dealer, Vec<Receiver>) {
         let mut rng = rand::thread_rng();
         let sks = (0..n)
             .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
@@ -1534,8 +1908,7 @@ mod tests {
                 .collect::<Vec<_>>(),
         )
         .unwrap();
-
-        let sid = b"tbls test".to_vec();
+        let sid = b"avss test".to_vec();
         let dealer_id = 1;
         let dealer = Dealer::new(
             nodes.clone(),
@@ -1546,11 +1919,10 @@ mod tests {
             batch_size_per_weight,
         )
         .unwrap();
-
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(id, secret_key)| {
+            .map(|(id, sk)| {
                 Receiver::new(
                     nodes.clone(),
                     id as u16,
@@ -1558,113 +1930,13 @@ mod tests {
                     f,
                     t,
                     sid.clone(),
-                    secret_key,
+                    sk,
                     batch_size_per_weight,
                 )
                 .unwrap()
             })
             .collect_vec();
-
-        let messages = dealer.create_message_cheating_dispersal(&mut rng).unwrap();
-        let victim_id = 0u16;
-
-        // Echo phase
-        let (verified_commons, echos): (Vec<_>, Vec<_>) = receivers
-            .iter()
-            .map(|r| r.echo(&messages[r.id as usize]).unwrap())
-            .unzip();
-
-        // Bundle echoes per recipient. For the victim, simulate the last f senders being silent
-        // (their corrupted shards would otherwise make the receiver's decode fail outright).
-        let echoes_per_recipient = (0..n)
-            .map(|i| {
-                let take = if i == victim_id as usize {
-                    n - f as usize
-                } else {
-                    n
-                };
-                echos
-                    .iter()
-                    .take(take)
-                    .map(|em| em[i].clone())
-                    .collect_vec()
-            })
-            .collect_vec();
-
-        // Decode each receiver's ciphertext. The victim hits the AVID inconsistency at the
-        // decode stage and gets a [DecodeOutcome::InvalidDispersal] directly; everyone else
-        // gets a [DecodeOutcome::Decoded] that they can pass through `verify_and_decrypt`.
-        let mut decode_outcomes: HashMap<u16, DecodeOutcome> = receivers
-            .iter()
-            .zip(verified_commons.iter())
-            .zip(echoes_per_recipient.iter())
-            .map(|((r, vcm), echoes)| {
-                let verified = echoes
-                    .iter()
-                    .map(|e| r.verify_echo(e.clone(), vcm).unwrap())
-                    .collect_vec();
-                (r.id, r.decode_ciphertext(&verified, vcm).unwrap())
-            })
-            .collect();
-
-        let blame = match decode_outcomes.remove(&victim_id).unwrap() {
-            DecodeOutcome::InvalidDispersal(blame) => blame,
-            DecodeOutcome::Decoded(_) => panic!("expected InvalidDispersal from victim"),
-        };
-        // The other receivers each get a Valid output.
-        let mut ciphertexts: HashMap<u16, Vec<u8>> = HashMap::new();
-        let mut outputs: HashMap<u16, ReceiverOutput> = decode_outcomes
-            .into_iter()
-            .map(|(id, decoded)| {
-                let pem = assert_decoded(decoded);
-                ciphertexts.insert(id, pem.clone());
-                let outcome = receivers[id as usize]
-                    .verify_and_decrypt(&pem, &verified_commons[id as usize])
-                    .unwrap();
-                let output = match outcome {
-                    DecryptionOutcome::Valid { output, .. } => output,
-                    ref other => panic!(
-                        "expected Valid from honest receiver {id}, got {:?}",
-                        outcome_kind(other)
-                    ),
-                };
-                (id, output)
-            })
-            .collect();
-
-        // Each non-victim verifies the complaint and returns their own ciphertext + recovery package.
-        let responses = receivers
-            .iter()
-            .zip(verified_commons.iter())
-            .filter(|(r, _)| r.id != victim_id)
-            .map(|(r, vcm)| {
-                r.handle_blame(&blame, vcm, ciphertexts.get(&r.id).unwrap().clone())
-                    .unwrap()
-            })
-            .collect_vec();
-
-        // Victim verifies and then recovers via interpolation across t responses.
-        let victim = &receivers[victim_id as usize];
-        let vcm = &verified_commons[victim_id as usize];
-        let verified_responses = responses
-            .into_iter()
-            .map(|r| victim.verify_complaint_response(r, vcm).unwrap())
-            .collect_vec();
-        let recovered = victim.recover(vcm, verified_responses).unwrap();
-        outputs.insert(victim_id, recovered);
-
-        // Sanity: every receiver now holds verifiable shares for every secret.
-        for l in 0..dealer.batch_size {
-            let shares = receivers
-                .iter()
-                .take(t as usize)
-                .map(|r| Eval {
-                    index: ShareIndex::try_from(r.id + 1).unwrap(),
-                    value: outputs.get(&r.id).unwrap().my_shares.shares[0].batch[l],
-                })
-                .collect_vec();
-            Poly::recover_c0(t, shares.into_iter()).unwrap();
-        }
+        (dealer, receivers)
     }
 
     fn assert_valid(outcome: DecryptionOutcome) -> ReceiverOutput {
@@ -1691,35 +1963,41 @@ mod tests {
     }
 
     impl Dealer {
-        /// Test-only: produce a [Message] in which receiver 0's plaintext has one byte flipped
+        /// Test-only: produce a [PessimisticMessage] in which receiver 0's plaintext has one byte flipped
         /// before encryption. AVID dispersal stays consistent (so the AVID checks pass for
         /// everyone), but receiver 0's BCS-deserialized [SharesForNode] fails verification.
-        fn create_message_cheating(
+        /// Test-only: build a dealer state in which receiver 0's plaintext has one byte flipped
+        /// before encryption. AVID dispersal stays consistent with `v` (the ciphertext is still
+        /// pinned in `ciphertext_hashes`), but a receiver who decrypts E_0 sees shares that
+        /// fail verification.
+        fn create_encrypted_shares_cheating(
             &self,
             rng: &mut impl AllowedRng,
-        ) -> FastCryptoResult<Vec<Message>> {
-            self.create_message_with_mutation(
-                rng,
-                |pk_and_msgs| {
-                    pk_and_msgs[0].1[7] ^= 1;
-                },
-                |_| {},
-            )
+        ) -> FastCryptoResult<DealerState> {
+            self.create_encrypted_shares_with_mutation(rng, |pk_and_msgs| {
+                pk_and_msgs[0].1[7] ^= 1;
+            })
         }
 
-        fn create_message_cheating_dispersal(
+        fn pessimistic_with_corrupted_dispersal(
             &self,
-            rng: &mut impl AllowedRng,
-        ) -> FastCryptoResult<Vec<Message>> {
+            state: &DealerState,
+            pending: BTreeSet<PartyId>,
+            certificate: OptimisticCertificate,
+        ) -> FastCryptoResult<Vec<PessimisticMessage>> {
             let f = self.f as usize;
             let n = self.nodes.total_weight() as usize;
-            self.create_message_with_mutation(
-                rng,
-                |_| {},
-                |shards| {
-                    // Flip a byte in the shards held by the last `f` senders for ciphertext 0.
-                    for sender_shards in shards[0].iter_mut().skip(n - f) {
-                        sender_shards[0].0[0] ^= 1;
+            self.create_pessimistic_messages_with_mutation(
+                state,
+                pending,
+                certificate,
+                |shards_by_recipient| {
+                    // Flip a byte in the shards held by the last `f` senders for receiver 0's
+                    // ciphertext.
+                    if let Some(shards) = shards_by_recipient.get_mut(&0) {
+                        for sender_shards in shards.iter_mut().skip(n - f) {
+                            sender_shards[0].0[0] ^= 1;
+                        }
                     }
                 },
             )
