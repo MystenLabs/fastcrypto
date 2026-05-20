@@ -27,6 +27,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::iter::repeat_with;
+use tracing::warn;
 
 /// This represents a Dealer in the AVSS.
 /// There is exactly one dealer who creates the shares and broadcasts the encrypted shares.
@@ -377,6 +378,13 @@ impl Receiver {
         if full_public_keys.len() != self.batch_size
             || response_polynomial.degree() != self.t as usize - 1
         {
+            warn!(
+                "batch_avss process_message: invalid sizes (full_public_keys.len() = {}, expected batch_size {}; response_polynomial.degree() = {}, expected {})",
+                full_public_keys.len(),
+                self.batch_size,
+                response_polynomial.degree(),
+                self.t as usize - 1,
+            );
             return Err(InvalidMessage);
         }
 
@@ -387,13 +395,17 @@ impl Receiver {
                 + G::multi_scalar_mul(&challenge, full_public_keys)
                     .expect("Inputs have constant lengths")
         {
+            warn!(
+                "batch_avss process_message: response polynomial does not match the blinding commitment and public keys"
+            );
             return Err(InvalidMessage);
         }
 
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
-        ciphertext
-            .verify(&random_oracle_encryption)
-            .map_err(|_| InvalidMessage)?;
+        ciphertext.verify(&random_oracle_encryption).map_err(|e| {
+            warn!("batch_avss process_message: ciphertext verification failed: {e:?}");
+            InvalidMessage
+        })?;
 
         // Decrypt my shares
         let plaintext = ciphertext.decrypt(
@@ -519,14 +531,36 @@ fn verify_shares(
     challenge: &[S],
     expected_batch_size: usize,
 ) -> FastCryptoResult<()> {
-    if shares.weight() != nodes.weight_of(receiver)? {
+    let expected_weight = nodes.weight_of(receiver)?;
+    if shares.weight() != expected_weight {
+        warn!(
+            "batch_avss verify_shares: shares weight {} does not match expected {} for receiver {}",
+            shares.weight(),
+            expected_weight,
+            receiver,
+        );
         return Err(InvalidMessage);
     }
     // Skip the batch-size check for a zero-weight node, which holds no shares.
-    if !shares.shares.is_empty() && shares.try_uniform_batch_size()? != expected_batch_size {
-        return Err(InvalidMessage);
+    if !shares.shares.is_empty() {
+        let actual_batch_size = shares.try_uniform_batch_size()?;
+        if actual_batch_size != expected_batch_size {
+            warn!(
+                "batch_avss verify_shares: shares batch_size {} does not match expected {} for receiver {}",
+                actual_batch_size,
+                expected_batch_size,
+                receiver,
+            );
+            return Err(InvalidMessage);
+        }
     }
-    shares.verify(message, challenge)
+    shares.verify(message, challenge).map_err(|e| {
+        warn!(
+            "batch_avss verify_shares: cryptographic share verification failed for receiver {}: {e:?}",
+            receiver,
+        );
+        e
+    })
 }
 
 fn compute_challenge(
