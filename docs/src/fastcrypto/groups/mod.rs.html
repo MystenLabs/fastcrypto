@@ -131,8 +131,10 @@
 <a href=#131 id=131 data-nosnippet>131</a>    <span class="kw">fn </span>multi_scalar_mul(scalars: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::ScalarType], points: <span class="kw-2">&amp;</span>[<span class="self">Self</span>]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt;;
 <a href=#132 id=132 data-nosnippet>132</a>}
 <a href=#133 id=133 data-nosnippet>133</a>
-<a href=#134 id=134 data-nosnippet>134</a><span class="doccomment">/// Faster deserialization in case the input is trusted (otherwise it can be insecure).
-<a href=#135 id=135 data-nosnippet>135</a></span><span class="kw">pub trait </span>FromTrustedByteArray&lt;<span class="kw">const </span>LENGTH: usize&gt;: Sized {
-<a href=#136 id=136 data-nosnippet>136</a>    <span class="kw">fn </span>from_trusted_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; LENGTH]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt;;
-<a href=#137 id=137 data-nosnippet>137</a>}
+<a href=#134 id=134 data-nosnippet>134</a><span class="doccomment">/// Faster deserialization that skips validation of the result: the subgroup membership check for
+<a href=#135 id=135 data-nosnippet>135</a>/// curve points and the canonical range check for scalars. Only safe for trusted input; otherwise
+<a href=#136 id=136 data-nosnippet>136</a>/// use [`crate::serde_helpers::ToFromByteArray::from_byte_array`].
+<a href=#137 id=137 data-nosnippet>137</a></span><span class="kw">pub trait </span>FromTrustedByteArray&lt;<span class="kw">const </span>LENGTH: usize&gt;: Sized {
+<a href=#138 id=138 data-nosnippet>138</a>    <span class="kw">fn </span>from_trusted_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; LENGTH]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt;;
+<a href=#139 id=139 data-nosnippet>139</a>}
 </code></pre></div></section></main></body></html>
