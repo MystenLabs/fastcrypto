@@ -29,6 +29,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::Add;
+use tracing::warn;
 
 /// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
 #[allow(dead_code)]
@@ -254,12 +255,20 @@ impl Receiver {
     /// 3. When t+f signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
     pub fn process_message(&self, message: &Message) -> FastCryptoResult<ProcessedMessage> {
         if message.feldman_commitment.degree() != self.t as usize - 1 {
+            warn!(
+                "AVSS process_message: invalid feldman commitment degree {} (expected {})",
+                message.feldman_commitment.degree(),
+                self.t as usize - 1,
+            );
             return Err(InvalidMessage);
         }
 
         // If a commitment is given, verify that the secret the dealer is distributing is consistent
         if let Some(c) = &self.commitment {
             if message.feldman_commitment.c0() != c {
+                warn!(
+                    "AVSS process_message: feldman commitment c0 does not match the expected commitment from a previous round"
+                );
                 return Err(InvalidMessage);
             }
         }
@@ -268,7 +277,10 @@ impl Receiver {
         message
             .ciphertext
             .verify(&random_oracle_encryption)
-            .map_err(|_| InvalidMessage)?;
+            .map_err(|e| {
+                warn!("AVSS process_message: ciphertext verification failed: {e:?}");
+                InvalidMessage
+            })?;
 
         let plaintext = message.ciphertext.decrypt(
             &self.enc_secret_key,
@@ -382,10 +394,23 @@ fn verify_shares(
     receiver: PartyId,
     message: &Message,
 ) -> FastCryptoResult<()> {
-    if shares.weight() != nodes.weight_of(receiver)? as usize {
+    let expected_weight = nodes.weight_of(receiver)? as usize;
+    if shares.weight() != expected_weight {
+        warn!(
+            "AVSS verify_shares: shares weight {} does not match expected {} for receiver {}",
+            shares.weight(),
+            expected_weight,
+            receiver,
+        );
         return Err(InvalidMessage);
     }
-    shares.verify(message)
+    shares.verify(message).map_err(|e| {
+        warn!(
+            "AVSS verify_shares: cryptographic share verification failed for receiver {}: {e:?}",
+            receiver,
+        );
+        e
+    })
 }
 
 impl ReceiverOutput {
