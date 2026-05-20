@@ -46,9 +46,10 @@ impl RSAModulus {
         self.ensure_in_subgroup(value.mod_floor(&self.value))
     }
 
-    /// Assuming that `value < N`, this ensures that the given value is in the subgroup <i>Z<sub>N</sub><sup>*</sup> / <±1></i>.
-    /// Panics if `value` is greater than `N`. The result is unspecified if `value == N`.
+    /// Ensures that the given value is in the subgroup <i>Z<sub>N</sub><sup>*</sup> / <±1></i>.
+    /// Panics if `value >= N`.
     pub(super) fn ensure_in_subgroup(&self, value: BigUint) -> BigUint {
+        assert!(value < self.value, "value must be strictly less than N");
         if value < self.half {
             value
         } else {
