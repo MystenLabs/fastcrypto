@@ -74,8 +74,8 @@ impl Presignatures {
         }
 
         // This party's weight, aka it's number of shares
-        let my_weight = get_uniform_value(outputs.iter().map(|o| o.my_shares.weight()))
-            .expect("Checked in batch_avss");
+        let my_weight =
+            get_uniform_value(outputs.iter().map(|o| o.my_shares.weight())).ok_or(InvalidInput)?;
 
         // There is one secret presigning output per shares for this party
         let secret = (0..my_weight as usize)
