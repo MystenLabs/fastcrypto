@@ -519,9 +519,11 @@ fn verify_shares(
     challenge: &[S],
     expected_batch_size: usize,
 ) -> FastCryptoResult<()> {
-    if shares.weight() != nodes.weight_of(receiver)?
-        || shares.try_uniform_batch_size()? != expected_batch_size
-    {
+    if shares.weight() != nodes.weight_of(receiver)? {
+        return Err(InvalidMessage);
+    }
+    // Skip the batch-size check for a zero-weight node, which holds no shares.
+    if !shares.shares.is_empty() && shares.try_uniform_batch_size()? != expected_batch_size {
         return Err(InvalidMessage);
     }
     shares.verify(message, challenge)
@@ -737,6 +739,92 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(secrets, secrets);
+    }
+
+    #[test]
+    fn test_happy_path_with_zero_weight_node() {
+        // Node 1 has weight 0: it receives no shares but the protocol must still complete.
+        let t = 4;
+        let weights: Vec<u16> = vec![1, 0, 3, 4];
+        let batch_size_per_weight = 3;
+
+        let mut rng = rand::thread_rng();
+        let sks = weights
+            .iter()
+            .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
+            .collect::<Vec<_>>();
+        let nodes = Nodes::new(
+            weights
+                .iter()
+                .enumerate()
+                .map(|(i, &weight)| Node {
+                    id: i as u16,
+                    pk: PublicKey::from_private_key(&sks[i]),
+                    weight,
+                })
+                .collect_vec(),
+        )
+        .unwrap();
+
+        let dealer_id = 2;
+        let sid = b"tbls test".to_vec();
+        let dealer: Dealer = Dealer::new(
+            nodes.clone(),
+            dealer_id,
+            t,
+            sid.clone(),
+            batch_size_per_weight,
+        )
+        .unwrap();
+
+        let receivers = sks
+            .into_iter()
+            .enumerate()
+            .map(|(i, secret_key)| {
+                Receiver::new(
+                    nodes.clone(),
+                    i as u16,
+                    dealer_id,
+                    t,
+                    sid.clone(),
+                    secret_key,
+                    batch_size_per_weight,
+                )
+                .unwrap()
+            })
+            .collect_vec();
+
+        let message = dealer.create_message(&mut rng).unwrap();
+
+        let outputs = receivers
+            .iter()
+            .map(|receiver| assert_valid(receiver.process_message(&message).unwrap()))
+            .collect_vec();
+
+        // Every node holds one share per unit of weight; the zero-weight node holds none.
+        for (receiver, output) in receivers.iter().zip(&outputs) {
+            assert_eq!(
+                output.my_shares.weight(),
+                nodes.weight_of(receiver.id).unwrap()
+            );
+        }
+        assert!(outputs[1].my_shares.shares.is_empty());
+
+        // The dealt secrets are still recoverable from the weight-bearing nodes' shares.
+        let all_shares = outputs
+            .iter()
+            .flat_map(|o| o.my_shares.shares.iter())
+            .collect_vec();
+        for l in 0..dealer.batch_size {
+            Poly::recover_c0(
+                t,
+                all_shares.iter().take(t as usize).map(|s| Eval {
+                    index: s.index,
+                    value: s.batch[l],
+                }),
+            )
+            .unwrap();
+        }
     }
 
     #[test]

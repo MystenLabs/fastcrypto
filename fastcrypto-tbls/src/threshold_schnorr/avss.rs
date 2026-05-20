@@ -553,6 +553,7 @@ mod tests {
     use crate::threshold_schnorr::tests::restrict;
     use crate::threshold_schnorr::Extensions::Encryption;
     use crate::threshold_schnorr::{EG, G, S};
+    use crate::types::{IndexedValue, ShareIndex};
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
@@ -953,6 +954,129 @@ mod tests {
             .collect_vec();
         let sk = Poly::recover_c0(t, shares[..t as usize].iter()).unwrap();
         assert_eq!(G::generator() * sk, vk);
+    }
+
+    #[test]
+    fn test_key_rotation_with_zero_weight_node() {
+        // Node 0 has weight 0: it holds no shares but must still complete key rotation.
+        let t = 3;
+        let weights = [0u16, 2, 1, 1];
+        let n = weights.len();
+
+        let mut rng = rand::thread_rng();
+        let sks = (0..n)
+            .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
+            .collect::<Vec<_>>();
+        let nodes = Nodes::new(
+            sks.iter()
+                .zip(weights)
+                .enumerate()
+                .map(|(id, (sk, weight))| Node {
+                    id: id as u16,
+                    pk: PublicKey::from_private_key(sk),
+                    weight,
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+
+        let make_receivers = |sid: &[u8], commitment: Option<G>| {
+            sks.iter()
+                .enumerate()
+                .map(|(id, sk)| {
+                    Receiver::new(
+                        nodes.clone(),
+                        id as u16,
+                        t,
+                        sid.to_vec(),
+                        commitment,
+                        sk.clone(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+
+        // Round 0: a single dealer shares a random secret.
+        let secret = Scalar::rand(&mut rng);
+        let vk = G::generator() * secret;
+        let sid0 = b"key-rotation-zero-weight-round0".to_vec();
+        let message = Dealer::new(Some(secret), nodes.clone(), t, sid0.clone())
+            .unwrap()
+            .create_message(&mut rng);
+        let round0: HashMap<PartyId, ReceiverOutput> = make_receivers(&sid0, Some(vk))
+            .iter()
+            .map(|r| {
+                (
+                    r.id(),
+                    assert_valid(r.process_message(&message).unwrap()).into_receiver_output(&nodes),
+                )
+            })
+            .collect();
+
+        // Key rotation: each existing share index is reshared by the node holding it.
+        let mut rotated = HashMap::<(PartyId, ShareIndex), PartialOutput>::new();
+        for share_index in nodes.share_ids_iter() {
+            let holder = nodes.share_id_to_node(&share_index).unwrap().id;
+            let reshared_secret = round0
+                .get(&holder)
+                .unwrap()
+                .share_for_index(share_index)
+                .unwrap()
+                .value;
+            let commitment = round0
+                .get(&0)
+                .unwrap()
+                .commitment_for_index(share_index)
+                .unwrap()
+                .value;
+            let sid = format!("key-rotation-zero-weight-{}", share_index.get()).into_bytes();
+            let message = Dealer::new(Some(reshared_secret), nodes.clone(), t, sid.clone())
+                .unwrap()
+                .create_message(&mut rng);
+            for r in make_receivers(&sid, Some(commitment)) {
+                rotated.insert(
+                    (r.id(), share_index),
+                    assert_valid(r.process_message(&message).unwrap()),
+                );
+            }
+        }
+
+        // The first t share indices form the certificate.
+        let cert = nodes.share_ids_iter().take(t as usize).collect_vec();
+        let new_outputs: HashMap<PartyId, ReceiverOutput> = nodes
+            .node_ids_iter()
+            .map(|id| {
+                let outputs = cert
+                    .iter()
+                    .map(|&index| IndexedValue {
+                        index,
+                        value: rotated.get(&(id, index)).unwrap().clone(),
+                    })
+                    .collect_vec();
+                (
+                    id,
+                    ReceiverOutput::complete_key_rotation(t, id, &nodes, &outputs).unwrap(),
+                )
+            })
+            .collect();
+
+        // The verifying key is preserved; each node holds one share per unit of weight.
+        for (id, output) in &new_outputs {
+            assert_eq!(output.vk, vk);
+            assert_eq!(
+                output.my_shares.weight(),
+                nodes.weight_of(*id).unwrap() as usize
+            );
+        }
+        assert_eq!(new_outputs.get(&0).unwrap().my_shares.weight(), 0);
+
+        // The rotated shares still reconstruct the original secret.
+        let shares = new_outputs
+            .values()
+            .flat_map(|output| output.my_shares.shares.clone())
+            .collect_vec();
+        let recovered = Poly::recover_c0(t, shares[..t as usize].iter()).unwrap();
+        assert_eq!(secret, recovered);
     }
 
     fn assert_valid(processed_message: ProcessedMessage) -> PartialOutput {

@@ -19,18 +19,15 @@ impl Iterator for Presignatures {
     type Item = (Vec<S>, G);
 
     fn next(&mut self) -> Option<Self::Item> {
+        // `public` drives the length; `secret` is empty for a zero-weight party.
+        let public = self.public.next()?;
         let secret = self
             .secret
             .iter_mut()
             .map(Iterator::next)
-            .collect::<Option<Vec<_>>>();
-        let public = self.public.next();
-
-        match (secret, public) {
-            (Some(s), Some(p)) => Some((s, p)),
-            (None, None) => None,
-            _ => unreachable!(),
-        }
+            .collect::<Option<Vec<_>>>()
+            .expect("secret and public multipliers have equal length");
+        Some((secret, public))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -61,14 +58,11 @@ impl Presignatures {
             return Err(InvalidInput);
         }
 
-        // Each node should deal a batch sized proportional to their weight, and the total weight of the outputs should be at least t + f
+        // Recover each dealer's weight from its public key count, which works even for a zero-weight party.
         let weights = outputs
             .iter()
             .map(|o| {
-                let batch_size = o
-                    .my_shares
-                    .try_uniform_batch_size()
-                    .expect("Checked in batch_avss");
+                let batch_size = o.public_keys.len();
                 (batch_size % batch_size_per_weight as usize == 0)
                     .then_some(batch_size / batch_size_per_weight as usize)
                     .ok_or(InvalidInput)
@@ -80,8 +74,8 @@ impl Presignatures {
         }
 
         // This party's weight, aka it's number of shares
-        let my_weight = get_uniform_value(outputs.iter().map(|o| o.my_shares.weight()))
-            .expect("Checked in batch_avss");
+        let my_weight =
+            get_uniform_value(outputs.iter().map(|o| o.my_shares.weight())).ok_or(InvalidInput)?;
 
         // There is one secret presigning output per shares for this party
         let secret = (0..my_weight as usize)
@@ -116,14 +110,44 @@ impl Presignatures {
                 .collect_vec(),
         );
 
-        // Sanity checks that the size of the multipliers matches the expected number of nonces that this presigning will give
+        // Sanity check that the multiplier sizes match the expected nonce count.
         let expected_len = (total_weight_of_outputs - f) * batch_size_per_weight as usize;
-        assert_eq!(
-            get_uniform_value(secret.iter().map(|s| s.len())).unwrap(),
-            expected_len
-        );
+        assert!(secret.iter().all(|s| s.len() == expected_len));
         assert_eq!(public.len(), expected_len);
 
         Ok(Self { secret, public })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Presignatures;
+    use crate::threshold_schnorr::batch_avss::{ReceiverOutput, SharesForNode};
+    use crate::threshold_schnorr::G;
+    use fastcrypto::groups::GroupElement;
+
+    #[test]
+    fn test_new_with_zero_weight_party() {
+        // A zero-weight party gets ReceiverOutputs with empty shares; this must not panic.
+        let batch_size_per_weight: u16 = 2;
+        let f = 1;
+
+        // Two weight-1 dealers: each output has batch_size_per_weight public keys, no shares.
+        let outputs = (0..2)
+            .map(|_| ReceiverOutput {
+                my_shares: SharesForNode { shares: vec![] },
+                public_keys: vec![G::generator(); batch_size_per_weight as usize],
+            })
+            .collect::<Vec<_>>();
+
+        let presignatures = Presignatures::new(outputs, batch_size_per_weight, f).unwrap();
+
+        let total_weight_of_outputs = 2;
+        let expected_len = (total_weight_of_outputs - f) * batch_size_per_weight as usize;
+        assert_eq!(presignatures.len(), expected_len);
+
+        let tuples = presignatures.collect::<Vec<_>>();
+        assert_eq!(tuples.len(), expected_len);
+        assert!(tuples.iter().all(|(secret, _public)| secret.is_empty()));
     }
 }
