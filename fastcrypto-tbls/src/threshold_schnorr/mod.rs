@@ -22,7 +22,9 @@
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
-use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
+use crate::threshold_schnorr::Extensions::{
+    Challenge, CiphertextHash, CommonMessageHash, Encryption, Recovery,
+};
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::groups;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
@@ -32,10 +34,10 @@ use std::fmt::{Display, Formatter};
 pub mod avss;
 pub mod batch_avss;
 mod bcs;
-pub mod complaint;
 pub mod key_derivation;
 mod pascal_matrix;
 pub mod presigning;
+pub mod recovery_proof;
 pub mod reed_solomon;
 pub mod signing;
 
@@ -61,6 +63,8 @@ enum Extensions {
     Recovery(PartyId),
     Encryption,
     Challenge,
+    CiphertextHash,
+    CommonMessageHash,
 }
 
 impl Display for Extensions {
@@ -69,6 +73,8 @@ impl Display for Extensions {
             Recovery(accuser) => format!("recovery of {accuser}"),
             Encryption => "encryption".to_string(),
             Challenge => "challenge".to_string(),
+            CiphertextHash => "ciphertext hash".to_string(),
+            CommonMessageHash => "common message hash".to_string(),
         };
         write!(f, "{result}")
     }
@@ -92,7 +98,6 @@ mod tests {
     use itertools::Itertools;
     use std::collections::HashMap;
     use std::hash::Hash;
-
     #[test]
     fn test_e2e() {
         // No complaints, all honest
@@ -130,7 +135,6 @@ mod tests {
             dkg_outputs.insert(id, HashMap::new());
         });
 
-        let mut messages = Vec::new();
         for dealer_id in nodes.node_ids_iter() {
             let sid = format!("dkg-test-session-{}", dealer_id).into_bytes();
             let dealer: avss::Dealer =
@@ -152,7 +156,6 @@ mod tests {
 
             // Each dealer creates a message
             let message = dealer.create_message(&mut rng);
-            messages.push(message.clone());
 
             // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
             receivers.iter().for_each(|receiver| {
@@ -212,6 +215,7 @@ mod tests {
             let dealer: batch_avss::Dealer = batch_avss::Dealer::new(
                 nodes.clone(),
                 dealer_id,
+                f,
                 t,
                 sid.clone(),
                 batch_size_per_weight,
@@ -225,6 +229,7 @@ mod tests {
                         nodes.clone(),
                         id as u16,
                         dealer_id,
+                        f,
                         t,
                         sid.clone(),
                         enc_secret_key.clone(),
@@ -234,18 +239,13 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
 
-            // Each dealer creates a message
-            let message = dealer.create_message(&mut rng).unwrap();
-
-            // Each receiver processes the message.
-            // In this case, we assume all are honest and there are no complaints.
-            receivers.iter().for_each(|receiver| {
-                let output = assert_valid_batch(receiver.process_message(&message).unwrap());
-                presigning_outputs
-                    .get_mut(&receiver.id)
-                    .unwrap()
-                    .push(output);
-            });
+            // Optimistic phase: every receiver confirms, so no pessimistic AVID phase is needed.
+            let (_, opt_messages) = dealer.create_optimistic_messages(&mut rng).unwrap();
+            for r in &receivers {
+                let (output, _confirm, _verified_common) =
+                    r.process_optimistic(&opt_messages[r.id as usize]).unwrap();
+                presigning_outputs.get_mut(&r.id).unwrap().push(output);
+            }
         }
 
         // Each party can process their presigs locally from the secret shared nonces
@@ -325,7 +325,6 @@ mod tests {
         // Here, each party will act as dealer multiple times -- once per share they have.
         let mut dkg_outputs_after_rotation =
             HashMap::<(PartyId, ShareIndex), avss::PartialOutput>::new();
-        let mut messages = HashMap::<(PartyId, ShareIndex), avss::Message>::new();
 
         for dealer_id in nodes.node_ids_iter() {
             for share_index in nodes.share_ids_of(dealer_id).unwrap() {
@@ -349,9 +348,7 @@ mod tests {
                         let commitment = merged_shares
                             .get(&(id as u16))
                             .unwrap()
-                            .commitments
-                            .iter()
-                            .find(|c| c.index == share_index)
+                            .commitment_for_index(share_index)
                             .unwrap()
                             .value;
                         avss::Receiver::new(
@@ -367,7 +364,6 @@ mod tests {
 
                 // Each dealer creates a message
                 let message = dealer.create_message(&mut rng);
-                messages.insert((dealer_id, share_index), message.clone());
 
                 // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
                 receivers.iter().for_each(|receiver| {
@@ -385,7 +381,7 @@ mod tests {
             .collect_vec();
 
         // Now, each party has collected their outputs from all dealers and can form their new shares from the ones in the certificate.
-        let merged_shares_after_rotation = nodes
+        let merged_shares = nodes
             .node_ids_iter()
             .map(|receiver_id| {
                 let my_shares_from_cert = share_indices_in_cert
@@ -415,13 +411,13 @@ mod tests {
             .collect::<HashMap<_, _>>();
 
         // The verifying key should be the same as  before
-        for output in merged_shares_after_rotation.values() {
+        for output in merged_shares.values() {
             assert_eq!(output.vk, vk);
         }
 
         // For testing, we now recover the secret key from t shares and check that the secret key matches the verification key.
         // In practice, the parties should never do this...
-        let shares = merged_shares_after_rotation
+        let shares = merged_shares
             .values()
             .flat_map(|output| output.my_shares.shares.clone())
             .take(t as usize);
@@ -429,13 +425,8 @@ mod tests {
         assert_eq!(G::generator() * sk, vk);
 
         // Check commitments on the reshared secret from the first dealer
-        let commitment_1 = merged_shares_after_rotation
-            .get(&0)
-            .unwrap()
-            .commitments
-            .first()
-            .unwrap();
-        let secret_1 = merged_shares_after_rotation
+        let commitment_1 = merged_shares.get(&0).unwrap().commitments.first().unwrap();
+        let secret_1 = merged_shares
             .get(&0)
             .unwrap()
             .share_for_index(commitment_1.index)
@@ -460,10 +451,7 @@ mod tests {
                     message_2,
                     presigs.get_mut(&node.id).unwrap().next().unwrap(),
                     &beacon_value,
-                    &merged_shares_after_rotation
-                        .get(&node.id)
-                        .unwrap()
-                        .my_shares,
+                    &merged_shares.get(&node.id).unwrap().my_shares,
                     &vk,
                     None,
                 )
@@ -501,21 +489,10 @@ mod tests {
             .unwrap();
     }
 
-    fn assert_valid_batch(
-        processed_message: batch_avss::ProcessedMessage,
-    ) -> batch_avss::ReceiverOutput {
-        if let batch_avss::ProcessedMessage::Valid(output) = processed_message {
-            output
-        } else {
-            panic!("Expected valid message");
-        }
-    }
-
-    fn assert_valid(processed_message: avss::ProcessedMessage) -> avss::PartialOutput {
-        if let avss::ProcessedMessage::Valid(output) = processed_message {
-            output
-        } else {
-            panic!("Expected valid message");
+    fn assert_valid(pm: avss::ProcessedMessage) -> avss::PartialOutput {
+        match pm {
+            avss::ProcessedMessage::Valid(po) => po,
+            avss::ProcessedMessage::Complaint(_) => panic!("expected valid avss output"),
         }
     }
 

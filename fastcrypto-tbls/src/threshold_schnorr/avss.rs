@@ -14,7 +14,7 @@ use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
-use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
+use crate::threshold_schnorr::recovery_proof::RecoveryProof;
 use crate::threshold_schnorr::Extensions::Encryption;
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types;
@@ -61,6 +61,22 @@ pub struct Message {
 pub enum ProcessedMessage {
     Valid(PartialOutput),
     Complaint(Complaint),
+}
+
+/// A complaint by a receiver who could not decrypt or verify its shares from the dealer's
+/// broadcast. Given enough responses, the accuser can recover its shares.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Complaint {
+    pub accuser_id: PartyId,
+    pub proof: RecoveryProof,
+}
+
+/// A response to a [Complaint], containing the responder's shares so the accuser can
+/// Lagrange-interpolate their own.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComplaintResponse {
+    pub responder_id: PartyId,
+    pub shares: SharesForNode,
 }
 
 /// The output of a receiver after a single instance of AVSS: The shares for each nonce + commitments for the next round.
@@ -284,13 +300,16 @@ impl Receiver {
                 my_shares,
                 feldman_commitment: message.feldman_commitment.clone(),
             })),
-            Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
-                self.id,
-                &message.ciphertext,
-                &self.enc_secret_key,
-                &self.random_oracle(),
-                &mut rand::thread_rng(),
-            ))),
+            Err(_) => Ok(ProcessedMessage::Complaint(Complaint {
+                accuser_id: self.id,
+                proof: RecoveryProof::create(
+                    self.id,
+                    &message.ciphertext.shared(),
+                    &self.enc_secret_key,
+                    &self.random_oracle(),
+                    &mut rand::thread_rng(),
+                ),
+            })),
         }
     }
 
@@ -300,10 +319,12 @@ impl Receiver {
         message: &Message,
         complaint: &Complaint,
         my_output: &PartialOutput,
-    ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
-        complaint.check(
+    ) -> FastCryptoResult<ComplaintResponse> {
+        complaint.proof.check(
+            complaint.accuser_id,
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
-            &message.ciphertext,
+            &message.ciphertext.encs[complaint.accuser_id as usize],
+            &message.ciphertext.shared(),
             &self.random_oracle(),
             |shares: &SharesForNode| {
                 verify_shares(shares, &self.nodes, complaint.accuser_id, message)
@@ -320,7 +341,7 @@ impl Receiver {
     pub fn recover(
         &self,
         message: &Message,
-        responses: Vec<ComplaintResponse<SharesForNode>>,
+        responses: Vec<ComplaintResponse>,
     ) -> FastCryptoResult<PartialOutput> {
         // Sanity check that we have enough responses (by weight) to recover the shares.
         let total_response_weight = self
@@ -545,11 +566,11 @@ mod tests {
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::Poly;
+    use crate::threshold_schnorr::avss::Complaint;
     use crate::threshold_schnorr::avss::{Dealer, Message, Receiver};
     use crate::threshold_schnorr::avss::{PartialOutput, ProcessedMessage};
     use crate::threshold_schnorr::avss::{ReceiverOutput, SharesForNode};
     use crate::threshold_schnorr::bcs::BCSSerialized;
-    use crate::threshold_schnorr::complaint::Complaint;
     use crate::threshold_schnorr::tests::restrict;
     use crate::threshold_schnorr::Extensions::Encryption;
     use crate::threshold_schnorr::{EG, G, S};

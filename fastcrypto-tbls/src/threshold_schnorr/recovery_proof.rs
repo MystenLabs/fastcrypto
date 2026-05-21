@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::ecies_v1;
-use crate::ecies_v1::RecoveryPackage;
+use crate::ecies_v1::{RecoveryPackage, SharedComponents};
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
@@ -14,36 +14,39 @@ use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-/// A complaint by an accuser that it could not decrypt or verify its shares.
-/// Given enough responses to the complaint, the accuser can recover its shares.
+/// Cryptographic proof attached to a complaint: an ECIES recovery package that opens the
+/// dealer's shared ciphertext with the accuser's private key and produces shares that fail a
+/// supplied verifier.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Complaint {
-    pub(crate) accuser_id: PartyId,
-    pub(crate) proof: RecoveryPackage<EG>,
-}
+pub struct RecoveryProof(RecoveryPackage<EG>);
 
-impl Complaint {
-    /// Try to decrypt the shares for the accuser.
+impl RecoveryProof {
+    /// Verify the proof for the given `accuser_id`: decrypt `ciphertext` via the recovery
+    /// package and confirm the resulting shares fail `verifier`. The caller supplies
+    /// `accuser_id` from their protocol context — it is *not* carried inside the proof.
     pub fn check<S: BCSSerialized>(
         &self,
+        accuser_id: PartyId,
         enc_pk: &ecies_v1::PublicKey<EG>,
-        ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
+        ciphertext: &[u8],
+        shared: &SharedComponents<EG>,
         random_oracle: &RandomOracle,
         verifier: impl Fn(&S) -> FastCryptoResult<()>,
     ) -> FastCryptoResult<()> {
         // Check that the recovery package is valid, and if not, return an error since the complaint is invalid.
-        let buffer = ciphertext.decrypt_with_recovery_package(
-            &self.proof,
-            &random_oracle.extend(&Recovery(self.accuser_id).to_string()),
+        let buffer = shared.decrypt_with_recovery_package(
+            ciphertext,
+            &self.0,
+            &random_oracle.extend(&Recovery(accuser_id).to_string()),
             &random_oracle.extend(&Encryption.to_string()),
             enc_pk,
-            self.accuser_id as usize,
+            accuser_id as usize,
         )?;
 
         let Ok(shares) = S::from_bytes(&buffer) else {
             debug!(
                 "Complaint by party {} is valid: Failed to deserialize shares",
-                self.accuser_id
+                accuser_id
             );
             return Ok(());
         };
@@ -51,13 +54,13 @@ impl Complaint {
         if verifier(&shares).is_ok() {
             debug!(
                 "Complaint by party {} is invalid: Shares verify correctly",
-                self.accuser_id
+                accuser_id
             );
             Err(InvalidProof)
         } else {
             debug!(
                 "Complaint by party {} is valid: Shares do not verify correctly",
-                self.accuser_id
+                accuser_id
             );
             Ok(())
         }
@@ -65,26 +68,15 @@ impl Complaint {
 
     pub fn create(
         accuser_id: PartyId,
-        ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
+        ciphertext: &ecies_v1::SharedComponents<EG>,
         enc_sk: &ecies_v1::PrivateKey<EG>,
         random_oracle: &RandomOracle,
         rng: &mut impl AllowedRng,
     ) -> Self {
-        Self {
-            accuser_id,
-            proof: ciphertext.create_recovery_package(
-                enc_sk,
-                &random_oracle.extend(&Recovery(accuser_id).to_string()),
-                rng,
-            ),
-        }
+        Self(ciphertext.create_recovery_package(
+            enc_sk,
+            &random_oracle.extend(&Recovery(accuser_id).to_string()),
+            rng,
+        ))
     }
-}
-
-/// A response to a complaint, containing the responder's shares. Constructed only via
-/// `Receiver::handle_complaint`, which gates on `Complaint::check`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ComplaintResponse<S> {
-    pub(crate) responder_id: PartyId,
-    pub(crate) shares: S,
 }
