@@ -10,7 +10,7 @@ use crate::groups::{
     Doubling, FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement,
     MultiScalarMul, Scalar,
 };
-use crate::hash::{ReverseWrapper, Sha512};
+use crate::hash::{Blake2b256, ReverseWrapper, Sha512};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use crate::{
@@ -223,7 +223,10 @@ impl HashToGroupElement for RistrettoScalar {
 
 impl FiatShamirChallenge for RistrettoScalar {
     fn fiat_shamir_reduction_to_group_element(msg: &[u8]) -> Self {
-        Self::hash_to_group_element(msg)
+        // Matches Contra's Move/TS Fiat-Shamir construction.
+        let mut digest = Blake2b256::digest(msg).digest;
+        digest[RISTRETTO_SCALAR_BYTE_LENGTH - 1] = 0;
+        Self::from_byte_array(&digest).expect("Top byte is zero so the scalar is always canonical")
     }
 }
 

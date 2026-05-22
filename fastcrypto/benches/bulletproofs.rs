@@ -23,11 +23,12 @@ fn verification(c: &mut Criterion) {
                 .iter()
                 .map(|&v| PedersenCommitment::commit(&RistrettoScalar::from(v), &mut rng))
                 .unzip();
-            let proof = RangeProof::prove_batch(&values, &blindings, range, &mut rng).unwrap();
+            let proof =
+                RangeProof::prove_batch(&values, &blindings, range, b"bench", &mut rng).unwrap();
             c.bench_function(
                 &format!("bulletproofs/verification/range={}/inputs={}", bits, size),
                 |b| {
-                    b.iter(|| proof.verify_batch(&commitments, range, &mut rng));
+                    b.iter(|| proof.verify_batch(&commitments, range, b"bench", &mut rng));
                 },
             );
         }
