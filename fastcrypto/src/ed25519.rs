@@ -20,7 +20,6 @@ use std::{
     str::FromStr,
 };
 
-use base64ct::Encoding as _;
 use derive_more::AsRef;
 #[cfg(any(test, feature = "experimental"))]
 use ed25519_consensus::{batch, VerificationKeyBytes};
