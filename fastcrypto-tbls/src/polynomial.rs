@@ -566,9 +566,15 @@ impl<C: Scalar> Monomial<C> {
     /// Panics if the degree of `x` is smaller than `self` or if `self` is zero.
     fn divider(self) -> impl Fn(&Monomial<C>) -> Monomial<C> {
         let inverse = self.coefficient.inverse().unwrap();
-        move |p: &Monomial<C>| Monomial {
-            coefficient: p.coefficient * inverse,
-            degree: p.degree - self.degree,
+        move |p: &Monomial<C>| {
+            assert!(
+                p.degree >= self.degree,
+                "Monomial::divider: dividend degree is smaller than divisor"
+            );
+            Monomial {
+                coefficient: p.coefficient * inverse,
+                degree: p.degree - self.degree,
+            }
         }
     }
 

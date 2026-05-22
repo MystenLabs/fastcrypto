@@ -141,7 +141,8 @@ macro_rules! define_bls12381 {
 
         impl ToFromBytes for BLS12381PublicKey {
             fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-                // key_validate() does NOT validate the public key. Please use validate() where needed.
+                // blst::PublicKey::from_bytes does NOT perform a subgroup membership check on the
+                // public key. Call [BLS12381PublicKey::validate] on untrusted input.
                 let pubkey = blst::PublicKey::from_bytes(bytes)
                     .map_err(|_| FastCryptoError::InvalidInput)?;
                 Ok(BLS12381PublicKey {
