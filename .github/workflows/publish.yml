@@ -70,6 +70,20 @@ jobs:
             fastcrypto-zkp
           )
 
+          ensure_tag() {
+            local tag="$1"
+
+            if git ls-remote --tags origin | grep -q "refs/tags/${tag}$"; then
+              echo "Tag ${tag} already exists; skipping tag creation"
+            else
+              echo "Creating tag ${tag} at ${commit}"
+              gh api repos/${{ github.repository }}/git/refs \
+                --method POST \
+                -f ref="refs/tags/${tag}" \
+                -f sha="${commit}"
+            fi
+          }
+
           publish_package() {
             local package="$1"
             local attempts=6
@@ -88,7 +102,25 @@ jobs:
             done
           }
 
+          ensure_release() {
+            local tag="$1"
+
+            if gh release view "${tag}" >/dev/null 2>&1; then
+              echo "Release ${tag} already exists; skipping release creation"
+            else
+              echo "Creating release ${tag}"
+              gh release create "${tag}" \
+                --title "${tag}" \
+                --generate-notes \
+                --target "${commit}"
+            fi
+          }
+
           for package in "${packages[@]}"; do
+            version="$(./scripts/get_current_version.sh "${package}")"
+            tag="${package}-v${version}"
+            ensure_tag "${tag}"
+
             set +e
             ./scripts/is_version_already_uploaded.sh "${package}"
             exit_code="$?"
@@ -96,23 +128,11 @@ jobs:
 
             if [[ "${exit_code}" == "7" ]]; then
               echo "${package} is already published; skipping"
-              continue
             elif [[ "${exit_code}" != "0" ]]; then
               exit "${exit_code}"
-            fi
-
-            version="$(./scripts/get_current_version.sh "${package}")"
-            tag="${package}-v${version}"
-
-            if git ls-remote --tags origin | grep -q "refs/tags/${tag}$"; then
-              echo "Tag ${tag} already exists; skipping tag creation"
             else
-              echo "Creating tag ${tag} at ${commit}"
-              gh api repos/${{ github.repository }}/git/refs \
-                --method POST \
-                -f ref="refs/tags/${tag}" \
-                -f sha="${commit}"
+              publish_package "${package}"
             fi
 
-            publish_package "${package}"
+            ensure_release "${tag}"
           done
