@@ -465,8 +465,6 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         message: &[u8],
     ) -> Result<(), FastCryptoError> {
-        // Reject empty aggregates: an empty batch verifies trivially, which is meaningless
-        // and a footgun for callers that forget to bound the signer set.
         if self.sigs.is_empty() {
             return Err(FastCryptoError::InvalidInput);
         }
@@ -490,7 +488,6 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
-        // Reject empty aggregates: see comment in verify().
         if self.sigs.is_empty() {
             return Err(FastCryptoError::InvalidInput);
         }
@@ -512,7 +509,6 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         pks: Vec<impl ExactSizeIterator<Item = &'a Self::PubKey>>,
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
-        // Reject empty batches and batches containing an empty aggregate: see comment in verify().
         if sigs.is_empty() || sigs.iter().any(|s| s.sigs.is_empty()) {
             return Err(FastCryptoError::InvalidInput);
         }
