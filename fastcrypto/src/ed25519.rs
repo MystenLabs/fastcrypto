@@ -465,6 +465,9 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         message: &[u8],
     ) -> Result<(), FastCryptoError> {
+        if self.sigs.is_empty() {
+            return Err(FastCryptoError::InvalidInput);
+        }
         if pks.len() != self.sigs.len() {
             return Err(FastCryptoError::InputLengthWrong(self.sigs.len()));
         }
@@ -485,6 +488,9 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
+        if self.sigs.is_empty() {
+            return Err(FastCryptoError::InvalidInput);
+        }
         if pks.len() != self.sigs.len() || messages.len() != self.sigs.len() {
             return Err(FastCryptoError::InputLengthWrong(self.sigs.len()));
         }
@@ -503,6 +509,9 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         pks: Vec<impl ExactSizeIterator<Item = &'a Self::PubKey>>,
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
+        if sigs.is_empty() || sigs.iter().any(|s| s.sigs.is_empty()) {
+            return Err(FastCryptoError::InvalidInput);
+        }
         if pks.len() != messages.len() || messages.len() != sigs.len() {
             return Err(FastCryptoError::InputLengthWrong(sigs.len()));
         }
