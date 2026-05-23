@@ -261,6 +261,37 @@ fn verify_invalid_aggregate_signature_length_mismatch() {
 }
 
 #[test]
+fn verify_empty_aggregate_signature_is_rejected() {
+    // An empty Ed25519 aggregate signature must NOT verify trivially against any message; previously
+    // `verify(empty_agg, &[], msg)` returned `Ok(())` because the batch verifier accepts an empty
+    // batch as valid.
+    let empty_agg: Ed25519AggregateSignature =
+        Ed25519AggregateSignature::aggregate(std::iter::empty::<&Ed25519Signature>()).unwrap();
+    assert!(empty_agg.verify(&[], b"attacker-chosen message").is_err());
+    assert!(empty_agg
+        .verify_different_msg(&[], &[b"attacker-chosen message"])
+        .is_err());
+
+    // batch_verify on an empty outer slice, or a batch that contains an empty aggregate, must
+    // also be rejected.
+    assert!(Ed25519AggregateSignature::batch_verify(
+        &[],
+        Vec::<std::slice::Iter<'_, Ed25519PublicKey>>::new(),
+        &[]
+    )
+    .is_err());
+    let (digest, pubkeys, signatures) = signature_test_inputs();
+    let real_agg = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
+    let pk_lists = vec![pubkeys.iter(), [].iter()];
+    assert!(Ed25519AggregateSignature::batch_verify(
+        &[&real_agg, &empty_agg],
+        pk_lists,
+        &[&digest[..], b"anything"]
+    )
+    .is_err());
+}
+
+#[test]
 fn verify_invalid_aggregate_signature_public_key_switch() {
     let (digest, mut pubkeys, signatures) = signature_test_inputs();
     let aggregated_signature = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
