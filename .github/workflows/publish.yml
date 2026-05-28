@@ -9,12 +9,6 @@ on:
       - 'fastcrypto/Cargo.toml'
       - 'fastcrypto-zkp/Cargo.toml'
   workflow_dispatch:
-    inputs:
-      commit_sha:
-        description: Optional explicit commit SHA to tag and publish (defaults to latest main)
-        type: string
-        required: false
-        default: ""
 env:
   CARGO_TERM_COLOR: always
   # Disable incremental compilation.
@@ -49,7 +43,7 @@ jobs:
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
         with:
           fetch-depth: 2
-          ref: ${{ inputs.commit_sha || github.ref_name }}
+          ref: main
 
       - name: Publish crates
         env:
@@ -59,10 +53,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          commit="${{ inputs.commit_sha }}"
-          if [[ -z "${commit}" ]]; then
-            commit="$(git rev-parse HEAD)"
-          fi
+          commit="$(git rev-parse HEAD)"
 
           packages=(
             fastcrypto-derive
