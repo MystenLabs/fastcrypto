@@ -13,6 +13,7 @@ use crate::ecies_v1::{
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{create_secret_sharing, Eval, Poly};
 use crate::random_oracle::RandomOracle;
+use crate::threshold_schnorr::avid;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::recovery_proof;
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
@@ -27,7 +28,6 @@ use fastcrypto::groups::secp256k1::SCALAR_SIZE_IN_BYTES;
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::hash::{Blake2b256, HashFunction};
 use fastcrypto::merkle;
-use fastcrypto::merkle::MerkleTree;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -92,22 +92,9 @@ pub struct DealerState {
     ciphertexts: Vec<Ciphertext>,
 }
 
-/// The dealer's per-recipient message for the AVID (pessimistic) phase.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PessimisticMessage {
-    /// One entry per pending recipient `i ∈ I`.
-    pub dispersal: BTreeMap<PartyId, DispersalEntry>,
-    pub dispersal_hash: Digest,
-}
-
-/// One pending recipient's slice of the AVID dispersal
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DispersalEntry {
-    /// Merkle root over the receiver's ciphertext shards (the per-recipient `r_i`).
-    pub recipient_root: merkle::Node,
-    /// This receiver's shards for the recipient's ciphertext
-    pub authenticated_shards: AuthenticatedShards,
-}
+/// The dealer's per-recipient message for the AVID (pessimistic) phase is just a generic AVID
+/// [avid::Dispersal] of the pending recipients' ciphertexts.
+pub use avid::Dispersal as PessimisticMessage;
 
 /// The shared part of the dealer's broadcast (`v`) — identical for every receiver in both
 /// phases.
@@ -124,10 +111,11 @@ pub struct AvssCommonMessage {
 #[derive(Clone, Debug)]
 pub struct VerifiedAvssCommonMessage(AvssCommonMessage);
 
-/// A verified dispersal message from the pessimistic phase.
+/// A verified dispersal message from the pessimistic phase: the AVID-verified dispersal plus the
+/// common message `v` it binds to.
 #[derive(Clone, Debug)]
 pub struct VerifiedPessimisticMessage {
-    pub message: PessimisticMessage,
+    dispersal: avid::VerifiedDispersal,
     pub verified_common: VerifiedAvssCommonMessage,
 }
 
@@ -144,25 +132,8 @@ pub struct VerifiedConfirmers {
     pub avss_common_message_hash: Digest,
 }
 
-/// A sender's shards for one recipient's ciphertext, with a Merkle proof against the
-/// corresponding `recipient_root`.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AuthenticatedShards {
-    shards: Vec<Shard>,
-    proof: merkle::MerkleProof,
-}
-
-/// One sender's echo to a single recipient.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Echo {
-    sender: PartyId,
-    authenticated_shards: AuthenticatedShards,
-    pub dispersal_hash: Digest,
-}
-
-/// An [Echo] that has been verified by [Receiver::verify_echo] against a specific [AvssCommonMessage].
-#[derive(Clone, Debug)]
-pub struct VerifiedEcho(Echo);
+/// An echo of dispersed ciphertext shards, and its verified form — both generic AVID types.
+pub use avid::{Echo, VerifiedEcho};
 
 /// The result of [Receiver::decode_ciphertext]: either a successfully reconstructed ciphertext
 /// whose AVID dispersal is consistent, or a [BlameComplaint] when the collected shards either fail
@@ -196,16 +167,11 @@ pub struct RevealComplaint {
     pub dispersal_hash: Digest,
 }
 
-/// A complaint by a receiver who found the AVID dispersal inconsistent.
+/// A complaint by a receiver who found the AVID dispersal inconsistent — a generic AVID [avid::Complaint].
 ///
-/// `accuser_id` is unauthenticated at this layer. The caller is responsible for attributing
+/// The `accuser_id` is unauthenticated at this layer. The caller is responsible for attributing
 /// the complaint to a specific sender.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct BlameComplaint {
-    pub accuser_id: PartyId,
-    pub shards: BTreeMap<PartyId, AuthenticatedShards>,
-    pub dispersal_hash: Digest,
-}
+pub use avid::Complaint as BlameComplaint;
 
 /// A responder's reply to a [RevealComplaint] / [BlameComplaint]: their dealer-encrypted
 /// ciphertext plus a recovery package, so the accuser can authenticate and decrypt the
@@ -417,7 +383,7 @@ impl Dealer {
 
     /// 3. Build a [PessimisticMessage] per receiver dispersing the existing `E_i` for
     ///    `i ∈ pending_recipients` (those that didn't confirm) via AVID. Every message pins the
-    ///    same [dispersal_hash], returned so the caller knows the signing target for the
+    ///    same `dispersal_hash`, returned so the caller knows the signing target for the
     ///    confirmer/voter quorum.
     ///
     ///    Only needed for the stragglers: if every receiver confirmed in the optimistic phase, the
@@ -430,7 +396,6 @@ impl Dealer {
         self.create_pessimistic_messages_with_mutation(state, pending_recipients, |_| {})
     }
 
-    #[cfg_attr(not(test), allow(unused_variables, unused_mut))]
     fn create_pessimistic_messages_with_mutation(
         &self,
         state: &DealerState,
@@ -442,70 +407,26 @@ impl Dealer {
         if !pending_recipients.is_subset(&all_ids) {
             return Err(InvalidInput);
         }
-        let avss_common_message_hash = state.avss_common.hash();
-
-        let code = get_coder(&self.nodes, self.params.f);
-
-        // RS-encode each pending recipient's ciphertext and bucket shards by sender.
-        let mut shards_by_recipient: BTreeMap<PartyId, Vec<Vec<Shard>>> = pending_recipients
+        // AVID-disperse each pending recipient's existing ciphertext `E_i`, bound to `H(v)`.
+        let payloads: BTreeMap<PartyId, Vec<u8>> = pending_recipients
             .iter()
-            .map(|&i| {
-                let shards = code
-                    .encode(&state.ciphertexts[i as usize].0)
-                    .expect("non-empty ciphertext");
-                let by_sender = self.nodes.collect_to_nodes(shards.into_iter())?;
-                Ok((i, by_sender))
-            })
-            .collect::<FastCryptoResult<_>>()?;
-
-        #[cfg(test)]
-        mutate_shards(&mut shards_by_recipient);
-
-        let recipient_trees: BTreeMap<PartyId, MerkleTree<Blake2b256>> = shards_by_recipient
-            .iter()
-            .map(|(&i, shards)| Ok((i, recipient_tree(shards)?)))
-            .collect::<FastCryptoResult<_>>()?;
-
-        let dispersal_hash = dispersal_hash(
-            &avss_common_message_hash,
-            recipient_trees.iter().map(|(&i, tree)| (i, tree.root())),
-        );
-
-        let messages = self
-            .nodes
-            .node_ids_iter()
-            .map(|j| {
-                let dispersal: BTreeMap<PartyId, DispersalEntry> = pending_recipients
-                    .iter()
-                    .map(|&i| {
-                        let tree = recipient_trees.get(&i).expect("populated above");
-                        let shards = shards_by_recipient.get(&i).expect("populated above")
-                            [j as usize]
-                            .clone();
-                        Ok((
-                            i,
-                            DispersalEntry {
-                                recipient_root: tree.root(),
-                                authenticated_shards: AuthenticatedShards {
-                                    shards,
-                                    proof: tree.get_proof(j as usize)?,
-                                },
-                            },
-                        ))
-                    })
-                    .collect::<FastCryptoResult<_>>()?;
-                Ok(PessimisticMessage {
-                    dispersal,
-                    dispersal_hash,
-                })
-            })
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-
-        Ok((dispersal_hash, messages))
+            .map(|&i| (i, state.ciphertexts[i as usize].0.clone()))
+            .collect();
+        let (dispersal_hash, messages) = self.avid().disperse_with_mutation(
+            &state.avss_common.hash(),
+            &payloads,
+            mutate_shards,
+        )?;
+        // The per-party dispersals are keyed by party id; flatten to a Vec in id order.
+        Ok((dispersal_hash, messages.into_values().collect()))
     }
 
     fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
+    }
+
+    fn avid(&self) -> avid::Avid<'_> {
+        avid::Avid::new(&self.nodes, self.params.f)
     }
 }
 
@@ -616,31 +537,26 @@ impl Receiver {
             warn!("batch_avss echo: confirmers attested to a different common message");
             return Err(InvalidMessage);
         }
-        message.verify(
-            &self.nodes,
-            &expected_avss_common_message_hash,
-            self.id,
-            verified_confirmers,
-        )?;
+        // Dispersal recipients and confirmers must partition the node set (AVSS policy).
+        if !message
+            .recipients()
+            .chain(verified_confirmers.confirmers.iter().copied())
+            .sorted()
+            .eq(self.nodes.node_ids_iter().sorted())
+        {
+            warn!("batch_avss echo: dispersal recipients and confirmers do not partition the node set");
+            return Err(InvalidMessage);
+        }
 
-        let dispersal_hash = message.dispersal_hash;
-        let echoes = message
-            .dispersal
-            .iter()
-            .map(|(&i, entry)| {
-                (
-                    i,
-                    Echo {
-                        sender: self.id,
-                        authenticated_shards: entry.authenticated_shards.clone(),
-                        dispersal_hash,
-                    },
-                )
-            })
-            .collect();
+        // The structural AVID checks (ids, dispersal_hash binding, this party's Merkle proofs).
+        let dispersal =
+            self.avid()
+                .verify_dispersal(message, &expected_avss_common_message_hash, self.id)?;
+        let echoes = dispersal.echoes(self.id);
+        let dispersal_hash = *dispersal.dispersal_hash();
         Ok((
             VerifiedPessimisticMessage {
-                message,
+                dispersal,
                 verified_common,
             },
             echoes,
@@ -659,18 +575,14 @@ impl Receiver {
         echo: Echo,
         verified_message: &VerifiedPessimisticMessage,
     ) -> FastCryptoResult<VerifiedEcho> {
-        if !verified_message.message.dispersal.contains_key(&self.id) {
-            return Err(InvalidInput);
-        }
-        let weight = self.nodes.weight_of(echo.sender)?;
-        let expected_dispersal_hash = &verified_message.message.dispersal_hash;
-        let recipient_root = verified_message.recipient_root(self.id)?;
-        echo.verify(weight, expected_dispersal_hash, recipient_root)
+        self.avid()
+            .verify_echo(echo, &verified_message.dispersal, self.id)
     }
 
     /// 5. Reconstruct this receiver's ciphertext from a quorum of [VerifiedEcho]s (`≥ W − 2f`
-    ///    weight). Returns [DecodeOutcome::Decoded] when the dispersal is consistent, or
-    ///    [DecodeOutcome::InvalidDispersal] (a [BlameComplaint]) otherwise.
+    ///    weight). Returns [DecodeOutcome::Decoded] when the dispersal is consistent and the
+    ///    reconstructed ciphertext matches `v`, or [DecodeOutcome::InvalidDispersal] (a
+    ///    [BlameComplaint]) otherwise.
     ///
     ///    The [BlameComplaint] is a dispersal-layer fault: hold it until the matching `H(v)` is
     ///    certified on the TOB, or discard it if a different `v` wins.
@@ -682,48 +594,38 @@ impl Receiver {
         echos: &[VerifiedEcho],
         verified_message: &VerifiedPessimisticMessage,
     ) -> FastCryptoResult<DecodeOutcome> {
-        if !echos.iter().map(|e| e.0.sender).all_unique() {
-            return Err(InvalidInput);
-        }
-
-        let required_weight = self.nodes.total_weight() - 2 * self.params.f;
-        if self
-            .nodes
-            .total_weight_of(echos.iter().map(|e| &e.0.sender))?
-            < required_weight
-        {
-            return Err(NotEnoughWeight(required_weight as usize));
-        }
-
-        let shards: BTreeMap<PartyId, AuthenticatedShards> = echos
-            .iter()
-            .cloned()
-            .map(|e| (e.0.sender, e.0.authenticated_shards))
-            .collect();
-
-        let common = verified_message.verified_common.common();
+        let avid = self.avid();
+        let shards = avid.collect_shards(echos)?;
         let recipient_root = verified_message.recipient_root(self.id)?;
-        let expected_hash = common.ciphertext_hash(self.id).ok_or(InvalidProof)?;
-        Ok(self
-            .reconstruct_ciphertext(self.id, &shards)
-            .and_then(|ct| {
-                self.check_avid_consistency(&ct, recipient_root)?;
-                if hash_ciphertext(&ct) != *expected_hash {
-                    return Err(InvalidMessage);
+        let expected_len = SharesForNode::bcs_serialized_size(
+            self.nodes.weight_of(self.id)? as usize,
+            self.batch_size,
+        );
+        let expected_hash = verified_message
+            .common()
+            .ciphertext_hash(self.id)
+            .ok_or(InvalidProof)?;
+        let dispersal_hash = *verified_message.dispersal.dispersal_hash();
+
+        Ok(
+            match avid.decode_or_complain(
+                self.id,
+                shards,
+                recipient_root,
+                expected_len,
+                dispersal_hash,
+                |bytes| hash_bytes(bytes) == *expected_hash,
+            ) {
+                Ok(bytes) => DecodeOutcome::Decoded(Ciphertext(bytes)),
+                Err(complaint) => {
+                    warn!(
+                        "batch_avss decode_ciphertext: receiver {} raising BlameComplaint",
+                        self.id,
+                    );
+                    DecodeOutcome::InvalidDispersal(complaint)
                 }
-                Ok(DecodeOutcome::Decoded(ct))
-            })
-            .unwrap_or_else(|e| {
-                warn!(
-                    "batch_avss decode_ciphertext: receiver {} raising BlameComplaint after RS-decode / AVID-consistency / ciphertext-hash check failed: {e:?}",
-                    self.id,
-                );
-                DecodeOutcome::InvalidDispersal(BlameComplaint {
-                    accuser_id: self.id,
-                    shards,
-                    dispersal_hash: verified_message.message.dispersal_hash,
-                })
-            }))
+            },
+        )
     }
 
     /// 6. Decrypt and verify the receiver's own shares from a successfully decoded ciphertext.
@@ -843,11 +745,12 @@ impl Receiver {
             dispersal_hash,
         } = reveal;
 
-        if *dispersal_hash != verified_message.message.dispersal_hash {
+        if dispersal_hash != verified_message.dispersal_hash() {
             return Err(InvalidProof);
         }
         let recipient_root = verified_message.recipient_root(*accuser_id)?;
-        self.check_avid_consistency(reveal_ciphertext, recipient_root)
+        self.avid()
+            .check_consistency(&reveal_ciphertext.0, recipient_root)
             .map_err(|_| InvalidProof)?;
         let accuser = self.nodes.node_id_to_node(*accuser_id)?;
         let accuser_indices = self.nodes.share_ids_of(*accuser_id)?;
@@ -879,42 +782,23 @@ impl Receiver {
     ) -> FastCryptoResult<ComplaintResponse> {
         let common_message = verified_message.common();
 
-        let BlameComplaint {
-            accuser_id,
-            shards,
-            dispersal_hash,
-        } = blame;
-
-        if *dispersal_hash != verified_message.message.dispersal_hash {
+        if blame.dispersal_hash != *verified_message.dispersal_hash() {
             return Err(InvalidProof);
         }
-        let recipient_root = verified_message.recipient_root(*accuser_id)?;
+        let recipient_root = verified_message.recipient_root(blame.accuser_id)?;
         let expected_hash = common_message
-            .ciphertext_hash(*accuser_id)
+            .ciphertext_hash(blame.accuser_id)
             .ok_or(InvalidProof)?;
+        let expected_len = SharesForNode::bcs_serialized_size(
+            self.nodes.weight_of(blame.accuser_id)? as usize,
+            self.batch_size,
+        );
 
-        if shards
-            .iter()
-            .any(|(sender, auth)| auth.verify(*sender as usize, recipient_root).is_err())
-        {
-            return Err(InvalidProof);
-        }
-
-        let weight_of_shards = self.nodes.total_weight_of(shards.keys())?;
-        if weight_of_shards < self.nodes.total_weight() - 2 * self.params.f {
-            return Err(InvalidProof);
-        }
-
-        // The blame is valid iff the contributed shards either fail to RS-decode, decode to a
-        // ciphertext whose re-encoding doesn't match the accuser's `r_i`, or decode to a
-        // ciphertext whose hash doesn't match `ciphertext_hashes[accuser_id]` in `v`.
-        if self
-            .reconstruct_ciphertext(*accuser_id, shards)
-            .ok()
-            .is_some_and(|ct| {
-                self.check_avid_consistency(&ct, recipient_root).is_ok()
-                    && hash_ciphertext(&ct) == *expected_hash
-            })
+        if !self
+            .avid()
+            .complaint_is_valid(blame, recipient_root, expected_len, |bytes| {
+                hash_bytes(bytes) == *expected_hash
+            })?
         {
             return Err(InvalidProof);
         }
@@ -1044,59 +928,8 @@ impl Receiver {
         random_oracle_from_sid(&self.sid)
     }
 
-    /// Reed-Solomon decode the ciphertext for `accuser_id` from a set of authenticated shard
-    /// contributions, keyed by sender id. Missing senders and senders whose shard count
-    /// doesn't match their weight are treated as erasures, so RS decoding fails if those
-    /// account for more than `2f` of the total weight. The caller is responsible for having
-    /// authenticated the shards via their Merkle proofs.
-    fn reconstruct_ciphertext(
-        &self,
-        accuser_id: PartyId,
-        shards: &BTreeMap<PartyId, AuthenticatedShards>,
-    ) -> FastCryptoResult<Ciphertext> {
-        let shards_matrix = self
-            .nodes
-            .node_ids_iter()
-            .flat_map(|id| -> Vec<Option<Shard>> {
-                let weight = self.nodes.weight_of(id).expect("valid party id") as usize;
-                match shards.get(&id) {
-                    // If the shards exist and are consistent with the weight, put them in the
-                    // matrix. Otherwise, add a None, corresponding to an erasure.
-                    Some(auth) if auth.shards.len() == weight => {
-                        auth.shards.iter().cloned().map(Some).collect_vec()
-                    }
-                    _ => vec![None; weight],
-                }
-            })
-            .collect_vec();
-
-        // The encryption used, counter-mode, is length-preserving, so the length of the
-        // ciphertext is equal to the length of the plaintext.
-        let expected_length = SharesForNode::bcs_serialized_size(
-            self.nodes.weight_of(accuser_id)? as usize,
-            self.batch_size,
-        );
-        get_coder(&self.nodes, self.params.f)
-            .decode(shards_matrix, expected_length)
-            .map(Ciphertext)
-    }
-
-    /// RS-encode `ciphertext`, rebuild the per-recipient Merkle tree, and check its root matches
-    /// the dealer's `expected_root`. Errors with [InvalidMessage] on mismatch.
-    fn check_avid_consistency(
-        &self,
-        ciphertext: &Ciphertext,
-        expected_root: &merkle::Node,
-    ) -> FastCryptoResult<()> {
-        let new_shards = self.nodes.collect_to_nodes(
-            get_coder(&self.nodes, self.params.f)
-                .encode(&ciphertext.0)?
-                .into_iter(),
-        )?;
-        if recipient_tree(&new_shards)?.root() != *expected_root {
-            return Err(InvalidMessage);
-        }
-        Ok(())
+    fn avid(&self) -> avid::Avid<'_> {
+        avid::Avid::new(&self.nodes, self.params.f)
     }
 }
 
@@ -1110,70 +943,6 @@ impl DealerState {
     #[cfg(test)]
     fn ciphertext_for(&self, id: PartyId) -> &Ciphertext {
         &self.ciphertexts[id as usize]
-    }
-}
-
-impl PessimisticMessage {
-    /// Verify the structural shape of this [PessimisticMessage] and the receiver's own
-    /// dispersal proofs. Checks that:
-    ///   * dispersal recipients and confirmers partition the node set
-    ///   * `dispersal_hash` matches the combined hash of `expected_avss_common_message_hash` and
-    ///     the actual roots in `dispersal`,
-    ///   * every dispersal entry Merkle-authenticates against its root at leaf `receiver_id`.
-    ///
-    /// The confirmers are taken on trust from the [VerifiedConfirmers] the caller constructed.
-    fn verify(
-        &self,
-        nodes: &Nodes<EG>,
-        expected_avss_common_message_hash: &Digest,
-        receiver_id: PartyId,
-        confirmers: &VerifiedConfirmers,
-    ) -> FastCryptoResult<()> {
-        // Dispersal recipients and confirmers must partition the node set.
-        if !self
-            .dispersal
-            .keys()
-            .chain(confirmers.confirmers.iter())
-            .copied()
-            .sorted()
-            .eq(nodes.node_ids_iter().sorted())
-        {
-            warn!(
-                "batch_avss PessimisticMessage::verify: dispersal recipients and confirmers do not partition the node set (dispersal.len() = {}, confirmers.len() = {}, num_nodes = {})",
-                self.dispersal.len(),
-                confirmers.confirmers.len(),
-                nodes.num_nodes(),
-            );
-            return Err(InvalidMessage);
-        }
-
-        let expected_dispersal_hash = dispersal_hash(
-            expected_avss_common_message_hash,
-            self.dispersal
-                .iter()
-                .map(|(&i, e)| (i, e.recipient_root.clone())),
-        );
-        if self.dispersal_hash != expected_dispersal_hash {
-            warn!(
-                "batch_avss PessimisticMessage::verify: dispersal_hash does not match expected (computed from v and dispersal roots)"
-            );
-            return Err(InvalidMessage);
-        }
-
-        for entry in self.dispersal.values() {
-            entry
-                .authenticated_shards
-                .verify(receiver_id as usize, &entry.recipient_root)
-                .map_err(|e| {
-                    warn!(
-                        "batch_avss PessimisticMessage::verify: dispersal entry Merkle proof failed at receiver {}: {e:?}",
-                        receiver_id,
-                    );
-                    e
-                })?;
-        }
-
-        Ok(())
     }
 }
 
@@ -1196,12 +965,14 @@ impl VerifiedPessimisticMessage {
         self.verified_common.common()
     }
 
+    pub fn dispersal_hash(&self) -> &Digest {
+        self.dispersal.dispersal_hash()
+    }
+
     fn recipient_root(&self, party: PartyId) -> FastCryptoResult<&merkle::Node> {
-        self.message
-            .dispersal
-            .get(&party)
-            .map(|d| &d.recipient_root)
-            .ok_or(InvalidProof)
+        self.dispersal
+            .recipient_root(party)
+            .map_err(|_| InvalidProof)
     }
 }
 
@@ -1418,71 +1189,16 @@ impl SharesForNode {
 
 impl BCSSerialized for SharesForNode {}
 
-impl AuthenticatedShards {
-    /// Verify that `shards` are the leaf at `leaf_index` under `recipient_root`.
-    fn verify(&self, leaf_index: usize, recipient_root: &merkle::Node) -> FastCryptoResult<()> {
-        self.proof
-            .verify_proof_with_unserialized_leaf(recipient_root, &self.shards, leaf_index)
-    }
-}
-
-impl Echo {
-    /// Verify this echo for the recipient: the sender's shard count matches `sender_weight`,
-    /// the carried `dispersal_hash` matches the verifier's expected value, and the Merkle
-    /// proof checks against `recipient_root`.
-    fn verify(
-        self,
-        sender_weight: u16,
-        expected_dispersal_hash: &Digest,
-        recipient_root: &merkle::Node,
-    ) -> FastCryptoResult<VerifiedEcho> {
-        if self.authenticated_shards.shards.len() != sender_weight as usize {
-            return Err(InvalidMessage);
-        }
-        if &self.dispersal_hash != expected_dispersal_hash {
-            return Err(InvalidMessage);
-        }
-        self.authenticated_shards
-            .verify(self.sender as usize, recipient_root)?;
-        Ok(VerifiedEcho(self))
-    }
-}
-
-/// Reed-Solomon `(W, W − 2f)` coder over the per-receiver ciphertexts. Requires the parameters
-/// to have been validated via [Parameters::validate].
-fn get_coder(nodes: &Nodes<EG>, f: u16) -> ErasureCoder {
-    ErasureCoder::new(
-        nodes.total_weight() as usize,
-        (nodes.total_weight() - 2 * f) as usize,
-    )
-    .expect("parameters were validated by Parameters::validate")
-}
-
 /// Blake2b-256 hash of a per-recipient ciphertext.
 fn hash_ciphertext(ciphertext: &Ciphertext) -> Digest {
-    let mut hasher = Blake2b256::new();
-    hasher.update(&ciphertext.0);
-    hasher.finalize()
+    hash_bytes(&ciphertext.0)
 }
 
-/// Combined binding for a pessimistic-phase broadcast: `H(H(v), roots)`.
-fn dispersal_hash(
-    avss_common_message_hash: &Digest,
-    recipient_roots: impl Iterator<Item = (PartyId, merkle::Node)>,
-) -> Digest {
+/// Blake2b-256 hash of raw ciphertext bytes.
+fn hash_bytes(bytes: &[u8]) -> Digest {
     let mut hasher = Blake2b256::new();
-    hasher.update(avss_common_message_hash);
-    for (id, root) in recipient_roots {
-        hasher.update(id.to_le_bytes());
-        hasher.update(root.bytes());
-    }
+    hasher.update(bytes);
     hasher.finalize()
-}
-
-/// Build the per-recipient Merkle tree over `shards` (per-node grouped shard chunks of one
-/// ciphertext). The root of this tree is the per-recipient `recipient_root`.
-fn recipient_tree(shards: &[Vec<Shard>]) -> FastCryptoResult<MerkleTree<Blake2b256>> {
-    MerkleTree::<Blake2b256>::build_from_unserialized(shards.iter())
 }
 
 /// Number of bytes BCS uses to encode `x` as an unsigned LEB128 length prefix.
@@ -1686,7 +1402,7 @@ mod tests {
                 .collect_vec();
             let pem = assert_decoded(r.decode_ciphertext(&verified_echos, vm).unwrap());
             assert_valid(
-                r.verify_and_decrypt(&pem, &vm.verified_common, vm.message.dispersal_hash)
+                r.verify_and_decrypt(&pem, &vm.verified_common, *vm.dispersal_hash())
                     .unwrap(),
             );
         }
@@ -1768,7 +1484,7 @@ mod tests {
                 .unwrap(),
         );
         let reveal = match receivers[victim_id as usize]
-            .verify_and_decrypt(&pem, &vm0.verified_common, vm0.message.dispersal_hash)
+            .verify_and_decrypt(&pem, &vm0.verified_common, *vm0.dispersal_hash())
             .unwrap()
         {
             DecryptionOutcome::Invalid(r) => r,

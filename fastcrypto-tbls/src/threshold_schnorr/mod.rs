@@ -29,6 +29,7 @@ use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::GroupElement;
 use std::fmt::{Display, Formatter};
 
+pub mod avid;
 pub mod avss;
 pub mod batch_avss;
 mod bcs;
