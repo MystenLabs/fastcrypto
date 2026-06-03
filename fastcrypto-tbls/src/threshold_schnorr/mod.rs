@@ -236,7 +236,7 @@ mod tests {
             let (_, opt_messages) = dealer.create_optimistic_messages(&mut rng).unwrap();
             for r in &receivers {
                 let (output, _confirm, _verified_common) =
-                    r.process_optimistic(&opt_messages[r.id as usize]).unwrap();
+                    r.process_optimistic(&opt_messages[&r.id]).unwrap();
                 presigning_outputs.get_mut(&r.id).unwrap().push(output);
             }
         }
