@@ -122,8 +122,11 @@ pub struct VerifiedPessimisticMessage {
 /// The set of confirmers from the optimistic phase (parties not in `pending_recipients`), together
 /// with the common message `H(v)` they attested to.
 ///
-/// The caller constructs this directly and asserts that it has verified the confirmers' signed
-/// [Confirm]s over `avss_common_message_hash`.
+/// SAFETY CONTRACT: this type is `Verified` by *caller assertion only* — nothing here checks
+/// signatures. By constructing it, the caller promises it has verified each confirmer's signed
+/// [Confirm] over `avss_common_message_hash`. [Receiver::echo] trusts `confirmers` to gate its
+/// weight check, so a caller that populates this without verifying signatures lets an attacker
+/// pick an arbitrary confirmer set and defeats that check entirely.
 #[derive(Clone, Debug)]
 pub struct VerifiedConfirmers {
     /// The confirmer party ids.
@@ -523,6 +526,9 @@ impl Receiver {
         verified_common: VerifiedAvssCommonMessage,
         verified_confirmers: &VerifiedConfirmers,
     ) -> FastCryptoResult<(VerifiedPessimisticMessage, BTreeMap<PartyId, Echo>, Vote)> {
+        // Require `W − f` weight of confirmers so that at least `W − 2f` of them are honest — the
+        // RS reconstruction quorum. This guarantees the dispersed `v` is backed by enough honest
+        // parties to answer complaints and let stragglers recover.
         let required_weight_of_confirmers = self.nodes.total_weight() - self.params.f;
         if self
             .nodes
@@ -599,6 +605,10 @@ impl Receiver {
         let avid = self.avid();
         let shards = avid.collect_shards(echos)?;
         let recipient_root = verified_message.recipient_root(self.id)?;
+        // The dispersed payload is the ciphertext `E_i`, and we bound it by the serialized size of
+        // the *plaintext* `SharesForNode`. This is correct only because the ECIES encryption is
+        // length-preserving (`|E_i| == |plaintext|`); if that ever changes, this length would be
+        // wrong and reconstruction would re-encode to the wrong root, falsely blaming the dealer.
         let expected_len = SharesForNode::bcs_serialized_size(
             self.nodes.weight_of(self.id)? as usize,
             self.batch_size,
@@ -638,6 +648,10 @@ impl Receiver {
     ///
     ///    The [RevealComplaint] is an encryption-layer fault carrying the accuser's ciphertext and
     ///    an ECIES recovery package; broadcast it only after the TOB certificate pins `H(v)`.
+    ///
+    ///    `dispersal_hash` is stamped into the [RevealComplaint] unauthenticated and must be the one
+    ///    from this receiver's [VerifiedPessimisticMessage] ([VerifiedPessimisticMessage::dispersal_hash]);
+    ///    otherwise responders reject the complaint in [Self::handle_reveal] and it is unactionable.
     pub fn verify_and_decrypt(
         &self,
         ciphertext: &Ciphertext,
@@ -791,6 +805,8 @@ impl Receiver {
         let expected_hash = common_message
             .ciphertext_hash(blame.accuser_id)
             .ok_or(InvalidProof)?;
+        // See `decode_ciphertext`: `expected_len` bounds the ciphertext by the plaintext's
+        // serialized size, which is correct only for length-preserving ECIES encryption.
         let expected_len = SharesForNode::bcs_serialized_size(
             self.nodes.weight_of(blame.accuser_id)? as usize,
             self.batch_size,
@@ -1356,7 +1372,8 @@ mod tests {
                 .unwrap();
             confirms.insert(*id, confirm);
         }
-        // weight check: 5 confirmers @ weight 1 = 5 >= t + f = 5 (caller-side sanity).
+        // Optimistic-certificate sanity: `≥ t + f` weight of Confirms (distinct from `echo`'s own
+        // `W − f` confirmer-quorum check). Here 5 confirmers @ weight 1 = 5 >= t + f = 5.
         assert!(confirms.len() as u16 >= t + f);
 
         // Pessimistic phase: dispersal for parties in I = {5, 6}.

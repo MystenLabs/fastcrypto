@@ -30,7 +30,8 @@ use std::collections::BTreeMap;
 use tap::TapFallible;
 use tracing::warn;
 
-/// A Blake2b-256 digest, used both for the binding `context` and the resulting `dispersal_hash`.
+/// A Blake2b-256 digest. Used for the resulting `dispersal_hash`; the caller's binding context is
+/// passed separately as a `dst: &[u8]`.
 pub type Digest = fastcrypto::hash::Digest<{ Blake2b256::OUTPUT_SIZE }>;
 
 /// One sender's shards for one recipient's payload, with a Merkle proof against the corresponding
@@ -77,7 +78,7 @@ impl Dispersal {
 pub struct VerifiedDispersal(Dispersal);
 
 impl VerifiedDispersal {
-    /// The combined `dispersal_hash = H(context, roots)`.
+    /// The combined `dispersal_hash = H(dst, roots)`.
     pub fn dispersal_hash(&self) -> &Digest {
         &self.0.dispersal_hash
     }
@@ -224,7 +225,7 @@ impl<'a> Avid<'a> {
 
     /// 2. Verify the structural shape of `dispersal` and party `my_id`'s own Merkle proofs:
     ///   * every recipient id is valid,
-    ///   * `dispersal_hash == H(context, roots)`,
+    ///   * `dispersal_hash == H(dst, roots)`,
     ///   * each entry's authenticated shards verify against its root at leaf `my_id`.
     pub fn verify_dispersal(
         &self,
@@ -250,7 +251,7 @@ impl<'a> Avid<'a> {
                     .map(|(&i, e)| (i, e.recipient_root.clone())),
             )
         {
-            warn!("avid verify_dispersal: dispersal_hash does not match H(context, roots)");
+            warn!("avid verify_dispersal: dispersal_hash does not match H(dst, roots)");
             return Err(InvalidMessage);
         }
 
@@ -447,7 +448,7 @@ impl<'a> Avid<'a> {
     }
 }
 
-/// Combined binding for a dispersal: `H(context, roots)`.
+/// Combined binding for a dispersal: `H(dst, roots)`, where `dst` is the caller's context.
 fn dispersal_hash(
     dst: &[u8],
     recipient_roots: impl Iterator<Item = (PartyId, merkle::Node)>,
