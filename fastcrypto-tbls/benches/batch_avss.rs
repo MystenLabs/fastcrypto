@@ -87,7 +87,7 @@ mod batch_avss_benches {
     };
     use fastcrypto_tbls::threshold_schnorr::presigning::Presignatures;
     use itertools::Itertools;
-    use std::collections::BTreeSet;
+    use std::collections::{BTreeMap, BTreeSet};
 
     /// The single straggler / pending recipient in [pessimistic_with_one_straggler]. The benches
     /// reconstruct this receiver's ciphertext, so it must be the one whose shares are dispersed.
@@ -102,14 +102,13 @@ mod batch_avss_benches {
         rng: &mut impl AllowedRng,
     ) -> (
         AvssCommonMessage,
-        Vec<PessimisticMessage>,
+        BTreeMap<PartyId, PessimisticMessage>,
         VerifiedConfirmers,
     ) {
         let (state, _) = dealer.create_optimistic_messages(rng).unwrap();
         let common = state.common().clone();
         let pending: BTreeSet<PartyId> = std::iter::once(STRAGGLER).collect();
-        let (_dispersal_hash, messages) =
-            dealer.create_pessimistic_messages(&state, pending).unwrap();
+        let messages = dealer.create_pessimistic_messages(&state, pending).unwrap();
         let n = messages.len() as u16;
         let confirmers = VerifiedConfirmers {
             confirmers: (0..n).filter(|&i| i != STRAGGLER).collect(),
@@ -181,7 +180,7 @@ mod batch_avss_benches {
                 let (common, messages, confirmers) =
                     pessimistic_with_one_straggler(&d0, &mut thread_rng());
                 let vcm = r1.verify_common_message(common).unwrap();
-                let message = &messages[1];
+                let message = &messages[&1];
                 echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| b.iter(|| r1.echo(message.clone(), vcm.clone(), &confirmers).unwrap()),
@@ -207,10 +206,10 @@ mod batch_avss_benches {
                 let vcm0 = r0.verify_common_message(common.clone()).unwrap();
                 let vcm1 = r1.verify_common_message(common).unwrap();
                 let (_, echoes_from_r0, _) =
-                    r0.echo(messages[0].clone(), vcm0, &confirmers).unwrap();
+                    r0.echo(messages[&0].clone(), vcm0, &confirmers).unwrap();
                 let echo_for_r1 = echoes_from_r0[&1u16].clone();
                 let (vm1, _, _) = r1
-                    .echo(messages[r1.id as usize].clone(), vcm1, &confirmers)
+                    .echo(messages[&r1.id].clone(), vcm1, &confirmers)
                     .unwrap();
                 verify_echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
@@ -242,7 +241,7 @@ mod batch_avss_benches {
                     .map(|(i, r)| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (v, e, _) = r
-                            .echo(messages[i].clone(), vcm.clone(), &confirmers)
+                            .echo(messages[&r.id].clone(), vcm.clone(), &confirmers)
                             .unwrap();
                         if i == 1 {
                             vm = Some(v);
@@ -287,7 +286,7 @@ mod batch_avss_benches {
                     .map(|(i, r)| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (v, e, _) = r
-                            .echo(messages[i].clone(), vcm.clone(), &confirmers)
+                            .echo(messages[&r.id].clone(), vcm.clone(), &confirmers)
                             .unwrap();
                         if i == 1 {
                             vm = Some(v);
@@ -358,7 +357,7 @@ mod batch_avss_benches {
                                 .map(|(i, r)| {
                                     let vcm = r.verify_common_message(common.clone()).unwrap();
                                     let (v, e, _) = r
-                                        .echo(messages[i].clone(), vcm.clone(), &confirmers)
+                                        .echo(messages[&r.id].clone(), vcm.clone(), &confirmers)
                                         .unwrap();
                                     if i == 1 {
                                         vm = Some(v);

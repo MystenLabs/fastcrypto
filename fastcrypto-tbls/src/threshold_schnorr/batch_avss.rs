@@ -382,9 +382,9 @@ impl Dealer {
     }
 
     /// 3. Build a [PessimisticMessage] per receiver dispersing the existing `E_i` for
-    ///    `i ∈ pending_recipients` (those that didn't confirm) via AVID. Every message pins the
-    ///    same `dispersal_hash`, returned so the caller knows the signing target for the
-    ///    confirmer/voter quorum.
+    ///    `i ∈ pending_recipients` (those that didn't confirm) via AVID, keyed by recipient id.
+    ///    Every message pins the same `dispersal_hash` (the signing target for the confirmer/voter
+    ///    quorum).
     ///
     ///    Only needed for the stragglers: if every receiver confirmed in the optimistic phase, the
     ///    pessimistic phase is skipped entirely.
@@ -392,7 +392,7 @@ impl Dealer {
         &self,
         state: &DealerState,
         pending_recipients: BTreeSet<PartyId>,
-    ) -> FastCryptoResult<(Digest, Vec<PessimisticMessage>)> {
+    ) -> FastCryptoResult<BTreeMap<PartyId, PessimisticMessage>> {
         self.create_pessimistic_messages_with_mutation(state, pending_recipients, |_| {})
     }
 
@@ -401,7 +401,7 @@ impl Dealer {
         state: &DealerState,
         pending_recipients: BTreeSet<PartyId>,
         mutate_shards: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
-    ) -> FastCryptoResult<(Digest, Vec<PessimisticMessage>)> {
+    ) -> FastCryptoResult<BTreeMap<PartyId, PessimisticMessage>> {
         // Validate pending_recipients ⊆ all_ids.
         let all_ids: BTreeSet<PartyId> = self.nodes.node_ids_iter().collect();
         if !pending_recipients.is_subset(&all_ids) {
@@ -412,13 +412,12 @@ impl Dealer {
             .iter()
             .map(|&i| (i, state.ciphertexts[i as usize].0.clone()))
             .collect();
-        let (dispersal_hash, messages) = self.avid().disperse_with_mutation(
+        let (_dispersal_hash, messages) = self.avid().disperse_with_mutation(
             &state.avss_common.hash(),
             &payloads,
             mutate_shards,
         )?;
-        // The per-party dispersals are keyed by party id; flatten to a Vec in id order.
-        Ok((dispersal_hash, messages.into_values().collect()))
+        Ok(messages)
     }
 
     fn random_oracle(&self) -> RandomOracle {
@@ -1358,7 +1357,7 @@ mod tests {
         assert!(confirms.len() as u16 >= t + f);
 
         // Pessimistic phase: dispersal for parties in I = {5, 6}.
-        let (_dispersal_hash, messages) = dealer
+        let messages = dealer
             .create_pessimistic_messages(&state, pending.clone())
             .unwrap();
         // The confirmers are the parties we collected Confirms from (the complement of the
@@ -1379,7 +1378,7 @@ mod tests {
         for r in &receivers {
             let vcm = r.verify_common_message(state.avss_common.clone()).unwrap();
             let (vm, echoes, _vote) = r
-                .echo(messages[r.id as usize].clone(), vcm.clone(), &confirmers)
+                .echo(messages[&r.id].clone(), vcm.clone(), &confirmers)
                 .unwrap();
             verified_messages.push(vm);
             echos.push(echoes);
@@ -1444,8 +1443,7 @@ mod tests {
             .is_err());
 
         let pending: BTreeSet<PartyId> = std::iter::once(victim_id).collect();
-        let (_dispersal_hash, messages) =
-            dealer.create_pessimistic_messages(&state, pending).unwrap();
+        let messages = dealer.create_pessimistic_messages(&state, pending).unwrap();
         // The confirmers are the parties we collected Confirms from (the complement of the
         // dispersal recipients). The caller verifies their signed Confirms; we wrap the ids and
         // the common message they attested to.
@@ -1460,18 +1458,14 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (vm0, _, _vote0) = receivers[victim_id as usize]
-            .echo(
-                messages[victim_id as usize].clone(),
-                vcm0.clone(),
-                &confirmers,
-            )
+            .echo(messages[&victim_id].clone(), vcm0.clone(), &confirmers)
             .unwrap();
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
             .iter()
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (_, echoes, _) = r
-                    .echo(messages[r.id as usize].clone(), vcm.clone(), &confirmers)
+                    .echo(messages[&r.id].clone(), vcm.clone(), &confirmers)
                     .unwrap();
                 receivers[victim_id as usize]
                     .verify_echo(echoes[&victim_id].clone(), &vm0)
@@ -1498,7 +1492,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (vm, _, _vote) = r
-                    .echo(messages[r.id as usize].clone(), vcm.clone(), &confirmers)
+                    .echo(messages[&r.id].clone(), vcm.clone(), &confirmers)
                     .unwrap();
                 r.handle_reveal(&reveal, &vm, state.ciphertext_for(r.id).clone())
                     .unwrap()
@@ -1560,7 +1554,7 @@ mod tests {
         }
 
         let pending: BTreeSet<PartyId> = std::iter::once(victim_id).collect();
-        let (_dispersal_hash, messages) = dealer
+        let messages = dealer
             .pessimistic_with_corrupted_dispersal(&state, pending)
             .unwrap();
         // The confirmers are the parties we collected Confirms from (the complement of the
@@ -1579,11 +1573,7 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (vm0, _, _) = receivers[victim_id as usize]
-            .echo(
-                messages[victim_id as usize].clone(),
-                vcm0.clone(),
-                &confirmers,
-            )
+            .echo(messages[&victim_id].clone(), vcm0.clone(), &confirmers)
             .unwrap();
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
             .iter()
@@ -1591,7 +1581,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (_, echoes, _) = r
-                    .echo(messages[r.id as usize].clone(), vcm.clone(), &confirmers)
+                    .echo(messages[&r.id].clone(), vcm.clone(), &confirmers)
                     .unwrap();
                 receivers[victim_id as usize]
                     .verify_echo(echoes[&victim_id].clone(), &vm0)
@@ -1614,7 +1604,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (vm, _, _) = r
-                    .echo(messages[r.id as usize].clone(), vcm.clone(), &confirmers)
+                    .echo(messages[&r.id].clone(), vcm.clone(), &confirmers)
                     .unwrap();
                 r.handle_blame(&blame, &vm, state.ciphertext_for(r.id).clone())
                     .unwrap()
@@ -1740,7 +1730,7 @@ mod tests {
             &self,
             state: &DealerState,
             pending: BTreeSet<PartyId>,
-        ) -> FastCryptoResult<(super::Digest, Vec<PessimisticMessage>)> {
+        ) -> FastCryptoResult<BTreeMap<PartyId, PessimisticMessage>> {
             let f = self.params.f as usize;
             let n = self.nodes.total_weight() as usize;
             self.create_pessimistic_messages_with_mutation(state, pending, |shards_by_recipient| {

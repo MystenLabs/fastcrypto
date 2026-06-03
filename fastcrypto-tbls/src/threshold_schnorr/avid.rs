@@ -49,15 +49,14 @@ impl AuthenticatedShards {
     }
 }
 
-/// One recipient's slice of a dispersal: the Merkle root over its payload shards (`r_i`) plus the
-/// holding party's authenticated shards.
+/// One recipient's slice of a dispersal.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DispersalEntry {
     pub recipient_root: merkle::Node,
     pub authenticated_shards: AuthenticatedShards,
 }
 
-/// The dealer's per-party dispersal message: one [DispersalEntry] per recipient, all bound to the
+/// The dealer's per-party dispersal message. One [DispersalEntry] per recipient, all bound to the
 /// same `dispersal_hash`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Dispersal {
@@ -500,8 +499,7 @@ mod tests {
         h.finalize()
     }
 
-    /// End-to-end: disperse some random bytes to one recipient, have every party echo, and let the
-    /// recipient reconstruct the original bytes.
+    /// End-to-end happy path test
     #[test]
     fn disperse_and_reconstruct_random_bytes() {
         let weights = [1u16, 2, 1, 1]; // total weight W = 5
@@ -547,5 +545,65 @@ mod tests {
             .reconstruct(&shards, recipient_root, payload.len())
             .unwrap();
         assert_eq!(recovered, payload);
+    }
+
+    #[test]
+    fn cheating_dealer_complaint() {
+        let weights = [1u16; 5]; // total weight W = 5
+        let f = 1u16; // W − 2f = 3
+        let nodes = nodes_with_weights(&weights);
+        let avid = Avid::new(&nodes, f);
+        let context = context();
+
+        let recipient = 0u16;
+        let cheater = 4u16;
+        let mut payload = vec![0u8; 200];
+        thread_rng().fill_bytes(&mut payload);
+        let payloads: BTreeMap<PartyId, Vec<u8>> =
+            std::iter::once((recipient, payload.clone())).collect();
+
+        let (dispersal_hash, messages) = avid
+            .disperse_with_mutation(&context, &payloads, |shards| {
+                shards.get_mut(&recipient).unwrap()[cheater as usize][0].0[0] ^= 1;
+            })
+            .unwrap();
+
+        let verified: Vec<VerifiedDispersal> = messages
+            .into_iter()
+            .map(|(j, m)| avid.verify_dispersal(m, &context, j).unwrap())
+            .collect();
+
+        // The recipient gathers a quorum of honest echoes (everyone but the cheater) ...
+        let echoes: Vec<VerifiedEcho> = verified
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j as PartyId != cheater)
+            .map(|(j, vd)| {
+                let echo = vd.echoes(j as PartyId).remove(&recipient).unwrap();
+                avid.verify_echo(echo, &verified[recipient as usize], recipient)
+                    .unwrap()
+            })
+            .collect();
+
+        // ... but they don't reconstruct consistently, so it raises a Complaint.
+        let shards = avid.collect_shards(&echoes).unwrap();
+        let recipient_root = verified[recipient as usize]
+            .recipient_root(recipient)
+            .unwrap();
+        let complaint = avid
+            .decode_or_complain(
+                recipient,
+                shards,
+                recipient_root,
+                payload.len(),
+                dispersal_hash,
+                |_| true,
+            )
+            .unwrap_err();
+
+        // Another party validates the complaint.
+        assert!(avid
+            .complaint_is_valid(&complaint, recipient_root, payload.len(), |_| true)
+            .unwrap());
     }
 }
