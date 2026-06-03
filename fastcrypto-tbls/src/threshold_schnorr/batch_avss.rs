@@ -16,7 +16,7 @@
 //! # Pessimistic path (AVID for stragglers)
 //!
 //! For receivers `I` (the *pending recipients*) that didn't confirm, the dealer RS-encodes their
-//! `E_i`, commits the per-recipient shards, and sends each receiver an [IndirectMessage]
+//! `E_i`, commits the per-recipient shards, and sends each receiver an [PessimisticMessage]
 //! with one [DispersalEntry] per `i ∈ I` plus the collected [Confirm]s
 //! ([Dealer::create_pessimistic_messages]). All receivers verify their own shards, then emit one
 //! [Echo] per `i ∈ I` and a [Vote] over `broadcast_hash` ([Receiver::echo]). The Vote attests
@@ -115,7 +115,7 @@ pub struct Receiver {
 
 /// The dealer's per-recipient optimistic-phase message.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DirectMessage {
+pub struct OptimisticMessage {
     pub common: CommonMessage,
     pub ciphertext: Ciphertext,
 }
@@ -136,7 +136,7 @@ pub struct DealerState {
 
 /// The dealer's per-recipient message for the AVID (pessimistic) phase.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct IndirectMessage {
+pub struct PessimisticMessage {
     /// One entry per pending recipient `i ∈ I`.
     pub dispersal: BTreeMap<PartyId, DispersalEntry>,
     pub broadcast_hash: Digest,
@@ -169,7 +169,7 @@ pub struct VerifiedCommonMessage(CommonMessage);
 /// A verified dispersal message from the pessimistic phase.
 #[derive(Clone, Debug)]
 pub struct VerifiedMessage {
-    pub message: IndirectMessage,
+    pub message: PessimisticMessage,
     pub verified_common: VerifiedCommonMessage,
 }
 
@@ -337,12 +337,12 @@ impl Dealer {
     pub fn create_optimistic_messages(
         &self,
         rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<(DealerState, Vec<DirectMessage>)> {
+    ) -> FastCryptoResult<(DealerState, Vec<OptimisticMessage>)> {
         let state = self.create_encrypted_shares_with_mutation(rng, |_| {})?;
         let messages = state
             .ciphertexts
             .iter()
-            .map(|ct| DirectMessage {
+            .map(|ct| OptimisticMessage {
                 common: state.common.clone(),
                 ciphertext: ct.clone(),
             })
@@ -451,14 +451,14 @@ impl Dealer {
         })
     }
 
-    /// Build an [IndirectMessage] per receiver dispersing the existing `E_i` for
+    /// Build an [PessimisticMessage] per receiver dispersing the existing `E_i` for
     /// `i ∈ pending_recipients`. Every message pins the same [broadcast_hash], returned so the
     /// caller knows the signing target for the confirmer/voter quorum.
     pub fn create_pessimistic_messages(
         &self,
         state: &DealerState,
         pending_recipients: BTreeSet<PartyId>,
-    ) -> FastCryptoResult<(Digest, Vec<IndirectMessage>)> {
+    ) -> FastCryptoResult<(Digest, Vec<PessimisticMessage>)> {
         self.create_pessimistic_messages_with_mutation(state, pending_recipients, |_| {})
     }
 
@@ -468,7 +468,7 @@ impl Dealer {
         state: &DealerState,
         pending_recipients: BTreeSet<PartyId>,
         mutate_shards: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
-    ) -> FastCryptoResult<(Digest, Vec<IndirectMessage>)> {
+    ) -> FastCryptoResult<(Digest, Vec<PessimisticMessage>)> {
         // Validate pending_recipients ⊆ all_ids.
         let all_ids: BTreeSet<PartyId> = self.nodes.node_ids_iter().collect();
         if !pending_recipients.is_subset(&all_ids) {
@@ -526,7 +526,7 @@ impl Dealer {
                         ))
                     })
                     .collect::<FastCryptoResult<_>>()?;
-                Ok(IndirectMessage {
+                Ok(PessimisticMessage {
                     dispersal,
                     broadcast_hash,
                 })
@@ -587,7 +587,7 @@ impl Receiver {
     /// a [Confirm] for the dealer, and the [VerifiedCommonMessage] (retain for the session).
     pub fn process_optimistic(
         &self,
-        message: &DirectMessage,
+        message: &OptimisticMessage,
     ) -> FastCryptoResult<(ReceiverOutput, Confirm, VerifiedCommonMessage)> {
         let verified_common = self.verify_common_message(message.common.clone())?;
         self.check_ciphertext_hash(&message.ciphertext, &verified_common)?;
@@ -615,7 +615,7 @@ impl Receiver {
         )
     }
 
-    /// 2. Verify the AVID-phase [IndirectMessage] against a [VerifiedCommonMessage] and emit
+    /// 2. Verify the AVID-phase [PessimisticMessage] against a [VerifiedCommonMessage] and emit
     ///    one [Echo] per pending recipient. The receiver is expected to already hold the
     ///    [VerifiedCommonMessage] from the optimistic phase or to have fetched it from a confirming party.
     ///    Returns also a [VerifiedMessage] for the AVID-layer calls and a [Vote] over the
@@ -626,7 +626,7 @@ impl Receiver {
     /// they've run [Self::verify_and_decrypt] on their own ciphertext.
     pub fn echo(
         &self,
-        message: IndirectMessage,
+        message: PessimisticMessage,
         verified_common: VerifiedCommonMessage,
         verified_confirmers: &VerifiedConfirmers,
     ) -> FastCryptoResult<(VerifiedMessage, Vec<Echo>, Vote)> {
@@ -975,7 +975,7 @@ impl Receiver {
         } = response;
 
         // The responder may be a confirmer (not in `pending_recipients`), so their dispersal
-        // entries — and hence their `recipient_root` — aren't in the [IndirectMessage].
+        // entries — and hence their `recipient_root` — aren't in the [PessimisticMessage].
         // Instead, verify the responder's ciphertext against `v`'s `ciphertext_hashes`, which
         // pin every receiver's ciphertext in `v`.
         let expected_hash = common_message
@@ -1126,8 +1126,8 @@ impl DealerState {
     }
 }
 
-impl IndirectMessage {
-    /// Verify the structural shape of this [IndirectMessage] and the receiver's own
+impl PessimisticMessage {
+    /// Verify the structural shape of this [PessimisticMessage] and the receiver's own
     /// dispersal proofs. Checks that:
     ///   * dispersal recipients and confirmers partition the node set
     ///   * `broadcast_hash` matches the combined hash of `expected_common_message_hash` and
@@ -1152,7 +1152,7 @@ impl IndirectMessage {
             .eq(nodes.node_ids_iter().sorted())
         {
             warn!(
-                "batch_avss IndirectMessage::verify: dispersal recipients and confirmers do not partition the node set (dispersal.len() = {}, confirmers.len() = {}, num_nodes = {})",
+                "batch_avss PessimisticMessage::verify: dispersal recipients and confirmers do not partition the node set (dispersal.len() = {}, confirmers.len() = {}, num_nodes = {})",
                 self.dispersal.len(),
                 confirmers.confirmers.len(),
                 nodes.num_nodes(),
@@ -1168,7 +1168,7 @@ impl IndirectMessage {
         );
         if self.broadcast_hash != expected_broadcast_hash {
             warn!(
-                "batch_avss IndirectMessage::verify: broadcast_hash does not match expected (computed from v and dispersal roots)"
+                "batch_avss PessimisticMessage::verify: broadcast_hash does not match expected (computed from v and dispersal roots)"
             );
             return Err(InvalidMessage);
         }
@@ -1179,7 +1179,7 @@ impl IndirectMessage {
                 .verify(receiver_id as usize, &entry.recipient_root)
                 .map_err(|e| {
                     warn!(
-                        "batch_avss IndirectMessage::verify: dispersal entry Merkle proof failed at receiver {}: {e:?}",
+                        "batch_avss PessimisticMessage::verify: dispersal entry Merkle proof failed at receiver {}: {e:?}",
                         receiver_id,
                     );
                     e
@@ -1542,8 +1542,8 @@ fn compute_challenge_from_common_message(
 #[cfg(test)]
 mod tests {
     use super::{
-        Confirm, Dealer, DealerState, DecodeOutcome, DecryptionOutcome, DirectMessage,
-        IndirectMessage, Parameters, Receiver, ReceiverOutput, ShareBatch, SharesForNode,
+        Confirm, Dealer, DealerState, DecodeOutcome, DecryptionOutcome, OptimisticMessage,
+        Parameters, PessimisticMessage, Receiver, ReceiverOutput, ShareBatch, SharesForNode,
         VerifiedConfirmers, VerifiedEcho,
     };
     use crate::ecies_v1;
@@ -1727,8 +1727,8 @@ mod tests {
         let mut rng = rand::thread_rng();
         let state = dealer.create_encrypted_shares_cheating(&mut rng).unwrap();
         let common = state.common().clone();
-        let opt_messages: Vec<DirectMessage> = (0..n)
-            .map(|i| DirectMessage {
+        let opt_messages: Vec<OptimisticMessage> = (0..n)
+            .map(|i| OptimisticMessage {
                 common: common.clone(),
                 ciphertext: state.ciphertext_for(i).clone(),
             })
@@ -1757,7 +1757,7 @@ mod tests {
             common_message_hash: common.hash(),
         };
 
-        // Receiver 0 verifies their IndirectMessage and produces their own echo (the only
+        // Receiver 0 verifies their PessimisticMessage and produces their own echo (the only
         // entry, for themselves). Other receivers each emit one echo addressed to receiver 0.
         let vcm0 = receivers[victim_id as usize]
             .verify_common_message(common.clone())
@@ -2043,7 +2043,7 @@ mod tests {
             &self,
             state: &DealerState,
             pending: BTreeSet<PartyId>,
-        ) -> FastCryptoResult<(super::Digest, Vec<IndirectMessage>)> {
+        ) -> FastCryptoResult<(super::Digest, Vec<PessimisticMessage>)> {
             let f = self.params.f as usize;
             let n = self.nodes.total_weight() as usize;
             self.create_pessimistic_messages_with_mutation(state, pending, |shards_by_recipient| {
