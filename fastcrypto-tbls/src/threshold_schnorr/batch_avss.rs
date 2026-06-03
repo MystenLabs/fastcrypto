@@ -413,7 +413,7 @@ impl Dealer {
             .map(|&i| (i, state.ciphertexts[i as usize].0.clone()))
             .collect();
         let (_dispersal_hash, messages) = self.avid().disperse_with_mutation(
-            &state.avss_common.hash(),
+            state.avss_common.hash().as_ref(),
             &payloads,
             mutate_shards,
         )?;
@@ -523,13 +523,14 @@ impl Receiver {
         verified_common: VerifiedAvssCommonMessage,
         verified_confirmers: &VerifiedConfirmers,
     ) -> FastCryptoResult<(VerifiedPessimisticMessage, BTreeMap<PartyId, Echo>, Vote)> {
+        let required_weight_of_confirmers = self.nodes.total_weight() - self.params.f;
         if self
             .nodes
             .total_weight_of(verified_confirmers.confirmers.iter())?
-            < self.params.t + self.params.f
+            < required_weight_of_confirmers
         {
             warn!("batch_avss echo: not enough confirmers");
-            return Err(NotEnoughWeight((self.params.t + self.params.f) as usize));
+            return Err(NotEnoughWeight(required_weight_of_confirmers as usize));
         }
         let expected_avss_common_message_hash = verified_common.common().hash();
         if verified_confirmers.avss_common_message_hash != expected_avss_common_message_hash {
@@ -548,9 +549,11 @@ impl Receiver {
         }
 
         // The structural AVID checks (ids, dispersal_hash binding, this party's Merkle proofs).
-        let dispersal =
-            self.avid()
-                .verify_dispersal(message, &expected_avss_common_message_hash, self.id)?;
+        let dispersal = self.avid().verify_dispersal(
+            message,
+            expected_avss_common_message_hash.as_ref(),
+            self.id,
+        )?;
         let echoes = dispersal.echoes(self.id);
         let dispersal_hash = *dispersal.dispersal_hash();
         Ok((
@@ -583,7 +586,7 @@ impl Receiver {
     ///    reconstructed ciphertext matches `v`, or [DecodeOutcome::InvalidDispersal] (a
     ///    [BlameComplaint]) otherwise.
     ///
-    ///    The [BlameComplaint] is a dispersal-layer fault: hold it until the matching `H(v)` is
+    ///    The [BlameComplaint] is a dispersal-layer fault. Hold it until the matching `H(v)` is
     ///    certified on the TOB, or discard it if a different `v` wins.
     ///
     ///    A pending recipient should retain its echoes and the decoded ciphertext for the session,

@@ -5,7 +5,7 @@
 //!
 //! A dealer disperses one payload per recipient across `n` weighted parties so that
 //! any `≥ W − 2f` weight of authenticated shards can reconstruct it, while a Merkle commitment binds
-//! every shard to the dealer's broadcast.
+//! every shard to the dealer's broadcast. The set of recipients does not have to be all nodes.
 //!
 //! Flow:
 //!   1. The dealer calls [Avid::disperse] to produce one [Dispersal] per party.
@@ -91,8 +91,7 @@ impl VerifiedDispersal {
             .ok_or(InvalidInput)
     }
 
-    /// Emit one [Echo] per recipient, forwarding `sender_id`'s authenticated shards. The returned
-    /// map is keyed by recipient.
+    /// Emit one [Echo] per recipient, forwarding `sender_id`'s authenticated shards.
     pub fn echoes(&self, sender_id: PartyId) -> BTreeMap<PartyId, Echo> {
         self.0
             .entries
@@ -144,15 +143,14 @@ impl<'a> Avid<'a> {
     }
 
     /// 1. Disperse one payload per recipient. Returns the `dispersal_hash` (the signing target
-    ///    for the dispersal layer) and one [Dispersal] per party, keyed by party id. The `context`
-    ///    is hashed into the `dispersal_hash` so the caller can bind the dispersal to an external
-    ///    commitment.
+    ///    for the dispersal layer) and one [Dispersal] per party in `nodes`. The `dst`
+    ///    is hashed into the `dispersal_hash` so the caller can bind the dispersal to a context.
     pub fn disperse(
         &self,
-        context: &Digest,
+        dst: &[u8],
         payloads: &BTreeMap<PartyId, Vec<u8>>,
     ) -> FastCryptoResult<(Digest, BTreeMap<PartyId, Dispersal>)> {
-        self.disperse_with_mutation(context, payloads, |_| {})
+        self.disperse_with_mutation(dst, payloads, |_| {})
     }
 
     /// As [Self::disperse], but runs `mutate` over the per-recipient, per-sender shards before the
@@ -160,7 +158,7 @@ impl<'a> Avid<'a> {
     #[cfg_attr(not(test), allow(unused_variables, unused_mut))]
     pub(crate) fn disperse_with_mutation(
         &self,
-        context: &Digest,
+        dst: &[u8],
         payloads: &BTreeMap<PartyId, Vec<u8>>,
         mutate: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
     ) -> FastCryptoResult<(Digest, BTreeMap<PartyId, Dispersal>)> {
@@ -185,7 +183,7 @@ impl<'a> Avid<'a> {
             .collect::<FastCryptoResult<_>>()?;
 
         let dispersal_hash = dispersal_hash(
-            context,
+            dst,
             recipient_trees.iter().map(|(&i, tree)| (i, tree.root())),
         );
 
@@ -231,7 +229,7 @@ impl<'a> Avid<'a> {
     pub fn verify_dispersal(
         &self,
         dispersal: Dispersal,
-        context: &Digest,
+        dst: &[u8],
         my_id: PartyId,
     ) -> FastCryptoResult<VerifiedDispersal> {
         if dispersal
@@ -245,7 +243,7 @@ impl<'a> Avid<'a> {
 
         if dispersal.dispersal_hash
             != dispersal_hash(
-                context,
+                dst,
                 dispersal
                     .entries
                     .iter()
@@ -313,13 +311,13 @@ impl<'a> Avid<'a> {
             .collect())
     }
 
-    /// 3c. Reconstruct `accuser_id`'s payload from collected `shards` (see [Self::collect_shards]),
+    /// 3c. Reconstruct `id`'s payload from collected `shards` (see [Self::collect_shards]),
     ///     or raise a [Complaint]. Returns `Ok(payload)` iff the shards reconstruct to a
     ///     root-consistent payload that also passes `payload_ok` — the caller's semantic check,
     ///     since AVID is payload-agnostic. Otherwise returns `Err(Complaint)` over the shards.
     pub fn decode_or_complain(
         &self,
-        accuser_id: PartyId,
+        id: PartyId,
         shards: BTreeMap<PartyId, AuthenticatedShards>,
         recipient_root: &merkle::Node,
         expected_len: usize,
@@ -329,7 +327,7 @@ impl<'a> Avid<'a> {
         match self.reconstruct(&shards, recipient_root, expected_len) {
             Some(payload) if payload_ok(&payload) => Ok(payload),
             _ => Err(Complaint {
-                accuser_id,
+                accuser_id: id,
                 shards,
                 dispersal_hash,
             }),
@@ -350,7 +348,7 @@ impl<'a> Avid<'a> {
         if self
             .verify_shard_proofs(&complaint.shards, recipient_root)
             .is_err()
-            || !self.enough_weight(&complaint.shards)?
+            || !self.sufficient_weight(&complaint.shards)?
         {
             return Ok(false);
         }
@@ -373,7 +371,7 @@ impl<'a> Avid<'a> {
     }
 
     /// Whether `shards` contribute the `≥ W − 2f` weight needed to reconstruct.
-    fn enough_weight(
+    fn sufficient_weight(
         &self,
         shards: &BTreeMap<PartyId, AuthenticatedShards>,
     ) -> FastCryptoResult<bool> {
@@ -382,7 +380,7 @@ impl<'a> Avid<'a> {
 
     /// Reed-Solomon decode a payload from `shards` and check that it re-encodes to
     /// `recipient_root`. Returns `Some(payload)` iff the dispersal is consistent, `None` otherwise.
-    /// `expected_len` is the dispersed payload's byte length (counter-mode RS preserves it).
+    /// `expected_len` is the dispersed payload's expected byte length (used to remove padding).
     fn reconstruct(
         &self,
         shards: &BTreeMap<PartyId, AuthenticatedShards>,
@@ -451,11 +449,11 @@ impl<'a> Avid<'a> {
 
 /// Combined binding for a dispersal: `H(context, roots)`.
 fn dispersal_hash(
-    context: &Digest,
+    dst: &[u8],
     recipient_roots: impl Iterator<Item = (PartyId, merkle::Node)>,
 ) -> Digest {
     let mut hasher = Blake2b256::new();
-    hasher.update(context);
+    hasher.update(dst);
     for (id, root) in recipient_roots {
         hasher.update(id.to_le_bytes());
         hasher.update(root.bytes());
@@ -493,12 +491,6 @@ mod tests {
         Nodes::new(nodes).unwrap()
     }
 
-    fn context() -> Digest {
-        let mut h = Blake2b256::new();
-        h.update(b"avid-e2e-test");
-        h.finalize()
-    }
-
     /// End-to-end happy path test
     #[test]
     fn disperse_and_reconstruct_random_bytes() {
@@ -506,7 +498,7 @@ mod tests {
         let f = 1u16; // any W − 2f = 3 weight reconstructs
         let nodes = nodes_with_weights(&weights);
         let avid = Avid::new(&nodes, f);
-        let context = context();
+        let dst = b"avid-e2e-test";
 
         // Random bytes to disperse to recipient 0.
         let recipient = 0u16;
@@ -516,13 +508,13 @@ mod tests {
             std::iter::once((recipient, payload.clone())).collect();
 
         // 1. Dealer disperses: one message per party.
-        let (_dispersal_hash, messages) = avid.disperse(&context, &payloads).unwrap();
+        let (_dispersal_hash, messages) = avid.disperse(dst, &payloads).unwrap();
         assert_eq!(messages.len(), weights.len());
 
         // 2. Each party verifies its own dispersal.
         let verified: Vec<VerifiedDispersal> = messages
             .into_iter()
-            .map(|(j, m)| avid.verify_dispersal(m, &context, j).unwrap())
+            .map(|(j, m)| avid.verify_dispersal(m, dst, j).unwrap())
             .collect();
 
         // Every party echoes to the recipient; the recipient verifies those echoes.
@@ -553,7 +545,7 @@ mod tests {
         let f = 1u16; // W − 2f = 3
         let nodes = nodes_with_weights(&weights);
         let avid = Avid::new(&nodes, f);
-        let context = context();
+        let dst = b"avid-e2e-test";
 
         let recipient = 0u16;
         let cheater = 4u16;
@@ -563,14 +555,14 @@ mod tests {
             std::iter::once((recipient, payload.clone())).collect();
 
         let (dispersal_hash, messages) = avid
-            .disperse_with_mutation(&context, &payloads, |shards| {
+            .disperse_with_mutation(dst, &payloads, |shards| {
                 shards.get_mut(&recipient).unwrap()[cheater as usize][0].0[0] ^= 1;
             })
             .unwrap();
 
         let verified: Vec<VerifiedDispersal> = messages
             .into_iter()
-            .map(|(j, m)| avid.verify_dispersal(m, &context, j).unwrap())
+            .map(|(j, m)| avid.verify_dispersal(m, dst, j).unwrap())
             .collect();
 
         // The recipient gathers a quorum of honest echoes (everyone but the cheater) ...
