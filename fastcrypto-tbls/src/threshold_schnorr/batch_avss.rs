@@ -139,8 +139,6 @@ pub struct DealerState {
 pub struct IndirectMessage {
     /// One entry per pending recipient `i ∈ I`.
     pub dispersal: BTreeMap<PartyId, DispersalEntry>,
-    /// The set of confirmers from the optimistic phase. Must be verified out-of-band.
-    pub confirmers: BTreeSet<PartyId>,
     pub broadcast_hash: Digest,
 }
 
@@ -173,6 +171,19 @@ pub struct VerifiedCommonMessage(CommonMessage);
 pub struct VerifiedMessage {
     pub message: IndirectMessage,
     pub verified_common: VerifiedCommonMessage,
+}
+
+/// The set of confirmers from the optimistic phase (parties not in `pending_recipients`), together
+/// with the common message `H(v)` they attested to.
+///
+/// The caller constructs this directly and asserts that it has verified the confirmers' signed
+/// [Confirm]s over `common_message_hash`.
+#[derive(Clone, Debug)]
+pub struct VerifiedConfirmers {
+    /// The confirmer party ids.
+    pub confirmers: BTreeSet<PartyId>,
+    /// `H(v)` — the common message the confirmers attested to.
+    pub common_message_hash: Digest,
 }
 
 /// A sender's shards for one recipient's ciphertext, with a Merkle proof against the
@@ -220,6 +231,7 @@ pub struct Vote {
 /// A complaint by a receiver who could not decrypt or verify its shares.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RevealComplaint {
+    /// This is unforgeable since the recovery package in `proof` only decrypts under the accuser's key.
     pub accuser_id: PartyId,
     pub proof: recovery_proof::RecoveryProof,
     pub ciphertext: Ciphertext,
@@ -440,9 +452,8 @@ impl Dealer {
     }
 
     /// Build an [IndirectMessage] per receiver dispersing the existing `E_i` for
-    /// `i ∈ pending_recipients`. Every message pins the same [broadcast_hash] and lists the confirmers
-    /// (= all parties not in `pending_recipients`). Returns `(broadcast_hash, messages)` so the
-    /// caller knows the exact signing target for the confirmer/voter quorum.
+    /// `i ∈ pending_recipients`. Every message pins the same [broadcast_hash], returned so the
+    /// caller knows the signing target for the confirmer/voter quorum.
     pub fn create_pessimistic_messages(
         &self,
         state: &DealerState,
@@ -463,8 +474,6 @@ impl Dealer {
         if !pending_recipients.is_subset(&all_ids) {
             return Err(InvalidInput);
         }
-        let confirmers: BTreeSet<PartyId> =
-            all_ids.difference(&pending_recipients).copied().collect();
         let common_message_hash = state.common.hash();
 
         let code = get_coder(&self.nodes, self.params.f);
@@ -519,7 +528,6 @@ impl Dealer {
                     .collect::<FastCryptoResult<_>>()?;
                 Ok(IndirectMessage {
                     dispersal,
-                    confirmers: confirmers.clone(),
                     broadcast_hash,
                 })
             })
@@ -624,9 +632,23 @@ impl Receiver {
         &self,
         message: IndirectMessage,
         verified_common: VerifiedCommonMessage,
+        verified_confirmers: &VerifiedConfirmers,
     ) -> FastCryptoResult<(VerifiedMessage, Vec<Echo>, Vote)> {
+        if self.nodes.total_weight_of(verified_confirmers.confirmers.iter())? < self.params.t + self.params.f {
+            warn!("batch_avss echo: not enough confirmers");
+            return Err(NotEnoughWeight((self.params.t + self.params.f) as usize));
+        }
         let expected_common_message_hash = verified_common.common().hash();
-        message.verify(&self.nodes, &expected_common_message_hash, self.id)?;
+        if verified_confirmers.common_message_hash != expected_common_message_hash {
+            warn!("batch_avss echo: confirmers attested to a different common message");
+            return Err(InvalidMessage);
+        }
+        message.verify(
+            &self.nodes,
+            &expected_common_message_hash,
+            self.id,
+            verified_confirmers,
+        )?;
 
         let broadcast_hash = message.broadcast_hash;
         let echoes = message
@@ -651,7 +673,7 @@ impl Receiver {
     /// Verify an [Echo] addressed to this receiver against a [VerifiedMessage]. Returns a
     /// [VerifiedEcho] suitable for [Self::decode_ciphertext].
     ///
-    /// Precondition: `self.id ∈ verified_message.pending_recipients()`. Echoes are only
+    /// Precondition: `self.id` is one of the message's dispersal recipients. Echoes are only
     /// meaningful for pending recipients; confirmers calling this for themselves get
     /// [InvalidInput].
     pub fn verify_echo(
@@ -742,6 +764,8 @@ impl Receiver {
         let expected_hash = ciphertext_hashes
             .get(self.id as usize)
             .ok_or(InvalidMessage)?;
+        // This rejects a dealer dispersing a different ciphertext via AVID. The Merkle
+        // root can still pass, and only this check catches the swap.
         if hash_ciphertext(ciphertext) != *expected_hash {
             warn!(
                 "batch_avss verify_and_decrypt: ciphertext hash does not match ciphertext_hashes[{}]",
@@ -1089,53 +1113,36 @@ impl DealerState {
 }
 
 impl IndirectMessage {
-    /// The set of pending recipients `I` — the receivers whose shares this [IndirectMessage]
-    /// is dispersing.
-    pub fn pending_recipients(&self) -> impl ExactSizeIterator<Item = PartyId> + '_ {
-        self.dispersal.keys().copied()
-    }
-
     /// Verify the structural shape of this [IndirectMessage] and the receiver's own
     /// dispersal proofs. Checks that:
-    ///   * dispersal recipients and confirmers partition the node set,
-    ///   * dispersal recipients and confirmers are valid party ids,
+    ///   * dispersal recipients and confirmers partition the node set
     ///   * `broadcast_hash` matches the combined hash of `expected_common_message_hash` and
     ///     the actual roots in `dispersal`,
     ///   * every dispersal entry Merkle-authenticates against its root at leaf `receiver_id`.
     ///
-    /// The `confirmers` set is, at this layer, an
-    /// unauthenticated claim by the dealer, so the caller must independently verify signed
-    /// [Confirm]s over `broadcast_hash` from each listed confirmer (`≥ t + f` weight) before
-    /// trusting the partition.
-    pub fn verify(
+    /// The confirmers are taken on trust from the [VerifiedConfirmers] the caller constructed.
+    fn verify(
         &self,
         nodes: &Nodes<EG>,
         expected_common_message_hash: &Digest,
         receiver_id: PartyId,
+        confirmers: &VerifiedConfirmers,
     ) -> FastCryptoResult<()> {
-        // Dispersal recipients and confirmers should partition the node set, and every id in
-        // both must reference an actual party.
-        if self.dispersal.keys().len() + self.confirmers.len() != nodes.num_nodes()
-            || self.dispersal.keys().any(|i| !nodes.is_valid_id(*i))
-            || self.confirmers.iter().any(|i| !nodes.is_valid_id(*i))
-        {
+        // Dispersal recipients and confirmers must partition the node set.
+        if !self
+            .dispersal
+            .keys()
+            .chain(confirmers.confirmers.iter())
+            .copied()
+            .sorted()
+            .eq(nodes.node_ids_iter().sorted()) {
             warn!(
-                "batch_avss IndirectMessage::verify: dispersal/confirmers do not partition the node set or contain invalid ids (dispersal.len() = {}, confirmers.len() = {}, num_nodes = {})",
-                self.dispersal.keys().len(),
-                self.confirmers.len(),
+                "batch_avss IndirectMessage::verify: dispersal recipients and confirmers do not partition the node set (dispersal.len() = {}, confirmers.len() = {}, num_nodes = {})",
+                self.dispersal.len(),
+                confirmers.confirmers.len(),
                 nodes.num_nodes(),
             );
             return Err(InvalidMessage);
-        }
-        if self
-            .confirmers
-            .iter()
-            .any(|i| self.dispersal.contains_key(i))
-        {
-            warn!(
-                "batch_avss IndirectMessage::verify: confirmers overlap with dispersal recipients"
-            );
-            return Err(InvalidProof);
         }
 
         let expected_broadcast_hash = broadcast_hash(
@@ -1522,7 +1529,7 @@ mod tests {
     use super::{
         Confirm, Dealer, DealerState, DecodeOutcome, DecryptionOutcome, DirectMessage,
         IndirectMessage, Parameters, Receiver, ReceiverOutput, ShareBatch, SharesForNode,
-        VerifiedEcho,
+        VerifiedConfirmers, VerifiedEcho,
     };
     use crate::ecies_v1;
     use crate::ecies_v1::{Ciphertext, PublicKey};
@@ -1636,6 +1643,13 @@ mod tests {
         let (_broadcast_hash, messages) = dealer
             .create_pessimistic_messages(&state, pending.clone())
             .unwrap();
+        // The confirmers are the parties we collected Confirms from (the complement of the
+        // dispersal recipients). The caller verifies their signed Confirms; here we just wrap the
+        // collected ids and the common message they attested to.
+        let confirmers = VerifiedConfirmers {
+            confirmers: confirms.keys().copied().collect(),
+            common_message_hash: state.common.hash(),
+        };
 
         // All receivers verify v (which they already have from the optimistic phase) and echo
         // for I. Every receiver also emits a `Vote` over `broadcast_hash` at this point —
@@ -1647,7 +1661,7 @@ mod tests {
         for r in &receivers {
             let vcm = r.verify_common_message(state.common.clone()).unwrap();
             let (vm, echoes, _vote) = r
-                .echo(messages[r.id as usize].clone(), vcm.clone())
+                .echo(messages[r.id as usize].clone(), vcm.clone(), &confirmers)
                 .unwrap();
             verified_messages.push(vm);
             echos.push(echoes);
@@ -1718,9 +1732,15 @@ mod tests {
             .is_err());
 
         let pending: BTreeSet<PartyId> = std::iter::once(victim_id).collect();
-        let _ = confirms; // structural sanity only — confirmers are derived from `pending`.
         let (_broadcast_hash, messages) =
             dealer.create_pessimistic_messages(&state, pending).unwrap();
+        // The confirmers are the parties we collected Confirms from (the complement of the
+        // dispersal recipients). The caller verifies their signed Confirms; we wrap the ids and
+        // the common message they attested to.
+        let confirmers = VerifiedConfirmers {
+            confirmers: confirms.keys().copied().collect(),
+            common_message_hash: common.hash(),
+        };
 
         // Receiver 0 verifies their IndirectMessage and produces their own echo (the only
         // entry, for themselves). Other receivers each emit one echo addressed to receiver 0.
@@ -1728,14 +1748,14 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (vm0, _, _vote0) = receivers[victim_id as usize]
-            .echo(messages[victim_id as usize].clone(), vcm0.clone())
+            .echo(messages[victim_id as usize].clone(), vcm0.clone(), &confirmers)
             .unwrap();
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
             .iter()
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (_, echoes, _) = r
-                    .echo(messages[r.id as usize].clone(), vcm.clone())
+                    .echo(messages[r.id as usize].clone(), vcm.clone(), &confirmers)
                     .unwrap();
                 receivers[victim_id as usize]
                     .verify_echo(echoes[0].clone(), &vm0)
@@ -1762,7 +1782,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (vm, _, _vote) = r
-                    .echo(messages[r.id as usize].clone(), vcm.clone())
+                    .echo(messages[r.id as usize].clone(), vcm.clone(), &confirmers)
                     .unwrap();
                 r.handle_reveal(&reveal, &vm, state.ciphertext_for(r.id).clone())
                     .unwrap()
@@ -1824,10 +1844,16 @@ mod tests {
         }
 
         let pending: BTreeSet<PartyId> = std::iter::once(victim_id).collect();
-        let _ = confirms; // structural sanity only — confirmers are derived from `pending`.
         let (_broadcast_hash, messages) = dealer
             .pessimistic_with_corrupted_dispersal(&state, pending)
             .unwrap();
+        // The confirmers are the parties we collected Confirms from (the complement of the
+        // dispersal recipients). The caller verifies their signed Confirms; we wrap the ids and
+        // the common message they attested to.
+        let confirmers = VerifiedConfirmers {
+            confirmers: confirms.keys().copied().collect(),
+            common_message_hash: common.hash(),
+        };
 
         // Receiver 0 collects echoes for their own ciphertext. With f senders' shards corrupted,
         // the W − f remaining honest echoes still fall short of the (W − 2f) RS-decode quorum
@@ -1837,7 +1863,7 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (vm0, _, _) = receivers[victim_id as usize]
-            .echo(messages[victim_id as usize].clone(), vcm0.clone())
+            .echo(messages[victim_id as usize].clone(), vcm0.clone(), &confirmers)
             .unwrap();
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
             .iter()
@@ -1845,7 +1871,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (_, echoes, _) = r
-                    .echo(messages[r.id as usize].clone(), vcm.clone())
+                    .echo(messages[r.id as usize].clone(), vcm.clone(), &confirmers)
                     .unwrap();
                 receivers[victim_id as usize]
                     .verify_echo(echoes[0].clone(), &vm0)
@@ -1868,7 +1894,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (vm, _, _) = r
-                    .echo(messages[r.id as usize].clone(), vcm.clone())
+                    .echo(messages[r.id as usize].clone(), vcm.clone(), &confirmers)
                     .unwrap();
                 r.handle_blame(&blame, &vm, state.ciphertext_for(r.id).clone())
                     .unwrap()
