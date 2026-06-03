@@ -590,19 +590,15 @@ impl Receiver {
         message: &DirectMessage,
     ) -> FastCryptoResult<(ReceiverOutput, Confirm, VerifiedCommonMessage)> {
         let verified_common = self.verify_common_message(message.common.clone())?;
-        if let Ok(DecryptionOutcome::Valid(output)) =
-            self.verify_and_decrypt(&message.ciphertext, &verified_common, None)
-        {
-            Ok((
-                output,
-                Confirm {
-                    common_message_hash: verified_common.common().hash(),
-                },
-                verified_common,
-            ))
-        } else {
-            Err(InvalidMessage)
-        }
+        self.check_ciphertext_hash(&message.ciphertext, &verified_common)?;
+        let output = self.decrypt_and_verify_shares(&message.ciphertext, &verified_common)?;
+        Ok((
+            output,
+            Confirm {
+                common_message_hash: verified_common.common().hash(),
+            },
+            verified_common,
+        ))
     }
 
     /// Verify a [CommonMessage] (see [CommonMessage::verify]) and return the resulting
@@ -634,7 +630,11 @@ impl Receiver {
         verified_common: VerifiedCommonMessage,
         verified_confirmers: &VerifiedConfirmers,
     ) -> FastCryptoResult<(VerifiedMessage, Vec<Echo>, Vote)> {
-        if self.nodes.total_weight_of(verified_confirmers.confirmers.iter())? < self.params.t + self.params.f {
+        if self
+            .nodes
+            .total_weight_of(verified_confirmers.confirmers.iter())?
+            < self.params.t + self.params.f
+        {
             warn!("batch_avss echo: not enough confirmers");
             return Err(NotEnoughWeight((self.params.t + self.params.f) as usize));
         }
@@ -743,36 +743,76 @@ impl Receiver {
     }
 
     /// 4. Decrypt and verify the receiver's own shares from a successfully decoded ciphertext.
-    ///    Yields [DecryptionOutcome::Valid] when shares verify, or
-    ///    [DecryptionOutcome::Invalid] (a [RevealComplaint]) otherwise. Rejects with
-    ///    [InvalidMessage] if the ciphertext doesn't match the hash pinned in `v`.
+    ///    Rejects with [InvalidMessage] if the ciphertext doesn't match the hash pinned in `v`.
+    ///    Otherwise yields [DecryptionOutcome::Valid] when shares verify, or
+    ///    [DecryptionOutcome::Invalid] (a [RevealComplaint] bound to `broadcast_hash`) when they
+    ///    don't.
     pub fn verify_and_decrypt(
         &self,
         ciphertext: &Ciphertext,
         common_message: &VerifiedCommonMessage,
-        broadcast_hash: Option<Digest>,
+        broadcast_hash: Digest,
     ) -> FastCryptoResult<DecryptionOutcome> {
-        let common_message = common_message.common();
-        let CommonMessage {
-            full_public_keys,
-            ciphertext_shared,
-            ciphertext_hashes,
-            ..
-        } = &common_message;
-        let random_oracle = self.random_oracle();
+        self.check_ciphertext_hash(ciphertext, common_message)?;
+        match self.decrypt_and_verify_shares(ciphertext, common_message) {
+            Ok(output) => Ok(DecryptionOutcome::Valid(output)),
+            Err(e) => {
+                warn!(
+                    "batch_avss verify_and_decrypt: receiver {} raising RevealComplaint after share decode/verify failed: {e:?}",
+                    self.id,
+                );
+                Ok(DecryptionOutcome::Invalid(RevealComplaint {
+                    accuser_id: self.id,
+                    proof: recovery_proof::RecoveryProof::create(
+                        self.id,
+                        &common_message.common().ciphertext_shared,
+                        &self.enc_secret_key,
+                        &self.random_oracle(),
+                        &mut rand::thread_rng(),
+                    ),
+                    ciphertext: ciphertext.clone(),
+                    broadcast_hash,
+                }))
+            }
+        }
+    }
 
-        let expected_hash = ciphertext_hashes
+    /// Reject a ciphertext whose hash doesn't match the one pinned for this receiver in `v`. This
+    /// stops a dealer from dispersing a different ciphertext via AVID.
+    fn check_ciphertext_hash(
+        &self,
+        ciphertext: &Ciphertext,
+        common_message: &VerifiedCommonMessage,
+    ) -> FastCryptoResult<()> {
+        let expected_hash = common_message
+            .common()
+            .ciphertext_hashes
             .get(self.id as usize)
             .ok_or(InvalidMessage)?;
-        // This rejects a dealer dispersing a different ciphertext via AVID. The Merkle
-        // root can still pass, and only this check catches the swap.
         if hash_ciphertext(ciphertext) != *expected_hash {
             warn!(
-                "batch_avss verify_and_decrypt: ciphertext hash does not match ciphertext_hashes[{}]",
+                "batch_avss check_ciphertext_hash: ciphertext hash does not match ciphertext_hashes[{}]",
                 self.id,
             );
             return Err(InvalidMessage);
         }
+        Ok(())
+    }
+
+    /// Decrypt and verify this receiver's own shares against the common message, returning the
+    /// [ReceiverOutput] on success or the underlying error.
+    fn decrypt_and_verify_shares(
+        &self,
+        ciphertext: &Ciphertext,
+        common_message: &VerifiedCommonMessage,
+    ) -> FastCryptoResult<ReceiverOutput> {
+        let common_message = common_message.common();
+        let CommonMessage {
+            full_public_keys,
+            ciphertext_shared,
+            ..
+        } = &common_message;
+        let random_oracle = self.random_oracle();
 
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         let plaintext = ciphertext_shared.decrypt(
@@ -783,43 +823,17 @@ impl Receiver {
         );
 
         let challenge = compute_challenge_from_common_message(&random_oracle, common_message);
-        SharesForNode::from_bytes(plaintext)
-            .and_then(|my_shares| {
-                my_shares.verify(
-                    common_message,
-                    &challenge,
-                    &self.nodes.share_ids_of(self.id)?,
-                    self.batch_size,
-                )?;
-                Ok(my_shares)
-            })
-            .map(|my_shares| {
-                DecryptionOutcome::Valid(ReceiverOutput {
-                    my_shares,
-                    public_keys: full_public_keys.clone(),
-                })
-            })
-            .or_else(|e| match broadcast_hash {
-                Some(broadcast_hash) => {
-                    warn!(
-                        "batch_avss verify_and_decrypt: receiver {} raising RevealComplaint after share decode/verify failed: {e:?}",
-                        self.id,
-                    );
-                    Ok(DecryptionOutcome::Invalid(RevealComplaint {
-                        accuser_id: self.id,
-                        proof: recovery_proof::RecoveryProof::create(
-                            self.id,
-                            ciphertext_shared,
-                            &self.enc_secret_key,
-                            &self.random_oracle(),
-                            &mut rand::thread_rng(),
-                        ),
-                        ciphertext: ciphertext.clone(),
-                        broadcast_hash,
-                    }))
-                }
-                None => Err(e),
-            })
+        let my_shares = SharesForNode::from_bytes(plaintext)?;
+        my_shares.verify(
+            common_message,
+            &challenge,
+            &self.nodes.share_ids_of(self.id)?,
+            self.batch_size,
+        )?;
+        Ok(ReceiverOutput {
+            my_shares,
+            public_keys: full_public_keys.clone(),
+        })
     }
 
     /// 5a. Validate a [RevealComplaint] complaint and respond with this party's own shares so
@@ -1135,7 +1149,8 @@ impl IndirectMessage {
             .chain(confirmers.confirmers.iter())
             .copied()
             .sorted()
-            .eq(nodes.node_ids_iter().sorted()) {
+            .eq(nodes.node_ids_iter().sorted())
+        {
             warn!(
                 "batch_avss IndirectMessage::verify: dispersal recipients and confirmers do not partition the node set (dispersal.len() = {}, confirmers.len() = {}, num_nodes = {})",
                 self.dispersal.len(),
@@ -1690,7 +1705,7 @@ mod tests {
                 .collect_vec();
             let pem = assert_decoded(r.decode_ciphertext(&verified_echos, vm).unwrap());
             assert_valid(
-                r.verify_and_decrypt(&pem, &vm.verified_common, Some(vm.message.broadcast_hash))
+                r.verify_and_decrypt(&pem, &vm.verified_common, vm.message.broadcast_hash)
                     .unwrap(),
             );
         }
@@ -1748,7 +1763,11 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (vm0, _, _vote0) = receivers[victim_id as usize]
-            .echo(messages[victim_id as usize].clone(), vcm0.clone(), &confirmers)
+            .echo(
+                messages[victim_id as usize].clone(),
+                vcm0.clone(),
+                &confirmers,
+            )
             .unwrap();
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
             .iter()
@@ -1768,7 +1787,7 @@ mod tests {
                 .unwrap(),
         );
         let reveal = match receivers[victim_id as usize]
-            .verify_and_decrypt(&pem, &vm0.verified_common, Some(vm0.message.broadcast_hash))
+            .verify_and_decrypt(&pem, &vm0.verified_common, vm0.message.broadcast_hash)
             .unwrap()
         {
             DecryptionOutcome::Invalid(r) => r,
@@ -1863,7 +1882,11 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (vm0, _, _) = receivers[victim_id as usize]
-            .echo(messages[victim_id as usize].clone(), vcm0.clone(), &confirmers)
+            .echo(
+                messages[victim_id as usize].clone(),
+                vcm0.clone(),
+                &confirmers,
+            )
             .unwrap();
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
             .iter()
