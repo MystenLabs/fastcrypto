@@ -27,6 +27,7 @@ use fastcrypto::merkle::MerkleTree;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use tap::TapFallible;
 use tracing::warn;
 
@@ -132,15 +133,28 @@ pub struct Complaint {
     pub dispersal_hash: Digest,
 }
 
-/// AVID over a fixed node set and Byzantine bound `f`. Cheap to construct; borrows `nodes`.
-pub struct Avid<'a> {
-    nodes: &'a Nodes<EG>,
+/// AVID over a fixed node set and Byzantine bound `f`. Shares its node set (via [Arc]) with the
+/// caller and owns a Reed-Solomon coder. Building the coder is O(k³) (it inverts a `k×k` matrix),
+/// so construct one `Avid` per session and reuse it for every dispersal/reconstruction rather than
+/// rebuilding it per call.
+pub struct Avid {
+    nodes: Arc<Nodes<EG>>,
+    coder: ErasureCoder,
     f: u16,
 }
 
-impl<'a> Avid<'a> {
-    pub fn new(nodes: &'a Nodes<EG>, f: u16) -> Self {
-        Self { nodes, f }
+impl Avid {
+    /// Build an AVID instance over `nodes` with Byzantine bound `f`, constructing the
+    /// `(W, W − 2f)` Reed-Solomon coder once. Fails if those parameters are invalid.
+    pub fn new(nodes: Arc<Nodes<EG>>, f: u16) -> FastCryptoResult<Self> {
+        let w = nodes.total_weight() as usize;
+        let coder = ErasureCoder::new(w, w - 2 * f as usize)?;
+        Ok(Self { nodes, coder, f })
+    }
+
+    /// The node set this AVID instance operates over.
+    pub fn nodes(&self) -> &Nodes<EG> {
+        &self.nodes
     }
 
     /// 1. Disperse one payload per recipient. Returns the `dispersal_hash` (the signing target
@@ -163,7 +177,7 @@ impl<'a> Avid<'a> {
         payloads: &BTreeMap<PartyId, Vec<u8>>,
         mutate: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
     ) -> FastCryptoResult<(Digest, BTreeMap<PartyId, Dispersal>)> {
-        let code = self.coder();
+        let code = &self.coder;
 
         // RS-encode each recipient's payload and bucket the shards by sender.
         let mut shards_by_recipient: BTreeMap<PartyId, Vec<Vec<Shard>>> = payloads
@@ -415,7 +429,7 @@ impl<'a> Avid<'a> {
                 }
             })
             .collect_vec();
-        self.coder().decode(matrix, expected_len)
+        self.coder.decode(matrix, expected_len)
     }
 
     /// RS-encode `payload`, rebuild the per-recipient Merkle tree, and check its root matches
@@ -427,7 +441,7 @@ impl<'a> Avid<'a> {
     ) -> FastCryptoResult<()> {
         let new_shards = self
             .nodes
-            .collect_to_nodes(self.coder().encode(payload)?.into_iter())?;
+            .collect_to_nodes(self.coder.encode(payload)?.into_iter())?;
         if recipient_tree(&new_shards)?.root() != *expected_root {
             return Err(InvalidMessage);
         }
@@ -436,15 +450,6 @@ impl<'a> Avid<'a> {
 
     fn required_weight(&self) -> u16 {
         self.nodes.total_weight() - 2 * self.f
-    }
-
-    /// Reed-Solomon `(W, W − 2f)` coder. Requires `f` to have been validated against `W`.
-    fn coder(&self) -> ErasureCoder {
-        ErasureCoder::new(
-            self.nodes.total_weight() as usize,
-            (self.nodes.total_weight() - 2 * self.f) as usize,
-        )
-        .expect("parameters were validated by the caller")
     }
 }
 
@@ -498,7 +503,7 @@ mod tests {
         let weights = [1u16, 2, 1, 1]; // total weight W = 5
         let f = 1u16; // any W − 2f = 3 weight reconstructs
         let nodes = nodes_with_weights(&weights);
-        let avid = Avid::new(&nodes, f);
+        let avid = Avid::new(Arc::new(nodes), f).unwrap();
         let dst = b"avid-e2e-test";
 
         // Random bytes to disperse to recipient 0.
@@ -545,7 +550,7 @@ mod tests {
         let weights = [1u16; 5]; // total weight W = 5
         let f = 1u16; // W − 2f = 3
         let nodes = nodes_with_weights(&weights);
-        let avid = Avid::new(&nodes, f);
+        let avid = Avid::new(Arc::new(nodes), f).unwrap();
         let dst = b"avid-e2e-test";
 
         let recipient = 0u16;

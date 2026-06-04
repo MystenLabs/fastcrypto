@@ -34,6 +34,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 use std::iter::repeat_with;
+use std::sync::Arc;
 use tracing::warn;
 
 pub type Digest = fastcrypto::hash::Digest<{ Blake2b256::OUTPUT_SIZE }>;
@@ -52,10 +53,11 @@ pub struct Parameters {
 #[allow(dead_code)]
 pub struct Dealer {
     params: Parameters,
-    nodes: Nodes<EG>,
+    nodes: Arc<Nodes<EG>>,
     sid: Vec<u8>,
     /// The total number of nonces that this dealer should distribute.
     batch_size: usize,
+    avid: avid::Avid,
 }
 
 /// An AVSS receiver, holding the shares the [Dealer] dealt to it.
@@ -63,11 +65,12 @@ pub struct Dealer {
 pub struct Receiver {
     pub id: PartyId,
     enc_secret_key: PrivateKey<EG>,
-    nodes: Nodes<EG>,
+    nodes: Arc<Nodes<EG>>,
     sid: Vec<u8>,
     params: Parameters,
     /// The total number of nonces that the receiver expects to receive from the dealer.
     batch_size: usize,
+    avid: avid::Avid,
 }
 
 /// The dealer's per-recipient optimistic-phase message.
@@ -248,6 +251,8 @@ impl Dealer {
         batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
         params.validate(nodes.total_weight())?;
+        let nodes = Arc::new(nodes);
+        let avid = avid::Avid::new(Arc::clone(&nodes), params.f)?;
         // Each dealer deals a number of nonces proportional to their weight.
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
         Ok(Self {
@@ -255,6 +260,7 @@ impl Dealer {
             nodes,
             sid,
             batch_size,
+            avid,
         })
     }
 
@@ -415,7 +421,7 @@ impl Dealer {
             .iter()
             .map(|&i| (i, state.ciphertexts[i as usize].0.clone()))
             .collect();
-        let (_dispersal_hash, messages) = self.avid().disperse_with_mutation(
+        let (_dispersal_hash, messages) = self.avid.disperse_with_mutation(
             state.avss_common.hash().as_ref(),
             &payloads,
             mutate_shards,
@@ -425,10 +431,6 @@ impl Dealer {
 
     fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
-    }
-
-    fn avid(&self) -> avid::Avid<'_> {
-        avid::Avid::new(&self.nodes, self.params.f)
     }
 }
 
@@ -463,6 +465,8 @@ impl Receiver {
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
 
         params.validate(nodes.total_weight())?;
+        let nodes = Arc::new(nodes);
+        let avid = avid::Avid::new(Arc::clone(&nodes), params.f)?;
 
         Ok(Self {
             id,
@@ -471,6 +475,7 @@ impl Receiver {
             sid,
             params,
             batch_size,
+            avid,
         })
     }
 
@@ -520,6 +525,10 @@ impl Receiver {
     /// The [Vote] only attests to the **dispersal layer** — `H(v)` and the Merkle roots — not
     /// to share validity. Pending recipients can therefore publish the Vote immediately, before
     /// they've run [Self::verify_and_decrypt] on their own ciphertext.
+    ///
+    /// The caller should verify the certificate over the `Confirm`s from the optimistic phase before
+    /// calling this function and form a [VerifiedConfirmers] with the `id`s of the confirmers and the
+    /// signing target.
     pub fn echo(
         &self,
         message: PessimisticMessage,
@@ -555,7 +564,7 @@ impl Receiver {
         }
 
         // The structural AVID checks (ids, dispersal_hash binding, this party's Merkle proofs).
-        let dispersal = self.avid().verify_dispersal(
+        let dispersal = self.avid.verify_dispersal(
             message,
             expected_avss_common_message_hash.as_ref(),
             self.id,
@@ -583,7 +592,7 @@ impl Receiver {
         echo: Echo,
         verified_message: &VerifiedPessimisticMessage,
     ) -> FastCryptoResult<VerifiedEcho> {
-        self.avid()
+        self.avid
             .verify_echo(echo, &verified_message.dispersal, self.id)
     }
 
@@ -602,7 +611,7 @@ impl Receiver {
         echos: &[VerifiedEcho],
         verified_message: &VerifiedPessimisticMessage,
     ) -> FastCryptoResult<DecodeOutcome> {
-        let avid = self.avid();
+        let avid = &self.avid;
         let shards = avid.collect_shards(echos)?;
         let recipient_root = verified_message.recipient_root(self.id)?;
         // The dispersed payload is the ciphertext `E_i`, and we bound it by the serialized size of
@@ -765,7 +774,7 @@ impl Receiver {
             return Err(InvalidProof);
         }
         let recipient_root = verified_message.recipient_root(*accuser_id)?;
-        self.avid()
+        self.avid
             .check_consistency(&reveal_ciphertext.0, recipient_root)
             .map_err(|_| InvalidProof)?;
         let accuser = self.nodes.node_id_to_node(*accuser_id)?;
@@ -813,7 +822,7 @@ impl Receiver {
         );
 
         if !self
-            .avid()
+            .avid
             .complaint_is_valid(blame, recipient_root, expected_len, |bytes| {
                 hash_bytes(bytes) == *expected_hash
             })?
@@ -944,10 +953,6 @@ impl Receiver {
 
     fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
-    }
-
-    fn avid(&self) -> avid::Avid<'_> {
-        avid::Avid::new(&self.nodes, self.params.f)
     }
 }
 
