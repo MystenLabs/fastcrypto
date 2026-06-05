@@ -102,6 +102,7 @@ pub mod hash;
 pub mod hmac;
 pub mod jwt_utils;
 pub mod merkle;
+pub mod nitro_attestation;
 pub mod nizk;
 pub mod pedersen;
 pub mod private_seed;

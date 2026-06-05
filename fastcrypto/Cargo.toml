@@ -29,6 +29,10 @@ typenum.workspace = true
 auto_ops = "0.3.0"
 derive_more = "0.99.16"
 p256 = { version = "0.13.2", features = ["ecdsa"] }
+p384 = { version = "0.13", default-features = false, features = ["ecdsa", "sha384"] }
+ciborium = "0.2"
+rustls-pki-types = "1"
+x509-parser = { version = "0.17", features = ["verify"] }
 ecdsa = { version = "0.16.6", features = ["rfc6979", "verifying"] }
 rfc6979 = "0.4.0"
 blake2 = "0.10.6"
