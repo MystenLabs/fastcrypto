@@ -14,11 +14,13 @@ use x509_parser::public_key::PublicKey;
 use x509_parser::time::ASN1Time;
 use x509_parser::x509::SubjectPublicKeyInfo;
 
+use crate::error::FastCryptoError;
 use ciborium::value::{Integer, Value};
 use once_cell::sync::Lazy;
 use p384::ecdsa::signature::Verifier;
 use p384::ecdsa::{Signature, VerifyingKey};
 use rustls_pki_types::{pem::PemObject, CertificateDer};
+use thiserror::Error;
 use x509_parser::{certificate::X509Certificate, prelude::FromDer};
 
 #[cfg(test)]
@@ -47,50 +49,39 @@ static ROOT_CERTIFICATE: Lazy<Vec<u8>> = Lazy::new(|| {
 });
 
 /// Error type for Nitro attestation verification.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum NitroAttestationVerifyError {
-    /// Invalid COSE_Sign1: {0}
+    /// Invalid COSE_Sign1.
+    #[error("InvalidCoseSign1: {0}")]
     InvalidCoseSign1(String),
-    /// Invalid signature
+    /// Invalid signature.
+    #[error("InvalidSignature")]
     InvalidSignature,
-    /// Invalid public key
+    /// Invalid public key.
+    #[error("InvalidPublicKey")]
     InvalidPublicKey,
-    /// Siganture failed to verify
+    /// Signature failed to verify.
+    #[error("SignatureFailedToVerify")]
     SignatureFailedToVerify,
-    /// Invalid attestation document
+    /// Invalid attestation document.
+    #[error("InvalidAttestationDoc: {0}")]
     InvalidAttestationDoc(String),
     /// Invalid user data.
+    #[error("InvalidUserData")]
     InvalidUserData,
-    /// Invalid certificate: {0}
+    /// Invalid certificate.
+    #[error("InvalidCertificate: {0}")]
     InvalidCertificate(String),
-    /// Invalid PCRs
+    /// Invalid PCRs.
+    #[error("InvalidPcrs")]
     InvalidPcrs,
 }
 
-impl fmt::Display for NitroAttestationVerifyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            NitroAttestationVerifyError::InvalidCoseSign1(msg) => {
-                write!(f, "InvalidCoseSign1: {}", msg)
-            }
-            NitroAttestationVerifyError::InvalidSignature => write!(f, "InvalidSignature"),
-            NitroAttestationVerifyError::InvalidPublicKey => write!(f, "InvalidPublicKey"),
-            NitroAttestationVerifyError::SignatureFailedToVerify => {
-                write!(f, "SignatureFailedToVerify")
-            }
-            NitroAttestationVerifyError::InvalidAttestationDoc(msg) => {
-                write!(f, "InvalidAttestationDoc: {}", msg)
-            }
-            NitroAttestationVerifyError::InvalidCertificate(msg) => {
-                write!(f, "InvalidCertificate: {}", msg)
-            }
-            NitroAttestationVerifyError::InvalidPcrs => write!(f, "InvalidPcrs"),
-            NitroAttestationVerifyError::InvalidUserData => write!(f, "InvalidUserData"),
-        }
+impl From<NitroAttestationVerifyError> for FastCryptoError {
+    fn from(err: NitroAttestationVerifyError) -> Self {
+        FastCryptoError::GeneralError(err.to_string())
     }
 }
-
-impl std::error::Error for NitroAttestationVerifyError {}
 
 /// Given an attestation in bytes, parse it into signature, signed message and a parsed payload.
 pub fn parse_nitro_attestation(
