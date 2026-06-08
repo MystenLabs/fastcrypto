@@ -107,7 +107,11 @@ fn test_serialize_deserialize_element() {
 
 #[test]
 fn test_vectors() {
-    // Test vectors from draft-irtf-cfrg-ristretto255-decaf448-03
+    // Test vectors for ristretto255 from RFC 9496 (https://www.rfc-editor.org/rfc/rfc9496.html),
+    // which supersedes draft-irtf-cfrg-ristretto255-decaf448-03:
+    // - VEC_MULGEN:  Appendix A.1 (multiples of the generator)
+    // - VEC_INVALID: Appendix A.2 (invalid encodings)
+    // - VEC_MAP:     Appendix A.3 (group elements from uniform byte strings, i.e. from_uniform_bytes)
     const VEC_MULGEN: [&str; 16] = [
         "0000000000000000000000000000000000000000000000000000000000000000",
         "e2f2ae0a6abc4e71a884a961c500515f58e30b6aa582dd8db6a65945e08d2d76",
