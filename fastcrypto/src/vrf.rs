@@ -66,11 +66,10 @@ pub mod ecvrf {
     use crate::error::FastCryptoError;
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::{GroupElement, MultiScalarMul, Scalar};
-    use crate::hash::{HashFunction, ReverseWrapper, Sha512};
+    use crate::hash::{HashFunction, Sha512};
     use crate::serde_helpers::ToFromByteArray;
     use crate::traits::AllowedRng;
     use crate::vrf::{VRFKeyPair, VRFPrivateKey, VRFProof, VRFPublicKey};
-    use elliptic_curve::hash2curve::{ExpandMsg, Expander};
     use serde::{Deserialize, Serialize};
     use zeroize::ZeroizeOnDrop;
 
@@ -99,24 +98,13 @@ pub mod ecvrf {
         /// Encode the given binary string as curve point. See section 5.4.1.2 of draft-irtf-cfrg-vrf-15.
         fn ecvrf_encode_to_curve(&self, alpha_string: &[u8]) -> RistrettoPoint {
             // This follows section 5.4.1.2 of draft-irtf-cfrg-vrf-15 for the ristretto255 group using
-            // SHA-512. The hash-to-curve for ristretto255 follows appendix B of draft-irtf-cfrg-hash-to-curve-16.
-
-            // Compute expand_message_xmd for the given message. Note that expand_message only returns
-            // and error if the len_in_bytes and output size of the hash function is out of bounds
-            // (https://github.com/mikelodder7/hash2field/blob/cdf56a2b722aeae25b8019945afe4cccec132f25/src/expand_msg_xmd.rs#L21),
-            // so we can safely unwrap since they are constants here.
-            let mut expanded_message = elliptic_curve::hash2curve::ExpandMsgXmd::<
-                <H as ReverseWrapper>::Variant,
-            >::expand_message(
+            // SHA-512. The hash-to-curve for ristretto255 follows appendix B of draft-irtf-cfrg-hash-to-curve-16,
+            // using the ECVRF-specific [DST]. The message is the concatenation of the public key encoding
+            // and the input string as specified in section 5.4.1.2.
+            RistrettoPoint::hash_to_ristretto255_with_dst(
                 &[&self.0.to_byte_array(), alpha_string],
-                &[DST],
-                H::OUTPUT_SIZE,
+                DST,
             )
-            .unwrap();
-
-            let mut bytes = [0u8; H::OUTPUT_SIZE];
-            expanded_message.fill_bytes(&mut bytes);
-            RistrettoPoint::from_uniform_bytes(&bytes)
         }
 
         /// Implements ECVRF_validate_key which checks the validity of a public key. See section 5.4.5

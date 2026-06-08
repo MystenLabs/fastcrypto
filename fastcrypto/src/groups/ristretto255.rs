@@ -50,11 +50,18 @@ impl RistrettoPoint {
     /// Implementation of `hash_to_ristretto255` using the `ristretto255_XMD:SHA-512_R255MAP_RO_` suite,
     /// following the specifications in [RFC9380](https://www.rfc-editor.org/rfc/rfc9380.html#appendix-B).
     pub fn hash_to_ristretto255(msg: &[u8]) -> Self {
+        Self::hash_to_ristretto255_with_dst(&[msg], DST)
+    }
+
+    /// Map a message to a [RistrettoPoint] following [RFC9380](https://www.rfc-editor.org/rfc/rfc9380.html#appendix-B)
+    /// using `expand_message_xmd` with SHA-512 and the given domain separation tag.
+    pub fn hash_to_ristretto255_with_dst(msgs: &[&[u8]], dst: &[u8]) -> Self {
         let mut bytes = [0u8; 64];
-        let mut expanded_message =
-            ExpandMsgXmd::<<Sha512 as ReverseWrapper>::Variant>::expand_message(&[msg], &[DST], 64)
-                .unwrap();
-        expanded_message.fill_bytes(&mut bytes);
+        // expand_message only errors if the output length is out of bounds, which it is not here
+        // since it is a constant, so we can safely unwrap.
+        ExpandMsgXmd::<<Sha512 as ReverseWrapper>::Variant>::expand_message(msgs, &[dst], 64)
+            .unwrap()
+            .fill_bytes(&mut bytes);
         Self::from_uniform_bytes(&bytes)
     }
 }
