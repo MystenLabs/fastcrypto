@@ -120,7 +120,7 @@ pub trait FiatShamirChallenge {
 }
 
 /// Trait for groups that have a standardized "hash_to_point"/"hash_to_curve" function (see
-/// [https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hash-to-curve#section-3].
+/// [RFC 9380, section 3](https://www.rfc-editor.org/rfc/rfc9380.html#section-3)).
 pub trait HashToGroupElement {
     /// Hashes the given message and maps the result to a group element.
     fn hash_to_group_element(msg: &[u8]) -> Self;

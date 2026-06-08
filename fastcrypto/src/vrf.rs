@@ -84,7 +84,7 @@ pub mod ecvrf {
     /// Default hash function
     type H = Sha512;
 
-    /// Domain separation tag used in ecvrf_encode_to_curve (see also draft-irtf-cfrg-hash-to-curve-16)
+    /// Domain separation tag used in ecvrf_encode_to_curve (see also RFC 9380)
     const DST: &[u8; 49] = b"ECVRF_ristretto255_XMD:SHA-512_R255MAP_RO_sui_vrf";
 
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
@@ -98,7 +98,7 @@ pub mod ecvrf {
         /// Encode the given binary string as curve point. See section 5.4.1.2 of draft-irtf-cfrg-vrf-15.
         fn ecvrf_encode_to_curve(&self, alpha_string: &[u8]) -> RistrettoPoint {
             // This follows section 5.4.1.2 of draft-irtf-cfrg-vrf-15 for the ristretto255 group using
-            // SHA-512. The hash-to-curve for ristretto255 follows appendix B of draft-irtf-cfrg-hash-to-curve-16,
+            // SHA-512. The hash-to-curve for ristretto255 follows appendix B of RFC 9380,
             // using the ECVRF-specific [DST]. The message is the concatenation of the public key encoding
             // and the input string as specified in section 5.4.1.2.
             RistrettoPoint::hash_to_ristretto255_with_dst(
