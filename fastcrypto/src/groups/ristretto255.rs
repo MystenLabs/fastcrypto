@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implementations of the [ristretto255 group](https://www.ietf.org/archive/id/draft-irtf-cfrg-ristretto255-decaf448-03.html) which is a group of
+//! Implementations of the [ristretto255 group](https://www.rfc-editor.org/rfc/rfc9496.html) which is a group of
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
 use crate::error::FastCryptoError::InvalidInput;
@@ -42,18 +42,18 @@ impl RistrettoPoint {
     /// If the input bytes are uniformly distributed, the resulting point will be uniformly
     /// distributed over the Ristretto group.
     ///
-    /// This is called `ristretto255_map` in RFC9380 and is defined in the [RFC9496 draft](https://www.rfc-editor.org/rfc/rfc9496.html#name-element-derivation).
+    /// This is called `ristretto255_map` in RFC 9380 and is defined in [RFC 9496, Section 4.3.4](https://www.rfc-editor.org/rfc/rfc9496.html#section-4.3.4).
     pub fn from_uniform_bytes(bytes: &[u8; 64]) -> Self {
         RistrettoPoint(ExternalPoint::from_uniform_bytes(bytes))
     }
 
     /// Implementation of `hash_to_ristretto255` using the `ristretto255_XMD:SHA-512_R255MAP_RO_` suite,
-    /// following the specifications in [RFC9380](https://www.rfc-editor.org/rfc/rfc9380.html#appendix-B).
+    /// following the specifications in [RFC 9380](https://www.rfc-editor.org/rfc/rfc9380.html#appendix-B).
     pub fn hash_to_ristretto255(msg: &[u8]) -> Self {
         Self::hash_to_ristretto255_with_dst(&[msg], DST)
     }
 
-    /// Map a message to a [RistrettoPoint] following [RFC9380](https://www.rfc-editor.org/rfc/rfc9380.html#appendix-B)
+    /// Map a message to a [RistrettoPoint] following [RFC 9380](https://www.rfc-editor.org/rfc/rfc9380.html#appendix-B)
     /// using `expand_message_xmd` with SHA-512 and the given domain separation tag.
     pub fn hash_to_ristretto255_with_dst(msgs: &[&[u8]], dst: &[u8]) -> Self {
         let mut bytes = [0u8; 64];
