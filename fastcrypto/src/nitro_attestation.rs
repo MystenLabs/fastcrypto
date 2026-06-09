@@ -14,7 +14,7 @@ use x509_parser::public_key::PublicKey;
 use x509_parser::time::ASN1Time;
 use x509_parser::x509::SubjectPublicKeyInfo;
 
-use crate::error::FastCryptoError;
+use crate::error::{FastCryptoError, FastCryptoResult};
 use ciborium::value::{Integer, Value};
 use once_cell::sync::Lazy;
 use p384::ecdsa::signature::Verifier;
@@ -89,7 +89,7 @@ pub fn parse_nitro_attestation(
     is_upgraded_parsing: bool,
     include_all_nonzero_pcrs: bool,
     always_include_required_pcrs: bool,
-) -> Result<(Vec<u8>, Vec<u8>, AttestationDocument), NitroAttestationVerifyError> {
+) -> FastCryptoResult<(Vec<u8>, Vec<u8>, AttestationDocument)> {
     let cose_sign1 = CoseSign1::parse_and_validate(attestation_bytes)?;
     let doc = AttestationDocument::parse_payload(
         &cose_sign1.payload,
@@ -110,7 +110,7 @@ pub fn verify_nitro_attestation(
     signed_message: &[u8],
     payload: &AttestationDocument,
     timestamp: u64,
-) -> Result<(), NitroAttestationVerifyError> {
+) -> FastCryptoResult<()> {
     // Extract public key from cert and signature as P384.
     let signature = Signature::from_slice(signature)
         .map_err(|_| NitroAttestationVerifyError::InvalidSignature)?;
@@ -129,7 +129,7 @@ pub fn verify_nitro_attestation(
                 .map_err(|_| NitroAttestationVerifyError::SignatureFailedToVerify)?;
         }
         _ => {
-            return Err(NitroAttestationVerifyError::InvalidPublicKey);
+            return Err(NitroAttestationVerifyError::InvalidPublicKey.into());
         }
     }
 
