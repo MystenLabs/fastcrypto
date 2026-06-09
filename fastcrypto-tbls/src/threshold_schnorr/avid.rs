@@ -3,18 +3,9 @@
 
 //! Generic Asynchronous Verifiable Information Dispersal (AVID).
 //!
-//! A dealer disperses one payload per recipient across `n` weighted parties so that
+//! A dealer disperses one payload per recipient across weighted parties such that
 //! any `≥ W − 2f` weight of authenticated shards can reconstruct it, while a Merkle commitment binds
 //! every shard to the dealer's broadcast. The set of recipients does not have to be all nodes.
-//!
-//! Flow:
-//!   1. The dealer calls [Avid::disperse] to produce one [Dispersal] per party.
-//!   2. A party verifies its [Dispersal] ([Avid::verify_dispersal]) and emits one [Echo] per
-//!      recipient ([VerifiedDispersal::echoes]).
-//!   3. A recipient verifies the echoes addressed to it ([Avid::verify_echo]), gathers a quorum
-//!      ([Avid::collect_shards]) and reconstructs its payload — or raises a [Complaint] over the
-//!      shards ([Avid::decode_or_complain]). Other parties validate a [Complaint] with
-//!      [Avid::complaint_is_valid].
 
 use crate::nodes::{Nodes, PartyId};
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
@@ -31,12 +22,9 @@ use std::sync::Arc;
 use tap::TapFallible;
 use tracing::warn;
 
-/// A Blake2b-256 digest. Used for the resulting `dispersal_hash`; the caller's binding context is
-/// passed separately as a `dst: &[u8]`.
 pub type Digest = fastcrypto::hash::Digest<{ Blake2b256::OUTPUT_SIZE }>;
 
-/// One sender's shards for one recipient's payload, with a Merkle proof against the corresponding
-/// `recipient_root`.
+/// One sender's shards for a recipient's payload with a Merkle proof against the corresponding `recipient_root`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthenticatedShards {
     pub(crate) shards: Vec<Shard>,
@@ -94,7 +82,7 @@ impl VerifiedDispersal {
     }
 
     /// Emit one [Echo] per recipient, forwarding `sender_id`'s authenticated shards.
-    pub fn echoes(&self, sender_id: PartyId) -> BTreeMap<PartyId, Echo> {
+    pub fn echoes(&self, sender: PartyId) -> BTreeMap<PartyId, Echo> {
         self.0
             .entries
             .iter()
@@ -102,7 +90,7 @@ impl VerifiedDispersal {
                 (
                     recipient,
                     Echo {
-                        sender: sender_id,
+                        sender,
                         authenticated_shards: entry.authenticated_shards.clone(),
                         dispersal_hash: self.0.dispersal_hash,
                     },
@@ -133,10 +121,7 @@ pub struct Complaint {
     pub dispersal_hash: Digest,
 }
 
-/// AVID over a fixed node set and Byzantine bound `f`. Shares its node set (via [Arc]) with the
-/// caller and owns a Reed-Solomon coder. Building the coder is O(k³) (it inverts a `k×k` matrix),
-/// so construct one `Avid` per session and reuse it for every dispersal/reconstruction rather than
-/// rebuilding it per call.
+/// AVID over a fixed node set and Byzantine bound `f`.
 pub struct Avid {
     nodes: Arc<Nodes<EG>>,
     coder: ErasureCoder,
@@ -328,8 +313,8 @@ impl Avid {
 
     /// 3c. Reconstruct `id`'s payload from collected `shards` (see [Self::collect_shards]),
     ///     or raise a [Complaint]. Returns `Ok(payload)` iff the shards reconstruct to a
-    ///     root-consistent payload that also passes `payload_ok` — the caller's semantic check,
-    ///     since AVID is payload-agnostic. Otherwise returns `Err(Complaint)` over the shards.
+    ///     root-consistent payload that also passes `payload_ok`. Otherwise, returns `Err(Complaint)`
+    ///     over the shards.
     pub fn decode_or_complain(
         &self,
         id: PartyId,
@@ -352,7 +337,7 @@ impl Avid {
     /// Whether `complaint` is a valid blame against the dispersal: its shards carry valid Merkle
     /// proofs, contribute `≥ W − 2f` weight, and do **not** reconstruct to a root-consistent
     /// payload that passes `payload_ok`. Returns `Ok(false)` for a malformed or unfounded
-    /// complaint; the caller turns that into its own rejection error.
+    /// complaint.
     pub fn complaint_is_valid(
         &self,
         complaint: &Complaint,

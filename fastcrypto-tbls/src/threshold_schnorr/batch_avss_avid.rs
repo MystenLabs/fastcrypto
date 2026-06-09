@@ -125,16 +125,14 @@ pub struct VerifiedPessimisticMessage {
 /// The set of confirmers from the optimistic phase (parties not in `pending_recipients`), together
 /// with the common message `H(v)` they attested to.
 ///
-/// SAFETY CONTRACT: this type is `Verified` by *caller assertion only* — nothing here checks
+/// This type is `Verified` by the caller — nothing here checks
 /// signatures. By constructing it, the caller promises it has verified each confirmer's signed
-/// [Confirm] over `avss_common_message_hash`. [Receiver::echo] trusts `confirmers` to gate its
-/// weight check, so a caller that populates this without verifying signatures lets an attacker
-/// pick an arbitrary confirmer set and defeats that check entirely.
+/// [Confirm] over `avss_common_message_hash`.
 #[derive(Clone, Debug)]
 pub struct VerifiedConfirmers {
     /// The confirmer party ids.
     pub confirmers: BTreeSet<PartyId>,
-    /// `H(v)` — the common message the confirmers attested to.
+    /// `H(v)`, the hash of the common message the confirmers attested to.
     pub avss_common_message_hash: Digest,
 }
 
@@ -230,10 +228,7 @@ pub struct ShareBatch {
     pub blinding_share: S,
 }
 
-// The output types of this AVID-based implementation are structurally identical to those of the
-// original [crate::threshold_schnorr::batch_avss] module. The downstream [presigning] protocol is
-// wired to the original module's types, so these lossless conversions let outputs from this
-// implementation feed into it.
+// TODO: This can be removed when batch_avss is removed.
 impl From<ReceiverOutput> for crate::threshold_schnorr::batch_avss::ReceiverOutput {
     fn from(output: ReceiverOutput) -> Self {
         Self {
@@ -243,6 +238,7 @@ impl From<ReceiverOutput> for crate::threshold_schnorr::batch_avss::ReceiverOutp
     }
 }
 
+// TODO: This can be removed when batch_avss is removed.
 impl From<SharesForNode> for crate::threshold_schnorr::batch_avss::SharesForNode {
     fn from(shares: SharesForNode) -> Self {
         Self {
@@ -251,6 +247,7 @@ impl From<SharesForNode> for crate::threshold_schnorr::batch_avss::SharesForNode
     }
 }
 
+// TODO: This can be removed when batch_avss is removed.
 impl From<ShareBatch> for crate::threshold_schnorr::batch_avss::ShareBatch {
     fn from(batch: ShareBatch) -> Self {
         Self {
@@ -645,10 +642,6 @@ impl Receiver {
         let avid = &self.avid;
         let shards = avid.collect_shards(echos)?;
         let recipient_root = verified_message.recipient_root(self.id)?;
-        // The dispersed payload is the ciphertext `E_i`, and we bound it by the serialized size of
-        // the *plaintext* `SharesForNode`. This is correct only because the ECIES encryption is
-        // length-preserving (`|E_i| == |plaintext|`); if that ever changes, this length would be
-        // wrong and reconstruction would re-encode to the wrong root, falsely blaming the dealer.
         let expected_len = SharesForNode::bcs_serialized_size(
             self.nodes.weight_of(self.id)? as usize,
             self.batch_size,
@@ -903,10 +896,6 @@ impl Receiver {
             recovery_package,
         } = response;
 
-        // The responder may be a confirmer (not in `pending_recipients`), so their dispersal
-        // entries — and hence their `recipient_root` — aren't in the [PessimisticMessage].
-        // Instead, verify the responder's ciphertext against `v`'s `ciphertext_hashes`, which
-        // pin every receiver's ciphertext in `v`.
         let expected_hash = common_message
             .ciphertext_hash(responder_id)
             .ok_or(InvalidProof)?;
@@ -950,8 +939,6 @@ impl Receiver {
         verified_message: &VerifiedPessimisticMessage,
         responses: Vec<VerifiedComplaintResponse>,
     ) -> FastCryptoResult<ReceiverOutput> {
-        // Reject duplicate responders before summing weight, so an attacker can't inflate the
-        // weight tally by replaying one party's response.
         if !responses.iter().map(|r| r.responder_id).all_unique() {
             return Err(InvalidInput);
         }
