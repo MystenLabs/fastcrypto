@@ -444,6 +444,7 @@ fn dispersal_hash(
     recipient_roots: impl Iterator<Item = (PartyId, merkle::Node)>,
 ) -> Digest {
     let mut hasher = Blake2b256::new();
+    hasher.update((dst.len() as u64).to_le_bytes());
     hasher.update(dst);
     for (id, root) in recipient_roots {
         hasher.update(id.to_le_bytes());
