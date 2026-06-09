@@ -7,7 +7,7 @@
 //! It provides the following protocols:
 //!
 //! 1. A Distributed Key Generation (DKG) protocol to generate a shared signing key without a trusted dealer. The protocol also allows resharing of a share from a previous DKG, allowing for key rotation. This is implemented in the [avss] module.
-//! 2. A protocol to generate a batch of secret shared nonces for signing. This is implemented in the [batch_avss] module.
+//! 2. A protocol to generate a batch of secret shared nonces for signing. The AVID-based implementation used by the rest of this module lives in [batch_avss_avid]; the original (pre-AVID) implementation is kept in [batch_avss].
 //! 3. A presigning protocol to create presigning tuples from the secret shared nonces. This is implemented in the [presigning] module. The presigning tuples can be created in advance of knowing the message to be signed, and one tuple is consumed for each signature.
 //! 4. A signing protocol which allows parties to create partial signatures from a presigning tuple and aggregate them into a full signature if there are enough partial signatures. This is implemented in the [signing] module.
 //!
@@ -32,7 +32,9 @@ use std::fmt::{Display, Formatter};
 pub mod avid;
 pub mod avss;
 pub mod batch_avss;
+pub mod batch_avss_avid;
 mod bcs;
+pub mod complaint;
 pub mod key_derivation;
 mod pascal_matrix;
 pub mod presigning;
@@ -81,11 +83,11 @@ mod tests {
     use crate::ecies_v1::PublicKey;
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::{Eval, Poly};
-    use crate::threshold_schnorr::batch_avss::{ShareBatch, SharesForNode};
+    use crate::threshold_schnorr::batch_avss_avid::{ShareBatch, SharesForNode};
     use crate::threshold_schnorr::key_derivation::derive_verifying_key;
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
-    use crate::threshold_schnorr::{avss, batch_avss, EG, G, S};
+    use crate::threshold_schnorr::{avss, batch_avss_avid as batch_avss, EG, G, S};
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
@@ -248,7 +250,14 @@ mod tests {
             .map(|(id, outputs)| {
                 (
                     id,
-                    Presignatures::new(outputs, batch_size_per_weight, f as usize).unwrap(),
+                    // Convert the AVID-based outputs into the original batch_avss types that
+                    // presigning consumes.
+                    Presignatures::new(
+                        outputs.into_iter().map(Into::into).collect(),
+                        batch_size_per_weight,
+                        f as usize,
+                    )
+                    .unwrap(),
                 )
             })
             .collect::<HashMap<_, _>>();
@@ -567,7 +576,14 @@ mod tests {
 
         let mut presigning = outputs
             .into_iter()
-            .map(|output| Presignatures::new(output, batch_size_per_weight, f as usize).unwrap())
+            .map(|output| {
+                Presignatures::new(
+                    output.into_iter().map(Into::into).collect(),
+                    batch_size_per_weight,
+                    f as usize,
+                )
+                .unwrap()
+            })
             .collect_vec();
 
         assert_eq!(
@@ -693,7 +709,14 @@ mod tests {
 
         let mut presigning = outputs
             .into_iter()
-            .map(|output| Presignatures::new(output, batch_size_per_weight, f as usize).unwrap())
+            .map(|output| {
+                Presignatures::new(
+                    output.into_iter().map(Into::into).collect(),
+                    batch_size_per_weight,
+                    f as usize,
+                )
+                .unwrap()
+            })
             .collect_vec();
 
         assert_eq!(

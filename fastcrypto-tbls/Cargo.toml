@@ -51,7 +51,7 @@ name = "avss"
 harness = false
 
 [[bench]]
-name = "batch_avss"
+name = "batch_avss_avid"
 harness = false
 
 [features]

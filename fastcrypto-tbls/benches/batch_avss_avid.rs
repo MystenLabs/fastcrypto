@@ -5,7 +5,8 @@ use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::ristretto255;
 use fastcrypto_tbls::ecies_v1;
 use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
-use fastcrypto_tbls::threshold_schnorr::batch_avss;
+use fastcrypto_tbls::threshold_schnorr::batch_avss as batch_avss_orig;
+use fastcrypto_tbls::threshold_schnorr::batch_avss_avid as batch_avss;
 use itertools::iproduct;
 use rand::thread_rng;
 
@@ -82,8 +83,8 @@ pub fn setup_dealer(
 mod batch_avss_benches {
     use super::*;
     use fastcrypto::traits::AllowedRng;
-    use fastcrypto_tbls::threshold_schnorr::batch_avss::{
-        self, AvssCommonMessage, Dealer, PessimisticMessage, VerifiedConfirmers,
+    use fastcrypto_tbls::threshold_schnorr::batch_avss_avid::{
+        self as batch_avss, AvssCommonMessage, Dealer, PessimisticMessage, VerifiedConfirmers,
     };
     use fastcrypto_tbls::threshold_schnorr::presigning::Presignatures;
     use itertools::Itertools;
@@ -384,6 +385,11 @@ mod batch_avss_benches {
                         )
                     })
                     .collect_vec();
+
+                // presigning consumes the original batch_avss output types; convert the
+                // (identical-shaped) AVID outputs once, outside the timed section.
+                let outputs: Vec<batch_avss_orig::ReceiverOutput> =
+                    outputs.into_iter().map(Into::into).collect();
 
                 complete.bench_function(
                     format!("create/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
