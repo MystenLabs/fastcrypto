@@ -86,11 +86,11 @@ impl From<NitroAttestationVerifyError> for FastCryptoError {
 /// Parse an attestation document into `(signature, signed_message, payload)`.
 ///
 /// The three booleans select how the payload's PCR set is parsed; they exist so historical
-/// on-chain behavior stays replayable, and current callers should pass `true` for all three:
+/// on-chain behavior stays replayable, and current callers should pass `true` for all three.
+/// The required PCRs are `{0,1,2,3,4,8}`.
 /// - `is_upgraded_parsing`: populate the indexed `pcr_map` (deduped, keys `0..=31`). When
 ///   `false`, only the legacy `pcr_vec` is filled and the next two flags have no effect.
-/// - `include_all_nonzero_pcrs`: include every nonzero PCR in `0..=31`, not just the required
-///   set `{0,1,2,3,4,8}`.
+/// - `include_all_nonzero_pcrs`: include every nonzero PCR in `0..=31`, not just the required set.
 /// - `always_include_required_pcrs`: also keep required PCRs whose value is all-zero (only
 ///   meaningful when `include_all_nonzero_pcrs` is `true`).
 pub fn parse_nitro_attestation(
