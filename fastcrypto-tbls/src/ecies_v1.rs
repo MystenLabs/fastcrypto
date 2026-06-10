@@ -8,7 +8,6 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, Scalar};
 use fastcrypto::traits::{AllowedRng, ToFromBytes};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::marker::PhantomData;
 use typenum::consts::{U16, U32};
 use typenum::Unsigned;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -69,12 +68,6 @@ pub struct SharedComponents<G: GroupElement> {
     c: G,
     c_hat: G,
     proof: DdhTupleNizk<G>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EncryptedPart<G> {
-    enc: Vec<u8>,
-    _g: PhantomData<G>,
 }
 
 impl<G: GroupElement + Serialize> MultiRecipientEncryption<G>

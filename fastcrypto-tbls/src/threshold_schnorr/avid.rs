@@ -85,7 +85,14 @@ impl Avid {
     /// `(W, W − 2f)` Reed-Solomon coder once. Fails if those parameters are invalid.
     pub fn new(nodes: Arc<Nodes<EG>>, f: u16) -> FastCryptoResult<Self> {
         let w = nodes.total_weight() as usize;
-        let coder = ErasureCoder::new(w, w - 2 * f as usize)?;
+        let two_f = 2 * f as usize;
+        // Guard before the subtraction below: `w - two_f` would underflow (debug panic / release
+        // wrap) when `2f ≥ W`. This also establishes the invariant `W > 2f` that keeps
+        // `required_weight` from underflowing.
+        if w <= two_f {
+            return Err(InvalidInput);
+        }
+        let coder = ErasureCoder::new(w, w - two_f)?;
         Ok(Self { nodes, coder, f })
     }
 
@@ -139,37 +146,43 @@ impl Avid {
             recipient_trees.iter().map(|(&i, tree)| (i, tree.root())),
         );
 
-        let messages = self
-            .nodes
-            .node_ids_iter()
-            .map(|j| {
-                let entries: BTreeMap<PartyId, DispersalEntry> = recipient_trees
-                    .iter()
-                    .map(|(&i, tree)| {
-                        let shards = shards_by_recipient.get(&i).expect("populated above")
-                            [j as usize]
-                            .clone();
-                        Ok((
-                            i,
-                            DispersalEntry {
-                                recipient_root: tree.root(),
-                                authenticated_shards: AuthenticatedShards {
-                                    shards,
-                                    proof: tree.get_proof(j as usize)?,
-                                },
-                            },
-                        ))
-                    })
-                    .collect::<FastCryptoResult<_>>()?;
-                Ok((
+        // Distribute each recipient's per-sender shard chunks into per-party messages. Each chunk
+        // belongs to exactly one party, so the (potentially large) shard buffers are moved out of
+        // `shards_by_recipient` rather than cloned.
+        let party_ids: Vec<PartyId> = self.nodes.node_ids_iter().collect();
+        let mut entries_by_party: BTreeMap<PartyId, BTreeMap<PartyId, DispersalEntry>> =
+            party_ids.iter().map(|&j| (j, BTreeMap::new())).collect();
+
+        for (&i, tree) in &recipient_trees {
+            let root = tree.root();
+            let by_sender = shards_by_recipient.remove(&i).expect("populated above");
+            for (leaf_index, shards) in by_sender.into_iter().enumerate() {
+                let entry = DispersalEntry {
+                    recipient_root: root.clone(),
+                    authenticated_shards: AuthenticatedShards {
+                        shards,
+                        proof: tree.get_proof(leaf_index)?,
+                    },
+                };
+                entries_by_party
+                    .get_mut(&party_ids[leaf_index])
+                    .expect("one entry map per party")
+                    .insert(i, entry);
+            }
+        }
+
+        let messages = entries_by_party
+            .into_iter()
+            .map(|(j, entries)| {
+                (
                     j,
                     Dispersal {
                         entries,
                         dispersal_hash,
                     },
-                ))
+                )
             })
-            .collect::<FastCryptoResult<BTreeMap<PartyId, Dispersal>>>()?;
+            .collect();
 
         Ok((dispersal_hash, messages))
     }
@@ -402,6 +415,7 @@ impl Avid {
     }
 
     fn required_weight(&self) -> u16 {
+        // `Avid::new` guarantees `total_weight > 2f`, so this does not underflow.
         self.nodes.total_weight() - 2 * self.f
     }
 }
@@ -480,6 +494,15 @@ mod tests {
             })
             .collect();
         Nodes::new(nodes).unwrap()
+    }
+
+    #[test]
+    fn new_rejects_insufficient_weight() {
+        // W = 4, so any f with 2f >= W must be rejected rather than underflowing W - 2f.
+        let nodes = Arc::new(nodes_with_weights(&[1u16, 1, 1, 1]));
+        assert!(Avid::new(nodes.clone(), 2).is_err()); // 2f = W
+        assert!(Avid::new(nodes.clone(), 3).is_err()); // 2f > W
+        assert!(Avid::new(nodes, 1).is_ok()); // 2f < W
     }
 
     /// End-to-end happy path test

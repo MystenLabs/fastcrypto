@@ -289,6 +289,13 @@ impl Receiver {
             }
         }
 
+        // A Byzantine dealer can send a ciphertext with fewer recipients than the node set;
+        // reject it here so the per-party indexing below (and in `handle_complaint`) is in bounds.
+        if message.ciphertext.len() != self.nodes.num_nodes() {
+            warn!("AVSS process_message: ciphertext has the wrong number of recipients");
+            return Err(InvalidMessage);
+        }
+
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         message
             .ciphertext
@@ -335,7 +342,13 @@ impl Receiver {
         complaint.proof.check(
             complaint.accuser_id,
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
-            &message.ciphertext.encs[complaint.accuser_id as usize],
+            // A Byzantine dealer may send a ciphertext shorter than the node set, so index
+            // fallibly rather than panicking.
+            message
+                .ciphertext
+                .encs
+                .get(complaint.accuser_id as usize)
+                .ok_or(InvalidInput)?,
             &message.ciphertext.shared(),
             &self.random_oracle(),
             |shares: &SharesForNode| {
