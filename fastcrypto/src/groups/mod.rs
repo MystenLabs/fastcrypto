@@ -12,6 +12,7 @@ use std::ops::{AddAssign, SubAssign};
 pub mod bls12381;
 pub mod ristretto255;
 pub mod secp256r1;
+pub mod secp384r1;
 
 pub mod multiplier;
 pub mod secp256k1;

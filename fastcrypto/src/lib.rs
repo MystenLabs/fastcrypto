@@ -28,6 +28,10 @@ pub mod secp256r1_tests;
 #[path = "tests/secp256r1_recoverable_tests.rs"]
 pub mod secp256r1_recoverable_tests;
 
+#[cfg(all(test, feature = "experimental"))]
+#[path = "tests/secp384r1_tests.rs"]
+pub mod secp384r1_tests;
+
 #[cfg(test)]
 #[path = "tests/bls12381_tests.rs"]
 pub mod bls12381_tests;
@@ -81,6 +85,10 @@ pub mod utils_tests;
 pub mod secp256r1_group_tests;
 
 #[cfg(test)]
+#[path = "tests/secp384r1_group_tests.rs"]
+pub mod secp384r1_group_tests;
+
+#[cfg(test)]
 #[path = "tests/secp256k1_group_tests.rs"]
 pub mod secp256k1_group_tests;
 
@@ -113,6 +121,11 @@ pub mod signature_service;
 pub mod twisted_elgamal;
 pub mod utils;
 pub mod vrf;
+
+/// Experimental: An optimized implementation of the ECDSA signature scheme over the secp384r1
+/// (NIST P-384) curve. This module has not yet been audited.
+#[cfg(feature = "experimental")]
+pub mod secp384r1;
 
 #[cfg(feature = "experimental")]
 pub mod sphincs;

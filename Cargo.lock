@@ -346,6 +346,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-secp384r1"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4032fd3937de1d629fa50f3004ec82f74e898542782e17a2e6cd3da16ef353d8"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-std",
+]
+
+[[package]]
 name = "ark-serialize"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1284,6 +1295,7 @@ dependencies = [
  "ff 0.13.1",
  "generic-array",
  "group 0.13.0",
+ "hkdf",
  "pem-rfc7468",
  "pkcs8 0.10.2",
  "rand_core 0.6.4",
@@ -1325,6 +1337,7 @@ dependencies = [
  "ark-ff",
  "ark-secp256k1",
  "ark-secp256r1",
+ "ark-secp384r1",
  "ark-serialize",
  "auto_ops",
  "base58",
@@ -1360,6 +1373,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "once_cell",
  "p256",
+ "p384",
  "proptest",
  "radix64",
  "rand 0.8.5",
@@ -2459,6 +2473,18 @@ name = "p256"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
+dependencies = [
+ "ecdsa 0.16.9",
+ "elliptic-curve 0.13.8",
+ "primeorder",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "p384"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe42f1670a52a47d448f14b6a5c61dd78fce51856e68edaa38f7ae3a46b8d6b6"
 dependencies = [
  "ecdsa 0.16.9",
  "elliptic-curve 0.13.8",

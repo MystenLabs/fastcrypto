@@ -165,6 +165,9 @@ pub type Sha256 = HashFunctionWrapper<sha2::Sha256, 32>;
 /// The [SHA-3](https://en.wikipedia.org/wiki/SHA-3) hash function with 256 bit digests.
 pub type Sha3_256 = HashFunctionWrapper<sha3::Sha3_256, 32>;
 
+/// The [SHA-384](https://en.wikipedia.org/wiki/SHA-2) hash function with 384 bit digests.
+pub type Sha384 = HashFunctionWrapper<sha2::Sha384, 48>;
+
 /// The [SHA-512](https://en.wikipedia.org/wiki/SHA-2) hash function with 512 bit digests.
 pub type Sha512 = HashFunctionWrapper<sha2::Sha512, 64>;
 
