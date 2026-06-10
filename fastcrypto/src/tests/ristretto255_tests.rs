@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::encoding::{Encoding, Hex};
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::ristretto255::RistrettoScalar;
 use crate::groups::{GroupElement, HashToGroupElement, MultiScalarMul};
@@ -106,7 +107,11 @@ fn test_serialize_deserialize_element() {
 
 #[test]
 fn test_vectors() {
-    // Test vectors from draft-irtf-cfrg-ristretto255-decaf448-03
+    // Test vectors for ristretto255 from RFC 9496 (https://www.rfc-editor.org/rfc/rfc9496.html),
+    // which supersedes draft-irtf-cfrg-ristretto255-decaf448-03:
+    // - VEC_MULGEN:  Appendix A.1 (multiples of the generator)
+    // - VEC_INVALID: Appendix A.2 (invalid encodings)
+    // - VEC_MAP:     Appendix A.3 (group elements from uniform byte strings, i.e. from_uniform_bytes)
     const VEC_MULGEN: [&str; 16] = [
         "0000000000000000000000000000000000000000000000000000000000000000",
         "e2f2ae0a6abc4e71a884a961c500515f58e30b6aa582dd8db6a65945e08d2d76",
@@ -231,4 +236,27 @@ fn test_multiscalar_mul() {
         &[g, g, g]
     )
     .is_err());
+}
+
+#[test]
+fn test_hash_to_point() {
+    // Test vectors from @noble/curves using the ristretto255_XMD:SHA-512_R255MAP_RO_ suite
+    let test_vectors: &[(&[u8], &str)] = &[
+        (b"", "d2ef0e42a21c1b4221350ac82ad8669a18a0994df551ac07597a704a23d36436"),
+        (b"abc", "76a44d9dbe1079e8ca0637f69161de4b76e66d9604fc759c48e13bc5b30adc44"),
+        (b"abcdef0123456789", "086575a167ff6b9c0bbb90ef9a6c7498838188051f7f1f44db0d492b25b9db02"),
+        (b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq", "446e5de27a26ea681258dfb38af2ca7ce64aa832768375386372da7a1f92cd24"),
+        (b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bae7b0ae7e4e19d166ba57965ae3968d09a92c029befe7f96626dbdcdbadce18"),
+    ];
+
+    for (msg, expected_hex) in test_vectors {
+        let expected = Hex::decode(expected_hex).unwrap();
+        let actual = RistrettoPoint::hash_to_ristretto255(msg);
+        assert_eq!(
+            expected,
+            actual.to_byte_array(),
+            "Failed for msg: {:?}",
+            std::str::from_utf8(msg).unwrap_or("<invalid utf8>")
+        );
+    }
 }

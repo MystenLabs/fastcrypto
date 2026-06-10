@@ -5,7 +5,7 @@ use crate::encoding::{Encoding, Hex};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::serde_helpers::ToFromByteArray;
 use crate::test_helpers::verify_serialization;
-use crate::vrf::ecvrf::{ECVRFKeyPair, ECVRFProof, ECVRFPublicKey};
+use crate::vrf::ecvrf::{ECVRFKeyPair, ECVRFPrivateKey, ECVRFProof, ECVRFPublicKey};
 use crate::vrf::{VRFKeyPair, VRFProof};
 use rand::thread_rng;
 
@@ -25,6 +25,28 @@ fn test_proof() {
     assert!(proof2.verify_output(input2, &kp.pk, &output2).is_ok());
 
     assert_ne!(output1, output2);
+}
+
+#[test]
+fn test_ecvrf_prove() {
+    let secret_key_bytes =
+        Hex::decode("b057530c45b7b0f4b96f9b21b011072b2a513f45dd9537ad796acf571055550f").unwrap();
+    let sk = bcs::from_bytes::<ECVRFPrivateKey>(&secret_key_bytes).unwrap();
+    let kp = ECVRFKeyPair::from(sk);
+
+    let input = Hex::decode("01020304").unwrap();
+    let (output, proof) = kp.output(&input);
+
+    assert_eq!(
+        "2640d12c11a372c726348d60ec74ac80320960ba541fb3e66af0a21590c0a75bf5ccf408d5070c5de77f87c733512f575b4a03511d0031dc2e78ab1582fbbef919b52732c8cb1f44b27ad1d1293dec0f",
+        Hex::encode(bcs::to_bytes(&proof).unwrap())
+    );
+    assert_eq!(
+        "84588b918a6c9f5b8b74e56a305bb1c2d44e73f68457e991a1dc8defd51672c36b07a2fa95b9f1e701d0152b35d373ab8c48468f0de4bb5abfe84504319fd00c",
+        Hex::encode(output)
+    );
+
+    assert!(proof.verify_output(&input, &kp.pk, &output).is_ok());
 }
 
 #[test]
