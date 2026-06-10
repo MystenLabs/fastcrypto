@@ -10,6 +10,7 @@ mod signature_benches {
     use criterion::*;
     use fastcrypto::secp256k1::Secp256k1KeyPair;
     use fastcrypto::secp256r1::Secp256r1KeyPair;
+    use fastcrypto::secp384r1::Secp384r1KeyPair;
     use fastcrypto::traits::Signer;
     use fastcrypto::traits::{RecoverableSignature, RecoverableSigner};
     use fastcrypto::{
@@ -50,6 +51,7 @@ mod signature_benches {
         sign_single::<bls12381::min_pk::BLS12381KeyPair, _>("BLS12381MinPk", &mut group);
         sign_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
         sign_single::<Secp256r1KeyPair, _>("Secp256r1", &mut group);
+        sign_single::<Secp384r1KeyPair, _>("Secp384r1", &mut group);
         sign_recoverable_single::<Secp256k1KeyPair, _>("Secp256k1 recoverable", &mut group);
         sign_recoverable_single::<Secp256r1KeyPair, _>("Secp256r1 recoverable", &mut group);
     }
@@ -86,6 +88,7 @@ mod signature_benches {
         verify_single::<bls12381::min_pk::BLS12381KeyPair, _>("BLS12381MinPk", &mut group);
         verify_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
         verify_single::<Secp256r1KeyPair, _>("Secp256r1", &mut group);
+        verify_single::<Secp384r1KeyPair, _>("Secp384r1", &mut group);
         recover_single::<Secp256k1KeyPair, _>("Secp256k1 recoverable", &mut group);
         recover_single::<Secp256r1KeyPair, _>("Secp256r1 recoverable", &mut group);
     }
@@ -457,6 +460,7 @@ mod signature_benches {
         let mut csprng3 = csprng.clone();
         let mut csprng4 = csprng.clone();
         let mut csprng5 = csprng.clone();
+        let mut csprng6 = csprng.clone();
 
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Key generation");
 
@@ -474,6 +478,9 @@ mod signature_benches {
         });
         group.bench_function("Secp256r1", move |b| {
             b.iter(|| Secp256r1KeyPair::generate(&mut csprng5))
+        });
+        group.bench_function("Secp384r1", move |b| {
+            b.iter(|| Secp384r1KeyPair::generate(&mut csprng6))
         });
     }
 
