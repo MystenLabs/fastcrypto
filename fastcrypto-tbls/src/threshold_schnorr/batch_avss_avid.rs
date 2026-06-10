@@ -148,7 +148,7 @@ pub enum DecodeOutcome {
     InvalidDispersal(BlameComplaint),
 }
 
-/// The result of [Receiver::verify_and_decrypt].
+/// The result of [Receiver::decrypt_and_verify].
 #[allow(clippy::large_enum_variant)]
 pub enum DecryptionOutcome {
     Valid(ReceiverOutput),
@@ -207,7 +207,7 @@ pub struct ReceiverOutput {
 /// shared. If we say that node <i>i</i> has a weight `W_i`, we have
 /// `indices().len() == shares_for_secret(i).len() == weight() = W_i`.
 ///
-/// Produced by [Receiver::verify_and_decrypt] on the happy path, or by [Receiver::recover] from
+/// Produced by [Receiver::decrypt_and_verify] on the happy path, or by [Receiver::recover] from
 /// complaint responses.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharesForNode {
@@ -293,8 +293,9 @@ impl Dealer {
     }
 
     /// 1. Build the optimistic-phase messages: encrypt shares for every receiver and bundle each
-    ///    receiver's ciphertext with `v`. Returns a [DealerState] that can be used to produce the
-    ///    pessimistic-phase messages later, after the dealer has collected a certificate.
+    ///    receiver's ciphertext with the [AvssCommonMessage], `v`, as an [OptimisticMessage]. Returns also a [DealerState] that
+    ///    can be used to produce the pessimistic-phase messages later, after the dealer has
+    ///    collected a certificate.
     pub fn create_optimistic_messages(
         &self,
         rng: &mut impl AllowedRng,
@@ -418,13 +419,13 @@ impl Dealer {
         })
     }
 
-    /// 3. Build a [PessimisticMessage] per receiver dispersing the existing `E_i` for
-    ///    `i ∈ pending_recipients` (those that didn't confirm) via AVID, keyed by recipient id.
+    /// 3. Build a [PessimisticMessage] per receiver dispersing the existing ciphertexts for
+    ///    the `pending_recipients` (those that didn't confirm) via AVID, keyed by recipient id.
     ///    Every message pins the same `dispersal_hash` (the signing target for the confirmer/voter
     ///    quorum).
     ///
-    ///    Only needed for the stragglers: if every receiver confirmed in the optimistic phase, the
-    ///    pessimistic phase is skipped entirely.
+    ///    Only needed for the stragglers, and if every receiver confirmed in the optimistic phase, the
+    ///    pessimistic phase can be skipped entirely.
     pub fn create_pessimistic_messages(
         &self,
         state: &DealerState,
@@ -508,11 +509,11 @@ impl Receiver {
     }
 
     /// 2. Process a message from the dealer in the optimistic phase. On success returns the
-    ///    [ReceiverOutput], a [Confirm] for the dealer, and the [VerifiedAvssCommonMessage] (retain
+    ///    [ReceiverOutput], a [Confirm] to be returned to the dealer, and the [VerifiedAvssCommonMessage] (retain
     ///    for the session). On any failure the receiver silently ignores the message and falls
     ///    through to the pessimistic phase.
     ///
-    ///    A confirmer should also retain its own ciphertext `E_j` (`message.ciphertext`) so it can
+    ///    A confirmer should also retain its own ciphertext (`message.ciphertext`) so it can
     ///    answer complaints later via [Self::handle_reveal] / [Self::handle_blame].
     pub fn process_optimistic(
         &self,
@@ -551,10 +552,10 @@ impl Receiver {
     ///    `dispersal_hash`.
     ///
     /// The [Vote] only attests to the **dispersal layer** — `H(v)` and the Merkle roots — not
-    /// to share validity. Pending recipients can therefore publish the Vote immediately, before
-    /// they've run [Self::verify_and_decrypt] on their own ciphertext.
+    /// to share validity. Pending recipients can therefore publish the [Vote] immediately, before
+    /// they've run [Self::decrypt_and_verify] on their own ciphertext.
     ///
-    /// The caller should verify the certificate over the `Confirm`s from the optimistic phase before
+    /// The caller should verify the certificate over the [Confirm]s from the optimistic phase before
     /// calling this function and form a [VerifiedConfirmers] with the `id`s of the confirmers and the
     /// signing target.
     pub fn echo(
@@ -592,12 +593,11 @@ impl Receiver {
         }
 
         // The structural AVID checks (ids, dispersal_hash binding, this party's Merkle proofs).
-        let dispersal = self.avid.verify_dispersal(
+        let (dispersal, echoes) = self.avid.verify_dispersal(
             message,
             expected_avss_common_message_hash.as_ref(),
             self.id,
         )?;
-        let echoes = dispersal.echoes(self.id);
         let dispersal_hash = *dispersal.dispersal_hash();
         Ok((
             VerifiedPessimisticMessage {
@@ -636,11 +636,11 @@ impl Receiver {
     ///    to decode and to answer complaints.
     pub fn decode_ciphertext(
         &self,
-        echos: &[VerifiedEcho],
+        echoes: &[VerifiedEcho],
         verified_message: &VerifiedPessimisticMessage,
     ) -> FastCryptoResult<DecodeOutcome> {
         let avid = &self.avid;
-        let shards = avid.collect_shards(echos)?;
+        let shards = avid.collect_shards(echoes)?;
         let recipient_root = verified_message.recipient_root(self.id)?;
         let expected_len = SharesForNode::bcs_serialized_size(
             self.nodes.weight_of(self.id)? as usize,
@@ -659,7 +659,7 @@ impl Receiver {
                 recipient_root,
                 expected_len,
                 dispersal_hash,
-                |bytes| hash_bytes(bytes) == *expected_hash,
+                |payload| hash_bytes(payload) == *expected_hash,
             ) {
                 Ok(bytes) => DecodeOutcome::Decoded(Ciphertext(bytes)),
                 Err(complaint) => {
@@ -675,17 +675,17 @@ impl Receiver {
 
     /// 6. Decrypt and verify the receiver's own shares from a successfully decoded ciphertext.
     ///    Rejects with [InvalidMessage] if the ciphertext doesn't match the hash pinned in `v`.
-    ///    Otherwise yields [DecryptionOutcome::Valid] when shares verify, or
+    ///    Otherwise, yields [DecryptionOutcome::Valid] when shares verify, or
     ///    [DecryptionOutcome::Invalid] (a [RevealComplaint] bound to `dispersal_hash`) when they
     ///    don't.
     ///
     ///    The [RevealComplaint] is an encryption-layer fault carrying the accuser's ciphertext and
-    ///    an ECIES recovery package; broadcast it only after the TOB certificate pins `H(v)`.
+    ///    an ECIES recovery package. Broadcast it only after seeing a TOB certificate for `H(v)`.
     ///
     ///    `dispersal_hash` is stamped into the [RevealComplaint] unauthenticated and must be the one
-    ///    from this receiver's [VerifiedPessimisticMessage] ([VerifiedPessimisticMessage::dispersal_hash]);
-    ///    otherwise responders reject the complaint in [Self::handle_reveal] and it is unactionable.
-    pub fn verify_and_decrypt(
+    ///    from this receiver's [VerifiedPessimisticMessage].
+    ///    Otherwise responders reject the complaint in [Self::handle_reveal].
+    pub fn decrypt_and_verify(
         &self,
         ciphertext: &Ciphertext,
         common_message: &VerifiedAvssCommonMessage,
@@ -838,8 +838,6 @@ impl Receiver {
         let expected_hash = common_message
             .ciphertext_hash(blame.accuser_id)
             .ok_or(InvalidProof)?;
-        // See `decode_ciphertext`: `expected_len` bounds the ciphertext by the plaintext's
-        // serialized size, which is correct only for length-preserving ECIES encryption.
         let expected_len = SharesForNode::bcs_serialized_size(
             self.nodes.weight_of(blame.accuser_id)? as usize,
             self.batch_size,
@@ -847,8 +845,8 @@ impl Receiver {
 
         if !self
             .avid
-            .complaint_is_valid(blame, recipient_root, expected_len, |bytes| {
-                hash_bytes(bytes) == *expected_hash
+            .complaint_is_valid(blame, recipient_root, expected_len, |payload| {
+                hash_bytes(payload) == *expected_hash
             })?
         {
             return Err(InvalidProof);
@@ -1417,34 +1415,34 @@ mod tests {
         // them, but the Vote attests to the dispersal layer (Merkle roots), not the
         // decryption, so it's safe to publish immediately.
         let mut verified_messages = Vec::with_capacity(receivers.len());
-        let mut echos = Vec::with_capacity(receivers.len());
+        let mut echo_sets = Vec::with_capacity(receivers.len());
         for r in &receivers {
             let vcm = r.verify_common_message(state.avss_common.clone()).unwrap();
             let (vm, echoes, _vote) = r
                 .echo(messages[&r.id].clone(), vcm.clone(), &confirmers)
                 .unwrap();
             verified_messages.push(vm);
-            echos.push(echoes);
+            echo_sets.push(echoes);
         }
 
         // Each receiver j sends echoes only for recipients in pending_recipients (= 2 echoes).
-        for echo_set in &echos {
+        for echo_set in &echo_sets {
             assert_eq!(echo_set.len(), pending.len());
         }
 
         // For each i in pending, gather all echoes addressed to i and decode.
         for &i in &pending {
             let echoes_for_i: Vec<batch_avss::Echo> =
-                echos.iter().map(|em| em[&i].clone()).collect();
+                echo_sets.iter().map(|em| em[&i].clone()).collect();
             let r = &receivers[i as usize];
             let vm = &verified_messages[i as usize];
-            let verified_echos = echoes_for_i
+            let verified_echoes = echoes_for_i
                 .into_iter()
                 .map(|e| r.verify_echo(e, vm).unwrap())
                 .collect_vec();
-            let pem = assert_decoded(r.decode_ciphertext(&verified_echos, vm).unwrap());
+            let pem = assert_decoded(r.decode_ciphertext(&verified_echoes, vm).unwrap());
             assert_valid(
-                r.verify_and_decrypt(&pem, &vm.verified_common, *vm.dispersal_hash())
+                r.decrypt_and_verify(&pem, &vm.verified_common, *vm.dispersal_hash())
                     .unwrap(),
             );
         }
@@ -1521,7 +1519,7 @@ mod tests {
                 .unwrap(),
         );
         let reveal = match receivers[victim_id as usize]
-            .verify_and_decrypt(&pem, &vm0.verified_common, *vm0.dispersal_hash())
+            .decrypt_and_verify(&pem, &vm0.verified_common, *vm0.dispersal_hash())
             .unwrap()
         {
             DecryptionOutcome::Invalid(r) => r,

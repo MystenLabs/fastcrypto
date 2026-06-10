@@ -310,7 +310,7 @@ mod batch_avss_benches {
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            r1.verify_and_decrypt(&pem, &vm.verified_common, *vm.dispersal_hash())
+                            r1.decrypt_and_verify(&pem, &vm.verified_common, *vm.dispersal_hash())
                                 .unwrap()
                         })
                     },
@@ -380,7 +380,7 @@ mod batch_avss_benches {
                         };
                         assert_valid_batch(
                             receivers[1]
-                                .verify_and_decrypt(&pem, &vm.verified_common, *vm.dispersal_hash())
+                                .decrypt_and_verify(&pem, &vm.verified_common, *vm.dispersal_hash())
                                 .unwrap(),
                         )
                     })
