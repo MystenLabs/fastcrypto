@@ -584,6 +584,141 @@ fn test_public_key_and_signature_lengths() {
     assert_eq!(sig.as_ref().len(), SECP384R1_SIGNATURE_LENGTH);
 }
 
+/// Differential fuzzing of this implementation against the p384 crate. Each iteration signs a
+/// random message with both implementations, asserting that the signatures are identical, and
+/// verifies a signature variant (valid, bit-flipped, edge-case scalars, random bytes, wrong key,
+/// or malleated) with both implementations, asserting that they agree on acceptance for SHA-256,
+/// SHA-384 and SHA-512 message digests.
+///
+/// Runs 100 iterations by default. For a longer session, run e.g.:
+/// `SECP384R1_FUZZ_ITERATIONS=100000 cargo test --release --features experimental
+/// fuzz_differential_against_p384_crate -- --nocapture`
+#[test]
+fn fuzz_differential_against_p384_crate() {
+    use rand::{Rng, RngCore};
+
+    let iterations: usize = std::env::var("SECP384R1_FUZZ_ITERATIONS")
+        .ok()
+        .and_then(|i| i.parse().ok())
+        .unwrap_or(100);
+
+    // Use a random seed and print it to allow reproducing a failure (run with --nocapture).
+    let seed: [u8; 32] = rand::thread_rng().gen();
+    println!("Differential fuzzing seed: {}", hex::encode(seed));
+    let mut rng = StdRng::from_seed(seed);
+
+    let keypairs: Vec<Secp384r1KeyPair> = (0..4)
+        .map(|_| Secp384r1KeyPair::generate(&mut rng))
+        .collect();
+    let external_keys: Vec<(p384::ecdsa::SigningKey, p384::ecdsa::VerifyingKey)> = keypairs
+        .iter()
+        .map(|kp| {
+            let sk = p384::ecdsa::SigningKey::from_slice(kp.as_ref()).unwrap();
+            let vk = p384::ecdsa::VerifyingKey::from(&sk);
+            (sk, vk)
+        })
+        .collect();
+
+    // Edge case scalar encodings: 1, 2, n-1 and a value larger than the group order.
+    let mut one = [0u8; 48];
+    one[47] = 1;
+    let mut two = [0u8; 48];
+    two[47] = 2;
+    let n_minus_one: [u8; 48] = hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC7634D81F4372DDF581A0DB248B0A77AECEC196ACCC52972").unwrap().try_into().unwrap();
+    let too_large = [0xffu8; 48];
+    let edge_scalars = [one, two, n_minus_one, too_large];
+
+    for _ in 0..iterations {
+        let i = rng.gen_range(0..keypairs.len());
+        let kp = &keypairs[i];
+        let (external_sk, external_vk) = &external_keys[i];
+
+        let mut msg = vec![0u8; rng.gen_range(0..100)];
+        rng.fill_bytes(&mut msg);
+
+        // Differential signing: both implementations produce identical signatures.
+        let signature = kp.sign(&msg);
+        let external_sig: Signature = external_sk.sign(&msg);
+        assert_eq!(signature.as_ref(), external_sig.to_bytes().as_slice());
+
+        // Build a signature variant to verify.
+        let mut sig_bytes = <[u8; 96]>::try_from(signature.as_ref()).unwrap();
+        match rng.gen_range(0..6) {
+            // Valid signature.
+            0 => (),
+            // Single bit flip.
+            1 => {
+                let byte = rng.gen_range(0..96);
+                sig_bytes[byte] ^= 1 << rng.gen_range(0..8);
+            }
+            // Replace r or s with an edge-case scalar.
+            2 => {
+                let scalar = edge_scalars[rng.gen_range(0..edge_scalars.len())];
+                let offset = if rng.gen::<bool>() { 0 } else { 48 };
+                sig_bytes[offset..offset + 48].copy_from_slice(&scalar);
+            }
+            // Random bytes.
+            3 => rng.fill_bytes(&mut sig_bytes),
+            // Valid signature by a (potentially) different key.
+            4 => {
+                let other = &keypairs[rng.gen_range(0..keypairs.len())];
+                sig_bytes.copy_from_slice(other.sign(&msg).as_ref());
+            }
+            // Malleated signature (r, n - s).
+            5 => {
+                let (r, s) = signature.sig.split_scalars();
+                let malleated =
+                    Signature::from_scalars(r.to_bytes(), (-*s.as_ref()).to_bytes()).unwrap();
+                sig_bytes.copy_from_slice(&malleated.to_bytes());
+            }
+            _ => unreachable!(),
+        };
+
+        // Both implementations agree on whether the bytes parse...
+        let (sig, external_sig) = match (
+            <Secp384r1Signature as ToFromBytes>::from_bytes(&sig_bytes),
+            Signature::from_slice(&sig_bytes),
+        ) {
+            (Ok(sig), Ok(external_sig)) => (sig, external_sig),
+            (Err(_), Err(_)) => continue,
+            (ours, theirs) => panic!(
+                "Parsing disagreement on signature {}: ours: {}, p384: {}",
+                hex::encode(sig_bytes),
+                ours.is_ok(),
+                theirs.is_ok()
+            ),
+        };
+
+        // ...and on whether the signature is valid, for all supported digest lengths.
+        let pk = kp.public();
+        let results = [
+            (
+                pk.verify_with_hash::<Sha256, 32>(&msg, &sig).is_ok(),
+                Sha256::digest(&msg).to_vec(),
+            ),
+            (
+                pk.verify_with_hash::<Sha384, 48>(&msg, &sig).is_ok(),
+                Sha384::digest(&msg).to_vec(),
+            ),
+            (
+                pk.verify_with_hash::<Sha512, 64>(&msg, &sig).is_ok(),
+                Sha512::digest(&msg).to_vec(),
+            ),
+        ];
+        for (ours, digest) in results {
+            let theirs = external_vk.verify_prehash(&digest, &external_sig).is_ok();
+            assert_eq!(
+                ours,
+                theirs,
+                "Verification disagreement: signature {}, message {}, digest length {}",
+                hex::encode(sig_bytes),
+                hex::encode(&msg),
+                digest.len()
+            );
+        }
+    }
+}
+
 // Arbitrary implementations for the proptests
 fn arb_keypair() -> impl Strategy<Value = Secp384r1KeyPair> {
     any::<[u8; 32]>()
