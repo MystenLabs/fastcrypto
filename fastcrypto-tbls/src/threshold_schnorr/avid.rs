@@ -84,12 +84,9 @@ impl Avid {
     /// Build an AVID instance over `nodes` with Byzantine bound `f`, constructing the
     /// `(W, W − 2f)` Reed-Solomon coder once. Fails if those parameters are invalid.
     pub fn new(nodes: Arc<Nodes<EG>>, f: u16) -> FastCryptoResult<Self> {
-        let w = nodes.total_weight() as usize;
-        let two_f = 2 * f as usize;
-        if w <= two_f {
-            return Err(InvalidInput);
-        }
-        let coder = ErasureCoder::new(w, w - two_f)?;
+        let n = nodes.total_weight() as usize;
+        let k = n.checked_sub(2 * f as usize).ok_or(InvalidInput)?;
+        let coder = ErasureCoder::new(n, k)?;
         Ok(Self { nodes, coder, f })
     }
 
