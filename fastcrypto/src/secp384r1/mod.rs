@@ -345,6 +345,22 @@ impl ToFromBytes for Secp384r1Signature {
     }
 }
 
+impl Secp384r1Signature {
+    /// Parse a signature from its strict DER encoding, as used e.g. in X.509 certificates.
+    ///
+    /// This accepts exactly the same encodings as `p384::ecdsa::Signature::from_der`: BER variants
+    /// and signatures where r or s is zero or not in [1, n-1] are rejected. The parsed signature
+    /// is held in the fixed-length encoding used by this module, so `as_ref` returns the 96 byte
+    /// `r || s` representation and not the original DER encoding.
+    pub fn from_der(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let sig = ExternalSignature::from_der(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+        Ok(Secp384r1Signature {
+            sig,
+            bytes: OnceCell::new(),
+        })
+    }
+}
+
 impl Authenticator for Secp384r1Signature {
     type PubKey = Secp384r1PublicKey;
     type PrivKey = Secp384r1PrivateKey;

@@ -470,8 +470,15 @@ fn run_wycheproof_test(test_name: TestName) {
         let pk = Secp384r1PublicKey::from_bytes(&test_group.key.key).unwrap();
         let external_pk = p384::ecdsa::VerifyingKey::from_sec1_bytes(&test_group.key.key).unwrap();
         for test in test_group.tests {
-            let signature = match Signature::from_der(&test.sig) {
-                Ok(s) => Secp384r1Signature::from_bytes(s.to_bytes().as_slice()).unwrap(),
+            // DER parsing accepts exactly the same encodings as the p384 crate.
+            assert_eq!(
+                Secp384r1Signature::from_der(&test.sig).is_ok(),
+                Signature::from_der(&test.sig).is_ok(),
+                "{}",
+                test.comment
+            );
+            let signature = match Secp384r1Signature::from_der(&test.sig) {
+                Ok(s) => s,
                 Err(_) => {
                     assert_eq!(map_result(test.result), TestResult::Invalid);
                     continue;
@@ -516,6 +523,29 @@ fn map_result(t: TestResult) -> TestResult {
         TestResult::Valid => TestResult::Valid,
         _ => TestResult::Invalid, // Treat Acceptable as Invalid
     }
+}
+
+#[test]
+fn test_from_der() {
+    let kp = keys().pop().unwrap();
+    let signature = kp.sign(MSG);
+
+    // Round-trip through the DER encoding.
+    let der = signature.sig.to_der();
+    let parsed = Secp384r1Signature::from_der(der.as_bytes()).unwrap();
+    assert_eq!(parsed, signature);
+    assert!(kp.public().verify(MSG, &parsed).is_ok());
+
+    // as_ref returns the fixed-length encoding, not the DER encoding.
+    assert_eq!(parsed.as_ref(), signature.as_ref());
+
+    // Invalid inputs are rejected.
+    assert!(Secp384r1Signature::from_der(&[]).is_err());
+    let truncated = &der.as_bytes()[..der.as_bytes().len() - 1];
+    assert!(Secp384r1Signature::from_der(truncated).is_err());
+
+    // The fixed-length encoding is not valid DER.
+    assert!(Secp384r1Signature::from_der(signature.as_ref()).is_err());
 }
 
 #[test]
