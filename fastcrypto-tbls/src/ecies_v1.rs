@@ -41,17 +41,10 @@ pub const AES_KEY_LENGTH: usize = 32;
 
 /// A single recipient's ECIES ciphertext, as produced by [MultiRecipientEncryption::encrypt].
 /// Combined with the [SharedComponents] this is enough to decrypt the recipient's message.
-/// Wire-format-identical to `Vec<u8>` via `#[serde(transparent)]` / `#[repr(transparent)]`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 #[repr(transparent)]
 pub struct Ciphertext(pub Vec<u8>);
-
-impl AsRef<[u8]> for Ciphertext {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
 
 /// Multi-recipient encryption with a proof-of-possession of the ephemeral key.
 /// (rG, r RO1(rG), {AES(k=RO2(rPK_i), m_i)}_i, DDH-NIZK(G, RO1(rG), rG, r RO1(rG)) )

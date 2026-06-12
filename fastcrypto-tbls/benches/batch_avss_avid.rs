@@ -84,7 +84,7 @@ mod batch_avss_benches {
     use super::*;
     use fastcrypto::traits::AllowedRng;
     use fastcrypto_tbls::threshold_schnorr::batch_avss_avid::{
-        self as batch_avss, AvssCommonMessage, Dealer, PessimisticMessage, VerifiedConfirmers,
+        self as batch_avss, AvssCommonMessage, CertifiedConfirmers, Dealer, PessimisticMessage,
     };
     use fastcrypto_tbls::threshold_schnorr::presigning::Presignatures;
     use itertools::Itertools;
@@ -96,7 +96,7 @@ mod batch_avss_benches {
 
     /// Run a "one straggler" pessimistic round: every receiver but [STRAGGLER] is treated as
     /// having confirmed in the optimistic phase; [STRAGGLER] is the straggler. Returns `v`, the
-    /// per-recipient [PessimisticMessage]s, and the [VerifiedConfirmers] (all parties except the
+    /// per-recipient [PessimisticMessage]s, and the [CertifiedConfirmers] (all parties except the
     /// straggler) the receivers need to call [batch_avss::Receiver::echo].
     fn pessimistic_with_one_straggler(
         dealer: &Dealer,
@@ -104,14 +104,14 @@ mod batch_avss_benches {
     ) -> (
         AvssCommonMessage,
         BTreeMap<PartyId, PessimisticMessage>,
-        VerifiedConfirmers,
+        CertifiedConfirmers,
     ) {
         let (state, _) = dealer.create_optimistic_messages(rng).unwrap();
         let common = state.common().clone();
         let pending: BTreeSet<PartyId> = std::iter::once(STRAGGLER).collect();
         let messages = dealer.create_pessimistic_messages(&state, pending).unwrap();
         let n = messages.len() as u16;
-        let confirmers = VerifiedConfirmers {
+        let confirmers = CertifiedConfirmers {
             confirmers: (0..n).filter(|&i| i != STRAGGLER).collect(),
             avss_common_message_hash: common.hash(),
         };
