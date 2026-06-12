@@ -184,7 +184,7 @@ mod batch_avss_benches {
                 let message = &messages[&1];
                 echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.echo(message.clone(), vcm.clone(), &confirmers).unwrap()),
+                    |b| b.iter(|| r1.echo(message.clone(), &vcm, &confirmers).unwrap()),
                 );
             }
         }
@@ -206,15 +206,20 @@ mod batch_avss_benches {
                     pessimistic_with_one_straggler(&d0, &mut thread_rng());
                 let vcm0 = r0.verify_common_message(common.clone()).unwrap();
                 let vcm1 = r1.verify_common_message(common).unwrap();
-                let (_, echoes_from_r0, _) =
-                    r0.echo(messages[&0].clone(), vcm0, &confirmers).unwrap();
-                let echo_for_r1 = echoes_from_r0[&1u16].clone();
-                let (vm1, _, _) = r1
-                    .echo(messages[&r1.id].clone(), vcm1, &confirmers)
+                let (builder0, _) = r0.echo(messages[&0].clone(), &vcm0, &confirmers).unwrap();
+                let echo_for_r1 = builder0.create_echo(1).unwrap();
+                let (builder1, _) = r1
+                    .echo(messages[&r1.id].clone(), &vcm1, &confirmers)
                     .unwrap();
+                let dispersal_hash = builder1.dispersal_hash(vcm1.common().hash().as_ref());
                 verify_echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.verify_echo(echo_for_r1.clone(), &vm1).unwrap()),
+                    |b| {
+                        b.iter(|| {
+                            r1.verify_echo(echo_for_r1.clone(), &vcm1, &dispersal_hash, &confirmers)
+                                .unwrap()
+                        })
+                    },
                 );
             }
         }
@@ -235,31 +240,44 @@ mod batch_avss_benches {
                     .collect();
                 let (common, messages, confirmers) =
                     pessimistic_with_one_straggler(&d0, &mut thread_rng());
-                let mut vm = None;
-                let echoes: Vec<std::collections::BTreeMap<PartyId, batch_avss::Echo>> = receivers
+                let mut dispersal_hash = None;
+                let echoes: Vec<BTreeMap<PartyId, batch_avss::Echo>> = receivers
                     .iter()
-                    .enumerate()
-                    .map(|(i, r)| {
+                    .map(|r| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
-                        let (v, e, _) = r
-                            .echo(messages[&r.id].clone(), vcm.clone(), &confirmers)
-                            .unwrap();
-                        if i == 1 {
-                            vm = Some(v);
+                        let (builder, _) =
+                            r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
+                        if r.id == 1 {
+                            dispersal_hash =
+                                Some(builder.dispersal_hash(vcm.common().hash().as_ref()));
                         }
-                        e
+                        builder
+                            .recipients()
+                            .iter()
+                            .map(|&rcpt| (rcpt, builder.create_echo(rcpt).unwrap()))
+                            .collect()
                     })
                     .collect();
-                let vm = vm.unwrap();
+                let dispersal_hash = dispersal_hash.unwrap();
+                let vcm1 = receivers[1].verify_common_message(common).unwrap();
                 let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                     .iter()
-                    .map(|em| receivers[1].verify_echo(em[&1u16].clone(), &vm).unwrap())
+                    .map(|em| {
+                        receivers[1]
+                            .verify_echo(em[&1u16].clone(), &vcm1, &dispersal_hash, &confirmers)
+                            .unwrap()
+                    })
                     .collect();
                 let r1 = &receivers[1];
 
                 process.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.decode_ciphertext(&echoes_for_party_1, &vm).unwrap()),
+                    |b| {
+                        b.iter(|| {
+                            r1.decode_ciphertext(&echoes_for_party_1, &vcm1, &dispersal_hash)
+                                .unwrap()
+                        })
+                    },
                 );
             }
         }
@@ -280,29 +298,40 @@ mod batch_avss_benches {
                     .collect();
                 let (common, messages, confirmers) =
                     pessimistic_with_one_straggler(&d0, &mut thread_rng());
-                let mut vm = None;
-                let echoes: Vec<std::collections::BTreeMap<PartyId, batch_avss::Echo>> = receivers
+                let mut dispersal_hash = None;
+                let echoes: Vec<BTreeMap<PartyId, batch_avss::Echo>> = receivers
                     .iter()
-                    .enumerate()
-                    .map(|(i, r)| {
+                    .map(|r| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
-                        let (v, e, _) = r
-                            .echo(messages[&r.id].clone(), vcm.clone(), &confirmers)
-                            .unwrap();
-                        if i == 1 {
-                            vm = Some(v);
+                        let (builder, _) =
+                            r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
+                        if r.id == 1 {
+                            dispersal_hash =
+                                Some(builder.dispersal_hash(vcm.common().hash().as_ref()));
                         }
-                        e
+                        builder
+                            .recipients()
+                            .iter()
+                            .map(|&rcpt| (rcpt, builder.create_echo(rcpt).unwrap()))
+                            .collect()
                     })
                     .collect();
-                let vm = vm.unwrap();
+                let dispersal_hash = dispersal_hash.unwrap();
+                let vcm1 = receivers[1].verify_common_message(common).unwrap();
                 let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                     .iter()
-                    .map(|em| receivers[1].verify_echo(em[&1u16].clone(), &vm).unwrap())
+                    .map(|em| {
+                        receivers[1]
+                            .verify_echo(em[&1u16].clone(), &vcm1, &dispersal_hash, &confirmers)
+                            .unwrap()
+                    })
                     .collect();
                 let r1 = &receivers[1];
-                let pem = match r1.decode_ciphertext(&echoes_for_party_1, &vm).unwrap() {
-                    batch_avss::DecodeOutcome::Decoded(d) => d,
+                let ciphertext = match r1
+                    .decode_ciphertext(&echoes_for_party_1, &vcm1, &dispersal_hash)
+                    .unwrap()
+                {
+                    batch_avss::DecodeOutcome::Decoded(c) => c,
                     _ => panic!("expected Decoded outcome"),
                 };
 
@@ -310,7 +339,7 @@ mod batch_avss_benches {
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            r1.decrypt_and_verify(&pem, &vm.verified_common, *vm.dispersal_hash())
+                            r1.decrypt_and_verify(&ciphertext, &vcm1, dispersal_hash)
                                 .unwrap()
                         })
                     },
@@ -350,37 +379,49 @@ mod batch_avss_benches {
                                 )
                             })
                             .collect();
-                        let mut vm = None;
-                        let echoes: Vec<std::collections::BTreeMap<PartyId, batch_avss::Echo>> =
-                            receivers
-                                .iter()
-                                .enumerate()
-                                .map(|(i, r)| {
-                                    let vcm = r.verify_common_message(common.clone()).unwrap();
-                                    let (v, e, _) = r
-                                        .echo(messages[&r.id].clone(), vcm.clone(), &confirmers)
-                                        .unwrap();
-                                    if i == 1 {
-                                        vm = Some(v);
-                                    }
-                                    e
-                                })
-                                .collect();
-                        let vm = vm.unwrap();
+                        let mut dispersal_hash = None;
+                        let echoes: Vec<BTreeMap<PartyId, batch_avss::Echo>> = receivers
+                            .iter()
+                            .map(|r| {
+                                let vcm = r.verify_common_message(common.clone()).unwrap();
+                                let (builder, _) =
+                                    r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
+                                if r.id == 1 {
+                                    dispersal_hash =
+                                        Some(builder.dispersal_hash(vcm.common().hash().as_ref()));
+                                }
+                                builder
+                                    .recipients()
+                                    .iter()
+                                    .map(|&rcpt| (rcpt, builder.create_echo(rcpt).unwrap()))
+                                    .collect()
+                            })
+                            .collect();
+                        let dispersal_hash = dispersal_hash.unwrap();
+                        let vcm1 = receivers[1].verify_common_message(common).unwrap();
                         let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                             .iter()
-                            .map(|em| receivers[1].verify_echo(em[&1u16].clone(), &vm).unwrap())
+                            .map(|em| {
+                                receivers[1]
+                                    .verify_echo(
+                                        em[&1u16].clone(),
+                                        &vcm1,
+                                        &dispersal_hash,
+                                        &confirmers,
+                                    )
+                                    .unwrap()
+                            })
                             .collect();
-                        let pem = match receivers[1]
-                            .decode_ciphertext(&echoes_for_party_1, &vm)
+                        let ciphertext = match receivers[1]
+                            .decode_ciphertext(&echoes_for_party_1, &vcm1, &dispersal_hash)
                             .unwrap()
                         {
-                            batch_avss::DecodeOutcome::Decoded(d) => d,
+                            batch_avss::DecodeOutcome::Decoded(c) => c,
                             _ => panic!("expected Decoded outcome"),
                         };
                         assert_valid_batch(
                             receivers[1]
-                                .decrypt_and_verify(&pem, &vm.verified_common, *vm.dispersal_hash())
+                                .decrypt_and_verify(&ciphertext, &vcm1, dispersal_hash)
                                 .unwrap(),
                         )
                     })
