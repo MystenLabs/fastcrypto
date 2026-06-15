@@ -28,6 +28,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::secp256k1::SCALAR_SIZE_IN_BYTES;
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::hash::{Blake2b256, HashFunction};
+use fastcrypto::merkle;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -128,7 +129,7 @@ pub type PessimisticMessage = avid::Dispersal;
 /// An endorsement of the dealer's pessimistic broadcast.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Vote {
-    pub dispersal_hash: Digest,
+    pub top_root: merkle::Node,
 }
 
 /// The result of [Receiver::decode_ciphertext]: either a successfully reconstructed ciphertext
@@ -149,14 +150,13 @@ pub enum DecryptionOutcome {
 
 /// A complaint by a receiver who could not decrypt or verify its shares. The carried `ciphertext`
 /// is bound to the dealer's broadcast `v` directly via `v.ciphertext_hashes[accuser_id]` (checked
-/// by [Receiver::handle_reveal]); `dispersal_hash` identifies the certificate the complaint is
-/// raised against.
+/// by [Receiver::handle_reveal]).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RevealComplaint {
     pub accuser_id: PartyId,
     pub proof: recovery_proof::RecoveryProof,
     pub ciphertext: Ciphertext,
-    pub dispersal_hash: Digest,
+    pub top_root: merkle::Node,
 }
 
 /// A complaint by a receiver who found the AVID dispersal inconsistent — a generic AVID
@@ -207,9 +207,6 @@ pub struct SharesForNode {
 /// "blinding" polynomial.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ShareBatch {
-    /// The index of the share (i.e., the share id).
-    pub index: ShareIndex,
-
     /// The shares for each secret.
     pub batch: Vec<S>,
 
@@ -218,31 +215,28 @@ pub struct ShareBatch {
 }
 
 // TODO: This can be removed when batch_avss is removed.
-impl From<ReceiverOutput> for crate::threshold_schnorr::batch_avss::ReceiverOutput {
-    fn from(output: ReceiverOutput) -> Self {
-        Self {
-            my_shares: output.my_shares.into(),
-            public_keys: output.public_keys,
-        }
-    }
-}
-
-// TODO: This can be removed when batch_avss is removed.
-impl From<SharesForNode> for crate::threshold_schnorr::batch_avss::SharesForNode {
-    fn from(shares: SharesForNode) -> Self {
-        Self {
-            shares: shares.shares.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-// TODO: This can be removed when batch_avss is removed.
-impl From<ShareBatch> for crate::threshold_schnorr::batch_avss::ShareBatch {
-    fn from(batch: ShareBatch) -> Self {
-        Self {
-            index: batch.index,
-            batch: batch.batch,
-            blinding_share: batch.blinding_share,
+impl ReceiverOutput {
+    /// Convert to the legacy [`crate::threshold_schnorr::batch_avss::ReceiverOutput`].
+    pub fn into_legacy(
+        self,
+        indices: &[ShareIndex],
+    ) -> crate::threshold_schnorr::batch_avss::ReceiverOutput {
+        use crate::threshold_schnorr::batch_avss as legacy;
+        legacy::ReceiverOutput {
+            my_shares: legacy::SharesForNode {
+                shares: self
+                    .my_shares
+                    .shares
+                    .into_iter()
+                    .zip(indices)
+                    .map(|(s, &index)| legacy::ShareBatch {
+                        index,
+                        batch: s.batch,
+                        blinding_share: s.blinding_share,
+                    })
+                    .collect(),
+            },
+            public_keys: self.public_keys,
         }
     }
 }
@@ -347,7 +341,6 @@ impl Dealer {
                         shares: share_ids
                             .into_iter()
                             .map(|index| ShareBatch {
-                                index,
                                 batch: share_batches.iter().map(|shares| shares[index]).collect(),
                                 blinding_share: blinding_poly_evaluations[index],
                             })
@@ -574,8 +567,8 @@ impl Receiver {
         }
 
         let builder = self.avid.prepare_echoes(message, self.id)?;
-        let dispersal_hash = builder.dispersal_hash(expected_avss_common_message_hash.as_ref());
-        Ok((builder, Vote { dispersal_hash }))
+        let top_root = builder.top_root();
+        Ok((builder, Vote { top_root }))
     }
 
     /// Verify an [Echo] addressed to this receiver. Returns a [VerifiedEcho] suitable for
@@ -585,19 +578,17 @@ impl Receiver {
     /// meaningful for pending recipients; confirmers calling this for themselves get
     /// [InvalidInput].
     ///
-    /// The `dispersal_hash` should be sourced from a quorum certificate over [Vote]s or from a
-    /// [avid::Dispersal] message from the dealer.
+    /// `expected_top_root` should be sourced from a quorum certificate over [Vote]s, or matched
+    /// against the dealer's [avid::Dispersal] message.
     pub fn verify_echo(
         &self,
         echo: Echo,
-        verified_common: &VerifiedAvssCommonMessage,
-        dispersal_hash: &Digest,
+        certified_top_root: &merkle::Node,
         confirmers: &CertifiedConfirmers,
     ) -> FastCryptoResult<VerifiedEcho> {
         self.avid.verify_echo(
             echo,
-            verified_common.common().hash().as_ref(),
-            dispersal_hash,
+            certified_top_root,
             &self.pending_recipients(confirmers),
             self.id,
         )
@@ -619,7 +610,7 @@ impl Receiver {
         &self,
         echoes: &[VerifiedEcho],
         verified_common: &VerifiedAvssCommonMessage,
-        dispersal_hash: &Digest,
+        top_root: &merkle::Node,
     ) -> FastCryptoResult<DecodeOutcome> {
         let avid = &self.avid;
         let expected_len = SharesForNode::bcs_serialized_size(
@@ -635,7 +626,7 @@ impl Receiver {
                 self.id,
                 echoes,
                 expected_len,
-                *dispersal_hash,
+                top_root.clone(),
                 |payload| hash_bytes(payload) == *expected_hash,
             )? {
                 Ok(bytes) => DecodeOutcome::Decoded(Ciphertext(bytes)),
@@ -659,14 +650,13 @@ impl Receiver {
     ///    The [RevealComplaint] is an encryption-layer fault carrying the accuser's ciphertext and
     ///    an ECIES recovery package. Broadcast it only after seeing a TOB certificate for `H(v)`.
     ///
-    ///    `dispersal_hash` is stamped into the [RevealComplaint] and must come from the published
-    ///    certificate. Responders compare it against their own certified `dispersal_hash` in
-    ///    [Self::handle_reveal]; if it doesn't match, the complaint is rejected.
+    ///    `top_root` is stamped into the [RevealComplaint] and must come from the published
+    ///    certificate.
     pub fn decrypt_and_verify(
         &self,
         ciphertext: &Ciphertext,
         common_message: &VerifiedAvssCommonMessage,
-        dispersal_hash: Digest,
+        top_root: merkle::Node,
     ) -> FastCryptoResult<DecryptionOutcome> {
         self.check_ciphertext_hash(ciphertext, common_message)?;
         match self.decrypt_and_verify_shares(ciphertext, common_message) {
@@ -686,7 +676,7 @@ impl Receiver {
                         &mut rand::thread_rng(),
                     ),
                     ciphertext: ciphertext.clone(),
-                    dispersal_hash,
+                    top_root,
                 }))
             }
         }
@@ -758,7 +748,7 @@ impl Receiver {
         &self,
         reveal: &RevealComplaint,
         verified_common: &VerifiedAvssCommonMessage,
-        certified_dispersal_hash: &Digest,
+        certified_top_root: &merkle::Node,
         own_ciphertext: Ciphertext,
     ) -> FastCryptoResult<ComplaintResponse> {
         let common_message = verified_common.common();
@@ -769,10 +759,10 @@ impl Receiver {
             accuser_id,
             proof,
             ciphertext: reveal_ciphertext,
-            dispersal_hash,
+            top_root,
         } = reveal;
 
-        if dispersal_hash != certified_dispersal_hash {
+        if top_root != certified_top_root {
             return Err(InvalidProof);
         }
         // Bind the carried ciphertext to the dealer's broadcast `v` directly via its pinned hash.
@@ -810,26 +800,21 @@ impl Receiver {
         &self,
         blame: &BlameComplaint,
         verified_common: &VerifiedAvssCommonMessage,
-        certified_dispersal_hash: &Digest,
+        certified_top_root: &merkle::Node,
         confirmers: &CertifiedConfirmers,
         own_ciphertext: Ciphertext,
     ) -> FastCryptoResult<ComplaintResponse> {
         let common_message = verified_common.common();
 
-        if blame.dispersal_hash != *certified_dispersal_hash {
+        if blame.top_root != *certified_top_root {
             return Err(InvalidProof);
         }
-        // Re-derive the accuser's `recipient_root` from one of the carried shards, then
-        // authenticate it against the certified `dispersal_hash`. `complaint_is_valid` below
-        // checks all the other shards against the same root, so a bogus first shard either fails
-        // authentication or fails consistency at that step.
         let accuser_recipient_root = blame.derive_accuser_recipient_root()?;
         self.avid.verify_recipient_root(
             blame.accuser_id,
             &accuser_recipient_root,
             &blame.accuser_recipient_root_proof,
-            common_message.hash().as_ref(),
-            certified_dispersal_hash,
+            certified_top_root,
             &self.pending_recipients(confirmers),
         )?;
 
@@ -938,8 +923,11 @@ impl Receiver {
         if !responses.iter().map(|r| r.responder_id).all_unique() {
             return Err(InvalidInput);
         }
-        let response_shares = responses.into_iter().map(|v| v.shares).collect_vec();
-        let response_weight: u16 = response_shares.iter().map(SharesForNode::weight).sum();
+        let response_shares: Vec<(PartyId, SharesForNode)> = responses
+            .into_iter()
+            .map(|v| (v.responder_id, v.shares))
+            .collect();
+        let response_weight: u16 = response_shares.iter().map(|(_, s)| s.weight()).sum();
         if response_weight < self.params.t {
             return Err(FastCryptoError::InputTooShort(self.params.t as usize));
         }
@@ -1075,8 +1063,13 @@ impl AvssCommonMessage {
 }
 
 impl ShareBatch {
-    /// Verify a batch of shares using the given challenge.
-    fn verify(&self, message: &AvssCommonMessage, challenge: &[S]) -> FastCryptoResult<()> {
+    /// Verify a batch of shares at share index `index` using the given challenge.
+    fn verify(
+        &self,
+        index: ShareIndex,
+        message: &AvssCommonMessage,
+        challenge: &[S],
+    ) -> FastCryptoResult<()> {
         if challenge.len() != self.batch_size() {
             return Err(InvalidInput);
         }
@@ -1089,7 +1082,7 @@ impl ShareBatch {
             .fold(self.blinding_share, |acc, (r_l, gamma_l)| {
                 acc + r_l * gamma_l
             })
-            != message.response_polynomial.eval(self.index).value
+            != message.response_polynomial.eval(index).value
         {
             return Err(InvalidInput);
         }
@@ -1113,13 +1106,21 @@ impl SharesForNode {
         get_uniform_value(self.shares.iter().map(ShareBatch::batch_size)).ok_or(InvalidInput)
     }
 
-    /// Get all shares this node has for the <i>i</i>-th secret/nonce in the batch.
-    /// This panics if `i` is larger than or equal to the batch size.
-    pub fn shares_for_secret(&self, i: usize) -> impl Iterator<Item = Eval<S>> + '_ {
-        self.shares.iter().map(move |s| Eval {
-            index: s.index,
-            value: s.batch[i],
-        })
+    /// Get all shares this node has for the <i>i</i>-th secret/nonce in the batch, paired with
+    /// the share indices the node was assigned (`indices.len()` must equal the number of share
+    /// batches). Panics if `i` is larger than or equal to the batch size.
+    pub fn shares_for_secret<'a>(
+        &'a self,
+        indices: &'a [ShareIndex],
+        i: usize,
+    ) -> impl Iterator<Item = Eval<S>> + 'a {
+        self.shares
+            .iter()
+            .zip(indices)
+            .map(move |(s, &index)| Eval {
+                index,
+                value: s.batch[i],
+            })
     }
 
     fn verify(
@@ -1137,17 +1138,19 @@ impl SharesForNode {
             );
             return Err(InvalidMessage);
         }
-        let actual: BTreeSet<ShareIndex> = self.shares.iter().map(|s| s.index).collect();
-        let expected: BTreeSet<ShareIndex> = expected_indices.iter().copied().collect();
-        if actual != expected {
-            warn!("batch_avss SharesForNode::verify: share index set does not match expected");
+        if self.shares.len() != expected_indices.len() {
+            warn!(
+                "batch_avss SharesForNode::verify: share count {} does not match expected weight {}",
+                self.shares.len(),
+                expected_indices.len(),
+            );
             return Err(InvalidMessage);
         }
-        for shares in &self.shares {
-            shares.verify(message, challenge).map_err(|e| {
+        for (shares, &index) in self.shares.iter().zip(expected_indices) {
+            shares.verify(index, message, challenge).map_err(|e| {
                 warn!(
                     "batch_avss SharesForNode::verify: cryptographic share verification failed at index {:?}: {e:?}",
-                    shares.index,
+                    index,
                 );
                 e
             })?;
@@ -1157,12 +1160,20 @@ impl SharesForNode {
 
     /// Recover the shares for this node.
     ///
-    /// Fails if `other_shares` is empty or if the batch sizes of all shares in `other_shares`
-    /// are not equal to the expected batch size.
-    fn recover(receiver: &Receiver, other_shares: &[Self]) -> FastCryptoResult<Self> {
+    /// Fails if `other_shares` is empty.
+    fn recover(
+        receiver: &Receiver,
+        other_shares: &[(PartyId, SharesForNode)],
+    ) -> FastCryptoResult<Self> {
         if other_shares.is_empty() {
             return Err(InvalidInput);
         }
+
+        // Pre-compute each responder's share indices once.
+        let responders: Vec<(Vec<ShareIndex>, &SharesForNode)> = other_shares
+            .iter()
+            .map(|(id, s)| Ok((receiver.nodes.share_ids_of(*id)?, s)))
+            .collect::<FastCryptoResult<_>>()?;
 
         let shares = receiver
             .my_indices()
@@ -1170,9 +1181,9 @@ impl SharesForNode {
             .map(|index| {
                 let batch = (0..receiver.batch_size)
                     .map(|i| {
-                        let evaluations = other_shares
+                        let evaluations = responders
                             .iter()
-                            .flat_map(|s| s.shares_for_secret(i))
+                            .flat_map(|(ids, s)| s.shares_for_secret(ids, i))
                             .collect_vec();
                         Ok(Poly::recover_at(index, &evaluations)?.value)
                     })
@@ -1180,11 +1191,11 @@ impl SharesForNode {
 
                 let blinding_share = Poly::recover_at(
                     index,
-                    &other_shares
+                    &responders
                         .iter()
-                        .flat_map(|s| &s.shares)
-                        .map(|share| Eval {
-                            index: share.index,
+                        .flat_map(|(ids, s)| ids.iter().copied().zip(s.shares.iter()))
+                        .map(|(index, share)| Eval {
+                            index,
                             value: share.blinding_share,
                         })
                         .collect_vec(),
@@ -1192,7 +1203,6 @@ impl SharesForNode {
                 .value;
 
                 Ok(ShareBatch {
-                    index,
                     batch,
                     blinding_share,
                 })
@@ -1208,12 +1218,12 @@ impl SharesForNode {
         // SharesForNode = Vec<ShareBatch>
         //   = ULEB128(weight) + weight × ShareBatch
         // ShareBatch
-        //   = NonZeroU16 (= 2 bytes) + Vec<S> + S
-        //   = 2 + ULEB128(batch_size) + (batch_size + 1) × SCALAR_SIZE_IN_BYTES
+        //   = Vec<S> + S
+        //   = ULEB128(batch_size) + (batch_size + 1) × SCALAR_SIZE_IN_BYTES
 
         // TODO: A bit of a hack — this hardcodes the BCS layout of `SharesForNode`
         uleb128_len(weight)
-            + weight * (2 + uleb128_len(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES)
+            + weight * (uleb128_len(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES)
     }
 }
 
@@ -1270,9 +1280,9 @@ fn compute_challenge_from_common_message(
 #[cfg(test)]
 mod tests {
     use super::{
-        CertifiedConfirmers, Confirm, Dealer, DealerState, DecodeOutcome, DecryptionOutcome,
-        Digest, OptimisticMessage, Parameters, PessimisticMessage, Receiver, ReceiverOutput,
-        ShareBatch, SharesForNode, VerifiedEcho,
+        merkle, CertifiedConfirmers, Confirm, Dealer, DealerState, DecodeOutcome,
+        DecryptionOutcome, OptimisticMessage, Parameters, PessimisticMessage, Receiver,
+        ReceiverOutput, ShareBatch, SharesForNode, VerifiedEcho,
     };
     use crate::ecies_v1;
     use crate::ecies_v1::{Ciphertext, PublicKey};
@@ -1294,14 +1304,12 @@ mod tests {
         use crate::threshold_schnorr::S;
         use fastcrypto::groups::GroupElement;
 
-        let dummy_index = ShareIndex::try_from(1u16).unwrap();
         let zero_scalar = S::zero();
         for &weight in &[1usize, 2, 5, 10, 100, 127, 128, 200] {
             for &batch_size in &[1usize, 2, 3, 7, 50, 127, 128, 200] {
                 let shares_for_node = SharesForNode {
                     shares: (0..weight)
                         .map(|_| ShareBatch {
-                            index: dummy_index,
                             batch: vec![zero_scalar; batch_size],
                             blinding_share: zero_scalar,
                         })
@@ -1400,7 +1408,7 @@ mod tests {
         // pending recipients still need to decode and verify their shares before relying on
         // them, but the Vote attests to the dispersal layer (Merkle roots), not the
         // decryption, so it's safe to publish immediately.
-        let mut dispersal_hashes: Vec<Digest> = Vec::with_capacity(receivers.len());
+        let mut top_roots: Vec<merkle::Node> = Vec::with_capacity(receivers.len());
         let mut verified_commons = Vec::with_capacity(receivers.len());
         let mut echo_sets = Vec::with_capacity(receivers.len());
         for r in &receivers {
@@ -1411,7 +1419,7 @@ mod tests {
                 .iter()
                 .map(|&rcpt| (rcpt, builder.create_echo(rcpt).unwrap()))
                 .collect();
-            dispersal_hashes.push(builder.dispersal_hash(vcm.common().hash().as_ref()));
+            top_roots.push(builder.top_root());
             verified_commons.push(vcm);
             echo_sets.push(echoes);
         }
@@ -1426,18 +1434,18 @@ mod tests {
             let echoes_for_i: Vec<batch_avss::Echo> =
                 echo_sets.iter().map(|em| em[&i].clone()).collect();
             let r = &receivers[i as usize];
-            let dispersal_hash = &dispersal_hashes[i as usize];
+            let top_root = &top_roots[i as usize];
             let vcm = &verified_commons[i as usize];
             let verified_echoes = echoes_for_i
                 .into_iter()
-                .map(|e| r.verify_echo(e, vcm, dispersal_hash, &confirmers).unwrap())
+                .map(|e| r.verify_echo(e, top_root, &confirmers).unwrap())
                 .collect_vec();
             let outcome = r
-                .decode_ciphertext(&verified_echoes, vcm, dispersal_hash)
+                .decode_ciphertext(&verified_echoes, vcm, top_root)
                 .unwrap();
             let decoded = assert_decoded(outcome);
             assert_valid(
-                r.decrypt_and_verify(&decoded, vcm, *dispersal_hash)
+                r.decrypt_and_verify(&decoded, vcm, top_root.clone())
                     .unwrap(),
             );
         }
@@ -1496,7 +1504,7 @@ mod tests {
         let (builder0, _vote0) = receivers[victim_id as usize]
             .echo(messages[&victim_id].clone(), &vcm0, &confirmers)
             .unwrap();
-        let cert0_dispersal_hash = builder0.dispersal_hash(vcm0.common().hash().as_ref());
+        let cert0_top_root = builder0.top_root();
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
             .iter()
             .map(|r| {
@@ -1504,16 +1512,16 @@ mod tests {
                 let (builder, _) = r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
                 let echo = builder.create_echo(victim_id).unwrap();
                 receivers[victim_id as usize]
-                    .verify_echo(echo, &vcm0, &cert0_dispersal_hash, &confirmers)
+                    .verify_echo(echo, &cert0_top_root, &confirmers)
                     .unwrap()
             })
             .collect();
         let outcome = receivers[victim_id as usize]
-            .decode_ciphertext(&echoes_for_victim, &vcm0, &cert0_dispersal_hash)
+            .decode_ciphertext(&echoes_for_victim, &vcm0, &cert0_top_root)
             .unwrap();
         let decoded = assert_decoded(outcome);
         let reveal = match receivers[victim_id as usize]
-            .decrypt_and_verify(&decoded, &vcm0, cert0_dispersal_hash)
+            .decrypt_and_verify(&decoded, &vcm0, cert0_top_root.clone())
             .unwrap()
         {
             DecryptionOutcome::Invalid(r) => r,
@@ -1527,14 +1535,9 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (builder, _vote) = r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
-                let dispersal_hash = builder.dispersal_hash(vcm.common().hash().as_ref());
-                r.handle_reveal(
-                    &reveal,
-                    &vcm,
-                    &dispersal_hash,
-                    state.ciphertext_for(r.id).clone(),
-                )
-                .unwrap()
+                let top_root = builder.top_root();
+                r.handle_reveal(&reveal, &vcm, &top_root, state.ciphertext_for(r.id).clone())
+                    .unwrap()
             })
             .collect_vec();
 
@@ -1617,7 +1620,7 @@ mod tests {
         let (builder0, _) = receivers[victim_id as usize]
             .echo(messages[&victim_id].clone(), &vcm0, &confirmers)
             .unwrap();
-        let cert0_dispersal_hash = builder0.dispersal_hash(vcm0.common().hash().as_ref());
+        let cert0_top_root = builder0.top_root();
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
             .iter()
             .take((n - f) as usize)
@@ -1626,13 +1629,13 @@ mod tests {
                 let (builder, _) = r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
                 let echo = builder.create_echo(victim_id).unwrap();
                 receivers[victim_id as usize]
-                    .verify_echo(echo, &vcm0, &cert0_dispersal_hash, &confirmers)
+                    .verify_echo(echo, &cert0_top_root, &confirmers)
                     .unwrap()
             })
             .collect();
 
         let outcome = receivers[victim_id as usize]
-            .decode_ciphertext(&echoes_for_victim, &vcm0, &cert0_dispersal_hash)
+            .decode_ciphertext(&echoes_for_victim, &vcm0, &cert0_top_root)
             .unwrap();
         let blame = match outcome {
             DecodeOutcome::InvalidDispersal(blame) => blame,
@@ -1646,11 +1649,11 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (builder, _) = r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
-                let dispersal_hash = builder.dispersal_hash(vcm.common().hash().as_ref());
+                let top_root = builder.top_root();
                 r.handle_blame(
                     &blame,
                     &vcm,
-                    &dispersal_hash,
+                    &top_root,
                     &confirmers,
                     state.ciphertext_for(r.id).clone(),
                 )

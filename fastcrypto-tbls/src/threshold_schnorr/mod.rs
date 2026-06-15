@@ -248,12 +248,16 @@ mod tests {
         let mut presigs = presigning_outputs
             .into_iter()
             .map(|(id, outputs)| {
+                // Convert the AVID-based outputs into the original batch_avss types that
+                // presigning consumes; stamp each share with its share index from `share_ids_of`.
+                let indices = nodes.share_ids_of(id).unwrap();
                 (
                     id,
-                    // Convert the AVID-based outputs into the original batch_avss types that
-                    // presigning consumes.
                     Presignatures::new(
-                        outputs.into_iter().map(Into::into).collect(),
+                        outputs
+                            .into_iter()
+                            .map(|o| o.into_legacy(&indices))
+                            .collect(),
                         batch_size_per_weight,
                         f as usize,
                     )
@@ -554,13 +558,11 @@ mod tests {
 
         let outputs = (0..n)
             .map(|i| {
-                let index = ShareIndex::new(i + 1).unwrap();
                 (0..n)
                     .map(|j| {
                         batch_avss::ReceiverOutput {
                             my_shares: SharesForNode {
                                 shares: vec![ShareBatch {
-                                    index,
                                     batch: (0..batch_size_per_weight as usize)
                                         .map(|l| nonces_for_dealer[j as usize].2[l][i as usize])
                                         .collect_vec(),
@@ -576,9 +578,14 @@ mod tests {
 
         let mut presigning = outputs
             .into_iter()
-            .map(|output| {
+            .enumerate()
+            .map(|(i, output)| {
+                let indices = [ShareIndex::new(i as u16 + 1).unwrap()];
                 Presignatures::new(
-                    output.into_iter().map(Into::into).collect(),
+                    output
+                        .into_iter()
+                        .map(|o| o.into_legacy(&indices))
+                        .collect(),
                     batch_size_per_weight,
                     f as usize,
                 )
@@ -687,13 +694,11 @@ mod tests {
 
         let outputs = (0..n)
             .map(|i| {
-                let index = ShareIndex::new(i + 1).unwrap();
                 (0..n as usize)
                     .map(|j| {
                         batch_avss::ReceiverOutput {
                             my_shares: SharesForNode {
                                 shares: vec![ShareBatch {
-                                    index,
                                     batch: (0..batch_size_per_weight as usize)
                                         .map(|l| nonces_for_dealer[j].2[l][i as usize])
                                         .collect_vec(),
@@ -709,9 +714,14 @@ mod tests {
 
         let mut presigning = outputs
             .into_iter()
-            .map(|output| {
+            .enumerate()
+            .map(|(i, output)| {
+                let indices = [ShareIndex::new(i as u16 + 1).unwrap()];
                 Presignatures::new(
-                    output.into_iter().map(Into::into).collect(),
+                    output
+                        .into_iter()
+                        .map(|o| o.into_legacy(&indices))
+                        .collect(),
                     batch_size_per_weight,
                     f as usize,
                 )
