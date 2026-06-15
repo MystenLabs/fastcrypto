@@ -157,7 +157,7 @@ pub struct RevealComplaint {
 /// [avid::Complaint].
 ///
 /// The `accuser_id` is unauthenticated at this layer. The caller is responsible for attributing
-/// the complaint to a specific sender.
+/// the complaint to a specific disperser.
 pub use avid::Complaint as BlameComplaint;
 
 /// A responder's reply to a [RevealComplaint] / [BlameComplaint]: their dealer-encrypted
@@ -397,8 +397,6 @@ impl Dealer {
 
     /// 3. Build a [PessimisticMessage] per receiver dispersing the existing ciphertexts for
     ///    the `pending_recipients` (those that didn't confirm) via AVID, keyed by recipient id.
-    ///    Every message pins the same `dispersal_hash` (the signing target for the confirmer/voter
-    ///    quorum).
     ///
     ///    Only needed for the stragglers, and if every receiver confirmed in the optimistic
     ///    phase, the pessimistic phase can be skipped entirely.
@@ -570,7 +568,8 @@ impl Receiver {
     /// [InvalidInput].
     ///
     /// `certified_top_root` should be sourced from the
-    /// [EchoBuilder] returned from [Self::echo] if this receiver got a [PessimisticMessage], or a quorum certificate over [Vote]s otherwise.
+    /// [EchoBuilder] returned from [Self::prepare_echoes] if this receiver got a
+    /// [PessimisticMessage], or a quorum certificate over [Vote]s otherwise.
     pub fn verify_echo(
         &self,
         echo: Echo,
@@ -629,10 +628,10 @@ impl Receiver {
     ///    Otherwise, yields [DecryptionOutcome::Valid] when shares verify, or
     ///    [DecryptionOutcome::Invalid] (a [RevealComplaint]) when they don't.
     ///
-    ///    The [RevealComplaint] is an encryption-layer fault carrying the accuser's ciphertext and
-    ///    an ECIES recovery package. Broadcast it only after seeing a TOB certificate for `H(v)` —
-    ///    the session is identified implicitly by the responder's local `v`, so no explicit
-    ///    `top_root` needs to be carried.
+    ///    The [RevealComplaint] is an encryption-layer fault carrying the accuser's ciphertext
+    ///    and an ECIES recovery package. Broadcast it only after seeing a TOB certificate for
+    ///    `H(v)` — the session is identified implicitly by the responder's local `v`, so no
+    ///    explicit `top_root` needs to be carried.
     pub fn decrypt_and_verify(
         &self,
         ciphertext: &Ciphertext,
@@ -955,7 +954,8 @@ impl DealerState {
 impl Parameters {
     /// Validate `(t, f)` against the given total weight `W`.
     ///   * It is possible to create a Reed-Solomon `(W, t)` coder.
-    ///   * `1 ≤ t ≤ W` — recovery threshold is well-defined and reachable by the total weight.
+    ///   * `1 ≤ t ≤ W` — recovery threshold is well-defined and reachable by the total
+    ///     weight.
     pub fn validate(&self, total_weight: u16) -> FastCryptoResult<()> {
         let Parameters { t, f } = *self;
         if f == 0 || total_weight <= 2 * f || t == 0 || t > total_weight {
@@ -1323,7 +1323,7 @@ mod tests {
         };
 
         // All receivers verify v (which they already have from the optimistic phase) and echo
-        // for I. Every receiver also emits a `Vote` over `dispersal_hash` at this point —
+        // for I. Every receiver also emits a `Vote` over `top_root` at this point —
         // pending recipients still need to decode and verify their shares before relying on
         // them, but the Vote attests to the dispersal layer (Merkle roots), not the
         // decryption, so it's safe to publish immediately.
@@ -1525,8 +1525,9 @@ mod tests {
             avss_common_message_hash: common.hash(),
         };
 
-        // Receiver 0 collects echoes for their own ciphertext from the first W − f honest senders.
-        // The last `f` senders (whose shards the dealer corrupted) are simulated as silent — their
+        // Receiver 0 collects echoes for their own ciphertext from the first W − f honest
+        // dispersers. The last `f` dispersers (whose shards the dealer corrupted) are simulated
+        // as silent — their
         // corrupted-but-proof-valid shards would otherwise be accepted into the RS decode and lead
         // straight to a consistent (but wrong) payload, masking the dealer's misbehavior. With
         // them dropped, the W − f echoes still meet the AVID reconstruction quorum, decode to a
@@ -1706,11 +1707,11 @@ mod tests {
             let f = self.params.f as usize;
             let n = self.nodes.total_weight() as usize;
             self.create_pessimistic_messages_with_mutation(state, pending, |shards_by_recipient| {
-                // Flip a byte in the shards held by the last `f` senders for receiver 0's
+                // Flip a byte in the shards held by the last `f` dispersers for receiver 0's
                 // ciphertext.
                 if let Some(shards) = shards_by_recipient.get_mut(&0) {
-                    for sender_shards in shards.iter_mut().skip(n - f) {
-                        sender_shards[0].0[0] ^= 1;
+                    for disperser_shards in shards.iter_mut().skip(n - f) {
+                        disperser_shards[0].0[0] ^= 1;
                     }
                 }
             })

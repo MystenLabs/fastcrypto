@@ -57,8 +57,7 @@ pub struct Echo {
     recipient_root_proof: merkle::MerkleProof,
 }
 
-/// An [Echo] verified by [Avid::verify_echo], paired with the validated `recipient_root` (cached
-/// so callers don't recompute it on every accessor call).
+/// An [Echo] verified by [Avid::verify_echo].
 #[derive(Clone, Debug)]
 pub struct VerifiedEcho(Echo);
 
@@ -73,9 +72,9 @@ pub struct Complaint {
 }
 
 impl Avid {
-    /// Build an AVID instance over `nodes` with Byzantine bound `f`, constructing the `(W, W − 2f)`
-    /// Reed-Solomon coder once. Fails if `f == 0`, `W ≤ 2f`, or the RS parameters are otherwise
-    /// invalid.
+    /// Build an AVID instance over `nodes` with Byzantine bound `f`, constructing the
+    /// `(W, W − 2f)` Reed-Solomon coder once. Fails if `f == 0`, `W ≤ 2f`, or the RS parameters
+    /// are otherwise invalid.
     pub fn new(nodes: Arc<Nodes<EG>>, f: u16) -> FastCryptoResult<Self> {
         let total_weight = nodes.total_weight();
         if f == 0 {
@@ -238,12 +237,12 @@ impl Avid {
         Ok(())
     }
 
-    /// 3b. Reconstruct `my_id`'s payload from a quorum of [VerifiedEcho]s, or raise a [Complaint].
-    ///     Rejects duplicate dispersers, requires `≥ W − 2f` weight (the RS-decode minimum), and
-    ///     requires every echo to carry the same view of `my_id`'s `recipient_root` (outer `Err`).
-    ///     With well-formed inputs returns `Ok(Ok(payload))` iff the shards reconstruct to a
-    ///     consistent payload that also passes `payload_ok`, otherwise `Ok(Err(Complaint))` over
-    ///     the shards.
+    /// 3b. Reconstruct `my_id`'s payload from a quorum of [VerifiedEcho]s, or raise a
+    ///     [Complaint]. Rejects duplicate dispersers, requires `≥ W − 2f` weight (the RS-decode
+    ///     minimum), and requires every echo to carry the same view of `my_id`'s
+    ///     `recipient_root` (outer `Err`). With well-formed inputs returns `Ok(Ok(payload))` iff
+    ///     the shards reconstruct to a consistent payload that also passes `payload_ok`,
+    ///     otherwise `Ok(Err(Complaint))` over the shards.
     pub fn decode_or_complain(
         &self,
         my_id: PartyId,
@@ -330,9 +329,9 @@ impl Avid {
         Some(payload)
     }
 
-    /// RS-decode a payload from authenticated shard contributions keyed by disperser. Missing dispersers
-    /// and dispersers whose shard count doesn't match their weight are treated as erasures, so
-    /// decoding fails if those exceed `2f` weight.
+    /// RS-decode a payload from authenticated shard contributions keyed by disperser. Missing
+    /// dispersers and dispersers whose shard count doesn't match their weight are treated as
+    /// erasures, so decoding fails if those exceed `2f` weight.
     fn decode(&self, shards: &BTreeMap<PartyId, AuthenticatedShards>) -> FastCryptoResult<Vec<u8>> {
         let matrix = self
             .nodes

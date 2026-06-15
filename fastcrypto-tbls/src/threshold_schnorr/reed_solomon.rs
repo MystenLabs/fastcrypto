@@ -15,7 +15,8 @@ use serde::{Deserialize, Serialize};
 /// The code is defined by the evaluation points `a` and the message length `k`.
 /// The distance is given by `n - k + 1`, where `n` is the length of `a`.
 ///
-/// The implementation follows the Gao decoding algorithm (see https://www.math.clemson.edu/~sgao/papers/RS.pdf).
+/// The implementation follows the Gao decoding algorithm
+/// (see https://www.math.clemson.edu/~sgao/papers/RS.pdf).
 pub struct RSDecoder {
     g0: Poly<S>,
     a: Vec<ShareIndex>,
@@ -101,7 +102,8 @@ impl RSDecoder {
     }
 
     /// Create a new decoder that can correct the given erasures.
-    /// Returns an InvalidInput error if the given erasures are not unique or not a subset of self.a.
+    /// Returns an InvalidInput error if the given erasures are not unique or not a subset of
+    /// self.a.
     pub fn with_erasures(&self, erasures: &[ShareIndex]) -> FastCryptoResult<RSDecoder> {
         // This follows section 4 in Gao's paper
         let erasures = erasures.iter().sorted().collect_vec();

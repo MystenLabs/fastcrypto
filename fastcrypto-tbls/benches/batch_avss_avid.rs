@@ -97,7 +97,7 @@ mod batch_avss_benches {
     /// Run a "one straggler" pessimistic round: every receiver but [STRAGGLER] is treated as
     /// having confirmed in the optimistic phase; [STRAGGLER] is the straggler. Returns `v`, the
     /// per-recipient [PessimisticMessage]s, and the [CertifiedConfirmers] (all parties except the
-    /// straggler) the receivers need to call [batch_avss::Receiver::echo].
+    /// straggler) the receivers need to call [batch_avss::Receiver::prepare_echoes].
     fn pessimistic_with_one_straggler(
         dealer: &Dealer,
         rng: &mut impl AllowedRng,
