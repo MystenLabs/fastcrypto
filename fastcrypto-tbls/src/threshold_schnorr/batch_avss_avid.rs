@@ -93,9 +93,8 @@ pub struct AvssCommonMessage {
 #[derive(Clone, Debug)]
 pub struct VerifiedAvssCommonMessage(AvssCommonMessage);
 
-/// A receiver's optimistic-phase acknowledgement that it successfully decrypted and verified its
-/// shares. The caller signs it over `H(v)` (the [AvssCommonMessage] hash) out-of-band and
-/// aggregates `≥ t + f` weight of these into the optimistic certificate.
+/// A receiver's acknowledgement that it successfully decrypted and verified its
+/// shares from the [OptimisticMessage].
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Confirm {
     pub avss_common_message_hash: Digest,
@@ -106,8 +105,7 @@ pub struct Confirm {
 ///
 /// This type is `Verified` by the caller — nothing here checks
 /// signatures. By constructing it, the caller promises it has verified each confirmer's signed
-/// [Confirm] over `avss_common_message_hash`. The certificate should hold at least `t+f`
-/// [Confirm]s.
+/// [Confirm] over `avss_common_message_hash`.
 #[derive(Clone, Debug)]
 pub struct CertifiedConfirmers {
     pub confirmers: BTreeSet<PartyId>,
@@ -131,7 +129,7 @@ pub struct Vote {
     pub top_root: merkle::Node,
 }
 
-/// The result of [Receiver::decode_ciphertext]: either a successfully reconstructed ciphertext
+/// The result of [Receiver::decode_ciphertext] so either a successfully reconstructed ciphertext
 /// whose AVID dispersal is consistent, or a [BlameComplaint] when the collected shards either fail
 /// to RS-decode or decode to a ciphertext whose re-encoding disagrees with the dealer's `r_i`.
 #[allow(clippy::large_enum_variant)]
@@ -147,11 +145,7 @@ pub enum DecryptionOutcome {
     Invalid(RevealComplaint),
 }
 
-/// A complaint by a receiver who could not decrypt or verify its shares. The carried `ciphertext`
-/// is bound to the dealer's broadcast `v` directly via `v.ciphertext_hashes[accuser_id]` (checked
-/// by [Receiver::handle_reveal]). The session is identified implicitly by the responder's local
-/// `v` — under collision resistance of Blake2b, a ciphertext hashing to `v.ciphertext_hashes[i]`
-/// is by construction the dealer's `E_i` for that session.
+/// A complaint by a receiver who could not decrypt or verify its shares.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RevealComplaint {
     pub accuser_id: PartyId,

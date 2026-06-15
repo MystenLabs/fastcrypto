@@ -86,20 +86,12 @@ impl Avid {
         Ok(Self { nodes, coder, f })
     }
 
-    /// 1. Disperse one payload per recipient. Returns one per-party [Dispersal].
+    /// 1. Disperse one payload per recipient. Returns one per-party [Dispersal]. Runs `mutate`
+    ///    over the per-recipient, per-disperser shards before the Merkle trees are built — for
+    ///    production callers pass `|_| {}`.
     ///    Fails if any of the payloads are empty.
-    pub fn disperse(
-        &self,
-        payloads: &BTreeMap<PartyId, Vec<u8>>,
-    ) -> FastCryptoResult<BTreeMap<PartyId, Dispersal>> {
-        self.disperse_with_mutation(payloads, |_| {})
-    }
-
-    /// As [Self::disperse], but runs `mutate` over the per-recipient, per-disperser shards before the
-    /// Merkle trees are built. Exposed for tests that corrupt a dispersal.
-    /// Fails if any of the payloads are empty.
     #[cfg_attr(not(test), allow(unused_variables, unused_mut))]
-    pub(crate) fn disperse_with_mutation(
+    pub(super) fn disperse_with_mutation(
         &self,
         payloads_by_recipient: &BTreeMap<PartyId, Vec<u8>>,
         mutate: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
@@ -300,10 +292,17 @@ impl Avid {
         recipient_root: &merkle::Node,
         payload_ok: impl Fn(&[u8]) -> bool,
     ) -> FastCryptoResult<bool> {
-        if complaint
-            .shards
-            .iter()
-            .any(|(&disperser, shards)| shards.verify(disperser as usize, recipient_root).is_err())
+        let shards_verify = complaint.shards.iter().all(|(&disperser, shards)| {
+            shards
+                .proof
+                .verify_proof_with_unserialized_leaf(
+                    recipient_root,
+                    &shards.shards,
+                    disperser as usize,
+                )
+                .is_ok()
+        });
+        if !shards_verify
             || self.nodes.total_weight_of(complaint.shards.keys())? < self.required_weight()
         {
             return Ok(false);
@@ -315,14 +314,17 @@ impl Avid {
 
     /// Reed-Solomon decode a payload from `shards` and check that it re-encodes to
     /// `recipient_root`. Returns `Some(payload)` iff the dispersal is consistent, `None` otherwise.
-    /// `expected_len` is the dispersed payload's expected byte length (used to remove padding).
     fn reconstruct(
         &self,
         shards: &BTreeMap<PartyId, AuthenticatedShards>,
         recipient_root: &merkle::Node,
     ) -> Option<Vec<u8>> {
         let payload = self.decode(shards).ok()?;
-        if self.recipient_root_for(&payload).ok()? != *recipient_root {
+        let re_encoded_shards = self
+            .nodes
+            .collect_to_nodes(self.coder.encode(&payload).ok()?.into_iter())
+            .ok()?;
+        if recipient_tree(&re_encoded_shards).ok()?.root() != *recipient_root {
             return None;
         }
         Some(payload)
@@ -348,31 +350,15 @@ impl Avid {
         self.coder.decode(matrix)
     }
 
-    /// RS-encode `payload` and return the resulting per-recipient Merkle root. For an honest
-    /// dealer, this matches the dispersed `recipient_root` for the recipient whose payload is
-    /// `payload`.
-    fn recipient_root_for(&self, payload: &[u8]) -> FastCryptoResult<merkle::Node> {
-        let new_shards = self
-            .nodes
-            .collect_to_nodes(self.coder.encode(payload)?.into_iter())?;
-        Ok(recipient_tree(&new_shards)?.root())
-    }
-
     fn required_weight(&self) -> u16 {
         self.nodes.total_weight() - 2 * self.f
     }
 }
 
 impl AuthenticatedShards {
-    /// Verify that `shards` are the leaf at `leaf_index` under `recipient_root`.
-    fn verify(&self, leaf_index: usize, recipient_root: &merkle::Node) -> FastCryptoResult<()> {
-        self.proof
-            .verify_proof_with_unserialized_leaf(recipient_root, &self.shards, leaf_index)
-    }
-
     /// Recompute the Merkle root implied by `shards` and the proof at `leaf_index`. Returns
     /// `InvalidInput` if bcs serialization fails or `leaf_index` is out of range.
-    pub fn recipient_root(&self, leaf_index: usize) -> FastCryptoResult<merkle::Node> {
+    fn recipient_root(&self, leaf_index: usize) -> FastCryptoResult<merkle::Node> {
         let bytes = bcs::to_bytes(&self.shards).map_err(|_| InvalidInput)?;
         self.proof
             .compute_root(&bytes, leaf_index)
@@ -383,7 +369,7 @@ impl AuthenticatedShards {
 impl Echo {
     /// Recover the implied recipient root from this echo's shards and inner Merkle proof at
     /// `disperser`.
-    pub fn recipient_root(&self) -> FastCryptoResult<merkle::Node> {
+    fn recipient_root(&self) -> FastCryptoResult<merkle::Node> {
         self.authenticated_shards
             .recipient_root(self.disperser as usize)
     }
@@ -498,7 +484,7 @@ mod tests {
             std::iter::once((recipient, payload.clone())).collect();
 
         // 1. Dealer disperses: one message per party.
-        let messages = avid.disperse(&payloads).unwrap();
+        let messages = avid.disperse_with_mutation(&payloads, |_| {}).unwrap();
         assert_eq!(messages.len(), weights.len());
 
         // 2. Each party verifies its dispersal and emits the echoes it will send to others.

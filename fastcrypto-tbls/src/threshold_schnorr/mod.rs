@@ -6,12 +6,22 @@
 //!
 //! It provides the following protocols:
 //!
-//! 1. A Distributed Key Generation (DKG) protocol to generate a shared signing key without a trusted dealer. The protocol also allows resharing of a share from a previous DKG, allowing for key rotation. This is implemented in the [avss] module.
-//! 2. A protocol to generate a batch of secret shared nonces for signing. The AVID-based implementation used by the rest of this module lives in [batch_avss_avid]; the original (pre-AVID) implementation is kept in [batch_avss].
-//! 3. A presigning protocol to create presigning tuples from the secret shared nonces. This is implemented in the [presigning] module. The presigning tuples can be created in advance of knowing the message to be signed, and one tuple is consumed for each signature.
-//! 4. A signing protocol which allows parties to create partial signatures from a presigning tuple and aggregate them into a full signature if there are enough partial signatures. This is implemented in the [signing] module.
+//! 1. A Distributed Key Generation (DKG) protocol to generate a shared signing key without a
+//!    trusted dealer. The protocol also allows resharing of a share from a previous DKG, allowing
+//!    for key rotation. This is implemented in the [avss] module.
+//! 2. A protocol to generate a batch of secret shared nonces for signing. The AVID-based
+//!    implementation used by the rest of this module lives in [batch_avss_avid]; the original
+//!    (pre-AVID) implementation is kept in [batch_avss].
+//! 3. A presigning protocol to create presigning tuples from the secret shared nonces. This is
+//!    implemented in the [presigning] module. The presigning tuples can be created in advance of
+//!    knowing the message to be signed, and one tuple is consumed for each signature.
+//! 4. A signing protocol which allows parties to create partial signatures from a presigning
+//!    tuple and aggregate them into a full signature if there are enough partial signatures. This
+//!    is implemented in the [signing] module.
 //!
-//! For both the DKG and nonce generation protocols, it is assumed that each party has an encryption key pair (ECIES) and these public keys are known to all parties. These can be reused for all instances of the protocols.
+//! For both the DKG and nonce generation protocols, it is assumed that each party has an
+//! encryption key pair (ECIES) and these public keys are known to all parties. These can be
+//! reused for all instances of the protocols.
 //!
 //! The thresholds are defined as follows:
 //! * <i>n</i> = total number of parties
@@ -29,7 +39,7 @@ use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::GroupElement;
 use std::fmt::{Display, Formatter};
 
-pub mod avid;
+mod avid;
 pub mod avss;
 pub mod batch_avss;
 pub mod batch_avss_avid;
@@ -48,7 +58,8 @@ pub type G = groups::secp256k1::ProjectivePoint;
 /// Default scalar
 pub type S = <G as GroupElement>::ScalarType;
 
-/// The group used for multi-recipient encryption. Any group that has a secure hash-to-group can be used here.
+/// The group used for multi-recipient encryption. Any group that has a secure hash-to-group can
+/// be used here.
 type EG = RistrettoPoint;
 
 /// An address on the Sui network.
