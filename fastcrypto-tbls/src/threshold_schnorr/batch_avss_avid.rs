@@ -269,7 +269,7 @@ impl Dealer {
     ) -> FastCryptoResult<Self> {
         params.validate(nodes.total_weight())?;
         let nodes = Arc::new(nodes);
-        let avid = avid::Avid::new(Arc::clone(&nodes), params)?;
+        let avid = avid::Avid::new(Arc::clone(&nodes), params.f)?;
         // Each dealer deals a number of nonces proportional to their weight.
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
         Ok(Self {
@@ -370,7 +370,7 @@ impl Dealer {
         );
         let (ciphertext_shared, ciphertexts) = encryption.into_parts();
 
-        let ciphertext_hashes = ciphertexts.iter().map(hash_ciphertext).collect_vec();
+        let ciphertext_hashes = ciphertexts.iter().map(|c| hash_bytes(&c.0)).collect_vec();
 
         // "response" polynomial from https://eprint.iacr.org/2023/536.pdf
         let challenge = compute_challenge(
@@ -480,7 +480,7 @@ impl Receiver {
 
         params.validate(nodes.total_weight())?;
         let nodes = Arc::new(nodes);
-        let avid = avid::Avid::new(nodes.clone(), params)?;
+        let avid = avid::Avid::new(nodes.clone(), params.f)?;
 
         Ok(Self {
             id,
@@ -603,10 +603,12 @@ impl Receiver {
         )
     }
 
-    /// 5. Reconstruct this receiver's ciphertext from a quorum of [VerifiedEcho]s (`≥ t`
-    ///    weight). Returns [DecodeOutcome::Decoded] when the dispersal is consistent and the
-    ///    reconstructed ciphertext matches `v`, or [DecodeOutcome::InvalidDispersal] (a
-    ///    [BlameComplaint]) otherwise.
+    /// 5. Reconstruct this receiver's ciphertext from `W − 2f` weight of [VerifiedEcho]s — the
+    ///    AVID decode minimum. Callers should invoke this as soon as `W − 2f` weight has
+    ///    accumulated and drop later-arriving echoes (extra shards don't change the outcome).
+    ///    Returns [DecodeOutcome::Decoded] when the dispersal is consistent and the reconstructed
+    ///    ciphertext matches `v`, or [DecodeOutcome::InvalidDispersal] (a [BlameComplaint])
+    ///    otherwise.
     ///
     ///    The [BlameComplaint] is a dispersal-layer fault. Hold it until the matching `H(v)` is
     ///    certified on the TOB, or discard it if a different `v` wins.
@@ -702,7 +704,7 @@ impl Receiver {
             .ciphertext_hashes
             .get(self.id as usize)
             .ok_or(InvalidMessage)?;
-        if hash_ciphertext(ciphertext) != *expected_hash {
+        if hash_bytes(&ciphertext.0) != *expected_hash {
             warn!(
                 "batch_avss check_ciphertext_hash: ciphertext hash does not match ciphertext_hashes[{}]",
                 self.id,
@@ -779,7 +781,7 @@ impl Receiver {
         let expected_ciphertext_hash = common_message
             .ciphertext_hash(*accuser_id)
             .ok_or(InvalidProof)?;
-        if hash_ciphertext(reveal_ciphertext) != *expected_ciphertext_hash {
+        if hash_bytes(&reveal_ciphertext.0) != *expected_ciphertext_hash {
             return Err(InvalidProof);
         }
         let accuser = self.nodes.node_id_to_node(*accuser_id)?;
@@ -893,7 +895,7 @@ impl Receiver {
         let expected_hash = common_message
             .ciphertext_hash(responder_id)
             .ok_or(InvalidProof)?;
-        if hash_ciphertext(&ciphertext) != *expected_hash {
+        if hash_bytes(&ciphertext.0) != *expected_hash {
             return Err(InvalidProof);
         }
         let responder = self.nodes.node_id_to_node(responder_id)?;
@@ -1217,11 +1219,6 @@ impl SharesForNode {
 
 impl BCSSerialized for SharesForNode {}
 
-/// Blake2b-256 hash of a per-recipient ciphertext.
-fn hash_ciphertext(ciphertext: &Ciphertext) -> Digest {
-    hash_bytes(&ciphertext.0)
-}
-
 /// Blake2b-256 hash of raw ciphertext bytes.
 fn hash_bytes(bytes: &[u8]) -> Digest {
     let mut hasher = Blake2b256::new();
@@ -1382,8 +1379,8 @@ mod tests {
                 .unwrap();
             confirms.insert(*id, confirm);
         }
-        // Optimistic-certificate sanity: `≥ t + f` weight of Confirms (distinct from `echo`'s own
-        // `W − f` confirmer-quorum check). Here 5 confirmers @ weight 1 = 5 >= t + f = 5.
+        // Optimistic-certificate sanity: `≥ t + f` weight of Confirms (matches `echo`'s own
+        // confirmer-quorum check at line 553). Here 5 confirmers @ weight 1 = 5 >= t + f = 5.
         assert!(confirms.len() as u16 >= t + f);
 
         // Pessimistic phase: dispersal for parties in I = {5, 6}.
@@ -1607,10 +1604,13 @@ mod tests {
             avss_common_message_hash: common.hash(),
         };
 
-        // Receiver 0 collects echoes for their own ciphertext. With f senders' shards corrupted,
-        // the W − f remaining honest echoes still fall short of the (W − 2f) RS-decode quorum
-        // when combined with the corrupted ones — so we simulate the last `f` senders being
-        // silent (their corrupted shards would otherwise short-circuit the decoder).
+        // Receiver 0 collects echoes for their own ciphertext from the first W − f honest senders.
+        // The last `f` senders (whose shards the dealer corrupted) are simulated as silent — their
+        // corrupted-but-proof-valid shards would otherwise be accepted into the RS decode and lead
+        // straight to a consistent (but wrong) payload, masking the dealer's misbehavior. With
+        // them dropped, the W − f echoes still meet the AVID reconstruction quorum, decode to a
+        // payload that fails the dealer's `ciphertext_hashes[victim_id]` check, and yield the
+        // blame complaint the test verifies.
         let vcm0 = receivers[victim_id as usize]
             .verify_common_message(common.clone())
             .unwrap();
