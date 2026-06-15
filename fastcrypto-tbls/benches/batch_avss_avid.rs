@@ -184,7 +184,12 @@ mod batch_avss_benches {
                 let message = &messages[&1];
                 echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.echo(message.clone(), &vcm, &confirmers).unwrap()),
+                    |b| {
+                        b.iter(|| {
+                            r1.prepare_echoes(message.clone(), &vcm, &confirmers)
+                                .unwrap()
+                        })
+                    },
                 );
             }
         }
@@ -206,10 +211,12 @@ mod batch_avss_benches {
                     pessimistic_with_one_straggler(&d0, &mut thread_rng());
                 let vcm0 = r0.verify_common_message(common.clone()).unwrap();
                 let vcm1 = r1.verify_common_message(common).unwrap();
-                let (builder0, _) = r0.echo(messages[&0].clone(), &vcm0, &confirmers).unwrap();
+                let (builder0, _) = r0
+                    .prepare_echoes(messages[&0].clone(), &vcm0, &confirmers)
+                    .unwrap();
                 let echo_for_r1 = builder0.create_echo(1).unwrap();
                 let (builder1, _) = r1
-                    .echo(messages[&r1.id].clone(), &vcm1, &confirmers)
+                    .prepare_echoes(messages[&r1.id].clone(), &vcm1, &confirmers)
                     .unwrap();
                 let top_root = builder1.top_root();
                 verify_echo.bench_function(
@@ -245,8 +252,9 @@ mod batch_avss_benches {
                     .iter()
                     .map(|r| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
-                        let (builder, _) =
-                            r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
+                        let (builder, _) = r
+                            .prepare_echoes(messages[&r.id].clone(), &vcm, &confirmers)
+                            .unwrap();
                         if r.id == 1 {
                             top_root = Some(builder.top_root());
                         }
@@ -302,8 +310,9 @@ mod batch_avss_benches {
                     .iter()
                     .map(|r| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
-                        let (builder, _) =
-                            r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
+                        let (builder, _) = r
+                            .prepare_echoes(messages[&r.id].clone(), &vcm, &confirmers)
+                            .unwrap();
                         if r.id == 1 {
                             top_root = Some(builder.top_root());
                         }
@@ -377,8 +386,9 @@ mod batch_avss_benches {
                             .iter()
                             .map(|r| {
                                 let vcm = r.verify_common_message(common.clone()).unwrap();
-                                let (builder, _) =
-                                    r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
+                                let (builder, _) = r
+                                    .prepare_echoes(messages[&r.id].clone(), &vcm, &confirmers)
+                                    .unwrap();
                                 if r.id == 1 {
                                     top_root = Some(builder.top_root());
                                 }

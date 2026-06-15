@@ -528,7 +528,7 @@ impl Receiver {
     /// The caller should verify the certificate over the [Confirm]s from the optimistic phase
     /// before calling this function and form a [CertifiedConfirmers] with the `id`s of the
     /// confirmers and the signing target.
-    pub fn echo(
+    pub fn prepare_echoes(
         &self,
         message: PessimisticMessage,
         verified_common: &VerifiedAvssCommonMessage,
@@ -1332,7 +1332,9 @@ mod tests {
         let mut echo_sets = Vec::with_capacity(receivers.len());
         for r in &receivers {
             let vcm = r.verify_common_message(state.avss_common.clone()).unwrap();
-            let (builder, _vote) = r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
+            let (builder, _vote) = r
+                .prepare_echoes(messages[&r.id].clone(), &vcm, &confirmers)
+                .unwrap();
             let echoes: BTreeMap<PartyId, avid::Echo> = builder
                 .recipients()
                 .iter()
@@ -1418,14 +1420,16 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (builder0, _vote0) = receivers[victim_id as usize]
-            .echo(messages[&victim_id].clone(), &vcm0, &confirmers)
+            .prepare_echoes(messages[&victim_id].clone(), &vcm0, &confirmers)
             .unwrap();
         let cert0_top_root = builder0.top_root();
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
             .iter()
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
-                let (builder, _) = r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
+                let (builder, _) = r
+                    .prepare_echoes(messages[&r.id].clone(), &vcm, &confirmers)
+                    .unwrap();
                 let echo = builder.create_echo(victim_id).unwrap();
                 receivers[victim_id as usize]
                     .verify_echo(echo, &cert0_top_root, &confirmers)
@@ -1532,7 +1536,7 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (builder0, _) = receivers[victim_id as usize]
-            .echo(messages[&victim_id].clone(), &vcm0, &confirmers)
+            .prepare_echoes(messages[&victim_id].clone(), &vcm0, &confirmers)
             .unwrap();
         let cert0_top_root = builder0.top_root();
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
@@ -1540,7 +1544,9 @@ mod tests {
             .take((n - f) as usize)
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
-                let (builder, _) = r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
+                let (builder, _) = r
+                    .prepare_echoes(messages[&r.id].clone(), &vcm, &confirmers)
+                    .unwrap();
                 let echo = builder.create_echo(victim_id).unwrap();
                 receivers[victim_id as usize]
                     .verify_echo(echo, &cert0_top_root, &confirmers)
@@ -1562,7 +1568,9 @@ mod tests {
             .filter(|r| r.id != victim_id)
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
-                let (builder, _) = r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
+                let (builder, _) = r
+                    .prepare_echoes(messages[&r.id].clone(), &vcm, &confirmers)
+                    .unwrap();
                 let top_root = builder.top_root();
                 r.handle_blame(
                     &blame,
