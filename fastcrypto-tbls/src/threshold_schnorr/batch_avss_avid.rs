@@ -150,13 +150,14 @@ pub enum DecryptionOutcome {
 
 /// A complaint by a receiver who could not decrypt or verify its shares. The carried `ciphertext`
 /// is bound to the dealer's broadcast `v` directly via `v.ciphertext_hashes[accuser_id]` (checked
-/// by [Receiver::handle_reveal]).
+/// by [Receiver::handle_reveal]). The session is identified implicitly by the responder's local
+/// `v` — under collision resistance of Blake2b, a ciphertext hashing to `v.ciphertext_hashes[i]`
+/// is by construction the dealer's `E_i` for that session.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RevealComplaint {
     pub accuser_id: PartyId,
     pub proof: recovery_proof::RecoveryProof,
     pub ciphertext: Ciphertext,
-    pub top_root: merkle::Node,
 }
 
 /// A complaint by a receiver who found the AVID dispersal inconsistent — a generic AVID
@@ -524,10 +525,10 @@ impl Receiver {
     }
 
     /// 4. Verify the AVID-phase [PessimisticMessage] against a [VerifiedAvssCommonMessage] and
-    ///    emit an [EchoBuilder] which can build an echo per pending recipient on demand. The
+    ///    emit an [EchoBuilder] which can build [avid::Echo]s on demand. The
     ///    receiver is expected to already hold the [VerifiedAvssCommonMessage] from the optimistic
     ///    phase or to have fetched it from a confirming party. The confirming parties should be
-    ///    known from the published certificate. Returns also a [Vote] over the `dispersal_hash`.
+    ///    known from the published certificate. Returns also a [Vote] over the `top_root`.
     ///    Pending recipients can publish the [Vote] immediately, before they've run
     ///    [Self::decrypt_and_verify] on their own ciphertext.
     ///
@@ -540,9 +541,6 @@ impl Receiver {
         verified_common: &VerifiedAvssCommonMessage,
         verified_confirmers: &CertifiedConfirmers,
     ) -> FastCryptoResult<(EchoBuilder, Vote)> {
-        // Require `t + f` weight of confirmers so that at least `t` of them are honest — the
-        // RS reconstruction quorum. This guarantees the dispersed `v` is backed by enough honest
-        // parties to answer complaints and let stragglers recover.
         let required_weight_of_confirmers = self.params.t + self.params.f;
         if self
             .nodes
@@ -575,11 +573,11 @@ impl Receiver {
     /// [Self::decode_ciphertext].
     ///
     /// Precondition: `self.id` is one of the message's dispersal recipients. Echoes are only
-    /// meaningful for pending recipients; confirmers calling this for themselves get
+    /// meaningful for pending recipients, so confirmers calling this for themselves get
     /// [InvalidInput].
     ///
-    /// `expected_top_root` should be sourced from a quorum certificate over [Vote]s, or matched
-    /// against the dealer's [avid::Dispersal] message.
+    /// `certified_top_root` should be sourced from the 
+    /// [EchoBuilder] returned from [Self::echo] if this receiver got a [PessimisticMessage], or a quorum certificate over [Vote]s otherwise.
     pub fn verify_echo(
         &self,
         echo: Echo,
@@ -644,19 +642,16 @@ impl Receiver {
     /// 6. Decrypt and verify the receiver's own shares from a successfully decoded ciphertext.
     ///    Rejects with [InvalidMessage] if the ciphertext doesn't match the hash pinned in `v`.
     ///    Otherwise, yields [DecryptionOutcome::Valid] when shares verify, or
-    ///    [DecryptionOutcome::Invalid] (a [RevealComplaint] bound to `dispersal_hash`) when they
-    ///    don't.
+    ///    [DecryptionOutcome::Invalid] (a [RevealComplaint]) when they don't.
     ///
     ///    The [RevealComplaint] is an encryption-layer fault carrying the accuser's ciphertext and
-    ///    an ECIES recovery package. Broadcast it only after seeing a TOB certificate for `H(v)`.
-    ///
-    ///    `top_root` is stamped into the [RevealComplaint] and must come from the published
-    ///    certificate.
+    ///    an ECIES recovery package. Broadcast it only after seeing a TOB certificate for `H(v)` —
+    ///    the session is identified implicitly by the responder's local `v`, so no explicit
+    ///    `top_root` needs to be carried.
     pub fn decrypt_and_verify(
         &self,
         ciphertext: &Ciphertext,
         common_message: &VerifiedAvssCommonMessage,
-        top_root: merkle::Node,
     ) -> FastCryptoResult<DecryptionOutcome> {
         self.check_ciphertext_hash(ciphertext, common_message)?;
         match self.decrypt_and_verify_shares(ciphertext, common_message) {
@@ -676,7 +671,6 @@ impl Receiver {
                         &mut rand::thread_rng(),
                     ),
                     ciphertext: ciphertext.clone(),
-                    top_root,
                 }))
             }
         }
@@ -741,14 +735,15 @@ impl Receiver {
         })
     }
 
-    /// 7a. Validate a [RevealComplaint] complaint and respond with this party's own shares so
-    ///     the accuser can recover. Accepts iff the ciphertext is bound to the dealer's broadcast
-    ///     and the recovery package decrypts it to invalid shares.
+    /// 7a. Validate a [RevealComplaint] and respond with this party's own shares so the accuser
+    ///     can recover. Accepts iff the ciphertext is bound to the dealer's broadcast `v` (via
+    ///     `v.ciphertext_hashes[accuser_id]`) and the recovery package decrypts it to invalid
+    ///     shares. The session is identified implicitly by `verified_common` — under collision
+    ///     resistance the hash check rejects any complaint not for this `v`.
     pub fn handle_reveal(
         &self,
         reveal: &RevealComplaint,
         verified_common: &VerifiedAvssCommonMessage,
-        certified_top_root: &merkle::Node,
         own_ciphertext: Ciphertext,
     ) -> FastCryptoResult<ComplaintResponse> {
         let common_message = verified_common.common();
@@ -759,12 +754,8 @@ impl Receiver {
             accuser_id,
             proof,
             ciphertext: reveal_ciphertext,
-            top_root,
         } = reveal;
 
-        if top_root != certified_top_root {
-            return Err(InvalidProof);
-        }
         // Bind the carried ciphertext to the dealer's broadcast `v` directly via its pinned hash.
         // This is the only ciphertext-binding step needed: together with the recovery-proof check
         // below, it proves the dealer dealt invalid shares to `accuser_id` in `v`.
@@ -1444,10 +1435,7 @@ mod tests {
                 .decode_ciphertext(&verified_echoes, vcm, top_root)
                 .unwrap();
             let decoded = assert_decoded(outcome);
-            assert_valid(
-                r.decrypt_and_verify(&decoded, vcm, top_root.clone())
-                    .unwrap(),
-            );
+            assert_valid(r.decrypt_and_verify(&decoded, vcm).unwrap());
         }
     }
 
@@ -1521,7 +1509,7 @@ mod tests {
             .unwrap();
         let decoded = assert_decoded(outcome);
         let reveal = match receivers[victim_id as usize]
-            .decrypt_and_verify(&decoded, &vcm0, cert0_top_root.clone())
+            .decrypt_and_verify(&decoded, &vcm0)
             .unwrap()
         {
             DecryptionOutcome::Invalid(r) => r,
@@ -1534,9 +1522,7 @@ mod tests {
             .filter(|r| r.id != victim_id)
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
-                let (builder, _vote) = r.echo(messages[&r.id].clone(), &vcm, &confirmers).unwrap();
-                let top_root = builder.top_root();
-                r.handle_reveal(&reveal, &vcm, &top_root, state.ciphertext_for(r.id).clone())
+                r.handle_reveal(&reveal, &vcm, state.ciphertext_for(r.id).clone())
                     .unwrap()
             })
             .collect_vec();

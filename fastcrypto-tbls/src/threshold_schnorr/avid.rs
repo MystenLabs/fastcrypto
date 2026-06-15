@@ -10,7 +10,6 @@
 use crate::nodes::{Nodes, PartyId};
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
 use crate::threshold_schnorr::EG;
-use crate::types::get_uniform_value;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage, NotEnoughWeight};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::hash::Blake2b256;
@@ -61,10 +60,7 @@ pub struct Echo {
 /// An [Echo] verified by [Avid::verify_echo], paired with the validated `recipient_root` (cached
 /// so callers don't recompute it on every accessor call).
 #[derive(Clone, Debug)]
-pub struct VerifiedEcho {
-    echo: Echo,
-    recipient_root: merkle::Node,
-}
+pub struct VerifiedEcho(Echo);
 
 /// A complaint that a dispersal is inconsistent, carrying the shards the accuser collected so that
 /// others can re-run the check.
@@ -178,7 +174,7 @@ impl Avid {
             .iter()
             .map(|(&i, shards)| {
                 shards
-                    .implied_root(disperser as usize)
+                    .recipient_root(disperser as usize)
                     .tap_err(|err| {
                         warn!("avid echo: implied root failed at leaf {disperser}: {err:?}")
                     })
@@ -213,7 +209,7 @@ impl Avid {
             .ok_or(InvalidInput)?;
         let recipient_root = echo
             .authenticated_shards
-            .implied_root(echo.disperser as usize)?;
+            .recipient_root(echo.disperser as usize)?;
         let leaf_bytes = bcs::to_bytes(&recipient_root).map_err(|_| InvalidInput)?;
         let computed_top_root = echo
             .recipient_root_proof
@@ -222,10 +218,7 @@ impl Avid {
         if computed_top_root != *certified_top_root {
             return Err(InvalidMessage);
         }
-        Ok(VerifiedEcho {
-            echo,
-            recipient_root,
-        })
+        Ok(VerifiedEcho(echo))
     }
 
     /// Authenticate `recipient_root` as `recipient`'s leaf in the top tree pinned by
@@ -267,29 +260,28 @@ impl Avid {
         top_root: merkle::Node,
         payload_ok: impl Fn(&[u8]) -> bool,
     ) -> FastCryptoResult<Result<Vec<u8>, Complaint>> {
-        if !echoes.iter().map(|e| e.echo.disperser).all_unique() {
+        if echoes.is_empty() || !echoes.iter().map(|e| e.0.disperser).all_unique() {
             return Err(InvalidInput);
         }
         let required = self.required_weight();
         if self
             .nodes
-            .total_weight_of(echoes.iter().map(|e| &e.echo.disperser))?
+            .total_weight_of(echoes.iter().map(|e| &e.0.disperser))?
             < required
         {
             return Err(NotEnoughWeight(required as usize));
         }
-        let recipient_root =
-            get_uniform_value(echoes.iter().map(|e| &e.recipient_root)).ok_or(InvalidInput)?;
         // All verified echoes carry the same inclusion proof for `my_id`'s leaf in the top tree
         // (they all bind to the same `top_root`). Take any one to stamp into a Complaint.
-        let accuser_recipient_root_proof = echoes[0].echo.recipient_root_proof.clone();
+        let recipient_root = echoes[0].0.recipient_root()?;
+        let accuser_recipient_root_proof = echoes[0].0.recipient_root_proof.clone();
         let shards: BTreeMap<PartyId, AuthenticatedShards> = echoes
             .iter()
             .cloned()
-            .map(|e| (e.echo.disperser, e.echo.authenticated_shards))
+            .map(|e| (e.0.disperser, e.0.authenticated_shards))
             .collect();
         Ok(
-            match self.reconstruct(&shards, recipient_root, expected_len) {
+            match self.reconstruct(&shards, &recipient_root, expected_len) {
                 Some(payload) if payload_ok(&payload) => Ok(payload),
                 _ => Err(Complaint {
                     accuser_id: my_id,
@@ -389,7 +381,7 @@ impl AuthenticatedShards {
 
     /// Recompute the Merkle root implied by `shards` and the proof at `leaf_index`. Returns
     /// `InvalidInput` if bcs serialization fails or `leaf_index` is out of range.
-    pub fn implied_root(&self, leaf_index: usize) -> FastCryptoResult<merkle::Node> {
+    pub fn recipient_root(&self, leaf_index: usize) -> FastCryptoResult<merkle::Node> {
         let bytes = bcs::to_bytes(&self.shards).map_err(|_| InvalidInput)?;
         self.proof
             .compute_root(&bytes, leaf_index)
@@ -400,9 +392,9 @@ impl AuthenticatedShards {
 impl Echo {
     /// Recover the implied recipient root from this echo's shards and inner Merkle proof at
     /// `disperser`.
-    pub fn implied_recipient_root(&self) -> FastCryptoResult<merkle::Node> {
+    pub fn recipient_root(&self) -> FastCryptoResult<merkle::Node> {
         self.authenticated_shards
-            .implied_root(self.disperser as usize)
+            .recipient_root(self.disperser as usize)
     }
 }
 
@@ -414,7 +406,7 @@ impl Complaint {
     /// it.
     pub fn derive_accuser_recipient_root(&self) -> FastCryptoResult<merkle::Node> {
         let (&disperser, auth) = self.shards.iter().next().ok_or(InvalidInput)?;
-        auth.implied_root(disperser as usize)
+        auth.recipient_root(disperser as usize)
     }
 }
 
@@ -536,7 +528,7 @@ mod tests {
         let recipients: BTreeSet<PartyId> = party_echoes[0].keys().copied().collect();
         let recipient_roots: BTreeMap<PartyId, merkle::Node> = party_echoes[0]
             .iter()
-            .map(|(&i, e)| (i, e.implied_recipient_root().unwrap()))
+            .map(|(&i, e)| (i, e.recipient_root().unwrap()))
             .collect();
         let (top_tree, _) = super::build_top_tree(&recipient_roots);
         let top_root = top_tree.root();
@@ -596,7 +588,7 @@ mod tests {
         let recipients: BTreeSet<PartyId> = party_echoes[0].keys().copied().collect();
         let recipient_roots: BTreeMap<PartyId, merkle::Node> = party_echoes[0]
             .iter()
-            .map(|(&i, e)| (i, e.implied_recipient_root().unwrap()))
+            .map(|(&i, e)| (i, e.recipient_root().unwrap()))
             .collect();
         let (top_tree, _) = super::build_top_tree(&recipient_roots);
         let top_root = top_tree.root();
@@ -614,7 +606,7 @@ mod tests {
             .collect();
 
         // ... but they don't reconstruct consistently, so it raises a Complaint.
-        let recipient_root = echoes[0].recipient_root.clone();
+        let recipient_root = echoes[0].0.recipient_root().unwrap();
         let complaint = avid
             .decode_or_complain(recipient, &echoes, payload.len(), top_root, |_| true)
             .unwrap()

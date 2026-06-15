@@ -335,12 +335,7 @@ mod batch_avss_benches {
 
                 verify_decrypt.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| {
-                        b.iter(|| {
-                            r1.decrypt_and_verify(&ciphertext, &vcm1, top_root.clone())
-                                .unwrap()
-                        })
-                    },
+                    |b| b.iter(|| r1.decrypt_and_verify(&ciphertext, &vcm1).unwrap()),
                 );
             }
         }
@@ -412,9 +407,7 @@ mod batch_avss_benches {
                             _ => panic!("expected Decoded outcome"),
                         };
                         let output = assert_valid_batch(
-                            receivers[1]
-                                .decrypt_and_verify(&ciphertext, &vcm1, top_root)
-                                .unwrap(),
+                            receivers[1].decrypt_and_verify(&ciphertext, &vcm1).unwrap(),
                         );
                         // presigning consumes the legacy `batch_avss` output types; convert here
                         // while `receivers[1]` is still in scope to derive the share indices.
