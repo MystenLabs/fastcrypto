@@ -43,13 +43,12 @@ pub struct AuthenticatedShards {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Vote {
-    top_root: merkle::Node,
+    pub top_root: merkle::Node,
 }
 
 /// A precomputed dispersal-side cache produced by [Avid::prepare_echoes] to build [Echo]s.
 pub struct EchoBuilder {
     dispersal: Dispersal,
-    top_root: merkle::Node,
 }
 
 /// One disperser's echo to a single recipient.
@@ -148,8 +147,7 @@ impl Avid {
     ///    agree on a single root.
     ///
     /// Returns an [EchoBuilder] that can produce individual [Echo]s on demand via
-    /// [EchoBuilder::create_echo]. Also returns a [Vote] that endorses the `top_root` commitment
-    /// to the dispersal.
+    /// [EchoBuilder::create_echo].
     pub fn prepare_echoes(
         &self,
         my_id: PartyId,
@@ -174,13 +172,7 @@ impl Avid {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
         let top_root = get_uniform_value(implied_roots).ok_or(InvalidMessage)?;
-        Ok((
-            EchoBuilder {
-                dispersal,
-                top_root: top_root.clone(),
-            },
-            Vote { top_root },
-        ))
+        Ok((EchoBuilder { dispersal }, Vote { top_root }))
     }
 
     /// 3a. Verify an [Echo] addressed to `receiver`.
@@ -312,10 +304,6 @@ impl EchoBuilder {
         self.dispersal.keys().copied().collect()
     }
 
-    pub fn top_root(&self) -> merkle::Node {
-        self.top_root.clone()
-    }
-
     /// Build an [Echo] for `recipient`. Returns [InvalidInput] if `recipient` isn't in the
     /// prepared dispersal.
     pub fn create_echo(&self, recipient: PartyId) -> FastCryptoResult<Echo> {
@@ -376,9 +364,9 @@ mod tests {
         let party_echoes: Vec<(PartyId, BTreeMap<PartyId, Echo>)> = messages
             .into_iter()
             .map(|(j, m)| {
-                let (builder, _) = avid.prepare_echoes(j, m).unwrap();
+                let (builder, vote) = avid.prepare_echoes(j, m).unwrap();
                 if top_root.is_none() {
-                    top_root = Some(builder.top_root());
+                    top_root = Some(vote.top_root);
                     recipients = builder.recipients();
                 }
                 let echoes = builder
@@ -432,9 +420,9 @@ mod tests {
         let party_echoes: Vec<(PartyId, BTreeMap<PartyId, Echo>)> = messages
             .into_iter()
             .map(|(j, m)| {
-                let (builder, _) = avid.prepare_echoes(j, m).unwrap();
+                let (builder, vote) = avid.prepare_echoes(j, m).unwrap();
                 if top_root.is_none() {
-                    top_root = Some(builder.top_root());
+                    top_root = Some(vote.top_root);
                     recipients = builder.recipients();
                 }
                 let echoes = builder

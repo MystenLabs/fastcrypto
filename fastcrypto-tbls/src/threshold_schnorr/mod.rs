@@ -247,7 +247,7 @@ mod tests {
                 .collect::<Vec<_>>();
 
             // Optimistic phase: every receiver confirms, so no pessimistic AVID phase is needed.
-            let (_, opt_messages) = dealer.create_optimistic_messages(&mut rng).unwrap();
+            let (_, opt_messages) = dealer.create_avss_messages(&mut rng).unwrap();
             for r in &receivers {
                 let (output, _confirm, _verified_common) =
                     r.process_optimistic(&opt_messages[&r.id]).unwrap();
