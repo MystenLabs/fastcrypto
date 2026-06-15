@@ -49,6 +49,7 @@ pub struct Vote {
 /// A precomputed dispersal-side cache produced by [Avid::prepare_echoes] to build [Echo]s.
 pub struct EchoBuilder {
     dispersal: Dispersal,
+    pub top_root: merkle::Node,
 }
 
 /// One disperser's echo to a single recipient.
@@ -147,7 +148,8 @@ impl Avid {
     ///    agree on a single root.
     ///
     /// Returns an [EchoBuilder] that can produce individual [Echo]s on demand via
-    /// [EchoBuilder::create_echo].
+    /// [EchoBuilder::create_echo] and a [Vote] to return to the disperser. When the dealer
+    /// has `W-f` weight of votes, he can publish the certified `top_root`.
     pub fn prepare_echoes(
         &self,
         my_id: PartyId,
@@ -172,10 +174,10 @@ impl Avid {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
         let top_root = get_uniform_value(implied_roots).ok_or(InvalidMessage)?;
-        Ok((EchoBuilder { dispersal }, Vote { top_root }))
+        Ok((EchoBuilder { dispersal, top_root: top_root.clone() }, Vote { top_root }))
     }
 
-    /// 3a. Verify an [Echo] addressed to `receiver`.
+    /// 3a. Verify an [Echo] addressed to `receiver`. Use the published `certified_top_root`.
     pub fn verify_echo(
         &self,
         echo: Echo,
@@ -236,8 +238,7 @@ impl Avid {
     /// Check if `complaint` is a valid blame against the dispersal: its shards carry valid Merkle
     /// proofs under `top_root`, contribute `≥ W − 2f` weight, and do **not** reconstruct to a
     /// consistent payload that passes `payload_ok`. Returns `Ok(false)` for a malformed or
-    /// unfounded complaint. `accuser_id` and `top_root` are caller-supplied: this layer doesn't
-    /// authenticate the accuser or bind the complaint to a session.
+    /// unfounded complaint.
     pub fn complaint_is_valid(
         &self,
         complaint: &Complaint,

@@ -48,8 +48,7 @@ pub struct Parameters {
     pub f: u16,
 }
 
-/// The AVSS dealer. Exactly one per session; creates the shares and broadcasts the encrypted
-/// shares to every receiver.
+/// The Dealer for the protocol. Exactly one per instance.
 #[allow(dead_code)]
 pub struct Dealer {
     params: Parameters,
@@ -59,7 +58,7 @@ pub struct Dealer {
     avid: avid::Avid,
 }
 
-/// An AVSS receiver, holding the shares the [Dealer] dealt to it.
+/// One of the receivers for the protocol. One per node in `nodes`.
 #[allow(dead_code)]
 pub struct Receiver {
     pub id: PartyId,
@@ -78,8 +77,7 @@ pub struct AvssMessage {
     pub ciphertext: Ciphertext,
 }
 
-/// The shared part of the dealer's broadcast (`v`) — identical for every receiver in both
-/// phases.
+/// The shared part of the dealer's AVSS broadcast.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AvssCommonMessage {
     full_public_keys: Vec<G>,
@@ -103,9 +101,8 @@ pub struct AvssVote {
 /// The set of voters from the optimistic phase together with a hash of the common message they
 /// attested to.
 ///
-/// This type is `Verified` by the caller — nothing here checks
-/// signatures. By constructing it, the caller promises it has verified each voter's signed
-/// [AvssVote] over `common_message_hash`.
+/// This type is verified by the caller. By constructing it, the caller promises it has verified
+/// each voter's signed [AvssVote] over `common_message_hash`.
 #[derive(Clone, Debug)]
 pub struct UnsignedAvssCert {
     pub voters: BTreeSet<PartyId>,
@@ -262,8 +259,8 @@ impl Dealer {
         })
     }
 
-    /// 1. Build the optimistic-phase messages: encrypt shares for every receiver and bundle each
-    ///    receiver's ciphertext with the [AvssCommonMessage], `v`, as an [AvssMessage].
+    /// 1. Build the optimistic-phase messages. Encrypt shares for every receiver and bundle each
+    ///    receiver's ciphertext with the [AvssCommonMessage] as an [AvssMessage] per receiver.
     ///    Returns also a [DealerState] that can be used to produce the pessimistic-phase messages
     ///    later, after the dealer has collected a certificate.
     pub fn create_avss_messages(
@@ -511,14 +508,9 @@ impl Receiver {
     /// 4. Verify the AVID-phase [AvidDispersal] against a [VerifiedAvssCommonMessage] and
     ///    emit an [EchoBuilder] which can build [avid::Echo]s on demand. The
     ///    receiver is expected to already hold the [VerifiedAvssCommonMessage] from the optimistic
-    ///    phase or to have fetched it from a confirming party. The confirming parties should be
-    ///    known from the published certificate. Returns also an [AvidVote] over the `top_root`.
-    ///    Pending recipients can publish the [AvidVote] immediately, before they've run
-    ///    [Self::decrypt_and_verify] on their own ciphertext.
-    ///
-    /// The caller should verify the certificate over the [AvssVote]s from the optimistic phase
-    /// before calling this function and form a [UnsignedAvssCert] with the `id`s of the
-    /// voters and the signing target.
+    ///    phase or to have fetched it from a confirming party and have verified and create an 
+    ///    [UnsignedAvssCert]. Returns also an [AvidVote]. All receivers can return the 
+    ///    [AvidVote] immediately to the dealer.
     pub fn prepare_avid_echo_messages(
         &self,
         message: AvidDispersal,
@@ -579,8 +571,8 @@ impl Receiver {
     ///    ciphertext matches `v`, or [DecodeOutcome::InvalidDispersal] (a [AvidComplaint])
     ///    otherwise.
     ///
-    ///    The [AvidComplaint] is a dispersal-layer fault. Hold it until the matching `H(v)` is
-    ///    certified on the TOB, or discard it if a different `v` wins.
+    ///    The [AvidComplaint] is a dispersal-layer fault. Hold it until the matching `common_message_hash` is
+    ///    certified on the TOB, or discard it if a different one wins.
     ///
     ///    A pending recipient should retain its echoes and the decoded ciphertext for the session,
     ///    to decode and to answer complaints.
