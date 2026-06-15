@@ -127,6 +127,141 @@ fn test_with_malformed_attestation() {
     ));
 }
 
+fn int(v: i128) -> Value {
+    Value::Integer(ciborium::value::Integer::try_from(v).unwrap())
+}
+
+/// A minimal document map that passes `validate_document_map` with all required fields.
+fn valid_document_map() -> BTreeMap<String, Value> {
+    let mut map = BTreeMap::new();
+    map.insert("module_id".to_string(), Value::Text("some".to_string()));
+    map.insert("digest".to_string(), Value::Text("SHA384".to_string()));
+    map.insert("certificate".to_string(), Value::Bytes(vec![1]));
+    map.insert("timestamp".to_string(), int(1731627987382));
+    map.insert(
+        "pcrs".to_string(),
+        Value::Map(vec![(int(0), Value::Bytes(vec![1; 32]))]),
+    );
+    map.insert(
+        "cabundle".to_string(),
+        Value::Array(vec![Value::Bytes(vec![1])]),
+    );
+    map
+}
+
+/// Assert that upgraded-mode validation of `map` fails with `InvalidAttestationDoc(msg)`.
+fn assert_invalid(map: &BTreeMap<String, Value>, msg: &str) {
+    assert_eq!(
+        AttestationDocument::validate_document_map(map, true, true, true).unwrap_err(),
+        NitroAttestationVerifyError::InvalidAttestationDoc(msg.to_string())
+    );
+}
+
+#[test]
+fn test_timestamp_validity() {
+    let mut map = valid_document_map();
+    map.remove("timestamp");
+    assert_invalid(&map, "timestamp not found");
+    map.insert("timestamp".to_string(), Value::Text("nope".to_string()));
+    assert_invalid(&map, "timestamp is not an integer");
+    map.insert("timestamp".to_string(), int(-1));
+    assert_invalid(&map, "timestamp not u64");
+}
+
+#[test]
+fn test_empty_and_nonce_fields() {
+    // Empty certificate is rejected.
+    let mut map = valid_document_map();
+    map.insert("certificate".to_string(), Value::Bytes(vec![]));
+    assert_invalid(&map, "invalid certificate");
+
+    // nonce is rejected above 512 bytes, accepted at the boundary.
+    let mut map = valid_document_map();
+    map.insert("nonce".to_string(), Value::Bytes(vec![1; 513]));
+    assert_invalid(&map, "invalid nonce");
+    map.insert("nonce".to_string(), Value::Bytes(vec![1; 512]));
+    assert!(AttestationDocument::validate_document_map(&map, true, true, true).is_ok());
+
+    // Empty public_key is rejected in legacy parsing but accepted in upgraded parsing.
+    let mut map = valid_document_map();
+    map.insert("public_key".to_string(), Value::Bytes(vec![]));
+    assert_eq!(
+        AttestationDocument::validate_document_map(&map, false, false, false).unwrap_err(),
+        NitroAttestationVerifyError::InvalidAttestationDoc("invalid public key".to_string())
+    );
+    assert!(AttestationDocument::validate_document_map(&map, true, true, true).is_ok());
+}
+
+#[test]
+fn test_pcr_validation() {
+    let set_pcrs = |map: &mut BTreeMap<String, Value>, pcrs| {
+        map.insert("pcrs".to_string(), Value::Map(pcrs));
+    };
+    let mut map = valid_document_map();
+
+    // missing / wrong type.
+    map.remove("pcrs");
+    assert_invalid(&map, "pcrs not found");
+    map.insert("pcrs".to_string(), Value::Array(vec![]));
+    assert_invalid(&map, "invalid pcrs format");
+
+    // too many entries (> 32) fail the length check.
+    set_pcrs(
+        &mut map,
+        (0..33)
+            .map(|i| (int(i), Value::Bytes(vec![1; 32])))
+            .collect(),
+    );
+    assert_invalid(&map, "invalid PCRs length");
+
+    // key must be an integer.
+    set_pcrs(
+        &mut map,
+        vec![(Value::Text("0".to_string()), Value::Bytes(vec![1; 32]))],
+    );
+    assert_invalid(&map, "invalid PCR key format");
+
+    // negative and duplicate indices are rejected.
+    set_pcrs(&mut map, vec![(int(-1), Value::Bytes(vec![1; 32]))]);
+    assert_invalid(&map, "invalid PCR index");
+    set_pcrs(
+        &mut map,
+        vec![
+            (int(0), Value::Bytes(vec![1; 32])),
+            (int(0), Value::Bytes(vec![2; 32])),
+        ],
+    );
+    assert_invalid(&map, "duplicate PCR index 0");
+
+    // index outside 0..=31 is skipped (not inserted), but the document still parses.
+    set_pcrs(&mut map, vec![(int(32), Value::Bytes(vec![1; 32]))]);
+    let doc = AttestationDocument::validate_document_map(&map, true, true, true).unwrap();
+    assert!(doc.pcr_map.is_empty());
+}
+
+#[test]
+fn test_cabundle_validity() {
+    let mut map = valid_document_map();
+
+    // too many entries (> MAX_CERT_CHAIN_LENGTH of 10).
+    map.insert(
+        "cabundle".to_string(),
+        Value::Array((0..11).map(|_| Value::Bytes(vec![1])).collect()),
+    );
+    assert_invalid(&map, "invalid ca chain length");
+
+    // entry too long (1025).
+    map.insert(
+        "cabundle".to_string(),
+        Value::Array(vec![Value::Bytes(vec![1; 1025])]),
+    );
+    assert_invalid(&map, "invalid ca length");
+
+    // wrong type.
+    map.insert("cabundle".to_string(), Value::Map(vec![]));
+    assert_invalid(&map, "invalid cabundle");
+}
+
 #[test]
 fn test_attestation_fields_validity() {
     let mut map = BTreeMap::new();
@@ -232,12 +367,31 @@ fn bad_signature_cose() {
         true,
     )
     .unwrap();
-    let mut bad_sig = parsed.1.clone();
-    bad_sig[0] ^= 0x00;
+
+    // A well-formed (96-byte) but tampered signature must fail the ECDSA verification.
+    let mut bad_sig = parsed.0.clone();
+    bad_sig[0] ^= 0x01;
     let res = verify_nitro_attestation(&bad_sig, &parsed.1, &parsed.2, 1731627987382);
     assert_eq!(
         res.unwrap_err(),
+        FastCryptoError::GeneralError("SignatureFailedToVerify".to_string())
+    );
+
+    // A signature of the wrong length is rejected before verification.
+    let res = verify_nitro_attestation(&parsed.1, &parsed.1, &parsed.2, 1731627987382);
+    assert_eq!(
+        res.unwrap_err(),
         FastCryptoError::GeneralError("InvalidSignature".to_string())
+    );
+
+    // Tampering with the signed message also fails verification.
+    let mut bad_msg = parsed.1.clone();
+    let last = bad_msg.len() - 1;
+    bad_msg[last] ^= 0x01;
+    let res = verify_nitro_attestation(&parsed.0, &bad_msg, &parsed.2, 1731627987382);
+    assert_eq!(
+        res.unwrap_err(),
+        FastCryptoError::GeneralError("SignatureFailedToVerify".to_string())
     );
 }
 
