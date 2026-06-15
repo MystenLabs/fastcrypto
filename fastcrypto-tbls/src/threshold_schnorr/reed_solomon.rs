@@ -171,14 +171,15 @@ impl ErasureCoder {
         if data.is_empty() {
             return Err(InvalidInput);
         }
-        // Size each shard to a whole number of field elements.
-        let shard_size = data
-            .len()
-            .div_ceil(ELEMENT_SIZE_IN_BYTES * self.0.data_shard_count());
+        let len = u32::try_from(data.len()).map_err(|_| InvalidInput)?;
+        let framed_len = std::mem::size_of::<u32>() + data.len();
+        let shard_size = framed_len.div_ceil(ELEMENT_SIZE_IN_BYTES * self.0.data_shard_count());
         let bytes_per_shard = ELEMENT_SIZE_IN_BYTES * shard_size;
-        let mut data = data.to_vec();
-        data.resize(bytes_per_shard * self.0.total_shard_count(), 0);
-        let mut shards: Vec<Vec<Element>> = data
+        let mut framed = Vec::with_capacity(bytes_per_shard * self.0.total_shard_count());
+        framed.extend_from_slice(&len.to_le_bytes());
+        framed.extend_from_slice(data);
+        framed.resize(bytes_per_shard * self.0.total_shard_count(), 0);
+        let mut shards: Vec<Vec<Element>> = framed
             .chunks_exact(bytes_per_shard)
             .map(bytes_to_elements)
             .collect::<FastCryptoResult<_>>()?;
@@ -186,14 +187,10 @@ impl ErasureCoder {
         Ok(shards.into_iter().map(|s| Shard(s.concat())).collect_vec())
     }
 
-    /// Reconstruct the original data from `n` (possibly missing) shards, returning the first
-    /// `expected_len` bytes. Fails if more than `n - k` shards are missing or if the present
-    /// shards are inconsistent with any single codeword.
-    pub fn decode(
-        &self,
-        shards: Vec<Option<Shard>>,
-        expected_len: usize,
-    ) -> FastCryptoResult<Vec<u8>> {
+    /// Reconstruct the original data from `n` (possibly missing) shards. Fails if more than
+    /// `n - k` shards are missing, if the present shards are inconsistent with any single
+    /// codeword, or if the recovered length prefix doesn't fit the recovered bytes.
+    pub fn decode(&self, shards: Vec<Option<Shard>>) -> FastCryptoResult<Vec<u8>> {
         if shards.len() != self.0.total_shard_count() {
             return Err(InputLengthWrong(self.0.total_shard_count()));
         }
@@ -216,19 +213,24 @@ impl ErasureCoder {
             return Err(TooManyErrors(0)); // This is just an erasure code, so we can't correct errors.
         }
 
-        let mut data: Vec<u8> = shards
+        let framed: Vec<u8> = shards
             .into_iter()
             .take(self.0.data_shard_count())
             .flatten()
             .flatten()
             .collect();
-        // The bytes past `expected_len` are zero-padding inserted by `encode`; reject anything
-        // that doesn't match.
-        if data.len() < expected_len || data[expected_len..].iter().any(|&b| b != 0) {
+        if framed.len() < std::mem::size_of::<u32>() {
             return Err(InvalidInput);
         }
-        data.truncate(expected_len);
-        Ok(data)
+        let len =
+            u32::from_le_bytes(framed[..std::mem::size_of::<u32>()].try_into().unwrap()) as usize;
+        let end = std::mem::size_of::<u32>()
+            .checked_add(len)
+            .ok_or(InvalidInput)?;
+        if end > framed.len() {
+            return Err(InvalidInput);
+        }
+        Ok(framed[std::mem::size_of::<u32>()..end].to_vec())
     }
 }
 
@@ -314,7 +316,7 @@ mod tests {
             }
 
             let coder = ErasureCoder::new(n, k).unwrap();
-            let recovered = coder.decode(opt_shards, len).unwrap();
+            let recovered = coder.decode(opt_shards).unwrap();
             assert_eq!(recovered, data);
         }
     }
@@ -333,7 +335,7 @@ mod tests {
             *shard = None;
         }
 
-        assert!(matches!(coder.decode(opt_shards, 123), Err(InvalidInput)));
+        assert!(matches!(coder.decode(opt_shards), Err(InvalidInput)));
     }
 
     #[test]
@@ -349,23 +351,21 @@ mod tests {
         shards[0].0[0] ^= 1;
         let opt_shards = shards.into_iter().map(Some).collect_vec();
 
-        assert!(matches!(
-            coder.decode(opt_shards, 200),
-            Err(TooManyErrors(_))
-        ));
+        assert!(matches!(coder.decode(opt_shards), Err(TooManyErrors(_))));
     }
 
     #[test]
     fn test_erasure_coder_encode_shard_lengths() {
-        // Each GF(2^16) element is 2 bytes; shards are sized to a whole number of pairs, with
-        // pair count ⌈data_len / (2 · k)⌉.
+        // Each GF(2^16) element is 2 bytes; the framed payload is `u32_len || data` so the
+        // pre-padding length is `4 + data_len`. Shards are sized to a whole number of pairs with
+        // pair count ⌈(4 + data_len) / (2 · k)⌉.
         for &(n, k, data_len, expected_shard_bytes) in &[
-            (10, 6, 1, 2),       // ⌈ 1 / 12⌉ = 1 pair
-            (10, 6, 11, 2),      // ⌈11 / 12⌉ = 1 pair
-            (10, 6, 12, 2),      // ⌈12 / 12⌉ = 1 pair
-            (10, 6, 13, 4),      // ⌈13 / 12⌉ = 2 pairs
-            (10, 6, 100, 18),    // ⌈100 / 12⌉ = 9 pairs
-            (800, 268, 2028, 8), // ⌈2028 / 536⌉ = 4 pairs
+            (10, 6, 1, 2),       // ⌈  5 /  12⌉ = 1 pair
+            (10, 6, 8, 2),       // ⌈ 12 /  12⌉ = 1 pair
+            (10, 6, 9, 4),       // ⌈ 13 /  12⌉ = 2 pairs
+            (10, 6, 12, 4),      // ⌈ 16 /  12⌉ = 2 pairs
+            (10, 6, 100, 18),    // ⌈104 /  12⌉ = 9 pairs
+            (800, 268, 2028, 8), // ⌈2032 / 536⌉ = 4 pairs
         ] {
             let coder = ErasureCoder::new(n, k).unwrap();
             let data: Vec<u8> = (0..data_len).map(|i| i as u8).collect();

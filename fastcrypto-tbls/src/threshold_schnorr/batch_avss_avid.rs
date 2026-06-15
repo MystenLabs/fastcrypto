@@ -25,7 +25,6 @@ use fastcrypto::error::FastCryptoError::{
     InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
 };
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::secp256k1::SCALAR_SIZE_IN_BYTES;
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::hash::{Blake2b256, HashFunction};
 use fastcrypto::merkle;
@@ -576,7 +575,7 @@ impl Receiver {
     /// meaningful for pending recipients, so confirmers calling this for themselves get
     /// [InvalidInput].
     ///
-    /// `certified_top_root` should be sourced from the 
+    /// `certified_top_root` should be sourced from the
     /// [EchoBuilder] returned from [Self::echo] if this receiver got a [PessimisticMessage], or a quorum certificate over [Vote]s otherwise.
     pub fn verify_echo(
         &self,
@@ -611,22 +610,14 @@ impl Receiver {
         top_root: &merkle::Node,
     ) -> FastCryptoResult<DecodeOutcome> {
         let avid = &self.avid;
-        let expected_len = SharesForNode::bcs_serialized_size(
-            self.nodes.weight_of(self.id)? as usize,
-            self.batch_size,
-        );
         let expected_hash = verified_common
             .common()
             .ciphertext_hash(self.id)
             .ok_or(InvalidProof)?;
         Ok(
-            match avid.decode_or_complain(
-                self.id,
-                echoes,
-                expected_len,
-                top_root.clone(),
-                |payload| hash_bytes(payload) == *expected_hash,
-            )? {
+            match avid.decode_or_complain(self.id, echoes, top_root.clone(), |payload| {
+                hash_bytes(payload) == *expected_hash
+            })? {
                 Ok(bytes) => DecodeOutcome::Decoded(Ciphertext(bytes)),
                 Err(complaint) => {
                     warn!(
@@ -812,17 +803,13 @@ impl Receiver {
         let expected_hash = common_message
             .ciphertext_hash(blame.accuser_id)
             .ok_or(InvalidProof)?;
-        let expected_len = SharesForNode::bcs_serialized_size(
-            self.nodes.weight_of(blame.accuser_id)? as usize,
-            self.batch_size,
-        );
 
-        if !self.avid.complaint_is_valid(
-            blame,
-            &accuser_recipient_root,
-            expected_len,
-            |payload| hash_bytes(payload) == *expected_hash,
-        )? {
+        if !self
+            .avid
+            .complaint_is_valid(blame, &accuser_recipient_root, |payload| {
+                hash_bytes(payload) == *expected_hash
+            })?
+        {
             return Err(InvalidProof);
         }
 
@@ -1201,21 +1188,6 @@ impl SharesForNode {
             .collect::<FastCryptoResult<Vec<_>>>()?;
         Ok(Self { shares })
     }
-
-    /// BCS-serialized length of a `SharesForNode` for a node of the given weight at the given
-    /// batch size.
-    fn bcs_serialized_size(weight: usize, batch_size: usize) -> usize {
-        // Layout:
-        // SharesForNode = Vec<ShareBatch>
-        //   = ULEB128(weight) + weight × ShareBatch
-        // ShareBatch
-        //   = Vec<S> + S
-        //   = ULEB128(batch_size) + (batch_size + 1) × SCALAR_SIZE_IN_BYTES
-
-        // TODO: A bit of a hack — this hardcodes the BCS layout of `SharesForNode`
-        uleb128_len(weight)
-            + weight * (uleb128_len(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES)
-    }
 }
 
 impl BCSSerialized for SharesForNode {}
@@ -1225,17 +1197,6 @@ fn hash_bytes(bytes: &[u8]) -> Digest {
     let mut hasher = Blake2b256::new();
     hasher.update(bytes);
     hasher.finalize()
-}
-
-/// Number of bytes BCS uses to encode `x` as an unsigned LEB128 length prefix.
-fn uleb128_len(x: usize) -> usize {
-    let mut len = 1;
-    let mut v = x >> 7;
-    while v != 0 {
-        len += 1;
-        v >>= 7;
-    }
-    len
 }
 
 fn compute_challenge(
@@ -1273,45 +1234,18 @@ mod tests {
     use super::{
         merkle, CertifiedConfirmers, Confirm, Dealer, DealerState, DecodeOutcome,
         DecryptionOutcome, OptimisticMessage, Parameters, PessimisticMessage, Receiver,
-        ReceiverOutput, ShareBatch, SharesForNode, VerifiedEcho,
+        ReceiverOutput, VerifiedEcho,
     };
     use crate::ecies_v1;
     use crate::ecies_v1::{Ciphertext, PublicKey};
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::{Eval, Poly};
-    use crate::threshold_schnorr::bcs::BCSSerialized;
     use crate::threshold_schnorr::{avid, batch_avss_avid as batch_avss, EG};
     use crate::types::ShareIndex;
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use std::collections::{BTreeMap, BTreeSet, HashMap};
-
-    #[test]
-    fn test_bcs_serialized_size_matches_serialization() {
-        // For every (weight, batch_size) in the matrix, build a real `SharesForNode` and BCS-
-        // serialize it; the byte length must agree with `SharesForNode::bcs_serialized_size`. Cases
-        // straddle the ULEB128 single-byte/two-byte boundary at 128 in both dimensions.
-        use crate::threshold_schnorr::S;
-        use fastcrypto::groups::GroupElement;
-
-        let zero_scalar = S::zero();
-        for &weight in &[1usize, 2, 5, 10, 100, 127, 128, 200] {
-            for &batch_size in &[1usize, 2, 3, 7, 50, 127, 128, 200] {
-                let shares_for_node = SharesForNode {
-                    shares: (0..weight)
-                        .map(|_| ShareBatch {
-                            batch: vec![zero_scalar; batch_size],
-                            blinding_share: zero_scalar,
-                        })
-                        .collect(),
-                };
-                let actual = shares_for_node.to_bytes().len();
-                let formula = SharesForNode::bcs_serialized_size(weight, batch_size);
-                assert_eq!(actual, formula, "weight={weight}, batch_size={batch_size}");
-            }
-        }
-    }
 
     #[test]
     fn test_optimistic_then_pessimistic() {

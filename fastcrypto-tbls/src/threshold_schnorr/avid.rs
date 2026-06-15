@@ -256,7 +256,6 @@ impl Avid {
         &self,
         my_id: PartyId,
         echoes: &[VerifiedEcho],
-        expected_len: usize,
         top_root: merkle::Node,
         payload_ok: impl Fn(&[u8]) -> bool,
     ) -> FastCryptoResult<Result<Vec<u8>, Complaint>> {
@@ -280,17 +279,15 @@ impl Avid {
             .cloned()
             .map(|e| (e.0.disperser, e.0.authenticated_shards))
             .collect();
-        Ok(
-            match self.reconstruct(&shards, &recipient_root, expected_len) {
-                Some(payload) if payload_ok(&payload) => Ok(payload),
-                _ => Err(Complaint {
-                    accuser_id: my_id,
-                    shards,
-                    top_root,
-                    accuser_recipient_root_proof,
-                }),
-            },
-        )
+        Ok(match self.reconstruct(&shards, &recipient_root) {
+            Some(payload) if payload_ok(&payload) => Ok(payload),
+            _ => Err(Complaint {
+                accuser_id: my_id,
+                shards,
+                top_root,
+                accuser_recipient_root_proof,
+            }),
+        })
     }
 
     /// Check if `complaint` is a valid blame against the dispersal: its shards carry valid Merkle
@@ -301,7 +298,6 @@ impl Avid {
         &self,
         complaint: &Complaint,
         recipient_root: &merkle::Node,
-        expected_len: usize,
         payload_ok: impl Fn(&[u8]) -> bool,
     ) -> FastCryptoResult<bool> {
         if complaint
@@ -313,7 +309,7 @@ impl Avid {
             return Ok(false);
         }
         Ok(!self
-            .reconstruct(&complaint.shards, recipient_root, expected_len)
+            .reconstruct(&complaint.shards, recipient_root)
             .is_some_and(|payload| payload_ok(&payload)))
     }
 
@@ -324,9 +320,8 @@ impl Avid {
         &self,
         shards: &BTreeMap<PartyId, AuthenticatedShards>,
         recipient_root: &merkle::Node,
-        expected_len: usize,
     ) -> Option<Vec<u8>> {
-        let payload = self.decode(shards, expected_len).ok()?;
+        let payload = self.decode(shards).ok()?;
         if self.recipient_root_for(&payload).ok()? != *recipient_root {
             return None;
         }
@@ -336,11 +331,7 @@ impl Avid {
     /// RS-decode a payload from authenticated shard contributions keyed by disperser. Missing dispersers
     /// and dispersers whose shard count doesn't match their weight are treated as erasures, so
     /// decoding fails if those exceed `2f` weight.
-    fn decode(
-        &self,
-        shards: &BTreeMap<PartyId, AuthenticatedShards>,
-        expected_len: usize,
-    ) -> FastCryptoResult<Vec<u8>> {
+    fn decode(&self, shards: &BTreeMap<PartyId, AuthenticatedShards>) -> FastCryptoResult<Vec<u8>> {
         let matrix = self
             .nodes
             .node_ids_iter()
@@ -354,7 +345,7 @@ impl Avid {
                 }
             })
             .collect_vec();
-        self.coder.decode(matrix, expected_len)
+        self.coder.decode(matrix)
     }
 
     /// RS-encode `payload` and return the resulting per-recipient Merkle root. For an honest
@@ -545,7 +536,7 @@ mod tests {
 
         // 3. The recipient reconstructs its payload from the quorum of echoes.
         let recovered = avid
-            .decode_or_complain(recipient, &echoes, payload.len(), top_root, |_| true)
+            .decode_or_complain(recipient, &echoes, top_root, |_| true)
             .unwrap()
             .unwrap();
         assert_eq!(recovered, payload);
@@ -608,13 +599,13 @@ mod tests {
         // ... but they don't reconstruct consistently, so it raises a Complaint.
         let recipient_root = echoes[0].0.recipient_root().unwrap();
         let complaint = avid
-            .decode_or_complain(recipient, &echoes, payload.len(), top_root, |_| true)
+            .decode_or_complain(recipient, &echoes, top_root, |_| true)
             .unwrap()
             .unwrap_err();
 
         // Another party validates the complaint.
         assert!(avid
-            .complaint_is_valid(&complaint, &recipient_root, payload.len(), |_| true)
+            .complaint_is_valid(&complaint, &recipient_root, |_| true)
             .unwrap());
     }
 }
