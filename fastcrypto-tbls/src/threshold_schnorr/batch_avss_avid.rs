@@ -124,10 +124,7 @@ pub struct DealerState {
 pub type PessimisticMessage = avid::Dispersal;
 
 /// An endorsement of the dealer's pessimistic broadcast.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Vote {
-    pub top_root: merkle::Node,
-}
+pub type Vote = avid::Vote;
 
 /// The result of [Receiver::decode_ciphertext] so either a successfully reconstructed ciphertext
 /// whose AVID dispersal is consistent, or a [BlameComplaint] when the collected shards either fail
@@ -154,10 +151,8 @@ pub struct RevealComplaint {
 }
 
 /// A complaint by a receiver who found the AVID dispersal inconsistent — a generic AVID
-/// [avid::Complaint].
-///
-/// The `accuser_id` is unauthenticated at this layer. The caller is responsible for attributing
-/// the complaint to a specific disperser.
+/// [avid::Complaint]. The accuser's identity and the dispersal's `top_root` are tracked
+/// out-of-band by the caller.
 pub use avid::Complaint as BlameComplaint;
 
 /// A responder's reply to a [RevealComplaint] / [BlameComplaint]: their dealer-encrypted
@@ -554,10 +549,7 @@ impl Receiver {
             warn!("batch_avss echo: dispersal recipients and confirmers do not partition the node set");
             return Err(InvalidMessage);
         }
-
-        let builder = self.avid.prepare_echoes(message, self.id)?;
-        let top_root = builder.top_root();
-        Ok((builder, Vote { top_root }))
+        self.avid.prepare_echoes(self.id, message)
     }
 
     /// Verify an [Echo] addressed to this receiver. Returns a [VerifiedEcho] suitable for
@@ -573,11 +565,13 @@ impl Receiver {
     pub fn verify_echo(
         &self,
         echo: Echo,
+        sender: PartyId,
         certified_top_root: &merkle::Node,
         confirmers: &CertifiedConfirmers,
     ) -> FastCryptoResult<VerifiedEcho> {
         self.avid.verify_echo(
             echo,
+            sender,
             certified_top_root,
             &self.pending_recipients(confirmers),
             self.id,
@@ -600,7 +594,6 @@ impl Receiver {
         &self,
         echoes: &[VerifiedEcho],
         verified_common: &VerifiedAvssCommonMessage,
-        top_root: &merkle::Node,
     ) -> FastCryptoResult<DecodeOutcome> {
         let avid = &self.avid;
         let expected_hash = verified_common
@@ -608,9 +601,9 @@ impl Receiver {
             .ciphertext_hash(self.id)
             .ok_or(InvalidProof)?;
         Ok(
-            match avid.decode_or_complain(self.id, echoes, top_root.clone(), |payload| {
-                hash_bytes(payload) == *expected_hash
-            })? {
+            match avid
+                .decode_or_complain(echoes, |payload| hash_bytes(payload) == *expected_hash)?
+            {
                 Ok(bytes) => DecodeOutcome::Decoded(Ciphertext(bytes)),
                 Err(complaint) => {
                     warn!(
@@ -770,10 +763,13 @@ impl Receiver {
         Ok(self.build_complaint_response(common_message, own_ciphertext))
     }
 
-    /// 7b. Validate a [BlameComplaint] and respond with this party's shares.
+    /// 7b. Validate a [BlameComplaint] and respond with this party's shares. `accuser_id` and
+    ///     `certified_top_root` must be attributed by the caller — neither is carried by
+    ///     [BlameComplaint] itself.
     pub fn handle_blame(
         &self,
         blame: &BlameComplaint,
+        accuser_id: PartyId,
         verified_common: &VerifiedAvssCommonMessage,
         certified_top_root: &merkle::Node,
         confirmers: &CertifiedConfirmers,
@@ -781,28 +777,17 @@ impl Receiver {
     ) -> FastCryptoResult<ComplaintResponse> {
         let common_message = verified_common.common();
 
-        if blame.top_root != *certified_top_root {
-            return Err(InvalidProof);
-        }
-        let accuser_recipient_root = blame.derive_accuser_recipient_root()?;
-        self.avid.verify_recipient_root(
-            blame.accuser_id,
-            &accuser_recipient_root,
-            &blame.accuser_recipient_root_proof,
-            certified_top_root,
-            &self.pending_recipients(confirmers),
-        )?;
-
         let expected_hash = common_message
-            .ciphertext_hash(blame.accuser_id)
+            .ciphertext_hash(accuser_id)
             .ok_or(InvalidProof)?;
 
-        if !self
-            .avid
-            .complaint_is_valid(blame, &accuser_recipient_root, |payload| {
-                hash_bytes(payload) == *expected_hash
-            })?
-        {
+        if !self.avid.complaint_is_valid(
+            blame,
+            accuser_id,
+            certified_top_root,
+            &self.pending_recipients(confirmers),
+            |payload| hash_bytes(payload) == *expected_hash,
+        )? {
             return Err(InvalidProof);
         }
 
@@ -1352,18 +1337,19 @@ mod tests {
 
         // For each i in pending, gather all echoes addressed to i and decode.
         for &i in &pending {
-            let echoes_for_i: Vec<batch_avss::Echo> =
-                echo_sets.iter().map(|em| em[&i].clone()).collect();
+            let echoes_for_i: Vec<(PartyId, batch_avss::Echo)> = echo_sets
+                .iter()
+                .enumerate()
+                .map(|(sender, em)| (sender as PartyId, em[&i].clone()))
+                .collect();
             let r = &receivers[i as usize];
             let top_root = &top_roots[i as usize];
             let vcm = &verified_commons[i as usize];
             let verified_echoes = echoes_for_i
                 .into_iter()
-                .map(|e| r.verify_echo(e, top_root, &confirmers).unwrap())
+                .map(|(sender, e)| r.verify_echo(e, sender, top_root, &confirmers).unwrap())
                 .collect_vec();
-            let outcome = r
-                .decode_ciphertext(&verified_echoes, vcm, top_root)
-                .unwrap();
+            let outcome = r.decode_ciphertext(&verified_echoes, vcm).unwrap();
             let decoded = assert_decoded(outcome);
             assert_valid(r.decrypt_and_verify(&decoded, vcm).unwrap());
         }
@@ -1432,12 +1418,12 @@ mod tests {
                     .unwrap();
                 let echo = builder.create_echo(victim_id).unwrap();
                 receivers[victim_id as usize]
-                    .verify_echo(echo, &cert0_top_root, &confirmers)
+                    .verify_echo(echo, r.id, &cert0_top_root, &confirmers)
                     .unwrap()
             })
             .collect();
         let outcome = receivers[victim_id as usize]
-            .decode_ciphertext(&echoes_for_victim, &vcm0, &cert0_top_root)
+            .decode_ciphertext(&echoes_for_victim, &vcm0)
             .unwrap();
         let decoded = assert_decoded(outcome);
         let reveal = match receivers[victim_id as usize]
@@ -1542,7 +1528,6 @@ mod tests {
         let cert0_top_root = builder0.top_root();
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
             .iter()
-            .take((n - f) as usize)
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (builder, _) = r
@@ -1550,13 +1535,13 @@ mod tests {
                     .unwrap();
                 let echo = builder.create_echo(victim_id).unwrap();
                 receivers[victim_id as usize]
-                    .verify_echo(echo, &cert0_top_root, &confirmers)
+                    .verify_echo(echo, r.id, &cert0_top_root, &confirmers)
                     .unwrap()
             })
             .collect();
 
         let outcome = receivers[victim_id as usize]
-            .decode_ciphertext(&echoes_for_victim, &vcm0, &cert0_top_root)
+            .decode_ciphertext(&echoes_for_victim, &vcm0)
             .unwrap();
         let blame = match outcome {
             DecodeOutcome::InvalidDispersal(blame) => blame,
@@ -1575,6 +1560,7 @@ mod tests {
                 let top_root = builder.top_root();
                 r.handle_blame(
                     &blame,
+                    victim_id,
                     &vcm,
                     &top_root,
                     &confirmers,

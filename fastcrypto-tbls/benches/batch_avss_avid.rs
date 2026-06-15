@@ -223,7 +223,7 @@ mod batch_avss_benches {
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            r1.verify_echo(echo_for_r1.clone(), &top_root, &confirmers)
+                            r1.verify_echo(echo_for_r1.clone(), r0.id, &top_root, &confirmers)
                                 .unwrap()
                         })
                     },
@@ -269,9 +269,15 @@ mod batch_avss_benches {
                 let vcm1 = receivers[1].verify_common_message(common).unwrap();
                 let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                     .iter()
-                    .map(|em| {
+                    .enumerate()
+                    .map(|(sender, em)| {
                         receivers[1]
-                            .verify_echo(em[&1u16].clone(), &top_root, &confirmers)
+                            .verify_echo(
+                                em[&1u16].clone(),
+                                sender as PartyId,
+                                &top_root,
+                                &confirmers,
+                            )
                             .unwrap()
                     })
                     .collect();
@@ -279,12 +285,7 @@ mod batch_avss_benches {
 
                 process.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| {
-                        b.iter(|| {
-                            r1.decode_ciphertext(&echoes_for_party_1, &vcm1, &top_root)
-                                .unwrap()
-                        })
-                    },
+                    |b| b.iter(|| r1.decode_ciphertext(&echoes_for_party_1, &vcm1).unwrap()),
                 );
             }
         }
@@ -327,17 +328,20 @@ mod batch_avss_benches {
                 let vcm1 = receivers[1].verify_common_message(common).unwrap();
                 let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                     .iter()
-                    .map(|em| {
+                    .enumerate()
+                    .map(|(sender, em)| {
                         receivers[1]
-                            .verify_echo(em[&1u16].clone(), &top_root, &confirmers)
+                            .verify_echo(
+                                em[&1u16].clone(),
+                                sender as PartyId,
+                                &top_root,
+                                &confirmers,
+                            )
                             .unwrap()
                     })
                     .collect();
                 let r1 = &receivers[1];
-                let ciphertext = match r1
-                    .decode_ciphertext(&echoes_for_party_1, &vcm1, &top_root)
-                    .unwrap()
-                {
+                let ciphertext = match r1.decode_ciphertext(&echoes_for_party_1, &vcm1).unwrap() {
                     batch_avss::DecodeOutcome::Decoded(c) => c,
                     _ => panic!("expected Decoded outcome"),
                 };
@@ -403,14 +407,20 @@ mod batch_avss_benches {
                         let vcm1 = receivers[1].verify_common_message(common).unwrap();
                         let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                             .iter()
-                            .map(|em| {
+                            .enumerate()
+                            .map(|(sender, em)| {
                                 receivers[1]
-                                    .verify_echo(em[&1u16].clone(), &top_root, &confirmers)
+                                    .verify_echo(
+                                        em[&1u16].clone(),
+                                        sender as PartyId,
+                                        &top_root,
+                                        &confirmers,
+                                    )
                                     .unwrap()
                             })
                             .collect();
                         let ciphertext = match receivers[1]
-                            .decode_ciphertext(&echoes_for_party_1, &vcm1, &top_root)
+                            .decode_ciphertext(&echoes_for_party_1, &vcm1)
                             .unwrap()
                         {
                             batch_avss::DecodeOutcome::Decoded(c) => c,
