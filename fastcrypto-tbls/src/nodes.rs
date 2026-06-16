@@ -6,6 +6,7 @@ use crate::types::ShareIndex;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -133,6 +134,11 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             .ok_or(FastCryptoError::InvalidInput)
     }
 
+    /// Returns true iff `party_id` corresponds to a node in this set.
+    pub fn is_valid_id(&self, party_id: PartyId) -> bool {
+        (party_id as usize) < self.nodes.len()
+    }
+
     /// Get the share ids of a node (ordered). Returns error if the node does not exist.
     pub fn share_ids_of(&self, id: PartyId) -> FastCryptoResult<Vec<ShareIndex>> {
         // Check if the input is valid.
@@ -155,6 +161,30 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         let mut hash = Blake2b256::default();
         hash.update(bcs::to_bytes(&self.nodes).expect("should serialize"));
         hash.finalize()
+    }
+
+    /// Given an iterator over a set of items, one per share index, this function groups them into
+    /// a vector of vectors, one per node, according to the share ids of the nodes.
+    /// Returns error if the number of items does not match the total weight.
+    pub fn collect_to_nodes<T>(
+        &self,
+        items: impl ExactSizeIterator<Item = T>,
+    ) -> FastCryptoResult<Vec<Vec<T>>> {
+        if items.len() != self.total_weight as usize {
+            return Err(FastCryptoError::InputLengthWrong(
+                self.total_weight as usize,
+            ));
+        }
+        let mut items = items;
+        Ok(self
+            .node_ids_iter()
+            .map(|id| {
+                items
+                    .by_ref()
+                    .take(self.weight_of(id).unwrap() as usize)
+                    .collect_vec()
+            })
+            .collect_vec())
     }
 
     /// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
