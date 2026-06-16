@@ -1,28 +1,26 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! A [NestedMerkleTree] commits to a sequence of rows of leaves of type `S`. Each row is
-//! committed by its own Merkle tree (its `row_root`). A top tree then commits to those row
-//! roots. A [NestedMerkleProof] for a leaf carries both an inclusion proof against its row root
-//! and an inclusion proof binding that row root to the top root.
+//! A [NestedMerkleTree] commits to a sequence of rows of leaves. Each row is committed by its own
+//! Merkle tree (its `row_root`). A top tree then commits to those row roots. A
+//! [NestedMerkleProof] for a leaf carries both an inclusion proof against its row root and an
+//! inclusion proof binding that row root to the top root.
 
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::hash::Blake2b256;
 use fastcrypto::merkle::{MerkleProof, MerkleTree, Node};
 use serde::{Deserialize, Serialize};
-use std::marker::PhantomData;
 
-/// A two-level Merkle commitment to a sequence of rows of `S` leaves.
-pub struct NestedMerkleTree<S> {
+/// A two-level Merkle commitment to a sequence of rows of leaves.
+pub struct NestedMerkleTree {
     row_trees: Vec<MerkleTree<Blake2b256>>,
     top_tree: MerkleTree<Blake2b256>,
-    _marker: PhantomData<S>,
 }
 
-/// Inclusion proof for one `S` leaf in a [NestedMerkleTree]: row proof up to the (implied) row
-/// root, then top proof binding that row root to the dispersal's top root. The intermediate row
-/// root is derived from `row_proof` + leaf during verification — not stored.
+/// Inclusion proof for a leaf in a [NestedMerkleTree]: row proof up to the (implied) row root,
+/// then top proof binding that row root to the dispersal's top root. The intermediate row root
+/// is derived from `row_proof` + leaf during verification — not stored.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NestedMerkleProof {
     pub row_proof: MerkleProof,
@@ -30,11 +28,11 @@ pub struct NestedMerkleProof {
 }
 
 #[allow(dead_code)]
-impl<S: Serialize> NestedMerkleTree<S> {
+impl NestedMerkleTree {
     /// Build a tree committing to `rows`. `rows[i][j]` is the `j`-th leaf in row `i`.
-    pub fn new(rows: &[Vec<S>]) -> FastCryptoResult<Self> {
+    pub fn new<S: Serialize>(rows: impl IntoIterator<Item = Vec<S>>) -> FastCryptoResult<Self> {
         let row_trees: Vec<MerkleTree<Blake2b256>> = rows
-            .iter()
+            .into_iter()
             .map(|row| MerkleTree::<Blake2b256>::build_from_unserialized(row.iter()))
             .collect::<FastCryptoResult<_>>()?;
         let row_roots: Vec<Node> = row_trees.iter().map(|t| t.root()).collect();
@@ -42,7 +40,6 @@ impl<S: Serialize> NestedMerkleTree<S> {
         Ok(Self {
             row_trees,
             top_tree,
-            _marker: PhantomData,
         })
     }
 
@@ -71,7 +68,7 @@ impl<S: Serialize> NestedMerkleTree<S> {
 
     /// Compute the root of a row's Merkle subtree, byte-identical to what [Self::new] would build
     /// for the same row.
-    pub fn compute_row_root(row: &[S]) -> FastCryptoResult<Node> {
+    pub fn compute_row_root<S: Serialize>(row: &[S]) -> FastCryptoResult<Node> {
         Ok(MerkleTree::<Blake2b256>::build_from_unserialized(row.iter())?.root())
     }
 }
@@ -90,6 +87,18 @@ impl NestedMerkleProof {
             .ok_or(InvalidProof)
     }
 
+    /// Derive the implied row root from this proof's row portion and `leaf` at `leaf_idx`.
+    /// Returns [InvalidMessage] if the path is malformed.
+    pub fn derive_row_root<S: Serialize>(
+        &self,
+        leaf: &S,
+        leaf_idx: usize,
+    ) -> FastCryptoResult<Node> {
+        self.row_proof
+            .compute_root(&bcs::to_bytes(leaf).map_err(|_| InvalidInput)?, leaf_idx)
+            .ok_or(InvalidMessage)
+    }
+
     /// Derive the implied top root from this proof and `leaf` at (`row_idx`, `leaf_idx`): walk
     /// the row proof from the leaf to an implied row root, then walk the top proof from that row
     /// root to an implied top root. Returns [InvalidMessage] if either path is malformed.
@@ -99,10 +108,7 @@ impl NestedMerkleProof {
         row_idx: usize,
         leaf_idx: usize,
     ) -> FastCryptoResult<Node> {
-        let row_root = self
-            .row_proof
-            .compute_root(&bcs::to_bytes(leaf).map_err(|_| InvalidInput)?, leaf_idx)
-            .ok_or(InvalidMessage)?;
+        let row_root = self.derive_row_root(leaf, leaf_idx)?;
         self.top_proof
             .compute_root(
                 &bcs::to_bytes(&row_root).map_err(|_| InvalidInput)?,

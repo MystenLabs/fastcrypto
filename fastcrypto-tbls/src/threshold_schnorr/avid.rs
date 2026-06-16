@@ -111,8 +111,7 @@ impl Avid {
         mutate(&mut shards_by_recipient);
 
         // Two-level Merkle commitment: per-recipient row trees + a top tree over the row roots.
-        let rows: Vec<Vec<Vec<Shard>>> = shards_by_recipient.values().cloned().collect();
-        let tree = NestedMerkleTree::<Vec<Shard>>::new(&rows)?;
+        let tree = NestedMerkleTree::new(shards_by_recipient.values().cloned())?;
 
         Ok(self
             .nodes
@@ -239,14 +238,8 @@ impl Avid {
             shards.iter().next().expect("non-empty by check above");
         let expected_recipient_root = authenticated_shards
             .proof
-            .row_proof
-            .compute_root(
-                &bcs::to_bytes(&authenticated_shards.shards).map_err(|_| InvalidInput)?,
-                *sender as usize,
-            )
-            .ok_or(InvalidMessage)?;
-        if NestedMerkleTree::<Vec<Shard>>::compute_row_root(&re_encoded)? != expected_recipient_root
-        {
+            .derive_row_root(&authenticated_shards.shards, *sender as usize)?;
+        if NestedMerkleTree::compute_row_root(&re_encoded)? != expected_recipient_root {
             return Ok(Err(Complaint { shards }));
         }
 
