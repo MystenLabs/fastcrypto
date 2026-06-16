@@ -33,14 +33,14 @@ pub struct Avid {
 /// The dealer's per-party dispersal message. One [AuthenticatedShards] per recipient.
 pub type Dispersal = BTreeMap<PartyId, AuthenticatedShards>;
 
-/// One disperser's shards for a recipient's payload with a Merkle proof against the corresponding
-/// `recipient_root`.
+/// One disperser's shards for a recipient's payload with a Merkle proof against the `top_root`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthenticatedShards {
     pub(crate) shards: Vec<Shard>,
     pub(crate) proof: merkle::MerkleProof,
 }
 
+/// An endorsement of a dispersal's `top_root`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Vote {
     pub top_root: merkle::Node,
@@ -143,13 +143,9 @@ impl Avid {
             .collect())
     }
 
-    /// 2. Verify the structural shape of `dispersal` and party `my_id`'s own Merkle proofs by
-    ///    recomputing the dispersal's `top_root` from every entry's proof and checking they all
-    ///    agree on a single root.
-    ///
-    /// Returns an [EchoBuilder] that can produce individual [Echo]s on demand via
-    /// [EchoBuilder::create_echo] and a [Vote] to return to the disperser. When the dealer
-    /// has `W-f` weight of votes, he can publish the certified `top_root`.
+    /// 2. Verify a [Deispersal] and return an [EchoBuilder] that can produce individual [Echo]s on demand via
+    /// [EchoBuilder::create_echo] and a [Vote] to return to the disperser. When the disperser
+    /// has `W-f` weight of signed [Vote]s, he can publish the certified `top_root`.
     pub fn prepare_echoes(
         &self,
         my_id: PartyId,
@@ -241,10 +237,7 @@ impl Avid {
         })
     }
 
-    /// Check if `complaint` is a valid blame against the dispersal: its shards carry valid Merkle
-    /// proofs under `top_root`, contribute `≥ W − 2f` weight, and do **not** reconstruct to a
-    /// consistent payload that passes `payload_ok`. Returns `Ok(false)` for a malformed or
-    /// unfounded complaint.
+    /// Check if `complaint` is a valid complaint against the dispersal.
     pub fn complaint_is_valid(
         &self,
         complaint: &Complaint,

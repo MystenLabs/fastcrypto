@@ -78,7 +78,7 @@ pub struct AvssMessage {
     pub ciphertext: Ciphertext,
 }
 
-/// The shared part of the dealer's AVSS broadcast.
+/// The shared part of the dealer's optimistic phase broadcast.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AvssCommonMessage {
     full_public_keys: Vec<G>,
@@ -117,7 +117,7 @@ pub struct DealerState {
     ciphertexts: Vec<Ciphertext>,
 }
 
-/// The dealer's per-receiver message for the AVID pessimistic-phase.
+/// The dealer's per-receiver message for the pessimistic phase.
 pub type AvidDispersal = avid::Dispersal;
 
 /// An endorsement of the dealer's pessimistic dispersal.
@@ -471,7 +471,9 @@ impl Receiver {
         })
     }
 
-    /// 2. Process an [AvssMessage] sent by the dealer in the optimistic phase. On success, returns the
+    /// 2. Process an [AvssMessage] sent by the dealer in the optimistic phase.
+    /// 
+    ///    On success, returns
     ///     * a [ReceiverOutput],
     ///     * an [AvssVote] to be returned to the dealer,
     ///     * a [VerifiedAvssCommonMessage] to be retained for the rest of the session.
@@ -1411,7 +1413,7 @@ mod tests {
             other => panic!("expected Invalid, got {:?}", outcome_kind(&other)),
         };
 
-        // Voters handle the Reveal using their own ciphertexts from the optimistic phase.
+        // Voters handle the AvssComplaint using their own ciphertexts from the optimistic phase.
         let responses = receivers
             .iter()
             .filter(|r| r.id != victim_id)
