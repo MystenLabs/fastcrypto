@@ -136,7 +136,7 @@ type Element = [u8; ELEMENT_SIZE_IN_BYTES];
 /// Size in bytes of one `GF(2^16)` element.
 const ELEMENT_SIZE_IN_BYTES: usize = 2;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Shard(pub(crate) Vec<u8>);
 

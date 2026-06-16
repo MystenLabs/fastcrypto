@@ -210,7 +210,9 @@ impl Avid {
     /// 3b. Reconstruct the caller's payload from a quorum of [VerifiedEcho]s, or raise a
     ///     [Complaint]. Rejects duplicate dispersers, requires `≥ W − 2f` weight (the RS-decode
     ///     minimum). With well-formed inputs returns `Ok(Ok(payload))` iff the shards decode to a
-    ///     payload that passes `payload_ok`, otherwise `Ok(Err(Complaint))` over the shards.
+    ///     payload that passes `payload_ok` and re-encoding it reproduces every supplied echo's
+    ///     shards exactly (so the dealer's cells form a valid codeword). Otherwise
+    ///     `Ok(Err(Complaint))` over the shards.
     pub fn decode_or_complain(
         &self,
         echoes: &[VerifiedEcho],
@@ -232,10 +234,23 @@ impl Avid {
             .cloned()
             .map(|e| (e.sender, e.echo.authenticated_shards))
             .collect();
-        Ok(match self.decode(&shards) {
-            Ok(payload) if payload_ok(&payload) => Ok(payload),
-            _ => Err(Complaint { shards }),
-        })
+        let payload = match self.decode(&shards) {
+            Ok(p) if payload_ok(&p) => p,
+            _ => return Ok(Err(Complaint { shards })),
+        };
+        // Re-encode and check every supplied echo's shards lie on the same codeword. Each echo's
+        // shards were already pinned to the certified `top_root` by [Self::verify_echo], so any
+        // mismatch here proves the dealer committed cells that are not a valid codeword.
+        let re_encoded = self
+            .nodes
+            .collect_to_nodes(self.coder.encode(&payload)?.into_iter())?;
+        if shards
+            .iter()
+            .any(|(id, auth)| auth.shards != re_encoded[*id as usize])
+        {
+            return Ok(Err(Complaint { shards }));
+        }
+        Ok(Ok(payload))
     }
 
     /// Check if `complaint` is a valid complaint against the dispersal.
