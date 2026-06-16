@@ -144,9 +144,9 @@ impl Avid {
             .collect())
     }
 
-    /// 2. Verify a [Deispersal] and return an [EchoBuilder] that can produce individual [Echo]s on demand via
-    /// [EchoBuilder::create_echo] and a [Vote] to return to the disperser. When the disperser
-    /// has `W-f` weight of signed [Vote]s, he can publish the certified `top_root`.
+    /// 2. Verify a [Dispersal] and return an [EchoBuilder] that can produce individual [Echo]s on demand via
+    ///    [EchoBuilder::create_echo] and a [Vote] to return to the disperser. When the disperser
+    ///    has `W-f` weight of signed [Vote]s, he can publish the certified `top_root`.
     pub fn prepare_echoes(
         &self,
         my_id: PartyId,

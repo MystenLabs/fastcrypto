@@ -417,8 +417,7 @@ impl Dealer {
             .iter()
             .map(|&i| (i, state.ciphertexts[i as usize].0.clone()))
             .collect();
-        let messages = self.avid.disperse_with_mutation(&payloads, mutate_shards)?;
-        Ok(messages)
+        self.avid.disperse_with_mutation(&payloads, mutate_shards)
     }
 
     fn random_oracle(&self) -> RandomOracle {
@@ -492,11 +491,7 @@ impl Receiver {
         Ok((
             output,
             AvssVote {
-                common_message_hash: {
-                    let this = &verified_common;
-                    &this.0
-                }
-                .hash(),
+                common_message_hash: verified_common.0.hash(),
             },
             verified_common,
         ))
@@ -533,11 +528,7 @@ impl Receiver {
             warn!("batch_avss echo: not enough voters");
             return Err(NotEnoughWeight(required_weight_of_voters as usize));
         }
-        let expected_common_message_hash = {
-            let this = &verified_common;
-            &this.0
-        }
-        .hash();
+        let expected_common_message_hash = verified_common.0.hash();
         if verified_cert.common_message_hash != expected_common_message_hash {
             warn!("batch_avss echo: voters attested to a different common message");
             return Err(InvalidMessage);
@@ -596,16 +587,13 @@ impl Receiver {
         echoes: &[VerifiedEcho],
         verified_common: &VerifiedAvssCommonMessage,
     ) -> FastCryptoResult<DecodeOutcome> {
-        let avid = &self.avid;
-        let expected_hash = {
-            let this = &verified_common;
-            &this.0
-        }
-        .ciphertext_hashes
-        .get(self.id as usize)
-        .ok_or(InvalidProof)?;
+        let expected_hash = verified_common
+            .0
+            .ciphertext_hashes
+            .get(self.id as usize)
+            .ok_or(InvalidProof)?;
         Ok(
-            match avid.decode_or_complain(echoes, |payload| {
+            match self.avid.decode_or_complain(echoes, |payload| {
                 Blake2b256::digest(payload) == *expected_hash
             })? {
                 Ok(bytes) => DecodeOutcome::Decoded(Ciphertext(bytes)),
@@ -631,10 +619,10 @@ impl Receiver {
     pub fn decrypt_and_verify(
         &self,
         ciphertext: &Ciphertext,
-        common_message: &VerifiedAvssCommonMessage,
+        verified_common: &VerifiedAvssCommonMessage,
     ) -> FastCryptoResult<DecryptionOutcome> {
-        self.check_ciphertext_hash(ciphertext, common_message)?;
-        match self.decrypt_and_verify_shares(ciphertext, common_message) {
+        self.check_ciphertext_hash(ciphertext, verified_common)?;
+        match self.decrypt_and_verify_shares(ciphertext, verified_common) {
             Ok(output) => Ok(DecryptionOutcome::Valid(output)),
             Err(e) => {
                 warn!(
@@ -644,11 +632,7 @@ impl Receiver {
                 Ok(DecryptionOutcome::Invalid(AvssComplaint {
                     proof: recovery_proof::RecoveryProof::create(
                         self.id,
-                        &{
-                            let this = &common_message;
-                            &this.0
-                        }
-                        .ciphertext_shared,
+                        &verified_common.0.ciphertext_shared,
                         &self.enc_secret_key,
                         &self.random_oracle(),
                         &mut rand::thread_rng(),
@@ -664,16 +648,14 @@ impl Receiver {
     fn check_ciphertext_hash(
         &self,
         ciphertext: &Ciphertext,
-        common_message: &VerifiedAvssCommonMessage,
+        verified_common: &VerifiedAvssCommonMessage,
     ) -> FastCryptoResult<()> {
         if Blake2b256::digest(&ciphertext.0)
-            != *{
-                let this = &common_message;
-                &this.0
-            }
-            .ciphertext_hashes
-            .get(self.id as usize)
-            .ok_or(InvalidMessage)?
+            != *verified_common
+                .0
+                .ciphertext_hashes
+                .get(self.id as usize)
+                .ok_or(InvalidMessage)?
         {
             warn!(
                 "batch_avss check_ciphertext_hash: ciphertext hash does not match ciphertext_hashes[{}]",
@@ -691,15 +673,11 @@ impl Receiver {
         ciphertext: &Ciphertext,
         common_message: &VerifiedAvssCommonMessage,
     ) -> FastCryptoResult<ReceiverOutput> {
-        let common_message = {
-            let this = &common_message;
-            &this.0
-        };
         let AvssCommonMessage {
             full_public_keys,
             ciphertext_shared,
             ..
-        } = &common_message;
+        } = &&common_message.0;
         let random_oracle = self.random_oracle();
 
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
@@ -710,10 +688,10 @@ impl Receiver {
             self.id as usize,
         );
 
-        let challenge = compute_challenge_from_common_message(&random_oracle, common_message);
+        let challenge = compute_challenge_from_common_message(&random_oracle, &common_message.0);
         let my_shares = SharesForNode::from_bytes(plaintext)?;
         my_shares.verify(
-            common_message,
+            &common_message.0,
             &challenge,
             &self.nodes.share_ids_of(self.id)?,
             self.batch_size,
@@ -735,17 +713,14 @@ impl Receiver {
         verified_common: &VerifiedAvssCommonMessage,
         own_ciphertext: Ciphertext,
     ) -> FastCryptoResult<ComplaintResponse> {
-        let common_message = {
-            let this = &verified_common;
-            &this.0
-        };
         let challenge =
-            compute_challenge_from_common_message(&self.random_oracle(), common_message);
+            compute_challenge_from_common_message(&self.random_oracle(), &verified_common.0);
 
         let AvssComplaint { proof, ciphertext } = reveal;
 
         if Blake2b256::digest(&ciphertext.0)
-            != *common_message
+            != *verified_common
+                .0
                 .ciphertext_hashes
                 .get(accuser_id as usize)
                 .ok_or(InvalidProof)?
@@ -758,11 +733,11 @@ impl Receiver {
             accuser_id,
             &accuser.pk,
             ciphertext,
-            &common_message.ciphertext_shared,
+            &verified_common.0.ciphertext_shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
                 shares.verify(
-                    common_message,
+                    &verified_common.0,
                     &challenge,
                     &accuser_indices,
                     self.batch_size,
@@ -770,7 +745,7 @@ impl Receiver {
             },
         )?;
 
-        Ok(self.build_complaint_response(common_message, own_ciphertext))
+        Ok(self.build_complaint_response(&verified_common.0, own_ciphertext))
     }
 
     /// 7b. Validate a [AvidComplaint] and respond with this party's shares.
@@ -783,16 +758,11 @@ impl Receiver {
         cert: &UnsignedAvssCert,
         own_ciphertext: Ciphertext,
     ) -> FastCryptoResult<ComplaintResponse> {
-        let common_message = {
-            let this = &verified_common;
-            &this.0
-        };
-
-        let expected_hash = {
-            let this = &common_message;
-            this.ciphertext_hashes.get(accuser_id as usize)
-        }
-        .ok_or(InvalidProof)?;
+        let expected_hash = verified_common
+            .0
+            .ciphertext_hashes
+            .get(accuser_id as usize)
+            .ok_or(InvalidProof)?;
 
         if !self.avid.complaint_is_valid(
             blame,
@@ -804,7 +774,7 @@ impl Receiver {
             return Err(InvalidProof);
         }
 
-        Ok(self.build_complaint_response(common_message, own_ciphertext))
+        Ok(self.build_complaint_response(&verified_common.0, own_ciphertext))
     }
 
     /// Build a [ComplaintResponse] for a validated [AvssComplaint] / [AvidComplaint].
@@ -835,20 +805,17 @@ impl Receiver {
             ciphertext,
             recovery_package,
         } = response;
-        let common_message = {
-            let this = &verified_common;
-            &this.0
-        };
-
-        if (Blake2b256::digest(&ciphertext.0))
-            != *common_message
+        if Blake2b256::digest(&ciphertext.0)
+            != *verified_common
+                .0
                 .ciphertext_hashes
                 .get(responder_id as usize)
                 .ok_or(InvalidProof)?
         {
             return Err(InvalidProof);
         }
-        let shares = common_message
+        let shares = verified_common
+            .0
             .ciphertext_shared
             .decrypt_with_recovery_package(
                 &ciphertext,
@@ -863,8 +830,8 @@ impl Receiver {
             .and_then(SharesForNode::from_bytes)?;
 
         shares.verify(
-            common_message,
-            &compute_challenge_from_common_message(&self.random_oracle(), common_message),
+            &verified_common.0,
+            &compute_challenge_from_common_message(&self.random_oracle(), &verified_common.0),
             &self.nodes.share_ids_of(responder_id)?,
             self.batch_size,
         )?;
@@ -1018,10 +985,7 @@ impl ShareBatch {
         message: &AvssCommonMessage,
         challenge: &[S],
     ) -> FastCryptoResult<()> {
-        if challenge.len() != {
-            let this = &self;
-            this.batch.len()
-        } {
+        if challenge.len() != self.batch.len() {
             return Err(InvalidInput);
         }
 
