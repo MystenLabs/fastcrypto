@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["RSDecoder"]};
+window.SIDEBAR_ITEMS = {"struct":["ErasureCoder","RSDecoder","Shard"]};
