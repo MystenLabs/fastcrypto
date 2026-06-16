@@ -107,7 +107,7 @@ mod batch_avss_benches {
         UnsignedAvssCert,
     ) {
         let (state, _) = dealer.create_avss_messages(rng).unwrap();
-        let common = state.common().clone();
+        let common = state.common.clone();
         let pending: BTreeSet<PartyId> = std::iter::once(STRAGGLER).collect();
         let messages = dealer.create_avid_dispersals(&state, pending).unwrap();
         let n = messages.len() as u16;
@@ -186,7 +186,7 @@ mod batch_avss_benches {
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            r1.prepare_avid_echo_messages(message.clone(), &vcm, &cert)
+                            r1.prepare_avid_echo_messages_and_vote(message.clone(), &vcm, &cert)
                                 .unwrap()
                         })
                     },
@@ -212,19 +212,24 @@ mod batch_avss_benches {
                 let vcm0 = r0.verify_common_message(common.clone()).unwrap();
                 let vcm1 = r1.verify_common_message(common).unwrap();
                 let (builder0, _) = r0
-                    .prepare_avid_echo_messages(messages[&0].clone(), &vcm0, &cert)
+                    .prepare_avid_echo_messages_and_vote(messages[&0].clone(), &vcm0, &cert)
                     .unwrap();
                 let echo_for_r1 = builder0.create_echo(1).unwrap();
                 let (_, vote1) = r1
-                    .prepare_avid_echo_messages(messages[&r1.id].clone(), &vcm1, &cert)
+                    .prepare_avid_echo_messages_and_vote(messages[&r1.id].clone(), &vcm1, &cert)
                     .unwrap();
                 let top_root = vote1.top_root;
                 verify_echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            r1.verify_echo(echo_for_r1.clone(), r0.id, &top_root, &cert)
-                                .unwrap()
+                            r1.verify_avid_echo_message(
+                                echo_for_r1.clone(),
+                                r0.id,
+                                &top_root,
+                                &cert,
+                            )
+                            .unwrap()
                         })
                     },
                 );
@@ -253,7 +258,11 @@ mod batch_avss_benches {
                     .map(|r| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (builder, vote) = r
-                            .prepare_avid_echo_messages(messages[&r.id].clone(), &vcm, &cert)
+                            .prepare_avid_echo_messages_and_vote(
+                                messages[&r.id].clone(),
+                                &vcm,
+                                &cert,
+                            )
                             .unwrap();
                         if r.id == 1 {
                             top_root = Some(vote.top_root);
@@ -272,7 +281,12 @@ mod batch_avss_benches {
                     .enumerate()
                     .map(|(sender, em)| {
                         receivers[1]
-                            .verify_echo(em[&1u16].clone(), sender as PartyId, &top_root, &cert)
+                            .verify_avid_echo_message(
+                                em[&1u16].clone(),
+                                sender as PartyId,
+                                &top_root,
+                                &cert,
+                            )
                             .unwrap()
                     })
                     .collect();
@@ -307,7 +321,11 @@ mod batch_avss_benches {
                     .map(|r| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (builder, vote) = r
-                            .prepare_avid_echo_messages(messages[&r.id].clone(), &vcm, &cert)
+                            .prepare_avid_echo_messages_and_vote(
+                                messages[&r.id].clone(),
+                                &vcm,
+                                &cert,
+                            )
                             .unwrap();
                         if r.id == 1 {
                             top_root = Some(vote.top_root);
@@ -326,7 +344,12 @@ mod batch_avss_benches {
                     .enumerate()
                     .map(|(sender, em)| {
                         receivers[1]
-                            .verify_echo(em[&1u16].clone(), sender as PartyId, &top_root, &cert)
+                            .verify_avid_echo_message(
+                                em[&1u16].clone(),
+                                sender as PartyId,
+                                &top_root,
+                                &cert,
+                            )
                             .unwrap()
                     })
                     .collect();
@@ -381,7 +404,7 @@ mod batch_avss_benches {
                             .map(|r| {
                                 let vcm = r.verify_common_message(common.clone()).unwrap();
                                 let (builder, vote) = r
-                                    .prepare_avid_echo_messages(
+                                    .prepare_avid_echo_messages_and_vote(
                                         messages[&r.id].clone(),
                                         &vcm,
                                         &cert,
@@ -404,7 +427,7 @@ mod batch_avss_benches {
                             .enumerate()
                             .map(|(sender, em)| {
                                 receivers[1]
-                                    .verify_echo(
+                                    .verify_avid_echo_message(
                                         em[&1u16].clone(),
                                         sender as PartyId,
                                         &top_root,

@@ -174,7 +174,13 @@ impl Avid {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
         let top_root = get_uniform_value(implied_roots).ok_or(InvalidMessage)?;
-        Ok((EchoBuilder { dispersal, top_root: top_root.clone() }, Vote { top_root }))
+        Ok((
+            EchoBuilder {
+                dispersal,
+                top_root: top_root.clone(),
+            },
+            Vote { top_root },
+        ))
     }
 
     /// 3a. Verify an [Echo] addressed to `receiver`. Use the published `certified_top_root`.
