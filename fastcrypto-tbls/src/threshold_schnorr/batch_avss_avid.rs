@@ -475,7 +475,7 @@ impl Receiver {
     ///     * a [ReceiverOutput],
     ///     * an [AvssVote] to be returned to the dealer,
     ///     * a [VerifiedAvssCommonMessage] to be retained for the rest of the session.
-    /// 
+    ///
     ///    On any failure the receiver silently ignores the message and falls through to the pessimistic phase.
     ///
     ///    A voter should also retain its own ciphertext (`message.ciphertext`) so it can
@@ -490,7 +490,11 @@ impl Receiver {
         Ok((
             output,
             AvssVote {
-                common_message_hash: verified_common.common().hash(),
+                common_message_hash: {
+                    let this = &verified_common;
+                    &this.0
+                }
+                .hash(),
             },
             verified_common,
         ))
@@ -510,7 +514,7 @@ impl Receiver {
         )
     }
 
-    /// 4. Verify the AVID-phase [AvidDispersal] against a [VerifiedAvssCommonMessage] and
+    /// 4. Verify the pessimistic phase [AvidDispersal] against a [VerifiedAvssCommonMessage] and
     ///    emit an [EchoBuilder] which can build [Echo]es on demand. The
     ///    receiver is expected to already hold the [VerifiedAvssCommonMessage] from the optimistic
     ///    phase or to have fetched it from a confirming party and to have verified and created an
@@ -527,7 +531,11 @@ impl Receiver {
             warn!("batch_avss echo: not enough voters");
             return Err(NotEnoughWeight(required_weight_of_voters as usize));
         }
-        let expected_common_message_hash = verified_common.common().hash();
+        let expected_common_message_hash = {
+            let this = &verified_common;
+            &this.0
+        }
+        .hash();
         if verified_cert.common_message_hash != expected_common_message_hash {
             warn!("batch_avss echo: voters attested to a different common message");
             return Err(InvalidMessage);
@@ -588,10 +596,11 @@ impl Receiver {
     ) -> FastCryptoResult<DecodeOutcome> {
         let avid = &self.avid;
         let expected_hash = {
-            let this = &verified_common.common();
-            let id = self.id;
-            this.ciphertext_hashes.get(id as usize)
+            let this = &verified_common;
+            &this.0
         }
+        .ciphertext_hashes
+        .get(self.id as usize)
         .ok_or(InvalidProof)?;
         Ok(
             match avid.decode_or_complain(echoes, |payload| {
@@ -633,7 +642,11 @@ impl Receiver {
                 Ok(DecryptionOutcome::Invalid(AvssComplaint {
                     proof: recovery_proof::RecoveryProof::create(
                         self.id,
-                        &common_message.common().ciphertext_shared,
+                        &{
+                            let this = &common_message;
+                            &this.0
+                        }
+                        .ciphertext_shared,
                         &self.enc_secret_key,
                         &self.random_oracle(),
                         &mut rand::thread_rng(),
@@ -651,15 +664,14 @@ impl Receiver {
         ciphertext: &Ciphertext,
         common_message: &VerifiedAvssCommonMessage,
     ) -> FastCryptoResult<()> {
-        let expected_hash = common_message
-            .common()
+        if Blake2b256::digest(&ciphertext.0)
+            != *{
+                let this = &common_message;
+                &this.0
+            }
             .ciphertext_hashes
             .get(self.id as usize)
-            .ok_or(InvalidMessage)?;
-        if ({
-            let bytes: &[u8] = &ciphertext.0;
-            Blake2b256::digest(bytes)
-        }) != *expected_hash
+            .ok_or(InvalidMessage)?
         {
             warn!(
                 "batch_avss check_ciphertext_hash: ciphertext hash does not match ciphertext_hashes[{}]",
@@ -677,7 +689,10 @@ impl Receiver {
         ciphertext: &Ciphertext,
         common_message: &VerifiedAvssCommonMessage,
     ) -> FastCryptoResult<ReceiverOutput> {
-        let common_message = common_message.common();
+        let common_message = {
+            let this = &common_message;
+            &this.0
+        };
         let AvssCommonMessage {
             full_public_keys,
             ciphertext_shared,
@@ -718,24 +733,20 @@ impl Receiver {
         verified_common: &VerifiedAvssCommonMessage,
         own_ciphertext: Ciphertext,
     ) -> FastCryptoResult<ComplaintResponse> {
-        let common_message = verified_common.common();
+        let common_message = {
+            let this = &verified_common;
+            &this.0
+        };
         let challenge =
             compute_challenge_from_common_message(&self.random_oracle(), common_message);
 
-        let AvssComplaint {
-            proof,
-            ciphertext: reveal_ciphertext,
-        } = reveal;
+        let AvssComplaint { proof, ciphertext } = reveal;
 
-        let expected_ciphertext_hash = {
-            let this = &common_message;
-            this.ciphertext_hashes.get(accuser_id as usize)
-        }
-        .ok_or(InvalidProof)?;
-        if ({
-            let bytes: &[u8] = &reveal_ciphertext.0;
-            Blake2b256::digest(bytes)
-        }) != *expected_ciphertext_hash
+        if Blake2b256::digest(&ciphertext.0)
+            != *common_message
+                .ciphertext_hashes
+                .get(accuser_id as usize)
+                .ok_or(InvalidProof)?
         {
             return Err(InvalidProof);
         }
@@ -744,7 +755,7 @@ impl Receiver {
         proof.check(
             accuser_id,
             &accuser.pk,
-            reveal_ciphertext,
+            ciphertext,
             &common_message.ciphertext_shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
@@ -770,7 +781,10 @@ impl Receiver {
         cert: &UnsignedAvssCert,
         own_ciphertext: Ciphertext,
     ) -> FastCryptoResult<ComplaintResponse> {
-        let common_message = verified_common.common();
+        let common_message = {
+            let this = &verified_common;
+            &this.0
+        };
 
         let expected_hash = {
             let this = &common_message;
@@ -819,7 +833,10 @@ impl Receiver {
             ciphertext,
             recovery_package,
         } = response;
-        let common_message = verified_common.common();
+        let common_message = {
+            let this = &verified_common;
+            &this.0
+        };
 
         if (Blake2b256::digest(&ciphertext.0))
             != *common_message
@@ -867,15 +884,33 @@ impl Receiver {
         if !responses.iter().map(|r| r.responder_id).all_unique() {
             return Err(InvalidInput);
         }
+
+        if responses.iter().any(|r| {
+            self.nodes
+                .weight_of(r.responder_id)
+                .ok()
+                .is_none_or(|w| w != r.shares.weight())
+        }) {
+            return Err(InvalidInput);
+        }
+
+        if self
+            .nodes
+            .total_weight_of(responses.iter().map(|r| &r.responder_id))?
+            < self.params.t
+        {
+            return Err(NotEnoughWeight(self.params.t as usize));
+        }
+
         let response_shares: Vec<(PartyId, SharesForNode)> = responses
             .into_iter()
             .map(|v| (v.responder_id, v.shares))
             .collect();
-        if response_shares.iter().map(|(_, s)| s.weight()).sum::<u16>() < self.params.t {
-            return Err(FastCryptoError::InputTooShort(self.params.t as usize));
-        }
 
-        let common_message = verified_common.common();
+        let common_message = {
+            let this = &verified_common;
+            &this.0
+        };
         let challenge =
             compute_challenge_from_common_message(&self.random_oracle(), common_message);
         let my_shares = SharesForNode::recover(self, &response_shares)?;
@@ -921,13 +956,6 @@ impl Parameters {
         }
         ErasureCoder::check_parameters(total_weight as usize, t as usize)?;
         Ok(())
-    }
-}
-
-impl VerifiedAvssCommonMessage {
-    /// The validated [AvssCommonMessage].
-    pub fn common(&self) -> &AvssCommonMessage {
-        &self.0
     }
 }
 
@@ -992,7 +1020,10 @@ impl ShareBatch {
         message: &AvssCommonMessage,
         challenge: &[S],
     ) -> FastCryptoResult<()> {
-        if challenge.len() != self.batch_size() {
+        if challenge.len() != {
+            let this = &self;
+            this.batch.len()
+        } {
             return Err(InvalidInput);
         }
 
@@ -1010,10 +1041,6 @@ impl ShareBatch {
         }
         Ok(())
     }
-
-    fn batch_size(&self) -> usize {
-        self.batch.len()
-    }
 }
 
 impl SharesForNode {
@@ -1025,7 +1052,7 @@ impl SharesForNode {
     /// If all shares have the same batch size, return that.
     /// Otherwise, return an InvalidInput error.
     pub fn try_uniform_batch_size(&self) -> FastCryptoResult<usize> {
-        get_uniform_value(self.shares.iter().map(ShareBatch::batch_size)).ok_or(InvalidInput)
+        get_uniform_value(self.shares.iter().map(|b| b.batch.len())).ok_or(InvalidInput)
     }
 
     /// Get all shares this node has for the <i>i</i>-th secret/nonce in the batch, paired with
