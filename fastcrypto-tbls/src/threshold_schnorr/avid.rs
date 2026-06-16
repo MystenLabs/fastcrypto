@@ -8,14 +8,13 @@
 //! to the dealer's broadcast. The set of recipients does not have to be all nodes.
 
 use crate::nodes::{Nodes, PartyId};
+use crate::threshold_schnorr::merkle::{NestedMerkleProof, NestedMerkleTree};
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
 use crate::threshold_schnorr::EG;
 use crate::types::get_uniform_value;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage, NotEnoughWeight};
 use fastcrypto::error::FastCryptoResult;
-use fastcrypto::hash::Blake2b256;
 use fastcrypto::merkle;
-use fastcrypto::merkle::MerkleTree;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -33,11 +32,13 @@ pub struct Avid {
 /// The dealer's per-party dispersal message. One [AuthenticatedShards] per recipient.
 pub type Dispersal = BTreeMap<PartyId, AuthenticatedShards>;
 
-/// One disperser's shards for a recipient's payload with a Merkle proof against the `top_root`.
+/// One disperser's shards for a recipient's payload with a two-level Merkle proof against the
+/// dispersal's `top_root` (row proof to the recipient's row root, top proof binding that row root
+/// to `top_root`).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthenticatedShards {
     pub(crate) shards: Vec<Shard>,
-    pub(crate) proof: merkle::MerkleProof,
+    pub(crate) proof: NestedMerkleProof,
 }
 
 /// An endorsement of a dispersal's `top_root`.
@@ -96,13 +97,11 @@ impl Avid {
         payloads_by_recipient: &BTreeMap<PartyId, Vec<u8>>,
         mutate: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
     ) -> FastCryptoResult<BTreeMap<PartyId, Dispersal>> {
-        let code = &self.coder;
-
         // RS-encode each recipient's payload and bucket the shards by disperser.
         let mut shards_by_recipient: BTreeMap<PartyId, Vec<Vec<Shard>>> = payloads_by_recipient
             .iter()
             .map(|(&i, payload)| {
-                let shards = code.encode(payload)?;
+                let shards = self.coder.encode(payload)?;
                 let by_disperser = self.nodes.collect_to_nodes(shards.into_iter())?;
                 Ok((i, by_disperser))
             })
@@ -111,14 +110,9 @@ impl Avid {
         #[cfg(test)]
         mutate(&mut shards_by_recipient);
 
-        // Build a single Merkle tree whose leaves are the (recipient, disperser) cells, laid out
-        // recipient-major in sorted order — see [Self::leaf_index].
-        let leaves: Vec<Vec<Shard>> = shards_by_recipient
-            .values()
-            .flat_map(|by_disperser| by_disperser.iter().cloned())
-            .collect();
-        let tree = MerkleTree::<Blake2b256>::build_from_unserialized(leaves.iter())
-            .expect("Fails only if serialization fails");
+        // Two-level Merkle commitment: per-recipient row trees + a top tree over the row roots.
+        let rows: Vec<Vec<Vec<Shard>>> = shards_by_recipient.values().cloned().collect();
+        let tree = NestedMerkleTree::<Vec<Shard>>::new(&rows)?;
 
         Ok(self
             .nodes
@@ -133,7 +127,7 @@ impl Avid {
                             AuthenticatedShards {
                                 shards: by_disperser[j as usize].clone(),
                                 proof: tree
-                                    .get_proof(self.leaf_index(j, recipient_idx))
+                                    .get_proof(recipient_idx, j as usize)
                                     .expect("valid leaf index"),
                             },
                         )
@@ -163,11 +157,7 @@ impl Avid {
             .map(|(recipient_idx, (_, shards))| {
                 shards
                     .proof
-                    .compute_root(
-                        &bcs::to_bytes(&shards.shards).map_err(|_| InvalidInput)?,
-                        self.leaf_index(my_id, recipient_idx),
-                    )
-                    .ok_or(InvalidMessage)
+                    .derive_top_root(&shards.shards, recipient_idx, my_id as usize)
                     .tap_err(|err| warn!("avid echo: implied root failed at leaf {my_id}: {err:?}"))
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
@@ -190,29 +180,29 @@ impl Avid {
         pending_recipients: &BTreeSet<PartyId>,
         receiver: PartyId,
     ) -> FastCryptoResult<VerifiedEcho> {
-        if echo.authenticated_shards.shards.len() != self.nodes.weight_of(sender)? as usize {
+        let auth = &echo.authenticated_shards;
+        if auth.shards.len() != self.nodes.weight_of(sender)? as usize {
             return Err(InvalidMessage);
         }
         let receiver_idx = pending_recipients
             .iter()
             .position(|&id| id == receiver)
             .ok_or(InvalidInput)?;
-        echo.authenticated_shards
-            .proof
-            .verify_proof_with_unserialized_leaf(
-                certified_top_root,
-                &echo.authenticated_shards.shards,
-                self.leaf_index(sender, receiver_idx),
-            )?;
+        auth.proof.verify(
+            certified_top_root,
+            &auth.shards,
+            receiver_idx,
+            sender as usize,
+        )?;
         Ok(VerifiedEcho { echo, sender })
     }
 
     /// 3b. Reconstruct the caller's payload from a quorum of [VerifiedEcho]s, or raise a
     ///     [Complaint]. Rejects duplicate dispersers, requires `≥ W − 2f` weight (the RS-decode
     ///     minimum). With well-formed inputs returns `Ok(Ok(payload))` iff the shards decode to a
-    ///     payload that passes `payload_ok` and re-encoding it reproduces every supplied echo's
-    ///     shards exactly (so the dealer's cells form a valid codeword). Otherwise
-    ///     `Ok(Err(Complaint))` over the shards.
+    ///     payload that passes `payload_ok` and re-encoding it rebuilds a row tree whose root
+    ///     matches the dispersal's `recipient_root` (so the dealer's cells form a valid
+    ///     codeword). Otherwise `Ok(Err(Complaint))` over the shards.
     pub fn decode_or_complain(
         &self,
         echoes: &[VerifiedEcho],
@@ -238,18 +228,28 @@ impl Avid {
             Ok(p) if payload_ok(&p) => p,
             _ => return Ok(Err(Complaint { shards })),
         };
-        // Re-encode and check every supplied echo's shards lie on the same codeword. Each echo's
-        // shards were already pinned to the certified `top_root` by [Self::verify_echo], so any
-        // mismatch here proves the dealer committed cells that are not a valid codeword.
-        let re_encoded = self
+
+        // Re-encode the payload and rebuild the row's Merkle tree.
+        let re_encoded: Vec<Vec<Shard>> = self
             .nodes
             .collect_to_nodes(self.coder.encode(&payload)?.into_iter())?;
-        if shards
-            .iter()
-            .any(|(id, auth)| auth.shards != re_encoded[*id as usize])
+
+        // Take the expected recipient root from any verified echo's proof, since they all share the same top root and row index.
+        let (sender, authenticated_shards) =
+            shards.iter().next().expect("non-empty by check above");
+        let expected_recipient_root = authenticated_shards
+            .proof
+            .row_proof
+            .compute_root(
+                &bcs::to_bytes(&authenticated_shards.shards).map_err(|_| InvalidInput)?,
+                *sender as usize,
+            )
+            .ok_or(InvalidMessage)?;
+        if NestedMerkleTree::<Vec<Shard>>::compute_row_root(&re_encoded)? != expected_recipient_root
         {
             return Ok(Err(Complaint { shards }));
         }
+
         Ok(Ok(payload))
     }
 
@@ -265,14 +265,9 @@ impl Avid {
         let Some(accuser_idx) = pending_recipients.iter().position(|&id| id == accuser_id) else {
             return Ok(false);
         };
-        let shards_verify = complaint.shards.iter().all(|(&disperser, shards)| {
-            shards
-                .proof
-                .verify_proof_with_unserialized_leaf(
-                    top_root,
-                    &shards.shards,
-                    self.leaf_index(disperser, accuser_idx),
-                )
+        let shards_verify = complaint.shards.iter().all(|(&disperser, auth)| {
+            auth.proof
+                .verify(top_root, &auth.shards, accuser_idx, disperser as usize)
                 .is_ok()
         });
         if !shards_verify
@@ -307,13 +302,6 @@ impl Avid {
 
     fn required_weight(&self) -> u16 {
         self.nodes.total_weight() - 2 * self.f
-    }
-
-    /// Position of disperser `sender`'s cell for the recipient at `recipient_idx` (its index in
-    /// the dispersal's sorted recipient set) in the flat Merkle tree built by
-    /// [Self::disperse_with_mutation].
-    fn leaf_index(&self, sender: PartyId, recipient_idx: usize) -> usize {
-        recipient_idx * self.nodes.num_nodes() + sender as usize
     }
 }
 

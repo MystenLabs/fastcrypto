@@ -46,6 +46,7 @@ pub mod batch_avss_avid;
 mod bcs;
 pub mod complaint;
 pub mod key_derivation;
+mod merkle;
 mod pascal_matrix;
 pub mod presigning;
 pub mod recovery_proof;
