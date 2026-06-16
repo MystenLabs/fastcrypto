@@ -91,7 +91,7 @@ impl Avid {
     ///    production callers pass `|_| {}`.
     ///    Fails if any of the payloads are empty.
     #[cfg_attr(not(test), allow(unused_variables, unused_mut))]
-    pub(super) fn disperse_with_mutation(
+    pub fn disperse_with_mutation(
         &self,
         payloads_by_recipient: &BTreeMap<PartyId, Vec<u8>>,
         mutate: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
