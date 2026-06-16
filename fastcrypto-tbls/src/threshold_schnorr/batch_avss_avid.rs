@@ -24,7 +24,7 @@ use crate::types::{get_uniform_value, ShareIndex};
 use fastcrypto::error::FastCryptoError::{
     InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
 };
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::hash::{Blake2b256, HashFunction};
 use fastcrypto::merkle;
@@ -907,15 +907,11 @@ impl Receiver {
             .map(|v| (v.responder_id, v.shares))
             .collect();
 
-        let common_message = {
-            let this = &verified_common;
-            &this.0
-        };
         let challenge =
-            compute_challenge_from_common_message(&self.random_oracle(), common_message);
+            compute_challenge_from_common_message(&self.random_oracle(), &verified_common.0);
         let my_shares = SharesForNode::recover(self, &response_shares)?;
         my_shares.verify(
-            common_message,
+            &verified_common.0,
             &challenge,
             &self.nodes.share_ids_of(self.id)?,
             self.batch_size,
@@ -923,7 +919,7 @@ impl Receiver {
 
         Ok(ReceiverOutput {
             my_shares,
-            public_keys: common_message.full_public_keys.clone(),
+            public_keys: verified_common.0.full_public_keys.clone(),
         })
     }
 
@@ -1268,15 +1264,9 @@ mod tests {
         let (state, optimistic_messages) = dealer.create_avss_messages(&mut rng).unwrap();
         let voters: Vec<PartyId> = (0u16..=4).collect();
         let pending: BTreeSet<PartyId> = [5u16, 6].into_iter().collect();
-        let mut votes = BTreeMap::new();
-        for id in &voters {
-            let (_output, vote, _verified_common) = receivers[*id as usize]
+        let votes: BTreeMap<PartyId, AvssVote> = voters.iter().map(|id| (*id, receivers[*id as usize]
                 .process_optimistic(&optimistic_messages[id])
-                .unwrap();
-            votes.insert(*id, vote);
-        }
-        // Optimistic-certificate sanity: `≥ t + f` weight of AvssVotes (matches `echo`'s own
-        // voter-quorum check at line 553). Here 5 voters @ weight 1 = 5 >= t + f = 5.
+                .unwrap().1)).collect();
         assert!(votes.len() as u16 >= t + f);
 
         // Pessimistic phase: dispersal for parties in I = {5, 6}.
@@ -1294,7 +1284,7 @@ mod tests {
         // All receivers verify v (which they already have from the optimistic phase) and echo
         // for I. Every receiver also emits an `AvidVote` over `top_root` at this point —
         // pending recipients still need to decode and verify their shares before relying on
-        // them, but the AvidVote attests to the dispersal layer (Merkle roots), not the
+        // them, but the AvidVote attests to the dispersal layer (Merkle root), not the
         // decryption, so it's safe to publish immediately.
         let mut top_roots: Vec<merkle::Node> = Vec::with_capacity(receivers.len());
         let mut verified_commons = Vec::with_capacity(receivers.len());
