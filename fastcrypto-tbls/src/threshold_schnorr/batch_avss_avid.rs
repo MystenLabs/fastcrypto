@@ -480,8 +480,8 @@ impl Receiver {
     ///    On any failure the receiver silently ignores the message and falls through to the pessimistic phase.
     ///
     ///    A voter should also retain its own ciphertext (`message.ciphertext`) so it can
-    ///    answer complaints later via [Self::handle_reveal] / [Self::handle_blame].
-    pub fn process_optimistic(
+    ///    answer complaints later via [Self::handle_avss_complaint] / [Self::handle_avid_complaint].
+    pub fn process_avss_message(
         &self,
         message: &AvssMessage,
     ) -> FastCryptoResult<(ReceiverOutput, AvssVote, VerifiedAvssCommonMessage)> {
@@ -541,7 +541,7 @@ impl Receiver {
             warn!("batch_avss echo: dispersal recipients and voters do not partition the node set");
             return Err(InvalidMessage);
         }
-        self.avid.prepare_echoes(self.id, message)
+        self.avid.process_dispersal(self.id, message)
     }
 
     /// Verify an [Echo] addressed to this receiver. Returns a [VerifiedEcho] suitable for
@@ -706,7 +706,7 @@ impl Receiver {
     ///     can recover. Accepts iff the ciphertext is bound to the dealer's broadcast [VerifiedAvssCommonMessage]
     ///     (via `common_message.ciphertext_hashes[accuser_id]`) and the recovery package decrypts it to invalid
     ///     shares.
-    pub fn handle_reveal(
+    pub fn handle_avss_complaint(
         &self,
         reveal: &AvssComplaint,
         accuser_id: PartyId,
@@ -749,7 +749,7 @@ impl Receiver {
     }
 
     /// 7b. Validate a [AvidComplaint] and respond with this party's shares.
-    pub fn handle_blame(
+    pub fn handle_avid_complaint(
         &self,
         blame: &AvidComplaint,
         accuser_id: PartyId,
@@ -1236,7 +1236,7 @@ mod tests {
                 (
                     *id,
                     receivers[*id as usize]
-                        .process_optimistic(&optimistic_messages[id])
+                        .process_avss_message(&optimistic_messages[id])
                         .unwrap()
                         .1,
                 )
@@ -1334,12 +1334,14 @@ mod tests {
         let mut outputs: HashMap<u16, ReceiverOutput> = HashMap::new();
         let mut votes: BTreeMap<PartyId, AvssVote> = BTreeMap::new();
         for r in receivers.iter().filter(|r| r.id != victim_id) {
-            let (out, c, _) = r.process_optimistic(&opt_messages[r.id as usize]).unwrap();
+            let (out, c, _) = r
+                .process_avss_message(&opt_messages[r.id as usize])
+                .unwrap();
             outputs.insert(r.id, out);
             votes.insert(r.id, c);
         }
         assert!(receivers[victim_id as usize]
-            .process_optimistic(&opt_messages[victim_id as usize])
+            .process_avss_message(&opt_messages[victim_id as usize])
             .is_err());
 
         let pending: BTreeSet<PartyId> = std::iter::once(victim_id).collect();
@@ -1393,7 +1395,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let resp = r
-                    .handle_reveal(
+                    .handle_avss_complaint(
                         &reveal,
                         victim_id,
                         &vcm,
@@ -1453,7 +1455,7 @@ mod tests {
         let mut outputs: HashMap<u16, ReceiverOutput> = HashMap::new();
         let mut votes: BTreeMap<PartyId, AvssVote> = BTreeMap::new();
         for r in receivers.iter().filter(|r| r.id != victim_id) {
-            let (out, c, _) = r.process_optimistic(&opt_messages[&r.id]).unwrap();
+            let (out, c, _) = r.process_avss_message(&opt_messages[&r.id]).unwrap();
             outputs.insert(r.id, out);
             votes.insert(r.id, c);
         }
@@ -1518,7 +1520,7 @@ mod tests {
                     .unwrap();
                 let top_root = vote.top_root;
                 let resp = r
-                    .handle_blame(
+                    .handle_avid_complaint(
                         &blame,
                         victim_id,
                         &vcm,

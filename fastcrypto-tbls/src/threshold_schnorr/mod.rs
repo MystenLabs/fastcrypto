@@ -250,7 +250,7 @@ mod tests {
             let (_, opt_messages) = dealer.create_avss_messages(&mut rng).unwrap();
             for r in &receivers {
                 let (output, _confirm, _verified_common) =
-                    r.process_optimistic(&opt_messages[&r.id]).unwrap();
+                    r.process_avss_message(&opt_messages[&r.id]).unwrap();
                 presigning_outputs.get_mut(&r.id).unwrap().push(output);
             }
         }

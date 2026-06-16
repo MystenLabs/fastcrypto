@@ -46,7 +46,7 @@ pub struct Vote {
     pub top_root: merkle::Node,
 }
 
-/// A precomputed dispersal-side cache produced by [Avid::prepare_echoes] to build [Echo]s.
+/// A precomputed dispersal-side cache produced by [Avid::process_dispersal] to build [Echo]s.
 pub struct EchoBuilder {
     dispersal: Dispersal,
     pub top_root: merkle::Node,
@@ -147,7 +147,7 @@ impl Avid {
     /// 2. Verify a [Dispersal] and return an [EchoBuilder] that can produce individual [Echo]s on demand via
     ///    [EchoBuilder::create_echo] and a [Vote] to return to the disperser. When the disperser
     ///    has `W-f` weight of signed [Vote]s, he can publish the certified `top_root`.
-    pub fn prepare_echoes(
+    pub fn process_dispersal(
         &self,
         my_id: PartyId,
         dispersal: Dispersal,
@@ -383,7 +383,7 @@ mod tests {
         let party_echoes: Vec<(PartyId, BTreeMap<PartyId, Echo>)> = messages
             .into_iter()
             .map(|(j, m)| {
-                let (builder, vote) = avid.prepare_echoes(j, m).unwrap();
+                let (builder, vote) = avid.process_dispersal(j, m).unwrap();
                 if top_root.is_none() {
                     top_root = Some(vote.top_root);
                     recipients = builder.recipients();
@@ -439,7 +439,7 @@ mod tests {
         let party_echoes: Vec<(PartyId, BTreeMap<PartyId, Echo>)> = messages
             .into_iter()
             .map(|(j, m)| {
-                let (builder, vote) = avid.prepare_echoes(j, m).unwrap();
+                let (builder, vote) = avid.process_dispersal(j, m).unwrap();
                 if top_root.is_none() {
                     top_root = Some(vote.top_root);
                     recipients = builder.recipients();
