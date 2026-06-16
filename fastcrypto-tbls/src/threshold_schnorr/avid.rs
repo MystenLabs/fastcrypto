@@ -128,12 +128,13 @@ impl Avid {
                     .iter()
                     .enumerate()
                     .map(|(recipient_idx, (&i, by_disperser))| {
-                        let leaf_index = self.leaf_index(j, recipient_idx);
                         (
                             i,
                             AuthenticatedShards {
                                 shards: by_disperser[j as usize].clone(),
-                                proof: tree.get_proof(leaf_index).expect("valid leaf index"),
+                                proof: tree
+                                    .get_proof(self.leaf_index(j, recipient_idx))
+                                    .expect("valid leaf index"),
                             },
                         )
                     })
@@ -160,11 +161,12 @@ impl Avid {
             .iter()
             .enumerate()
             .map(|(recipient_idx, (_, shards))| {
-                let leaf_index = self.leaf_index(my_id, recipient_idx);
-                let leaf_bytes = bcs::to_bytes(&shards.shards).map_err(|_| InvalidInput)?;
                 shards
                     .proof
-                    .compute_root(&leaf_bytes, leaf_index)
+                    .compute_root(
+                        &bcs::to_bytes(&shards.shards).map_err(|_| InvalidInput)?,
+                        self.leaf_index(my_id, recipient_idx),
+                    )
                     .ok_or(InvalidMessage)
                     .tap_err(|err| warn!("avid echo: implied root failed at leaf {my_id}: {err:?}"))
             })
@@ -195,13 +197,12 @@ impl Avid {
             .iter()
             .position(|&id| id == receiver)
             .ok_or(InvalidInput)?;
-        let leaf_index = self.leaf_index(sender, receiver_idx);
         echo.authenticated_shards
             .proof
             .verify_proof_with_unserialized_leaf(
                 certified_top_root,
                 &echo.authenticated_shards.shards,
-                leaf_index,
+                self.leaf_index(sender, receiver_idx),
             )?;
         Ok(VerifiedEcho { echo, sender })
     }
@@ -250,10 +251,13 @@ impl Avid {
             return Ok(false);
         };
         let shards_verify = complaint.shards.iter().all(|(&disperser, shards)| {
-            let leaf_index = self.leaf_index(disperser, accuser_idx);
             shards
                 .proof
-                .verify_proof_with_unserialized_leaf(top_root, &shards.shards, leaf_index)
+                .verify_proof_with_unserialized_leaf(
+                    top_root,
+                    &shards.shards,
+                    self.leaf_index(disperser, accuser_idx),
+                )
                 .is_ok()
         });
         if !shards_verify

@@ -472,7 +472,7 @@ impl Receiver {
     }
 
     /// 2. Process an [AvssMessage] sent by the dealer in the optimistic phase.
-    /// 
+    ///
     ///    On success, returns
     ///     * a [ReceiverOutput],
     ///     * an [AvssVote] to be returned to the dealer,
@@ -1266,9 +1266,18 @@ mod tests {
         let (state, optimistic_messages) = dealer.create_avss_messages(&mut rng).unwrap();
         let voters: Vec<PartyId> = (0u16..=4).collect();
         let pending: BTreeSet<PartyId> = [5u16, 6].into_iter().collect();
-        let votes: BTreeMap<PartyId, AvssVote> = voters.iter().map(|id| (*id, receivers[*id as usize]
-                .process_optimistic(&optimistic_messages[id])
-                .unwrap().1)).collect();
+        let votes: BTreeMap<PartyId, AvssVote> = voters
+            .iter()
+            .map(|id| {
+                (
+                    *id,
+                    receivers[*id as usize]
+                        .process_optimistic(&optimistic_messages[id])
+                        .unwrap()
+                        .1,
+                )
+            })
+            .collect();
         assert!(votes.len() as u16 >= t + f);
 
         // Pessimistic phase: dispersal for parties in I = {5, 6}.
