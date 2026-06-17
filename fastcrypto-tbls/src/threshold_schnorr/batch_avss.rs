@@ -414,7 +414,11 @@ impl Receiver {
 
         // Decrypt my shares
         let plaintext = ciphertext
-            .decrypt(&self.enc_secret_key, &random_oracle_encryption, self.id as usize)
+            .decrypt(
+                &self.enc_secret_key,
+                &random_oracle_encryption,
+                self.id as usize,
+            )
             .map_err(|e| {
                 warn!("batch_avss process_message: ciphertext decryption failed: {e:?}");
                 InvalidMessage
@@ -538,7 +542,12 @@ fn verify_shares(
     expected_batch_size: usize,
 ) -> FastCryptoResult<()> {
     let expected = nodes.share_ids_of(receiver)?;
-    if !shares.shares.iter().map(|s| s.index).eq(expected.iter().copied()) {
+    if !shares
+        .shares
+        .iter()
+        .map(|s| s.index)
+        .eq(expected.iter().copied())
+    {
         warn!(
             "batch_avss verify_shares: share indices do not match the receiver's assigned indices for receiver {}",
             receiver,

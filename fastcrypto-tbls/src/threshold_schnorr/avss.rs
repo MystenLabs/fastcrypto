@@ -303,7 +303,11 @@ impl Receiver {
 
         let plaintext = message
             .ciphertext
-            .decrypt(&self.enc_secret_key, &random_oracle_encryption, self.id as usize)
+            .decrypt(
+                &self.enc_secret_key,
+                &random_oracle_encryption,
+                self.id as usize,
+            )
             .map_err(|e| {
                 warn!("AVSS process_message: ciphertext decryption failed: {e:?}");
                 InvalidMessage
@@ -425,7 +429,12 @@ fn verify_shares(
     message: &Message,
 ) -> FastCryptoResult<()> {
     let expected = nodes.share_ids_of(receiver)?;
-    if !shares.shares.iter().map(|s| s.index).eq(expected.iter().copied()) {
+    if !shares
+        .shares
+        .iter()
+        .map(|s| s.index)
+        .eq(expected.iter().copied())
+    {
         warn!(
             "AVSS verify_shares: share indices do not match the receiver's assigned indices for receiver {}",
             receiver,
@@ -522,7 +531,12 @@ impl ReceiverOutput {
                     .iter()
                     .zip(&lagrange_coefficients)
                     .map(|(output, coeff)| {
-                        Ok(output.value.share_for_index(index).ok_or(InvalidInput)?.value * coeff)
+                        Ok(output
+                            .value
+                            .share_for_index(index)
+                            .ok_or(InvalidInput)?
+                            .value
+                            * coeff)
                     })
                     .collect::<FastCryptoResult<Vec<_>>>()?;
                 Ok(Eval {

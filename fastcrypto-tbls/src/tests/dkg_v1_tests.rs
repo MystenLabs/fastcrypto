@@ -301,7 +301,11 @@ fn decrypt_and_prepare_for_reenc(
             (
                 n.pk.clone(),
                 msg0.encrypted_shares
-                    .decrypt(&key, &ro.extend(&format!("encs {}", msg0.sender)), n.id as usize)
+                    .decrypt(
+                        &key,
+                        &ro.extend(&format!("encs {}", msg0.sender)),
+                        n.id as usize,
+                    )
                     .unwrap(),
             )
         })
