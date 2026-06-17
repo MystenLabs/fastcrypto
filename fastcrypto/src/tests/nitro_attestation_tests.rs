@@ -1,0 +1,571 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+use std::collections::BTreeMap;
+
+use super::NitroAttestationVerifyError;
+use super::{parse_nitro_attestation, verify_nitro_attestation};
+use super::{AttestationDocument, CoseSign1};
+use crate::encoding::Encoding;
+use crate::encoding::Hex;
+use crate::error::FastCryptoError;
+use ciborium::value::Value;
+
+const FIXED_VALID_ATTESTATION: &str = "8444a1013822a0591121a9696d6f64756c655f69647827692d30663733613462346362373463633966322d656e633031393265343138386665663738316466646967657374665348413338346974696d657374616d701b000001932d1239ca6470637273b0005830000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000015830000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000025830000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000035830639a8b65f68b0223cbb14a0032487e5656d260434e3d1a10e7ec1407fb86143860717fc8afee90df7a1604111709af460458309ab5a1aba055ee41ee254b9b251a58259b29fa1096859762744e9ac73b5869b25e51223854d9f86adbb37fe69f3e5d1c0558300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000658300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000758300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000858300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000958300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a58300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b58300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c58300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000d58300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e58300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f58300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b636572746966696361746559027e3082027a30820201a00302010202100192e4188fef781d0000000067366a8d300a06082a8648ce3d04030330818e310b30090603550406130255533113301106035504080c0a57617368696e67746f6e3110300e06035504070c0753656174746c65310f300d060355040a0c06416d617a6f6e310c300a060355040b0c034157533139303706035504030c30692d30663733613462346362373463633966322e75732d656173742d312e6177732e6e6974726f2d656e636c61766573301e170d3234313131343231323432365a170d3234313131353030323432395a308193310b30090603550406130255533113301106035504080c0a57617368696e67746f6e3110300e06035504070c0753656174746c65310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753313e303c06035504030c35692d30663733613462346362373463633966322d656e63303139326534313838666566373831642e75732d656173742d312e6177733076301006072a8648ce3d020106052b810400220362000442e0526fc41af71feac64fc6f68a8ac8aae831a9e945ab7d482b842acaf05d6b762d00cbc2115da270187c44597b1c16dcf497c70e543b41612e9041ea143d11d58bd1c847496e5d41ec78a49fe445348cf9a47af9387e0451d9ec145b56ec12a31d301b300c0603551d130101ff04023000300b0603551d0f0404030206c0300a06082a8648ce3d0403030367003064023078001466c0c64293b9bde3d0834edb67ff18417f6075a8f7d137701e10164ce6cf45c508bf383ed0d8d41c51a5977a43023033cb8e4a6ad2686b86c2533accbab5dd5e98cf25d3612b1a48502f327ce00acc921641242d5a3a27d222df1f7dfc3e2c68636162756e646c65845902153082021130820196a003020102021100f93175681b90afe11d46ccb4e4e7f856300a06082a8648ce3d0403033049310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753311b301906035504030c126177732e6e6974726f2d656e636c61766573301e170d3139313032383133323830355a170d3439313032383134323830355a3049310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753311b301906035504030c126177732e6e6974726f2d656e636c617665733076301006072a8648ce3d020106052b8104002203620004fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b176070ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4a3423040300f0603551d130101ff040530030101ff301d0603551d0e041604149025b50dd90547e796c396fa729dcf99a9df4b96300e0603551d0f0101ff040403020186300a06082a8648ce3d0403030369003066023100a37f2f91a1c9bd5ee7b8627c1698d255038e1f0343f95b63a9628c3d39809545a11ebcbf2e3b55d8aeee71b4c3d6adf3023100a2f39b1605b27028a5dd4ba069b5016e65b4fbde8fe0061d6a53197f9cdaf5d943bc61fc2beb03cb6fee8d2302f3dff65902c2308202be30820245a003020102021100ab314210a819b4842e3be045e7daddbe300a06082a8648ce3d0403033049310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753311b301906035504030c126177732e6e6974726f2d656e636c61766573301e170d3234313131333037333235355a170d3234313230333038333235355a3064310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c034157533136303406035504030c2d343834633637303131656563376235332e75732d656173742d312e6177732e6e6974726f2d656e636c617665733076301006072a8648ce3d020106052b8104002203620004cbd3e3fe8793852d952a214ee1c7f17e13eff238c5952ffc6c48f2b8e70beec10194585089829f4818d012a6061cdc9f4d8c5a67aada1233f75b65d3f7704e1c02460cfcc74f0e94193c8d4030f6d1662de0427836c1d32c571c919230fae73aa381d53081d230120603551d130101ff040830060101ff020102301f0603551d230418301680149025b50dd90547e796c396fa729dcf99a9df4b96301d0603551d0e04160414b5f0f617140aa7057c7977f361eee896fd9a58b4300e0603551d0f0101ff040403020186306c0603551d1f046530633061a05fa05d865b687474703a2f2f6177732d6e6974726f2d656e636c617665732d63726c2e73332e616d617a6f6e6177732e636f6d2f63726c2f61623439363063632d376436332d343262642d396539662d3539333338636236376638342e63726c300a06082a8648ce3d04030303670030640230038362cf11e189755d6a2306d728a7f356740eefe623d5e0e9e7c33c1b061ade2224127ac3a2e4bce60b43fc8c53326902306aceccf6f45a8d5c066bd10ce3ffaeeebdee56eedb86deb18ea22172c07196750924dd8f4656c70bd95eb6714cb8ecdd59031a308203163082029ba0030201020211009a0f4f29c1649826edb5b5f9f93b6326300a06082a8648ce3d0403033064310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c034157533136303406035504030c2d343834633637303131656563376235332e75732d656173742d312e6177732e6e6974726f2d656e636c61766573301e170d3234313131343034323230325a170d3234313132303033323230325a308189313c303a06035504030c33373532313933346262636164353432622e7a6f6e616c2e75732d656173742d312e6177732e6e6974726f2d656e636c61766573310c300a060355040b0c03415753310f300d060355040a0c06416d617a6f6e310b3009060355040613025553310b300906035504080c0257413110300e06035504070c0753656174746c653076301006072a8648ce3d020106052b810400220362000496f4565c489625767e8e2d3006ba06bd48ba3e384027a205b93d1ad4958128887c38ddbb2f4922888708ef0985e1e5d3bd73b33f86785ac66a204eed3a6b663686434f64e19fb39cd7b33068edb2108b79774a961e7080cb1b4eaa60a5e63e22a381ea3081e730120603551d130101ff040830060101ff020101301f0603551d23041830168014b5f0f617140aa7057c7977f361eee896fd9a58b4301d0603551d0e0416041484b6dc9994365b56081f5d1bc8ee21f58e45d7df300e0603551d0f0101ff0404030201863081800603551d1f047930773075a073a071866f687474703a2f2f63726c2d75732d656173742d312d6177732d6e6974726f2d656e636c617665732e73332e75732d656173742d312e616d617a6f6e6177732e636f6d2f63726c2f34396230376261342d303533622d346435622d616434612d3364626533653065396637652e63726c300a06082a8648ce3d0403030369003066023100d00c2999e66fbcce624d91aedf41f5532b04c300c86a61d78ed968716a7f7ff565e2c361f4f46fe5c5486a9d2bfe0d60023100bc46872a45820fb552b926d420d4f6a1be831bb26821d374e95bff5ed042b3313465b5b4cde79f16f6a57bd5b541353c5902c3308202bf30820245a003020102021500eaa3f0b662c2a61c96f94194fa33d5baf26eeb84300a06082a8648ce3d040303308189313c303a06035504030c33373532313933346262636164353432622e7a6f6e616c2e75732d656173742d312e6177732e6e6974726f2d656e636c61766573310c300a060355040b0c03415753310f300d060355040a0c06416d617a6f6e310b3009060355040613025553310b300906035504080c0257413110300e06035504070c0753656174746c65301e170d3234313131343130313032345a170d3234313131353130313032345a30818e310b30090603550406130255533113301106035504080c0a57617368696e67746f6e3110300e06035504070c0753656174746c65310f300d060355040a0c06416d617a6f6e310c300a060355040b0c034157533139303706035504030c30692d30663733613462346362373463633966322e75732d656173742d312e6177732e6e6974726f2d656e636c617665733076301006072a8648ce3d020106052b81040022036200040fe46adf864a558a00a9ca4b64ece5ba124ed1d29656a1f16ca71d0dc8fca56b0fb15aafd309f6258374e8c7b4a5b0521c76d1812a7873474dae9322aef1cd782db19fc2ece4d36fa08acbe65e4bec2a3cfe70960d179778ea7e7711f827b36ea366306430120603551d130101ff040830060101ff020100300e0603551d0f0101ff040403020204301d0603551d0e041604143e40d423bf86e9565c378487843389bd2f471a56301f0603551d2304183016801484b6dc9994365b56081f5d1bc8ee21f58e45d7df300a06082a8648ce3d0403030368003065023100c2767f29cc6e40e087617cf680d81e3b77962c29d8ace426b3c4a62a560354da73de6f80986d44da2593a3c268fea94302306056e2f3c88c30170c4940f578acc279a01fe689123e81def4f8c313e1f0cbc44a562a171d12810e847e441aee233f676a7075626c69635f6b6579f669757365725f6461746158205a264748a62368075d34b9494634a3e096e0e48f6647f965b81d2a653de684f2656e6f6e6365f65860284d57f029e1b3beb76455a607b9a86360d6451370f718a0d7bdcad729eea248c25461166ab684ad31fb52713918ee3e401d1b56251d6f9d85bf870e850e0b47559d17091778dbafc3d1989a94bd54c0991053675dcc3686402b189172aae196";
+const VALID_PCR16_ATTESTATION: &str = "8444a1013822a059115dbf696d6f64756c655f69647827692d30366662306266346537306435313239662d656e633031396135333736393939303431623166646967657374665348413338346974696d657374616d701b0000019a6ec8483c6470637273b10058303aa0e6e6ed7d8301655fced7e6ddcc443a3e57bf62f070caa6becf337069e859c0f03d68136440ff1cab8adefd20634c015830b0d319fa64f9c2c9d7e9187bc21001ddacfab4077e737957fa1b8b97cc993bed43a79019aebfd40ee5f6f213147909f8025830fdb2295dc5d9b67a653ed5f3ead5fc8166ec3cae1de1c7c6f31c3b43b2eb26ab5d063f414f3d2b93163426805dfe057e035830000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000045830fc4a2e95325943566b6344b99d998df9675cb30e32a1eaf7d74767d818e715f1e289d09b9e5dbceb8245607ffe661b460558300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000658300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000758300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000858300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000958300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a58300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b58300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c58300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000d58300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e58300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f583000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010583028827566f8b004a75ccd77ffab1813059cfc384b3b23f926728263fecb03e97d4928fbef613791fcb233d7b16ad74b946b63657274696669636174655902823082027e30820203a0030201020210019a5376999041b10000000069121eca300a06082a8648ce3d04030330818f310b30090603550406130255533113301106035504080c0a57617368696e67746f6e3110300e06035504070c0753656174746c65310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753313a303806035504030c31692d30366662306266346537306435313239662e61702d736f7574682d312e6177732e6e6974726f2d656e636c61766573301e170d3235313131303137323030375a170d3235313131303230323031305a308194310b30090603550406130255533113301106035504080c0a57617368696e67746f6e3110300e06035504070c0753656174746c65310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753313f303d06035504030c36692d30366662306266346537306435313239662d656e63303139613533373639393930343162312e61702d736f7574682d312e6177733076301006072a8648ce3d020106052b81040022036200044cecf4194546b5bed057743d3b17aeb423dfda0a89c3a28213a44ec898bfaa37b9900343a5acf50d30c13b6e2a2e185de0d2ba98983b0fd9e7622c7082cd36b2085decf366a13e5737a50e810bbd8e3b1af389ae047f457c1c7c8481619018f3a31d301b300c0603551d130101ff04023000300b0603551d0f0404030206c0300a06082a8648ce3d0403030369003066023100844a418ab89ac9fc6d49ca3070fc5e22257e8670a749067278621fa11b660d7f81d1f364a48ee7d98d0a198cf0803b4e023100edf4ae664cf49ad0fafb41a56b2ad005d038f47f9f294f90195619f6a3314561fbe62b9330c03f8f8f5ad841245b27da68636162756e646c65845902153082021130820196a003020102021100f93175681b90afe11d46ccb4e4e7f856300a06082a8648ce3d0403033049310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753311b301906035504030c126177732e6e6974726f2d656e636c61766573301e170d3139313032383133323830355a170d3439313032383134323830355a3049310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753311b301906035504030c126177732e6e6974726f2d656e636c617665733076301006072a8648ce3d020106052b8104002203620004fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b176070ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4a3423040300f0603551d130101ff040530030101ff301d0603551d0e041604149025b50dd90547e796c396fa729dcf99a9df4b96300e0603551d0f0101ff040403020186300a06082a8648ce3d0403030369003066023100a37f2f91a1c9bd5ee7b8627c1698d255038e1f0343f95b63a9628c3d39809545a11ebcbf2e3b55d8aeee71b4c3d6adf3023100a2f39b1605b27028a5dd4ba069b5016e65b4fbde8fe0061d6a53197f9cdaf5d943bc61fc2beb03cb6fee8d2302f3dff65902c4308202c030820245a00302010202105c6c380c7169a2c406db2adebfc402c3300a06082a8648ce3d0403033049310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753311b301906035504030c126177732e6e6974726f2d656e636c61766573301e170d3235313130353139323535345a170d3235313132353230323535345a3065310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c034157533137303506035504030c2e386435646337356239383631626631372e61702d736f7574682d312e6177732e6e6974726f2d656e636c617665733076301006072a8648ce3d020106052b810400220362000482b42bc5e60e557e947aa07d8478ce7b26017ff54b4f31e3ee1201ab3c9ba09d341d058386812608536fca9b306175b8a838fe43f719a31cd044f1fb9e0fa7bcb3e66532a9103e8d782f3d1e4ad3fe7f44526063e3e9282b852364e7efc699bea381d53081d230120603551d130101ff040830060101ff020102301f0603551d230418301680149025b50dd90547e796c396fa729dcf99a9df4b96301d0603551d0e041604146597f652cb83b2039635b39fda78a31181a0d551300e0603551d0f0101ff040403020186306c0603551d1f046530633061a05fa05d865b687474703a2f2f6177732d6e6974726f2d656e636c617665732d63726c2e73332e616d617a6f6e6177732e636f6d2f63726c2f61623439363063632d376436332d343262642d396539662d3539333338636236376638342e63726c300a06082a8648ce3d0403030369003066023100cd9577b0282bd71935d06f52c45b1302b69e884d3976c587d9f24ddc90af7bd57ce936df4b819a30cebde1447cf9e7dd023100e66e67a30e47d177a906cfa60262364a9fd1bf973a2ee674e1a46c9ad65d79e06cf26f02acaf668823f6f6e86e61cfbc59031c308203183082029ea003020102021100d1abc6cd83360b04efadad7b076d2a9d300a06082a8648ce3d0403033065310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c034157533137303506035504030c2e386435646337356239383631626631372e61702d736f7574682d312e6177732e6e6974726f2d656e636c61766573301e170d3235313131303032313035355a170d3235313131353232313035355a308189313c303a06035504030c333838346261363561376531353162352e7a6f6e616c2e61702d736f7574682d312e6177732e6e6974726f2d656e636c61766573310c300a060355040b0c03415753310f300d060355040a0c06416d617a6f6e310b3009060355040613025553310b300906035504080c0257413110300e06035504070c0753656174746c653076301006072a8648ce3d020106052b8104002203620004259405cd59e6e9a449f01e8d848a2d2227cab6c1dd01cf93b6aeb5f8532af876a5392565332f0de0bcaa26528811d9e35ca9c631dbf679e8a64841d2d65ee3423aaf1f32caf755ddf7a25bd43eaedaff9554c6812e87104c7122d5c00cb7e8f9a381ec3081e930120603551d130101ff040830060101ff020101301f0603551d230418301680146597f652cb83b2039635b39fda78a31181a0d551301d0603551d0e04160414b5d3e88bb519c1626118de4fbb65f0299f3dbd2f300e0603551d0f0101ff0404030201863081820603551d1f047b30793077a075a0738671687474703a2f2f63726c2d61702d736f7574682d312d6177732d6e6974726f2d656e636c617665732e73332e61702d736f7574682d312e616d617a6f6e6177732e636f6d2f63726c2f36623938353062612d393238332d346130332d383136372d3033663437306338636435372e63726c300a06082a8648ce3d0403030368003065023100c6934996a65a014b29968565bed05a17596c5814dcfb541f35726590202e08ea33044b7104c58b87dac9887413a5dac502306d0c0c2e206514a6976810d9a89581c0b8f295063f8f2e114eabda9f841269e7048ca56df727ccde0eb2ae992c25c09e5902c3308202bf30820245a00302010202142a9784f048ad362becfdec98bc824fc65ed7cf73300a06082a8648ce3d040303308189313c303a06035504030c333838346261363561376531353162352e7a6f6e616c2e61702d736f7574682d312e6177732e6e6974726f2d656e636c61766573310c300a060355040b0c03415753310f300d060355040a0c06416d617a6f6e310b3009060355040613025553310b300906035504080c0257413110300e06035504070c0753656174746c65301e170d3235313131303038313735335a170d3235313131313038313735335a30818f310b30090603550406130255533113301106035504080c0a57617368696e67746f6e3110300e06035504070c0753656174746c65310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753313a303806035504030c31692d30366662306266346537306435313239662e61702d736f7574682d312e6177732e6e6974726f2d656e636c617665733076301006072a8648ce3d020106052b81040022036200048695b204a7cfaac9c6e0efea28cfee2d0eebd5571088f26d63fe52d5f2e71be5dd9f7a87c2fabf919c7f4de42b779c51a62c31ce85b2eee236f9fd85cfd0c1e369b27a1d9a17b9449c45c091fe4f478e001d1451c232c1b352b4fd08208b8165a366306430120603551d130101ff040830060101ff020100300e0603551d0f0101ff040403020204301d0603551d0e04160414987e298c478af20045afa06fada37bd95f5651d1301f0603551d23041830168014b5d3e88bb519c1626118de4fbb65f0299f3dbd2f300a06082a8648ce3d04030303680030650230793561db5333f8e88c56b9b147556b0c0f9593b73e72f2e3b424f6bf3942801076052dda3a75212d8790c2ff56d06796023100c7822498ec9b9973c2e07d3f1cb16174d838639124863de7e2173bd843a620071dd678dadfd7264d8711f374a6e1aa306a7075626c69635f6b65795820c68116a630c8bdde83fe1c5a6ff12b5a4f93404e2fc112824d151ed42bf98a2069757365725f6461746140656e6f6e6365f6ff586067970dd36b0bac250de1f1486daa48cc46a72c8cbae30dcb4222768010657e9476db8bf88e6761dc51a31622121de4279e890944823068d541309563e573fcfa18ab152f6476f587254816055d6add843fa6564e6e20c2f0cc8d4690620bc7fe";
+#[test]
+fn attestation_parse_and_verify() {
+    let parsed = parse_nitro_attestation(
+        &Hex::decode(FIXED_VALID_ATTESTATION).unwrap(),
+        true,
+        true,
+        true,
+    )
+    .unwrap();
+
+    let res = verify_nitro_attestation(&parsed.0, &parsed.1, &parsed.2, 1731627987382);
+    assert!(res.is_ok());
+
+    // cabundle missing one
+    let mut mutated_document = parsed.2.clone();
+    mutated_document.cabundle.pop();
+    let res = verify_nitro_attestation(&parsed.0, &parsed.1, &mutated_document, 1731627987382);
+    assert_eq!(
+        res.unwrap_err(),
+        FastCryptoError::GeneralError(
+            "InvalidCertificate: certificate chain issuer mismatch".to_string()
+        )
+    );
+
+    // corrupted cert
+    let mut mutated_document = parsed.2.clone();
+    mutated_document.cabundle[parsed.2.cabundle.len() - 1][20] = 0;
+    let res = verify_nitro_attestation(&parsed.0, &parsed.1, &mutated_document, 1731627987382);
+    assert_eq!(
+        res.unwrap_err(),
+        FastCryptoError::GeneralError(
+            "InvalidCertificate: certificate fails to verify".to_string()
+        )
+    );
+
+    // corrupted cert
+    let mut mutated_document = parsed.2.clone();
+    mutated_document.cabundle[0][20] = 0;
+    let res = verify_nitro_attestation(&parsed.0, &parsed.1, &mutated_document, 1731627987382);
+    assert_eq!(
+        res.unwrap_err(),
+        FastCryptoError::GeneralError(
+            "InvalidCertificate: certificate fails to verify".to_string()
+        )
+    );
+}
+
+#[test]
+fn test_over_certificate_expiration() {
+    let now = 1731627987382 + 10 * 60 * 1000; // add 10 minute, still valid
+    let parsed = parse_nitro_attestation(
+        &Hex::decode(FIXED_VALID_ATTESTATION).unwrap(),
+        true,
+        true,
+        true,
+    )
+    .unwrap();
+    let res = verify_nitro_attestation(&parsed.0, &parsed.1, &parsed.2, now);
+    assert!(res.is_ok());
+
+    let now = 1731627987382 - 10 * 60 * 1000; // substract 10 minute, still valid
+    let parsed = parse_nitro_attestation(
+        &Hex::decode(FIXED_VALID_ATTESTATION).unwrap(),
+        true,
+        true,
+        true,
+    )
+    .unwrap();
+    let res = verify_nitro_attestation(&parsed.0, &parsed.1, &parsed.2, now);
+    assert!(res.is_ok());
+
+    let now = 1731627987382 + 3 * 60 * 60 * 1000; // add 3 hours, cert expired
+    let parsed = parse_nitro_attestation(
+        &Hex::decode(FIXED_VALID_ATTESTATION).unwrap(),
+        true,
+        true,
+        true,
+    )
+    .unwrap();
+    let res = verify_nitro_attestation(&parsed.0, &parsed.1, &parsed.2, now);
+    assert_eq!(
+        res.unwrap_err(),
+        FastCryptoError::GeneralError(
+            "InvalidCertificate: Certificate timestamp not valid".to_string()
+        )
+    );
+
+    let now = 1731627987382 - 3 * 60 * 60 * 1000; // subtract 3 hours, cert is not valid yet
+    let parsed = parse_nitro_attestation(
+        &Hex::decode(FIXED_VALID_ATTESTATION).unwrap(),
+        true,
+        true,
+        true,
+    )
+    .unwrap();
+    let res = verify_nitro_attestation(&parsed.0, &parsed.1, &parsed.2, now);
+    assert_eq!(
+        res.unwrap_err(),
+        FastCryptoError::GeneralError(
+            "InvalidCertificate: Certificate timestamp not valid".to_string()
+        )
+    );
+}
+
+#[test]
+fn test_with_malformed_attestation() {
+    let err = parse_nitro_attestation(&Hex::decode("0000").unwrap(), true, true, true).unwrap_err();
+
+    assert!(matches!(
+        err,
+        FastCryptoError::GeneralError(msg) if msg.starts_with("InvalidCoseSign1")
+    ));
+}
+
+fn int(v: i128) -> Value {
+    Value::Integer(ciborium::value::Integer::try_from(v).unwrap())
+}
+
+/// A minimal document map that passes `validate_document_map` with all required fields.
+fn valid_document_map() -> BTreeMap<String, Value> {
+    let mut map = BTreeMap::new();
+    map.insert("module_id".to_string(), Value::Text("some".to_string()));
+    map.insert("digest".to_string(), Value::Text("SHA384".to_string()));
+    map.insert("certificate".to_string(), Value::Bytes(vec![1]));
+    map.insert("timestamp".to_string(), int(1731627987382));
+    map.insert(
+        "pcrs".to_string(),
+        Value::Map(vec![(int(0), Value::Bytes(vec![1; 32]))]),
+    );
+    map.insert(
+        "cabundle".to_string(),
+        Value::Array(vec![Value::Bytes(vec![1])]),
+    );
+    map
+}
+
+/// Assert that upgraded-mode validation of `map` fails with `InvalidAttestationDoc(msg)`.
+fn assert_invalid(map: &BTreeMap<String, Value>, msg: &str) {
+    assert_eq!(
+        AttestationDocument::validate_document_map(map, true, true, true).unwrap_err(),
+        NitroAttestationVerifyError::InvalidAttestationDoc(msg.to_string())
+    );
+}
+
+#[test]
+fn test_timestamp_validity() {
+    let mut map = valid_document_map();
+    map.remove("timestamp");
+    assert_invalid(&map, "timestamp not found");
+    map.insert("timestamp".to_string(), Value::Text("nope".to_string()));
+    assert_invalid(&map, "timestamp is not an integer");
+    map.insert("timestamp".to_string(), int(-1));
+    assert_invalid(&map, "timestamp not u64");
+}
+
+#[test]
+fn test_empty_and_nonce_fields() {
+    // Empty certificate is rejected.
+    let mut map = valid_document_map();
+    map.insert("certificate".to_string(), Value::Bytes(vec![]));
+    assert_invalid(&map, "invalid certificate");
+
+    // nonce is rejected above 512 bytes, accepted at the boundary.
+    let mut map = valid_document_map();
+    map.insert("nonce".to_string(), Value::Bytes(vec![1; 513]));
+    assert_invalid(&map, "invalid nonce");
+    map.insert("nonce".to_string(), Value::Bytes(vec![1; 512]));
+    assert!(AttestationDocument::validate_document_map(&map, true, true, true).is_ok());
+
+    // Empty public_key is rejected in legacy parsing but accepted in upgraded parsing.
+    let mut map = valid_document_map();
+    map.insert("public_key".to_string(), Value::Bytes(vec![]));
+    assert_eq!(
+        AttestationDocument::validate_document_map(&map, false, false, false).unwrap_err(),
+        NitroAttestationVerifyError::InvalidAttestationDoc("invalid public key".to_string())
+    );
+    assert!(AttestationDocument::validate_document_map(&map, true, true, true).is_ok());
+}
+
+#[test]
+fn test_pcr_validation() {
+    let set_pcrs = |map: &mut BTreeMap<String, Value>, pcrs| {
+        map.insert("pcrs".to_string(), Value::Map(pcrs));
+    };
+    let mut map = valid_document_map();
+
+    // missing / wrong type.
+    map.remove("pcrs");
+    assert_invalid(&map, "pcrs not found");
+    map.insert("pcrs".to_string(), Value::Array(vec![]));
+    assert_invalid(&map, "invalid pcrs format");
+
+    // too many entries (> 32) fail the length check.
+    set_pcrs(
+        &mut map,
+        (0..33)
+            .map(|i| (int(i), Value::Bytes(vec![1; 32])))
+            .collect(),
+    );
+    assert_invalid(&map, "invalid PCRs length");
+
+    // key must be an integer.
+    set_pcrs(
+        &mut map,
+        vec![(Value::Text("0".to_string()), Value::Bytes(vec![1; 32]))],
+    );
+    assert_invalid(&map, "invalid PCR key format");
+
+    // negative and duplicate indices are rejected.
+    set_pcrs(&mut map, vec![(int(-1), Value::Bytes(vec![1; 32]))]);
+    assert_invalid(&map, "invalid PCR index");
+    set_pcrs(
+        &mut map,
+        vec![
+            (int(0), Value::Bytes(vec![1; 32])),
+            (int(0), Value::Bytes(vec![2; 32])),
+        ],
+    );
+    assert_invalid(&map, "duplicate PCR index 0");
+
+    // index outside 0..=31 is skipped (not inserted), but the document still parses.
+    set_pcrs(&mut map, vec![(int(32), Value::Bytes(vec![1; 32]))]);
+    let doc = AttestationDocument::validate_document_map(&map, true, true, true).unwrap();
+    assert!(doc.pcr_map.is_empty());
+}
+
+#[test]
+fn test_cabundle_validity() {
+    let mut map = valid_document_map();
+
+    // too many entries (> MAX_CERT_CHAIN_LENGTH of 10).
+    map.insert(
+        "cabundle".to_string(),
+        Value::Array((0..11).map(|_| Value::Bytes(vec![1])).collect()),
+    );
+    assert_invalid(&map, "invalid ca chain length");
+
+    // entry too long (1025).
+    map.insert(
+        "cabundle".to_string(),
+        Value::Array(vec![Value::Bytes(vec![1; 1025])]),
+    );
+    assert_invalid(&map, "invalid ca length");
+
+    // wrong type.
+    map.insert("cabundle".to_string(), Value::Map(vec![]));
+    assert_invalid(&map, "invalid cabundle");
+}
+
+#[test]
+fn test_attestation_fields_validity() {
+    let mut map = BTreeMap::new();
+    let res = AttestationDocument::validate_document_map(&map, true, true, true);
+    assert_eq!(
+        res.unwrap_err(),
+        NitroAttestationVerifyError::InvalidAttestationDoc("module id not found".to_string())
+    );
+
+    // empty module id
+    map.insert("module_id".to_string(), Value::Text("".to_string()));
+    let res = AttestationDocument::validate_document_map(&map, true, true, true);
+    assert_eq!(
+        res.unwrap_err(),
+        NitroAttestationVerifyError::InvalidAttestationDoc("invalid module id".to_string())
+    );
+    map.insert("module_id".to_string(), Value::Text("some".to_string()));
+
+    // invalid digest
+    map.insert("digest".to_string(), Value::Text("".to_string()));
+    let res = AttestationDocument::validate_document_map(&map, true, true, true);
+    assert_eq!(
+        res.unwrap_err(),
+        NitroAttestationVerifyError::InvalidAttestationDoc("invalid digest".to_string())
+    );
+    map.insert("digest".to_string(), Value::Text("SHA384".to_string()));
+
+    // cert too long, 1025
+    map.insert("certificate".to_string(), Value::Bytes(vec![1; 1025]));
+    let res = AttestationDocument::validate_document_map(&map, true, true, true);
+    assert_eq!(
+        res.unwrap_err(),
+        NitroAttestationVerifyError::InvalidAttestationDoc("invalid certificate".to_string())
+    );
+    map.insert("certificate".to_string(), Value::Bytes(vec![1]));
+
+    map.insert(
+        "timestamp".to_string(),
+        Value::Integer(ciborium::value::Integer::try_from(1731627987382_i128).unwrap()),
+    );
+
+    // invalid pcr length
+    map.insert(
+        "pcrs".to_string(),
+        Value::Map(vec![(
+            Value::Integer(ciborium::value::Integer::try_from(0_i128).unwrap()),
+            Value::Bytes(vec![1; 33]),
+        )]),
+    );
+    let res = AttestationDocument::validate_document_map(&map, true, true, true);
+    assert_eq!(
+        res.unwrap_err(),
+        NitroAttestationVerifyError::InvalidAttestationDoc("invalid PCR value length".to_string())
+    );
+    map.insert(
+        "pcrs".to_string(),
+        Value::Map(vec![(
+            Value::Integer(ciborium::value::Integer::try_from(0_i128).unwrap()),
+            Value::Bytes(vec![1; 32]),
+        )]),
+    );
+
+    // empty cabundle
+    map.insert("cabundle".to_string(), Value::Array(vec![]));
+    let res = AttestationDocument::validate_document_map(&map, true, true, true);
+    assert_eq!(
+        res.unwrap_err(),
+        NitroAttestationVerifyError::InvalidAttestationDoc("invalid ca chain length".to_string())
+    );
+    map.insert(
+        "cabundle".to_string(),
+        Value::Array(vec![Value::Bytes(vec![1])]),
+    );
+
+    // user data too long
+    map.insert("user_data".to_string(), Value::Bytes(vec![1; 513]));
+    let res = AttestationDocument::validate_document_map(&map, true, true, true);
+    assert_eq!(
+        res.unwrap_err(),
+        NitroAttestationVerifyError::InvalidAttestationDoc("invalid user data".to_string())
+    );
+    map.insert("user_data".to_string(), Value::Bytes(vec![1; 512]));
+
+    // public key too long
+    map.insert("public_key".to_string(), Value::Bytes(vec![1; 1025]));
+    let res = AttestationDocument::validate_document_map(&map, true, true, true);
+    assert_eq!(
+        res.unwrap_err(),
+        NitroAttestationVerifyError::InvalidAttestationDoc("invalid public key".to_string())
+    );
+    map.insert("public_key".to_string(), Value::Bytes(vec![1; 1024]));
+
+    let res = AttestationDocument::validate_document_map(&map, true, true, true);
+    assert!(res.is_ok());
+}
+
+#[test]
+fn bad_signature_cose() {
+    let parsed = parse_nitro_attestation(
+        &Hex::decode(FIXED_VALID_ATTESTATION).unwrap(),
+        true,
+        true,
+        true,
+    )
+    .unwrap();
+
+    // A well-formed (96-byte) but tampered signature must fail the ECDSA verification.
+    let mut bad_sig = parsed.0.clone();
+    bad_sig[0] ^= 0x01;
+    let res = verify_nitro_attestation(&bad_sig, &parsed.1, &parsed.2, 1731627987382);
+    assert_eq!(
+        res.unwrap_err(),
+        FastCryptoError::GeneralError("SignatureFailedToVerify".to_string())
+    );
+
+    // A signature of the wrong length is rejected before verification.
+    let res = verify_nitro_attestation(&parsed.1, &parsed.1, &parsed.2, 1731627987382);
+    assert_eq!(
+        res.unwrap_err(),
+        FastCryptoError::GeneralError("InvalidSignature".to_string())
+    );
+
+    // Tampering with the signed message also fails verification.
+    let mut bad_msg = parsed.1.clone();
+    let last = bad_msg.len() - 1;
+    bad_msg[last] ^= 0x01;
+    let res = verify_nitro_attestation(&parsed.0, &bad_msg, &parsed.2, 1731627987382);
+    assert_eq!(
+        res.unwrap_err(),
+        FastCryptoError::GeneralError("SignatureFailedToVerify".to_string())
+    );
+}
+
+#[test]
+fn invalid_cose() {
+    use super::NitroAttestationVerifyError::InvalidCoseSign1;
+    // tests from: https://github.com/awslabs/aws-nitro-enclaves-cose/blob/main/src/sign.rs
+    // valid
+    let res = CoseSign1::parse_and_validate(&[
+        0x84, /* Protected: {1: -35} */
+        0x44, 0xA1, 0x01, 0x38, 0x22, /* Unprotected: {4: '11'} */
+        0xA1, 0x04, 0x42, 0x31, 0x31, /* payload: */
+        0x58, 0x75, 0x49, 0x74, 0x20, 0x69, 0x73, 0x20, 0x61, 0x20, 0x74, 0x72, 0x75, 0x74, 0x68,
+        0x20, 0x75, 0x6E, 0x69, 0x76, 0x65, 0x72, 0x73, 0x61, 0x6C, 0x6C, 0x79, 0x20, 0x61, 0x63,
+        0x6B, 0x6E, 0x6F, 0x77, 0x6C, 0x65, 0x64, 0x67, 0x65, 0x64, 0x2C, 0x20, 0x74, 0x68, 0x61,
+        0x74, 0x20, 0x61, 0x20, 0x73, 0x69, 0x6E, 0x67, 0x6C, 0x65, 0x20, 0x6D, 0x61, 0x6E, 0x20,
+        0x69, 0x6E, 0x20, 0x70, 0x6F, 0x73, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6F, 0x6E, 0x20, 0x6F,
+        0x66, 0x20, 0x61, 0x20, 0x67, 0x6F, 0x6F, 0x64, 0x20, 0x66, 0x6F, 0x72, 0x74, 0x75, 0x6E,
+        0x65, 0x2C, 0x20, 0x6D, 0x75, 0x73, 0x74, 0x20, 0x62, 0x65, 0x20, 0x69, 0x6E, 0x20, 0x77,
+        0x61, 0x6E, 0x74, 0x20, 0x6F, 0x66, 0x20, 0x61, 0x20, 0x77, 0x69, 0x66, 0x65,
+        0x2E, /* signature - length 48 x 2 */
+        0x58, 0x60, /* R: */
+        0xCD, 0x42, 0xD2, 0x76, 0x32, 0xD5, 0x41, 0x4E, 0x4B, 0x54, 0x5C, 0x95, 0xFD, 0xE6, 0xE3,
+        0x50, 0x5B, 0x93, 0x58, 0x0F, 0x4B, 0x77, 0x31, 0xD1, 0x4A, 0x86, 0x52, 0x31, 0x75, 0x26,
+        0x6C, 0xDE, 0xB2, 0x4A, 0xFF, 0x2D, 0xE3, 0x36, 0x4E, 0x9C, 0xEE, 0xE9, 0xF9, 0xF7, 0x95,
+        0xA0, 0x15, 0x15, /* S: */
+        0x5B, 0xC7, 0x12, 0xAA, 0x28, 0x63, 0xE2, 0xAA, 0xF6, 0x07, 0x8A, 0x81, 0x90, 0x93, 0xFD,
+        0xFC, 0x70, 0x59, 0xA3, 0xF1, 0x46, 0x7F, 0x64, 0xEC, 0x7E, 0x22, 0x1F, 0xD1, 0x63, 0xD8,
+        0x0B, 0x3B, 0x55, 0x26, 0x25, 0xCF, 0x37, 0x9D, 0x1C, 0xBB, 0x9E, 0x51, 0x38, 0xCC, 0xD0,
+        0x7A, 0x19, 0x31,
+    ]);
+    assert!(res.is_ok());
+
+    // tampered content
+    let res = CoseSign1::parse_and_validate(&[
+        0x84, /* Protected: {1: -7} */
+        0x43, 0xA1, 0x01, 0x26, /* Unprotected: {4: '11'} */
+        0xA1, 0x04, 0x42, 0x31, 0x31, /* payload: */
+        0x58, 0x75, 0x49, 0x74, 0x20, 0x69, 0x73, 0x20, 0x61, 0x20, 0x74, 0x72, 0x75, 0x74, 0x68,
+        0x20, 0x75, 0x6F, 0x69, 0x76, 0x65, 0x72, 0x73, 0x61, 0x6C, 0x6C, 0x79, 0x20, 0x61, 0x63,
+        0x6B, 0x6E, 0x6F, 0x77, 0x6C, 0x65, 0x64, 0x67, 0x65, 0x64, 0x2C, 0x20, 0x74, 0x68, 0x61,
+        0x74, 0x20, 0x61, 0x20, 0x73, 0x69, 0x6E, 0x67, 0x6C, 0x65, 0x20, 0x6D, 0x61, 0x6E, 0x20,
+        0x69, 0x6E, 0x20, 0x70, 0x6F, 0x73, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6F, 0x6E, 0x20, 0x6F,
+        0x66, 0x20, 0x61, 0x20, 0x67, 0x6F, 0x6F, 0x64, 0x20, 0x66, 0x6F, 0x72, 0x74, 0x75, 0x6E,
+        0x65, 0x2C, 0x20, 0x6D, 0x75, 0x73, 0x74, 0x20, 0x62, 0x65, 0x20, 0x69, 0x6E, 0x20, 0x77,
+        0x61, 0x6E, 0x74, 0x20, 0x6F, 0x66, 0x20, 0x61, 0x20, 0x77, 0x69, 0x66, 0x65,
+        0x2E, /* Signature - length 32 x 2 */
+        0x58, 0x40, /* R: */
+        0x6E, 0x6D, 0xF6, 0x54, 0x89, 0xEA, 0x3B, 0x01, 0x88, 0x33, 0xF5, 0xFC, 0x4F, 0x84, 0xF8,
+        0x1B, 0x4D, 0x5E, 0xFD, 0x5A, 0x09, 0xD5, 0xC6, 0x2F, 0x2E, 0x92, 0x38, 0x5D, 0xCE, 0x31,
+        0xE2, 0xD1, /* S: */
+        0x5A, 0x53, 0xA9, 0xF0, 0x75, 0xE8, 0xFB, 0x39, 0x66, 0x9F, 0xCD, 0x4E, 0xB5, 0x22, 0xC8,
+        0x5C, 0x92, 0x77, 0x45, 0x2F, 0xA8, 0x57, 0xF5, 0xFE, 0x37, 0x9E, 0xDD, 0xEF, 0x0F, 0xAB,
+        0x3C, 0xDD,
+    ]);
+    assert_eq!(
+        res.unwrap_err(),
+        InvalidCoseSign1("invalid cbor header".to_string())
+    );
+
+    // tampered signature
+    let res = CoseSign1::parse_and_validate(&[
+        0x84, /* Protected: {1: -7} */
+        0x43, 0xA1, 0x01, 0x26, /* Unprotected: {4: '11'} */
+        0xA1, 0x04, 0x42, 0x31, 0x31, /* payload: */
+        0x58, 0x75, 0x49, 0x74, 0x20, 0x69, 0x73, 0x20, 0x61, 0x20, 0x74, 0x72, 0x75, 0x74, 0x68,
+        0x20, 0x75, 0x6E, 0x69, 0x76, 0x65, 0x72, 0x73, 0x61, 0x6C, 0x6C, 0x79, 0x20, 0x61, 0x63,
+        0x6B, 0x6E, 0x6F, 0x77, 0x6C, 0x65, 0x64, 0x67, 0x65, 0x64, 0x2C, 0x20, 0x74, 0x68, 0x61,
+        0x74, 0x20, 0x61, 0x20, 0x73, 0x69, 0x6E, 0x67, 0x6C, 0x65, 0x20, 0x6D, 0x61, 0x6E, 0x20,
+        0x69, 0x6E, 0x20, 0x70, 0x6F, 0x73, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6F, 0x6E, 0x20, 0x6F,
+        0x66, 0x20, 0x61, 0x20, 0x67, 0x6F, 0x6F, 0x64, 0x20, 0x66, 0x6F, 0x72, 0x74, 0x75, 0x6E,
+        0x65, 0x2C, 0x20, 0x6D, 0x75, 0x73, 0x74, 0x20, 0x62, 0x65, 0x20, 0x69, 0x6E, 0x20, 0x77,
+        0x61, 0x6E, 0x74, 0x20, 0x6F, 0x66, 0x20, 0x61, 0x20, 0x77, 0x69, 0x66, 0x65,
+        0x2E, /* Signature - length 32 x 2 */
+        0x58, 0x40, /* R: */
+        0x6E, 0x6D, 0xF6, 0x54, 0x89, 0xEA, 0x3B, 0x01, 0x88, 0x33, 0xF5, 0xFC, 0x4F, 0x84, 0xF8,
+        0x1B, 0x4D, 0x5E, 0xFD, 0x5B, 0x09, 0xD5, 0xC6, 0x2F, 0x2E, 0x92, 0x38, 0x5D, 0xCE, 0x31,
+        0xE2, 0xD1, /* S: */
+        0x5A, 0x53, 0xA9, 0xF0, 0x75, 0xE8, 0xFB, 0x39, 0x66, 0x9F, 0xCD, 0x4E, 0xB5, 0x22, 0xC8,
+        0x5C, 0x92, 0x77, 0x45, 0x2F, 0xA8, 0x57, 0xF5, 0xFE, 0x37, 0x9E, 0xDD, 0xEF, 0x0F, 0xAB,
+        0x3C, 0xDD,
+    ]);
+    assert_eq!(
+        res.unwrap_err(),
+        InvalidCoseSign1("invalid cbor header".to_string())
+    );
+
+    // invalid tag
+    let res = CoseSign1::parse_and_validate(&[
+        0xd3, /* tag 19 */
+        0x84, /* Protected: {1: -7} */
+        0x43, 0xA1, 0x01, 0x26, /* Unprotected: {4: '11'} */
+        0xA1, 0x04, 0x42, 0x31, 0x31, /* payload: */
+        0x58, 0x75, 0x49, 0x74, 0x20, 0x69, 0x73, 0x20, 0x61, 0x20, 0x74, 0x72, 0x75, 0x74, 0x68,
+        0x20, 0x75, 0x6E, 0x69, 0x76, 0x65, 0x72, 0x73, 0x61, 0x6C, 0x6C, 0x79, 0x20, 0x61, 0x63,
+        0x6B, 0x6E, 0x6F, 0x77, 0x6C, 0x65, 0x64, 0x67, 0x65, 0x64, 0x2C, 0x20, 0x74, 0x68, 0x61,
+        0x74, 0x20, 0x61, 0x20, 0x73, 0x69, 0x6E, 0x67, 0x6C, 0x65, 0x20, 0x6D, 0x61, 0x6E, 0x20,
+        0x69, 0x6E, 0x20, 0x70, 0x6F, 0x73, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6F, 0x6E, 0x20, 0x6F,
+        0x66, 0x20, 0x61, 0x20, 0x67, 0x6F, 0x6F, 0x64, 0x20, 0x66, 0x6F, 0x72, 0x74, 0x75, 0x6E,
+        0x65, 0x2C, 0x20, 0x6D, 0x75, 0x73, 0x74, 0x20, 0x62, 0x65, 0x20, 0x69, 0x6E, 0x20, 0x77,
+        0x61, 0x6E, 0x74, 0x20, 0x6F, 0x66, 0x20, 0x61, 0x20, 0x77, 0x69, 0x66, 0x65,
+        0x2E, /* Signature - length 32 x 2 */
+        0x58, 0x40, /* R: */
+        0x6E, 0x6D, 0xF6, 0x54, 0x89, 0xEA, 0x3B, 0x01, 0x88, 0x33, 0xF5, 0xFC, 0x4F, 0x84, 0xF8,
+        0x1B, 0x4D, 0x5E, 0xFD, 0x5A, 0x09, 0xD5, 0xC6, 0x2F, 0x2E, 0x92, 0x38, 0x5D, 0xCE, 0x31,
+        0xE2, 0xD1, /* S: */
+        0x5A, 0x53, 0xA9, 0xF0, 0x75, 0xE8, 0xFB, 0x39, 0x66, 0x9F, 0xCD, 0x4E, 0xB5, 0x22, 0xC8,
+        0x5C, 0x92, 0x77, 0x45, 0x2F, 0xA8, 0x57, 0xF5, 0xFE, 0x37, 0x9E, 0xDD, 0xEF, 0x0F, 0xAB,
+        0x3C, 0xDD,
+    ]);
+    assert_eq!(
+        res.unwrap_err(),
+        InvalidCoseSign1("invalid tag".to_string())
+    );
+}
+
+#[test]
+fn attestation_parse_all_pcrs() {
+    // parse with include_all_nonzero_pcrs=true, pcr16 should be present, in addition to 0, 1, 2, 4.
+    // But all zero required PCRs are missing: 3 and 8.
+    let parsed_all_pcrs = parse_nitro_attestation(
+        &Hex::decode(VALID_PCR16_ATTESTATION).unwrap(),
+        true,
+        true,
+        false,
+    )
+    .unwrap();
+    assert_eq!(
+        parsed_all_pcrs
+            .2
+            .pcr_map
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![0, 1, 2, 4, 16]
+    );
+    assert_eq!(*parsed_all_pcrs.2.pcr_map.get(&16).unwrap(), Hex::decode("28827566f8b004a75ccd77ffab1813059cfc384b3b23f926728263fecb03e97d4928fbef613791fcb233d7b16ad74b94").unwrap());
+    let res = verify_nitro_attestation(
+        &parsed_all_pcrs.0,
+        &parsed_all_pcrs.1,
+        &parsed_all_pcrs.2,
+        1762795380000,
+    );
+    assert!(res.is_ok());
+
+    // parse with always_include_required_pcrs=true, all 0, 1, 2, 3, 4, 8 are present AND pcr16
+    // is included since its nonzero.
+    let parsed_with_zeroed = parse_nitro_attestation(
+        &Hex::decode(VALID_PCR16_ATTESTATION).unwrap(),
+        true,
+        true,
+        true,
+    )
+    .unwrap();
+    assert_eq!(
+        parsed_with_zeroed
+            .2
+            .pcr_map
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![0, 1, 2, 3, 4, 8, 16]
+    );
+
+    // parse with legacy flag false, pcr16 should be missing. All 0, 1, 2, 3, 4, 8 are present.
+    let parsed = parse_nitro_attestation(
+        &Hex::decode(VALID_PCR16_ATTESTATION).unwrap(),
+        true,
+        false,
+        false,
+    )
+    .unwrap();
+    assert_eq!(
+        parsed.2.pcr_map.keys().cloned().collect::<Vec<_>>(),
+        vec![0, 1, 2, 3, 4, 8]
+    );
+}
