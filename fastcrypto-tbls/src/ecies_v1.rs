@@ -135,6 +135,7 @@ where
         encryption_random_oracle: &RandomOracle,
         receiver_index: usize,
     ) -> Vec<u8> {
+        assert!(receiver_index < self.encs.len());
         let enc_ro = Self::encs_random_oracle(encryption_random_oracle);
         let ephemeral_key = self.c * sk.0;
         let k = enc_ro.evaluate(&(receiver_index, ephemeral_key));

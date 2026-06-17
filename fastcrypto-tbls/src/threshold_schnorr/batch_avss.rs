@@ -401,6 +401,11 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
+        if ciphertext.len() != self.nodes.num_nodes() {
+            warn!("batch_avss process_message: ciphertext has the wrong number of recipients");
+            return Err(InvalidMessage);
+        }
+
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         ciphertext.verify(&random_oracle_encryption).map_err(|e| {
             warn!("batch_avss process_message: ciphertext verification failed: {e:?}");
@@ -447,6 +452,14 @@ impl Receiver {
         complaint: &Complaint,
         my_output: &ReceiverOutput,
     ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
+        if message.ciphertext.len() != self.nodes.num_nodes() {
+            warn!(
+                "batch_avss handle_complaint: ciphertext has the wrong number of recipients {} (expected {})",
+                message.ciphertext.len(),
+                self.nodes.num_nodes(),
+            );
+            return Err(InvalidMessage);
+        }
         let challenge = compute_challenge_from_message(&self.random_oracle(), message);
         complaint.check(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
@@ -531,12 +544,15 @@ fn verify_shares(
     challenge: &[S],
     expected_batch_size: usize,
 ) -> FastCryptoResult<()> {
-    let expected_weight = nodes.weight_of(receiver)?;
-    if shares.weight() != expected_weight {
+    let expected = nodes.share_ids_of(receiver)?;
+    if !shares
+        .shares
+        .iter()
+        .map(|s| s.index)
+        .eq(expected.iter().copied())
+    {
         warn!(
-            "batch_avss verify_shares: shares weight {} does not match expected {} for receiver {}",
-            shares.weight(),
-            expected_weight,
+            "batch_avss verify_shares: share indices do not match the receiver's assigned indices for receiver {}",
             receiver,
         );
         return Err(InvalidMessage);
