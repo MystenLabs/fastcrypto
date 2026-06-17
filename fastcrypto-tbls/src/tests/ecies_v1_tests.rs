@@ -55,7 +55,7 @@ mod point_tests {
         assert!(mr_enc.verify(&ro.extend("bla")).is_err());
 
         for (i, (sk, _, msg)) in keys_and_msg.iter().enumerate() {
-            let decrypted = mr_enc.decrypt(sk, &ro, i).unwrap();
+            let decrypted = mr_enc.decrypt(sk, &ro, i);
             assert_eq!(msg.as_bytes(), &decrypted);
         }
 

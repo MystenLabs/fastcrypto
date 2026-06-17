@@ -413,16 +413,11 @@ impl Receiver {
         })?;
 
         // Decrypt my shares
-        let plaintext = ciphertext
-            .decrypt(
-                &self.enc_secret_key,
-                &random_oracle_encryption,
-                self.id as usize,
-            )
-            .map_err(|e| {
-                warn!("batch_avss process_message: ciphertext decryption failed: {e:?}");
-                InvalidMessage
-            })?;
+        let plaintext = ciphertext.decrypt(
+            &self.enc_secret_key,
+            &random_oracle_encryption,
+            self.id as usize,
+        );
 
         match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
             // If there is an error in this scope, we create a complaint instead of returning an error
@@ -457,6 +452,14 @@ impl Receiver {
         complaint: &Complaint,
         my_output: &ReceiverOutput,
     ) -> FastCryptoResult<ComplaintResponse<SharesForNode>> {
+        if message.ciphertext.len() != self.nodes.num_nodes() {
+            warn!(
+                "batch_avss handle_complaint: ciphertext has the wrong number of recipients {} (expected {})",
+                message.ciphertext.len(),
+                self.nodes.num_nodes(),
+            );
+            return Err(InvalidMessage);
+        }
         let challenge = compute_challenge_from_message(&self.random_oracle(), message);
         complaint.check(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,

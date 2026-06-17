@@ -301,17 +301,11 @@ impl Receiver {
                 InvalidMessage
             })?;
 
-        let plaintext = message
-            .ciphertext
-            .decrypt(
-                &self.enc_secret_key,
-                &random_oracle_encryption,
-                self.id as usize,
-            )
-            .map_err(|e| {
-                warn!("AVSS process_message: ciphertext decryption failed: {e:?}");
-                InvalidMessage
-            })?;
+        let plaintext = message.ciphertext.decrypt(
+            &self.enc_secret_key,
+            &random_oracle_encryption,
+            self.id as usize,
+        );
 
         match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
             verify_shares(&my_shares, &self.nodes, self.id, message)?;
