@@ -125,6 +125,10 @@ pub fn get_nonce(
     let hash = poseidon_zk_login(&[first, second, max_epoch, jwt_randomness])
         .expect("inputs is not too long");
     let data = BigUint::from(hash).to_bytes_be();
+    // NOTE: `data.len() - 20` would underflow if `BigUint::to_bytes_be` returns fewer than 20
+    // bytes, which happens iff the hash is `< 2^159`. Poseidon outputs are pseudo-random Fr
+    // elements (`< 2^254`), so the probability is ~2^-95 and this case is unreachable in
+    // practice. A future fix could left-zero-pad `data` to a canonical 32-byte representation.
     let truncated = &data[data.len() - 20..];
     let mut buf = vec![0; Base64UrlUnpadded::encoded_len(truncated)];
     Ok(Base64UrlUnpadded::encode(truncated, &mut buf)
@@ -197,13 +201,19 @@ pub async fn get_proof(
     Ok(get_proof_response)
 }
 
-/// Given a 33-byte public key bytes (flag || pk_bytes), returns the two Bn254Fr split at the 128 bit index.
+/// Given a `flag || pk_bytes` byte string of length 33 to 47, returns two `Bn254Fr` obtained
+/// by splitting the input 16 bytes from the end. Errors if the length is outside `[33, 47]`.
 pub fn split_to_two_frs(eph_pk_bytes: &[u8]) -> Result<(Bn254Fr, Bn254Fr), FastCryptoError> {
+    if eph_pk_bytes.len() < 33 {
+        return Err(FastCryptoError::InputTooShort(33));
+    }
+    if eph_pk_bytes.len() > 47 {
+        return Err(FastCryptoError::InputTooLong(47));
+    }
     // Split the bytes deterministically such that the first element contains the first 128
     // bits of the hash, and the second element contains the latter ones.
     let (first_half, second_half) = eph_pk_bytes.split_at(eph_pk_bytes.len() - 16);
     let first_bigint = BigUint::from_bytes_be(first_half);
-    // TODO: this is not safe if the buffer is large. Can we use a fixed size array for eph_pk_bytes?
     let second_bigint = BigUint::from_bytes_be(second_half);
 
     let eph_public_key_0 = Bn254Fr::from(first_bigint);
