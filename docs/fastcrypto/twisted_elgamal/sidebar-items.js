@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["generate_keypair","precompute_table"],"struct":["Ciphertext","ConsistencyProof","KeyConsistencyProof","MultiRecipientCiphertext","PrivateKey","PublicKey","VerifiableKeyEncapsulation","ZeroProof"]};
+window.SIDEBAR_ITEMS = {"fn":["generate_keypair","precompute_table"],"struct":["Ciphertext","ConsistencyProof","KeyConsistencyProof","MultiRecipientCiphertext","PrivateKey","PublicKey","VerifiableKeyEncapsulation"]};

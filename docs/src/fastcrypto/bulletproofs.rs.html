@@ -15,9 +15,9 @@
 <a href=#15 id=15 data-nosnippet>15</a>//! let mut rng = rand::thread_rng();
 <a href=#16 id=16 data-nosnippet>16</a>//! let blinding = Blinding::rand(&amp;mut rng);
 <a href=#17 id=17 data-nosnippet>17</a>//! let proof =
-<a href=#18 id=18 data-nosnippet>18</a>//!    RangeProof::prove(value, &amp;blinding, &amp;range, &amp;mut rng).unwrap();
+<a href=#18 id=18 data-nosnippet>18</a>//!    RangeProof::prove(value, &amp;blinding, &amp;range, b"dst", &amp;mut rng).unwrap();
 <a href=#19 id=19 data-nosnippet>19</a>//! let commitment = PedersenCommitment::new(&amp;RistrettoScalar::from(value), &amp;blinding);
-<a href=#20 id=20 data-nosnippet>20</a>//! assert!(proof.verify(&amp;commitment, &amp;range, &amp;mut rng).is_ok());
+<a href=#20 id=20 data-nosnippet>20</a>//! assert!(proof.verify(&amp;commitment, &amp;range, b"dst", &amp;mut rng).is_ok());
 <a href=#21 id=21 data-nosnippet>21</a>//! ```
 <a href=#22 id=22 data-nosnippet>22</a>
 <a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidProof};
@@ -71,192 +71,200 @@
 <a href=#71 id=71 data-nosnippet>71</a>        value: u64,
 <a href=#72 id=72 data-nosnippet>72</a>        blinding: <span class="kw-2">&amp;</span>Blinding,
 <a href=#73 id=73 data-nosnippet>73</a>        range: <span class="kw-2">&amp;</span>Range,
-<a href=#74 id=74 data-nosnippet>74</a>        rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>AllowedRng,
-<a href=#75 id=75 data-nosnippet>75</a>    ) -&gt; FastCryptoResult&lt;RangeProof&gt; {
-<a href=#76 id=76 data-nosnippet>76</a>        <span class="self">Self</span>::prove_batch(<span class="kw-2">&amp;</span>[value], std::slice::from_ref(blinding), range, rng)
-<a href=#77 id=77 data-nosnippet>77</a>    }
-<a href=#78 id=78 data-nosnippet>78</a>
-<a href=#79 id=79 data-nosnippet>79</a>    <span class="doccomment">/// Verifies a range proof: That the commitment is to a value in the given range.
-<a href=#80 id=80 data-nosnippet>80</a>    </span><span class="kw">pub fn </span>verify(
-<a href=#81 id=81 data-nosnippet>81</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#82 id=82 data-nosnippet>82</a>        commitment: <span class="kw-2">&amp;</span>PedersenCommitment,
-<a href=#83 id=83 data-nosnippet>83</a>        range: <span class="kw-2">&amp;</span>Range,
-<a href=#84 id=84 data-nosnippet>84</a>        rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>AllowedRng,
-<a href=#85 id=85 data-nosnippet>85</a>    ) -&gt; FastCryptoResult&lt;()&gt; {
-<a href=#86 id=86 data-nosnippet>86</a>        <span class="self">self</span>.verify_batch(std::slice::from_ref(commitment), range, rng)
-<a href=#87 id=87 data-nosnippet>87</a>    }
-<a href=#88 id=88 data-nosnippet>88</a>
-<a href=#89 id=89 data-nosnippet>89</a>    <span class="doccomment">/// Create a proof that all the given `values` are in the range using the given commitment blindings.
-<a href=#90 id=90 data-nosnippet>90</a>    /// This enables creating proofs for existing commitments.
-<a href=#91 id=91 data-nosnippet>91</a>    ///
-<a href=#92 id=92 data-nosnippet>92</a>    /// Fails if
-<a href=#93 id=93 data-nosnippet>93</a>    /// * any of the `values` are &lt;i&gt;not&lt;/i&gt; in the range.
-<a href=#94 id=94 data-nosnippet>94</a>    /// * `values.len() != blindings.len()`,
-<a href=#95 id=95 data-nosnippet>95</a>    /// * `values.len()` is not a power of 2,
-<a href=#96 id=96 data-nosnippet>96</a>    </span><span class="kw">pub fn </span>prove_batch(
-<a href=#97 id=97 data-nosnippet>97</a>        values: <span class="kw-2">&amp;</span>[u64],
-<a href=#98 id=98 data-nosnippet>98</a>        blindings: <span class="kw-2">&amp;</span>[Blinding],
-<a href=#99 id=99 data-nosnippet>99</a>        range: <span class="kw-2">&amp;</span>Range,
-<a href=#100 id=100 data-nosnippet>100</a>        rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>AllowedRng,
-<a href=#101 id=101 data-nosnippet>101</a>    ) -&gt; FastCryptoResult&lt;RangeProof&gt; {
-<a href=#102 id=102 data-nosnippet>102</a>        <span class="kw">if </span>values.iter().any(|<span class="kw-2">&amp;</span>v| !range.is_in_range(v))
-<a href=#103 id=103 data-nosnippet>103</a>            || blindings.len() != values.len()
-<a href=#104 id=104 data-nosnippet>104</a>            || !values.len().is_power_of_two()
-<a href=#105 id=105 data-nosnippet>105</a>        {
-<a href=#106 id=106 data-nosnippet>106</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
-<a href=#107 id=107 data-nosnippet>107</a>        }
-<a href=#108 id=108 data-nosnippet>108</a>
-<a href=#109 id=109 data-nosnippet>109</a>        <span class="kw">let </span>bits = range.upper_bound_in_bits() <span class="kw">as </span>usize;
-<a href=#110 id=110 data-nosnippet>110</a>        <span class="kw">let </span>bp_gens = BulletproofGens::new(bits, values.len());
-<a href=#111 id=111 data-nosnippet>111</a>        <span class="kw">let </span><span class="kw-2">mut </span>prover_transcript = Transcript::new(<span class="kw-2">&amp;</span>[]);
-<a href=#112 id=112 data-nosnippet>112</a>
-<a href=#113 id=113 data-nosnippet>113</a>        <span class="comment">// TODO: Can we avoid calculating the Pedersen commitments here?
-<a href=#114 id=114 data-nosnippet>114</a>        </span>ExternalRangeProof::prove_multiple_with_rng(
-<a href=#115 id=115 data-nosnippet>115</a>            <span class="kw-2">&amp;</span>bp_gens,
-<a href=#116 id=116 data-nosnippet>116</a>            <span class="kw-2">&amp;</span>GENERATORS,
-<a href=#117 id=117 data-nosnippet>117</a>            <span class="kw-2">&amp;mut </span>prover_transcript,
-<a href=#118 id=118 data-nosnippet>118</a>            values,
-<a href=#119 id=119 data-nosnippet>119</a>            <span class="kw-2">&amp;</span>blindings.iter().map(|b| b.<span class="number">0 </span>.<span class="number">0</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-<a href=#120 id=120 data-nosnippet>120</a>            bits,
-<a href=#121 id=121 data-nosnippet>121</a>            rng,
-<a href=#122 id=122 data-nosnippet>122</a>        )
-<a href=#123 id=123 data-nosnippet>123</a>        .map(|(proof, <span class="kw">_</span>)| RangeProof(proof))
-<a href=#124 id=124 data-nosnippet>124</a>        .map_err(|<span class="kw">_</span>| GeneralOpaqueError)
-<a href=#125 id=125 data-nosnippet>125</a>    }
-<a href=#126 id=126 data-nosnippet>126</a>
-<a href=#127 id=127 data-nosnippet>127</a>    <span class="doccomment">/// Verifies that a range proof that all commitments are to values in the given `range`.
-<a href=#128 id=128 data-nosnippet>128</a>    </span><span class="kw">pub fn </span>verify_batch(
-<a href=#129 id=129 data-nosnippet>129</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#130 id=130 data-nosnippet>130</a>        commitments: <span class="kw-2">&amp;</span>[PedersenCommitment],
-<a href=#131 id=131 data-nosnippet>131</a>        range: <span class="kw-2">&amp;</span>Range,
-<a href=#132 id=132 data-nosnippet>132</a>        rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>AllowedRng,
-<a href=#133 id=133 data-nosnippet>133</a>    ) -&gt; FastCryptoResult&lt;()&gt; {
-<a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">let </span>bits = range.upper_bound_in_bits() <span class="kw">as </span>usize;
-<a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">let </span>bp_gens = BulletproofGens::new(bits, commitments.len());
-<a href=#136 id=136 data-nosnippet>136</a>        <span class="kw">let </span><span class="kw-2">mut </span>verifier_transcript = Transcript::new(<span class="kw-2">&amp;</span>[]);
-<a href=#137 id=137 data-nosnippet>137</a>
-<a href=#138 id=138 data-nosnippet>138</a>        <span class="self">self</span>.<span class="number">0
-<a href=#139 id=139 data-nosnippet>139</a>            </span>.verify_multiple_with_rng(
-<a href=#140 id=140 data-nosnippet>140</a>                <span class="kw-2">&amp;</span>bp_gens,
-<a href=#141 id=141 data-nosnippet>141</a>                <span class="kw-2">&amp;</span>GENERATORS,
-<a href=#142 id=142 data-nosnippet>142</a>                <span class="kw-2">&amp;mut </span>verifier_transcript,
-<a href=#143 id=143 data-nosnippet>143</a>                <span class="kw-2">&amp;</span>commitments
-<a href=#144 id=144 data-nosnippet>144</a>                    .iter()
-<a href=#145 id=145 data-nosnippet>145</a>                    .map(|c| c.<span class="number">0 </span>.<span class="number">0</span>.compress())
-<a href=#146 id=146 data-nosnippet>146</a>                    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-<a href=#147 id=147 data-nosnippet>147</a>                bits,
-<a href=#148 id=148 data-nosnippet>148</a>                rng,
-<a href=#149 id=149 data-nosnippet>149</a>            )
-<a href=#150 id=150 data-nosnippet>150</a>            .map_err(|<span class="kw">_</span>| InvalidProof)
-<a href=#151 id=151 data-nosnippet>151</a>    }
-<a href=#152 id=152 data-nosnippet>152</a>
-<a href=#153 id=153 data-nosnippet>153</a>    <span class="doccomment">/// Serialize a range proof. The output will be serialized Risretto255 group elements and scalars.
-<a href=#154 id=154 data-nosnippet>154</a>    /// It follows the format used in https://github.com/dalek-cryptography/bulletproofs/blob/be67b6d5f5ad1c1f54d5511b52e6d645a1313d07/src/range_proof/mod.rs#L59-L76.
-<a href=#155 id=155 data-nosnippet>155</a>    </span><span class="kw">pub fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-<a href=#156 id=156 data-nosnippet>156</a>        <span class="self">self</span>.<span class="number">0</span>.to_bytes()
+<a href=#74 id=74 data-nosnippet>74</a>        dst: <span class="kw-2">&amp;</span>[u8],
+<a href=#75 id=75 data-nosnippet>75</a>        rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>AllowedRng,
+<a href=#76 id=76 data-nosnippet>76</a>    ) -&gt; FastCryptoResult&lt;RangeProof&gt; {
+<a href=#77 id=77 data-nosnippet>77</a>        <span class="self">Self</span>::prove_batch(<span class="kw-2">&amp;</span>[value], std::slice::from_ref(blinding), range, dst, rng)
+<a href=#78 id=78 data-nosnippet>78</a>    }
+<a href=#79 id=79 data-nosnippet>79</a>
+<a href=#80 id=80 data-nosnippet>80</a>    <span class="doccomment">/// Verifies a range proof: That the commitment is to a value in the given range.
+<a href=#81 id=81 data-nosnippet>81</a>    </span><span class="kw">pub fn </span>verify(
+<a href=#82 id=82 data-nosnippet>82</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#83 id=83 data-nosnippet>83</a>        commitment: <span class="kw-2">&amp;</span>PedersenCommitment,
+<a href=#84 id=84 data-nosnippet>84</a>        range: <span class="kw-2">&amp;</span>Range,
+<a href=#85 id=85 data-nosnippet>85</a>        dst: <span class="kw-2">&amp;</span>[u8],
+<a href=#86 id=86 data-nosnippet>86</a>        rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>AllowedRng,
+<a href=#87 id=87 data-nosnippet>87</a>    ) -&gt; FastCryptoResult&lt;()&gt; {
+<a href=#88 id=88 data-nosnippet>88</a>        <span class="self">self</span>.verify_batch(std::slice::from_ref(commitment), range, dst, rng)
+<a href=#89 id=89 data-nosnippet>89</a>    }
+<a href=#90 id=90 data-nosnippet>90</a>
+<a href=#91 id=91 data-nosnippet>91</a>    <span class="doccomment">/// Create a proof that all the given `values` are in the range using the given commitment blindings.
+<a href=#92 id=92 data-nosnippet>92</a>    /// This enables creating proofs for existing commitments.
+<a href=#93 id=93 data-nosnippet>93</a>    ///
+<a href=#94 id=94 data-nosnippet>94</a>    /// Fails if
+<a href=#95 id=95 data-nosnippet>95</a>    /// * any of the `values` are &lt;i&gt;not&lt;/i&gt; in the range.
+<a href=#96 id=96 data-nosnippet>96</a>    /// * `values.len() != blindings.len()`,
+<a href=#97 id=97 data-nosnippet>97</a>    /// * `values.len()` is not a power of 2,
+<a href=#98 id=98 data-nosnippet>98</a>    </span><span class="kw">pub fn </span>prove_batch(
+<a href=#99 id=99 data-nosnippet>99</a>        values: <span class="kw-2">&amp;</span>[u64],
+<a href=#100 id=100 data-nosnippet>100</a>        blindings: <span class="kw-2">&amp;</span>[Blinding],
+<a href=#101 id=101 data-nosnippet>101</a>        range: <span class="kw-2">&amp;</span>Range,
+<a href=#102 id=102 data-nosnippet>102</a>        dst: <span class="kw-2">&amp;</span>[u8],
+<a href=#103 id=103 data-nosnippet>103</a>        rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>AllowedRng,
+<a href=#104 id=104 data-nosnippet>104</a>    ) -&gt; FastCryptoResult&lt;RangeProof&gt; {
+<a href=#105 id=105 data-nosnippet>105</a>        <span class="kw">if </span>values.iter().any(|<span class="kw-2">&amp;</span>v| !range.is_in_range(v))
+<a href=#106 id=106 data-nosnippet>106</a>            || blindings.len() != values.len()
+<a href=#107 id=107 data-nosnippet>107</a>            || !values.len().is_power_of_two()
+<a href=#108 id=108 data-nosnippet>108</a>        {
+<a href=#109 id=109 data-nosnippet>109</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+<a href=#110 id=110 data-nosnippet>110</a>        }
+<a href=#111 id=111 data-nosnippet>111</a>
+<a href=#112 id=112 data-nosnippet>112</a>        <span class="kw">let </span>bits = range.upper_bound_in_bits() <span class="kw">as </span>usize;
+<a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">let </span>bp_gens = BulletproofGens::new(bits, values.len());
+<a href=#114 id=114 data-nosnippet>114</a>        <span class="kw">let </span><span class="kw-2">mut </span>prover_transcript = Transcript::new(<span class="kw-2">&amp;</span>[]);
+<a href=#115 id=115 data-nosnippet>115</a>        prover_transcript.append_message(<span class="string">b"DST"</span>, dst);
+<a href=#116 id=116 data-nosnippet>116</a>
+<a href=#117 id=117 data-nosnippet>117</a>        <span class="comment">// TODO: Can we avoid calculating the Pedersen commitments here?
+<a href=#118 id=118 data-nosnippet>118</a>        </span>ExternalRangeProof::prove_multiple_with_rng(
+<a href=#119 id=119 data-nosnippet>119</a>            <span class="kw-2">&amp;</span>bp_gens,
+<a href=#120 id=120 data-nosnippet>120</a>            <span class="kw-2">&amp;</span>GENERATORS,
+<a href=#121 id=121 data-nosnippet>121</a>            <span class="kw-2">&amp;mut </span>prover_transcript,
+<a href=#122 id=122 data-nosnippet>122</a>            values,
+<a href=#123 id=123 data-nosnippet>123</a>            <span class="kw-2">&amp;</span>blindings.iter().map(|b| b.<span class="number">0 </span>.<span class="number">0</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+<a href=#124 id=124 data-nosnippet>124</a>            bits,
+<a href=#125 id=125 data-nosnippet>125</a>            rng,
+<a href=#126 id=126 data-nosnippet>126</a>        )
+<a href=#127 id=127 data-nosnippet>127</a>        .map(|(proof, <span class="kw">_</span>)| RangeProof(proof))
+<a href=#128 id=128 data-nosnippet>128</a>        .map_err(|<span class="kw">_</span>| GeneralOpaqueError)
+<a href=#129 id=129 data-nosnippet>129</a>    }
+<a href=#130 id=130 data-nosnippet>130</a>
+<a href=#131 id=131 data-nosnippet>131</a>    <span class="doccomment">/// Verifies that a range proof that all commitments are to values in the given `range`.
+<a href=#132 id=132 data-nosnippet>132</a>    </span><span class="kw">pub fn </span>verify_batch(
+<a href=#133 id=133 data-nosnippet>133</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#134 id=134 data-nosnippet>134</a>        commitments: <span class="kw-2">&amp;</span>[PedersenCommitment],
+<a href=#135 id=135 data-nosnippet>135</a>        range: <span class="kw-2">&amp;</span>Range,
+<a href=#136 id=136 data-nosnippet>136</a>        dst: <span class="kw-2">&amp;</span>[u8],
+<a href=#137 id=137 data-nosnippet>137</a>        rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>AllowedRng,
+<a href=#138 id=138 data-nosnippet>138</a>    ) -&gt; FastCryptoResult&lt;()&gt; {
+<a href=#139 id=139 data-nosnippet>139</a>        <span class="kw">let </span>bits = range.upper_bound_in_bits() <span class="kw">as </span>usize;
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="kw">let </span>bp_gens = BulletproofGens::new(bits, commitments.len());
+<a href=#141 id=141 data-nosnippet>141</a>        <span class="kw">let </span><span class="kw-2">mut </span>verifier_transcript = Transcript::new(<span class="kw-2">&amp;</span>[]);
+<a href=#142 id=142 data-nosnippet>142</a>        verifier_transcript.append_message(<span class="string">b"DST"</span>, dst);
+<a href=#143 id=143 data-nosnippet>143</a>
+<a href=#144 id=144 data-nosnippet>144</a>        <span class="self">self</span>.<span class="number">0
+<a href=#145 id=145 data-nosnippet>145</a>            </span>.verify_multiple_with_rng(
+<a href=#146 id=146 data-nosnippet>146</a>                <span class="kw-2">&amp;</span>bp_gens,
+<a href=#147 id=147 data-nosnippet>147</a>                <span class="kw-2">&amp;</span>GENERATORS,
+<a href=#148 id=148 data-nosnippet>148</a>                <span class="kw-2">&amp;mut </span>verifier_transcript,
+<a href=#149 id=149 data-nosnippet>149</a>                <span class="kw-2">&amp;</span>commitments
+<a href=#150 id=150 data-nosnippet>150</a>                    .iter()
+<a href=#151 id=151 data-nosnippet>151</a>                    .map(|c| c.<span class="number">0 </span>.<span class="number">0</span>.compress())
+<a href=#152 id=152 data-nosnippet>152</a>                    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+<a href=#153 id=153 data-nosnippet>153</a>                bits,
+<a href=#154 id=154 data-nosnippet>154</a>                rng,
+<a href=#155 id=155 data-nosnippet>155</a>            )
+<a href=#156 id=156 data-nosnippet>156</a>            .map_err(|<span class="kw">_</span>| InvalidProof)
 <a href=#157 id=157 data-nosnippet>157</a>    }
 <a href=#158 id=158 data-nosnippet>158</a>
-<a href=#159 id=159 data-nosnippet>159</a>    <span class="doccomment">/// Deserialize a range proof. See also [Self::to_bytes].
-<a href=#160 id=160 data-nosnippet>160</a>    </span><span class="kw">pub fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
-<a href=#161 id=161 data-nosnippet>161</a>        ExternalRangeProof::from_bytes(bytes)
-<a href=#162 id=162 data-nosnippet>162</a>            .map(RangeProof)
-<a href=#163 id=163 data-nosnippet>163</a>            .map_err(|<span class="kw">_</span>| InvalidInput)
-<a href=#164 id=164 data-nosnippet>164</a>    }
-<a href=#165 id=165 data-nosnippet>165</a>}
-<a href=#166 id=166 data-nosnippet>166</a>
-<a href=#167 id=167 data-nosnippet>167</a><span class="attr">#[test]
-<a href=#168 id=168 data-nosnippet>168</a></span><span class="kw">fn </span>test_is_in_range() {
-<a href=#169 id=169 data-nosnippet>169</a>    <span class="macro">assert!</span>(Range::Bits8.is_in_range(<span class="number">0</span>));
-<a href=#170 id=170 data-nosnippet>170</a>    <span class="macro">assert!</span>(Range::Bits8.is_in_range(u8::MAX <span class="kw">as </span>u64));
-<a href=#171 id=171 data-nosnippet>171</a>    <span class="macro">assert!</span>(!Range::Bits8.is_in_range(<span class="number">1 </span>&lt;&lt; <span class="number">8</span>));
-<a href=#172 id=172 data-nosnippet>172</a>    <span class="macro">assert!</span>(Range::Bits16.is_in_range(<span class="number">0</span>));
-<a href=#173 id=173 data-nosnippet>173</a>    <span class="macro">assert!</span>(Range::Bits16.is_in_range(u16::MAX <span class="kw">as </span>u64));
-<a href=#174 id=174 data-nosnippet>174</a>    <span class="macro">assert!</span>(!Range::Bits16.is_in_range(<span class="number">1 </span>&lt;&lt; <span class="number">16</span>));
-<a href=#175 id=175 data-nosnippet>175</a>    <span class="macro">assert!</span>(Range::Bits32.is_in_range(<span class="number">0</span>));
-<a href=#176 id=176 data-nosnippet>176</a>    <span class="macro">assert!</span>(Range::Bits32.is_in_range(u32::MAX <span class="kw">as </span>u64));
-<a href=#177 id=177 data-nosnippet>177</a>    <span class="macro">assert!</span>(!Range::Bits32.is_in_range(<span class="number">1 </span>&lt;&lt; <span class="number">32</span>));
-<a href=#178 id=178 data-nosnippet>178</a>    <span class="macro">assert!</span>(Range::Bits64.is_in_range(<span class="number">0</span>));
-<a href=#179 id=179 data-nosnippet>179</a>    <span class="macro">assert!</span>(Range::Bits64.is_in_range(u64::MAX));
-<a href=#180 id=180 data-nosnippet>180</a>}
-<a href=#181 id=181 data-nosnippet>181</a>
-<a href=#182 id=182 data-nosnippet>182</a><span class="attr">#[test]
-<a href=#183 id=183 data-nosnippet>183</a></span><span class="kw">fn </span>test_range_proof_valid() {
-<a href=#184 id=184 data-nosnippet>184</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::RistrettoScalar;
-<a href=#185 id=185 data-nosnippet>185</a>
-<a href=#186 id=186 data-nosnippet>186</a>    <span class="kw">let </span>range = Range::Bits32;
-<a href=#187 id=187 data-nosnippet>187</a>    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
-<a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">let </span>blinding = Blinding::rand(<span class="kw-2">&amp;mut </span>rng);
-<a href=#189 id=189 data-nosnippet>189</a>
-<a href=#190 id=190 data-nosnippet>190</a>    <span class="kw">let </span>value = <span class="number">1u64</span>;
-<a href=#191 id=191 data-nosnippet>191</a>    <span class="kw">let </span>proof = RangeProof::prove(value, <span class="kw-2">&amp;</span>blinding, <span class="kw-2">&amp;</span>range, <span class="kw-2">&amp;mut </span>rng).unwrap();
-<a href=#192 id=192 data-nosnippet>192</a>    <span class="kw">let </span>commitment = PedersenCommitment::new(<span class="kw-2">&amp;</span>RistrettoScalar::from(value), <span class="kw-2">&amp;</span>blinding);
-<a href=#193 id=193 data-nosnippet>193</a>    <span class="macro">assert!</span>(proof.verify(<span class="kw-2">&amp;</span>commitment, <span class="kw-2">&amp;</span>range, <span class="kw-2">&amp;mut </span>rng).is_ok());
-<a href=#194 id=194 data-nosnippet>194</a>}
+<a href=#159 id=159 data-nosnippet>159</a>    <span class="doccomment">/// Serialize a range proof. The output will be serialized Risretto255 group elements and scalars.
+<a href=#160 id=160 data-nosnippet>160</a>    /// It follows the format used in https://github.com/dalek-cryptography/bulletproofs/blob/be67b6d5f5ad1c1f54d5511b52e6d645a1313d07/src/range_proof/mod.rs#L59-L76.
+<a href=#161 id=161 data-nosnippet>161</a>    </span><span class="kw">pub fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
+<a href=#162 id=162 data-nosnippet>162</a>        <span class="self">self</span>.<span class="number">0</span>.to_bytes()
+<a href=#163 id=163 data-nosnippet>163</a>    }
+<a href=#164 id=164 data-nosnippet>164</a>
+<a href=#165 id=165 data-nosnippet>165</a>    <span class="doccomment">/// Deserialize a range proof. See also [Self::to_bytes].
+<a href=#166 id=166 data-nosnippet>166</a>    </span><span class="kw">pub fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
+<a href=#167 id=167 data-nosnippet>167</a>        ExternalRangeProof::from_bytes(bytes)
+<a href=#168 id=168 data-nosnippet>168</a>            .map(RangeProof)
+<a href=#169 id=169 data-nosnippet>169</a>            .map_err(|<span class="kw">_</span>| InvalidInput)
+<a href=#170 id=170 data-nosnippet>170</a>    }
+<a href=#171 id=171 data-nosnippet>171</a>}
+<a href=#172 id=172 data-nosnippet>172</a>
+<a href=#173 id=173 data-nosnippet>173</a><span class="attr">#[test]
+<a href=#174 id=174 data-nosnippet>174</a></span><span class="kw">fn </span>test_is_in_range() {
+<a href=#175 id=175 data-nosnippet>175</a>    <span class="macro">assert!</span>(Range::Bits8.is_in_range(<span class="number">0</span>));
+<a href=#176 id=176 data-nosnippet>176</a>    <span class="macro">assert!</span>(Range::Bits8.is_in_range(u8::MAX <span class="kw">as </span>u64));
+<a href=#177 id=177 data-nosnippet>177</a>    <span class="macro">assert!</span>(!Range::Bits8.is_in_range(<span class="number">1 </span>&lt;&lt; <span class="number">8</span>));
+<a href=#178 id=178 data-nosnippet>178</a>    <span class="macro">assert!</span>(Range::Bits16.is_in_range(<span class="number">0</span>));
+<a href=#179 id=179 data-nosnippet>179</a>    <span class="macro">assert!</span>(Range::Bits16.is_in_range(u16::MAX <span class="kw">as </span>u64));
+<a href=#180 id=180 data-nosnippet>180</a>    <span class="macro">assert!</span>(!Range::Bits16.is_in_range(<span class="number">1 </span>&lt;&lt; <span class="number">16</span>));
+<a href=#181 id=181 data-nosnippet>181</a>    <span class="macro">assert!</span>(Range::Bits32.is_in_range(<span class="number">0</span>));
+<a href=#182 id=182 data-nosnippet>182</a>    <span class="macro">assert!</span>(Range::Bits32.is_in_range(u32::MAX <span class="kw">as </span>u64));
+<a href=#183 id=183 data-nosnippet>183</a>    <span class="macro">assert!</span>(!Range::Bits32.is_in_range(<span class="number">1 </span>&lt;&lt; <span class="number">32</span>));
+<a href=#184 id=184 data-nosnippet>184</a>    <span class="macro">assert!</span>(Range::Bits64.is_in_range(<span class="number">0</span>));
+<a href=#185 id=185 data-nosnippet>185</a>    <span class="macro">assert!</span>(Range::Bits64.is_in_range(u64::MAX));
+<a href=#186 id=186 data-nosnippet>186</a>}
+<a href=#187 id=187 data-nosnippet>187</a>
+<a href=#188 id=188 data-nosnippet>188</a><span class="attr">#[test]
+<a href=#189 id=189 data-nosnippet>189</a></span><span class="kw">fn </span>test_range_proof_valid() {
+<a href=#190 id=190 data-nosnippet>190</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::RistrettoScalar;
+<a href=#191 id=191 data-nosnippet>191</a>
+<a href=#192 id=192 data-nosnippet>192</a>    <span class="kw">let </span>range = Range::Bits32;
+<a href=#193 id=193 data-nosnippet>193</a>    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
+<a href=#194 id=194 data-nosnippet>194</a>    <span class="kw">let </span>blinding = Blinding::rand(<span class="kw-2">&amp;mut </span>rng);
 <a href=#195 id=195 data-nosnippet>195</a>
-<a href=#196 id=196 data-nosnippet>196</a><span class="attr">#[test]
-<a href=#197 id=197 data-nosnippet>197</a></span><span class="kw">fn </span>test_batch_range_proof_valid() {
-<a href=#198 id=198 data-nosnippet>198</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::RistrettoScalar;
-<a href=#199 id=199 data-nosnippet>199</a>    <span class="kw">let </span>range = Range::Bits32;
-<a href=#200 id=200 data-nosnippet>200</a>    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
-<a href=#201 id=201 data-nosnippet>201</a>    <span class="kw">let </span>values = (<span class="number">1u64</span>..=<span class="number">8</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#202 id=202 data-nosnippet>202</a>    <span class="kw">let </span>(commitments, blindings) = values
-<a href=#203 id=203 data-nosnippet>203</a>        .iter()
-<a href=#204 id=204 data-nosnippet>204</a>        .map(|<span class="kw-2">&amp;</span>v| PedersenCommitment::commit(<span class="kw-2">&amp;</span>RistrettoScalar::from(v), <span class="kw-2">&amp;mut </span>rng))
-<a href=#205 id=205 data-nosnippet>205</a>        .unzip::&lt;<span class="kw">_</span>, <span class="kw">_</span>, Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">let </span>proof = RangeProof::prove_batch(<span class="kw-2">&amp;</span>values, <span class="kw-2">&amp;</span>blindings, <span class="kw-2">&amp;</span>range, <span class="kw-2">&amp;mut </span>rng).unwrap();
-<a href=#207 id=207 data-nosnippet>207</a>    <span class="macro">assert!</span>(proof.verify_batch(<span class="kw-2">&amp;</span>commitments, <span class="kw-2">&amp;</span>range, <span class="kw-2">&amp;mut </span>rng).is_ok());
-<a href=#208 id=208 data-nosnippet>208</a>}
-<a href=#209 id=209 data-nosnippet>209</a>
-<a href=#210 id=210 data-nosnippet>210</a><span class="attr">#[test]
-<a href=#211 id=211 data-nosnippet>211</a></span><span class="kw">fn </span>test_to_from_bytes() {
-<a href=#212 id=212 data-nosnippet>212</a>    <span class="kw">use </span><span class="kw">crate</span>::encoding::{Encoding, Hex};
-<a href=#213 id=213 data-nosnippet>213</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::RistrettoScalar;
-<a href=#214 id=214 data-nosnippet>214</a>    <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::ToFromByteArray;
-<a href=#215 id=215 data-nosnippet>215</a>
-<a href=#216 id=216 data-nosnippet>216</a>    <span class="kw">let </span>range = Range::Bits32;
-<a href=#217 id=217 data-nosnippet>217</a>    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
-<a href=#218 id=218 data-nosnippet>218</a>    <span class="kw">let </span>values = (<span class="number">1u64</span>..=<span class="number">8</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#219 id=219 data-nosnippet>219</a>    <span class="kw">let </span>(commitments, blindings) = values
-<a href=#220 id=220 data-nosnippet>220</a>        .iter()
-<a href=#221 id=221 data-nosnippet>221</a>        .map(|<span class="kw-2">&amp;</span>v| PedersenCommitment::commit(<span class="kw-2">&amp;</span>RistrettoScalar::from(v), <span class="kw-2">&amp;mut </span>rng))
-<a href=#222 id=222 data-nosnippet>222</a>        .unzip::&lt;<span class="kw">_</span>, <span class="kw">_</span>, Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#223 id=223 data-nosnippet>223</a>    commitments
-<a href=#224 id=224 data-nosnippet>224</a>        .iter()
-<a href=#225 id=225 data-nosnippet>225</a>        .for_each(|c| <span class="macro">println!</span>(<span class="string">"{}"</span>, Hex::encode(c.<span class="number">0</span>.to_byte_array())));
-<a href=#226 id=226 data-nosnippet>226</a>    <span class="kw">let </span>proof = RangeProof::prove_batch(<span class="kw-2">&amp;</span>values, <span class="kw-2">&amp;</span>blindings, <span class="kw-2">&amp;</span>range, <span class="kw-2">&amp;mut </span>rng).unwrap();
-<a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">let </span>proof_bytes = proof.to_bytes();
-<a href=#228 id=228 data-nosnippet>228</a>    <span class="macro">println!</span>(<span class="string">"{}"</span>, Hex::encode(<span class="kw-2">&amp;</span>proof_bytes));
-<a href=#229 id=229 data-nosnippet>229</a>    <span class="kw">let </span>reconstructed_proof = RangeProof::from_bytes(<span class="kw-2">&amp;</span>proof_bytes).unwrap();
-<a href=#230 id=230 data-nosnippet>230</a>    <span class="macro">assert!</span>(reconstructed_proof
-<a href=#231 id=231 data-nosnippet>231</a>        .verify_batch(<span class="kw-2">&amp;</span>commitments, <span class="kw-2">&amp;</span>range, <span class="kw-2">&amp;mut </span>rng)
-<a href=#232 id=232 data-nosnippet>232</a>        .is_ok());
-<a href=#233 id=233 data-nosnippet>233</a>}
-<a href=#234 id=234 data-nosnippet>234</a>
-<a href=#235 id=235 data-nosnippet>235</a><span class="attr">#[test]
-<a href=#236 id=236 data-nosnippet>236</a></span><span class="kw">fn </span>regression_test() {
-<a href=#237 id=237 data-nosnippet>237</a>    <span class="kw">use </span><span class="kw">crate</span>::encoding::{Encoding, Hex};
-<a href=#238 id=238 data-nosnippet>238</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::RistrettoPoint;
-<a href=#239 id=239 data-nosnippet>239</a>    <span class="kw">use </span><span class="kw">crate</span>::pedersen::PedersenCommitment;
-<a href=#240 id=240 data-nosnippet>240</a>    <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::ToFromByteArray;
-<a href=#241 id=241 data-nosnippet>241</a>
-<a href=#242 id=242 data-nosnippet>242</a>    <span class="kw">let </span>proof = RangeProof::from_bytes(<span class="kw-2">&amp;</span>Hex::decode(<span class="string">"483752e4e9be898bb7098adbe1cd4ec71614c7cf897de2d9e6b5d7615bb96b7b9ca3621b3fd885045903b82a4bc979094639f216c479362b0ab497dcbbe5600580c3a9e90d1fab586d7f3e8c9fcae71da9474c106610b5d473824a33e3472e20e04390d7052480b3500a96167e405a9b27f59a6b74f47457454014307a97e108ab6681983e5556fb19d2a33f753b364695cb7188948ff7f997a5fe3d55fcc902fcd5afcbd45a41ef298d6e16560fb407d29c81dac20705cd18d52f4925700003bf7b175cdf6d5d8c6eeef35f7357a88edac323eef8dda1f90ff4ebafab91650182d44889691ed4e1789891d7111c2adc97feb2e48e5bde1d3407f98e2a85b66c086bc4d03cbdd9237023bd601bbad70377345bafe027d2e794d702585a7ce72008cb2efec10638555841eb17917c1b6d41533e5a93496fbb2c8cf1e98830732290dd8d6b6a10c2622d866c6e0dbac2aee6c94409f5a50affbc47081cd24414414e080474c144f2b2e38d8c02a56c9dc8bc5ca6b342cfbec04c40b9e8225a7f1fb62b3ddc4ad00f7606ce2942f123503da272e2a6e25a6f0d0038030b489c8675d614bc0073056ffa2ec10231c50b7fcae9d961f66dd299da4b1985a2eb6c215aee1e41de609e70ffcf73bd2b1c677e7afe31c0d16c202dbc006f187266f94f2be44668778c18f0b76f9cb4608594350371c2e0391b6be322fbb78fa03400f272ecae55d95c3ddccfc76353753fa596ef076ac02084a9bcc525df5e5ab086850868c17b907c484553e19fd693702884c4745eb833bd27598a23ef0e68828c934b7a0a8f66e811bede8bf8a4e141a8f12f964e92e76d5af2b3e9f76792b935fc0d8cd906e7ab4f9e6a3bd9b826c0503a929634e7cdf8fdf5173772e372bb19862072ed0fb3afb44cae8b79caad81370ce67e4a1b44b8a56150219ca6982cf21c2fd80b4f8a675e585456223f60a96574c0972aa5f1ae68e04d9cf5b6e635f0903c3efe47d4c0c0d8d656d14928397d4e20806b50fb945d8c5b3af7b9c3b06dab726a41897ba3e94531eba51f7c16e390709a5efe407255dcfc40d86a1eb0fa4f01adee93fa6ed44a9ad03ba83b7d09f88bb4dbb51d8ef4b73b36b75dcaae04890a"</span>).unwrap()).unwrap();
-<a href=#243 id=243 data-nosnippet>243</a>    <span class="kw">let </span>commitments = [
-<a href=#244 id=244 data-nosnippet>244</a>        <span class="string">"7c7ea4aadabb7162ed05f265527c50fb1a441b0ca655231bf6d7c45d6cf67e1d"</span>,
-<a href=#245 id=245 data-nosnippet>245</a>        <span class="string">"702b85154cd2dd7d0505af8cc6484f0aa854549e64b87f07277af70d995a2d21"</span>,
-<a href=#246 id=246 data-nosnippet>246</a>        <span class="string">"6693d794456c40fbcaaf0692c376aca4ba168782a6b76df49100b8d766a73b5c"</span>,
-<a href=#247 id=247 data-nosnippet>247</a>        <span class="string">"1a7ff5f0f877da164da5630b280278e03e75cb19ed1469b1853df3fb8050a662"</span>,
-<a href=#248 id=248 data-nosnippet>248</a>        <span class="string">"e25bae601d7113cd0db0603fe7072e88f5aeae6177e423bf2e22abf5f997ef6b"</span>,
-<a href=#249 id=249 data-nosnippet>249</a>        <span class="string">"b6d98f2eae41a89e49fa2381a7b88517bfbe0fdebb656712e2e9d6f50df1720c"</span>,
-<a href=#250 id=250 data-nosnippet>250</a>        <span class="string">"e2b788992088af1a3f9810a4c85fc4bfa4fc48e2cfcc3e546deb030e47e6cc7a"</span>,
-<a href=#251 id=251 data-nosnippet>251</a>        <span class="string">"60d05a6cdd77f71b15356fb830eb3a5a26b79b2870df6a39dd704490e0e6162d"</span>,
-<a href=#252 id=252 data-nosnippet>252</a>    ]
-<a href=#253 id=253 data-nosnippet>253</a>    .iter()
-<a href=#254 id=254 data-nosnippet>254</a>    .map(|s| Hex::decode(s).unwrap())
-<a href=#255 id=255 data-nosnippet>255</a>    .map(|b| RistrettoPoint::from_byte_array(<span class="kw-2">&amp;</span>b.try_into().unwrap()).unwrap())
-<a href=#256 id=256 data-nosnippet>256</a>    .map(PedersenCommitment)
-<a href=#257 id=257 data-nosnippet>257</a>    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#258 id=258 data-nosnippet>258</a>    <span class="macro">assert!</span>(proof
-<a href=#259 id=259 data-nosnippet>259</a>        .verify_batch(<span class="kw-2">&amp;</span>commitments, <span class="kw-2">&amp;</span>Range::Bits32, <span class="kw-2">&amp;mut </span>rand::thread_rng())
-<a href=#260 id=260 data-nosnippet>260</a>        .is_ok());
-<a href=#261 id=261 data-nosnippet>261</a>}
+<a href=#196 id=196 data-nosnippet>196</a>    <span class="kw">let </span>value = <span class="number">1u64</span>;
+<a href=#197 id=197 data-nosnippet>197</a>    <span class="kw">let </span>proof = RangeProof::prove(value, <span class="kw-2">&amp;</span>blinding, <span class="kw-2">&amp;</span>range, <span class="string">b"test"</span>, <span class="kw-2">&amp;mut </span>rng).unwrap();
+<a href=#198 id=198 data-nosnippet>198</a>    <span class="kw">let </span>commitment = PedersenCommitment::new(<span class="kw-2">&amp;</span>RistrettoScalar::from(value), <span class="kw-2">&amp;</span>blinding);
+<a href=#199 id=199 data-nosnippet>199</a>    <span class="macro">assert!</span>(proof.verify(<span class="kw-2">&amp;</span>commitment, <span class="kw-2">&amp;</span>range, <span class="string">b"test"</span>, <span class="kw-2">&amp;mut </span>rng).is_ok());
+<a href=#200 id=200 data-nosnippet>200</a>}
+<a href=#201 id=201 data-nosnippet>201</a>
+<a href=#202 id=202 data-nosnippet>202</a><span class="attr">#[test]
+<a href=#203 id=203 data-nosnippet>203</a></span><span class="kw">fn </span>test_batch_range_proof_valid() {
+<a href=#204 id=204 data-nosnippet>204</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::RistrettoScalar;
+<a href=#205 id=205 data-nosnippet>205</a>    <span class="kw">let </span>range = Range::Bits32;
+<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
+<a href=#207 id=207 data-nosnippet>207</a>    <span class="kw">let </span>values = (<span class="number">1u64</span>..=<span class="number">8</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#208 id=208 data-nosnippet>208</a>    <span class="kw">let </span>(commitments, blindings) = values
+<a href=#209 id=209 data-nosnippet>209</a>        .iter()
+<a href=#210 id=210 data-nosnippet>210</a>        .map(|<span class="kw-2">&amp;</span>v| PedersenCommitment::commit(<span class="kw-2">&amp;</span>RistrettoScalar::from(v), <span class="kw-2">&amp;mut </span>rng))
+<a href=#211 id=211 data-nosnippet>211</a>        .unzip::&lt;<span class="kw">_</span>, <span class="kw">_</span>, Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#212 id=212 data-nosnippet>212</a>    <span class="kw">let </span>proof =
+<a href=#213 id=213 data-nosnippet>213</a>        RangeProof::prove_batch(<span class="kw-2">&amp;</span>values, <span class="kw-2">&amp;</span>blindings, <span class="kw-2">&amp;</span>range, <span class="string">b"test_dst"</span>, <span class="kw-2">&amp;mut </span>rng).unwrap();
+<a href=#214 id=214 data-nosnippet>214</a>    <span class="macro">assert!</span>(proof
+<a href=#215 id=215 data-nosnippet>215</a>        .verify_batch(<span class="kw-2">&amp;</span>commitments, <span class="kw-2">&amp;</span>range, <span class="string">b"test_dst"</span>, <span class="kw-2">&amp;mut </span>rng)
+<a href=#216 id=216 data-nosnippet>216</a>        .is_ok());
+<a href=#217 id=217 data-nosnippet>217</a>}
+<a href=#218 id=218 data-nosnippet>218</a>
+<a href=#219 id=219 data-nosnippet>219</a><span class="attr">#[test]
+<a href=#220 id=220 data-nosnippet>220</a></span><span class="kw">fn </span>test_to_from_bytes() {
+<a href=#221 id=221 data-nosnippet>221</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::RistrettoScalar;
+<a href=#222 id=222 data-nosnippet>222</a>
+<a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">let </span>range = Range::Bits32;
+<a href=#224 id=224 data-nosnippet>224</a>    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
+<a href=#225 id=225 data-nosnippet>225</a>    <span class="kw">let </span>values = (<span class="number">1u64</span>..=<span class="number">8</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#226 id=226 data-nosnippet>226</a>    <span class="kw">let </span>(commitments, blindings) = values
+<a href=#227 id=227 data-nosnippet>227</a>        .iter()
+<a href=#228 id=228 data-nosnippet>228</a>        .map(|<span class="kw-2">&amp;</span>v| PedersenCommitment::commit(<span class="kw-2">&amp;</span>RistrettoScalar::from(v), <span class="kw-2">&amp;mut </span>rng))
+<a href=#229 id=229 data-nosnippet>229</a>        .unzip::&lt;<span class="kw">_</span>, <span class="kw">_</span>, Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#230 id=230 data-nosnippet>230</a>    <span class="kw">let </span>proof = RangeProof::prove_batch(<span class="kw-2">&amp;</span>values, <span class="kw-2">&amp;</span>blindings, <span class="kw-2">&amp;</span>range, <span class="string">b"test"</span>, <span class="kw-2">&amp;mut </span>rng).unwrap();
+<a href=#231 id=231 data-nosnippet>231</a>    <span class="kw">let </span>proof_bytes = proof.to_bytes();
+<a href=#232 id=232 data-nosnippet>232</a>    <span class="kw">let </span>reconstructed_proof = RangeProof::from_bytes(<span class="kw-2">&amp;</span>proof_bytes).unwrap();
+<a href=#233 id=233 data-nosnippet>233</a>    <span class="macro">assert!</span>(reconstructed_proof
+<a href=#234 id=234 data-nosnippet>234</a>        .verify_batch(<span class="kw-2">&amp;</span>commitments, <span class="kw-2">&amp;</span>range, <span class="string">b"test"</span>, <span class="kw-2">&amp;mut </span>rng)
+<a href=#235 id=235 data-nosnippet>235</a>        .is_ok());
+<a href=#236 id=236 data-nosnippet>236</a>}
+<a href=#237 id=237 data-nosnippet>237</a>
+<a href=#238 id=238 data-nosnippet>238</a><span class="attr">#[test]
+<a href=#239 id=239 data-nosnippet>239</a></span><span class="kw">fn </span>regression_test() {
+<a href=#240 id=240 data-nosnippet>240</a>    <span class="kw">use </span><span class="kw">crate</span>::encoding::{Encoding, Hex};
+<a href=#241 id=241 data-nosnippet>241</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::RistrettoPoint;
+<a href=#242 id=242 data-nosnippet>242</a>    <span class="kw">use </span><span class="kw">crate</span>::pedersen::PedersenCommitment;
+<a href=#243 id=243 data-nosnippet>243</a>    <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::ToFromByteArray;
+<a href=#244 id=244 data-nosnippet>244</a>
+<a href=#245 id=245 data-nosnippet>245</a>    <span class="kw">let </span>proof = RangeProof::from_bytes(<span class="kw-2">&amp;</span>Hex::decode(<span class="string">"e27e1f3db57f05833973ec4b3e9def2b660ef256e42be0ca2747d47ff1ccdb30e65730ffed8175c640a8bfaa6d8840baa74130b439e9270dcbb0ce041801040a00d0d7dcdcd088f6bb63320ec2c1c2db4b5634ec7b477c2685a390a76658a679809d44e5a62481597a843a0d93953ebc9dc0b4640a02408111e7ad82da6c7460334eb71999b7758f27ea76f76b5335b21398574525e04b1d609eca69080f250cd573edf050ca9cb0d152d493037b2f46b0d2a8db005ec2bb13cfc67829fd220c989e3e3b4ba93bd798ff45892f69b279bc3311ed19ab396c8ce7a81d314ef10ef6b7ce7d0d323ae8e03c69e38bc3dfc88f4930d69adc8661e577f7bcd10c7b3d0c2dd337a9149a90ef961b0ac7f39b43a9658698036bb94ec2fa30de9058c16e20a6a88b60adf0af37e01f90a51bf3353256f4ec10d862b1870b58dd4f0cea255891878a36e54ebbfc126d271e54459abcd74b1b05512e43ae8cd8df88d96159ae6e0b0dda3e0da88c8aad392d264e34c9cc40464d3cb24f39a25373104ff03cb45050dc9d65d5909a07bbbee45e875d48aa3e1355d7356a97d7d8a37fa88355b0115b8eeda7e2dbae17c4259b9a75d93830e9934781275e771263313824bb4f8439f882fba97f4bb8f5159a22640181d155f8ca342055654325a6d6ae25460d4075e595f8eb1cde6afd95a0c1eec6edcfc60c666501bfbb38098faec118672f622a484e848e1fc523bf6b09f4f03324ae2bc66f9eeffa4d9fd86392c1602b4d1e3fafd9db0f5d263cfdc98f7d65ad4cd6d765e7c151d7cd528839f4d6b8bd481203e7e5c3fcfa114f86bd71240b8a4e7efa760f6691d2d23120957d258915379a2bf98c4bb3c011e704ebdeb463dd53bbd3e6ca01a1dc070e4064b73e4d690a76ced51e0b0562783409c8c8cdff0864f7636641481562aaeb1c2c962ecd2a5e3e2b376ee5f0b1bcad29f0e3cd292144455c63b708154bca4f80d337f06bfe5f520750afaf6d2fa78e400a6bbf1625e8b262ea24539237fd365b4dd1fdc9644b2752bf6e6c0aa3bdd8332ebf9f34c32176e4fea97a5a185dd267e11f6283e20dce2a83e4fc1e1e848d6e1b3174564aa3b5eb9c523f35f1274b54da5a2a6d7905"</span>).unwrap()).unwrap();
+<a href=#246 id=246 data-nosnippet>246</a>    <span class="kw">let </span>commitments = [
+<a href=#247 id=247 data-nosnippet>247</a>        <span class="string">"3864fd028e266349c38e76d2b3361e1a197084247dd9c7413c061bcbd2026634"</span>,
+<a href=#248 id=248 data-nosnippet>248</a>        <span class="string">"0e95477497ebd8390b70fde21813ad0f060d2b5fe8ee300f045d5dc4941fd431"</span>,
+<a href=#249 id=249 data-nosnippet>249</a>        <span class="string">"74a2b02427dd95fbe2e0fdc7c1fb046ad1bfec0cb7777581ccc2bc3fcb81462f"</span>,
+<a href=#250 id=250 data-nosnippet>250</a>        <span class="string">"d65e1514458c92150f02ef24d9524490f26bdbba9302e7e06056007576bf8e44"</span>,
+<a href=#251 id=251 data-nosnippet>251</a>        <span class="string">"a27f94f3d348cb67237a0e86beba42a20d6cd36b63ce7421e5a8fd2043f7727e"</span>,
+<a href=#252 id=252 data-nosnippet>252</a>        <span class="string">"00f28f68b3dad813674a578644391e4faa272a6d29522eb38e1773c72cfed145"</span>,
+<a href=#253 id=253 data-nosnippet>253</a>        <span class="string">"6afc2e4d5d9924b8359a25cefe49a04ea8b1cab5b03c17d535a69b4603350e52"</span>,
+<a href=#254 id=254 data-nosnippet>254</a>        <span class="string">"d0983791c005d212e98659c181e72f187680f2675b163dc817d8dc41d03b3c7c"</span>,
+<a href=#255 id=255 data-nosnippet>255</a>    ]
+<a href=#256 id=256 data-nosnippet>256</a>    .iter()
+<a href=#257 id=257 data-nosnippet>257</a>    .map(|s| Hex::decode(s).unwrap())
+<a href=#258 id=258 data-nosnippet>258</a>    .map(|b| RistrettoPoint::from_byte_array(<span class="kw-2">&amp;</span>b.try_into().unwrap()).unwrap())
+<a href=#259 id=259 data-nosnippet>259</a>    .map(PedersenCommitment)
+<a href=#260 id=260 data-nosnippet>260</a>    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#261 id=261 data-nosnippet>261</a>    <span class="macro">assert!</span>(proof
+<a href=#262 id=262 data-nosnippet>262</a>        .verify_batch(
+<a href=#263 id=263 data-nosnippet>263</a>            <span class="kw-2">&amp;</span>commitments,
+<a href=#264 id=264 data-nosnippet>264</a>            <span class="kw-2">&amp;</span>Range::Bits32,
+<a href=#265 id=265 data-nosnippet>265</a>            <span class="string">b"test"</span>,
+<a href=#266 id=266 data-nosnippet>266</a>            <span class="kw-2">&amp;mut </span>rand::thread_rng()
+<a href=#267 id=267 data-nosnippet>267</a>        )
+<a href=#268 id=268 data-nosnippet>268</a>        .is_ok());
+<a href=#269 id=269 data-nosnippet>269</a>}
 </code></pre></div></section></main></body></html>
