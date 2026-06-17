@@ -397,13 +397,11 @@ where
 
         let my_share_ids = self.nodes.share_ids_of(self.id).expect("my id is valid");
         let encryption_ro = self.encryption_random_oracle(message.sender);
-        let buffer =
-            message
-                .encrypted_shares
-                .decrypt(&self.enc_sk, &encryption_ro, self.id as usize);
-        let decrypted_shares: Option<Vec<G::ScalarType>> = bcs::from_bytes(buffer.as_slice())
-            .map_err(|_| FastCryptoError::InvalidInput)
-            .ok();
+        let decrypted_shares: Option<Vec<G::ScalarType>> = message
+            .encrypted_shares
+            .decrypt(&self.enc_sk, &encryption_ro, self.id as usize)
+            .ok()
+            .and_then(|buffer| bcs::from_bytes(buffer.as_slice()).ok());
 
         if decrypted_shares.is_none()
             || decrypted_shares.as_ref().unwrap().len() != my_share_ids.len()

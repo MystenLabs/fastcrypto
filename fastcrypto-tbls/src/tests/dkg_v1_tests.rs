@@ -300,11 +300,9 @@ fn decrypt_and_prepare_for_reenc(
             let key = keys[n.id as usize].1.clone();
             (
                 n.pk.clone(),
-                msg0.encrypted_shares.decrypt(
-                    &key,
-                    &ro.extend(&format!("encs {}", msg0.sender)),
-                    n.id as usize,
-                ),
+                msg0.encrypted_shares
+                    .decrypt(&key, &ro.extend(&format!("encs {}", msg0.sender)), n.id as usize)
+                    .unwrap(),
             )
         })
         .collect::<Vec<_>>()

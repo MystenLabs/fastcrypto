@@ -17,7 +17,6 @@ use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::recovery_proof::RecoveryProof;
 use crate::threshold_schnorr::Extensions::Encryption;
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
-use crate::types;
 use crate::types::{IndexedValue, ShareIndex};
 use fastcrypto::error::FastCryptoError::{
     InputLengthWrong, InvalidInput, InvalidMessage, NotEnoughWeight,
@@ -28,7 +27,6 @@ use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::ops::Add;
 use tracing::warn;
 
 /// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
@@ -303,11 +301,13 @@ impl Receiver {
                 InvalidMessage
             })?;
 
-        let plaintext = message.ciphertext.decrypt(
-            &self.enc_secret_key,
-            &random_oracle_encryption,
-            self.id as usize,
-        );
+        let plaintext = message
+            .ciphertext
+            .decrypt(&self.enc_secret_key, &random_oracle_encryption, self.id as usize)
+            .map_err(|e| {
+                warn!("AVSS process_message: ciphertext decryption failed: {e:?}");
+                InvalidMessage
+            })?;
 
         match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
             verify_shares(&my_shares, &self.nodes, self.id, message)?;
@@ -424,12 +424,10 @@ fn verify_shares(
     receiver: PartyId,
     message: &Message,
 ) -> FastCryptoResult<()> {
-    let expected_weight = nodes.weight_of(receiver)? as usize;
-    if shares.weight() != expected_weight {
+    let expected = nodes.share_ids_of(receiver)?;
+    if !shares.shares.iter().map(|s| s.index).eq(expected.iter().copied()) {
         warn!(
-            "AVSS verify_shares: shares weight {} does not match expected {} for receiver {}",
-            shares.weight(),
-            expected_weight,
+            "AVSS verify_shares: share indices do not match the receiver's assigned indices for receiver {}",
             receiver,
         );
         return Err(InvalidMessage);
@@ -472,10 +470,10 @@ impl ReceiverOutput {
             return Err(InvalidInput);
         }
 
+        let mut outputs = outputs.into_iter();
+        let first = outputs.next().ok_or(InvalidInput)?;
         outputs
-            .into_iter()
-            .reduce(|acc, output| acc + output)
-            .ok_or(InvalidInput)
+            .try_fold(first, |acc, output| acc.try_add(output))
             .map(|o| o.into_receiver_output(nodes))
     }
 
@@ -517,18 +515,24 @@ impl ReceiverOutput {
 
         let commitments = feldman_commitment.eval_range(nodes.total_weight()).to_vec();
 
-        let shares =
-            my_indices
-                .iter()
-                .map(|&index| Eval {
+        let shares = my_indices
+            .iter()
+            .map(|&index| {
+                let terms = outputs
+                    .iter()
+                    .zip(&lagrange_coefficients)
+                    .map(|(output, coeff)| {
+                        // Every output must hold a share for this index; a missing one indicates an
+                        // inconsistent output set, so return a typed error rather than panicking.
+                        Ok(output.value.share_for_index(index).ok_or(InvalidInput)?.value * coeff)
+                    })
+                    .collect::<FastCryptoResult<Vec<_>>>()?;
+                Ok(Eval {
                     index,
-                    value: S::sum(outputs.iter().zip(&lagrange_coefficients).map(
-                        |(output, coeff)| {
-                            output.value.share_for_index(index).unwrap().clone().value * coeff
-                        },
-                    )),
+                    value: S::sum(terms.into_iter()),
                 })
-                .collect();
+            })
+            .collect::<FastCryptoResult<Vec<_>>>()?;
 
         let vk = G::multi_scalar_mul(
             &lagrange_coefficients,
@@ -574,23 +578,34 @@ impl PartialOutput {
     fn weight(&self) -> usize {
         self.my_shares.weight()
     }
-}
 
-impl Add<Self> for PartialOutput {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
+    /// Combine this output with another by summing shares that share the same index.
+    /// Returns [InvalidInput] if the two outputs hold a different number of shares or if their
+    /// indices do not line up positionally, so an inconsistent set of outputs produces a typed
+    /// error instead of a panic.
+    fn try_add(self, rhs: Self) -> FastCryptoResult<Self> {
+        if self.my_shares.shares.len() != rhs.my_shares.shares.len() {
+            return Err(InvalidInput);
+        }
         let shares = self
             .my_shares
             .shares
             .iter()
-            .zip_eq(&rhs.my_shares.shares)
-            .map(types::sum)
-            .collect_vec();
-        Self {
+            .zip(&rhs.my_shares.shares)
+            .map(|(a, b)| {
+                if a.index != b.index {
+                    return Err(InvalidInput);
+                }
+                Ok(Eval {
+                    index: a.index,
+                    value: a.value + b.value,
+                })
+            })
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+        Ok(Self {
             my_shares: SharesForNode { shares },
             feldman_commitment: self.feldman_commitment + &rhs.feldman_commitment,
-        }
+        })
     }
 }
 

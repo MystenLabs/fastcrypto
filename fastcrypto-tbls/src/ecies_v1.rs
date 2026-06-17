@@ -134,14 +134,18 @@ where
         sk: &PrivateKey<G>,
         encryption_random_oracle: &RandomOracle,
         receiver_index: usize,
-    ) -> Vec<u8> {
+    ) -> FastCryptoResult<Vec<u8>> {
+        let enc = self
+            .encs
+            .get(receiver_index)
+            .ok_or(FastCryptoError::InvalidInput)?;
         let enc_ro = Self::encs_random_oracle(encryption_random_oracle);
         let ephemeral_key = self.c * sk.0;
         let k = enc_ro.evaluate(&(receiver_index, ephemeral_key));
         let cipher = sym_cipher(&k);
-        cipher
-            .decrypt(&fixed_zero_nonce(), &self.encs[receiver_index].0)
-            .expect("Decrypt should never fail for CTR mode")
+        Ok(cipher
+            .decrypt(&fixed_zero_nonce(), &enc.0)
+            .expect("Decrypt should never fail for CTR mode"))
     }
 
     /// Assumption: Verify is called before create_recovery_package and do not call it again here to
@@ -178,7 +182,10 @@ where
         receiver_pk: &PublicKey<G>,
         receiver_index: usize,
     ) -> FastCryptoResult<Vec<u8>> {
-        assert!(receiver_index < self.encs.len());
+        let enc = self
+            .encs
+            .get(receiver_index)
+            .ok_or(FastCryptoError::InvalidInput)?;
         pkg.proof.verify(
             &self.c,
             &receiver_pk.0,
@@ -189,7 +196,7 @@ where
         let k = encs_ro.evaluate(&(receiver_index, pkg.ephemeral_key));
         let cipher = sym_cipher(&k);
         Ok(cipher
-            .decrypt(&fixed_zero_nonce(), &self.encs[receiver_index].0)
+            .decrypt(&fixed_zero_nonce(), &enc.0)
             .expect("Decrypt should never fail for CTR mode"))
     }
 
