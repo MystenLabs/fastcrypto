@@ -678,7 +678,7 @@ macro_rules! define_bls12381 {
                     let keys_as_vec = keys.map(|x| x.pubkey.borrow()).collect::<Vec<_>>();
                     agg_pks.push(
                         blst::AggregatePublicKey::aggregate(&keys_as_vec, false)
-                            .unwrap()
+                            .map_err(|_| FastCryptoError::InvalidInput)?
                             .to_public_key(),
                     );
                 }
