@@ -522,8 +522,6 @@ impl ReceiverOutput {
                     .iter()
                     .zip(&lagrange_coefficients)
                     .map(|(output, coeff)| {
-                        // Every output must hold a share for this index; a missing one indicates an
-                        // inconsistent output set, so return a typed error rather than panicking.
                         Ok(output.value.share_for_index(index).ok_or(InvalidInput)?.value * coeff)
                     })
                     .collect::<FastCryptoResult<Vec<_>>>()?;
@@ -581,8 +579,7 @@ impl PartialOutput {
 
     /// Combine this output with another by summing shares that share the same index.
     /// Returns [InvalidInput] if the two outputs hold a different number of shares or if their
-    /// indices do not line up positionally, so an inconsistent set of outputs produces a typed
-    /// error instead of a panic.
+    /// indices do not line up positionally.
     fn try_add(self, rhs: Self) -> FastCryptoResult<Self> {
         if self.my_shares.shares.len() != rhs.my_shares.shares.len() {
             return Err(InvalidInput);
