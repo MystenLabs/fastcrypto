@@ -278,7 +278,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
         )
         .expect("Consistent lengths");
 
-        // c = Hash(dst, sender_public_key, recipient_encryption_keys, ciphertexts, a1, a2, a3)
+        // c = Hash(dst, G, H, sender_public_key, recipient_encryption_keys, ciphertexts, a1, a2, a3)
         let c = Self::challenge(
             sender_public_key,
             recipient_encryption_keys,
@@ -347,8 +347,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
             dst,
         );
 
-        // Fresh random value used only to expand the batching scalars below. Sampling it here (after
-        // the proof is fixed) keeps the batching coefficients unpredictable to the prover.
+        // Fresh random value used only to expand the batching scalars below.
         let r = RistrettoScalar::rand(rng);
 
         // Number of recipients
@@ -424,7 +423,7 @@ impl<const N: usize> KeyConsistencyProof<N> {
     }
 
     /// Fiat-Shamir challenge over the proof's public inputs, matching Contra's Move/TS
-    /// `contra::key_consistency_proof::challenge_key_consistency`.
+    /// `contra::nizk::challenge_key_consistency`.
     fn challenge(
         sender_public_key: &PublicKey,
         recipient_encryption_keys: &[PublicKey],
