@@ -4,7 +4,6 @@
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::MultiScalarMul;
 use crate::groups::{FiatShamirChallenge, GroupElement, Scalar};
-use crate::hash::{HashFunction, Sha3_256};
 use crate::traits::AllowedRng;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::ops::Neg;
@@ -28,7 +27,7 @@ pub struct DdhTupleNizk<G: GroupElement + Serialize + for<'d> Deserialize<'d>> {
 impl<G> DdhTupleNizk<G>
 where
     G: MultiScalarMul + Serialize + for<'d> Deserialize<'d>,
-    <G as GroupElement>::ScalarType: FiatShamirChallenge,
+    G::ScalarType: FiatShamirChallenge,
 {
     /// Create a new NIZKPoK for the DDH tuple `(G, H=eG, xG, xH)` using the given RNG.
     pub fn create<R: AllowedRng>(
@@ -37,22 +36,23 @@ where
         h: &G,
         x_g: &G,
         x_h: &G,
+        dst: &[u8],
         rng: &mut R,
     ) -> Self {
         let r = G::ScalarType::rand(rng);
         let a = *g * r;
         let b = *h * r;
-        let challenge = Self::fiat_shamir_challenge(g, h, x_g, x_h, &a, &b);
+        let challenge = Self::challenge(g, h, x_g, x_h, &a, &b, dst);
         let z = challenge * x + r;
         DdhTupleNizk { a, b, z }
     }
 
-    /// Verify this NIZKPoK.
-    pub fn verify(&self, g: &G, h: &G, x_g: &G, x_h: &G) -> FastCryptoResult<()> {
+    /// Verify this NIZKPoK. `dst` must match the value used in [Self::create].
+    pub fn verify(&self, g: &G, h: &G, x_g: &G, x_h: &G, dst: &[u8]) -> FastCryptoResult<()> {
         if *g == G::zero() || *h == G::zero() || *x_g == G::zero() || *x_h == G::zero() {
             return Err(FastCryptoError::InvalidProof);
         }
-        let challenge = Self::fiat_shamir_challenge(g, h, x_g, x_h, &self.a, &self.b);
+        let challenge = Self::challenge(g, h, x_g, x_h, &self.a, &self.b, dst);
         if !is_valid_relation(&self.a, x_g, g, &self.z, &challenge)
             || !is_valid_relation(
                 &self.b, // B
@@ -65,10 +65,22 @@ where
         }
     }
 
-    /// Returns the challenge for Fiat-Shamir.
-    fn fiat_shamir_challenge(g: &G, h: &G, x_g: &G, x_h: &G, a: &G, b: &G) -> G::ScalarType {
-        let output = Sha3_256::digest(bcs::to_bytes(&(g, h, x_g, x_h, a, b)).unwrap());
-        G::ScalarType::fiat_shamir_reduction_to_group_element(&output.digest)
+    /// DDH-tuple Fiat-Shamir challenge: bcs-encoded `vector<vector<u8>>` of `[dst, g, h, xG, xH, A, B]`
+    /// reduced via the scalar's [FiatShamirChallenge] impl. For Ristretto255 this matches Contra's
+    /// Move/TS construction, which binds the generators `g` and `h` into the challenge.
+    fn challenge(g: &G, h: &G, x_g: &G, x_h: &G, a: &G, b: &G, dst: &[u8]) -> G::ScalarType {
+        let chunks: Vec<Vec<u8>> = vec![
+            dst.to_vec(),
+            bcs::to_bytes(g).expect("Serialization succeeds"),
+            bcs::to_bytes(h).expect("Serialization succeeds"),
+            bcs::to_bytes(x_g).expect("Serialization succeeds"),
+            bcs::to_bytes(x_h).expect("Serialization succeeds"),
+            bcs::to_bytes(a).expect("Serialization succeeds"),
+            bcs::to_bytes(b).expect("Serialization succeeds"),
+        ];
+        G::ScalarType::fiat_shamir_reduction_to_group_element(
+            &bcs::to_bytes(&chunks).expect("Serialization succeeds"),
+        )
     }
 }
 
@@ -107,80 +119,89 @@ mod tests {
 
     #[test]
     fn test_nizk_flow() {
+        let dst = b"test";
         let e = S::rand(&mut thread_rng());
         let x = S::rand(&mut thread_rng());
         let g = G::generator() * S::rand(&mut thread_rng());
         let h = g * e;
         let x_g = g * x;
         let x_h = h * x;
-        let nizk = DdhTupleNizk::create(&x, &g, &h, &x_g, &x_h, &mut thread_rng());
-        assert!(nizk.verify(&g, &h, &x_g, &x_h).is_ok());
+        let nizk = DdhTupleNizk::create(&x, &g, &h, &x_g, &x_h, dst, &mut thread_rng());
+        assert!(nizk.verify(&g, &h, &x_g, &x_h, dst).is_ok());
+
+        // A different DST must not verify
+        assert!(nizk.verify(&g, &h, &x_g, &x_h, b"other").is_err());
 
         let invalid_witness = x + S::generator();
         let invalid_nizk =
-            DdhTupleNizk::create(&invalid_witness, &g, &h, &x_g, &x_h, &mut thread_rng());
-        assert!(invalid_nizk.verify(&g, &h, &x_g, &x_h).is_err());
+            DdhTupleNizk::create(&invalid_witness, &g, &h, &x_g, &x_h, dst, &mut thread_rng());
+        assert!(invalid_nizk.verify(&g, &h, &x_g, &x_h, dst).is_err());
 
         let other_g = g + G::generator();
-        assert!(nizk.verify(&other_g, &h, &x_g, &x_h).is_err());
+        assert!(nizk.verify(&other_g, &h, &x_g, &x_h, dst).is_err());
 
         let other_h = h + G::generator();
-        assert!(nizk.verify(&g, &other_h, &x_g, &x_h).is_err());
+        assert!(nizk.verify(&g, &other_h, &x_g, &x_h, dst).is_err());
 
         let other_x_g = x_g + G::generator();
-        assert!(nizk.verify(&g, &h, &other_x_g, &x_h).is_err());
+        assert!(nizk.verify(&g, &h, &other_x_g, &x_h, dst).is_err());
 
         let other_x_h = x_h + G::generator();
-        assert!(nizk.verify(&g, &h, &x_g, &other_x_h).is_err());
+        assert!(nizk.verify(&g, &h, &x_g, &other_x_h, dst).is_err());
     }
 
     #[test]
     fn challenge_regression_test() {
-        let e = S::from(7u64);
+        let dst = b"test";
         let x = S::from(31u64);
         let g = G::generator() * S::from(71u64);
-        let h = g * e;
+        let h = g * S::from(7u64);
         let x_g = g * x;
         let x_h = h * x;
         let r = S::from(91u64);
         let a = g * r;
         let b = h * r;
-        let c = DdhTupleNizk::fiat_shamir_challenge(&g, &h, &x_g, &x_h, &a, &b);
+        let c = DdhTupleNizk::<G>::challenge(&g, &h, &x_g, &x_h, &a, &b, dst);
         assert_eq!(
             &c.to_byte_array(),
-            Hex::decode("30db2f4121471c4af67d2dcfdede1f4aefb15475867c20c0dd5c228c0721f80e")
+            Hex::decode("22605808865698055d1f48c40db0af96d1f3b2b335bdd9d636e0b66b5871ef00")
                 .unwrap()
                 .as_slice()
         );
+        // The challenge must depend on the DST.
+        let other = DdhTupleNizk::<G>::challenge(&g, &h, &x_g, &x_h, &a, &b, b"other");
+        assert_ne!(c.to_byte_array(), other.to_byte_array());
     }
 
     #[test]
     fn test_invalid_proofs() {
         // x_g/h_g/h=inf should be rejected
+        let dst = b"test";
         let e = S::zero();
         let x = S::rand(&mut thread_rng());
         let g = G::generator() * S::rand(&mut thread_rng());
         let h = g * e;
         let x_g = g * x;
         let x_h = h * x;
-        let nizk = DdhTupleNizk::create(&x, &g, &h, &x_g, &x_h, &mut thread_rng());
+        let nizk = DdhTupleNizk::create(&x, &g, &h, &x_g, &x_h, dst, &mut thread_rng());
 
-        assert!(nizk.verify(&G::zero(), &h, &x_g, &x_h).is_err());
-        assert!(nizk.verify(&g, &G::zero(), &x_g, &x_h).is_err());
-        assert!(nizk.verify(&g, &h, &G::zero(), &x_h).is_err());
-        assert!(nizk.verify(&g, &h, &x_g, &G::zero()).is_err());
+        assert!(nizk.verify(&G::zero(), &h, &x_g, &x_h, dst).is_err());
+        assert!(nizk.verify(&g, &G::zero(), &x_g, &x_h, dst).is_err());
+        assert!(nizk.verify(&g, &h, &G::zero(), &x_h, dst).is_err());
+        assert!(nizk.verify(&g, &h, &x_g, &G::zero(), dst).is_err());
     }
 
     #[test]
     fn test_serde() {
+        let dst = b"test";
         let e = S::rand(&mut thread_rng());
         let x2 = S::rand(&mut thread_rng());
         let g = G::generator() * S::rand(&mut thread_rng());
         let h = g * e;
         let x_g = g * x2;
         let x_h = h * x2;
-        let nizk = DdhTupleNizk::create(&x2, &g, &h, &x_g, &x_h, &mut thread_rng());
-        assert!(nizk.verify(&g, &h, &x_g, &x_h).is_ok());
+        let nizk = DdhTupleNizk::create(&x2, &g, &h, &x_g, &x_h, dst, &mut thread_rng());
+        assert!(nizk.verify(&g, &h, &x_g, &x_h, dst).is_ok());
 
         let as_bytes = bcs::to_bytes(&nizk).unwrap();
         let nizk2: DdhTupleNizk<G> = bcs::from_bytes(&as_bytes).unwrap();

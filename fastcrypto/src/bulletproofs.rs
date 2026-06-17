@@ -15,9 +15,9 @@
 //! let mut rng = rand::thread_rng();
 //! let blinding = Blinding::rand(&mut rng);
 //! let proof =
-//!    RangeProof::prove(value, &blinding, &range, &mut rng).unwrap();
+//!    RangeProof::prove(value, &blinding, &range, b"dst", &mut rng).unwrap();
 //! let commitment = PedersenCommitment::new(&RistrettoScalar::from(value), &blinding);
-//! assert!(proof.verify(&commitment, &range, &mut rng).is_ok());
+//! assert!(proof.verify(&commitment, &range, b"dst", &mut rng).is_ok());
 //! ```
 
 use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidProof};
@@ -71,9 +71,10 @@ impl RangeProof {
         value: u64,
         blinding: &Blinding,
         range: &Range,
+        dst: &[u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<RangeProof> {
-        Self::prove_batch(&[value], std::slice::from_ref(blinding), range, rng)
+        Self::prove_batch(&[value], std::slice::from_ref(blinding), range, dst, rng)
     }
 
     /// Verifies a range proof: That the commitment is to a value in the given range.
@@ -81,9 +82,10 @@ impl RangeProof {
         &self,
         commitment: &PedersenCommitment,
         range: &Range,
+        dst: &[u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
-        self.verify_batch(std::slice::from_ref(commitment), range, rng)
+        self.verify_batch(std::slice::from_ref(commitment), range, dst, rng)
     }
 
     /// Create a proof that all the given `values` are in the range using the given commitment blindings.
@@ -97,6 +99,7 @@ impl RangeProof {
         values: &[u64],
         blindings: &[Blinding],
         range: &Range,
+        dst: &[u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<RangeProof> {
         if values.iter().any(|&v| !range.is_in_range(v))
@@ -109,6 +112,7 @@ impl RangeProof {
         let bits = range.upper_bound_in_bits() as usize;
         let bp_gens = BulletproofGens::new(bits, values.len());
         let mut prover_transcript = Transcript::new(&[]);
+        prover_transcript.append_message(b"DST", dst);
 
         // TODO: Can we avoid calculating the Pedersen commitments here?
         ExternalRangeProof::prove_multiple_with_rng(
@@ -129,11 +133,13 @@ impl RangeProof {
         &self,
         commitments: &[PedersenCommitment],
         range: &Range,
+        dst: &[u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
         let bits = range.upper_bound_in_bits() as usize;
         let bp_gens = BulletproofGens::new(bits, commitments.len());
         let mut verifier_transcript = Transcript::new(&[]);
+        verifier_transcript.append_message(b"DST", dst);
 
         self.0
             .verify_multiple_with_rng(
@@ -188,9 +194,9 @@ fn test_range_proof_valid() {
     let blinding = Blinding::rand(&mut rng);
 
     let value = 1u64;
-    let proof = RangeProof::prove(value, &blinding, &range, &mut rng).unwrap();
+    let proof = RangeProof::prove(value, &blinding, &range, b"test", &mut rng).unwrap();
     let commitment = PedersenCommitment::new(&RistrettoScalar::from(value), &blinding);
-    assert!(proof.verify(&commitment, &range, &mut rng).is_ok());
+    assert!(proof.verify(&commitment, &range, b"test", &mut rng).is_ok());
 }
 
 #[test]
@@ -203,15 +209,16 @@ fn test_batch_range_proof_valid() {
         .iter()
         .map(|&v| PedersenCommitment::commit(&RistrettoScalar::from(v), &mut rng))
         .unzip::<_, _, Vec<_>, Vec<_>>();
-    let proof = RangeProof::prove_batch(&values, &blindings, &range, &mut rng).unwrap();
-    assert!(proof.verify_batch(&commitments, &range, &mut rng).is_ok());
+    let proof =
+        RangeProof::prove_batch(&values, &blindings, &range, b"test_dst", &mut rng).unwrap();
+    assert!(proof
+        .verify_batch(&commitments, &range, b"test_dst", &mut rng)
+        .is_ok());
 }
 
 #[test]
 fn test_to_from_bytes() {
-    use crate::encoding::{Encoding, Hex};
     use crate::groups::ristretto255::RistrettoScalar;
-    use crate::serde_helpers::ToFromByteArray;
 
     let range = Range::Bits32;
     let mut rng = rand::thread_rng();
@@ -220,15 +227,11 @@ fn test_to_from_bytes() {
         .iter()
         .map(|&v| PedersenCommitment::commit(&RistrettoScalar::from(v), &mut rng))
         .unzip::<_, _, Vec<_>, Vec<_>>();
-    commitments
-        .iter()
-        .for_each(|c| println!("{}", Hex::encode(c.0.to_byte_array())));
-    let proof = RangeProof::prove_batch(&values, &blindings, &range, &mut rng).unwrap();
+    let proof = RangeProof::prove_batch(&values, &blindings, &range, b"test", &mut rng).unwrap();
     let proof_bytes = proof.to_bytes();
-    println!("{}", Hex::encode(&proof_bytes));
     let reconstructed_proof = RangeProof::from_bytes(&proof_bytes).unwrap();
     assert!(reconstructed_proof
-        .verify_batch(&commitments, &range, &mut rng)
+        .verify_batch(&commitments, &range, b"test", &mut rng)
         .is_ok());
 }
 
@@ -239,16 +242,16 @@ fn regression_test() {
     use crate::pedersen::PedersenCommitment;
     use crate::serde_helpers::ToFromByteArray;
 
-    let proof = RangeProof::from_bytes(&Hex::decode("483752e4e9be898bb7098adbe1cd4ec71614c7cf897de2d9e6b5d7615bb96b7b9ca3621b3fd885045903b82a4bc979094639f216c479362b0ab497dcbbe5600580c3a9e90d1fab586d7f3e8c9fcae71da9474c106610b5d473824a33e3472e20e04390d7052480b3500a96167e405a9b27f59a6b74f47457454014307a97e108ab6681983e5556fb19d2a33f753b364695cb7188948ff7f997a5fe3d55fcc902fcd5afcbd45a41ef298d6e16560fb407d29c81dac20705cd18d52f4925700003bf7b175cdf6d5d8c6eeef35f7357a88edac323eef8dda1f90ff4ebafab91650182d44889691ed4e1789891d7111c2adc97feb2e48e5bde1d3407f98e2a85b66c086bc4d03cbdd9237023bd601bbad70377345bafe027d2e794d702585a7ce72008cb2efec10638555841eb17917c1b6d41533e5a93496fbb2c8cf1e98830732290dd8d6b6a10c2622d866c6e0dbac2aee6c94409f5a50affbc47081cd24414414e080474c144f2b2e38d8c02a56c9dc8bc5ca6b342cfbec04c40b9e8225a7f1fb62b3ddc4ad00f7606ce2942f123503da272e2a6e25a6f0d0038030b489c8675d614bc0073056ffa2ec10231c50b7fcae9d961f66dd299da4b1985a2eb6c215aee1e41de609e70ffcf73bd2b1c677e7afe31c0d16c202dbc006f187266f94f2be44668778c18f0b76f9cb4608594350371c2e0391b6be322fbb78fa03400f272ecae55d95c3ddccfc76353753fa596ef076ac02084a9bcc525df5e5ab086850868c17b907c484553e19fd693702884c4745eb833bd27598a23ef0e68828c934b7a0a8f66e811bede8bf8a4e141a8f12f964e92e76d5af2b3e9f76792b935fc0d8cd906e7ab4f9e6a3bd9b826c0503a929634e7cdf8fdf5173772e372bb19862072ed0fb3afb44cae8b79caad81370ce67e4a1b44b8a56150219ca6982cf21c2fd80b4f8a675e585456223f60a96574c0972aa5f1ae68e04d9cf5b6e635f0903c3efe47d4c0c0d8d656d14928397d4e20806b50fb945d8c5b3af7b9c3b06dab726a41897ba3e94531eba51f7c16e390709a5efe407255dcfc40d86a1eb0fa4f01adee93fa6ed44a9ad03ba83b7d09f88bb4dbb51d8ef4b73b36b75dcaae04890a").unwrap()).unwrap();
+    let proof = RangeProof::from_bytes(&Hex::decode("e27e1f3db57f05833973ec4b3e9def2b660ef256e42be0ca2747d47ff1ccdb30e65730ffed8175c640a8bfaa6d8840baa74130b439e9270dcbb0ce041801040a00d0d7dcdcd088f6bb63320ec2c1c2db4b5634ec7b477c2685a390a76658a679809d44e5a62481597a843a0d93953ebc9dc0b4640a02408111e7ad82da6c7460334eb71999b7758f27ea76f76b5335b21398574525e04b1d609eca69080f250cd573edf050ca9cb0d152d493037b2f46b0d2a8db005ec2bb13cfc67829fd220c989e3e3b4ba93bd798ff45892f69b279bc3311ed19ab396c8ce7a81d314ef10ef6b7ce7d0d323ae8e03c69e38bc3dfc88f4930d69adc8661e577f7bcd10c7b3d0c2dd337a9149a90ef961b0ac7f39b43a9658698036bb94ec2fa30de9058c16e20a6a88b60adf0af37e01f90a51bf3353256f4ec10d862b1870b58dd4f0cea255891878a36e54ebbfc126d271e54459abcd74b1b05512e43ae8cd8df88d96159ae6e0b0dda3e0da88c8aad392d264e34c9cc40464d3cb24f39a25373104ff03cb45050dc9d65d5909a07bbbee45e875d48aa3e1355d7356a97d7d8a37fa88355b0115b8eeda7e2dbae17c4259b9a75d93830e9934781275e771263313824bb4f8439f882fba97f4bb8f5159a22640181d155f8ca342055654325a6d6ae25460d4075e595f8eb1cde6afd95a0c1eec6edcfc60c666501bfbb38098faec118672f622a484e848e1fc523bf6b09f4f03324ae2bc66f9eeffa4d9fd86392c1602b4d1e3fafd9db0f5d263cfdc98f7d65ad4cd6d765e7c151d7cd528839f4d6b8bd481203e7e5c3fcfa114f86bd71240b8a4e7efa760f6691d2d23120957d258915379a2bf98c4bb3c011e704ebdeb463dd53bbd3e6ca01a1dc070e4064b73e4d690a76ced51e0b0562783409c8c8cdff0864f7636641481562aaeb1c2c962ecd2a5e3e2b376ee5f0b1bcad29f0e3cd292144455c63b708154bca4f80d337f06bfe5f520750afaf6d2fa78e400a6bbf1625e8b262ea24539237fd365b4dd1fdc9644b2752bf6e6c0aa3bdd8332ebf9f34c32176e4fea97a5a185dd267e11f6283e20dce2a83e4fc1e1e848d6e1b3174564aa3b5eb9c523f35f1274b54da5a2a6d7905").unwrap()).unwrap();
     let commitments = [
-        "7c7ea4aadabb7162ed05f265527c50fb1a441b0ca655231bf6d7c45d6cf67e1d",
-        "702b85154cd2dd7d0505af8cc6484f0aa854549e64b87f07277af70d995a2d21",
-        "6693d794456c40fbcaaf0692c376aca4ba168782a6b76df49100b8d766a73b5c",
-        "1a7ff5f0f877da164da5630b280278e03e75cb19ed1469b1853df3fb8050a662",
-        "e25bae601d7113cd0db0603fe7072e88f5aeae6177e423bf2e22abf5f997ef6b",
-        "b6d98f2eae41a89e49fa2381a7b88517bfbe0fdebb656712e2e9d6f50df1720c",
-        "e2b788992088af1a3f9810a4c85fc4bfa4fc48e2cfcc3e546deb030e47e6cc7a",
-        "60d05a6cdd77f71b15356fb830eb3a5a26b79b2870df6a39dd704490e0e6162d",
+        "3864fd028e266349c38e76d2b3361e1a197084247dd9c7413c061bcbd2026634",
+        "0e95477497ebd8390b70fde21813ad0f060d2b5fe8ee300f045d5dc4941fd431",
+        "74a2b02427dd95fbe2e0fdc7c1fb046ad1bfec0cb7777581ccc2bc3fcb81462f",
+        "d65e1514458c92150f02ef24d9524490f26bdbba9302e7e06056007576bf8e44",
+        "a27f94f3d348cb67237a0e86beba42a20d6cd36b63ce7421e5a8fd2043f7727e",
+        "00f28f68b3dad813674a578644391e4faa272a6d29522eb38e1773c72cfed145",
+        "6afc2e4d5d9924b8359a25cefe49a04ea8b1cab5b03c17d535a69b4603350e52",
+        "d0983791c005d212e98659c181e72f187680f2675b163dc817d8dc41d03b3c7c",
     ]
     .iter()
     .map(|s| Hex::decode(s).unwrap())
@@ -256,6 +259,11 @@ fn regression_test() {
     .map(PedersenCommitment)
     .collect::<Vec<_>>();
     assert!(proof
-        .verify_batch(&commitments, &Range::Bits32, &mut rand::thread_rng())
+        .verify_batch(
+            &commitments,
+            &Range::Bits32,
+            b"test",
+            &mut rand::thread_rng()
+        )
         .is_ok());
 }
