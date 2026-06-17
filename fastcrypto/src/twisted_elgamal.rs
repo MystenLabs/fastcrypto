@@ -305,14 +305,14 @@ impl<const N: usize> KeyConsistencyProof<N> {
     ///   blinding r_i as the commitment via
     ///     A1_ij + c * D_ij == z_1i * S_j
     ///   for all limbs i and recipients j where D_ij = r_i * S_j is the decryption handle and S_j is recipient j's public key.
-    ///   Combined equations using scalars mu_ij derived from the random batching value r:
+    ///   Combined equations using fresh random scalars mu_ij:
     ///     \sum_j (\sum_i mu_ij * z_1i) * S_j - \sum_{i,j} mu_ij * A1_ij - \sum_{i,j} (c * mu_ij) * D_ij == 0
     ///
     ///   Check 2 (commitment consistency): Verifies knowledge of the blinding r_i and message u_i opening the
     ///   commitment via
     ///     A2_i + c * C_i == z_1i * G + z_2i * H
     ///   for all limbs i where C_i = r_i * G + u_i * H is the Pedersen commitment.
-    ///   Combined equations using scalars rho_i derived from the random batching value r:
+    ///   Combined equations using fresh random scalars rho_i:
     ///     (\sum_i rho_i * z_1i) * G + (\sum_i rho_i * z_2i) * H - \sum_i rho_i * A2_i - \sum_i (c * rho_i) * C_i == 0
     ///
     ///   Check 3 (public key consistency): Verifies that the encrypted 32-bit key limbs u_i reconstruct to the
@@ -322,12 +322,12 @@ impl<const N: usize> KeyConsistencyProof<N> {
     ///
     ///   We combine the individual checks as
     ///     (check 1) + alpha * (check 2) + beta * (check 3) == 0
-    ///   using outer scalars alpha and beta derived from the random batching value r to ensure soundness.
+    ///   using fresh random outer scalars alpha and beta to ensure soundness.
     ///
     /// Here `c` is the Fiat-Shamir challenge binding the proof, while the batching scalars
-    /// (mu, rho, alpha, beta) are expanded from a fresh random value `r` sampled from `rng`. Since
-    /// `r` is drawn by the verifier after the proof is fixed, the prover cannot predict the batching
-    /// scalars, so a malformed proof passes the combined MSM only with negligible probability.
+    /// (mu, rho, alpha, beta) are each sampled uniformly at random from `rng`. Since they are drawn
+    /// by the verifier after the proof is fixed, the prover cannot predict them, so a malformed proof
+    /// passes the combined MSM only with negligible probability.
     pub fn verify(
         &self,
         sender_public_key: &PublicKey,
@@ -347,24 +347,19 @@ impl<const N: usize> KeyConsistencyProof<N> {
             dst,
         );
 
-        // Fresh random value used only to expand the batching scalars below.
-        let r = RistrettoScalar::rand(rng);
-
         // Number of recipients
         let m = recipient_encryption_keys.len();
 
-        // Compute inner scalars mu_ij from the random batching value r for all i and j used in check 1
-        let mu: Vec<RistrettoScalar> = (0..N)
-            .flat_map(|i| (0..m).map(move |j| batching_coefficient(b"mu", &r, &[i, j])))
-            .collect();
+        // Sample fresh random inner scalars mu_ij for all i and j used in check 1
+        let mu: Vec<RistrettoScalar> = (0..N * m).map(|_| RistrettoScalar::rand(rng)).collect();
 
-        // Compute inner scalars rho_i from the random batching value r for all i used in check 2
-        let rho: [RistrettoScalar; N] = from_fn(|i| batching_coefficient(b"rho", &r, &[i]));
+        // Sample fresh random inner scalars rho_i for all i used in check 2
+        let rho: [RistrettoScalar; N] = from_fn(|_| RistrettoScalar::rand(rng));
 
-        // Compute outer scalars alpha and beta from the random batching value r, combining the three zero-expressions:
+        // Sample fresh random outer scalars alpha and beta combining the three zero-expressions:
         //   (check 1) + alpha * (check 2) + beta * (check 3) == 0
-        let alpha = batching_coefficient(b"alpha", &r, &[]);
-        let beta = batching_coefficient(b"beta", &r, &[]);
+        let alpha = RistrettoScalar::rand(rng);
+        let beta = RistrettoScalar::rand(rng);
 
         // Check 2: compute sum_i(rho_i * z_1i) and sum_i(rho_i * z_2i)
         let rho_z1 = RistrettoScalar::inner_product(rho, self.z1);
@@ -611,18 +606,6 @@ pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16> {
         .map(|(i, p)| (p.to_byte_array(), i as u16))
         .take(1 << 16)
         .collect()
-}
-
-/// Expand the verifier's random value `r` into a batching coefficient for the given `label` and
-/// (optional) indices. Verifier-internal; not part of the proof.
-fn batching_coefficient(label: &[u8], r: &RistrettoScalar, indices: &[usize]) -> RistrettoScalar {
-    RistrettoScalar::fiat_shamir_reduction_to_group_element(
-        &bcs::to_bytes(&vec![
-            label.to_vec(),
-            bcs::to_bytes(&(r, indices)).expect("Serialization succeeds"),
-        ])
-        .expect("Serialization succeeds"),
-    )
 }
 
 #[test]
