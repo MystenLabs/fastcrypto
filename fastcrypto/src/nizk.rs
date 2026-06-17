@@ -30,8 +30,6 @@ where
     G::ScalarType: FiatShamirChallenge,
 {
     /// Create a new NIZKPoK for the DDH tuple `(G, H=eG, xG, xH)` using the given RNG.
-    /// The generators `g` and `h` are not bound into the challenge, so the soundness relies
-    /// on `dst` being unique to the calling context and fixed with the choice of `g` and `h`.
     pub fn create<R: AllowedRng>(
         x: &G::ScalarType,
         g: &G,
@@ -44,7 +42,7 @@ where
         let r = G::ScalarType::rand(rng);
         let a = *g * r;
         let b = *h * r;
-        let challenge = Self::challenge(x_g, x_h, &a, &b, dst);
+        let challenge = Self::challenge(g, h, x_g, x_h, &a, &b, dst);
         let z = challenge * x + r;
         DdhTupleNizk { a, b, z }
     }
@@ -54,7 +52,7 @@ where
         if *g == G::zero() || *h == G::zero() || *x_g == G::zero() || *x_h == G::zero() {
             return Err(FastCryptoError::InvalidProof);
         }
-        let challenge = Self::challenge(x_g, x_h, &self.a, &self.b, dst);
+        let challenge = Self::challenge(g, h, x_g, x_h, &self.a, &self.b, dst);
         if !is_valid_relation(&self.a, x_g, g, &self.z, &challenge)
             || !is_valid_relation(
                 &self.b, // B
@@ -67,12 +65,14 @@ where
         }
     }
 
-    /// DDH-tuple Fiat-Shamir challenge: bcs-encoded `vector<vector<u8>>` of `[dst, xG, xH, A, B]`
+    /// DDH-tuple Fiat-Shamir challenge: bcs-encoded `vector<vector<u8>>` of `[dst, g, h, xG, xH, A, B]`
     /// reduced via the scalar's [FiatShamirChallenge] impl. For Ristretto255 this matches Contra's
-    /// Move/TS construction.
-    fn challenge(x_g: &G, x_h: &G, a: &G, b: &G, dst: &[u8]) -> G::ScalarType {
+    /// Move/TS construction, which binds the generators `g` and `h` into the challenge.
+    fn challenge(g: &G, h: &G, x_g: &G, x_h: &G, a: &G, b: &G, dst: &[u8]) -> G::ScalarType {
         let chunks: Vec<Vec<u8>> = vec![
             dst.to_vec(),
+            bcs::to_bytes(g).expect("Serialization succeeds"),
+            bcs::to_bytes(h).expect("Serialization succeeds"),
             bcs::to_bytes(x_g).expect("Serialization succeeds"),
             bcs::to_bytes(x_h).expect("Serialization succeeds"),
             bcs::to_bytes(a).expect("Serialization succeeds"),
@@ -155,20 +155,21 @@ mod tests {
         let dst = b"test";
         let x = S::from(31u64);
         let g = G::generator() * S::from(71u64);
+        let h = g * S::from(7u64);
         let x_g = g * x;
-        let x_h = g * S::from(7u64) * x;
+        let x_h = h * x;
         let r = S::from(91u64);
         let a = g * r;
-        let b = (g * S::from(7u64)) * r;
-        let c = DdhTupleNizk::<G>::challenge(&x_g, &x_h, &a, &b, dst);
+        let b = h * r;
+        let c = DdhTupleNizk::<G>::challenge(&g, &h, &x_g, &x_h, &a, &b, dst);
         assert_eq!(
             &c.to_byte_array(),
-            Hex::decode("0fcba8670c851477df01c27dcd01ba6b780eca4f7c2cb6cd168578430c8fff00")
+            Hex::decode("22605808865698055d1f48c40db0af96d1f3b2b335bdd9d636e0b66b5871ef00")
                 .unwrap()
                 .as_slice()
         );
         // The challenge must depend on the DST.
-        let other = DdhTupleNizk::<G>::challenge(&x_g, &x_h, &a, &b, b"other");
+        let other = DdhTupleNizk::<G>::challenge(&g, &h, &x_g, &x_h, &a, &b, b"other");
         assert_ne!(c.to_byte_array(), other.to_byte_array());
     }
 

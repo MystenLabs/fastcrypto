@@ -60,14 +60,6 @@ pub struct KeyConsistencyProof<const N: usize> {
     z2: [RistrettoScalar; N],
 }
 
-/// Sigma protocol that a Twisted ElGamal ciphertext encrypts the message 0.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ZeroProof {
-    a1: RistrettoPoint,
-    a2: RistrettoPoint,
-    z: RistrettoScalar,
-}
-
 /// Sigma protocol that a Twisted ElGamal ciphertext is a valid encryption of some message (without revealing the message).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConsistencyProof {
@@ -139,75 +131,6 @@ impl Ciphertext {
         }
         Err(InvalidInput)
     }
-
-    /// Create a PoK of a private key such that the given encryption is of the message 0.
-    pub fn zero_proof(
-        &self,
-        private_key: &PrivateKey,
-        dst: &[u8],
-        rng: &mut impl AllowedRng,
-    ) -> ZeroProof {
-        ZeroProof::create(self, private_key, dst, rng)
-    }
-}
-
-impl ZeroProof {
-    pub fn create<R: AllowedRng>(
-        encryption: &Ciphertext,
-        private_key: &PrivateKey,
-        dst: &[u8],
-        rng: &mut R,
-    ) -> Self {
-        let r = RistrettoScalar::rand(rng);
-        let a1 = RistrettoPoint::generator() * r;
-        let a2 = encryption.commitment.0 * r;
-        let pk = PublicKey::from(private_key);
-        let challenge = Self::challenge(&a1, &a2, encryption, &pk, dst);
-        let z = challenge * private_key.0 + r;
-        ZeroProof { a1, a2, z }
-    }
-
-    pub fn verify(
-        &self,
-        encryption: &Ciphertext,
-        pk: &PublicKey,
-        dst: &[u8],
-    ) -> FastCryptoResult<()> {
-        let c = Self::challenge(&self.a1, &self.a2, encryption, pk, dst);
-        if self.a1
-            != RistrettoPoint::multi_scalar_mul(&[-c, self.z], &[pk.0, *G])
-                .expect("Constant lengths")
-            || self.a2
-                != RistrettoPoint::multi_scalar_mul(
-                    &[-c, self.z],
-                    &[encryption.decryption_handle, encryption.commitment.0],
-                )
-                .expect("Constant lengths")
-        {
-            Err(InvalidProof)
-        } else {
-            Ok(())
-        }
-    }
-
-    fn challenge(
-        a1: &RistrettoPoint,
-        a2: &RistrettoPoint,
-        encryption: &Ciphertext,
-        pk: &PublicKey,
-        dst: &[u8],
-    ) -> RistrettoScalar {
-        RistrettoScalar::fiat_shamir_reduction_to_group_element(
-            &bcs::to_bytes(&vec![
-                dst.to_vec(),
-                pk.0.to_byte_array().to_vec(),
-                encryption.decryption_handle.to_byte_array().to_vec(),
-                a1.to_byte_array().to_vec(),
-                a2.to_byte_array().to_vec(),
-            ])
-            .expect("Serialization succeeds"),
-        )
-    }
 }
 
 impl ConsistencyProof {
@@ -266,6 +189,8 @@ impl ConsistencyProof {
         RistrettoScalar::fiat_shamir_reduction_to_group_element(
             &bcs::to_bytes(&vec![
                 dst.to_vec(),
+                G.to_byte_array().to_vec(),
+                H.to_byte_array().to_vec(),
                 encryption_key.0.to_byte_array().to_vec(),
                 ciphertext.commitment.0.to_byte_array().to_vec(),
                 ciphertext.decryption_handle.to_byte_array().to_vec(),
@@ -374,20 +299,20 @@ impl<const N: usize> KeyConsistencyProof<N> {
     }
 
     /// Verify checks the provided consistency proof. To do so, it batches all three groups of verification equations
-    /// into a single MSM using hash-derived scalars. The three groups of equations that must hold for a valid proof are:
+    /// into a single MSM using random scalars. The three groups of equations that must hold for a valid proof are:
     ///
     ///   Check 1 (decryption handle consistency): Verifies that each decryption handle was formed with the same
     ///   blinding r_i as the commitment via
     ///     A1_ij + c * D_ij == z_1i * S_j
     ///   for all limbs i and recipients j where D_ij = r_i * S_j is the decryption handle and S_j is recipient j's public key.
-    ///   Combined equations using scalars mu_ij = Hash("mu", c, i, j):
+    ///   Combined equations using scalars mu_ij derived from the random batching value r:
     ///     \sum_j (\sum_i mu_ij * z_1i) * S_j - \sum_{i,j} mu_ij * A1_ij - \sum_{i,j} (c * mu_ij) * D_ij == 0
     ///
     ///   Check 2 (commitment consistency): Verifies knowledge of the blinding r_i and message u_i opening the
     ///   commitment via
     ///     A2_i + c * C_i == z_1i * G + z_2i * H
     ///   for all limbs i where C_i = r_i * G + u_i * H is the Pedersen commitment.
-    ///   Combined equations using scalars rho_i = Hash("rho", c, i):
+    ///   Combined equations using scalars rho_i derived from the random batching value r:
     ///     (\sum_i rho_i * z_1i) * G + (\sum_i rho_i * z_2i) * H - \sum_i rho_i * A2_i - \sum_i (c * rho_i) * C_i == 0
     ///
     ///   Check 3 (public key consistency): Verifies that the encrypted 32-bit key limbs u_i reconstruct to the
@@ -397,15 +322,21 @@ impl<const N: usize> KeyConsistencyProof<N> {
     ///
     ///   We combine the individual checks as
     ///     (check 1) + alpha * (check 2) + beta * (check 3) == 0
-    ///   using hash-derived outer scalars alpha = Hash("alpha", c) and beta = Hash("beta", c) to ensure soundness.
+    ///   using outer scalars alpha and beta derived from the random batching value r to ensure soundness.
+    ///
+    /// Here `c` is the Fiat-Shamir challenge binding the proof, while the batching scalars
+    /// (mu, rho, alpha, beta) are expanded from a fresh random value `r` sampled from `rng`. Since
+    /// `r` is drawn by the verifier after the proof is fixed, the prover cannot predict the batching
+    /// scalars, so a malformed proof passes the combined MSM only with negligible probability.
     pub fn verify(
         &self,
         sender_public_key: &PublicKey,
         recipient_encryption_keys: &[PublicKey],
         ciphertexts: &[MultiRecipientCiphertext; N],
         dst: &[u8],
+        rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
-        // Fiat-Shamir challenge
+        // Fiat-Shamir challenge binding the proof
         let c = Self::challenge(
             sender_public_key,
             recipient_encryption_keys,
@@ -416,21 +347,25 @@ impl<const N: usize> KeyConsistencyProof<N> {
             dst,
         );
 
+        // Fresh random value used only to expand the batching scalars below. Sampling it here (after
+        // the proof is fixed) keeps the batching coefficients unpredictable to the prover.
+        let r = RistrettoScalar::rand(rng);
+
         // Number of recipients
         let m = recipient_encryption_keys.len();
 
-        // Compute inner scalars mu_ij = Hash("mu", c, i, j) for all i and j used in check 1
+        // Compute inner scalars mu_ij from the random batching value r for all i and j used in check 1
         let mu: Vec<RistrettoScalar> = (0..N)
-            .flat_map(|i| (0..m).map(move |j| batching_coefficient(b"mu", &c, &[i, j])))
+            .flat_map(|i| (0..m).map(move |j| batching_coefficient(b"mu", &r, &[i, j])))
             .collect();
 
-        // Compute inner scalars rho_i = Hash("rho", c, i) for all i used in check 2
-        let rho: [RistrettoScalar; N] = from_fn(|i| batching_coefficient(b"rho", &c, &[i]));
+        // Compute inner scalars rho_i from the random batching value r for all i used in check 2
+        let rho: [RistrettoScalar; N] = from_fn(|i| batching_coefficient(b"rho", &r, &[i]));
 
-        // Compute outer scalars alpha = Hash("alpha", c) and beta = Hash("beta", c) combining the three zero-expressions:
+        // Compute outer scalars alpha and beta from the random batching value r, combining the three zero-expressions:
         //   (check 1) + alpha * (check 2) + beta * (check 3) == 0
-        let alpha = batching_coefficient(b"alpha", &c, &[]);
-        let beta = batching_coefficient(b"beta", &c, &[]);
+        let alpha = batching_coefficient(b"alpha", &r, &[]);
+        let beta = batching_coefficient(b"beta", &r, &[]);
 
         // Check 2: compute sum_i(rho_i * z_1i) and sum_i(rho_i * z_2i)
         let rho_z1 = RistrettoScalar::inner_product(rho, self.z1);
@@ -500,6 +435,8 @@ impl<const N: usize> KeyConsistencyProof<N> {
         dst: &[u8],
     ) -> RistrettoScalar {
         let chunks: Vec<Vec<u8>> = std::iter::once(dst.to_vec())
+            .chain(std::iter::once(G.to_byte_array().to_vec()))
+            .chain(std::iter::once(H.to_byte_array().to_vec()))
             .chain(std::iter::once(
                 sender_public_key.0.to_byte_array().to_vec(),
             ))
@@ -618,6 +555,7 @@ impl<const N: usize> VerifiableKeyEncapsulation<N> {
             recipient_encryption_keys,
             &self.ciphertexts,
             consistency_proof_dst,
+            rng,
         )
     }
 
@@ -676,15 +614,13 @@ pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16> {
         .collect()
 }
 
-/// Derive an internal batching coefficient labelled `label` from the challenge `c` and (optional)
-/// indices. Used only by the [KeyConsistencyProof] verifier to randomize its single combined
-/// multi-scalar multiplication. These coefficients are _not_ part of the proof and need not match
-/// any other implementation.
-fn batching_coefficient(label: &[u8], c: &RistrettoScalar, indices: &[usize]) -> RistrettoScalar {
+/// Expand the verifier's random value `r` into a batching coefficient for the given `label` and
+/// (optional) indices. Verifier-internal; not part of the proof.
+fn batching_coefficient(label: &[u8], r: &RistrettoScalar, indices: &[usize]) -> RistrettoScalar {
     RistrettoScalar::fiat_shamir_reduction_to_group_element(
         &bcs::to_bytes(&vec![
             label.to_vec(),
-            bcs::to_bytes(&(c, indices)).expect("Serialization succeeds"),
+            bcs::to_bytes(&(r, indices)).expect("Serialization succeeds"),
         ])
         .expect("Serialization succeeds"),
     )
@@ -723,23 +659,6 @@ fn test_round_trip_with_consistency_proof() {
 }
 
 #[test]
-fn test_zero_proof() {
-    let dst = b"test";
-    let mut rng = rand::thread_rng();
-    let (pk, sk) = generate_keypair(&mut rng);
-    let (ciphertext, _) = Ciphertext::encrypt(&pk, 0, &mut rng);
-    let zero_proof = ciphertext.zero_proof(&sk, dst, &mut rng);
-    zero_proof.verify(&ciphertext, &pk, dst).unwrap();
-
-    // A different DST must not verify
-    zero_proof.verify(&ciphertext, &pk, b"other").unwrap_err();
-
-    let (other_ciphertext, _) = Ciphertext::encrypt(&pk, 1, &mut rng);
-    let other_zero_proof = other_ciphertext.zero_proof(&sk, dst, &mut rng);
-    other_zero_proof.verify(&ciphertext, &pk, dst).unwrap_err();
-}
-
-#[test]
 fn encrypt_and_range_proof() {
     let value = 1234u32;
     let range = crate::bulletproofs::Range::Bits32;
@@ -770,31 +689,6 @@ fn linear_encryptions() {
         ciphertext_3.decrypt(&sk, &precompute_table()).unwrap(),
         value_1 + value_2 * s
     );
-}
-
-#[test]
-fn test_equality() {
-    let dst = b"test";
-    let value = 123u32;
-    let (pk, sk) = generate_keypair(&mut rand::thread_rng());
-    let encryption_1 = Ciphertext::encrypt(&pk, value, &mut rand::thread_rng());
-    let encryption_2 = Ciphertext::encrypt(&pk, value, &mut rand::thread_rng());
-
-    let diff = encryption_1.0.clone() - encryption_2.0;
-
-    let mut rng = rand::thread_rng();
-
-    diff.zero_proof(&sk, dst, &mut rng)
-        .verify(&diff, &pk, dst)
-        .unwrap();
-
-    let other_value = 1234u32;
-    let encryption_3 = Ciphertext::encrypt(&pk, other_value, &mut rand::thread_rng());
-    let other_diff = encryption_1.0 - encryption_3.0;
-    other_diff
-        .zero_proof(&sk, dst, &mut rng)
-        .verify(&other_diff, &pk, dst)
-        .unwrap_err();
 }
 
 #[test]
@@ -836,7 +730,13 @@ fn test_key_consistency_proof() {
 
     // Verification passes with correct sender public key
     assert!(proof
-        .verify(&pk_snd, std::slice::from_ref(&pk_rcv), &ciphertexts, dst)
+        .verify(
+            &pk_snd,
+            std::slice::from_ref(&pk_rcv),
+            &ciphertexts,
+            dst,
+            &mut rng
+        )
         .is_ok());
 
     // A different DST must not verify
@@ -845,14 +745,15 @@ fn test_key_consistency_proof() {
             &pk_snd,
             std::slice::from_ref(&pk_rcv),
             &ciphertexts,
-            b"other"
+            b"other",
+            &mut rng
         )
         .is_err());
 
     // Verification fails with a different sender public key
     let (other_pk_snd, _) = generate_keypair(&mut rng);
     assert!(proof
-        .verify(&other_pk_snd, &[pk_rcv], &ciphertexts, dst)
+        .verify(&other_pk_snd, &[pk_rcv], &ciphertexts, dst, &mut rng)
         .is_err());
 }
 
