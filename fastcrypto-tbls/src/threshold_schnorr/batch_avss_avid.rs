@@ -118,29 +118,25 @@ pub struct DealerState {
     ciphertexts: Vec<Ciphertext>,
 }
 
-/// The dealer's per-receiver pessimistic-phase message: an [avid::Dispersal] of the receiver's ciphertext bundled with the [UnsignedAvssCert] that justifies the pessimistic phase.
+/// Dealer-side cache that can create individual [AvidMessage]s on demand.
+pub struct AvidMessageBuilder {
+    inner: avid::DispersalBuilder,
+    cert: UnsignedAvssCert,
+}
+
+/// The dealer's per-receiver pessimistic-phase message.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AvidMessage {
     pub dispersal: avid::Dispersal,
     pub cert: UnsignedAvssCert,
 }
 
-/// Dealer-side cache produced by [Dealer::create_avid_messages] that can create individual
-/// [AvidMessage]s on demand via [Self::message_for].
-pub struct AvidMessageBuilder {
-    inner: avid::DispersalBuilder,
-    cert: UnsignedAvssCert,
-}
-
-/// An endorsement of the dealer's pessimistic dispersal — a [top_root, pending_recipients] pair
-/// signed by a receiver after it verified the AVID dispersal.
+/// An endorsement of the dealer's pessimistic message.
 pub type AvidVote = avid::Vote;
 
-/// A certified `top_root` + `pending_recipients` pair drawn from a quorum of signed [AvidVote]s,
-/// giving a receiver everything it needs to verify echoes against the AVID layer.
+/// A certified `top_root` + `pending_recipients` pair drawn from a certificate of at least W - f signed [AvidVote]s.
 ///
-/// This type is verified by the caller. By constructing it, the caller promises it has verified a
-/// quorum of signed [AvidVote]s over `(top_root, pending_recipients)`.
+/// This type is verified by the caller. By constructing it, the caller promises it has verified the certificate.
 #[derive(Clone, Debug)]
 pub struct UnsignedAvidCert {
     pub top_root: merkle::Node,
@@ -417,11 +413,14 @@ impl Dealer {
     ///    [AvidMessageBuilder::message_for]. The pending recipients are derived as the complement
     ///    of `cert.voters`.
     ///
-    ///    All receivers that responds with an [AvssVote] (even the ones not in the [UnsignedAvssCert]
-    ///    that responded late) should get an [AvidMessage].
+    ///    All receivers that sends an [AvssVote] after the optimistic phase (even the ones who are
+    ///    late and are not in the [UnsignedAvssCert]) should get an [AvidMessage].
     ///
-    ///    This is only needed if any receiver failed to confirm in the optimistic phase. If every
-    ///    receiver confirmed, the pessimistic phase can be skipped entirely.
+    ///    When at least W-f votes counted by weight are returned from the receivers, the dealer can
+    ///    form and publish a certificate over the [AvssVote]s.
+    ///
+    ///    This phase is only needed if any receiver failed to confirm in the optimistic phase. If
+    ///    every receiver confirmed, the pessimistic phase can be skipped entirely.
     pub fn create_avid_messages(
         &self,
         state: &DealerState,
@@ -593,8 +592,7 @@ impl Receiver {
     ///    The [AvidComplaint] is a dispersal-layer fault. Hold it until the matching `common_message_hash` is
     ///    certified on the TOB, or discard it if a different one wins.
     ///
-    ///    A pending recipient should retain its [VerifiedEcho]es and its decoded ciphertext for the session,
-    ///    to decode and to answer complaints.
+    ///    A pending recipient should retain its decoded ciphertext for the session to answer complaints.
     pub fn decode_ciphertext(
         &self,
         echoes: &[VerifiedEcho],
