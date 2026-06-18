@@ -50,8 +50,6 @@ pub struct AuthenticatedShards {
 }
 
 /// An endorsement of a dispersal's `top_root` and the set of pending recipients it covers.
-/// A quorum of these — once signed and certified — gives the receiver everything it needs to
-/// verify echoes (see [`crate::threshold_schnorr::batch_avss_avid::UnsignedAvidCert`]).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Vote {
     pub top_root: merkle::Node,
@@ -133,8 +131,7 @@ impl Avid {
     }
 
     /// 2. Verify a [Dispersal] and return an [EchoBuilder] that can produce individual [Echo]s on demand via
-    ///    [EchoBuilder::create_echo] and a [Vote] to return to the disperser. When the disperser
-    ///    has `W-f` weight of signed [Vote]s, he can publish the certified `top_root`.
+    ///    [EchoBuilder::create_echo] and a [Vote] to return to the disperser.
     pub fn process_dispersal(
         &self,
         my_id: PartyId,
@@ -169,25 +166,26 @@ impl Avid {
         ))
     }
 
-    /// 3a. Verify an [Echo] addressed to the recipient at `receiver_idx` (its index in the
-    ///     dispersal's sorted pending-recipient set). Use the published `certified_top_root`.
+    /// 3a. Verify an [Echo] addressed to `receiver`, against the certified [Vote] published
+    ///     by the dealer.
     pub fn verify_echo(
         &self,
         echo: Echo,
         sender: PartyId,
-        certified_top_root: &merkle::Node,
-        receiver_idx: usize,
+        vote: &Vote,
+        receiver: PartyId,
     ) -> FastCryptoResult<VerifiedEcho> {
         let auth = &echo.authenticated_shards;
         if auth.shards.len() != self.nodes.weight_of(sender)? as usize {
             return Err(InvalidMessage);
         }
-        auth.proof.verify(
-            certified_top_root,
-            &auth.shards,
-            receiver_idx,
-            sender as usize,
-        )?;
+        let receiver_idx = vote
+            .pending_recipients
+            .iter()
+            .position(|&id| id == receiver)
+            .ok_or(InvalidInput)?;
+        auth.proof
+            .verify(&vote.top_root, &auth.shards, receiver_idx, sender as usize)?;
         Ok(VerifiedEcho { echo, sender })
     }
 
@@ -316,10 +314,10 @@ impl DispersalBuilder {
         self.tree.top_root()
     }
 
-    /// Build the [Dispersal] addressed to `disperser`. Returns [InvalidInput] if `disperser` is not
-    /// a valid party id.
-    pub fn dispersal_for(&self, disperser: PartyId) -> FastCryptoResult<Dispersal> {
-        if !self.nodes.is_valid_id(disperser) {
+    /// Build the [Dispersal] addressed to `recipient`. Returns [InvalidInput] if `recipient` is
+    /// not a valid party id.
+    pub fn dispersal_for(&self, recipient: PartyId) -> FastCryptoResult<Dispersal> {
+        if !self.nodes.is_valid_id(recipient) {
             return Err(InvalidInput);
         }
         self.shards_by_recipient
@@ -329,8 +327,8 @@ impl DispersalBuilder {
                 Ok((
                     i,
                     AuthenticatedShards {
-                        shards: by_disperser[disperser as usize].clone(),
-                        proof: self.tree.get_proof(recipient_idx, disperser as usize)?,
+                        shards: by_disperser[recipient as usize].clone(),
+                        proof: self.tree.get_proof(recipient_idx, recipient as usize)?,
                     },
                 ))
             })
@@ -382,17 +380,15 @@ mod tests {
         let dispersal_builder = avid.disperse_with_mutation(&payloads, |_| {}).unwrap();
 
         // 2. Each party verifies its dispersal and emits the echoes it will send to others.
-        let mut top_root = None;
-        let mut recipients = BTreeSet::new();
+        let mut certified_vote = None;
         let party_echoes: Vec<(PartyId, BTreeMap<PartyId, Echo>)> = avid
             .nodes
             .node_ids_iter()
             .map(|j| {
                 let m = dispersal_builder.dispersal_for(j).unwrap();
                 let (builder, vote) = avid.process_dispersal(j, m).unwrap();
-                if top_root.is_none() {
-                    top_root = Some(vote.top_root);
-                    recipients = builder.recipients();
+                if certified_vote.is_none() {
+                    certified_vote = Some(vote);
                 }
                 let echoes = builder
                     .recipients()
@@ -402,15 +398,14 @@ mod tests {
                 (j, echoes)
             })
             .collect();
-        let top_root = top_root.unwrap();
+        let certified_vote = certified_vote.unwrap();
 
         // The recipient verifies the echoes addressed to it.
         let echoes: Vec<VerifiedEcho> = party_echoes
             .into_iter()
             .map(|(sender, mut echoes)| {
                 let echo = echoes.remove(&recipient).unwrap();
-                let receiver_idx = recipients.iter().position(|&id| id == recipient).unwrap();
-                avid.verify_echo(echo, sender, &top_root, receiver_idx)
+                avid.verify_echo(echo, sender, &certified_vote, recipient)
                     .unwrap()
             })
             .collect();
@@ -441,17 +436,15 @@ mod tests {
             })
             .unwrap();
 
-        let mut top_root = None;
-        let mut recipients = BTreeSet::new();
+        let mut certified_vote = None;
         let party_echoes: Vec<(PartyId, BTreeMap<PartyId, Echo>)> = avid
             .nodes
             .node_ids_iter()
             .map(|j| {
                 let m = dispersal_builder.dispersal_for(j).unwrap();
                 let (builder, vote) = avid.process_dispersal(j, m).unwrap();
-                if top_root.is_none() {
-                    top_root = Some(vote.top_root);
-                    recipients = builder.recipients();
+                if certified_vote.is_none() {
+                    certified_vote = Some(vote);
                 }
                 let echoes = builder
                     .recipients()
@@ -461,7 +454,7 @@ mod tests {
                 (j, echoes)
             })
             .collect();
-        let top_root = top_root.unwrap();
+        let certified_vote = certified_vote.unwrap();
 
         // The recipient gathers a quorum of echoes including the cheater's ...
         let _ = cheater;
@@ -469,8 +462,7 @@ mod tests {
             .into_iter()
             .map(|(sender, mut echoes)| {
                 let echo = echoes.remove(&recipient).unwrap();
-                let receiver_idx = recipients.iter().position(|&id| id == recipient).unwrap();
-                avid.verify_echo(echo, sender, &top_root, receiver_idx)
+                avid.verify_echo(echo, sender, &certified_vote, recipient)
                     .unwrap()
             })
             .collect();
@@ -484,7 +476,13 @@ mod tests {
 
         // Another party validates the complaint.
         assert!(avid
-            .complaint_is_valid(&complaint, recipient, &top_root, &recipients, |_| true)
+            .complaint_is_valid(
+                &complaint,
+                recipient,
+                &certified_vote.top_root,
+                &certified_vote.pending_recipients,
+                |_| true
+            )
             .unwrap());
     }
 }

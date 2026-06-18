@@ -27,7 +27,6 @@ use fastcrypto::error::FastCryptoError::{
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::hash::{Blake2b256, HashFunction};
-use fastcrypto::merkle;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -120,17 +119,19 @@ pub struct AvidMessage<C: Certificate<Payload = AvssVote>> {
     pub avss_cert: C,
 }
 
-/// An endorsement of the dealer's pessimistic dispersal.
+/// An endorsement of the dealer's pessimistic dispersal: the AVID-layer [avid::Vote]
+/// (`top_root` + `pending_recipients`) bundled with the `common_message_hash` of the AVSS
+/// instance it ratifies.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AvidVote {
-    pub top_root: merkle::Node,
-    pub pending_recipients: BTreeSet<PartyId>,
+    pub vote: avid::Vote,
     pub common_message_hash: Digest,
 }
 
-/// The result of [Receiver::decode_ciphertext] so either a successfully reconstructed ciphertext
-/// whose AVID dispersal is consistent, or a [AvidComplaint] when the collected shards either fail
-/// to RS-decode or decode to a ciphertext whose re-encoding disagrees with the ciphertext hashes.
+/// The result of [Receiver::decode_ciphertext]: either a successfully reconstructed ciphertext
+/// whose AVID dispersal is consistent, or an [AvidComplaint] when the collected shards either
+/// fail to RS-decode or decode to a ciphertext whose re-encoding disagrees with the ciphertext
+/// hashes.
 #[allow(clippy::large_enum_variant)]
 pub enum DecodeOutcome {
     Decoded(Ciphertext),
@@ -394,17 +395,17 @@ impl Dealer {
 
     /// 3. RS-encode and commit the pending recipients' ciphertexts via AVID, returning an
     ///    [AvidMessageBuilder] that can create per-receiver [AvidMessage]s on demand via
-    ///    [AvidMessageBuilder::message_for]. The pending recipients are derived as the complement
-    ///    of `cert.voters`.
+    ///    [AvidMessageBuilder::message_for]. The pending recipients are derived as the relative
+    ///    complement of `avss_cert.signers()` within the node set.
     ///
-    ///    All receivers that sends an [AvssVote] after the optimistic phase (even the ones who are
-    ///    late and are not in the [AvssCert]) should get an [AvidMessage].
+    ///    All receivers that sent an [AvssVote] in the optimistic phase — including late voters
+    ///    not in `avss_cert` — should get an [AvidMessage] from the dealer.
     ///
-    ///    When at least W-f votes counted by weight are returned from the receivers, the dealer can
-    ///    form and publish a certificate over the [AvssVote]s.
+    ///    Once `≥ W − f` weight of [AvidVote]s has been collected, the dealer can form and
+    ///    publish a certificate over those votes on the TOB.
     ///
-    ///    This phase is only needed if any receiver failed to confirm in the optimistic phase. If
-    ///    every receiver confirmed, the pessimistic phase can be skipped entirely.
+    ///    This phase is only needed if any receiver failed to confirm in the optimistic phase.
+    ///    If every receiver confirmed, the pessimistic phase can be skipped entirely.
     pub fn create_avid_messages<C: Certificate<Payload = AvssVote>>(
         &self,
         state: &DealerState,
@@ -490,10 +491,11 @@ impl Receiver {
     ///     * an [AvssVote] to be returned to the dealer,
     ///     * a [VerifiedAvssCommonMessage] to be retained for the rest of the session.
     ///
-    ///    On any failure the receiver silently ignores the message and falls through to the pessimistic phase.
+    ///    On any failure the receiver silently ignores the message and falls through to the
+    ///    pessimistic phase.
     ///
-    ///    A voter should also retain its own ciphertext (`message.ciphertext`) so it can
-    ///    answer complaints later via [Self::handle_avss_complaint] / [Self::handle_avid_complaint].
+    ///    A voter should also retain its own ciphertext (`message.ciphertext`) so it can answer
+    ///    complaints later via [Self::handle_avss_complaint] / [Self::handle_avid_complaint].
     pub fn process_avss_message(
         &self,
         message: &AvssMessage,
@@ -526,6 +528,10 @@ impl Receiver {
 
     /// 4. Verify a pessimistic-phase [AvidMessage] and emit an [EchoBuilder] which can build
     ///    [Echo]es on demand. Returns also an [AvidVote] to be signed and returned to the dealer.
+    ///
+    ///    Receivers who did not receive their shares through an [AvssMessage] should wait for a
+    ///    published [Certificate] over [AvidVote]s that confirms they are a pending recipient and
+    ///    then get [Echo]es from the signers and verify them with [Self::verify_avid_echo_message].
     pub fn process_avid_message<C: Certificate<Payload = AvssVote>>(
         &self,
         message: AvidMessage<C>,
@@ -550,8 +556,7 @@ impl Receiver {
         }
         let (builder, vote) = self.avid.process_dispersal(self.id, dispersal)?;
         let avid_vote = AvidVote {
-            top_root: vote.top_root,
-            pending_recipients: vote.pending_recipients,
+            vote,
             common_message_hash: avss_cert.payload().common_message_hash,
         };
         Ok((builder, avid_vote))
@@ -560,44 +565,40 @@ impl Receiver {
     /// Verify an [Echo] addressed to this receiver. Returns a [VerifiedEcho] suitable for
     /// [Self::decode_ciphertext].
     ///
-    /// Precondition: `self.id` is one of `cert.pending_recipients`. Echoes are only meaningful
-    /// for pending recipients, so voters calling this for themselves get [InvalidInput].
+    /// Precondition: `self.id` is one of `avid_cert.payload().vote.pending_recipients`. Echoes
+    /// are only meaningful for pending recipients, so voters calling this for themselves get
+    /// [InvalidInput].
     pub fn verify_avid_echo_message<C: Certificate<Payload = AvidVote>>(
         &self,
         echo: Echo,
         sender: PartyId,
         avid_cert: &VerifiedCertificate<C>,
     ) -> FastCryptoResult<VerifiedEcho> {
-        let vote = avid_cert.payload();
-        let receiver_idx = vote
-            .pending_recipients
-            .iter()
-            .position(|&id| id == self.id)
-            .ok_or(InvalidInput)?;
         self.avid
-            .verify_echo(echo, sender, &vote.top_root, receiver_idx)
+            .verify_echo(echo, sender, &avid_cert.payload().vote, self.id)
     }
 
-    /// 5. Reconstruct this receiver's ciphertext from `W − 2f` weight of [VerifiedEcho]s — the
-    ///    AVID decode minimum. Callers should invoke this as soon as `W − 2f` weight has
-    ///    accumulated and drop later-arriving echoes (extra shards don't change the outcome).
-    ///    Returns [DecodeOutcome::Decoded] when the dispersal is consistent and the reconstructed
-    ///    ciphertext matches [VerifiedAvssCommonMessage], or [DecodeOutcome::InvalidDispersal] (an
-    ///    [AvidComplaint]) otherwise.
+    /// 5. Reconstruct this receiver's ciphertext from at least `W − 2f` weight of
+    ///    [VerifiedEcho]s. Returns [DecodeOutcome::Decoded] if the dispersal is consistent and
+    ///    the reconstructed ciphertext matches [VerifiedAvssCommonMessage], or
+    ///    [DecodeOutcome::InvalidDispersal] (an [AvidComplaint]) otherwise.
     ///
-    ///    The [AvidComplaint] is a dispersal-layer fault. Hold it until the matching `common_message_hash` is
-    ///    certified on the TOB, or discard it if a different one wins.
+    ///    The caller should get an [AvssCommonMessage] from one of the signers of the cert and
+    ///    verify it before calling this method.
     ///
-    ///    A pending recipient should retain its decoded ciphertext for the session to answer complaints.
+    ///    An [AvidComplaint] is a dispersal-layer fault. Hold it until the matching cert on
+    ///    [AvidVote]s is certified on the TOB, or discard it if a different one wins.
+    ///
+    ///    The caller should retain its decoded ciphertext for the session to answer complaints.
     pub fn decode_ciphertext<C: Certificate<Payload = AvidVote>>(
         &self,
         echoes: &[VerifiedEcho],
         verified_common: &VerifiedAvssCommonMessage,
-        cert: &VerifiedCertificate<C>,
+        avid_cert: &VerifiedCertificate<C>,
     ) -> FastCryptoResult<DecodeOutcome> {
-        if cert.payload().common_message_hash != verified_common.0.hash() {
+        if avid_cert.payload().common_message_hash != verified_common.0.hash() {
             warn!("batch_avss decode_ciphertext: AvidCert binds a different common message");
-            return Err(InvalidProof);
+            return Err(InvalidMessage);
         }
         let expected_hash = verified_common
             .0
@@ -621,7 +622,9 @@ impl Receiver {
     }
 
     /// 6. Decrypt and verify the receiver's own shares from a successfully decoded ciphertext.
-    ///    Rejects with [InvalidMessage] if the ciphertext doesn't match the hash pinned in [VerifiedAvssCommonMessage].
+    ///    Rejects with [InvalidMessage] if the ciphertext doesn't match the hash pinned in
+    ///    [VerifiedAvssCommonMessage] or if `avid_cert` is for a different [AvssCommonMessage].
+    ///
     ///    Otherwise, yields [DecryptionOutcome::Valid] when shares verify, or
     ///    [DecryptionOutcome::Invalid] (an [AvssComplaint]) when they don't.
     ///
@@ -632,11 +635,11 @@ impl Receiver {
         &self,
         ciphertext: &Ciphertext,
         verified_common: &VerifiedAvssCommonMessage,
-        cert: &VerifiedCertificate<C>,
+        avid_cert: &VerifiedCertificate<C>,
     ) -> FastCryptoResult<DecryptionOutcome> {
-        if cert.payload().common_message_hash != verified_common.0.hash() {
+        if avid_cert.payload().common_message_hash != verified_common.0.hash() {
             warn!("batch_avss decrypt_and_verify: AvidCert binds a different common message");
-            return Err(InvalidProof);
+            return Err(InvalidMessage);
         }
         self.check_ciphertext_hash(ciphertext, verified_common)?;
         match self.decrypt_and_verify_shares(ciphertext, verified_common) {
@@ -660,8 +663,9 @@ impl Receiver {
         }
     }
 
-    /// Reject a ciphertext whose hash doesn't match the one pinned for this receiver in [VerifiedAvssCommonMessage]. This
-    /// stops a dealer from dispersing a different ciphertext via AVID.
+    /// Reject a ciphertext whose hash doesn't match the one pinned for this receiver in
+    /// [VerifiedAvssCommonMessage]. This stops a dealer from dispersing a different ciphertext
+    /// via AVID.
     fn check_ciphertext_hash(
         &self,
         ciphertext: &Ciphertext,
@@ -719,10 +723,7 @@ impl Receiver {
         })
     }
 
-    /// 7a. Validate a [AvssComplaint] and respond with this party's own shares so the accuser
-    ///     can recover. Accepts iff the ciphertext is bound to the dealer's broadcast [VerifiedAvssCommonMessage]
-    ///     (via `common_message.ciphertext_hashes[accuser_id]`) and the recovery package decrypts it to invalid
-    ///     shares.
+    /// 7a. Validate a [AvssComplaint] and respond with this party's own shares.
     pub fn handle_avss_complaint(
         &self,
         reveal: &AvssComplaint,
@@ -765,7 +766,7 @@ impl Receiver {
         Ok(self.build_complaint_response(&verified_common.0, own_ciphertext))
     }
 
-    /// 7b. Validate a [AvidComplaint] and respond with this party's shares.
+    /// 7b. Validate a [AvidComplaint] and respond with this party's own shares.
     pub fn handle_avid_complaint<C: Certificate<Payload = AvidVote>>(
         &self,
         blame: &AvidComplaint,
@@ -780,7 +781,7 @@ impl Receiver {
             .get(accuser_id as usize)
             .ok_or(InvalidProof)?;
 
-        let vote = avid_cert.payload();
+        let vote = &avid_cert.payload().vote;
         if !self.avid.complaint_is_valid(
             blame,
             accuser_id,
@@ -859,9 +860,9 @@ impl Receiver {
         })
     }
 
-    /// 8. Recover the accuser's own shares from a quorum (>= t) of [VerifiedComplaintResponse]s.
-    ///    Responses must already be validated via [Self::verify_complaint_response]. Fails if
-    ///    the responses contribute `< t` weight, or the interpolated shares fail final verification.
+    /// 8. Recover the accuser's own shares from a quorum (`≥ t`) of [VerifiedComplaintResponse]s.
+    ///    Responses must already be validated via [Self::verify_complaint_response]. Fails if the
+    ///    responses contribute `< t` weight, or the interpolated shares fail final verification.
     pub fn recover(
         &self,
         verified_common: &VerifiedAvssCommonMessage,
@@ -1187,7 +1188,6 @@ mod tests {
     use crate::threshold_schnorr::{avid, batch_avss_avid as batch_avss, Certificate, EG};
     use crate::types::ShareIndex;
     use fastcrypto::error::FastCryptoResult;
-    use fastcrypto::merkle;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use serde::{Deserialize, Serialize};
@@ -1323,12 +1323,12 @@ mod tests {
         // pending recipients still need to decode and verify their shares before relying on
         // them, but the AvidVote attests to the dispersal layer (Merkle root), not the
         // decryption, so it's safe to publish immediately.
-        let mut top_roots: Vec<merkle::Node> = Vec::with_capacity(receivers.len());
+        let mut avid_votes: Vec<AvidVote> = Vec::with_capacity(receivers.len());
         let mut verified_commons = Vec::with_capacity(receivers.len());
         let mut echo_sets = Vec::with_capacity(receivers.len());
         for r in &receivers {
             let vcm = r.verify_common_message(state.common.clone()).unwrap();
-            let (builder, vote) = r
+            let (builder, avid_vote) = r
                 .process_avid_message(messages.message_for(r.id).unwrap())
                 .unwrap();
             let echoes: BTreeMap<PartyId, avid::Echo> = builder
@@ -1336,7 +1336,7 @@ mod tests {
                 .iter()
                 .map(|&rcpt| (rcpt, builder.create_echo(rcpt).unwrap()))
                 .collect();
-            top_roots.push(vote.top_root);
+            avid_votes.push(avid_vote);
             verified_commons.push(vcm);
             echo_sets.push(echoes);
         }
@@ -1356,11 +1356,7 @@ mod tests {
             let r = &receivers[i as usize];
             let avid_cert = AvidCert {
                 signers: receivers.iter().map(|r| r.id).collect(),
-                vote: AvidVote {
-                    top_root: top_roots[i as usize].clone(),
-                    pending_recipients: pending.clone(),
-                    common_message_hash: state.common.hash(),
-                },
+                vote: avid_votes[i as usize].clone(),
             }
             .into_verified()
             .unwrap();
