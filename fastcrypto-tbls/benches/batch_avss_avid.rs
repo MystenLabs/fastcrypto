@@ -84,7 +84,7 @@ mod batch_avss_benches {
     use super::*;
     use fastcrypto::traits::AllowedRng;
     use fastcrypto_tbls::threshold_schnorr::batch_avss_avid::{
-        self as batch_avss, AvidMessage, AvssCommonMessage, Dealer, UnsignedAvssCert,
+        self as batch_avss, AvidMessageBuilder, AvssCommonMessage, Dealer, UnsignedAvssCert,
     };
     use fastcrypto_tbls::threshold_schnorr::presigning::Presignatures;
     use itertools::Itertools;
@@ -95,18 +95,14 @@ mod batch_avss_benches {
     const STRAGGLER: PartyId = 1;
 
     /// Run a "one straggler" pessimistic round: every receiver but [STRAGGLER] is treated as
-    /// having confirmed in the optimistic phase; [STRAGGLER] is the straggler. Returns `v`, the
-    /// per-recipient [AvidMessage]s, and the [UnsignedAvssCert] (all parties except the
-    /// straggler) — the cert is also bundled into each [AvidMessage].
+    /// having confirmed in the optimistic phase; [STRAGGLER] is the straggler. Returns `v`, an
+    /// [AvidMessageBuilder] that mints per-receiver messages on demand, and the
+    /// [UnsignedAvssCert] (all parties except the straggler).
     fn pessimistic_with_one_straggler(
         dealer: &Dealer,
         n: u16,
         rng: &mut impl AllowedRng,
-    ) -> (
-        AvssCommonMessage,
-        BTreeMap<PartyId, AvidMessage>,
-        UnsignedAvssCert,
-    ) {
+    ) -> (AvssCommonMessage, AvidMessageBuilder, UnsignedAvssCert) {
         let (state, _) = dealer.create_avss_messages(rng).unwrap();
         let common = state.common.clone();
         let cert = UnsignedAvssCert {
@@ -180,7 +176,7 @@ mod batch_avss_benches {
                 let (common, messages, _cert) =
                     pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
                 let vcm = r1.verify_common_message(common).unwrap();
-                let message = &messages[&1];
+                let message = messages.message_for(1).unwrap();
                 echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| b.iter(|| r1.process_avid_message(message.clone(), &vcm).unwrap()),
@@ -206,11 +202,11 @@ mod batch_avss_benches {
                 let vcm0 = r0.verify_common_message(common.clone()).unwrap();
                 let vcm1 = r1.verify_common_message(common).unwrap();
                 let (builder0, _) = r0
-                    .process_avid_message(messages[&0].clone(), &vcm0)
+                    .process_avid_message(messages.message_for(0).unwrap(), &vcm0)
                     .unwrap();
                 let echo_for_r1 = builder0.create_echo(1).unwrap();
                 let (_, vote1) = r1
-                    .process_avid_message(messages[&r1.id].clone(), &vcm1)
+                    .process_avid_message(messages.message_for(r1.id).unwrap(), &vcm1)
                     .unwrap();
                 let top_root = vote1.top_root;
                 verify_echo.bench_function(
@@ -252,7 +248,7 @@ mod batch_avss_benches {
                     .map(|r| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (builder, vote) = r
-                            .process_avid_message(messages[&r.id].clone(), &vcm)
+                            .process_avid_message(messages.message_for(r.id).unwrap(), &vcm)
                             .unwrap();
                         if r.id == 1 {
                             top_root = Some(vote.top_root);
@@ -311,7 +307,7 @@ mod batch_avss_benches {
                     .map(|r| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (builder, vote) = r
-                            .process_avid_message(messages[&r.id].clone(), &vcm)
+                            .process_avid_message(messages.message_for(r.id).unwrap(), &vcm)
                             .unwrap();
                         if r.id == 1 {
                             top_root = Some(vote.top_root);
@@ -390,7 +386,7 @@ mod batch_avss_benches {
                             .map(|r| {
                                 let vcm = r.verify_common_message(common.clone()).unwrap();
                                 let (builder, vote) = r
-                                    .process_avid_message(messages[&r.id].clone(), &vcm)
+                                    .process_avid_message(messages.message_for(r.id).unwrap(), &vcm)
                                     .unwrap();
                                 if r.id == 1 {
                                     top_root = Some(vote.top_root);

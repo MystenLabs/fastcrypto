@@ -125,6 +125,26 @@ pub struct AvidMessage {
     pub cert: UnsignedAvssCert,
 }
 
+/// Dealer-side cache produced by [Dealer::create_avid_dispersals] that mints individual
+/// [AvidMessage]s on demand via [Self::message_for]. The eager work (RS-encoding and building the
+/// two-level Merkle commitment) happens once; per-receiver shards and proofs are materialized as
+/// each [AvidMessage] is requested — letting the dealer send out messages reactively without
+/// holding `n` copies of the dispersal in memory.
+pub struct AvidMessageBuilder {
+    inner: avid::DispersalBuilder,
+    cert: UnsignedAvssCert,
+}
+
+impl AvidMessageBuilder {
+    /// Build the [AvidMessage] addressed to `receiver`.
+    pub fn message_for(&self, receiver: PartyId) -> FastCryptoResult<AvidMessage> {
+        Ok(AvidMessage {
+            dispersal: self.inner.dispersal_for(receiver)?,
+            cert: self.cert.clone(),
+        })
+    }
+}
+
 /// An endorsement of the dealer's pessimistic dispersal.
 pub type AvidVote = avid::Vote;
 
@@ -393,9 +413,10 @@ impl Dealer {
         })
     }
 
-    /// 3. Build an [AvidMessage] per pending recipient: an AVID dispersal of that recipient's
-    ///    ciphertext, bundled with the [UnsignedAvssCert] that justifies the pessimistic phase.
-    ///    The pending recipients are derived as the complement of `cert.voters`.
+    /// 3. RS-encode and commit the pending recipients' ciphertexts via AVID, returning an
+    ///    [AvidMessageBuilder] that can mint per-receiver [AvidMessage]s on demand via
+    ///    [AvidMessageBuilder::message_for]. The pending recipients are derived as the complement
+    ///    of `cert.voters`.
     ///
     ///    Only needed if any receiver failed to confirm in the optimistic phase; if every
     ///    receiver confirmed, the pessimistic phase can be skipped entirely.
@@ -403,7 +424,7 @@ impl Dealer {
         &self,
         state: &DealerState,
         cert: UnsignedAvssCert,
-    ) -> FastCryptoResult<BTreeMap<PartyId, AvidMessage>> {
+    ) -> FastCryptoResult<AvidMessageBuilder> {
         self.create_avid_dispersals_with_mutation(state, cert, |_| {})
     }
 
@@ -412,35 +433,19 @@ impl Dealer {
         state: &DealerState,
         cert: UnsignedAvssCert,
         mutate_shards: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
-    ) -> FastCryptoResult<BTreeMap<PartyId, AvidMessage>> {
-        // Pending recipients are the complement of the cert's voters. (They must be a subset of
-        // the known nodes — guaranteed since `voters ⊆ nodes` is the cert's invariant.)
+    ) -> FastCryptoResult<AvidMessageBuilder> {
         let pending_recipients: BTreeSet<PartyId> = self
             .nodes
             .node_ids_iter()
             .filter(|id| !cert.voters.contains(id))
             .collect();
-        // AVID-disperse each pending recipient's existing ciphertext `E_i`, bound to `H(v)`.
         let payloads: BTreeMap<PartyId, Vec<u8>> = pending_recipients
             .iter()
             .map(|&i| (i, state.ciphertexts[i as usize].0.clone()))
             .collect();
         self.avid
             .disperse_with_mutation(&payloads, mutate_shards)
-            .map(|dispersals| {
-                dispersals
-                    .into_iter()
-                    .map(|(j, dispersal)| {
-                        (
-                            j,
-                            AvidMessage {
-                                dispersal,
-                                cert: cert.clone(),
-                            },
-                        )
-                    })
-                    .collect()
-            })
+            .map(|inner| AvidMessageBuilder { inner, cert })
     }
 
     fn random_oracle(&self) -> RandomOracle {
@@ -1177,7 +1182,7 @@ fn compute_challenge_from_common_message(
 #[cfg(test)]
 mod tests {
     use super::{
-        merkle, AvidMessage, AvssMessage, AvssVote, Dealer, DealerState, DecodeOutcome,
+        merkle, AvidMessageBuilder, AvssMessage, AvssVote, Dealer, DealerState, DecodeOutcome,
         DecryptionOutcome, Parameters, Receiver, ReceiverOutput, UnsignedAvssCert, VerifiedEcho,
     };
     use crate::ecies_v1;
@@ -1285,7 +1290,7 @@ mod tests {
         for r in &receivers {
             let vcm = r.verify_common_message(state.common.clone()).unwrap();
             let (builder, vote) = r
-                .process_avid_message(messages[&r.id].clone(), &vcm)
+                .process_avid_message(messages.message_for(r.id).unwrap(), &vcm)
                 .unwrap();
             let echoes: BTreeMap<PartyId, avid::Echo> = builder
                 .recipients()
@@ -1377,7 +1382,7 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (_, vote0) = receivers[victim_id as usize]
-            .process_avid_message(messages[&victim_id].clone(), &vcm0)
+            .process_avid_message(messages.message_for(victim_id).unwrap(), &vcm0)
             .unwrap();
         let cert0_top_root = vote0.top_root;
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
@@ -1385,7 +1390,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (builder, _) = r
-                    .process_avid_message(messages[&r.id].clone(), &vcm)
+                    .process_avid_message(messages.message_for(r.id).unwrap(), &vcm)
                     .unwrap();
                 let echo = builder.create_echo(victim_id).unwrap();
                 receivers[victim_id as usize]
@@ -1500,7 +1505,7 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (_, vote0) = receivers[victim_id as usize]
-            .process_avid_message(messages[&victim_id].clone(), &vcm0)
+            .process_avid_message(messages.message_for(victim_id).unwrap(), &vcm0)
             .unwrap();
         let cert0_top_root = vote0.top_root;
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
@@ -1508,7 +1513,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (builder, _) = r
-                    .process_avid_message(messages[&r.id].clone(), &vcm)
+                    .process_avid_message(messages.message_for(r.id).unwrap(), &vcm)
                     .unwrap();
                 let echo = builder.create_echo(victim_id).unwrap();
                 receivers[victim_id as usize]
@@ -1532,7 +1537,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (_, vote) = r
-                    .process_avid_message(messages[&r.id].clone(), &vcm)
+                    .process_avid_message(messages.message_for(r.id).unwrap(), &vcm)
                     .unwrap();
                 let top_root = vote.top_root;
                 let resp = r
@@ -1668,7 +1673,7 @@ mod tests {
             &self,
             state: &DealerState,
             cert: UnsignedAvssCert,
-        ) -> FastCryptoResult<BTreeMap<PartyId, AvidMessage>> {
+        ) -> FastCryptoResult<AvidMessageBuilder> {
             let f = self.params.f as usize;
             let n = self.nodes.total_weight() as usize;
             self.create_avid_dispersals_with_mutation(state, cert, |shards_by_recipient| {

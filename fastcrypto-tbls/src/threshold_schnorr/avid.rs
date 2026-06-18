@@ -87,16 +87,17 @@ impl Avid {
         Ok(Self { nodes, coder, f })
     }
 
-    /// 1. Disperse one payload per recipient. Returns one per-party [Dispersal]. Runs `mutate`
-    ///    over the per-recipient, per-disperser shards before the Merkle trees are built — for
-    ///    production callers pass `|_| {}`.
-    ///    Fails if any of the payloads are empty.
+    /// 1. RS-encode every payload, build the two-level Merkle commitment, and return a
+    ///    [DispersalBuilder] that can mint per-disperser [Dispersal]s on demand via
+    ///    [DispersalBuilder::dispersal_for]. Runs `mutate` over the per-recipient, per-disperser
+    ///    shards before the Merkle tree is built — production callers pass `|_| {}`. Fails if any
+    ///    of the payloads are empty.
     #[cfg_attr(not(test), allow(unused_variables, unused_mut))]
     pub fn disperse_with_mutation(
         &self,
         payloads_by_recipient: &BTreeMap<PartyId, Vec<u8>>,
         mutate: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
-    ) -> FastCryptoResult<BTreeMap<PartyId, Dispersal>> {
+    ) -> FastCryptoResult<DispersalBuilder> {
         // RS-encode each recipient's payload and bucket the shards by disperser.
         let mut shards_by_recipient: BTreeMap<PartyId, Vec<Vec<Shard>>> = payloads_by_recipient
             .iter()
@@ -113,28 +114,11 @@ impl Avid {
         // Two-level Merkle commitment: per-recipient row trees + a top tree over the row roots.
         let tree = NestedMerkleTree::new(shards_by_recipient.values().cloned())?;
 
-        Ok(self
-            .nodes
-            .node_ids_iter()
-            .map(|j| {
-                let dispersal: Dispersal = shards_by_recipient
-                    .iter()
-                    .enumerate()
-                    .map(|(recipient_idx, (&i, by_disperser))| {
-                        (
-                            i,
-                            AuthenticatedShards {
-                                shards: by_disperser[j as usize].clone(),
-                                proof: tree
-                                    .get_proof(recipient_idx, j as usize)
-                                    .expect("valid leaf index"),
-                            },
-                        )
-                    })
-                    .collect();
-                (j, dispersal)
-            })
-            .collect())
+        Ok(DispersalBuilder {
+            nodes: Arc::clone(&self.nodes),
+            tree,
+            shards_by_recipient,
+        })
     }
 
     /// 2. Verify a [Dispersal] and return an [EchoBuilder] that can produce individual [Echo]s on demand via
@@ -314,6 +298,45 @@ impl EchoBuilder {
     }
 }
 
+/// Dealer-side cache built by [Avid::disperse_with_mutation]. Holds the per-recipient × per-disperser
+/// shards and the two-level [NestedMerkleTree] commitment, and mints individual [Dispersal]s on
+/// demand via [Self::dispersal_for] — avoiding the cost of materializing all `n` dispersals up
+/// front when the dealer only needs to send them out reactively.
+pub struct DispersalBuilder {
+    nodes: Arc<Nodes<EG>>,
+    tree: NestedMerkleTree,
+    shards_by_recipient: BTreeMap<PartyId, Vec<Vec<Shard>>>,
+}
+
+impl DispersalBuilder {
+    /// The dispersal's `top_root`.
+    #[allow(dead_code)]
+    pub fn top_root(&self) -> merkle::Node {
+        self.tree.top_root()
+    }
+
+    /// Build the [Dispersal] addressed to `disperser`. Returns [InvalidInput] if `disperser` is not
+    /// a valid party id.
+    pub fn dispersal_for(&self, disperser: PartyId) -> FastCryptoResult<Dispersal> {
+        if !self.nodes.is_valid_id(disperser) {
+            return Err(InvalidInput);
+        }
+        self.shards_by_recipient
+            .iter()
+            .enumerate()
+            .map(|(recipient_idx, (&i, by_disperser))| {
+                Ok((
+                    i,
+                    AuthenticatedShards {
+                        shards: by_disperser[disperser as usize].clone(),
+                        proof: self.tree.get_proof(recipient_idx, disperser as usize)?,
+                    },
+                ))
+            })
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -354,16 +377,17 @@ mod tests {
         let payloads: BTreeMap<PartyId, Vec<u8>> =
             std::iter::once((recipient, payload.clone())).collect();
 
-        // 1. Dealer disperses: one message per party.
-        let messages = avid.disperse_with_mutation(&payloads, |_| {}).unwrap();
-        assert_eq!(messages.len(), weights.len());
+        // 1. Dealer disperses: builder mints messages on demand.
+        let dispersal_builder = avid.disperse_with_mutation(&payloads, |_| {}).unwrap();
 
         // 2. Each party verifies its dispersal and emits the echoes it will send to others.
         let mut top_root = None;
         let mut recipients = BTreeSet::new();
-        let party_echoes: Vec<(PartyId, BTreeMap<PartyId, Echo>)> = messages
-            .into_iter()
-            .map(|(j, m)| {
+        let party_echoes: Vec<(PartyId, BTreeMap<PartyId, Echo>)> = avid
+            .nodes
+            .node_ids_iter()
+            .map(|j| {
+                let m = dispersal_builder.dispersal_for(j).unwrap();
                 let (builder, vote) = avid.process_dispersal(j, m).unwrap();
                 if top_root.is_none() {
                     top_root = Some(vote.top_root);
@@ -409,7 +433,7 @@ mod tests {
         let payloads: BTreeMap<PartyId, Vec<u8>> =
             std::iter::once((recipient, payload.clone())).collect();
 
-        let messages = avid
+        let dispersal_builder = avid
             .disperse_with_mutation(&payloads, |shards| {
                 shards.get_mut(&recipient).unwrap()[cheater as usize][0].0[0] ^= 1;
             })
@@ -417,9 +441,11 @@ mod tests {
 
         let mut top_root = None;
         let mut recipients = BTreeSet::new();
-        let party_echoes: Vec<(PartyId, BTreeMap<PartyId, Echo>)> = messages
-            .into_iter()
-            .map(|(j, m)| {
+        let party_echoes: Vec<(PartyId, BTreeMap<PartyId, Echo>)> = avid
+            .nodes
+            .node_ids_iter()
+            .map(|j| {
+                let m = dispersal_builder.dispersal_for(j).unwrap();
                 let (builder, vote) = avid.process_dispersal(j, m).unwrap();
                 if top_root.is_none() {
                     top_root = Some(vote.top_root);
