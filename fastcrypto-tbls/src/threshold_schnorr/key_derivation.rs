@@ -9,11 +9,13 @@ use fastcrypto::traits::ToFromBytes;
 
 /// Compute a tweak from a verifying key and a derivation path.
 pub(crate) fn compute_tweak(vk: &G, address: &Address) -> S {
+    // TODO: verify that vk is canonicalized?
     let mut ikm: Vec<u8> = vk.x_as_be_bytes().unwrap().to_vec(); // 32 bytes
     ikm.extend_from_slice(address);
 
     // Derive 64 uniform bytes to reduce bias from modular reduction to the 32 byte scalar field.
     // This is conservative since the secp256k1 scalar field size is very close to 2^256.
+    // TODO: any theoretical requirement for this derivation?
     let bytes = hkdf_sha3_256(&HkdfIkm::from_bytes(&ikm).unwrap(), &[], &[], 64).unwrap();
     S::from_bytes_mod_order(&bytes)
 }

@@ -34,7 +34,7 @@ impl<C: GroupElement> Poly<C> {
     /// The returned number is equal to the size of the underlying coefficient vector - 1,
     /// and in case some of the leading elements are zero, the actual degree will be smaller.
     /// See also [Poly::degree].
-    pub fn degree_bound(&self) -> usize {
+    pub fn degree_bound(&self) -> usize { // TODO: return option
         // e.g. c_0 + c_1 * x + c_2 * x^2 + c_3 * x^3
         // ^ 4 coefficients correspond to a 3rd degree poly
         self.0.len() - 1
@@ -84,6 +84,7 @@ impl<C: Scalar> Mul<&Poly<C>> for &Poly<C> {
             return Poly::zero();
         }
         let mut result = vec![C::zero(); self.degree() + rhs.degree() + 1];
+        // TODO: iterates also on trailing zeros, can overflow result
         for (i, a) in self.0.iter().enumerate() {
             for (j, b) in rhs.0.iter().enumerate() {
                 result[i + j] += *a * *b;
@@ -156,6 +157,7 @@ impl<C: GroupElement> Poly<C> {
     pub fn eval_range(&self, m: u16) -> EvalRange<C> {
         // The PolynomialEvaluator can't handle m = 0, m = u16::MAX or self.degree() >= u16::MAX,
         // so in those extreme cases, we just evaluate everything using Polynomial::eval.
+        // TODO: why not return error in these cases? currently it returns m-1 elements
         if m == 0 || m == u16::MAX || self.degree() >= u16::MAX as usize {
             return EvalRange(
                 (1..m)
@@ -192,10 +194,10 @@ impl<C: GroupElement> Poly<C> {
         factors: impl Iterator<Item = u128>,
     ) -> C::ScalarType {
         let (result, remaining) = factors.fold((initial, 1), |acc, factor| {
-            debug_assert_ne!(factor, 0);
+            debug_assert_ne!(factor, 0); // TODO: is this needed?
             Self::fast_mult(acc, factor)
         });
-        debug_assert_ne!(remaining, 0);
+        debug_assert_ne!(remaining, 0); // TODO: is this needed?
         result * C::ScalarType::from(remaining)
     }
 
@@ -209,7 +211,7 @@ impl<C: GroupElement> Poly<C> {
     /// Expects exactly t unique indices.
     /// Returns an error if x is one of the indices.
     fn get_lagrange_coefficients_for(
-        x: u128,
+        x: u128, 
         t: u16,
         indices: impl Iterator<Item = impl Borrow<ShareIndex>>,
     ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {
@@ -281,12 +283,12 @@ impl<C: GroupElement> Poly<C> {
 
     /// Return the constant term of the polynomial.
     pub fn c0(&self) -> &C {
-        &self.0[0]
+        &self.0[0] // TODO: check not empty
     }
 
     /// Consume the polynomial and return the constant term.
     pub fn into_c0(self) -> C {
-        self.0[0]
+        self.0[0] 
     }
 
     pub fn coefficient(&self, i: usize) -> &C {
@@ -355,6 +357,7 @@ impl<C: Scalar> Poly<C> {
     /// Returns an error if the input is invalid (e.g., empty or duplicate indices).
     ///
     /// This is faster than first recovering the polynomial and then evaluating it at the given index.
+    /// TODO: say it assumes it is called with the right number of points?
     pub fn recover_at(index: ShareIndex, points: &[Eval<C>]) -> FastCryptoResult<Eval<C>> {
         // If the index we're looking for is already given, we can return that
         if let Some(point) = points.iter().find(|p| p.index == index) {
@@ -493,7 +496,7 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
         let coeffs =
             Self::get_lagrange_coefficients_for_c0(t, shares.clone().map(|s| s.borrow().index))?;
         let plain_shares = shares.map(|s| s.borrow().value).collect::<Vec<_>>();
-        let res = C::multi_scalar_mul(&coeffs.1, &plain_shares).expect("sizes match") * coeffs.0;
+        let res = C::multi_scalar_mul(&coeffs.1, &plain_shares)? * coeffs.0;
         Ok(res)
     }
 
@@ -591,6 +594,7 @@ pub(crate) struct MonicLinear<C>(pub C);
 
 impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
     fn mul_assign(&mut self, rhs: MonicLinear<C>) {
+        // TODO: MonicLinear(0) = x, no zero, why return zero?
         if rhs.0 == C::zero() || self.is_zero() {
             *self = Poly::zero();
             return;
@@ -608,6 +612,7 @@ impl<C: Scalar> Div<MonicLinear<C>> for &Poly<C> {
 
     fn div(self, rhs: MonicLinear<C>) -> Self::Output {
         let mut result = self.0[1..].to_vec();
+        // TODO: result can be empty here
         for i in (0..result.len() - 1).rev() {
             result[i] = result[i] - result[i + 1] * rhs.0;
         }

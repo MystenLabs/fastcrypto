@@ -24,6 +24,7 @@ impl RecoveryProof {
     /// Verify the proof for the given `accuser_id`: decrypt `ciphertext` via the recovery
     /// package and confirm the resulting shares fail `verifier`. The caller supplies
     /// `accuser_id` from their protocol context — it is *not* carried inside the proof.
+    /// TODO: say that assumes shared was verified by the caller?
     pub fn check<S: BCSSerialized>(
         &self,
         accuser_id: PartyId,

@@ -32,14 +32,16 @@ use tracing::warn;
 /// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
 #[allow(dead_code)]
 pub struct Dealer {
+    // TODO: what about f?
     t: u16,
     nodes: Nodes<EG>,
     sid: Vec<u8>,
-    secret: Option<S>,
+    secret: Option<S>, // Set for key rotation.
 }
 
 #[allow(dead_code)]
 pub struct Receiver {
+    // TODO: order fields in all types - first protocol dependent fields (nodes, sid, f, t), then private fields (sk) and last, state fields (commitment)
     id: PartyId,
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
@@ -48,9 +50,12 @@ pub struct Receiver {
     t: u16,
 }
 
+// TODO: add a limit like DKG_MESSAGES_MAX_SIZE on message size (for messages with vectors)
+
 /// The message broadcast by the dealer, containing the encrypted shares and the public keys of the nonces.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
+    // TODO: order fields
     ciphertext: MultiRecipientEncryption<EG>,
     feldman_commitment: Poly<G>,
 }
@@ -66,7 +71,7 @@ pub enum ProcessedMessage {
 /// broadcast. Given enough responses, the accuser can recover its shares.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Complaint {
-    pub accuser_id: PartyId,
+    pub accuser_id: PartyId, // TODO: do we need this? the higher level protocol must verify that the message comes from the correct party anyhow.
     pub proof: RecoveryProof,
 }
 
@@ -74,13 +79,14 @@ pub struct Complaint {
 /// Lagrange-interpolate their own.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComplaintResponse {
-    pub responder_id: PartyId,
+    pub responder_id: PartyId, // TODO: do we need this? the higher level protocol must verify that the message comes from the correct party anyhow.
     pub shares: SharesForNode,
 }
 
 /// The output of a receiver after a single instance of AVSS: The shares for each nonce + commitments for the next round.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PartialOutput {
+pub struct PartialOutput { // TODO: AvssOutput?
+    // TODO: order fields
     pub my_shares: SharesForNode,
 
     /// The commitments to the polynomials will be used for key rotation.
@@ -90,7 +96,8 @@ pub struct PartialOutput {
 /// The output after combining multiple `PartialOutputs`,
 /// either using [PartialOutput::complete_dkg] or [PartialOutput::complete_key_rotation].
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReceiverOutput {
+pub struct ReceiverOutput { // TODO: DkOutput? (distributed key)
+    // TODO: order fields
     pub my_shares: SharesForNode,
 
     /// The commitments to the polynomials will be used for key rotation.
@@ -103,8 +110,8 @@ pub struct ReceiverOutput {
 /// All the shares given to a node. One share per the node's weight.
 /// These can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SharesForNode {
-    pub shares: Vec<Eval<S>>,
+pub struct SharesForNode { // TODO: Shares(Vec<Share>)
+    pub shares: Vec<Eval<S>>, // TODO: Share = Eval<S>
 }
 
 impl SharesForNode {
@@ -115,6 +122,7 @@ impl SharesForNode {
 
     fn verify(&self, message: &Message) -> FastCryptoResult<()> {
         for share in &self.shares {
+            // TODO: possible optimization - all shares get be verified at once
             message
                 .feldman_commitment
                 .verify_share(share.index, &share.value)?
@@ -128,7 +136,7 @@ impl SharesForNode {
         threshold: u16,
         other_shares: &[Self],
     ) -> FastCryptoResult<Self> {
-        // Compute the total weight of the valid responses
+        // TODO: check that indices and other shares are unique        
         let response_weight = other_shares
             .iter()
             .map(SharesForNode::weight)
@@ -142,10 +150,12 @@ impl SharesForNode {
         let shares = indices
             .into_iter()
             .map(|index| {
+                // TODO: can move out of loop
                 let evaluations = other_shares
                     .iter()
                     .flat_map(|share| share.shares.clone())
                     .collect_vec();
+                // TODO: here we may call with #shares > threshold, resulting in the wrong value
                 Poly::recover_at(index, &evaluations).unwrap()
             })
             .collect_vec();
@@ -169,13 +179,13 @@ impl Dealer {
         secret: Option<S>,
         nodes: Nodes<EG>,
         t: u16,
-        sid: Vec<u8>,
+        sid: Vec<u8>, // TODO: what exactly is the req - unique per dkg or per avss? currently it is unique per avss.
     ) -> FastCryptoResult<Self> {
-        if t > nodes.total_weight() {
+        if t > nodes.total_weight() { // TODO: check t > 0
             return Err(InvalidInput);
         }
         Ok(Self {
-            secret,
+            secret, // TODO: generate the secret here when needed instead of storing option
             t,
             nodes,
             sid,
@@ -187,7 +197,7 @@ impl Dealer {
         let secret = self.secret.unwrap_or(S::rand(rng));
         let polynomial = Poly::rand_fixed_c0(self.t - 1, secret, rng);
 
-        // Evaluate all shares
+        // Compute all shares
         let all_shares = polynomial.eval_range(self.nodes.total_weight());
 
         // Encrypt all shares to the receivers
@@ -243,6 +253,7 @@ impl Receiver {
         commitment: Option<G>,
         enc_secret_key: PrivateKey<EG>,
     ) -> Self {
+        // TODO: check that id is valid
         Self {
             id,
             enc_secret_key,
@@ -268,7 +279,7 @@ impl Receiver {
     ///
     /// 3. When t+f signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
     pub fn process_message(&self, message: &Message) -> FastCryptoResult<ProcessedMessage> {
-        if message.feldman_commitment.degree() != self.t as usize - 1 {
+        if message.feldman_commitment.degree() + 1 != self.t as usize {
             warn!(
                 "AVSS process_message: invalid feldman commitment degree {} (expected {})",
                 message.feldman_commitment.degree(),
@@ -322,13 +333,14 @@ impl Receiver {
                     &message.ciphertext.shared(),
                     &self.enc_secret_key,
                     &self.random_oracle(),
-                    &mut rand::thread_rng(),
+                    &mut rand::thread_rng(), // TODO: pass rng from higher level protocol
                 ),
             })),
         }
     }
 
     /// 4. Upon receiving a complaint, a receiver verifies it and responds with its shares.
+    /// TODO: say that assumes process_message was called before
     pub fn handle_complaint(
         &self,
         message: &Message,
@@ -362,6 +374,12 @@ impl Receiver {
         message: &Message,
         responses: Vec<ComplaintResponse>,
     ) -> FastCryptoResult<PartialOutput> {
+        // TODO: check that responses are unique
+        // TODO check that share ids are unique, and as expected
+
+        // TODO: a safer design would be to have verify_complaint_response function that verifies the complaint response for a given party index, and then here just do sanity that there are no duplicates.
+        // Example issue with the current impl: DoS
+
         // Sanity check that we have enough responses (by weight) to recover the shares.
         let total_response_weight = self
             .nodes
@@ -392,7 +410,7 @@ impl Receiver {
             .collect_vec();
 
         let my_shares = SharesForNode::recover(self.my_indices(), self.t, &valid_shares)?;
-        my_shares.verify(message)?;
+        my_shares.verify(message)?; // TODO: should never happen unless something is seriously wrong, log as warn!
 
         Ok(PartialOutput {
             my_shares,
@@ -418,10 +436,13 @@ impl Receiver {
 /// Verify a set of shares receiver from a Dealer
 fn verify_shares(
     shares: &SharesForNode,
-    nodes: &Nodes<EG>,
+    nodes: &Nodes<EG>, // TODO: change to expected_share_ids: &[ShareIndex]
     receiver: PartyId,
     message: &Message,
 ) -> FastCryptoResult<()> {
+    // TODO: this function returs err both in case verify failed and in case there is a bug in the impl.
+    // We should decide on a consistent error handling strategy here
+
     let expected = nodes.share_ids_of(receiver)?;
     if !shares
         .shares
@@ -435,7 +456,7 @@ fn verify_shares(
         );
         return Err(InvalidMessage);
     }
-    shares.verify(message).map_err(|e| {
+    shares.verify(message).map_err(|e| { // TODO: tap_err
         warn!(
             "AVSS verify_shares: cryptographic share verification failed for receiver {}: {e:?}",
             receiver,
@@ -461,7 +482,7 @@ impl ReceiverOutput {
         t: u16,
         nodes: &Nodes<EG>,
         outputs: HashMap<PartyId, PartialOutput>,
-    ) -> FastCryptoResult<Self> {
+    ) -> FastCryptoResult<Self> {        
         if nodes.total_weight_of(outputs.keys())? < t {
             return Err(NotEnoughWeight(t as usize));
         }
@@ -469,6 +490,7 @@ impl ReceiverOutput {
         let outputs = outputs.into_values().collect_vec();
 
         // Sanity check: Outputs cannot be empty and all outputs must have the same weight.
+        // TODO: check not empty
         if !outputs.iter().map(|output| output.weight()).all_equal() {
             return Err(InvalidInput);
         }
@@ -568,6 +590,7 @@ impl PartialOutput {
         }
     }
 
+    // TODO: move inline into the function that calls it
     fn compute_all_commitments(&self, to: ShareIndex) -> Vec<Eval<G>> {
         self.feldman_commitment.eval_range(to.get()).to_vec()
     }
