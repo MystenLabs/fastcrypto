@@ -29,6 +29,14 @@ pub struct Avid {
     f: u16,
 }
 
+/// Dealer-side cache built by [Avid::disperse_with_mutation] which can create individual [Dispersal]s
+/// on demand via [Self::dispersal_for].
+pub struct DispersalBuilder {
+    nodes: Arc<Nodes<EG>>,
+    tree: NestedMerkleTree,
+    shards_by_recipient: BTreeMap<PartyId, Vec<Vec<Shard>>>,
+}
+
 /// The dealer's per-party dispersal message. One [AuthenticatedShards] per recipient.
 pub type Dispersal = BTreeMap<PartyId, AuthenticatedShards>;
 
@@ -41,10 +49,13 @@ pub struct AuthenticatedShards {
     pub(crate) proof: NestedMerkleProof,
 }
 
-/// An endorsement of a dispersal's `top_root`.
+/// An endorsement of a dispersal's `top_root` and the set of pending recipients it covers.
+/// A quorum of these — once signed and certified — gives the receiver everything it needs to
+/// verify echoes (see [`crate::threshold_schnorr::batch_avss_avid::UnsignedAvidCert`]).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Vote {
     pub top_root: merkle::Node,
+    pub pending_recipients: BTreeSet<PartyId>,
 }
 
 /// A precomputed dispersal-side cache produced by [Avid::process_dispersal] to build [Echo]s.
@@ -87,11 +98,11 @@ impl Avid {
         Ok(Self { nodes, coder, f })
     }
 
-    /// 1. RS-encode every payload, build the two-level Merkle commitment, and return a
-    ///    [DispersalBuilder] that can mint per-disperser [Dispersal]s on demand via
-    ///    [DispersalBuilder::dispersal_for]. Runs `mutate` over the per-recipient, per-disperser
-    ///    shards before the Merkle tree is built — production callers pass `|_| {}`. Fails if any
-    ///    of the payloads are empty.
+    /// 1. RS-encode every payload and return a [DispersalBuilder] that can mint per-disperser
+    ///    [Dispersal]s on demand via [DispersalBuilder::dispersal_for].
+    ///
+    ///    Runs `mutate` over the per-recipient, per-disperser shards before the Merkle tree is
+    ///    built — production callers pass `|_| {}`. Fails if any of the payloads are empty.
     #[cfg_attr(not(test), allow(unused_variables, unused_mut))]
     pub fn disperse_with_mutation(
         &self,
@@ -145,32 +156,32 @@ impl Avid {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
         let top_root = get_uniform_value(implied_roots).ok_or(InvalidMessage)?;
+        let pending_recipients: BTreeSet<PartyId> = dispersal.keys().copied().collect();
         Ok((
             EchoBuilder {
                 dispersal,
                 top_root: top_root.clone(),
             },
-            Vote { top_root },
+            Vote {
+                top_root,
+                pending_recipients,
+            },
         ))
     }
 
-    /// 3a. Verify an [Echo] addressed to `receiver`. Use the published `certified_top_root`.
+    /// 3a. Verify an [Echo] addressed to the recipient at `receiver_idx` (its index in the
+    ///     dispersal's sorted pending-recipient set). Use the published `certified_top_root`.
     pub fn verify_echo(
         &self,
         echo: Echo,
         sender: PartyId,
         certified_top_root: &merkle::Node,
-        pending_recipients: &BTreeSet<PartyId>,
-        receiver: PartyId,
+        receiver_idx: usize,
     ) -> FastCryptoResult<VerifiedEcho> {
         let auth = &echo.authenticated_shards;
         if auth.shards.len() != self.nodes.weight_of(sender)? as usize {
             return Err(InvalidMessage);
         }
-        let receiver_idx = pending_recipients
-            .iter()
-            .position(|&id| id == receiver)
-            .ok_or(InvalidInput)?;
         auth.proof.verify(
             certified_top_root,
             &auth.shards,
@@ -298,16 +309,6 @@ impl EchoBuilder {
     }
 }
 
-/// Dealer-side cache built by [Avid::disperse_with_mutation]. Holds the per-recipient × per-disperser
-/// shards and the two-level [NestedMerkleTree] commitment, and mints individual [Dispersal]s on
-/// demand via [Self::dispersal_for] — avoiding the cost of materializing all `n` dispersals up
-/// front when the dealer only needs to send them out reactively.
-pub struct DispersalBuilder {
-    nodes: Arc<Nodes<EG>>,
-    tree: NestedMerkleTree,
-    shards_by_recipient: BTreeMap<PartyId, Vec<Vec<Shard>>>,
-}
-
 impl DispersalBuilder {
     /// The dispersal's `top_root`.
     #[allow(dead_code)]
@@ -408,7 +409,8 @@ mod tests {
             .into_iter()
             .map(|(sender, mut echoes)| {
                 let echo = echoes.remove(&recipient).unwrap();
-                avid.verify_echo(echo, sender, &top_root, &recipients, recipient)
+                let receiver_idx = recipients.iter().position(|&id| id == recipient).unwrap();
+                avid.verify_echo(echo, sender, &top_root, receiver_idx)
                     .unwrap()
             })
             .collect();
@@ -467,7 +469,8 @@ mod tests {
             .into_iter()
             .map(|(sender, mut echoes)| {
                 let echo = echoes.remove(&recipient).unwrap();
-                avid.verify_echo(echo, sender, &top_root, &recipients, recipient)
+                let receiver_idx = recipients.iter().position(|&id| id == recipient).unwrap();
+                avid.verify_echo(echo, sender, &top_root, receiver_idx)
                     .unwrap()
             })
             .collect();

@@ -84,7 +84,8 @@ mod batch_avss_benches {
     use super::*;
     use fastcrypto::traits::AllowedRng;
     use fastcrypto_tbls::threshold_schnorr::batch_avss_avid::{
-        self as batch_avss, AvidMessageBuilder, AvssCommonMessage, Dealer, UnsignedAvssCert,
+        self as batch_avss, AvidMessageBuilder, AvssCommonMessage, Dealer, UnsignedAvidCert,
+        UnsignedAvssCert,
     };
     use fastcrypto_tbls::threshold_schnorr::presigning::Presignatures;
     use itertools::Itertools;
@@ -109,7 +110,7 @@ mod batch_avss_benches {
             voters: (0..n).filter(|&i| i != STRAGGLER).collect(),
             common_message_hash: common.hash(),
         };
-        let messages = dealer.create_avid_dispersals(&state, cert.clone()).unwrap();
+        let messages = dealer.create_avid_messages(&state, cert.clone()).unwrap();
         (common, messages, cert)
     }
 
@@ -173,13 +174,12 @@ mod batch_avss_benches {
                 let keys = generate_ecies_keys(*n);
                 let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
                 let r1 = setup_receiver(1, 0, f, t, w, &keys, batch_size_per_weight);
-                let (common, messages, _cert) =
+                let (_common, messages, _cert) =
                     pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
-                let vcm = r1.verify_common_message(common).unwrap();
                 let message = messages.message_for(1).unwrap();
                 echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.process_avid_message(message.clone(), &vcm).unwrap()),
+                    |b| b.iter(|| r1.process_avid_message(message.clone()).unwrap()),
                 );
             }
         }
@@ -197,29 +197,25 @@ mod batch_avss_benches {
                 let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
                 let r0 = setup_receiver(0, 0, f, t, w, &keys, batch_size_per_weight);
                 let r1 = setup_receiver(1, 0, f, t, w, &keys, batch_size_per_weight);
-                let (common, messages, cert) =
+                let (_common, messages, _cert) =
                     pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
-                let vcm0 = r0.verify_common_message(common.clone()).unwrap();
-                let vcm1 = r1.verify_common_message(common).unwrap();
                 let (builder0, _) = r0
-                    .process_avid_message(messages.message_for(0).unwrap(), &vcm0)
+                    .process_avid_message(messages.message_for(0).unwrap())
                     .unwrap();
                 let echo_for_r1 = builder0.create_echo(1).unwrap();
                 let (_, vote1) = r1
-                    .process_avid_message(messages.message_for(r1.id).unwrap(), &vcm1)
+                    .process_avid_message(messages.message_for(r1.id).unwrap())
                     .unwrap();
-                let top_root = vote1.top_root;
+                let avid_cert = UnsignedAvidCert {
+                    top_root: vote1.top_root,
+                    pending_recipients: vote1.pending_recipients,
+                };
                 verify_echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            r1.verify_avid_echo_message(
-                                echo_for_r1.clone(),
-                                r0.id,
-                                &top_root,
-                                &cert,
-                            )
-                            .unwrap()
+                            r1.verify_avid_echo_message(echo_for_r1.clone(), r0.id, &avid_cert)
+                                .unwrap()
                         })
                     },
                 );
@@ -240,18 +236,20 @@ mod batch_avss_benches {
                 let receivers: Vec<batch_avss::Receiver> = (0..*n)
                     .map(|id| setup_receiver(id, 0, f, t, w, &keys, batch_size_per_weight))
                     .collect();
-                let (common, messages, cert) =
+                let (common, messages, _cert) =
                     pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
-                let mut top_root = None;
+                let mut avid_cert = None;
                 let echoes: Vec<BTreeMap<PartyId, batch_avss::Echo>> = receivers
                     .iter()
                     .map(|r| {
-                        let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (builder, vote) = r
-                            .process_avid_message(messages.message_for(r.id).unwrap(), &vcm)
+                            .process_avid_message(messages.message_for(r.id).unwrap())
                             .unwrap();
                         if r.id == 1 {
-                            top_root = Some(vote.top_root);
+                            avid_cert = Some(UnsignedAvidCert {
+                                top_root: vote.top_root,
+                                pending_recipients: vote.pending_recipients,
+                            });
                         }
                         builder
                             .recipients()
@@ -260,7 +258,7 @@ mod batch_avss_benches {
                             .collect()
                     })
                     .collect();
-                let top_root = top_root.unwrap();
+                let avid_cert = avid_cert.unwrap();
                 let vcm1 = receivers[1].verify_common_message(common).unwrap();
                 let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                     .iter()
@@ -270,8 +268,7 @@ mod batch_avss_benches {
                             .verify_avid_echo_message(
                                 em[&1u16].clone(),
                                 sender as PartyId,
-                                &top_root,
-                                &cert,
+                                &avid_cert,
                             )
                             .unwrap()
                     })
@@ -299,18 +296,20 @@ mod batch_avss_benches {
                 let receivers: Vec<batch_avss::Receiver> = (0..*n)
                     .map(|id| setup_receiver(id, 0, f, t, w, &keys, batch_size_per_weight))
                     .collect();
-                let (common, messages, cert) =
+                let (common, messages, _cert) =
                     pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
-                let mut top_root = None;
+                let mut avid_cert = None;
                 let echoes: Vec<BTreeMap<PartyId, batch_avss::Echo>> = receivers
                     .iter()
                     .map(|r| {
-                        let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (builder, vote) = r
-                            .process_avid_message(messages.message_for(r.id).unwrap(), &vcm)
+                            .process_avid_message(messages.message_for(r.id).unwrap())
                             .unwrap();
                         if r.id == 1 {
-                            top_root = Some(vote.top_root);
+                            avid_cert = Some(UnsignedAvidCert {
+                                top_root: vote.top_root,
+                                pending_recipients: vote.pending_recipients,
+                            });
                         }
                         builder
                             .recipients()
@@ -319,7 +318,7 @@ mod batch_avss_benches {
                             .collect()
                     })
                     .collect();
-                let top_root = top_root.unwrap();
+                let avid_cert = avid_cert.unwrap();
                 let vcm1 = receivers[1].verify_common_message(common).unwrap();
                 let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                     .iter()
@@ -329,8 +328,7 @@ mod batch_avss_benches {
                             .verify_avid_echo_message(
                                 em[&1u16].clone(),
                                 sender as PartyId,
-                                &top_root,
-                                &cert,
+                                &avid_cert,
                             )
                             .unwrap()
                     })
@@ -365,7 +363,7 @@ mod batch_avss_benches {
                     .iter()
                     .enumerate()
                     .map(|(dealer_id, d)| {
-                        let (common, messages, cert) =
+                        let (common, messages, _cert) =
                             pessimistic_with_one_straggler(d, *n, &mut thread_rng());
                         let receivers: Vec<batch_avss::Receiver> = (0..*n)
                             .map(|id| {
@@ -380,16 +378,18 @@ mod batch_avss_benches {
                                 )
                             })
                             .collect();
-                        let mut top_root = None;
+                        let mut avid_cert = None;
                         let echoes: Vec<BTreeMap<PartyId, batch_avss::Echo>> = receivers
                             .iter()
                             .map(|r| {
-                                let vcm = r.verify_common_message(common.clone()).unwrap();
                                 let (builder, vote) = r
-                                    .process_avid_message(messages.message_for(r.id).unwrap(), &vcm)
+                                    .process_avid_message(messages.message_for(r.id).unwrap())
                                     .unwrap();
                                 if r.id == 1 {
-                                    top_root = Some(vote.top_root);
+                                    avid_cert = Some(UnsignedAvidCert {
+                                        top_root: vote.top_root,
+                                        pending_recipients: vote.pending_recipients,
+                                    });
                                 }
                                 builder
                                     .recipients()
@@ -398,7 +398,7 @@ mod batch_avss_benches {
                                     .collect()
                             })
                             .collect();
-                        let top_root = top_root.unwrap();
+                        let avid_cert = avid_cert.unwrap();
                         let vcm1 = receivers[1].verify_common_message(common).unwrap();
                         let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
                             .iter()
@@ -408,8 +408,7 @@ mod batch_avss_benches {
                                     .verify_avid_echo_message(
                                         em[&1u16].clone(),
                                         sender as PartyId,
-                                        &top_root,
-                                        &cert,
+                                        &avid_cert,
                                     )
                                     .unwrap()
                             })
