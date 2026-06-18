@@ -8,6 +8,7 @@ use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use tracing::debug;
 
 pub type PartyId = u16;
@@ -104,6 +105,13 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     /// Number of nodes.
     pub fn num_nodes(&self) -> usize {
         self.nodes.len()
+    }
+
+    /// The relative complement of `subset` within the node set — every node id not in `subset`.
+    pub fn relative_complement(&self, subset: &BTreeSet<PartyId>) -> BTreeSet<PartyId> {
+        self.node_ids_iter()
+            .filter(|id| !subset.contains(id))
+            .collect()
     }
 
     /// Get an iterator on the share ids.
