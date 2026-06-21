@@ -50,9 +50,9 @@ impl Presignatures {
     /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
     /// * or if batch_size_per_weight is zero.
     pub fn new(
-        outputs: Vec<ReceiverOutput>,
+        outputs: Vec<ReceiverOutput>, // TODO: should this be independent of AVSS and instead recevie pk: Vec<G> and shares: Vec<Vec<S>>?
         batch_size_per_weight: u16,
-        f: usize,
+        f: usize, // TODO: this should be t-1 when f + 1 != t.
     ) -> FastCryptoResult<Self> {
         if batch_size_per_weight == 0 {
             return Err(InvalidInput);
@@ -88,6 +88,7 @@ impl Presignatures {
                                 .iter()
                                 .zip(weights.iter())
                                 .flat_map(|(o, w)| {
+                                    // TODO: check the length of the batch is at least j * w + w above
                                     o.my_shares.shares[i].batch[j * w..(j + 1) * w].to_vec()
                                 })
                                 .collect()

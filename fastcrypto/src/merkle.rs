@@ -135,6 +135,7 @@ where
     ///
     /// Returns `None` if the provided index is too large.
     pub fn compute_root(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
+        // TODO: reject path.len() >= 64?
         if leaf_index >> self.path.len() != 0 {
             return None;
         }
@@ -171,6 +172,8 @@ where
         }
         true
     }
+
+    // TODO: expose a len function so that caller can reject unnecessary long proofs?
 }
 
 /// A proof that some leaf is not in a Merkle tree.
@@ -368,6 +371,7 @@ where
         I: IntoIterator,
         I::IntoIter: ExactSizeIterator<Item = Node>,
     {
+        // TODO: do we need this function as public? if yes, say in the doc that the caller is trusted to provide valid leaf hashes (e.g., with the right prefix)
         let iter = iter.into_iter();
 
         // Create the capacity that we know will be needed, since the vec will be
