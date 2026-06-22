@@ -614,8 +614,10 @@ impl<C: Scalar> Div<MonicLinear<C>> for &Poly<C> {
     type Output = Poly<C>;
 
     fn div(self, rhs: MonicLinear<C>) -> Self::Output {
+        if self.degree() == 0 {
+            return Poly::zero();
+        }
         let mut result = self.0[1..].to_vec();
-        // TODO: result can be empty here
         for i in (0..result.len() - 1).rev() {
             result[i] = result[i] - result[i + 1] * rhs.0;
         }
