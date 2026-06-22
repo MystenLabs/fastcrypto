@@ -216,12 +216,19 @@ mod batch_avss_benches {
                 let keys = generate_ecies_keys(*n);
                 let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
                 let r1 = setup_receiver(1, 0, f, t, w, &keys, batch_size_per_weight);
-                let (_common, messages, _cert) =
+                let (common, messages, _cert) =
                     pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
                 let message = messages.message_for(1).unwrap();
+                let vcm = r1.verify_common_message(common).unwrap();
                 echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.process_avid_message(message.clone()).unwrap()),
+                    |b| {
+                        b.iter(|| {
+                            r1.process_avid_message(Some(&vcm), message.clone())
+                                .unwrap()
+                                .unwrap()
+                        })
+                    },
                 );
             }
         }
@@ -239,14 +246,18 @@ mod batch_avss_benches {
                 let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
                 let r0 = setup_receiver(0, 0, f, t, w, &keys, batch_size_per_weight);
                 let r1 = setup_receiver(1, 0, f, t, w, &keys, batch_size_per_weight);
-                let (_common, messages, _cert) =
+                let (common, messages, _cert) =
                     pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
+                let vcm0 = r0.verify_common_message(common.clone()).unwrap();
+                let vcm1 = r1.verify_common_message(common).unwrap();
                 let (builder0, _) = r0
-                    .process_avid_message(messages.message_for(0).unwrap())
+                    .process_avid_message(Some(&vcm0), messages.message_for(0).unwrap())
+                    .unwrap()
                     .unwrap();
                 let echo_for_r1 = builder0.create_echo(1).unwrap();
                 let (_, vote1) = r1
-                    .process_avid_message(messages.message_for(r1.id).unwrap())
+                    .process_avid_message(Some(&vcm1), messages.message_for(r1.id).unwrap())
+                    .unwrap()
                     .unwrap();
                 let avid_cert = AvidCert {
                     signers: (0..*n).collect(),
@@ -286,8 +297,10 @@ mod batch_avss_benches {
                 let echoes: Vec<BTreeMap<PartyId, batch_avss::Echo>> = receivers
                     .iter()
                     .map(|r| {
+                        let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (builder, vote) = r
-                            .process_avid_message(messages.message_for(r.id).unwrap())
+                            .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
+                            .unwrap()
                             .unwrap();
                         if r.id == 1 {
                             avid_cert = Some(
@@ -355,8 +368,10 @@ mod batch_avss_benches {
                 let echoes: Vec<BTreeMap<PartyId, batch_avss::Echo>> = receivers
                     .iter()
                     .map(|r| {
+                        let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (builder, vote) = r
-                            .process_avid_message(messages.message_for(r.id).unwrap())
+                            .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
+                            .unwrap()
                             .unwrap();
                         if r.id == 1 {
                             avid_cert = Some(
@@ -447,8 +462,13 @@ mod batch_avss_benches {
                         let echoes: Vec<BTreeMap<PartyId, batch_avss::Echo>> = receivers
                             .iter()
                             .map(|r| {
+                                let vcm = r.verify_common_message(common.clone()).unwrap();
                                 let (builder, vote) = r
-                                    .process_avid_message(messages.message_for(r.id).unwrap())
+                                    .process_avid_message(
+                                        Some(&vcm),
+                                        messages.message_for(r.id).unwrap(),
+                                    )
+                                    .unwrap()
                                     .unwrap();
                                 if r.id == 1 {
                                     avid_cert = Some(

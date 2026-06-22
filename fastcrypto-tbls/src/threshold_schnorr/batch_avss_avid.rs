@@ -425,6 +425,10 @@ impl Dealer {
             .node_ids_iter()
             .filter(|id| !avss_cert.signers().contains(id))
             .collect();
+        if self.nodes.total_weight_of(pending_recipients.iter())? >= self.params.f {
+            warn!("batch_avss create_avid_messages_with_mutation: too many pending recipients");
+            return Err(InvalidInput);
+        }
         let payloads: BTreeMap<PartyId, Vec<u8>> = pending_recipients
             .iter()
             .map(|&i| (i, state.ciphertexts[i as usize].0.clone()))
@@ -486,6 +490,9 @@ impl Receiver {
 
     /// 2. Process an [AvssMessage] sent by the dealer in the optimistic phase.
     ///
+    ///    The receiver should provide a `verified_avss_common_message` if it has already received
+    ///    and verified the [AvssCommonMessage] from a prior delivery of this AVSS round.
+    ///
     ///    On success, returns
     ///     * a [ReceiverOutput],
     ///     * an [AvssVote] to be returned to the dealer,
@@ -499,7 +506,14 @@ impl Receiver {
     pub fn process_avss_message(
         &self,
         message: &AvssMessage,
+        verified_avss_common_message: Option<&VerifiedAvssCommonMessage>,
     ) -> FastCryptoResult<(ReceiverOutput, AvssVote, VerifiedAvssCommonMessage)> {
+        if verified_avss_common_message
+            .is_some_and(|verified| verified.0.hash() != message.common.hash())
+        {
+            warn!("batch_avss process_avss_message: provided verified common message does not match the message's common message");
+            return Err(InvalidInput);
+        }
         let verified_common = self.verify_common_message(message.common.clone())?;
         self.check_ciphertext_hash(&message.ciphertext, &verified_common)?;
         let output = self.decrypt_and_verify_shares(&message.ciphertext, &verified_common)?;
@@ -529,17 +543,35 @@ impl Receiver {
     /// 4. Verify a pessimistic-phase [AvidMessage] and emit an [EchoBuilder] which can build
     ///    [Echo]es on demand. Returns also an [AvidVote] to be signed and returned to the dealer.
     ///
+    ///    The receiver should provide a `verified_avss_common_message` if it received and verified
+    ///    an [AvssMessage] in the first AVSS round. If the receiver has no verified common (or it
+    ///    doesn't match), the AVID message should be ignored and this function returns `Ok(None)`.
+    ///
     ///    Receivers who did not receive their shares through an [AvssMessage] should wait for a
     ///    published [Certificate] over [AvidVote]s that confirms they are a pending recipient and
-    ///    then get [Echo]es from the signers and verify them with [Self::verify_avid_echo_message].
+    ///    then get the [AvssCommonMessage] and [Echo]es from the signers.
     pub fn process_avid_message<C: Certificate<Payload = AvssVote>>(
         &self,
+        verified_avss_common_message: Option<&VerifiedAvssCommonMessage>,
         message: AvidMessage<C>,
-    ) -> FastCryptoResult<(EchoBuilder, AvidVote)> {
+    ) -> FastCryptoResult<Option<(EchoBuilder, AvidVote)>> {
         let AvidMessage {
             dispersal,
             avss_cert,
         } = message;
+
+        if let Some(verified_common) = verified_avss_common_message {
+            if avss_cert.payload().common_message_hash != verified_common.0.hash() {
+                warn!(
+                    "batch_avss process_avid_message: AVSS Cert binds a different common message"
+                );
+                return Ok(None);
+            }
+        } else {
+            warn!("batch_avss process_avid_message: no verified common message available");
+            return Ok(None);
+        }
+
         let required_weight_of_voters = self.params.t + self.params.f;
         if self.nodes.total_weight_of(avss_cert.signers().iter())? < required_weight_of_voters {
             warn!("batch_avss echo: not enough voters");
@@ -559,14 +591,14 @@ impl Receiver {
             vote,
             common_message_hash: avss_cert.payload().common_message_hash,
         };
-        Ok((builder, avid_vote))
+        Ok(Some((builder, avid_vote)))
     }
 
     /// Verify an [Echo] addressed to this receiver. Returns a [VerifiedEcho] suitable for
     /// [Self::decode_ciphertext].
     ///
-    /// Precondition: `self.id` is one of `avid_cert.payload().vote.pending_recipients`. Echoes
-    /// are only meaningful for pending recipients, so voters calling this for themselves get
+    /// Precondition: `self.id` is one of the pending recipients. Echoes are only
+    /// meaningful for pending recipients, so voters calling this for themselves get
     /// [InvalidInput].
     pub fn verify_avid_echo_message<C: Certificate<Payload = AvidVote>>(
         &self,
@@ -786,7 +818,7 @@ impl Receiver {
             blame,
             accuser_id,
             &vote.top_root,
-            &vote.pending_recipients,
+            &vote.recipients,
             |payload| Blake2b256::digest(payload) == *expected_hash,
         )? {
             return Err(InvalidProof);
@@ -1235,11 +1267,13 @@ mod tests {
 
     #[test]
     fn test_optimistic_then_pessimistic() {
-        // 5 of 7 parties confirm in the optimistic phase; the remaining 2 receive their shares
-        // via the pessimistic AVID phase, gated on the optimistic certificate.
+        // 8 of 10 parties confirm in the optimistic phase; the remaining 2 receive their shares
+        // via the pessimistic AVID phase, gated on the optimistic certificate. Pending weight
+        // (= 2) must be strictly less than `f` so the dealer-side precheck in
+        // `create_avid_messages_with_mutation` accepts the cert.
         let t = 3;
-        let f = 2;
-        let n = 7u16;
+        let f = 3;
+        let n = 10u16;
         let batch_size_per_weight = 3;
 
         let mut rng = rand::thread_rng();
@@ -1287,17 +1321,17 @@ mod tests {
             })
             .collect_vec();
 
-        // Optimistic phase: only parties 0..=4 confirm; 5 and 6 are stragglers.
+        // Optimistic phase: only parties 0..=7 confirm; 8 and 9 are stragglers.
         let (state, optimistic_messages) = dealer.create_avss_messages(&mut rng).unwrap();
-        let voters: Vec<PartyId> = (0u16..=4).collect();
-        let pending: BTreeSet<PartyId> = [5u16, 6].into_iter().collect();
+        let voters: Vec<PartyId> = (0u16..=7).collect();
+        let pending: BTreeSet<PartyId> = [8u16, 9].into_iter().collect();
         let votes: BTreeMap<PartyId, AvssVote> = voters
             .iter()
             .map(|id| {
                 (
                     *id,
                     receivers[*id as usize]
-                        .process_avss_message(&optimistic_messages[id])
+                        .process_avss_message(&optimistic_messages[id], None)
                         .unwrap()
                         .1,
                 )
@@ -1329,7 +1363,8 @@ mod tests {
         for r in &receivers {
             let vcm = r.verify_common_message(state.common.clone()).unwrap();
             let (builder, avid_vote) = r
-                .process_avid_message(messages.message_for(r.id).unwrap())
+                .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
+                .unwrap()
                 .unwrap();
             let echoes: BTreeMap<PartyId, avid::Echo> = builder
                 .recipients()
@@ -1401,13 +1436,13 @@ mod tests {
         let mut votes: BTreeMap<PartyId, AvssVote> = BTreeMap::new();
         for r in receivers.iter().filter(|r| r.id != victim_id) {
             let (out, c, _) = r
-                .process_avss_message(&opt_messages[r.id as usize])
+                .process_avss_message(&opt_messages[r.id as usize], None)
                 .unwrap();
             outputs.insert(r.id, out);
             votes.insert(r.id, c);
         }
         assert!(receivers[victim_id as usize]
-            .process_avss_message(&opt_messages[victim_id as usize])
+            .process_avss_message(&opt_messages[victim_id as usize], None)
             .is_err());
 
         // The voters are the parties we collected AvssVotes from (the complement of the
@@ -1427,7 +1462,8 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (_, vote0) = receivers[victim_id as usize]
-            .process_avid_message(messages.message_for(victim_id).unwrap())
+            .process_avid_message(Some(&vcm0), messages.message_for(victim_id).unwrap())
+            .unwrap()
             .unwrap();
         let avid_cert0 = AvidCert {
             signers: receivers.iter().map(|r| r.id).collect(),
@@ -1438,8 +1474,10 @@ mod tests {
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
             .iter()
             .map(|r| {
+                let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (builder, _) = r
-                    .process_avid_message(messages.message_for(r.id).unwrap())
+                    .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
+                    .unwrap()
                     .unwrap();
                 let echo = builder.create_echo(victim_id).unwrap();
                 receivers[victim_id as usize]
@@ -1526,7 +1564,7 @@ mod tests {
         let mut outputs: HashMap<u16, ReceiverOutput> = HashMap::new();
         let mut votes: BTreeMap<PartyId, AvssVote> = BTreeMap::new();
         for r in receivers.iter().filter(|r| r.id != victim_id) {
-            let (out, c, _) = r.process_avss_message(&opt_messages[&r.id]).unwrap();
+            let (out, c, _) = r.process_avss_message(&opt_messages[&r.id], None).unwrap();
             outputs.insert(r.id, out);
             votes.insert(r.id, c);
         }
@@ -1556,7 +1594,8 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (_, vote0) = receivers[victim_id as usize]
-            .process_avid_message(messages.message_for(victim_id).unwrap())
+            .process_avid_message(Some(&vcm0), messages.message_for(victim_id).unwrap())
+            .unwrap()
             .unwrap();
         let avid_cert0 = AvidCert {
             signers: receivers.iter().map(|r| r.id).collect(),
@@ -1567,8 +1606,10 @@ mod tests {
         let echoes_for_victim: Vec<VerifiedEcho> = receivers
             .iter()
             .map(|r| {
+                let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (builder, _) = r
-                    .process_avid_message(messages.message_for(r.id).unwrap())
+                    .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
+                    .unwrap()
                     .unwrap();
                 let echo = builder.create_echo(victim_id).unwrap();
                 receivers[victim_id as usize]
@@ -1592,7 +1633,8 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (_, vote) = r
-                    .process_avid_message(messages.message_for(r.id).unwrap())
+                    .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
+                    .unwrap()
                     .unwrap();
                 let avid_cert = AvidCert {
                     signers: receivers.iter().map(|r| r.id).collect(),

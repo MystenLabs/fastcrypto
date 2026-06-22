@@ -49,11 +49,11 @@ pub struct AuthenticatedShards {
     pub(crate) proof: NestedMerkleProof,
 }
 
-/// An endorsement of a dispersal's `top_root` and the set of pending recipients it covers.
+/// An endorsement of a dispersal's `top_root` and the set of recipients it covers.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Vote {
     pub top_root: merkle::Node,
-    pub pending_recipients: BTreeSet<PartyId>,
+    pub recipients: BTreeSet<PartyId>,
 }
 
 /// A precomputed dispersal-side cache produced by [Avid::process_dispersal] to build [Echo]s.
@@ -153,7 +153,7 @@ impl Avid {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
         let top_root = get_uniform_value(implied_roots).ok_or(InvalidMessage)?;
-        let pending_recipients: BTreeSet<PartyId> = dispersal.keys().copied().collect();
+        let recipients: BTreeSet<PartyId> = dispersal.keys().copied().collect();
         Ok((
             EchoBuilder {
                 dispersal,
@@ -161,7 +161,7 @@ impl Avid {
             },
             Vote {
                 top_root,
-                pending_recipients,
+                recipients,
             },
         ))
     }
@@ -180,7 +180,7 @@ impl Avid {
             return Err(InvalidMessage);
         }
         let receiver_idx = vote
-            .pending_recipients
+            .recipients
             .iter()
             .position(|&id| id == receiver)
             .ok_or(InvalidInput)?;
@@ -480,7 +480,7 @@ mod tests {
                 &complaint,
                 recipient,
                 &certified_vote.top_root,
-                &certified_vote.pending_recipients,
+                &certified_vote.recipients,
                 |_| true
             )
             .unwrap());
