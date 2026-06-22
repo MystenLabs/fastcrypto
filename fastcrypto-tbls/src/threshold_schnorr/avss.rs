@@ -294,7 +294,7 @@ impl Receiver {
 
         // If a commitment is given, verify that the secret the dealer is distributing is consistent
         if let Some(c) = &self.commitment {
-            if message.feldman_commitment.c0() != c {
+            if message.feldman_commitment.c0() != *c {
                 warn!(
                     "AVSS process_message: feldman commitment c0 does not match the expected commitment from a previous round"
                 );
@@ -571,7 +571,7 @@ impl ReceiverOutput {
             &lagrange_coefficients,
             outputs
                 .iter()
-                .map(|o| *o.value.feldman_commitment.c0())
+                .map(|o| o.value.feldman_commitment.c0())
                 .collect_vec()
                 .as_slice(),
         )?;
@@ -590,7 +590,7 @@ impl PartialOutput {
             commitments: self.compute_all_commitments(
                 ShareIndex::new(nodes.total_weight()).expect("Weight is non-zero"),
             ),
-            vk: self.feldman_commitment.into_c0(),
+            vk: self.feldman_commitment.c0(),
             my_shares: self.my_shares,
         }
     }

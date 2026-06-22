@@ -33,12 +33,12 @@ impl<C: GroupElement> Poly<C> {
     /// Returns an upper bound for the degree of the polynomial.
     /// The returned number is equal to the size of the underlying coefficient vector - 1,
     /// and in case some of the leading elements are zero, the actual degree will be smaller.
+    /// An empty polynomial is treated as the zero polynomial and has degree bound 0.
     /// See also [Poly::degree].
     pub fn degree_bound(&self) -> usize {
-        // TODO: return option
         // e.g. c_0 + c_1 * x + c_2 * x^2 + c_3 * x^3
         // ^ 4 coefficients correspond to a 3rd degree poly
-        self.0.len() - 1
+        self.0.len().saturating_sub(1)
     }
 
     /// Returns the degree of the polynomial.
@@ -279,13 +279,12 @@ impl<C: GroupElement> Poly<C> {
     }
 
     /// Return the constant term of the polynomial.
-    pub fn c0(&self) -> &C {
-        &self.0[0] // TODO: check not empty
-    }
-
-    /// Consume the polynomial and return the constant term.
-    pub fn into_c0(self) -> C {
-        self.0[0]
+    pub fn c0(&self) -> C {
+        if self.0.is_empty() {
+            C::zero()
+        } else {
+            self.0[0]
+        }
     }
 
     pub fn coefficient(&self, i: usize) -> &C {

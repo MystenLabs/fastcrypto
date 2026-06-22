@@ -54,13 +54,13 @@ fn test_tbls_e2e() {
     let full_sig =
         ThresholdBls12381MinSig::aggregate(t, [sig1.clone(), sig2.clone(), sig3.clone()].iter())
             .unwrap();
-    assert!(ThresholdBls12381MinSig::verify(public_poly.c0(), msg, &full_sig).is_ok());
+    assert!(ThresholdBls12381MinSig::verify(&public_poly.c0(), msg, &full_sig).is_ok());
     assert_eq!(
         full_sig,
         ThresholdBls12381MinSig::partial_sign(
             &Share {
                 index: NonZeroU16::new(1234).unwrap(),
-                value: *private_poly.c0()
+                value: private_poly.c0()
             },
             msg
         )
@@ -93,7 +93,7 @@ fn test_tbls_e2e() {
     let another_sig =
         ThresholdBls12381MinSig::aggregate(t, [invalid_sig3, sig2, sig1].iter()).unwrap();
     assert_ne!(full_sig, another_sig);
-    assert!(ThresholdBls12381MinSig::verify(public_poly.c0(), msg, &another_sig).is_err());
+    assert!(ThresholdBls12381MinSig::verify(&public_poly.c0(), msg, &another_sig).is_err());
 }
 
 #[test]

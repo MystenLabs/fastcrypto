@@ -285,7 +285,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
 
     let sigs = [sig00, sig30, sig31];
     let sig = S::aggregate(d0.t(), sigs.iter()).unwrap();
-    S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
+    S::verify(&o0.vss_pk.c0(), &MSG, &sig).unwrap();
 }
 
 fn decrypt_and_prepare_for_reenc(
@@ -882,7 +882,7 @@ fn test_e2e_dkg_and_key_rotation() {
 
     let sigs = [sig0, sig1, sig2];
     let sig = S::aggregate(d0.t(), sigs.iter()).unwrap();
-    S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
+    S::verify(&o0.vss_pk.c0(), &MSG, &sig).unwrap();
 
     ////// key rotation to 3 out of 4 //////
     let nt = 3; // new t
@@ -1016,7 +1016,7 @@ fn test_e2e_dkg_and_key_rotation() {
 
     let sigs = [sig0, sig1, sig2];
     let sig = S::aggregate(nd0.t(), sigs.iter()).unwrap();
-    S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
+    S::verify(&o0.vss_pk.c0(), &MSG, &sig).unwrap();
 }
 
 #[test]
@@ -1127,10 +1127,10 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
 
     let sigs = [sig0, sig1, sig2];
     let sig = S::aggregate(d0.t(), sigs.iter()).unwrap();
-    S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
+    S::verify(&o0.vss_pk.c0(), &MSG, &sig).unwrap();
 
     // The Observer can also verify this
-    S::verify(obs_output.vss_pk.c0(), &MSG, &sig).unwrap();
+    S::verify(&obs_output.vss_pk.c0(), &MSG, &sig).unwrap();
 
     ////// key rotation to 3 out of 4 //////
     let nt = 3; // new t
@@ -1243,8 +1243,8 @@ fn test_e2e_dkg_and_key_rotation_with_observer() {
 
     let sigs = [sig0, sig1, sig2];
     let sig = S::aggregate(nd0.t(), sigs.iter()).unwrap();
-    S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
+    S::verify(&o0.vss_pk.c0(), &MSG, &sig).unwrap();
     // Key rotation preserves the verifying key, so the signature also verifies under the key
     // that the observer derived during DKG.
-    S::verify(obs_output.vss_pk.c0(), &MSG, &sig).unwrap();
+    S::verify(&obs_output.vss_pk.c0(), &MSG, &sig).unwrap();
 }

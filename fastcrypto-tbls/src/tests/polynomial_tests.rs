@@ -29,6 +29,14 @@ mod scalar_tests {
     }
 
     #[test]
+    fn test_empty_polynomial<S: Scalar>() {
+        // An empty coefficient vector is treated as the zero polynomial and must not panic.
+        let empty = Poly::<S>::from(vec![]);
+        assert_eq!(empty.degree_bound(), 0);
+        assert_eq!(empty.c0(), S::zero());
+    }
+
+    #[test]
     fn add<S: Scalar>() {
         let p1 = Poly::<S>::rand(3, &mut thread_rng());
         let p2 = Poly::<S>::zero();
@@ -75,7 +83,7 @@ mod scalar_tests {
         for _ in 0..10 {
             shares.shuffle(&mut thread_rng());
             let used_shares = shares.iter().take(124);
-            assert_eq!(c0, &Poly::<S>::recover_c0(124, used_shares).unwrap());
+            assert_eq!(c0, Poly::<S>::recover_c0(124, used_shares).unwrap());
         }
     }
 
@@ -285,7 +293,7 @@ mod scalar_tests {
         }
 
         // The constant term is the same
-        assert_eq!(*q.c0(), points[0]);
+        assert_eq!(q.c0(), points[0]);
 
         // Check that the evaluator and the interpolated polynomial match
         for j in degree + 2..100 {
@@ -307,11 +315,11 @@ mod scalar_tests {
         for i in 0..89 {
             let p =
                 Poly::interpolate(&range.clone().to_vec().as_slice()[i..(t as usize + i)]).unwrap();
-            assert_eq!(p.c0(), &secret);
+            assert_eq!(p.c0(), secret);
 
             let q = Poly::interpolate(&range.clone().to_vec().as_slice()[i..(t as usize + i - 1)])
                 .unwrap();
-            assert_ne!(q.c0(), &secret);
+            assert_ne!(q.c0(), secret);
         }
     }
 
@@ -393,7 +401,7 @@ mod points_tests {
         for _ in 0..10 {
             shares.shuffle(&mut thread_rng());
             let used_shares = shares.iter().take(124);
-            assert_eq!(c0, &Poly::<G>::recover_c0_msm(124, used_shares).unwrap());
+            assert_eq!(c0, Poly::<G>::recover_c0_msm(124, used_shares).unwrap());
         }
     }
 
