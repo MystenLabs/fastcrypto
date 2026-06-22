@@ -173,7 +173,7 @@ impl SharesForNode {
                             .flat_map(|s| s.shares_for_secret(i))
                             .take(receiver.t as usize)
                             .collect_vec();
-                        Poly::recover_at(receiver.t, index, evaluations.iter())
+                        Poly::recover_at(receiver.t, index, &evaluations)
                             .unwrap()
                             .value
                     })
@@ -182,14 +182,15 @@ impl SharesForNode {
                 let blinding_share = Poly::recover_at(
                     receiver.t,
                     index,
-                    other_shares
+                    &other_shares
                         .iter()
                         .flat_map(|s| &s.shares)
                         .map(|share| Eval {
                             index: share.index,
                             value: share.blinding_share,
                         })
-                        .take(receiver.t as usize),
+                        .take(receiver.t as usize)
+                        .collect_vec(),
                 )?
                 .value;
 

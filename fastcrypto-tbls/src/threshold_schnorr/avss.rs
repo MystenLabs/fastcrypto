@@ -159,7 +159,7 @@ impl SharesForNode {
                     .flat_map(|share| share.shares.clone())
                     .take(threshold as usize)
                     .collect_vec();
-                Poly::recover_at(threshold, index, evaluations.iter()).unwrap()
+                Poly::recover_at(threshold, index, &evaluations).unwrap()
             })
             .collect_vec();
 

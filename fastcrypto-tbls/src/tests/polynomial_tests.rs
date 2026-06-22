@@ -103,7 +103,7 @@ mod scalar_tests {
                 .take(threshold as usize)
                 .cloned()
                 .collect_vec();
-            let interpolated = Poly::recover_at(threshold, index, used_shares.iter()).unwrap();
+            let interpolated = Poly::recover_at(threshold, index, &used_shares).unwrap();
             assert_eq!(interpolated, poly.eval(index));
         }
     }
@@ -118,23 +118,13 @@ mod scalar_tests {
             .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
             .chain(std::iter::once(poly.eval(ShareIndex::new(1).unwrap())))
             .collect_vec(); // duplicate value 1
-        Poly::recover_at(
-            shares.len() as u16,
-            ShareIndex::new(7).unwrap(),
-            shares.iter(),
-        )
-        .unwrap_err();
+        Poly::recover_at(shares.len() as u16, ShareIndex::new(7).unwrap(), &shares).unwrap_err();
 
         // wrong number of points (number of shares != t)
         let valid_shares = (1..=threshold)
             .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
             .collect_vec();
-        Poly::recover_at(
-            threshold + 1,
-            ShareIndex::new(7).unwrap(),
-            valid_shares.iter(),
-        )
-        .unwrap_err();
+        Poly::recover_at(threshold + 1, ShareIndex::new(7).unwrap(), &valid_shares).unwrap_err();
     }
 
     #[test]
@@ -198,6 +188,17 @@ mod scalar_tests {
         let mut lhs = &q * &b;
         lhs += &r;
         assert!(poly_eq(&lhs, &a));
+
+        // A non-zero constant divisor divides evenly with zero remainder.
+        let c = crate::polynomial::Poly::from(vec![S::rand(&mut rng)]);
+        let (q, r) = a.div_rem(&c).unwrap();
+        assert!(poly_eq(&r, &Poly::<S>::zero()));
+        let mut lhs = &q * &c;
+        lhs += &r;
+        assert!(poly_eq(&lhs, &a));
+
+        // Dividing by zero is rejected.
+        a.div_rem(&Poly::<S>::zero()).unwrap_err();
     }
 
     #[test]

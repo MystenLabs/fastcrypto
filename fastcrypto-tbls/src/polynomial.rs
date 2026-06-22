@@ -84,7 +84,7 @@ impl<C: Scalar> Mul<&Poly<C>> for &Poly<C> {
         if self.is_zero() || rhs.is_zero() {
             return Poly::zero();
         }
-        let mut result = vec![C::zero(); self.0.len() + rhs.0.len() + 1];
+        let mut result = vec![C::zero(); self.0.len() + rhs.0.len() - 1];
         for (i, a) in self.0.iter().enumerate() {
             for (j, b) in rhs.0.iter().enumerate() {
                 result[i + j] += *a * *b;
@@ -355,25 +355,24 @@ impl<C: Scalar> Poly<C> {
     /// shares is not `t`).
     ///
     /// This is faster than first recovering the polynomial and then evaluating it at the given index.
-    pub fn recover_at(
-        t: u16,
-        index: ShareIndex,
-        points: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
-    ) -> FastCryptoResult<Eval<C>> {
+    pub fn recover_at(t: u16, index: ShareIndex, points: &[Eval<C>]) -> FastCryptoResult<Eval<C>> {
+        if points.len() != t as usize {
+            return Err(FastCryptoError::InvalidInput);
+        }
         // If the index we're looking for is already given, we can return that
-        if let Some(point) = points.clone().find(|p| p.borrow().index == index) {
-            return Ok(point.borrow().clone());
+        if let Some(point) = points.iter().find(|p| p.index == index) {
+            return Ok(point.clone());
         }
         let lagrange_coefficients = Self::get_lagrange_coefficients_for(
             index.get() as u128,
             t,
-            points.clone().map(|p| p.borrow().index),
+            points.iter().map(|p| p.index),
         )?;
         let value = C::sum(
             lagrange_coefficients
                 .1
                 .iter()
-                .zip(points.map(|p| p.borrow().value))
+                .zip(points.iter().map(|p| p.value))
                 .map(|(c, s)| s * c),
         ) * lagrange_coefficients.0;
         Ok(Eval { index, value })
@@ -440,6 +439,10 @@ impl<C: Scalar> Poly<C> {
     pub fn div_rem(&self, divisor: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>)> {
         if divisor.is_zero() {
             return Err(FastCryptoError::InvalidInput);
+        }
+        if divisor.degree() == 0 {
+            let inverse = divisor.c0().inverse().expect("divisor is a non-zero constant");
+            return Ok((self.clone() * &inverse, Poly::zero()));
         }
         let mut remainder = self.clone();
         let mut quotient = Self::zero();

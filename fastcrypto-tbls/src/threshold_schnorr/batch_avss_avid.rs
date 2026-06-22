@@ -1156,21 +1156,22 @@ impl SharesForNode {
                             .flat_map(|(ids, s)| s.shares_for_secret(ids, i))
                             .take(receiver.params.t as usize)
                             .collect_vec();
-                        Ok(Poly::recover_at(receiver.params.t, index, evaluations.iter())?.value)
+                        Ok(Poly::recover_at(receiver.params.t, index, &evaluations)?.value)
                     })
                     .collect::<FastCryptoResult<Vec<_>>>()?;
 
                 let blinding_share = Poly::recover_at(
                     receiver.params.t,
                     index,
-                    responders
+                    &responders
                         .iter()
                         .flat_map(|(ids, s)| ids.iter().copied().zip(s.shares.iter()))
                         .map(|(index, share)| Eval {
                             index,
                             value: share.blinding_share,
                         })
-                        .take(receiver.params.t as usize),
+                        .take(receiver.params.t as usize)
+                        .collect_vec(),
                 )?
                 .value;
 
