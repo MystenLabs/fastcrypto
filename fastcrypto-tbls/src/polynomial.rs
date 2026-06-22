@@ -156,10 +156,10 @@ impl<C: GroupElement> Poly<C> {
     pub fn eval_range(&self, m: u16) -> EvalRange<C> {
         // The PolynomialEvaluator can't handle m = 0, m = u16::MAX or self.degree() >= u16::MAX,
         // so in those extreme cases, we just evaluate everything using Polynomial::eval.
-        // TODO: why not return error in these cases? currently it returns m-1 elements
+        // TODO: why not return error in these cases?
         if m == 0 || m == u16::MAX || self.degree() >= u16::MAX as usize {
             return EvalRange(
-                (1..m)
+                (1..=m)
                     .map(|i| self.eval(ShareIndex::new(i).unwrap()).value)
                     .collect_vec(),
             );
