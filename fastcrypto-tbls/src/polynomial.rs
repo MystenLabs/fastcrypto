@@ -83,8 +83,7 @@ impl<C: Scalar> Mul<&Poly<C>> for &Poly<C> {
         if self.is_zero() || rhs.is_zero() {
             return Poly::zero();
         }
-        let mut result = vec![C::zero(); self.degree() + rhs.degree() + 1];
-        // TODO: iterates also on trailing zeros, can overflow result
+        let mut result = vec![C::zero(); self.0.len() + rhs.0.len() + 1];
         for (i, a) in self.0.iter().enumerate() {
             for (j, b) in rhs.0.iter().enumerate() {
                 result[i + j] += *a * *b;
