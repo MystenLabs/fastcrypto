@@ -193,10 +193,8 @@ impl<C: GroupElement> Poly<C> {
         factors: impl Iterator<Item = u128>,
     ) -> C::ScalarType {
         let (result, remaining) = factors.fold((initial, 1), |acc, factor| {
-            debug_assert_ne!(factor, 0); // TODO: is this needed?
             Self::fast_mult(acc, factor)
         });
-        debug_assert_ne!(remaining, 0); // TODO: is this needed?
         result * C::ScalarType::from(remaining)
     }
 
