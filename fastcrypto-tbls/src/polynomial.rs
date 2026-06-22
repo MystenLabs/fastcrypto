@@ -593,9 +593,11 @@ pub(crate) struct MonicLinear<C>(pub C);
 
 impl<C: Scalar> MulAssign<MonicLinear<C>> for Poly<C> {
     fn mul_assign(&mut self, rhs: MonicLinear<C>) {
-        // TODO: MonicLinear(0) = x, no zero, why return zero?
-        if rhs.0 == C::zero() || self.is_zero() {
+        if self.is_zero() {
             *self = Poly::zero();
+            return;
+        } else if rhs.0 == C::zero() {
+            self.0.insert(0, C::zero());
             return;
         }
         self.0.push(*self.0.last().unwrap());
