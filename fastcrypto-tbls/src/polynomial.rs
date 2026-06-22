@@ -34,7 +34,8 @@ impl<C: GroupElement> Poly<C> {
     /// The returned number is equal to the size of the underlying coefficient vector - 1,
     /// and in case some of the leading elements are zero, the actual degree will be smaller.
     /// See also [Poly::degree].
-    pub fn degree_bound(&self) -> usize { // TODO: return option
+    pub fn degree_bound(&self) -> usize {
+        // TODO: return option
         // e.g. c_0 + c_1 * x + c_2 * x^2 + c_3 * x^3
         // ^ 4 coefficients correspond to a 3rd degree poly
         self.0.len() - 1
@@ -192,9 +193,8 @@ impl<C: GroupElement> Poly<C> {
         initial: C::ScalarType,
         factors: impl Iterator<Item = u128>,
     ) -> C::ScalarType {
-        let (result, remaining) = factors.fold((initial, 1), |acc, factor| {
-            Self::fast_mult(acc, factor)
-        });
+        let (result, remaining) =
+            factors.fold((initial, 1), |acc, factor| Self::fast_mult(acc, factor));
         result * C::ScalarType::from(remaining)
     }
 
@@ -208,7 +208,7 @@ impl<C: GroupElement> Poly<C> {
     /// Expects exactly t unique indices.
     /// Returns an error if x is one of the indices.
     fn get_lagrange_coefficients_for(
-        x: u128, 
+        x: u128,
         t: u16,
         indices: impl Iterator<Item = impl Borrow<ShareIndex>>,
     ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {
@@ -285,7 +285,7 @@ impl<C: GroupElement> Poly<C> {
 
     /// Consume the polynomial and return the constant term.
     pub fn into_c0(self) -> C {
-        self.0[0] 
+        self.0[0]
     }
 
     pub fn coefficient(&self, i: usize) -> &C {
@@ -350,26 +350,31 @@ impl<C: Scalar> Poly<C> {
             .into()
     }
 
-    /// Given a set of shares with unique indices, compute what the value of the interpolated polynomial is at the given index.
-    /// Returns an error if the input is invalid (e.g., empty or duplicate indices).
+    /// Given exactly `t` shares with unique indices, compute the value at `index` of the unique
+    /// degree `< t` polynomial through them.
+    /// Returns an error if the input is invalid (e.g., empty, duplicate indices, or the number of
+    /// shares is not `t`).
     ///
     /// This is faster than first recovering the polynomial and then evaluating it at the given index.
-    /// TODO: say it assumes it is called with the right number of points?
-    pub fn recover_at(index: ShareIndex, points: &[Eval<C>]) -> FastCryptoResult<Eval<C>> {
+    pub fn recover_at(
+        t: u16,
+        index: ShareIndex,
+        points: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
+    ) -> FastCryptoResult<Eval<C>> {
         // If the index we're looking for is already given, we can return that
-        if let Some(point) = points.iter().find(|p| p.index == index) {
-            return Ok(point.clone());
+        if let Some(point) = points.clone().find(|p| p.borrow().index == index) {
+            return Ok(point.borrow().clone());
         }
         let lagrange_coefficients = Self::get_lagrange_coefficients_for(
             index.get() as u128,
-            points.len() as u16,
-            points.iter().map(|p| p.index),
+            t,
+            points.clone().map(|p| p.borrow().index),
         )?;
         let value = C::sum(
             lagrange_coefficients
                 .1
                 .iter()
-                .zip(points.iter().map(|p| p.value))
+                .zip(points.map(|p| p.borrow().value))
                 .map(|(c, s)| s * c),
         ) * lagrange_coefficients.0;
         Ok(Eval { index, value })

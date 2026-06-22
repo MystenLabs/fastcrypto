@@ -95,7 +95,7 @@ mod scalar_tests {
                 .take(threshold as usize)
                 .cloned()
                 .collect_vec();
-            let interpolated = Poly::recover_at(index, &used_shares).unwrap();
+            let interpolated = Poly::recover_at(threshold, index, used_shares.iter()).unwrap();
             assert_eq!(interpolated, poly.eval(index));
         }
     }
@@ -110,7 +110,23 @@ mod scalar_tests {
             .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
             .chain(std::iter::once(poly.eval(ShareIndex::new(1).unwrap())))
             .collect_vec(); // duplicate value 1
-        Poly::recover_at(ShareIndex::new(7).unwrap(), &shares).unwrap_err();
+        Poly::recover_at(
+            shares.len() as u16,
+            ShareIndex::new(7).unwrap(),
+            shares.iter(),
+        )
+        .unwrap_err();
+
+        // wrong number of points (number of shares != t)
+        let valid_shares = (1..=threshold)
+            .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
+            .collect_vec();
+        Poly::recover_at(
+            threshold + 1,
+            ShareIndex::new(7).unwrap(),
+            valid_shares.iter(),
+        )
+        .unwrap_err();
     }
 
     #[test]

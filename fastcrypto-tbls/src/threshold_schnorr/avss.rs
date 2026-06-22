@@ -85,7 +85,8 @@ pub struct ComplaintResponse {
 
 /// The output of a receiver after a single instance of AVSS: The shares for each nonce + commitments for the next round.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PartialOutput { // TODO: AvssOutput?
+pub struct PartialOutput {
+    // TODO: AvssOutput?
     // TODO: order fields
     pub my_shares: SharesForNode,
 
@@ -96,7 +97,8 @@ pub struct PartialOutput { // TODO: AvssOutput?
 /// The output after combining multiple `PartialOutputs`,
 /// either using [PartialOutput::complete_dkg] or [PartialOutput::complete_key_rotation].
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReceiverOutput { // TODO: DkOutput? (distributed key)
+pub struct ReceiverOutput {
+    // TODO: DkOutput? (distributed key)
     // TODO: order fields
     pub my_shares: SharesForNode,
 
@@ -110,7 +112,8 @@ pub struct ReceiverOutput { // TODO: DkOutput? (distributed key)
 /// All the shares given to a node. One share per the node's weight.
 /// These can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SharesForNode { // TODO: Shares(Vec<Share>)
+pub struct SharesForNode {
+    // TODO: Shares(Vec<Share>)
     pub shares: Vec<Eval<S>>, // TODO: Share = Eval<S>
 }
 
@@ -136,7 +139,7 @@ impl SharesForNode {
         threshold: u16,
         other_shares: &[Self],
     ) -> FastCryptoResult<Self> {
-        // TODO: check that indices and other shares are unique        
+        // TODO: check that indices and other shares are unique
         let response_weight = other_shares
             .iter()
             .map(SharesForNode::weight)
@@ -154,9 +157,9 @@ impl SharesForNode {
                 let evaluations = other_shares
                     .iter()
                     .flat_map(|share| share.shares.clone())
+                    .take(threshold as usize)
                     .collect_vec();
-                // TODO: here we may call with #shares > threshold, resulting in the wrong value
-                Poly::recover_at(index, &evaluations).unwrap()
+                Poly::recover_at(threshold, index, evaluations.iter()).unwrap()
             })
             .collect_vec();
 
@@ -181,7 +184,8 @@ impl Dealer {
         t: u16,
         sid: Vec<u8>, // TODO: what exactly is the req - unique per dkg or per avss? currently it is unique per avss.
     ) -> FastCryptoResult<Self> {
-        if t > nodes.total_weight() { // TODO: check t > 0
+        if t > nodes.total_weight() {
+            // TODO: check t > 0
             return Err(InvalidInput);
         }
         Ok(Self {
@@ -456,7 +460,8 @@ fn verify_shares(
         );
         return Err(InvalidMessage);
     }
-    shares.verify(message).map_err(|e| { // TODO: tap_err
+    shares.verify(message).map_err(|e| {
+        // TODO: tap_err
         warn!(
             "AVSS verify_shares: cryptographic share verification failed for receiver {}: {e:?}",
             receiver,
@@ -482,7 +487,7 @@ impl ReceiverOutput {
         t: u16,
         nodes: &Nodes<EG>,
         outputs: HashMap<PartyId, PartialOutput>,
-    ) -> FastCryptoResult<Self> {        
+    ) -> FastCryptoResult<Self> {
         if nodes.total_weight_of(outputs.keys())? < t {
             return Err(NotEnoughWeight(t as usize));
         }
