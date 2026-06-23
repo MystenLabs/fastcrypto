@@ -34,9 +34,11 @@ use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use fastcrypto::encoding::{Encoding, Hex};
+use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::GroupElement;
+use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter};
 
 mod avid;
@@ -76,6 +78,40 @@ enum Extensions {
     Recovery(PartyId),
     Encryption,
     Challenge,
+}
+
+/// This represents a certificate over a payload that a subset of the parties have signed.
+/// Here, the implementation is abstract, and it is up to the caller to implement the actual
+/// verification functionality.
+pub trait Certificate {
+    type Payload;
+
+    fn signers(&self) -> &BTreeSet<PartyId>;
+
+    fn payload(&self) -> &Self::Payload;
+
+    fn verify(&self) -> FastCryptoResult<()>;
+
+    #[allow(clippy::wrong_self_convention)]
+    fn into_verified(&self) -> FastCryptoResult<VerifiedCertificate<Self>>
+    where
+        Self: Clone,
+    {
+        self.verify().map(|_| VerifiedCertificate(self.clone()))
+    }
+}
+
+/// A [Certificate] that has already been verified.
+pub struct VerifiedCertificate<C>(C);
+
+impl<C: Certificate> VerifiedCertificate<C> {
+    pub fn certificate(&self) -> &C {
+        &self.0
+    }
+
+    pub fn payload(&self) -> &C::Payload {
+        self.0.payload()
+    }
 }
 
 impl Display for Extensions {
@@ -251,7 +287,7 @@ mod tests {
             let (_, opt_messages) = dealer.create_avss_messages(&mut rng).unwrap();
             for r in &receivers {
                 let (output, _confirm, _verified_common) =
-                    r.process_avss_message(&opt_messages[&r.id]).unwrap();
+                    r.process_avss_message(&opt_messages[&r.id], None).unwrap();
                 presigning_outputs.get_mut(&r.id).unwrap().push(output);
             }
         }
