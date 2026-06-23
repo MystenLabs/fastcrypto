@@ -88,6 +88,10 @@ pub struct AvssCommonMessage {
 }
 
 /// A [AvssCommonMessage] that has been validated against the dealer's commitments by a receiver.
+///
+/// This is purely a statement about the dealer's *common* broadcast (public keys, commitments,
+/// ciphertext hashes). It carries no claim about whether this receiver's own shares were
+/// decrypted or verified.
 #[derive(Clone, Debug)]
 pub struct VerifiedAvssCommonMessage(AvssCommonMessage);
 
@@ -543,9 +547,12 @@ impl Receiver {
     /// 4. Verify a pessimistic-phase [AvidMessage] and emit an [EchoBuilder] which can build
     ///    [Echo]es on demand. Returns also an [AvidVote] to be signed and returned to the dealer.
     ///
-    ///    The receiver should provide a `verified_avss_common_message` if it received and verified
-    ///    an [AvssMessage] in the first AVSS round. If the receiver has no verified common (or it
-    ///    doesn't match), the AVID message should be ignored and this function returns `Ok(None)`.
+    ///    The receiver should provide a `verified_avss_common_message` whenever it holds one for
+    ///    this AVSS round — whether it obtained it by verifying its shares in the optimistic phase
+    ///    ([Self::process_avss_message]) or by verifying just the common on its own
+    ///    ([Self::verify_common_message]). Only the common-level guarantee is needed here; the
+    ///    receiver's shares need not have been verified. If the receiver has no verified common (or
+    ///    it doesn't match), the AVID message should be ignored and this function returns `Ok(None)`.
     ///
     ///    Receivers who did not receive their shares through an [AvssMessage] should wait for a
     ///    published [Certificate] over [AvidVote]s that confirms they are a pending recipient and
