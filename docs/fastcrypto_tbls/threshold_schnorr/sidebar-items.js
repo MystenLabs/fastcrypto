@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["avss","batch_avss","batch_avss_avid","complaint","key_derivation","presigning","recovery_proof","reed_solomon","signing"],"type":["Address","G","S"]};
+window.SIDEBAR_ITEMS = {"mod":["avss","batch_avss","batch_avss_avid","complaint","key_derivation","presigning","recovery_proof","reed_solomon","signing"],"struct":["VerifiedCertificate"],"trait":["Certificate"],"type":["Address","G","S"]};
