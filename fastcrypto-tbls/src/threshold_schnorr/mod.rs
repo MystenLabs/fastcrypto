@@ -68,6 +68,15 @@ type EG = RistrettoPoint;
 /// An address on the Sui network.
 pub type Address = [u8; 32];
 
+/// Threshold parameters for the AVSS protocols.
+#[derive(Copy, Clone, Debug)]
+pub struct Parameters {
+    /// Reconstruction threshold: `≥ t` valid shares (by weight) reconstruct a secret.
+    pub t: u16,
+    /// Byzantine bound by share-weight.
+    pub f: u16,
+}
+
 /// Helper function to create a random oracle from a session ID.
 fn random_oracle_from_sid(sid: &[u8]) -> RandomOracle {
     RandomOracle::new(&Hex::encode(sid))
@@ -135,7 +144,7 @@ mod tests {
     use crate::threshold_schnorr::key_derivation::derive_verifying_key;
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
-    use crate::threshold_schnorr::{avss, batch_avss_avid as batch_avss, EG, G, S};
+    use crate::threshold_schnorr::{avss, batch_avss_avid as batch_avss, Parameters, EG, G, S};
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
@@ -175,15 +184,21 @@ mod tests {
         //
 
         // Map from each party to the outputs it has received
-        let mut dkg_outputs = HashMap::<PartyId, HashMap<PartyId, avss::PartialOutput>>::new();
+        let mut dkg_outputs = HashMap::<PartyId, HashMap<PartyId, avss::AvssOutput>>::new();
         nodes.node_ids_iter().for_each(|id| {
             dkg_outputs.insert(id, HashMap::new());
         });
 
         for dealer_id in nodes.node_ids_iter() {
             let sid = format!("dkg-test-session-{}", dealer_id).into_bytes();
-            let dealer: avss::Dealer =
-                avss::Dealer::new(None, nodes.clone(), t, sid.clone()).unwrap();
+            let dealer: avss::Dealer = avss::Dealer::new(
+                None,
+                nodes.clone(),
+                Parameters { t, f },
+                sid.clone(),
+                &mut rng,
+            )
+            .unwrap();
             let receivers = sks
                 .iter()
                 .enumerate()
@@ -191,11 +206,12 @@ mod tests {
                     avss::Receiver::new(
                         nodes.clone(),
                         id as u16,
-                        t,
+                        Parameters { t, f },
                         sid.clone(),
                         None,
                         enc_secret_key.clone(),
                     )
+                    .unwrap()
                 })
                 .collect::<Vec<_>>();
 
@@ -222,7 +238,7 @@ mod tests {
             .map(|node| {
                 (
                     node.id,
-                    avss::ReceiverOutput::complete_dkg(
+                    avss::DkOutput::complete_dkg(
                         t,
                         &nodes,
                         restrict(dkg_outputs.get(&node.id).unwrap(), dkg_cert.into_iter()),
@@ -257,7 +273,7 @@ mod tests {
         // Each dealer generates a batch of presigs per share they control.
         for dealer_id in nodes.node_ids_iter() {
             let sid = format!("presig-test-session-{}", dealer_id).into_bytes();
-            let params = batch_avss::Parameters { t, f };
+            let params = Parameters { t, f };
             let dealer: batch_avss::Dealer = batch_avss::Dealer::new(
                 nodes.clone(),
                 dealer_id,
@@ -379,7 +395,7 @@ mod tests {
         // Map from each party to the ordered list of outputs it has received.
         // Here, each party will act as dealer multiple times -- once per share they have.
         let mut dkg_outputs_after_rotation =
-            HashMap::<(PartyId, ShareIndex), avss::PartialOutput>::new();
+            HashMap::<(PartyId, ShareIndex), avss::AvssOutput>::new();
 
         for dealer_id in nodes.node_ids_iter() {
             for share_index in nodes.share_ids_of(dealer_id).unwrap() {
@@ -393,8 +409,14 @@ mod tests {
                     .share_for_index(share_index)
                     .unwrap()
                     .value;
-                let dealer: avss::Dealer =
-                    avss::Dealer::new(Some(secret), nodes.clone(), t, sid.clone()).unwrap();
+                let dealer: avss::Dealer = avss::Dealer::new(
+                    Some(secret),
+                    nodes.clone(),
+                    Parameters { t, f },
+                    sid.clone(),
+                    &mut rng,
+                )
+                .unwrap();
 
                 let receivers = sks
                     .iter()
@@ -409,11 +431,12 @@ mod tests {
                         avss::Receiver::new(
                             nodes.clone(),
                             id as u16,
-                            t,
+                            Parameters { t, f },
                             sid.clone(),
                             Some(commitment),
                             enc_secret_key.clone(),
                         )
+                        .unwrap()
                     })
                     .collect::<Vec<_>>();
 
@@ -451,7 +474,7 @@ mod tests {
                     .collect_vec();
                 (
                     receiver_id,
-                    avss::ReceiverOutput::complete_key_rotation(
+                    avss::DkOutput::complete_key_rotation(
                         t,
                         receiver_id,
                         &nodes,
@@ -544,7 +567,7 @@ mod tests {
             .unwrap();
     }
 
-    fn assert_valid(pm: avss::ProcessedMessage) -> avss::PartialOutput {
+    fn assert_valid(pm: avss::ProcessedMessage) -> avss::AvssOutput {
         match pm {
             avss::ProcessedMessage::Valid(po) => po,
             avss::ProcessedMessage::Complaint(_) => panic!("expected valid avss output"),

@@ -19,7 +19,7 @@ use crate::threshold_schnorr::recovery_proof;
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use crate::threshold_schnorr::{avid, Certificate, VerifiedCertificate};
-use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
+use crate::threshold_schnorr::{random_oracle_from_sid, Parameters, EG, G, S};
 use crate::types::{get_uniform_value, ShareIndex};
 use fastcrypto::error::FastCryptoError::{
     InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
@@ -38,15 +38,6 @@ use tap::TapFallible;
 use tracing::warn;
 
 pub type Digest = fastcrypto::hash::Digest<{ Blake2b256::OUTPUT_SIZE }>;
-
-/// Threshold parameters for the AVSS protocol.
-#[derive(Copy, Clone, Debug)]
-pub struct Parameters {
-    /// Reconstruction threshold: `≥ t` valid shares (by weight) reconstruct a secret.
-    pub t: u16,
-    /// Byzantine bound by share-weight.
-    pub f: u16,
-}
 
 /// The Dealer for the protocol. Exactly one per instance.
 #[allow(dead_code)]
