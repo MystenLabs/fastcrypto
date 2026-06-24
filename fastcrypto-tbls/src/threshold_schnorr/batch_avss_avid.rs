@@ -16,7 +16,7 @@ use crate::random_oracle::RandomOracle;
 pub use crate::threshold_schnorr::avid::{Echo, EchoBuilder, VerifiedEcho};
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::recovery_proof;
-use crate::threshold_schnorr::reed_solomon::Shard;
+use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use crate::threshold_schnorr::{avid, Certificate, VerifiedCertificate};
 use crate::threshold_schnorr::{random_oracle_from_sid, Parameters, EG, G, S};
@@ -242,7 +242,9 @@ impl Dealer {
         sid: Vec<u8>,
         batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
-        params.validate(nodes.total_weight())?;
+        let total_weight = nodes.total_weight();
+        params.validate(total_weight)?;
+        params.check_erasure_code_params(total_weight)?;
         let nodes = Arc::new(nodes);
         let avid = avid::Avid::new(Arc::clone(&nodes), params.f)?;
         // Each dealer deals a number of nonces proportional to their weight.
@@ -468,7 +470,9 @@ impl Receiver {
         // The dealer is expected to deal a number of nonces proportional to it's weight
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
 
-        params.validate(nodes.total_weight())?;
+        let total_weight = nodes.total_weight();
+        params.validate(total_weight)?;
+        params.check_erasure_code_params(total_weight)?;
         let nodes = Arc::new(nodes);
         let avid = avid::Avid::new(nodes.clone(), params.f)?;
 
@@ -1158,6 +1162,12 @@ impl SharesForNode {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
         Ok(Self { shares })
+    }
+}
+
+impl Parameters {
+    fn check_erasure_code_params(&self, total_weight: u16) -> FastCryptoResult<()> {
+        ErasureCoder::check_parameters(total_weight as usize, self.t as usize)
     }
 }
 

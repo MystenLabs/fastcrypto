@@ -32,7 +32,6 @@
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
-use crate::threshold_schnorr::reed_solomon::ErasureCoder;
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError::InvalidInput;
@@ -88,10 +87,9 @@ impl Parameters {
     /// Note that we allow `t = f` here since this may happen after weight reduction.
     pub fn validate(&self, total_weight: u16) -> FastCryptoResult<()> {
         let Parameters { t, f } = *self;
-        if f == 0 || total_weight <= 2 * f + t || t == 0 || t > total_weight || t < f {
+        if f == 0 || total_weight < 2 * f + t || t == 0 || t > total_weight || t < f {
             return Err(InvalidInput);
         }
-        ErasureCoder::check_parameters(total_weight as usize, t as usize)?;
         Ok(())
     }
 }
