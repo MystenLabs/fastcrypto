@@ -199,9 +199,7 @@ impl Dealer {
         sid: Vec<u8>, // TODO: what exactly is the req - unique per dkg or per avss? currently it is unique per avss.
         rng: &mut R,
     ) -> FastCryptoResult<Self> {
-        if params.t == 0 || params.t > nodes.total_weight() {
-            return Err(InvalidInput);
-        }
+        params.validate(nodes.total_weight())?;
         Ok(Self {
             secret: secret.unwrap_or_else(|| S::rand(rng)),
             params,
@@ -294,9 +292,14 @@ impl Receiver {
     /// All honest receivers will reject such a message with the same error, and such a message should be ignored.
     ///
     /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
+    /// `rng` is used to create the recovery package attached to such a complaint.
     ///
     /// 3. When t+f signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
-    pub fn process_message(&self, message: &Message) -> FastCryptoResult<ProcessedMessage> {
+    pub fn process_message<R: AllowedRng>(
+        &self,
+        message: &Message,
+        rng: &mut R,
+    ) -> FastCryptoResult<ProcessedMessage> {
         if message.feldman_commitment.degree() + 1 != self.params.t as usize {
             warn!(
                 "AVSS process_message: invalid feldman commitment degree {} (expected {})",
@@ -355,7 +358,7 @@ impl Receiver {
                     &message.ciphertext.shared(),
                     &self.enc_secret_key,
                     &self.random_oracle(),
-                    &mut rand::thread_rng(), // TODO: pass rng from higher level protocol
+                    rng,
                 ),
             })),
         }
@@ -615,17 +618,17 @@ impl DkOutput {
 impl AvssOutput {
     fn into_dk_output(self, nodes: &Nodes<EG>) -> DkOutput {
         DkOutput {
-            commitments: self.compute_all_commitments(
-                ShareIndex::new(nodes.total_weight()).expect("Weight is non-zero"),
-            ),
+            commitments: self
+                .feldman_commitment
+                .eval_range(
+                    ShareIndex::new(nodes.total_weight())
+                        .expect("Weight is non-zero")
+                        .get(),
+                )
+                .to_vec(),
             vk: self.feldman_commitment.c0(),
             my_shares: self.my_shares,
         }
-    }
-
-    // TODO: move inline into the function that calls it
-    fn compute_all_commitments(&self, to: ShareIndex) -> Vec<Eval<G>> {
-        self.feldman_commitment.eval_range(to.get()).to_vec()
     }
 
     #[cfg(test)]
@@ -695,11 +698,12 @@ mod tests {
     fn test_size_limits() {
         // Worst case for total weight <= 2500: the maximum number of nodes (Nodes::MAX_NODES = 1000,
         // which maximizes the per-recipient encryption overhead) summing to the maximum total weight
-        // 2500, with t = total_weight (which maximizes the feldman commitment of t group elements).
+        // 2500, with t as large as the parameters allow (which maximizes the feldman commitment of t
+        // group elements). `Parameters::validate` requires t < total_weight.
         let num_nodes = 1000usize;
         let total_weight = 2500u16;
         let params = Parameters {
-            t: total_weight,
+            t: total_weight - 1,
             f: 1,
         };
 
@@ -786,7 +790,7 @@ mod tests {
             .map(|receiver| {
                 (
                     receiver.id,
-                    assert_valid(receiver.process_message(&message).unwrap()),
+                    assert_valid(receiver.process_message(&message, &mut rng).unwrap()),
                 )
             })
             .collect::<HashMap<_, _>>();
@@ -852,7 +856,7 @@ mod tests {
             .map(|receiver| {
                 (
                     receiver.id,
-                    assert_valid(receiver.process_message(&message).unwrap()),
+                    assert_valid(receiver.process_message(&message, &mut rng).unwrap()),
                 )
             })
             .collect::<HashMap<_, _>>();
@@ -906,7 +910,7 @@ mod tests {
             .map(|receiver| {
                 (
                     receiver.id,
-                    assert_valid(receiver.process_message(&message).unwrap()),
+                    assert_valid(receiver.process_message(&message, &mut rng).unwrap()),
                 )
             })
             .collect::<HashMap<_, _>>();
@@ -973,7 +977,7 @@ mod tests {
             .iter()
             .map(|receiver| {
                 receiver
-                    .process_message(&message)
+                    .process_message(&message, &mut rng)
                     .map(|s| (receiver.id, s))
                     .unwrap()
             })
@@ -1119,7 +1123,7 @@ mod tests {
 
             // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
             receivers.iter().for_each(|receiver| {
-                let output = assert_valid(receiver.process_message(&message).unwrap());
+                let output = assert_valid(receiver.process_message(&message, &mut rng).unwrap());
                 outputs
                     .get_mut(&receiver.id())
                     .unwrap()
@@ -1207,7 +1211,8 @@ mod tests {
             .map(|r| {
                 (
                     r.id(),
-                    assert_valid(r.process_message(&message).unwrap()).into_dk_output(&nodes),
+                    assert_valid(r.process_message(&message, &mut rng).unwrap())
+                        .into_dk_output(&nodes),
                 )
             })
             .collect();
@@ -1241,7 +1246,7 @@ mod tests {
             for r in make_receivers(&sid, Some(commitment)) {
                 rotated.insert(
                     (r.id(), share_index),
-                    assert_valid(r.process_message(&message).unwrap()),
+                    assert_valid(r.process_message(&message, &mut rng).unwrap()),
                 );
             }
         }

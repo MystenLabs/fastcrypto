@@ -16,7 +16,7 @@ use crate::random_oracle::RandomOracle;
 pub use crate::threshold_schnorr::avid::{Echo, EchoBuilder, VerifiedEcho};
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::recovery_proof;
-use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
+use crate::threshold_schnorr::reed_solomon::Shard;
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use crate::threshold_schnorr::{avid, Certificate, VerifiedCertificate};
 use crate::threshold_schnorr::{random_oracle_from_sid, Parameters, EG, G, S};
@@ -946,21 +946,6 @@ impl Receiver {
 
     fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
-    }
-}
-
-impl Parameters {
-    /// Validate `(t, f)` against the given total weight `W`.
-    ///   * It is possible to create a Reed-Solomon `(W, t)` coder.
-    ///   * `1 ≤ t ≤ W` — recovery threshold is well-defined and reachable by the total
-    ///     weight.
-    pub fn validate(&self, total_weight: u16) -> FastCryptoResult<()> {
-        let Parameters { t, f } = *self;
-        if f == 0 || total_weight <= 2 * f || t == 0 || t > total_weight {
-            return Err(InvalidInput);
-        }
-        ErasureCoder::check_parameters(total_weight as usize, t as usize)?;
-        Ok(())
     }
 }
 

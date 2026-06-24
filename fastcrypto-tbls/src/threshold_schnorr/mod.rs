@@ -32,8 +32,10 @@
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
+use crate::threshold_schnorr::reed_solomon::ErasureCoder;
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use fastcrypto::encoding::{Encoding, Hex};
+use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
@@ -75,6 +77,23 @@ pub struct Parameters {
     pub t: u16,
     /// Byzantine bound by share-weight.
     pub f: u16,
+}
+
+impl Parameters {
+    /// Validate `(t, f)` against the given total weight `W`:
+    /// * `0 < f, t < W`
+    /// * `t ≥ f`
+    /// * `W ≥ 2f + t`
+    ///
+    /// Note that we allow `t = f` here since this may happen after weight reduction.
+    pub fn validate(&self, total_weight: u16) -> FastCryptoResult<()> {
+        let Parameters { t, f } = *self;
+        if f == 0 || total_weight <= 2 * f + t || t == 0 || t > total_weight || t < f {
+            return Err(InvalidInput);
+        }
+        ErasureCoder::check_parameters(total_weight as usize, t as usize)?;
+        Ok(())
+    }
 }
 
 /// Helper function to create a random oracle from a session ID.
@@ -220,7 +239,7 @@ mod tests {
 
             // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
             receivers.iter().for_each(|receiver| {
-                let output = assert_valid(receiver.process_message(&message).unwrap());
+                let output = assert_valid(receiver.process_message(&message, &mut rng).unwrap());
                 dkg_outputs
                     .get_mut(&receiver.id())
                     .unwrap()
@@ -323,7 +342,7 @@ mod tests {
                             .map(|o| o.into_legacy(&indices))
                             .collect(),
                         batch_size_per_weight,
-                        f as usize,
+                        Parameters { t, f },
                     )
                     .unwrap(),
                 )
@@ -445,7 +464,8 @@ mod tests {
 
                 // Each receiver processes the message. In this case, we assume all are honest and there are no complaints.
                 receivers.iter().for_each(|receiver| {
-                    let output = assert_valid(receiver.process_message(&message).unwrap());
+                    let output =
+                        assert_valid(receiver.process_message(&message, &mut rng).unwrap());
                     dkg_outputs_after_rotation.insert((receiver.id(), share_index), output);
                 });
             }
@@ -658,7 +678,7 @@ mod tests {
                         .map(|o| o.into_legacy(&indices))
                         .collect(),
                     batch_size_per_weight,
-                    f as usize,
+                    Parameters { t, f },
                 )
                 .unwrap()
             })
@@ -794,7 +814,7 @@ mod tests {
                         .map(|o| o.into_legacy(&indices))
                         .collect(),
                     batch_size_per_weight,
-                    f as usize,
+                    Parameters { t, f },
                 )
                 .unwrap()
             })
