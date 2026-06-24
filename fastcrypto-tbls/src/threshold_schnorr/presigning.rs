@@ -50,7 +50,7 @@ impl Presignatures {
     /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
     /// * or if batch_size_per_weight is zero.
     pub fn new(
-        outputs: Vec<ReceiverOutput>, // TODO: should this be independent of AVSS and instead recevie pk: Vec<G> and shares: Vec<Vec<S>>?
+        outputs: Vec<ReceiverOutput>, // TODO: should this be independent of AVSS and instead recevie pk: Vec<G> and shares: Vec<Vec<S>>? -- It will actually be a Vec<(Vec<G>, Vec<Vec<S>>)> then. I think it'll complicate the API too much for an abstraction that we don't really need since there'll be only one caller of this.
         batch_size_per_weight: u16,
         f: usize, // TODO: this should be t-1 when f + 1 != t.
     ) -> FastCryptoResult<Self> {
@@ -77,6 +77,18 @@ impl Presignatures {
         let my_weight =
             get_uniform_value(outputs.iter().map(|o| o.my_shares.weight())).ok_or(InvalidInput)?;
 
+        // Each share's batch must cover exactly the nonces dealt by that dealer.
+        // The zero-weight party holds no shares, so there is nothing to check.
+        if outputs.iter().zip(weights.iter()).any(|(o, w)| {
+            !o.my_shares.shares.is_empty()
+                && o.my_shares
+                    .try_uniform_batch_size()
+                    .ok()
+                    .is_none_or(|bs| bs != *w * batch_size_per_weight as usize)
+        }) {
+            return Err(InvalidInput);
+        }
+
         // There is one secret presigning output per shares for this party
         let secret = (0..my_weight as usize)
             .map(|i| {
@@ -88,7 +100,6 @@ impl Presignatures {
                                 .iter()
                                 .zip(weights.iter())
                                 .flat_map(|(o, w)| {
-                                    // TODO: check the length of the batch is at least j * w + w above
                                     o.my_shares.shares[i].batch[j * w..(j + 1) * w].to_vec()
                                 })
                                 .collect()
@@ -123,8 +134,9 @@ impl Presignatures {
 #[cfg(test)]
 mod tests {
     use super::Presignatures;
-    use crate::threshold_schnorr::batch_avss::{ReceiverOutput, SharesForNode};
-    use crate::threshold_schnorr::G;
+    use crate::threshold_schnorr::batch_avss::{ReceiverOutput, ShareBatch, SharesForNode};
+    use crate::threshold_schnorr::{G, S};
+    use crate::types::ShareIndex;
     use fastcrypto::groups::GroupElement;
 
     #[test]
@@ -150,5 +162,28 @@ mod tests {
         let tuples = presignatures.collect::<Vec<_>>();
         assert_eq!(tuples.len(), expected_len);
         assert!(tuples.iter().all(|(secret, _public)| secret.is_empty()));
+    }
+
+    #[test]
+    fn test_new_rejects_too_short_batch() {
+        // Each dealer deals batch_size_per_weight nonces per weight, so a weight-1 dealer's share
+        // batch must have batch_size_per_weight entries. A shorter batch must be rejected, not panic.
+        let batch_size_per_weight: u16 = 2;
+        let f = 1;
+
+        let outputs = (0..2)
+            .map(|_| ReceiverOutput {
+                my_shares: SharesForNode {
+                    shares: vec![ShareBatch {
+                        index: ShareIndex::new(1).unwrap(),
+                        batch: vec![S::generator()], // length 1 < expected 2
+                        blinding_share: S::generator(),
+                    }],
+                },
+                public_keys: vec![G::generator(); batch_size_per_weight as usize],
+            })
+            .collect::<Vec<_>>();
+
+        assert!(Presignatures::new(outputs, batch_size_per_weight, f).is_err());
     }
 }
