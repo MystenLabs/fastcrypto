@@ -35,13 +35,12 @@ use tracing::warn;
 pub struct Dealer {
     nodes: Nodes<EG>,
     sid: Vec<u8>,
-    params: Parameters, // `f` is currently unused by the (non-batch) AVSS.
+    params: Parameters,
     secret: S, // For key rotation this is set to the previous round's share; otherwise sampled in `new`.
 }
 
 #[allow(dead_code)]
 pub struct Receiver {
-    // Protocol-dependent fields first, then private fields, then state fields.
     nodes: Nodes<EG>,
     sid: Vec<u8>,
     params: Parameters,
@@ -188,7 +187,7 @@ impl Dealer {
     /// * `secret`: The secret to share. If None, a random secret is sampled from `rng`.
     /// * `nodes`: The set of nodes (parties) participating in the protocol, including their public keys and weights.
     /// * `params`: The threshold parameters.
-    /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
+    /// * `sid`: A session identifier that should be unique for each invocation of the protocol (for each dealer).
     /// * `rng`: Used to sample the secret when `secret` is None.
     ///
     /// Returns an error if `t` is zero or larger than the total weight of the nodes.
@@ -196,7 +195,7 @@ impl Dealer {
         secret: Option<S>,
         nodes: Nodes<EG>,
         params: Parameters,
-        sid: Vec<u8>, // TODO: what exactly is the req - unique per dkg or per avss? currently it is unique per avss.
+        sid: Vec<u8>,
         rng: &mut R,
     ) -> FastCryptoResult<Self> {
         params.validate(nodes.total_weight())?;

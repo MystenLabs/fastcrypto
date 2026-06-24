@@ -54,7 +54,7 @@ impl Presignatures {
     /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
     /// * or if batch_size_per_weight is zero.
     pub fn new(
-        outputs: Vec<ReceiverOutput>, // TODO: should this be independent of AVSS and instead recevie pk: Vec<G> and shares: Vec<Vec<S>>? -- It will actually be a Vec<(Vec<G>, Vec<Vec<S>>)> then. I think it'll complicate the API too much for an abstraction that we don't really need since there'll be only one caller of this.
+        outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,
         params: Parameters,
     ) -> FastCryptoResult<Self> {
