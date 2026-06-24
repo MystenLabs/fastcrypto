@@ -871,6 +871,7 @@ mod tests {
 
         // Check that this produced a valid signature
         derive_verifying_key(&vk_element, &address)
+            .unwrap()
             .verify(message, &signature)
             .unwrap();
     }
