@@ -172,7 +172,11 @@ where
         true
     }
 
-    // TODO: expose a len function so that caller can reject unnecessary long proofs?
+    /// The length of the proof, aka the number of sibling hashes on the path from the leaf to the root.
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.path.len()
+    }
 }
 
 /// A proof that some leaf is not in a Merkle tree.
@@ -365,12 +369,11 @@ where
     }
 
     /// Create the [`MerkleTree`] as a commitment to the provided data hashes.
-    pub fn build_from_leaf_hashes<I>(iter: I) -> Self
+    fn build_from_leaf_hashes<I>(iter: I) -> Self
     where
         I: IntoIterator,
         I::IntoIter: ExactSizeIterator<Item = Node>,
     {
-        // TODO: do we need this function as public? if yes, say in the doc that the caller is trusted to provide valid leaf hashes (e.g., with the right prefix)
         let iter = iter.into_iter();
 
         // Create the capacity that we know will be needed, since the vec will be
