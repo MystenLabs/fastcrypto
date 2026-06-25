@@ -283,6 +283,7 @@ impl Avid {
             })
             .collect_vec();
         self.coder.decode(matrix)
+        // TODO: should reencode and check
     }
 
     fn required_weight(&self) -> u16 {
