@@ -135,7 +135,10 @@ where
     ///
     /// Returns `None` if the provided index is too large.
     pub fn compute_root(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
-        if leaf_index >> self.path.len() != 0 {
+        if leaf_index
+            .checked_shr(self.path.len() as u32)
+            .is_none_or(|s| s != 0)
+        {
             return None;
         }
         let mut current_hash = leaf_hash::<T>(leaf);
@@ -170,6 +173,12 @@ where
             level_index /= 2;
         }
         true
+    }
+
+    /// The length of the proof, aka the number of sibling hashes on the path from the leaf to the root.
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.path.len()
     }
 }
 
@@ -363,7 +372,7 @@ where
     }
 
     /// Create the [`MerkleTree`] as a commitment to the provided data hashes.
-    pub fn build_from_leaf_hashes<I>(iter: I) -> Self
+    fn build_from_leaf_hashes<I>(iter: I) -> Self
     where
         I: IntoIterator,
         I::IntoIter: ExactSizeIterator<Item = Node>,

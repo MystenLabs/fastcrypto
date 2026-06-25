@@ -29,6 +29,14 @@ mod scalar_tests {
     }
 
     #[test]
+    fn test_empty_polynomial<S: Scalar>() {
+        // An empty coefficient vector is treated as the zero polynomial and must not panic.
+        let empty = Poly::<S>::from(vec![]);
+        assert_eq!(empty.degree_bound(), 0);
+        assert_eq!(empty.c0(), S::zero());
+    }
+
+    #[test]
     fn add<S: Scalar>() {
         let p1 = Poly::<S>::rand(3, &mut thread_rng());
         let p2 = Poly::<S>::zero();
@@ -75,7 +83,7 @@ mod scalar_tests {
         for _ in 0..10 {
             shares.shuffle(&mut thread_rng());
             let used_shares = shares.iter().take(124);
-            assert_eq!(c0, &Poly::<S>::recover_c0(124, used_shares).unwrap());
+            assert_eq!(c0, Poly::<S>::recover_c0(124, used_shares).unwrap());
         }
     }
 
@@ -95,7 +103,7 @@ mod scalar_tests {
                 .take(threshold as usize)
                 .cloned()
                 .collect_vec();
-            let interpolated = Poly::recover_at(index, &used_shares).unwrap();
+            let interpolated = Poly::recover_at(threshold, index, &used_shares).unwrap();
             assert_eq!(interpolated, poly.eval(index));
         }
     }
@@ -110,7 +118,13 @@ mod scalar_tests {
             .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
             .chain(std::iter::once(poly.eval(ShareIndex::new(1).unwrap())))
             .collect_vec(); // duplicate value 1
-        Poly::recover_at(ShareIndex::new(7).unwrap(), &shares).unwrap_err();
+        Poly::recover_at(shares.len() as u16, ShareIndex::new(7).unwrap(), &shares).unwrap_err();
+
+        // wrong number of points (number of shares != t)
+        let valid_shares = (1..=threshold)
+            .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
+            .collect_vec();
+        Poly::recover_at(threshold + 1, ShareIndex::new(7).unwrap(), &valid_shares).unwrap_err();
     }
 
     #[test]
@@ -174,6 +188,17 @@ mod scalar_tests {
         let mut lhs = &q * &b;
         lhs += &r;
         assert!(poly_eq(&lhs, &a));
+
+        // A non-zero constant divisor divides evenly with zero remainder.
+        let c = crate::polynomial::Poly::from(vec![S::rand(&mut rng)]);
+        let (q, r) = a.div_rem(&c).unwrap();
+        assert!(poly_eq(&r, &Poly::<S>::zero()));
+        let mut lhs = &q * &c;
+        lhs += &r;
+        assert!(poly_eq(&lhs, &a));
+
+        // Dividing by zero is rejected.
+        a.div_rem(&Poly::<S>::zero()).unwrap_err();
     }
 
     #[test]
@@ -269,7 +294,7 @@ mod scalar_tests {
         }
 
         // The constant term is the same
-        assert_eq!(*q.c0(), points[0]);
+        assert_eq!(q.c0(), points[0]);
 
         // Check that the evaluator and the interpolated polynomial match
         for j in degree + 2..100 {
@@ -291,11 +316,11 @@ mod scalar_tests {
         for i in 0..89 {
             let p =
                 Poly::interpolate(&range.clone().to_vec().as_slice()[i..(t as usize + i)]).unwrap();
-            assert_eq!(p.c0(), &secret);
+            assert_eq!(p.c0(), secret);
 
             let q = Poly::interpolate(&range.clone().to_vec().as_slice()[i..(t as usize + i - 1)])
                 .unwrap();
-            assert_ne!(q.c0(), &secret);
+            assert_ne!(q.c0(), secret);
         }
     }
 
@@ -377,7 +402,7 @@ mod points_tests {
         for _ in 0..10 {
             shares.shuffle(&mut thread_rng());
             let used_shares = shares.iter().take(124);
-            assert_eq!(c0, &Poly::<G>::recover_c0_msm(124, used_shares).unwrap());
+            assert_eq!(c0, Poly::<G>::recover_c0_msm(124, used_shares).unwrap());
         }
     }
 

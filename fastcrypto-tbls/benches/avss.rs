@@ -6,6 +6,7 @@ use fastcrypto::groups::ristretto255;
 use fastcrypto_tbls::ecies_v1;
 use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
 use fastcrypto_tbls::threshold_schnorr::avss;
+use fastcrypto_tbls::threshold_schnorr::Parameters;
 use itertools::iproduct;
 use rand::thread_rng;
 
@@ -26,6 +27,7 @@ fn generate_ecies_keys(
 pub fn setup_receiver(
     id: PartyId,
     threshold: u16,
+    f: u16,
     weight: u16, // Per node
     keys: &[(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)],
 ) -> avss::Receiver {
@@ -40,15 +42,17 @@ pub fn setup_receiver(
     avss::Receiver::new(
         Nodes::new(nodes).unwrap(),
         id,
-        threshold,
+        Parameters { t: threshold, f },
         b"avss".to_vec(),
         None,
         keys.get(id as usize).unwrap().1.clone(),
     )
+    .unwrap()
 }
 
 pub fn setup_dealer(
     threshold: u16,
+    f: u16,
     weight: u16, // Per node
     keys: &[(PartyId, ecies_v1::PrivateKey<EG>, ecies_v1::PublicKey<EG>)],
 ) -> avss::Dealer {
@@ -63,8 +67,9 @@ pub fn setup_dealer(
     avss::Dealer::new(
         None,
         Nodes::new(nodes).unwrap(),
-        threshold,
+        Parameters { t: threshold, f },
         b"avss".to_vec(),
+        &mut thread_rng(),
     )
     .unwrap()
 }
@@ -72,7 +77,7 @@ pub fn setup_dealer(
 mod avss_benches {
     use super::*;
     use fastcrypto_tbls::threshold_schnorr::avss::ProcessedMessage::Valid;
-    use fastcrypto_tbls::threshold_schnorr::avss::{PartialOutput, ReceiverOutput};
+    use fastcrypto_tbls::threshold_schnorr::avss::{AvssOutput, DkOutput};
     use fastcrypto_tbls::types::{IndexedValue, ShareIndex};
     use itertools::Itertools;
     use std::collections::HashMap;
@@ -87,8 +92,9 @@ mod avss_benches {
                 let w = total_w / n;
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
+                let f = t.saturating_sub(1).max(1);
                 let keys = generate_ecies_keys(*n);
-                let d0 = setup_dealer(t, w, &keys);
+                let d0 = setup_dealer(t, f, w, &keys);
                 create.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| b.iter(|| d0.create_message(&mut thread_rng())),
@@ -102,14 +108,15 @@ mod avss_benches {
                 let w = total_w / n;
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
+                let f = t.saturating_sub(1).max(1);
                 let keys = generate_ecies_keys(*n);
-                let d0 = setup_dealer(t, w, &keys);
-                let r1 = setup_receiver(1, t, w, &keys);
+                let d0 = setup_dealer(t, f, w, &keys);
+                let r1 = setup_receiver(1, t, f, w, &keys);
                 let message = d0.create_message(&mut thread_rng());
 
                 verify.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| b.iter(|| r1.process_message(&message).unwrap()),
+                    |b| b.iter(|| r1.process_message(&message, &mut thread_rng()).unwrap()),
                 );
             }
         }
@@ -120,6 +127,7 @@ mod avss_benches {
                 let w = total_w / n;
                 let total_w = w * n;
                 let t = total_w / 3 - 1;
+                let f = t.saturating_sub(1).max(1);
                 let keys = generate_ecies_keys(*n);
                 let nodes = Nodes::new(
                     keys.iter()
@@ -131,18 +139,18 @@ mod avss_benches {
                         .collect(),
                 )
                 .unwrap();
-                let dealers = (0..*n).map(|_| setup_dealer(t, w, &keys)).collect_vec();
-                let r1 = setup_receiver(1, t, w, &keys);
+                let dealers = (0..*n).map(|_| setup_dealer(t, f, w, &keys)).collect_vec();
+                let r1 = setup_receiver(1, t, f, w, &keys);
                 let messages: HashMap<PartyId, avss::Message> = dealers
                     .iter()
                     .enumerate()
                     .map(|(i, d)| (PartyId::from(i as u16), d.create_message(&mut thread_rng())))
                     .collect();
 
-                let outputs: HashMap<PartyId, PartialOutput> = messages
+                let outputs: HashMap<PartyId, AvssOutput> = messages
                     .iter()
                     .map(|(i, m)| {
-                        let output = r1.process_message(m).unwrap();
+                        let output = r1.process_message(m, &mut thread_rng()).unwrap();
                         if let Valid(o) = output {
                             return (*i, o);
                         }
@@ -152,25 +160,23 @@ mod avss_benches {
 
                 verify.bench_function(
                     format!("DKG n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| {
-                        b.iter(|| ReceiverOutput::complete_dkg(t, &nodes, outputs.clone()).unwrap())
-                    },
+                    |b| b.iter(|| DkOutput::complete_dkg(t, &nodes, outputs.clone()).unwrap()),
                 );
 
                 let dealers = (0..total_w)
-                    .map(|_| setup_dealer(t, w, &keys))
+                    .map(|_| setup_dealer(t, f, w, &keys))
                     .collect_vec();
-                let r1 = setup_receiver(1, t, w, &keys);
+                let r1 = setup_receiver(1, t, f, w, &keys);
                 let messages: HashMap<PartyId, avss::Message> = dealers
                     .iter()
                     .enumerate()
                     .map(|(i, d)| (PartyId::from(i as u16), d.create_message(&mut thread_rng())))
                     .collect();
 
-                let outputs: HashMap<PartyId, PartialOutput> = messages
+                let outputs: HashMap<PartyId, AvssOutput> = messages
                     .iter()
                     .map(|(i, m)| {
-                        let output = r1.process_message(m).unwrap();
+                        let output = r1.process_message(m, &mut thread_rng()).unwrap();
                         if let Valid(o) = output {
                             return (*i, o);
                         }
@@ -178,14 +184,11 @@ mod avss_benches {
                     })
                     .collect();
 
-                let outputs: Vec<IndexedValue<PartialOutput>> = outputs
+                let outputs: Vec<IndexedValue<AvssOutput>> = outputs
                     .iter()
-                    .map(|(i, o)| {
-                        IndexedValue {
-                            index: ShareIndex::new(*i + 1).unwrap(),
-                            value: o.clone(),
-                        }
-                        .clone()
+                    .map(|(i, o)| IndexedValue {
+                        index: ShareIndex::new(*i + 1).unwrap(),
+                        value: o.clone(),
                     })
                     .take(t as usize)
                     .collect_vec();
@@ -196,11 +199,7 @@ mod avss_benches {
                         n, total_w, t, w
                     )
                     .as_str(),
-                    |b| {
-                        b.iter(|| {
-                            ReceiverOutput::complete_key_rotation(t, 1, &nodes, &outputs).unwrap()
-                        })
-                    },
+                    |b| b.iter(|| DkOutput::complete_key_rotation(t, 1, &nodes, &outputs).unwrap()),
                 );
             }
         }

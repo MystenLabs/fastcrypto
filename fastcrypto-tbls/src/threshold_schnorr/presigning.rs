@@ -3,7 +3,7 @@
 
 use crate::threshold_schnorr::batch_avss::ReceiverOutput;
 use crate::threshold_schnorr::pascal_matrix::LazyPascalMatrixMultiplier;
-use crate::threshold_schnorr::{G, S};
+use crate::threshold_schnorr::{Parameters, G, S};
 use crate::types::get_uniform_value;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
@@ -43,16 +43,20 @@ impl Presignatures {
     ///
     /// All parties must use the same outputs in the same order, and the output from a dealer with weight `w` should be equal to `batch_size_per_weight * w`.
     ///
-    /// More parties contributing outputs gives more presignatures, so include as many as possible but at least f+1.
+    /// More parties contributing outputs gives more presignatures, so include as many as possible but at least `params.t` (by weight).
+    ///
+    /// `params.t` is the reconstruction threshold and `params.f` is the Byzantine bound used to size
+    /// the Pascal matrix, which produces `total_weight - params.f` presignatures per nonce position.
+    /// Requires `params.t > params.f`.
     ///
     /// An InvalidInput error will be returned if:
-    /// * The total weight of the dealers for the outputs is not at least f+1,
+    /// * The total weight of the dealers for the outputs is not at least `params.t`,
     /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
     /// * or if batch_size_per_weight is zero.
     pub fn new(
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,
-        f: usize,
+        params: Parameters,
     ) -> FastCryptoResult<Self> {
         if batch_size_per_weight == 0 {
             return Err(InvalidInput);
@@ -69,7 +73,7 @@ impl Presignatures {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
         let total_weight_of_outputs: usize = weights.iter().sum();
-        if total_weight_of_outputs < f + 1 {
+        if total_weight_of_outputs < params.t as usize {
             return Err(InvalidInput);
         }
 
@@ -77,11 +81,23 @@ impl Presignatures {
         let my_weight =
             get_uniform_value(outputs.iter().map(|o| o.my_shares.weight())).ok_or(InvalidInput)?;
 
+        // Each share's batch must cover exactly the nonces dealt by that dealer.
+        // The zero-weight party holds no shares, so there is nothing to check.
+        if outputs.iter().zip(weights.iter()).any(|(o, w)| {
+            !o.my_shares.shares.is_empty()
+                && o.my_shares
+                    .try_uniform_batch_size()
+                    .ok()
+                    .is_none_or(|bs| bs != *w * batch_size_per_weight as usize)
+        }) {
+            return Err(InvalidInput);
+        }
+
         // There is one secret presigning output per shares for this party
         let secret = (0..my_weight as usize)
             .map(|i| {
                 LazyPascalMatrixMultiplier::new(
-                    total_weight_of_outputs - f,
+                    total_weight_of_outputs - params.f as usize,
                     (0..batch_size_per_weight as usize)
                         .map(|j| {
                             outputs
@@ -98,7 +114,7 @@ impl Presignatures {
             .collect_vec();
 
         let public = LazyPascalMatrixMultiplier::new(
-            total_weight_of_outputs - f,
+            total_weight_of_outputs - params.f as usize,
             (0..batch_size_per_weight as usize)
                 .map(|j| {
                     outputs
@@ -111,7 +127,8 @@ impl Presignatures {
         );
 
         // Sanity check that the multiplier sizes match the expected nonce count.
-        let expected_len = (total_weight_of_outputs - f) * batch_size_per_weight as usize;
+        let expected_len =
+            (total_weight_of_outputs - params.f as usize) * batch_size_per_weight as usize;
         assert!(secret.iter().all(|s| s.len() == expected_len));
         assert_eq!(public.len(), expected_len);
 
@@ -122,15 +139,16 @@ impl Presignatures {
 #[cfg(test)]
 mod tests {
     use super::Presignatures;
-    use crate::threshold_schnorr::batch_avss::{ReceiverOutput, SharesForNode};
-    use crate::threshold_schnorr::G;
+    use crate::threshold_schnorr::batch_avss::{ReceiverOutput, ShareBatch, SharesForNode};
+    use crate::threshold_schnorr::{Parameters, G, S};
+    use crate::types::ShareIndex;
     use fastcrypto::groups::GroupElement;
 
     #[test]
     fn test_new_with_zero_weight_party() {
         // A zero-weight party gets ReceiverOutputs with empty shares; this must not panic.
         let batch_size_per_weight: u16 = 2;
-        let f = 1;
+        let params = Parameters { t: 2, f: 1 }; // total weight is 2; requires t > f
 
         // Two weight-1 dealers: each output has batch_size_per_weight public keys, no shares.
         let outputs = (0..2)
@@ -140,14 +158,38 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let presignatures = Presignatures::new(outputs, batch_size_per_weight, f).unwrap();
+        let presignatures = Presignatures::new(outputs, batch_size_per_weight, params).unwrap();
 
         let total_weight_of_outputs = 2;
-        let expected_len = (total_weight_of_outputs - f) * batch_size_per_weight as usize;
+        let expected_len =
+            (total_weight_of_outputs - params.f as usize) * batch_size_per_weight as usize;
         assert_eq!(presignatures.len(), expected_len);
 
         let tuples = presignatures.collect::<Vec<_>>();
         assert_eq!(tuples.len(), expected_len);
         assert!(tuples.iter().all(|(secret, _public)| secret.is_empty()));
+    }
+
+    #[test]
+    fn test_new_rejects_too_short_batch() {
+        // Each dealer deals batch_size_per_weight nonces per weight, so a weight-1 dealer's share
+        // batch must have batch_size_per_weight entries. A shorter batch must be rejected, not panic.
+        let batch_size_per_weight: u16 = 2;
+        let params = Parameters { t: 2, f: 1 }; // total weight is 2; requires t > f
+
+        let outputs = (0..2)
+            .map(|_| ReceiverOutput {
+                my_shares: SharesForNode {
+                    shares: vec![ShareBatch {
+                        index: ShareIndex::new(1).unwrap(),
+                        batch: vec![S::generator()], // length 1 < expected 2
+                        blinding_share: S::generator(),
+                    }],
+                },
+                public_keys: vec![G::generator(); batch_size_per_weight as usize],
+            })
+            .collect::<Vec<_>>();
+
+        assert!(Presignatures::new(outputs, batch_size_per_weight, params).is_err());
     }
 }

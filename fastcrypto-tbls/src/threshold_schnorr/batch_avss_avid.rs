@@ -19,7 +19,7 @@ use crate::threshold_schnorr::recovery_proof;
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use crate::threshold_schnorr::{avid, Certificate, VerifiedCertificate};
-use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
+use crate::threshold_schnorr::{random_oracle_from_sid, Parameters, EG, G, S};
 use crate::types::{get_uniform_value, ShareIndex};
 use fastcrypto::error::FastCryptoError::{
     InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
@@ -38,15 +38,6 @@ use tap::TapFallible;
 use tracing::warn;
 
 pub type Digest = fastcrypto::hash::Digest<{ Blake2b256::OUTPUT_SIZE }>;
-
-/// Threshold parameters for the AVSS protocol.
-#[derive(Copy, Clone, Debug)]
-pub struct Parameters {
-    /// Reconstruction threshold: `≥ t` valid shares (by weight) reconstruct a secret.
-    pub t: u16,
-    /// Byzantine bound by share-weight.
-    pub f: u16,
-}
 
 /// The Dealer for the protocol. Exactly one per instance.
 #[allow(dead_code)]
@@ -251,7 +242,9 @@ impl Dealer {
         sid: Vec<u8>,
         batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
-        params.validate(nodes.total_weight())?;
+        let total_weight = nodes.total_weight();
+        params.validate(total_weight)?;
+        params.check_erasure_code_params(total_weight)?;
         let nodes = Arc::new(nodes);
         let avid = avid::Avid::new(Arc::clone(&nodes), params.f)?;
         // Each dealer deals a number of nonces proportional to their weight.
@@ -477,7 +470,9 @@ impl Receiver {
         // The dealer is expected to deal a number of nonces proportional to it's weight
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
 
-        params.validate(nodes.total_weight())?;
+        let total_weight = nodes.total_weight();
+        params.validate(total_weight)?;
+        params.check_erasure_code_params(total_weight)?;
         let nodes = Arc::new(nodes);
         let avid = avid::Avid::new(nodes.clone(), params.f)?;
 
@@ -958,21 +953,6 @@ impl Receiver {
     }
 }
 
-impl Parameters {
-    /// Validate `(t, f)` against the given total weight `W`.
-    ///   * It is possible to create a Reed-Solomon `(W, t)` coder.
-    ///   * `1 ≤ t ≤ W` — recovery threshold is well-defined and reachable by the total
-    ///     weight.
-    pub fn validate(&self, total_weight: u16) -> FastCryptoResult<()> {
-        let Parameters { t, f } = *self;
-        if f == 0 || total_weight <= 2 * f || t == 0 || t > total_weight {
-            return Err(InvalidInput);
-        }
-        ErasureCoder::check_parameters(total_weight as usize, t as usize)?;
-        Ok(())
-    }
-}
-
 impl AvssCommonMessage {
     /// Verify the dealer's commitments: lengths/degree are well-formed, the encryption NIZK in
     /// `ciphertext_shared` checks, and `g^{p''(0)} = c' · ∏ c_l^{γ_l}`. Consumes `self` and
@@ -1154,12 +1134,14 @@ impl SharesForNode {
                         let evaluations = responders
                             .iter()
                             .flat_map(|(ids, s)| s.shares_for_secret(ids, i))
+                            .take(receiver.params.t as usize)
                             .collect_vec();
-                        Ok(Poly::recover_at(index, &evaluations)?.value)
+                        Ok(Poly::recover_at(receiver.params.t, index, &evaluations)?.value)
                     })
                     .collect::<FastCryptoResult<Vec<_>>>()?;
 
                 let blinding_share = Poly::recover_at(
+                    receiver.params.t,
                     index,
                     &responders
                         .iter()
@@ -1168,6 +1150,7 @@ impl SharesForNode {
                             index,
                             value: share.blinding_share,
                         })
+                        .take(receiver.params.t as usize)
                         .collect_vec(),
                 )?
                 .value;
@@ -1179,6 +1162,12 @@ impl SharesForNode {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
         Ok(Self { shares })
+    }
+}
+
+impl Parameters {
+    fn check_erasure_code_params(&self, total_weight: u16) -> FastCryptoResult<()> {
+        ErasureCoder::check_parameters(total_weight as usize, self.t as usize)
     }
 }
 

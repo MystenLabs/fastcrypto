@@ -132,7 +132,7 @@ where
             return Err(FastCryptoError::InvalidMessage);
         }
 
-        if *self.vss_pk.c0() == G::zero() {
+        if self.vss_pk.c0() == G::zero() {
             warn!(
                 "DKG: Message sanity check failed for id {}, zero c0",
                 self.sender,
@@ -486,7 +486,7 @@ where
         G::ScalarType: FiatShamirChallenge,
     {
         if let Some(partial_pk) = partial_pk {
-            if message.vss_pk.c0() != partial_pk {
+            if message.vss_pk.c0() != *partial_pk {
                 warn!(
                     "DKG: Processing message from party {} failed, invalid vss pk c0 {:?}, expected {:?}",
                     message.sender,
@@ -499,7 +499,7 @@ where
         if let Some(secret_nizk) = secret_nizk {
             secret_nizk
                 .verify(
-                    message.vss_pk.c0(),
+                    &message.vss_pk.c0(),
                     &self.nizk_pop_of_secret_random_oracle(message.sender),
                 )
                 .tap_err(|_| {
@@ -971,7 +971,7 @@ where
     {
         let vss_pk = self.vss_sk.commit::<G>();
         let ro = self.nizk_pop_of_secret_random_oracle(self.id);
-        DLNizk::create(self.vss_sk.c0(), vss_pk.c0(), &ro, rng)
+        DLNizk::create(&self.vss_sk.c0(), &vss_pk.c0(), &ro, rng)
     }
 }
 
