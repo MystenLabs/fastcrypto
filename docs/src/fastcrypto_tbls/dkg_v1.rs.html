@@ -132,7 +132,7 @@
 <a href=#132 id=132 data-nosnippet>132</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidMessage);
 <a href=#133 id=133 data-nosnippet>133</a>        }
 <a href=#134 id=134 data-nosnippet>134</a>
-<a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">if </span><span class="kw-2">*</span><span class="self">self</span>.vss_pk.c0() == G::zero() {
+<a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">if </span><span class="self">self</span>.vss_pk.c0() == G::zero() {
 <a href=#136 id=136 data-nosnippet>136</a>            <span class="macro">warn!</span>(
 <a href=#137 id=137 data-nosnippet>137</a>                <span class="string">"DKG: Message sanity check failed for id {}, zero c0"</span>,
 <a href=#138 id=138 data-nosnippet>138</a>                <span class="self">self</span>.sender,
@@ -486,7 +486,7 @@
 <a href=#486 id=486 data-nosnippet>486</a>        </span>G::ScalarType: FiatShamirChallenge,
 <a href=#487 id=487 data-nosnippet>487</a>    {
 <a href=#488 id=488 data-nosnippet>488</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(partial_pk) = partial_pk {
-<a href=#489 id=489 data-nosnippet>489</a>            <span class="kw">if </span>message.vss_pk.c0() != partial_pk {
+<a href=#489 id=489 data-nosnippet>489</a>            <span class="kw">if </span>message.vss_pk.c0() != <span class="kw-2">*</span>partial_pk {
 <a href=#490 id=490 data-nosnippet>490</a>                <span class="macro">warn!</span>(
 <a href=#491 id=491 data-nosnippet>491</a>                    <span class="string">"DKG: Processing message from party {} failed, invalid vss pk c0 {:?}, expected {:?}"</span>,
 <a href=#492 id=492 data-nosnippet>492</a>                    message.sender,
@@ -499,7 +499,7 @@
 <a href=#499 id=499 data-nosnippet>499</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(secret_nizk) = secret_nizk {
 <a href=#500 id=500 data-nosnippet>500</a>            secret_nizk
 <a href=#501 id=501 data-nosnippet>501</a>                .verify(
-<a href=#502 id=502 data-nosnippet>502</a>                    message.vss_pk.c0(),
+<a href=#502 id=502 data-nosnippet>502</a>                    <span class="kw-2">&amp;</span>message.vss_pk.c0(),
 <a href=#503 id=503 data-nosnippet>503</a>                    <span class="kw-2">&amp;</span><span class="self">self</span>.nizk_pop_of_secret_random_oracle(message.sender),
 <a href=#504 id=504 data-nosnippet>504</a>                )
 <a href=#505 id=505 data-nosnippet>505</a>                .tap_err(|<span class="kw">_</span>| {
@@ -971,7 +971,7 @@
 <a href=#971 id=971 data-nosnippet>971</a>    {
 <a href=#972 id=972 data-nosnippet>972</a>        <span class="kw">let </span>vss_pk = <span class="self">self</span>.vss_sk.commit::&lt;G&gt;();
 <a href=#973 id=973 data-nosnippet>973</a>        <span class="kw">let </span>ro = <span class="self">self</span>.nizk_pop_of_secret_random_oracle(<span class="self">self</span>.id);
-<a href=#974 id=974 data-nosnippet>974</a>        DLNizk::create(<span class="self">self</span>.vss_sk.c0(), vss_pk.c0(), <span class="kw-2">&amp;</span>ro, rng)
+<a href=#974 id=974 data-nosnippet>974</a>        DLNizk::create(<span class="kw-2">&amp;</span><span class="self">self</span>.vss_sk.c0(), <span class="kw-2">&amp;</span>vss_pk.c0(), <span class="kw-2">&amp;</span>ro, rng)
 <a href=#975 id=975 data-nosnippet>975</a>    }
 <a href=#976 id=976 data-nosnippet>976</a>}
 <a href=#977 id=977 data-nosnippet>977</a>

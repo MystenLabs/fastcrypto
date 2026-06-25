@@ -50,8 +50,8 @@
 <a href=#50 id=50 data-nosnippet>50</a>
 <a href=#51 id=51 data-nosnippet>51</a>    <span class="comment">// If a derivation index is provided, derive a new verifying key (and implicitly also signing key) for this index.
 <a href=#52 id=52 data-nosnippet>52</a>    </span><span class="kw">let </span>verifying_key = <span class="kw">if let </span><span class="prelude-val">Some</span>(address) = derivation_address {
-<a href=#53 id=53 data-nosnippet>53</a>        derive_verifying_key_internal(verifying_key, address)
-<a href=#54 id=54 data-nosnippet>54</a>    } <span class="kw">else </span>{
+<a href=#53 id=53 data-nosnippet>53</a>        derive_verifying_key_internal(verifying_key, address)<span class="question-mark">?
+<a href=#54 id=54 data-nosnippet>54</a>    </span>} <span class="kw">else </span>{
 <a href=#55 id=55 data-nosnippet>55</a>        <span class="kw-2">*</span>verifying_key
 <a href=#56 id=56 data-nosnippet>56</a>    };
 <a href=#57 id=57 data-nosnippet>57</a>
@@ -168,8 +168,8 @@
 <a href=#168 id=168 data-nosnippet>168</a>
 <a href=#169 id=169 data-nosnippet>169</a>    <span class="comment">// If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
 <a href=#170 id=170 data-nosnippet>170</a>    </span><span class="kw">let </span>verifying_key = <span class="kw">if let </span><span class="prelude-val">Some</span>(address) = derivation_address {
-<a href=#171 id=171 data-nosnippet>171</a>        <span class="kw">let </span>tweak = compute_tweak(verifying_key, address);
-<a href=#172 id=172 data-nosnippet>172</a>        <span class="kw">let </span>derived_vk = derive_verifying_key_internal(verifying_key, address);
+<a href=#171 id=171 data-nosnippet>171</a>        <span class="kw">let </span>tweak = compute_tweak(verifying_key, address)<span class="question-mark">?</span>;
+<a href=#172 id=172 data-nosnippet>172</a>        <span class="kw">let </span>derived_vk = derive_verifying_key_internal(verifying_key, address)<span class="question-mark">?</span>;
 <a href=#173 id=173 data-nosnippet>173</a>        <span class="kw">if </span>derived_vk.has_even_y()<span class="question-mark">? </span>{
 <a href=#174 id=174 data-nosnippet>174</a>            s += tweak * bip0340_hash(<span class="kw-2">&amp;</span>r_g, <span class="kw-2">&amp;</span>derived_vk, message)<span class="question-mark">?</span>;
 <a href=#175 id=175 data-nosnippet>175</a>        } <span class="kw">else </span>{
