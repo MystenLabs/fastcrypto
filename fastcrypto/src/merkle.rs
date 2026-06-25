@@ -135,7 +135,10 @@ where
     ///
     /// Returns `None` if the provided index is too large.
     pub fn compute_root(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
-        if leaf_index.checked_shr(self.path.len() as u32).is_none_or(|s| s != 0) {
+        if leaf_index
+            .checked_shr(self.path.len() as u32)
+            .is_none_or(|s| s != 0)
+        {
             return None;
         }
         let mut current_hash = leaf_hash::<T>(leaf);
