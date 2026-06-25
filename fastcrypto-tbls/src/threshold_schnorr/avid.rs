@@ -29,8 +29,7 @@ pub struct Avid {
     f: u16,
 }
 
-/// Dealer-side cache built by [Avid::disperse_with_mutation] which can create individual [Dispersal]s
-/// on demand via [Self::dispersal_for].
+/// Dealer-side cache that can create individual [Dispersal] messages on demand.
 pub struct DispersalBuilder {
     nodes: Arc<Nodes<EG>>,
     tree: NestedMerkleTree,
@@ -244,12 +243,12 @@ impl Avid {
         &self,
         complaint: &Complaint,
         accuser_id: PartyId,
-        top_root: &merkle::Node,
+        top_root: &merkle::Node, // TODO: Vote to be consistent with function above?
         pending_recipients: &BTreeSet<PartyId>,
         payload_ok: impl Fn(&[u8]) -> bool,
     ) -> FastCryptoResult<bool> {
         let Some(accuser_idx) = pending_recipients.iter().position(|&id| id == accuser_id) else {
-            return Ok(false);
+            return Ok(false); // TODO: we usually return Err for invalid input
         };
         let shards_verify = complaint.shards.iter().all(|(&disperser, auth)| {
             auth.proof
