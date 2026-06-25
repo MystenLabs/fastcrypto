@@ -529,7 +529,7 @@ impl Receiver {
             warn!("batch_avss process_avss_message: provided verified common message does not match the message's common message");
             return Err(InvalidInput);
         }
-        let verified_common = self.verify_common_message(message.common.clone())?;
+        let verified_common = self.verify_common_message(message.common.clone())?; // TODO: not needed if verified_avss_common_message is Some 
         self.check_ciphertext_hash(&message.ciphertext, &verified_common)?;
         let output = self.decrypt_and_verify_shares(&message.ciphertext, &verified_common)?;
         Ok((
@@ -712,7 +712,7 @@ impl Receiver {
                         &verified_common.0.ciphertext_shared,
                         &self.enc_secret_key,
                         &self.random_oracle(),
-                        &mut rand::thread_rng(),
+                        &mut rand::thread_rng(), // TODO: should be an arg
                     ),
                     ciphertext: ciphertext.clone(),
                 }))
@@ -861,7 +861,7 @@ impl Receiver {
         let recovery_package = common_message.ciphertext_shared.create_recovery_package(
             &self.enc_secret_key,
             &self.random_oracle().extend(&Recovery(self.id).to_string()),
-            &mut rand::thread_rng(),
+            &mut rand::thread_rng(), // TODO: should be an arg
         );
         ComplaintResponse {
             ciphertext,
