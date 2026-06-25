@@ -42,8 +42,9 @@ pub type Digest = fastcrypto::hash::Digest<{ Blake2b256::OUTPUT_SIZE }>;
 /// The Dealer for the protocol. Exactly one per instance.
 #[allow(dead_code)]
 pub struct Dealer {
+    // TODO: fix order
     params: Parameters,
-    nodes: Arc<Nodes<EG>>,
+    nodes: Arc<Nodes<EG>>, 
     sid: Vec<u8>,
     batch_size: usize,
     avid: avid::Avid,
@@ -52,6 +53,7 @@ pub struct Dealer {
 /// One of the receivers for the protocol. One per node in `nodes`.
 #[allow(dead_code)]
 pub struct Receiver {
+    // TODOL fix order
     pub id: PartyId,
     enc_secret_key: PrivateKey<EG>,
     nodes: Arc<Nodes<EG>>,
@@ -68,13 +70,15 @@ pub struct AvssMessage {
     pub ciphertext: Ciphertext,
 }
 
+// TODO: max size of AvssMessage like we have for avss messages?
+
 /// The shared part of the dealer's optimistic phase broadcast.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AvssCommonMessage {
+pub struct AvssCommonMessage {    
     full_public_keys: Vec<G>,
     blinding_commit: G,
     ciphertext_shared: SharedComponents<EG>,
-    response_polynomial: Poly<S>,
+    response_polynomial: Poly<S>, // TODO: should be last, as it is created last
     ciphertext_hashes: Vec<Digest>,
 }
 
@@ -114,6 +118,8 @@ pub struct AvidMessage<C: Certificate<Payload = AvssVote>> {
     pub avss_cert: C,
 }
 
+// TODO: max size of AvidMessage?
+
 /// An endorsement of the dealer's pessimistic dispersal: the AVID-layer [avid::Vote]
 /// (`top_root` + `pending_recipients`) bundled with the `common_message_hash` of the AVSS
 /// instance it ratifies.
@@ -143,6 +149,7 @@ pub enum DecryptionOutcome {
 /// A complaint by a receiver who could not decrypt or verify its shares.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AvssComplaint {
+    // TODO: change order
     pub proof: recovery_proof::RecoveryProof,
     pub ciphertext: Ciphertext,
 }
@@ -262,6 +269,9 @@ impl Dealer {
     ///    receiver's ciphertext with the [AvssCommonMessage] as an [AvssMessage] per receiver.
     ///    Returns also a [DealerState] that can be used to produce the pessimistic-phase messages
     ///    later, after the dealer has collected an AVSS certificate.
+    /// 
+    // TODO: we require the caller to send all avss messages until it has the avid cert.
+    // TODO: the caller should persist DealerState, BTreeMap<PartyId, AvssMessage> before sending them, to guarantee it can send the same message after crash.
     pub fn create_avss_messages(
         &self,
         rng: &mut impl AllowedRng,
@@ -356,7 +366,7 @@ impl Dealer {
 
         // "response" polynomial from https://eprint.iacr.org/2023/536.pdf
         let challenge = compute_challenge(
-            &random_oracle,
+            &random_oracle, // TODO: we usualy extend RO at the call site
             &full_public_keys,
             &blinding_commit,
             &ciphertext_shared,
@@ -397,12 +407,16 @@ impl Dealer {
     ///
     ///    All receivers that sent an [AvssVote] in the optimistic phase — including late voters
     ///    not in `avss_cert` — should get an [AvidMessage] from the dealer.
+    // TODO: only until the avid cert is collected
+    /// 
     ///
     ///    Once `≥ W − f` weight of [AvidVote]s has been collected, the dealer can form and
     ///    publish a certificate over those votes on the TOB.
     ///
     ///    This phase is only needed if any receiver failed to confirm in the optimistic phase.
     ///    If every receiver confirmed, the pessimistic phase can be skipped entirely.
+    /// 
+    // TODO: say that the caller should collect t+f avss votes, then wait for \delta time to collect more (e.g., 3 seconds), and then form the avss cert.
     pub fn create_avid_messages<C: Certificate<Payload = AvssVote>>(
         &self,
         state: &DealerState,
@@ -415,6 +429,7 @@ impl Dealer {
         &self,
         state: &DealerState,
         avss_cert: C,
+        // TODO: can we replace those callbacks with test only functions that mutate the relevant types?
         mutate_shards: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
     ) -> FastCryptoResult<AvidMessageBuilder<C>> {
         let pending_recipients: BTreeSet<PartyId> = self
@@ -463,8 +478,7 @@ impl Receiver {
         sid: Vec<u8>,
         enc_secret_key: PrivateKey<EG>,
         batch_size_per_weight: u16,
-    ) -> FastCryptoResult<Self> {
-        // Check that the id is valid
+    ) -> FastCryptoResult<Self> {        
         let _ = nodes.node_id_to_node(id)?;
 
         // The dealer is expected to deal a number of nonces proportional to it's weight
@@ -491,6 +505,7 @@ impl Receiver {
     ///
     ///    The receiver should provide a `verified_avss_common_message` if it has already received
     ///    and verified the [AvssCommonMessage] from a prior delivery of this AVSS round.
+    // TODO: when that can happen? if i already voted on a different common message? 
     ///
     ///    On success, returns
     ///     * a [ReceiverOutput],
@@ -502,6 +517,7 @@ impl Receiver {
     ///
     ///    A voter should also retain its own ciphertext (`message.ciphertext`) so it can answer
     ///    complaints later via [Self::handle_avss_complaint] / [Self::handle_avid_complaint].
+    // TODO: caller should persist the outputs before it votes
     pub fn process_avss_message(
         &self,
         message: &AvssMessage,
@@ -527,6 +543,7 @@ impl Receiver {
 
     /// Verify a [AvssCommonMessage] (see [AvssCommonMessage::verify]) and return the resulting
     /// [VerifiedAvssCommonMessage].
+    // TODO: when should this be called? maybe refer to the doc of the next function?
     pub fn verify_common_message(
         &self,
         common_message: AvssCommonMessage,
@@ -552,11 +569,14 @@ impl Receiver {
     ///    Receivers who did not receive their shares through an [AvssMessage] should wait for a
     ///    published [Certificate] over [AvidVote]s that confirms they are a pending recipient and
     ///    then get the [AvssCommonMessage] and [Echo]es from the signers.
+    // TODO: isn't there only one flow this function should be called? after the caller already received avss message
+    // if so why verified_avss_common_message is optional?
+    // TODO: caller should persist the outputs before it votes
     pub fn process_avid_message<C: Certificate<Payload = AvssVote>>(
         &self,
         verified_avss_common_message: Option<&VerifiedAvssCommonMessage>,
         message: AvidMessage<C>,
-    ) -> FastCryptoResult<Option<(EchoBuilder, AvidVote)>> {
+    ) -> FastCryptoResult<Option<(EchoBuilder, AvidVote)>> { // TODO: why optional?
         let AvidMessage {
             dispersal,
             avss_cert,
@@ -567,11 +587,11 @@ impl Receiver {
                 warn!(
                     "batch_avss process_avid_message: AVSS Cert binds a different common message"
                 );
-                return Ok(None);
+                return Ok(None); // TODO: why not error?
             }
         } else {
             warn!("batch_avss process_avid_message: no verified common message available");
-            return Ok(None);
+            return Ok(None); // TODO: why not error?
         }
 
         let required_weight_of_voters = self.params.t + self.params.f;
@@ -622,8 +642,9 @@ impl Receiver {
     ///
     ///    An [AvidComplaint] is a dispersal-layer fault. Hold it until the matching cert on
     ///    [AvidVote]s is certified on the TOB, or discard it if a different one wins.
+    // TODO: is there a flow in which i would get echos before a cert was published?
     ///
-    ///    The caller should retain its decoded ciphertext for the session to answer complaints.
+    ///    The caller should persist its decoded ciphertext for the session to answer complaints.
     pub fn decode_ciphertext<C: Certificate<Payload = AvidVote>>(
         &self,
         echoes: &[VerifiedEcho],
@@ -665,6 +686,8 @@ impl Receiver {
     ///    The [AvssComplaint] is an encryption-layer fault carrying the accuser's ciphertext
     ///    and an ECIES recovery package. Broadcast it only after seeing a TOB certificate for
     ///    the corresponding `common_message_hash`.
+    /// 
+    // TODO: is there a flow in which this function is called not after decode_ciphertext? if not, why not combine them?
     pub fn decrypt_and_verify<C: Certificate<Payload = AvidVote>>(
         &self,
         ciphertext: &Ciphertext,
@@ -786,7 +809,7 @@ impl Receiver {
             &accuser.pk,
             ciphertext,
             &verified_common.0.ciphertext_shared,
-            &self.random_oracle(),
+            &self.random_oracle(), // TODO: should be an extended RO
             |shares: &SharesForNode| {
                 shares.verify(
                     &verified_common.0,
@@ -928,9 +951,11 @@ impl Receiver {
             .map(|v| (v.responder_id, v.shares))
             .collect();
 
+        let my_shares = SharesForNode::recover(self, &response_shares)?;
+
+        // TODO: next should never fail with VerifiedComplaintResponse, no? if so, we should (1) doc that, and (2) warn!
         let challenge =
             compute_challenge_from_common_message(&self.random_oracle(), &verified_common.0);
-        let my_shares = SharesForNode::recover(self, &response_shares)?;
         my_shares.verify(
             &verified_common.0,
             &challenge,
