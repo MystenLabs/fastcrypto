@@ -698,11 +698,12 @@ mod tests {
         // Worst case for total weight <= 2500: the maximum number of nodes (Nodes::MAX_NODES = 1000,
         // which maximizes the per-recipient encryption overhead) summing to the maximum total weight
         // 2500, with t as large as the parameters allow (which maximizes the feldman commitment of t
-        // group elements). `Parameters::validate` requires t < total_weight.
+        // group elements). `Parameters::validate` requires `total_weight >= 2f + t`, so with `f = 1`
+        // the largest admissible `t` is `total_weight - 2`.
         let num_nodes = 1000usize;
         let total_weight = 2500u16;
         let params = Parameters {
-            t: total_weight - 1,
+            t: total_weight - 2,
             f: 1,
         };
 
@@ -1159,7 +1160,7 @@ mod tests {
     #[test]
     fn test_key_rotation_with_zero_weight_node() {
         // Node 0 has weight 0: it holds no shares but must still complete key rotation.
-        let t = 3;
+        let t = 2;
         let weights = [0u16, 2, 1, 1];
         let n = weights.len();
         let params = Parameters { t, f: 1 }; // avss does not use f

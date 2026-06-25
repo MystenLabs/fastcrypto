@@ -7,6 +7,7 @@ use fastcrypto_tbls::ecies_v1;
 use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
 use fastcrypto_tbls::threshold_schnorr::batch_avss as batch_avss_orig;
 use fastcrypto_tbls::threshold_schnorr::batch_avss_avid as batch_avss;
+use fastcrypto_tbls::threshold_schnorr::Parameters;
 use itertools::iproduct;
 use rand::thread_rng;
 
@@ -46,7 +47,7 @@ pub fn setup_receiver(
         Nodes::new(nodes).unwrap(),
         id,
         dealer_id,
-        batch_avss::Parameters { t: threshold, f },
+        Parameters { t: threshold, f },
         b"avss".to_vec(),
         keys.get(id as usize).unwrap().1.clone(),
         batch_size_per_weight,
@@ -73,7 +74,7 @@ pub fn setup_dealer(
     batch_avss::Dealer::new(
         Nodes::new(nodes).unwrap(),
         dealer_id,
-        batch_avss::Parameters { t: threshold, f },
+        Parameters { t: threshold, f },
         b"avss".to_vec(),
         batch_size_per_weight,
     )
@@ -529,7 +530,7 @@ mod batch_avss_benches {
                             Presignatures::new(
                                 outputs.clone(),
                                 batch_size_per_weight,
-                                t as usize - 1,
+                                Parameters { t, f },
                             )
                             .unwrap()
                         })
@@ -539,8 +540,12 @@ mod batch_avss_benches {
                 // Ensure that we have enough presignatures.
                 let presignatures = (0..1000)
                     .map(|_| {
-                        Presignatures::new(outputs.clone(), batch_size_per_weight, t as usize - 1)
-                            .unwrap()
+                        Presignatures::new(
+                            outputs.clone(),
+                            batch_size_per_weight,
+                            Parameters { t, f },
+                        )
+                        .unwrap()
                     })
                     .collect_vec();
 

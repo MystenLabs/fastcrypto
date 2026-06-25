@@ -441,7 +441,10 @@ impl<C: Scalar> Poly<C> {
             return Err(FastCryptoError::InvalidInput);
         }
         if divisor.degree() == 0 {
-            let inverse = divisor.c0().inverse().expect("divisor is a non-zero constant");
+            let inverse = divisor
+                .c0()
+                .inverse()
+                .expect("divisor is a non-zero constant");
             return Ok((self.clone() * &inverse, Poly::zero()));
         }
         let mut remainder = self.clone();
