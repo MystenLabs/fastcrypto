@@ -82,12 +82,11 @@ impl Parameters {
     /// Validate `(t, f)` against the given total weight `W`:
     /// * `0 < f, t < W`
     /// * `t ≥ f`
-    /// * `W ≥ 2f + t`
     ///
     /// Note that we allow `t = f` here since this may happen after weight reduction.
     pub fn validate(&self, total_weight: u16) -> FastCryptoResult<()> {
         let Parameters { t, f } = *self;
-        if f == 0 || total_weight < 2 * f + t || t == 0 || t > total_weight || t < f {
+        if f == 0 || t == 0 || t > total_weight || t < f {
             return Err(InvalidInput);
         }
         Ok(())
