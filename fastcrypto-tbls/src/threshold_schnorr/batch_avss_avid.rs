@@ -13,7 +13,9 @@ use crate::ecies_v1::{
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{create_secret_sharing, Eval, Poly};
 use crate::random_oracle::RandomOracle;
-pub use crate::threshold_schnorr::avid::{Echo, EchoBuilder, VerifiedEcho};
+pub use crate::threshold_schnorr::avid::{
+    AuthenticatedShards, Dispersal, Echo, EchoBuilder, VerifiedEcho,
+};
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::recovery_proof;
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
