@@ -690,6 +690,7 @@ impl Receiver {
         ciphertext: &Ciphertext,
         verified_common: &VerifiedAvssCommonMessage,
         avid_cert: &VerifiedCertificate<C>,
+        rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<DecryptionOutcome> {
         if avid_cert.payload().common_message_hash != verified_common.0.hash() {
             warn!("batch_avss decrypt_and_verify: AvidCert binds a different common message");
@@ -710,7 +711,7 @@ impl Receiver {
                         &verified_common.0.ciphertext_shared,
                         &self.enc_secret_key,
                         &self.random_oracle(),
-                        &mut rand::thread_rng(), // TODO: should be an arg
+                        rng,
                     ),
                 }))
             }
@@ -784,6 +785,7 @@ impl Receiver {
         accuser_id: PartyId,
         verified_common: &VerifiedAvssCommonMessage,
         own_ciphertext: Ciphertext,
+        rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<ComplaintResponse> {
         let challenge =
             compute_challenge_from_common_message(&self.random_oracle(), &verified_common.0);
@@ -817,7 +819,7 @@ impl Receiver {
             },
         )?;
 
-        Ok(self.build_complaint_response(&verified_common.0, own_ciphertext))
+        Ok(self.build_complaint_response(&verified_common.0, own_ciphertext, rng))
     }
 
     /// 7b. Validate a [AvidComplaint] and respond with this party's own shares.
@@ -828,6 +830,7 @@ impl Receiver {
         verified_common: &VerifiedAvssCommonMessage,
         avid_cert: &VerifiedCertificate<C>,
         own_ciphertext: Ciphertext,
+        rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<ComplaintResponse> {
         let expected_hash = verified_common
             .0
@@ -846,7 +849,7 @@ impl Receiver {
             return Err(InvalidProof);
         }
 
-        Ok(self.build_complaint_response(&verified_common.0, own_ciphertext))
+        Ok(self.build_complaint_response(&verified_common.0, own_ciphertext, rng))
     }
 
     /// Build a [ComplaintResponse] for a validated [AvssComplaint] / [AvidComplaint].
@@ -854,11 +857,12 @@ impl Receiver {
         &self,
         common_message: &AvssCommonMessage,
         ciphertext: Ciphertext,
+        rng: &mut impl AllowedRng,
     ) -> ComplaintResponse {
         let recovery_package = common_message.ciphertext_shared.create_recovery_package(
             &self.enc_secret_key,
             &self.random_oracle().extend(&Recovery(self.id).to_string()),
-            &mut rand::thread_rng(), // TODO: should be an arg
+            rng,
         );
         ComplaintResponse {
             ciphertext,
@@ -1422,7 +1426,10 @@ mod tests {
                 .decode_ciphertext(&verified_echoes, vcm, &avid_cert)
                 .unwrap();
             let decoded = assert_decoded(outcome);
-            assert_valid(r.decrypt_and_verify(&decoded, vcm, &avid_cert).unwrap());
+            assert_valid(
+                r.decrypt_and_verify(&decoded, vcm, &avid_cert, &mut rng)
+                    .unwrap(),
+            );
         }
     }
 
@@ -1508,7 +1515,7 @@ mod tests {
             .unwrap();
         let decoded = assert_decoded(outcome);
         let reveal = match receivers[victim_id as usize]
-            .decrypt_and_verify(&decoded, &vcm0, &avid_cert0)
+            .decrypt_and_verify(&decoded, &vcm0, &avid_cert0, &mut rng)
             .unwrap()
         {
             DecryptionOutcome::Invalid(r) => r,
@@ -1527,6 +1534,7 @@ mod tests {
                         victim_id,
                         &vcm,
                         state.ciphertexts[r.id as usize].clone(),
+                        &mut rand::thread_rng(),
                     )
                     .unwrap();
                 (r.id, resp)
@@ -1667,6 +1675,7 @@ mod tests {
                         &vcm,
                         &avid_cert,
                         state.ciphertexts[r.id as usize].clone(),
+                        &mut rand::thread_rng(),
                     )
                     .unwrap();
                 (r.id, resp)
