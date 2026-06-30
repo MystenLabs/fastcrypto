@@ -120,7 +120,8 @@ harness = false
 required-features = ["experimental"]
 
 [features]
-default = []
+default = ["std"]
+no_std = []
 
 # Allow copying keys
 copy_key = []
