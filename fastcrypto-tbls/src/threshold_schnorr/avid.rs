@@ -222,15 +222,10 @@ impl Avid {
     }
 
     /// RS-decode the payload from authenticated `shards` and confirm it is a *consistent* codeword:
-    /// it decodes, passes `payload_ok`, and re-encoding it rebuilds the committed row root. Returns
-    /// the payload when consistent, or `None` when the shards are inconsistent or fail `payload_ok`
-    /// (i.e. the dispersal is complaint-worthy).
+    /// it decodes, passes `payload_ok`, and re-encoding it rebuilds the committed row root.
     ///
-    /// The re-encode-and-check is essential: decoding from the minimum `W − 2f` shards alone cannot
-    /// detect a dealer who committed an inconsistent full row, since any `W − 2f` points define
-    /// *some* codeword. Both the recipient ([Self::decode_or_complain]) and a validator checking a
-    /// [Complaint] ([Self::complaint_is_valid]) must apply it, otherwise they could disagree on
-    /// whether a dispersal is valid. `shards` must be non-empty.
+    /// Returns `Some(payload)` when all three hold, and `None` when any fails — i.e. the dispersal
+    /// is inconsistent and complaint-worthy.
     fn decode_consistent(
         &self,
         shards: &BTreeMap<PartyId, AuthenticatedShards>,
@@ -283,8 +278,6 @@ impl Avid {
         {
             return Ok(false);
         }
-        // The complaint is valid iff the shards do not form a consistent codeword matching the
-        // committed payload — the same consistency check the accuser applied in decode_or_complain.
         Ok(self
             .decode_consistent(&complaint.shards, payload_ok)?
             .is_none())
