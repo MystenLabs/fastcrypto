@@ -493,7 +493,7 @@ impl Receiver {
         sid: Vec<u8>,
         enc_secret_key: PrivateKey<EG>,
         batch_size_per_weight: u16,
-    ) -> FastCryptoResult<Self> {        
+    ) -> FastCryptoResult<Self> {
         let _ = nodes.node_id_to_node(id)?;
 
         // The dealer is expected to deal a number of nonces proportional to it's weight
@@ -870,9 +870,12 @@ impl Receiver {
             .ok_or(InvalidProof)?;
 
         let vote = &avid_cert.payload().vote;
-        if !self.avid.complaint_is_valid(blame, accuser_id, vote, |payload| {
-            Blake2b256::digest(payload) == *expected_hash
-        })? {
+        if !self
+            .avid
+            .complaint_is_valid(blame, accuser_id, vote, |payload| {
+                Blake2b256::digest(payload) == *expected_hash
+            })?
+        {
             return Err(InvalidProof);
         }
 

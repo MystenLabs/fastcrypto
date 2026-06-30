@@ -270,7 +270,12 @@ impl Avid {
             .ok_or(InvalidInput)?;
         let shards_verify = complaint.shards.iter().all(|(&disperser, auth)| {
             auth.proof
-                .verify(&vote.top_root, &auth.shards, accuser_idx, disperser as usize)
+                .verify(
+                    &vote.top_root,
+                    &auth.shards,
+                    accuser_idx,
+                    disperser as usize,
+                )
                 .is_ok()
         });
         if !shards_verify
