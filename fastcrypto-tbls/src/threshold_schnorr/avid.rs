@@ -258,21 +258,24 @@ impl Avid {
         Ok(Some(payload))
     }
 
-    /// Check if `complaint` is a valid complaint against the dispersal.
+    /// Check if `complaint` is a valid complaint against the dispersal certified by `vote`.
     pub fn complaint_is_valid(
         &self,
         complaint: &Complaint,
         accuser_id: PartyId,
-        top_root: &merkle::Node, // TODO: Vote to be consistent with function above?
-        pending_recipients: &BTreeSet<PartyId>,
+        vote: &Vote,
         payload_ok: impl Fn(&[u8]) -> bool,
     ) -> FastCryptoResult<bool> {
-        let Some(accuser_idx) = pending_recipients.iter().position(|&id| id == accuser_id) else {
-            return Ok(false); // TODO: we usually return Err for invalid input
-        };
+        // An accuser that is not a pending recipient cannot have a dispersal complaint at all, so
+        // this is malformed input rather than an unsubstantiated (but well-formed) complaint.
+        let accuser_idx = vote
+            .recipients
+            .iter()
+            .position(|&id| id == accuser_id)
+            .ok_or(InvalidInput)?;
         let shards_verify = complaint.shards.iter().all(|(&disperser, auth)| {
             auth.proof
-                .verify(top_root, &auth.shards, accuser_idx, disperser as usize)
+                .verify(&vote.top_root, &auth.shards, accuser_idx, disperser as usize)
                 .is_ok()
         });
         if !shards_verify
@@ -497,13 +500,7 @@ mod tests {
 
         // Another party validates the complaint.
         assert!(avid
-            .complaint_is_valid(
-                &complaint,
-                recipient,
-                &certified_vote.top_root,
-                &certified_vote.recipients,
-                |_| true
-            )
+            .complaint_is_valid(&complaint, recipient, &certified_vote, |_| true)
             .unwrap());
     }
 
@@ -568,13 +565,7 @@ mod tests {
 
         // A validator accepts the complaint via the same re-encode check.
         assert!(avid
-            .complaint_is_valid(
-                &complaint,
-                recipient,
-                &certified_vote.top_root,
-                &certified_vote.recipients,
-                |_| true
-            )
+            .complaint_is_valid(&complaint, recipient, &certified_vote, |_| true)
             .unwrap());
     }
 }

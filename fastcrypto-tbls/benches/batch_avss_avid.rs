@@ -225,8 +225,7 @@ mod batch_avss_benches {
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            r1.process_avid_message(Some(&vcm), message.clone())
-                                .unwrap()
+                            r1.process_avid_message(&vcm, message.clone())
                                 .unwrap()
                         })
                     },
@@ -252,13 +251,11 @@ mod batch_avss_benches {
                 let vcm0 = r0.verify_common_message(common.clone()).unwrap();
                 let vcm1 = r1.verify_common_message(common).unwrap();
                 let (builder0, _) = r0
-                    .process_avid_message(Some(&vcm0), messages.message_for(0).unwrap())
-                    .unwrap()
+                    .process_avid_message(&vcm0, messages.message_for(0).unwrap())
                     .unwrap();
                 let echo_for_r1 = builder0.create_echo(1).unwrap();
                 let (_, vote1) = r1
-                    .process_avid_message(Some(&vcm1), messages.message_for(r1.id).unwrap())
-                    .unwrap()
+                    .process_avid_message(&vcm1, messages.message_for(r1.id).unwrap())
                     .unwrap();
                 let avid_cert = AvidCert {
                     signers: (0..*n).collect(),
@@ -300,8 +297,7 @@ mod batch_avss_benches {
                     .map(|r| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (builder, vote) = r
-                            .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
-                            .unwrap()
+                            .process_avid_message(&vcm, messages.message_for(r.id).unwrap())
                             .unwrap();
                         if r.id == 1 {
                             avid_cert = Some(
@@ -371,8 +367,7 @@ mod batch_avss_benches {
                     .map(|r| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (builder, vote) = r
-                            .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
-                            .unwrap()
+                            .process_avid_message(&vcm, messages.message_for(r.id).unwrap())
                             .unwrap();
                         if r.id == 1 {
                             avid_cert = Some(
@@ -419,7 +414,7 @@ mod batch_avss_benches {
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            r1.decrypt_and_verify(&ciphertext, &vcm1, &avid_cert)
+                            r1.decrypt_and_verify(&ciphertext, &vcm1, &avid_cert, &mut thread_rng())
                                 .unwrap()
                         })
                     },
@@ -466,10 +461,9 @@ mod batch_avss_benches {
                                 let vcm = r.verify_common_message(common.clone()).unwrap();
                                 let (builder, vote) = r
                                     .process_avid_message(
-                                        Some(&vcm),
+                                        &vcm,
                                         messages.message_for(r.id).unwrap(),
                                     )
-                                    .unwrap()
                                     .unwrap();
                                 if r.id == 1 {
                                     avid_cert = Some(
@@ -512,7 +506,7 @@ mod batch_avss_benches {
                         };
                         let output = assert_valid_batch(
                             receivers[1]
-                                .decrypt_and_verify(&ciphertext, &vcm1, &avid_cert)
+                                .decrypt_and_verify(&ciphertext, &vcm1, &avid_cert, &mut thread_rng())
                                 .unwrap(),
                         );
                         // presigning consumes the legacy `batch_avss` output types; convert here

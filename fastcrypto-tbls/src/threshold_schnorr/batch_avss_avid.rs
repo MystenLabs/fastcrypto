@@ -530,13 +530,17 @@ impl Receiver {
         message: &AvssMessage,
         verified_avss_common_message: Option<&VerifiedAvssCommonMessage>,
     ) -> FastCryptoResult<(ReceiverOutput, AvssVote, VerifiedAvssCommonMessage)> {
-        if verified_avss_common_message
-            .is_some_and(|verified| verified.0.hash() != message.common.hash())
-        {
-            warn!("batch_avss process_avss_message: provided verified common message does not match the message's common message");
-            return Err(InvalidInput);
-        }
-        let verified_common = self.verify_common_message(message.common.clone())?; // TODO: not needed if verified_avss_common_message is Some 
+        // Reuse the caller's verified common when supplied (after confirming it matches), otherwise
+        // verify the message's common from scratch. This avoids re-running the (expensive) NIZK and
+        // commitment checks on redelivered messages.
+        let verified_common = match verified_avss_common_message {
+            Some(verified) if verified.0.hash() == message.common.hash() => verified.clone(),
+            Some(_) => {
+                warn!("batch_avss process_avss_message: provided verified common message does not match the message's common message");
+                return Err(InvalidInput);
+            }
+            None => self.verify_common_message(message.common.clone())?,
+        };
         self.check_ciphertext_hash(&message.ciphertext, &verified_common)?;
         let output = self.decrypt_and_verify_shares(&message.ciphertext, &verified_common)?;
         Ok((
@@ -566,39 +570,33 @@ impl Receiver {
     /// 4. Verify a pessimistic-phase [AvidMessage] and emit an [EchoBuilder] which can build
     ///    [Echo]es on demand. Returns also an [AvidVote] to be signed and returned to the dealer.
     ///
-    ///    The receiver should provide a `verified_avss_common_message` whenever it holds one for
-    ///    this AVSS round — whether it obtained it by verifying its shares in the optimistic phase
-    ///    ([Self::process_avss_message]) or by verifying just the common on its own
+    ///    The caller must already hold a `verified_avss_common_message` for this AVSS round before
+    ///    processing the [AvidMessage] — obtained either by verifying its shares in the optimistic
+    ///    phase ([Self::process_avss_message]) or by verifying just the common on its own
     ///    ([Self::verify_common_message]). Only the common-level guarantee is needed here; the
-    ///    receiver's shares need not have been verified. If the receiver has no verified common (or
-    ///    it doesn't match), the AVID message should be ignored and this function returns `Ok(None)`.
+    ///    receiver's shares need not have been verified. The common is therefore a required
+    ///    argument, not optional: a receiver that does not yet hold one cannot act on the message
+    ///    and should obtain the common first.
     ///
     ///    Receivers who did not receive their shares through an [AvssMessage] should wait for a
     ///    published [Certificate] over [AvidVote]s that confirms they are a pending recipient and
     ///    then get the [AvssCommonMessage] and [Echo]es from the signers.
-    // TODO: isn't there only one flow this function should be called? after the caller already received avss message
-    // if so why verified_avss_common_message is optional?
-    // TODO: caller should persist the outputs before it votes
+    ///
+    ///    The caller should persist the outputs before sending its [AvidVote]. Returns
+    ///    [InvalidMessage] if the `avss_cert` binds a different common than the one provided.
     pub fn process_avid_message<C: Certificate<Payload = AvssVote>>(
         &self,
-        verified_avss_common_message: Option<&VerifiedAvssCommonMessage>,
+        verified_avss_common_message: &VerifiedAvssCommonMessage,
         message: AvidMessage<C>,
-    ) -> FastCryptoResult<Option<(EchoBuilder, AvidVote)>> { // TODO: why optional?
+    ) -> FastCryptoResult<(EchoBuilder, AvidVote)> {
         let AvidMessage {
             dispersal,
             avss_cert,
         } = message;
 
-        if let Some(verified_common) = verified_avss_common_message {
-            if avss_cert.payload().common_message_hash != verified_common.0.hash() {
-                warn!(
-                    "batch_avss process_avid_message: AVSS Cert binds a different common message"
-                );
-                return Ok(None); // TODO: why not error?
-            }
-        } else {
-            warn!("batch_avss process_avid_message: no verified common message available");
-            return Ok(None); // TODO: why not error?
+        if avss_cert.payload().common_message_hash != verified_avss_common_message.0.hash() {
+            warn!("batch_avss process_avid_message: AVSS Cert binds a different common message");
+            return Err(InvalidMessage);
         }
 
         let required_weight_of_voters = self.params.t + self.params.f;
@@ -620,7 +618,7 @@ impl Receiver {
             vote,
             common_message_hash: avss_cert.payload().common_message_hash,
         };
-        Ok(Some((builder, avid_vote)))
+        Ok((builder, avid_vote))
     }
 
     /// Verify an [Echo] addressed to this receiver. Returns a [VerifiedEcho] suitable for
@@ -849,13 +847,9 @@ impl Receiver {
             .ok_or(InvalidProof)?;
 
         let vote = &avid_cert.payload().vote;
-        if !self.avid.complaint_is_valid(
-            blame,
-            accuser_id,
-            &vote.top_root,
-            &vote.recipients,
-            |payload| Blake2b256::digest(payload) == *expected_hash,
-        )? {
+        if !self.avid.complaint_is_valid(blame, accuser_id, vote, |payload| {
+            Blake2b256::digest(payload) == *expected_hash
+        })? {
             return Err(InvalidProof);
         }
 
@@ -1395,8 +1389,7 @@ mod tests {
         for r in &receivers {
             let vcm = r.verify_common_message(state.common.clone()).unwrap();
             let (builder, avid_vote) = r
-                .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
-                .unwrap()
+                .process_avid_message(&vcm, messages.message_for(r.id).unwrap())
                 .unwrap();
             let echoes: BTreeMap<PartyId, avid::Echo> = builder
                 .recipients()
@@ -1497,8 +1490,7 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (_, vote0) = receivers[victim_id as usize]
-            .process_avid_message(Some(&vcm0), messages.message_for(victim_id).unwrap())
-            .unwrap()
+            .process_avid_message(&vcm0, messages.message_for(victim_id).unwrap())
             .unwrap();
         let avid_cert0 = AvidCert {
             signers: receivers.iter().map(|r| r.id).collect(),
@@ -1511,8 +1503,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (builder, _) = r
-                    .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
-                    .unwrap()
+                    .process_avid_message(&vcm, messages.message_for(r.id).unwrap())
                     .unwrap();
                 let echo = builder.create_echo(victim_id).unwrap();
                 receivers[victim_id as usize]
@@ -1630,8 +1621,7 @@ mod tests {
             .verify_common_message(common.clone())
             .unwrap();
         let (_, vote0) = receivers[victim_id as usize]
-            .process_avid_message(Some(&vcm0), messages.message_for(victim_id).unwrap())
-            .unwrap()
+            .process_avid_message(&vcm0, messages.message_for(victim_id).unwrap())
             .unwrap();
         let avid_cert0 = AvidCert {
             signers: receivers.iter().map(|r| r.id).collect(),
@@ -1644,8 +1634,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (builder, _) = r
-                    .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
-                    .unwrap()
+                    .process_avid_message(&vcm, messages.message_for(r.id).unwrap())
                     .unwrap();
                 let echo = builder.create_echo(victim_id).unwrap();
                 receivers[victim_id as usize]
@@ -1669,8 +1658,7 @@ mod tests {
             .map(|r| {
                 let vcm = r.verify_common_message(common.clone()).unwrap();
                 let (_, vote) = r
-                    .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
-                    .unwrap()
+                    .process_avid_message(&vcm, messages.message_for(r.id).unwrap())
                     .unwrap();
                 let avid_cert = AvidCert {
                     signers: receivers.iter().map(|r| r.id).collect(),
