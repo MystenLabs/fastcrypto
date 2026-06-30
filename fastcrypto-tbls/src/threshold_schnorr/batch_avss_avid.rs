@@ -61,14 +61,19 @@ pub struct Receiver {
     avid: avid::Avid,
 }
 
+/// An upper bound on the BCS-serialized size of an [AvssMessage], analogous to
+/// [AVSS_MESSAGE_MAX_SIZE](super::avss::AVSS_MESSAGE_MAX_SIZE). Unlike the single-secret AVSS
+/// message, an [AvssMessage] also scales with the batch size, so this bound assumes the supported
+/// deployment parameters (total weight up to 2500 and a batch size up to 2500). The caller should
+/// check the size before serializing and reject larger messages when deserializing untrusted ones.
+pub const AVSS_MESSAGE_MAX_SIZE: usize = 500_000; // 500 KB.
+
 /// The dealer's per-recipient optimistic-phase message.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AvssMessage {
     pub common: AvssCommonMessage,
     pub ciphertext: Ciphertext,
 }
-
-// TODO: max size of AvssMessage like we have for avss messages?
 
 /// The shared part of the dealer's optimistic phase broadcast.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -108,6 +113,13 @@ pub struct AvidMessageBuilder<C: Certificate<Payload = AvssVote>> {
     avss_cert: C,
 }
 
+/// An upper bound on the BCS-serialized size of an [AvidMessage] (excluding the deployment's cert
+/// `C`, whose size the caller knows), analogous to [AVSS_MESSAGE_MAX_SIZE]. The dispersal scales
+/// with the total weight and the per-recipient payload (one ciphertext), so this bound assumes the
+/// supported deployment parameters. The caller should check the size before serializing and reject
+/// larger messages when deserializing untrusted ones.
+pub const AVID_MESSAGE_MAX_SIZE: usize = 500_000; // 500 KB, plus the cert.
+
 /// The dealer's per-receiver pessimistic-phase message. Generic over the concrete cert type
 /// `C: Certificate<Payload = AvssVote>` so different deployments can plug in their own cert.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -115,8 +127,6 @@ pub struct AvidMessage<C: Certificate<Payload = AvssVote>> {
     pub dispersal: avid::Dispersal,
     pub avss_cert: C,
 }
-
-// TODO: max size of AvidMessage?
 
 /// An endorsement of the dealer's pessimistic dispersal: the AVID-layer [avid::Vote]
 /// (`top_root` + `pending_recipients`) bundled with the `common_message_hash` of the AVSS
