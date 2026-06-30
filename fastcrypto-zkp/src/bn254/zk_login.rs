@@ -621,7 +621,6 @@ impl ZkLoginInputs {
         let modulus_f = cached_modulus_hash(modulus, config.max_rsa_bits)?;
 
         match version {
-            // V1 is unchanged from the deployed v1 circuit.
             CircuitVersion::V1 => {
                 let index_mod_4_f =
                     (&Bn254FrElement::from_str(&self.iss_base64_details.index_mod_4.to_string())?)
@@ -639,8 +638,6 @@ impl ZkLoginInputs {
                     modulus_f,
                 ])
             }
-            // V2 folds the *decoded* extended iss claim and `rsa_num_bits` (the exact modulus bit
-            // length, matching the prover's `modulus.toString(2).length`), and drops `index_mod_4`.
             CircuitVersion::V2 => {
                 let iss_f = self.hash_iss_decoded(config.max_iss_len)?;
                 let rsa_num_bits = BigUint::from_bytes_be(modulus).bits();
