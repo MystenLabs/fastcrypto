@@ -42,9 +42,8 @@ pub type Digest = fastcrypto::hash::Digest<{ Blake2b256::OUTPUT_SIZE }>;
 /// The Dealer for the protocol. Exactly one per instance.
 #[allow(dead_code)]
 pub struct Dealer {
-    // TODO: fix order
+    nodes: Arc<Nodes<EG>>,
     params: Parameters,
-    nodes: Arc<Nodes<EG>>, 
     sid: Vec<u8>,
     batch_size: usize,
     avid: avid::Avid,
@@ -53,12 +52,11 @@ pub struct Dealer {
 /// One of the receivers for the protocol. One per node in `nodes`.
 #[allow(dead_code)]
 pub struct Receiver {
-    // TODOL fix order
     pub id: PartyId,
     enc_secret_key: PrivateKey<EG>,
     nodes: Arc<Nodes<EG>>,
-    sid: Vec<u8>,
     params: Parameters,
+    sid: Vec<u8>,
     batch_size: usize,
     avid: avid::Avid,
 }
@@ -74,12 +72,12 @@ pub struct AvssMessage {
 
 /// The shared part of the dealer's optimistic phase broadcast.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AvssCommonMessage {    
+pub struct AvssCommonMessage {
     full_public_keys: Vec<G>,
     blinding_commit: G,
     ciphertext_shared: SharedComponents<EG>,
-    response_polynomial: Poly<S>, // TODO: should be last, as it is created last
     ciphertext_hashes: Vec<Digest>,
+    response_polynomial: Poly<S>,
 }
 
 /// A [AvssCommonMessage] that has been validated against the dealer's commitments by a receiver.
@@ -149,9 +147,8 @@ pub enum DecryptionOutcome {
 /// A complaint by a receiver who could not decrypt or verify its shares.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AvssComplaint {
-    // TODO: change order
-    pub proof: recovery_proof::RecoveryProof,
     pub ciphertext: Ciphertext,
+    pub proof: recovery_proof::RecoveryProof,
 }
 
 /// A complaint by a receiver who found the AVID dispersal inconsistent — a generic AVID
@@ -390,8 +387,8 @@ impl Dealer {
             full_public_keys,
             blinding_commit,
             ciphertext_shared,
-            response_polynomial,
             ciphertext_hashes,
+            response_polynomial,
         };
 
         Ok(DealerState {
@@ -707,6 +704,7 @@ impl Receiver {
                     self.id,
                 );
                 Ok(DecryptionOutcome::Invalid(AvssComplaint {
+                    ciphertext: ciphertext.clone(),
                     proof: recovery_proof::RecoveryProof::create(
                         self.id,
                         &verified_common.0.ciphertext_shared,
@@ -714,7 +712,6 @@ impl Receiver {
                         &self.random_oracle(),
                         &mut rand::thread_rng(), // TODO: should be an arg
                     ),
-                    ciphertext: ciphertext.clone(),
                 }))
             }
         }
