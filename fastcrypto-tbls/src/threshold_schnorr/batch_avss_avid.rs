@@ -131,21 +131,12 @@ pub struct AvidVote {
     pub common_message_hash: Digest,
 }
 
-/// The result of [Receiver::decode_ciphertext]: either a successfully reconstructed ciphertext
-/// whose AVID dispersal is consistent, or an [AvidComplaint] when the collected shards either
-/// fail to RS-decode or decode to a ciphertext whose re-encoding disagrees with the ciphertext
-/// hashes.
+/// The result of [Receiver::decode_and_decrypt].
 #[allow(clippy::large_enum_variant)]
-pub enum DecodeOutcome {
-    Decoded(Ciphertext),
+pub enum DecodeAndDecryptOutcome {
     InvalidDispersal(AvidComplaint),
-}
-
-/// The result of [Receiver::decrypt_and_verify].
-#[allow(clippy::large_enum_variant)]
-pub enum DecryptionOutcome {
-    Valid(ReceiverOutput),
-    Invalid(AvssComplaint),
+    InvalidDecryption(AvssComplaint),
+    Valid(Ciphertext, ReceiverOutput),
 }
 
 /// A complaint by a receiver who could not decrypt or verify its shares.
@@ -185,7 +176,7 @@ pub struct ReceiverOutput {
 /// shared. If we say that node <i>i</i> has a weight `W_i`, we have
 /// `indices().len() == shares_for_secret(i).len() == weight() = W_i`.
 ///
-/// Produced by [Receiver::decrypt_and_verify] on the happy path, or by [Receiver::recover] from
+/// Produced by [Receiver::decode_and_decrypt] on the happy path, or by [Receiver::recover] from
 /// complaint responses.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharesForNode {
@@ -566,7 +557,7 @@ impl Receiver {
     ///
     /// Called in the pessimistic phase by a receiver that needs a [VerifiedAvssCommonMessage] but
     /// did not obtain one from its own [AvssMessage] since the result is required by
-    /// [Self::process_avid_message], [Self::decode_ciphertext] and [Self::decrypt_and_verify].
+    /// [Self::process_avid_message] and [Self::decode_and_decrypt].
     pub fn verify_common_message(
         &self,
         common_message: AvssCommonMessage,
@@ -631,7 +622,7 @@ impl Receiver {
     }
 
     /// Verify an [Echo] addressed to this receiver. Returns a [VerifiedEcho] suitable for
-    /// [Self::decode_ciphertext].
+    /// [Self::decode_and_decrypt].
     ///
     /// Precondition: `self.id` is one of the pending recipients. Echoes are only
     /// meaningful for pending recipients, so voters calling this for themselves get
@@ -647,28 +638,38 @@ impl Receiver {
     }
 
     /// 5. Reconstruct this receiver's ciphertext from at least `W − 2f` weight of
-    ///    [VerifiedEcho]s. Returns [DecodeOutcome::Decoded] if the dispersal is consistent and
-    ///    the reconstructed ciphertext matches [VerifiedAvssCommonMessage], or
-    ///    [DecodeOutcome::InvalidDispersal] (an [AvidComplaint]) otherwise.
-    ///
-    ///    The caller should get an [AvssCommonMessage] from one of the signers of the cert and
-    ///    verify it before calling this method.
-    ///
-    ///    An [AvidComplaint] is a dispersal-layer fault. Hold it until the matching cert on
-    ///    [AvidVote]s is certified on the TOB, or discard it if a different one wins.
+    ///    [VerifiedEcho]s and, when the dispersal is consistent, decrypt and verify its shares.
     ///
     ///    A pending recipient should only pull echoes from the signers after the [AvidVote]
     ///    certificate is published and the cert confirms it is a pending recipient.
     ///
+    ///    The caller should get an [AvssCommonMessage] from one of the signers of the cert and
+    ///    verify it before calling this method.
+    ///
+    ///    Returns [DecodeAndDecryptOutcome::InvalidDispersal] (an [AvidComplaint]) when the collected
+    ///    shards fail to RS-decode, or decode to a ciphertext whose re-encoding disagrees with the
+    ///    hash pinned in [VerifiedAvssCommonMessage] — a dispersal-layer fault, after which
+    ///    decryption is skipped. Otherwise the ciphertext decoded and this receiver's shares are
+    ///    verified: [DecodeAndDecryptOutcome::Valid] with the decoded [Ciphertext] and [ReceiverOutput]
+    ///    when they verify, or [DecodeAndDecryptOutcome::InvalidDecryption] (an [AvssComplaint]) when they
+    ///    don't.
+    ///
+    ///    An [AvidComplaint] is a dispersal-layer fault. Hold it until the matching cert on
+    ///    [AvidVote]s is certified on the TOB, or discard it if a different one wins. An
+    ///    [AvssComplaint] is an encryption-layer fault carrying the accuser's ciphertext and an
+    ///    ECIES recovery package. Broadcast it only after seeing a TOB certificate for the
+    ///    corresponding `common_message_hash`.
+    ///
     ///    The caller should persist its decoded ciphertext for the session to answer complaints.
-    pub fn decode_ciphertext<C: Certificate<Payload = AvidVote>>(
+    pub fn decode_and_decrypt<C: Certificate<Payload = AvidVote>>(
         &self,
         echoes: &[VerifiedEcho],
         verified_common: &VerifiedAvssCommonMessage,
         avid_cert: &VerifiedCertificate<C>,
-    ) -> FastCryptoResult<DecodeOutcome> {
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<DecodeAndDecryptOutcome> {
         if avid_cert.payload().common_message_hash != verified_common.0.hash() {
-            warn!("batch_avss decode_ciphertext: AvidCert binds a different common message");
+            warn!("batch_avss decode_and_decrypt: AvidCert binds a different common message");
             return Err(InvalidMessage);
         }
         let expected_hash = verified_common
@@ -676,63 +677,41 @@ impl Receiver {
             .ciphertext_hashes
             .get(self.id as usize)
             .ok_or(InvalidProof)?;
+
+        let ciphertext = match self.avid.decode_or_complain(echoes, |payload| {
+            Blake2b256::digest(payload) == *expected_hash
+        })? {
+            Ok(bytes) => Ciphertext(bytes),
+            Err(complaint) => {
+                warn!(
+                    "batch_avss decode_and_decrypt: receiver {} raising AvidComplaint",
+                    self.id,
+                );
+                return Ok(DecodeAndDecryptOutcome::InvalidDispersal(complaint));
+            }
+        };
+
         Ok(
-            match self.avid.decode_or_complain(echoes, |payload| {
-                Blake2b256::digest(payload) == *expected_hash
-            })? {
-                Ok(bytes) => DecodeOutcome::Decoded(Ciphertext(bytes)),
-                Err(complaint) => {
+            match self.decrypt_and_verify_shares(&ciphertext, verified_common) {
+                Ok(output) => DecodeAndDecryptOutcome::Valid(ciphertext, output),
+                Err(e) => {
                     warn!(
-                        "batch_avss decode_ciphertext: receiver {} raising AvidComplaint",
-                        self.id,
-                    );
-                    DecodeOutcome::InvalidDispersal(complaint)
+                    "batch_avss decode_and_decrypt: receiver {} raising AvssComplaint after share decode/verify failed: {e:?}",
+                    self.id,
+                );
+                    DecodeAndDecryptOutcome::InvalidDecryption(AvssComplaint {
+                        ciphertext,
+                        proof: recovery_proof::RecoveryProof::create(
+                            self.id,
+                            &verified_common.0.ciphertext_shared,
+                            &self.enc_secret_key,
+                            &self.random_oracle(),
+                            rng,
+                        ),
+                    })
                 }
             },
         )
-    }
-
-    /// 6. Decrypt and verify the receiver's own shares from a successfully decoded ciphertext.
-    ///    Rejects with [InvalidMessage] if the ciphertext doesn't match the hash pinned in
-    ///    [VerifiedAvssCommonMessage] or if `avid_cert` is for a different [AvssCommonMessage].
-    ///
-    ///    Otherwise, yields [DecryptionOutcome::Valid] when shares verify, or
-    ///    [DecryptionOutcome::Invalid] (an [AvssComplaint]) when they don't.
-    ///
-    ///    The [AvssComplaint] is an encryption-layer fault carrying the accuser's ciphertext
-    ///    and an ECIES recovery package. Broadcast it only after seeing a TOB certificate for
-    ///    the corresponding `common_message_hash`.
-    pub fn decrypt_and_verify<C: Certificate<Payload = AvidVote>>(
-        &self,
-        ciphertext: &Ciphertext,
-        verified_common: &VerifiedAvssCommonMessage,
-        avid_cert: &VerifiedCertificate<C>,
-        rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<DecryptionOutcome> {
-        if avid_cert.payload().common_message_hash != verified_common.0.hash() {
-            warn!("batch_avss decrypt_and_verify: AvidCert binds a different common message");
-            return Err(InvalidMessage);
-        }
-        self.check_ciphertext_hash(ciphertext, verified_common)?;
-        match self.decrypt_and_verify_shares(ciphertext, verified_common) {
-            Ok(output) => Ok(DecryptionOutcome::Valid(output)),
-            Err(e) => {
-                warn!(
-                    "batch_avss verify_and_decrypt: receiver {} raising AvssComplaint after share decode/verify failed: {e:?}",
-                    self.id,
-                );
-                Ok(DecryptionOutcome::Invalid(AvssComplaint {
-                    ciphertext: ciphertext.clone(),
-                    proof: recovery_proof::RecoveryProof::create(
-                        self.id,
-                        &verified_common.0.ciphertext_shared,
-                        &self.enc_secret_key,
-                        &self.random_oracle(),
-                        rng,
-                    ),
-                }))
-            }
-        }
     }
 
     /// Reject a ciphertext whose hash doesn't match the one pinned for this receiver in
@@ -795,7 +774,7 @@ impl Receiver {
         })
     }
 
-    /// 7a. Validate a [AvssComplaint] and respond with this party's own shares.
+    /// 6a. Validate a [AvssComplaint] and respond with this party's own shares.
     pub fn handle_avss_complaint(
         &self,
         reveal: &AvssComplaint,
@@ -839,7 +818,7 @@ impl Receiver {
         Ok(self.build_complaint_response(&verified_common.0, own_ciphertext, rng))
     }
 
-    /// 7b. Validate a [AvidComplaint] and respond with this party's own shares.
+    /// 6b. Validate a [AvidComplaint] and respond with this party's own shares.
     pub fn handle_avid_complaint<C: Certificate<Payload = AvidVote>>(
         &self,
         blame: &AvidComplaint,
@@ -934,7 +913,7 @@ impl Receiver {
         })
     }
 
-    /// 8. Recover the accuser's own shares from a quorum (`≥ t`) of [VerifiedComplaintResponse]s.
+    /// 7. Recover the accuser's own shares from a quorum (`≥ t`) of [VerifiedComplaintResponse]s.
     ///    Responses must already be validated via [Self::verify_complaint_response]. Fails if the
     ///    responses contribute `< t` weight, or the interpolated shares fail final verification.
     pub fn recover(
@@ -1255,11 +1234,11 @@ fn compute_challenge_from_common_message(
 #[cfg(test)]
 mod tests {
     use super::{
-        AvidMessageBuilder, AvidVote, AvssMessage, AvssVote, Dealer, DealerState, DecodeOutcome,
-        DecryptionOutcome, Parameters, Receiver, ReceiverOutput, VerifiedEcho,
+        AvidMessageBuilder, AvidVote, AvssMessage, AvssVote, Dealer, DealerState, Parameters,
+        DecodeAndDecryptOutcome, Receiver, ReceiverOutput, VerifiedEcho,
     };
     use crate::ecies_v1;
-    use crate::ecies_v1::{Ciphertext, PublicKey};
+    use crate::ecies_v1::PublicKey;
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::{Eval, Poly};
     use crate::threshold_schnorr::{avid, batch_avss_avid as batch_avss, Certificate, EG};
@@ -1445,13 +1424,9 @@ mod tests {
                 .map(|(sender, e)| r.verify_avid_echo_message(e, sender, &avid_cert).unwrap())
                 .collect_vec();
             let outcome = r
-                .decode_ciphertext(&verified_echoes, vcm, &avid_cert)
+                .decode_and_decrypt(&verified_echoes, vcm, &avid_cert, &mut rng)
                 .unwrap();
-            let decoded = assert_decoded(outcome);
-            assert_valid(
-                r.decrypt_and_verify(&decoded, vcm, &avid_cert, &mut rng)
-                    .unwrap(),
-            );
+            assert_valid(outcome);
         }
     }
 
@@ -1531,15 +1506,11 @@ mod tests {
             })
             .collect();
         let outcome = receivers[victim_id as usize]
-            .decode_ciphertext(&echoes_for_victim, &vcm0, &avid_cert0)
+            .decode_and_decrypt(&echoes_for_victim, &vcm0, &avid_cert0, &mut rng)
             .unwrap();
-        let decoded = assert_decoded(outcome);
-        let reveal = match receivers[victim_id as usize]
-            .decrypt_and_verify(&decoded, &vcm0, &avid_cert0, &mut rng)
-            .unwrap()
-        {
-            DecryptionOutcome::Invalid(r) => r,
-            other => panic!("expected Invalid, got {:?}", outcome_kind(&other)),
+        let reveal = match outcome {
+            DecodeAndDecryptOutcome::InvalidDecryption(r) => r,
+            _ => panic!("expected InvalidDecryption outcome"),
         };
 
         // Voters handle the AvssComplaint using their own ciphertexts from the optimistic phase.
@@ -1592,7 +1563,7 @@ mod tests {
     fn test_share_recovery_blame() {
         // Receivers 1..n confirm in the optimistic phase. Receiver 0 is treated as a straggler
         // (no optimistic confirm) and goes through the pessimistic phase. The dealer corrupts
-        // the AVID shards for receiver 0's ciphertext, so receiver 0's decode_ciphertext yields
+        // the AVID shards for receiver 0's ciphertext, so receiver 0's decode_and_decrypt yields
         // an InvalidDispersal complaint. Voters respond and receiver 0 recovers.
         let t = 3u16;
         let f = 2u16;
@@ -1663,11 +1634,11 @@ mod tests {
             .collect();
 
         let outcome = receivers[victim_id as usize]
-            .decode_ciphertext(&echoes_for_victim, &vcm0, &avid_cert0)
+            .decode_and_decrypt(&echoes_for_victim, &vcm0, &avid_cert0, &mut rng)
             .unwrap();
         let blame = match outcome {
-            DecodeOutcome::InvalidDispersal(blame) => blame,
-            DecodeOutcome::Decoded { .. } => panic!("expected InvalidDispersal from victim"),
+            DecodeAndDecryptOutcome::InvalidDispersal(blame) => blame,
+            _ => panic!("expected InvalidDispersal from victim"),
         };
 
         // Voters handle the Blame using their own ciphertexts.
@@ -1777,26 +1748,18 @@ mod tests {
         (dealer, receivers)
     }
 
-    fn assert_valid(outcome: DecryptionOutcome) -> ReceiverOutput {
+    fn assert_valid(outcome: DecodeAndDecryptOutcome) -> ReceiverOutput {
         match outcome {
-            DecryptionOutcome::Valid(output) => output,
+            DecodeAndDecryptOutcome::Valid(_, output) => output,
             ref other => panic!("expected valid outcome, got {:?}", outcome_kind(other)),
         }
     }
 
-    fn assert_decoded(outcome: DecodeOutcome) -> Ciphertext {
+    fn outcome_kind(outcome: &DecodeAndDecryptOutcome) -> &'static str {
         match outcome {
-            DecodeOutcome::Decoded(c) => c,
-            DecodeOutcome::InvalidDispersal { .. } => {
-                panic!("expected Decoded outcome, got InvalidDispersal")
-            }
-        }
-    }
-
-    fn outcome_kind(outcome: &DecryptionOutcome) -> &'static str {
-        match outcome {
-            DecryptionOutcome::Valid(_) => "Valid",
-            DecryptionOutcome::Invalid(_) => "Invalid",
+            DecodeAndDecryptOutcome::InvalidDispersal(_) => "InvalidDispersal",
+            DecodeAndDecryptOutcome::InvalidDecryption(_) => "InvalidDecryption",
+            DecodeAndDecryptOutcome::Valid(..) => "Valid",
         }
     }
 
