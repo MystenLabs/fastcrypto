@@ -102,7 +102,6 @@ pub struct AvssVote {
 #[derive(Clone, Debug)]
 pub struct AvssMessageBuilder {
     pub common: AvssCommonMessage,
-    // Ordered by node id: `ciphertexts[i]` is the ciphertext for receiver `i`.
     ciphertexts: Vec<Ciphertext>,
 }
 
