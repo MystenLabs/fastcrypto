@@ -257,38 +257,22 @@ impl Dealer {
         })
     }
 
-    /// 1. Build the optimistic-phase messages. Encrypt shares for every receiver and bundle each
-    ///    receiver's ciphertext with the [AvssCommonMessage] as an [AvssMessage] per receiver.
-    ///    Returns also a [DealerState] that can be used to produce the pessimistic-phase messages
-    ///    later, after the dealer has collected an AVSS certificate.
+    /// 1. Build the [DealerState]. This encrypts the shares for every receiver and holds everything
+    ///    the dealer needs for the rest of the protocol:
+    ///     * In the optimistic phase, the per-receiver [AvssMessage]s are produced lazily from the
+    ///       state via [DealerState::messages] or [DealerState::message_for].
+    ///     * In the pessimistic (AVID) phase, the same state is passed to
+    ///       [Self::create_avid_messages] to disperse the pending recipients' ciphertexts, once the
+    ///       dealer has collected an AVSS certificate.
     ///
     ///    The dealer must send all [AvssMessage]s until it has collected an AVID certificate, even
     ///    after an AVSS certificate has been created.
     ///
-    ///    To survive a crash, the caller should persist both the returned
-    ///    [DealerState] and the `BTreeMap<PartyId, AvssMessage>` before sending any of them, so that
-    ///    after a restart it can send the same messages.
-    pub fn create_avss_messages(
-        &self,
-        rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<(DealerState, BTreeMap<PartyId, AvssMessage>)> {
-        let state = self.create_encrypted_shares_with_mutation(rng, |_| {})?;
-        let messages = state
-            .ciphertexts
-            .iter()
-            .cloned()
-            .zip(self.nodes.node_ids_iter())
-            .map(|(ciphertext, i)| {
-                (
-                    i,
-                    AvssMessage {
-                        common: state.common.clone(),
-                        ciphertext,
-                    },
-                )
-            })
-            .collect();
-        Ok((state, messages))
+    ///    To survive a crash, the caller should persist the returned [DealerState] before sending
+    ///    any messages, so that even after a restart it can reproduce both the optimistic
+    ///    [AvssMessage]s and the pessimistic AVID dispersal from it.
+    pub fn create_avss_messages(&self, rng: &mut impl AllowedRng) -> FastCryptoResult<DealerState> {
+        self.create_encrypted_shares_with_mutation(rng, |_| {})
     }
 
     /// Encrypt shares, build `v`, and return the dealer state. Test mutation hook runs after the
@@ -981,6 +965,36 @@ impl Receiver {
     }
 }
 
+impl DealerState {
+    /// The optimistic-phase [AvssMessage] for every receiver, produced lazily from the state.
+    pub fn messages<'a>(
+        &'a self,
+        nodes: &'a Nodes<EG>,
+    ) -> impl Iterator<Item = (PartyId, AvssMessage)> + 'a {
+        nodes
+            .node_ids_iter()
+            .zip(&self.ciphertexts)
+            .map(|(id, ciphertext)| (id, self.message_from_ciphertext(ciphertext)))
+    }
+
+    /// The optimistic-phase [AvssMessage] for a given `receiver` or `None` if `receiver` is not part
+    /// of `nodes`.
+    pub fn message_for(&self, nodes: &Nodes<EG>, receiver: PartyId) -> Option<AvssMessage> {
+        nodes
+            .node_ids_iter()
+            .zip(&self.ciphertexts)
+            .find(|(id, _)| *id == receiver)
+            .map(|(_, ciphertext)| self.message_from_ciphertext(ciphertext))
+    }
+
+    fn message_from_ciphertext(&self, ciphertext: &Ciphertext) -> AvssMessage {
+        AvssMessage {
+            common: self.common.clone(),
+            ciphertext: ciphertext.clone(),
+        }
+    }
+}
+
 impl AvssCommonMessage {
     /// Verify the dealer's commitments: lengths/degree are well-formed, the encryption NIZK in
     /// `ciphertext_shared` checks, and `g^{p''(0)} = c' · ∏ c_l^{γ_l}`. Consumes `self` and
@@ -1346,7 +1360,7 @@ mod tests {
             .collect_vec();
 
         // Optimistic phase: only parties 0..=7 confirm; 8 and 9 are stragglers.
-        let (state, optimistic_messages) = dealer.create_avss_messages(&mut rng).unwrap();
+        let state = dealer.create_avss_messages(&mut rng).unwrap();
         let voters: Vec<PartyId> = (0u16..=7).collect();
         let pending: BTreeSet<PartyId> = [8u16, 9].into_iter().collect();
         let votes: BTreeMap<PartyId, AvssVote> = voters
@@ -1355,7 +1369,7 @@ mod tests {
                 (
                     *id,
                     receivers[*id as usize]
-                        .process_avss_message(&optimistic_messages[id], None)
+                        .process_avss_message(&state.message_for(&nodes, *id).unwrap(), None)
                         .unwrap()
                         .1,
                 )
@@ -1446,12 +1460,8 @@ mod tests {
         let mut rng = rand::thread_rng();
         let state = dealer.create_encrypted_shares_cheating(&mut rng).unwrap();
         let common = state.common.clone();
-        let opt_messages: Vec<AvssMessage> = (0..n)
-            .map(|i| AvssMessage {
-                common: common.clone(),
-                ciphertext: state.ciphertexts[i as usize].clone(),
-            })
-            .collect();
+        let opt_messages: Vec<AvssMessage> =
+            state.messages(&dealer.nodes).map(|(_, m)| m).collect();
 
         // Optimistic: receivers 1..n confirm; receiver 0's decryption fails.
         let mut outputs: HashMap<u16, ReceiverOutput> = HashMap::new();
@@ -1573,7 +1583,7 @@ mod tests {
         let (dealer, receivers) = uniform_session(n, t, f, batch_size_per_weight);
 
         let mut rng = rand::thread_rng();
-        let (state, opt_messages) = dealer.create_avss_messages(&mut rng).unwrap();
+        let state = dealer.create_avss_messages(&mut rng).unwrap();
         let common = state.common.clone();
 
         // Optimistic: receivers 1..n confirm; receiver 0 is simulated as not having received
@@ -1581,7 +1591,9 @@ mod tests {
         let mut outputs: HashMap<u16, ReceiverOutput> = HashMap::new();
         let mut votes: BTreeMap<PartyId, AvssVote> = BTreeMap::new();
         for r in receivers.iter().filter(|r| r.id != victim_id) {
-            let (out, c, _) = r.process_avss_message(&opt_messages[&r.id], None).unwrap();
+            let (out, c, _) = r
+                .process_avss_message(&state.message_for(&dealer.nodes, r.id).unwrap(), None)
+                .unwrap();
             outputs.insert(r.id, out);
             votes.insert(r.id, c);
         }

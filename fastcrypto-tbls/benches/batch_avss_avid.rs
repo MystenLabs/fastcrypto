@@ -145,7 +145,7 @@ mod batch_avss_benches {
         n: u16,
         rng: &mut impl AllowedRng,
     ) -> (AvssCommonMessage, AvidMessageBuilder<AvssCert>, AvssCert) {
-        let (state, _) = dealer.create_avss_messages(rng).unwrap();
+        let state = dealer.create_avss_messages(rng).unwrap();
         let common = state.common.clone();
         let cert = AvssCert {
             voters: (0..n).filter(|&i| i != STRAGGLER).collect(),
