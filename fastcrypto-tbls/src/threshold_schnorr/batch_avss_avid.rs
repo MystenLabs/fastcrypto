@@ -1234,8 +1234,8 @@ fn compute_challenge_from_common_message(
 #[cfg(test)]
 mod tests {
     use super::{
-        AvidMessageBuilder, AvidVote, AvssMessage, AvssVote, Dealer, DealerState, Parameters,
-        DecodeAndDecryptOutcome, Receiver, ReceiverOutput, VerifiedEcho,
+        AvidMessageBuilder, AvidVote, AvssMessage, AvssVote, Dealer, DealerState,
+        DecodeAndDecryptOutcome, Parameters, Receiver, ReceiverOutput, VerifiedEcho,
     };
     use crate::ecies_v1;
     use crate::ecies_v1::PublicKey;
