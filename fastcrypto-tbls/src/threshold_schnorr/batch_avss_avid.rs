@@ -271,10 +271,12 @@ impl Dealer {
     ///    Returns also a [DealerState] that can be used to produce the pessimistic-phase messages
     ///    later, after the dealer has collected an AVSS certificate.
     ///
-    ///    The dealer must keep (re)sending each receiver its [AvssMessage] until it has collected an
-    ///    AVID certificate. To survive a crash, the caller should persist both the returned
+    ///    The dealer must send all [AvssMessage]s until it has collected an AVID certificate, even
+    ///    after an AVSS certificate has been created.
+    ///
+    ///    To survive a crash, the caller should persist both the returned
     ///    [DealerState] and the `BTreeMap<PartyId, AvssMessage>` before sending any of them, so that
-    ///    after a restart it resends byte-for-byte identical messages.
+    ///    after a restart it can send the same messages.
     pub fn create_avss_messages(
         &self,
         rng: &mut impl AllowedRng,
@@ -283,13 +285,14 @@ impl Dealer {
         let messages = state
             .ciphertexts
             .iter()
+            .cloned()
             .zip(self.nodes.node_ids_iter())
-            .map(|(ct, i)| {
+            .map(|(ciphertext, i)| {
                 (
                     i,
                     AvssMessage {
                         common: state.common.clone(),
-                        ciphertext: ct.clone(),
+                        ciphertext,
                     },
                 )
             })
@@ -411,10 +414,10 @@ impl Dealer {
     ///    Every receiver that sent an [AvssVote] (including late voters not in `avss_cert`) should
     ///    get an [AvidMessage] until the dealer has collected an AVID certificate.
     ///
-    ///    Forming the input `avss_cert`: the dealer should collect at least `t + f` weight of
-    ///    [AvssVote]s, then wait a short grace period (≈ δ, e.g. a few seconds) to pick up any
-    ///    additional votes, and only then form the certificate. This keeps the pending-recipient
-    ///    set (and hence the dispersal) as small as possible.
+    ///    Forming the input `avss_cert`: the dealer should collect `≥ t + f` weight of [AvssVote]s,
+    ///    then wait a short grace period to pick up any additional votes, and only then form the
+    ///    certificate. This keeps the pending-recipient set (and hence the dispersal) as small as
+    ///    possible.
     ///
     ///    Once `≥ W − f` weight of [AvidVote]s has been collected, the dealer can form and
     ///    publish a certificate over those votes on the TOB.
@@ -519,12 +522,9 @@ impl Receiver {
     /// 2. Process an [AvssMessage] sent by the dealer in the optimistic phase.
     ///
     ///    The receiver should provide a `verified_avss_common_message` if it has already received
-    ///    and verified the [AvssCommonMessage] for this AVSS round. That happens when the dealer
-    ///    redelivers an [AvssMessage] (it keeps resending until it has an AVID certificate) or when
-    ///    the receiver verified the common on its own via [Self::verify_common_message]. If the
-    ///    common provided here disagrees with the one in `message` — e.g. an equivocating dealer
-    ///    sent a different common after the receiver already committed to one — the message is
-    ///    rejected with [InvalidInput].
+    ///    and verified the [AvssCommonMessage] for this AVSS round. If the common provided here
+    ///    disagrees with the one in `message`, e.g. an equivocating dealer sent a different common
+    ///    after the receiver already committed to one, the message is rejected with [InvalidInput].
     ///
     ///    On success, returns
     ///     * a [ReceiverOutput],
@@ -565,10 +565,8 @@ impl Receiver {
     /// [VerifiedAvssCommonMessage].
     ///
     /// Called in the pessimistic phase by a receiver that needs a [VerifiedAvssCommonMessage] but
-    /// did not obtain one from its own [AvssMessage] (e.g. a straggler that never received the
-    /// optimistic message). The result is required by [Self::process_avid_message],
-    /// [Self::decode_ciphertext] and [Self::decrypt_and_verify]. A receiver that already verified
-    /// its [AvssMessage] in the optimistic phase already holds one and need not call this.
+    /// did not obtain one from its own [AvssMessage] since the result is required by
+    /// [Self::process_avid_message], [Self::decode_ciphertext] and [Self::decrypt_and_verify].
     pub fn verify_common_message(
         &self,
         common_message: AvssCommonMessage,
@@ -585,12 +583,9 @@ impl Receiver {
     ///    [Echo]es on demand. Returns also an [AvidVote] to be signed and returned to the dealer.
     ///
     ///    The caller must already hold a `verified_avss_common_message` for this AVSS round before
-    ///    processing the [AvidMessage] — obtained either by verifying its shares in the optimistic
-    ///    phase ([Self::process_avss_message]) or by verifying just the common on its own
-    ///    ([Self::verify_common_message]). Only the common-level guarantee is needed here; the
-    ///    receiver's shares need not have been verified. The common is therefore a required
-    ///    argument, not optional: a receiver that does not yet hold one cannot act on the message
-    ///    and should obtain the common first.
+    ///    processing the [AvidMessage], obtained either when verifying its shares in the AVSS
+    ///    phase ([Self::process_avss_message]) or by fetching the [AvssCommonMessage] from a peer
+    ///    and verify it using [Self::verify_common_message].
     ///
     ///    Receivers who did not receive their shares through an [AvssMessage] should wait for a
     ///    published [Certificate] over [AvidVote]s that confirms they are a pending recipient and
@@ -662,10 +657,8 @@ impl Receiver {
     ///    An [AvidComplaint] is a dispersal-layer fault. Hold it until the matching cert on
     ///    [AvidVote]s is certified on the TOB, or discard it if a different one wins.
     ///
-    ///    A pending recipient only pulls echoes from the signers after the [AvidVote] certificate
-    ///    is published — the cert confirms it is a pending recipient and pins the `top_root` that
-    ///    [Self::verify_avid_echo_message] checks them against — so a quorum of echoes is never
-    ///    available before the cert.
+    ///    A pending recipient should only pull echoes from the signers after the [AvidVote]
+    ///    certificate is published and the cert confirms it is a pending recipient.
     ///
     ///    The caller should persist its decoded ciphertext for the session to answer complaints.
     pub fn decode_ciphertext<C: Certificate<Payload = AvidVote>>(
@@ -709,13 +702,6 @@ impl Receiver {
     ///    The [AvssComplaint] is an encryption-layer fault carrying the accuser's ciphertext
     ///    and an ECIES recovery package. Broadcast it only after seeing a TOB certificate for
     ///    the corresponding `common_message_hash`.
-    ///
-    ///    In the pessimistic flow this is always called on the ciphertext returned by
-    ///    [Self::decode_ciphertext]. It is kept separate from it rather than combined because the
-    ///    two steps surface faults at different protocol layers: [Self::decode_ciphertext] can
-    ///    short-circuit with a dispersal-layer [AvidComplaint] (and then this is never reached),
-    ///    whereas this surfaces an encryption-layer [AvssComplaint]. Splitting them also lets the
-    ///    caller persist the decoded ciphertext (needed to answer complaints) before decrypting.
     pub fn decrypt_and_verify<C: Certificate<Payload = AvidVote>>(
         &self,
         ciphertext: &Ciphertext,

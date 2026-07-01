@@ -221,11 +221,12 @@ impl Avid {
         }
     }
 
-    /// RS-decode the payload from authenticated `shards` and confirm it is a *consistent* codeword:
-    /// it decodes, passes `payload_ok`, and re-encoding it rebuilds the committed row root.
+    /// RS-decode the payload from authenticated `shards` and confirm it is a consistent codeword.
+    /// If this is the case, return `Some(payload)`.
     ///
-    /// Returns `Some(payload)` when all three hold, and `None` when any fails — i.e. the dispersal
-    /// is inconsistent and complaint-worthy.
+    /// Returns `Err` only for malformed input or verification/re-encoding failures
+    /// (for example, empty `shards`, row-root derivation failure, or row-root recomputation
+    /// failure). Decode failure, payload rejection, or row-root mismatch return `Ok(None)`.
     fn decode_consistent(
         &self,
         shards: &BTreeMap<PartyId, AuthenticatedShards>,
