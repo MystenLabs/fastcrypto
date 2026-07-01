@@ -145,7 +145,7 @@ mod batch_avss_benches {
         n: u16,
         rng: &mut impl AllowedRng,
     ) -> (AvssCommonMessage, AvidMessageBuilder<AvssCert>, AvssCert) {
-        let (state, _) = dealer.create_avss_messages(rng).unwrap();
+        let state = dealer.create_avss_messages(rng).unwrap();
         let common = state.common.clone();
         let cert = AvssCert {
             voters: (0..n).filter(|&i| i != STRAGGLER).collect(),
@@ -223,13 +223,7 @@ mod batch_avss_benches {
                 let vcm = r1.verify_common_message(common).unwrap();
                 echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| {
-                        b.iter(|| {
-                            r1.process_avid_message(Some(&vcm), message.clone())
-                                .unwrap()
-                                .unwrap()
-                        })
-                    },
+                    |b| b.iter(|| r1.process_avid_message(&vcm, message.clone()).unwrap()),
                 );
             }
         }
@@ -252,13 +246,11 @@ mod batch_avss_benches {
                 let vcm0 = r0.verify_common_message(common.clone()).unwrap();
                 let vcm1 = r1.verify_common_message(common).unwrap();
                 let (builder0, _) = r0
-                    .process_avid_message(Some(&vcm0), messages.message_for(0).unwrap())
-                    .unwrap()
+                    .process_avid_message(&vcm0, messages.message_for(0).unwrap())
                     .unwrap();
                 let echo_for_r1 = builder0.create_echo(1).unwrap();
                 let (_, vote1) = r1
-                    .process_avid_message(Some(&vcm1), messages.message_for(r1.id).unwrap())
-                    .unwrap()
+                    .process_avid_message(&vcm1, messages.message_for(r1.id).unwrap())
                     .unwrap();
                 let avid_cert = AvidCert {
                     signers: (0..*n).collect(),
@@ -280,7 +272,7 @@ mod batch_avss_benches {
 
         {
             let mut process: BenchmarkGroup<_> = c.benchmark_group(format!(
-                "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) process_message"
+                "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) decode_and_decrypt"
             ));
             for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
                 let w = total_w / n;
@@ -300,8 +292,7 @@ mod batch_avss_benches {
                     .map(|r| {
                         let vcm = r.verify_common_message(common.clone()).unwrap();
                         let (builder, vote) = r
-                            .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
-                            .unwrap()
+                            .process_avid_message(&vcm, messages.message_for(r.id).unwrap())
                             .unwrap();
                         if r.id == 1 {
                             avid_cert = Some(
@@ -341,91 +332,19 @@ mod batch_avss_benches {
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            r1.decode_ciphertext(&echoes_for_party_1, &vcm1, &avid_cert)
-                                .unwrap()
-                        })
-                    },
-                );
-            }
-        }
-
-        {
-            let mut verify_decrypt: BenchmarkGroup<_> = c.benchmark_group(format!(
-                "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) verify_and_decrypt"
-            ));
-            for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
-                let w = total_w / n;
-                let total_w = w * n;
-                let t = total_w / 3 - 1;
-                let f = t.saturating_sub(1);
-                let keys = generate_ecies_keys(*n);
-                let d0 = setup_dealer(0, f, t, w, &keys, batch_size_per_weight);
-                let receivers: Vec<batch_avss::Receiver> = (0..*n)
-                    .map(|id| setup_receiver(id, 0, f, t, w, &keys, batch_size_per_weight))
-                    .collect();
-                let (common, messages, _cert) =
-                    pessimistic_with_one_straggler(&d0, *n, &mut thread_rng());
-                let mut avid_cert = None;
-                let echoes: Vec<BTreeMap<PartyId, batch_avss::Echo>> = receivers
-                    .iter()
-                    .map(|r| {
-                        let vcm = r.verify_common_message(common.clone()).unwrap();
-                        let (builder, vote) = r
-                            .process_avid_message(Some(&vcm), messages.message_for(r.id).unwrap())
-                            .unwrap()
-                            .unwrap();
-                        if r.id == 1 {
-                            avid_cert = Some(
-                                AvidCert {
-                                    signers: (0..*n).collect(),
-                                    vote,
-                                }
-                                .into_verified()
-                                .unwrap(),
-                            );
-                        }
-                        builder
-                            .recipients()
-                            .iter()
-                            .map(|&rcpt| (rcpt, builder.create_echo(rcpt).unwrap()))
-                            .collect()
-                    })
-                    .collect();
-                let avid_cert = avid_cert.unwrap();
-                let vcm1 = receivers[1].verify_common_message(common).unwrap();
-                let echoes_for_party_1: Vec<batch_avss::VerifiedEcho> = echoes
-                    .iter()
-                    .enumerate()
-                    .map(|(sender, em)| {
-                        receivers[1]
-                            .verify_avid_echo_message(
-                                em[&1u16].clone(),
-                                sender as PartyId,
+                            r1.decode_and_decrypt(
+                                &echoes_for_party_1,
+                                &vcm1,
                                 &avid_cert,
+                                &mut thread_rng(),
                             )
                             .unwrap()
-                    })
-                    .collect();
-                let r1 = &receivers[1];
-                let ciphertext = match r1
-                    .decode_ciphertext(&echoes_for_party_1, &vcm1, &avid_cert)
-                    .unwrap()
-                {
-                    batch_avss::DecodeOutcome::Decoded(c) => c,
-                    _ => panic!("expected Decoded outcome"),
-                };
-
-                verify_decrypt.bench_function(
-                    format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
-                    |b| {
-                        b.iter(|| {
-                            r1.decrypt_and_verify(&ciphertext, &vcm1, &avid_cert)
-                                .unwrap()
                         })
                     },
                 );
             }
         }
+
         {
             let mut complete: BenchmarkGroup<_> = c.benchmark_group(format!(
                 "BATCH_AVSS (batch_size_per_weight = {batch_size_per_weight}) presigning"
@@ -465,11 +384,7 @@ mod batch_avss_benches {
                             .map(|r| {
                                 let vcm = r.verify_common_message(common.clone()).unwrap();
                                 let (builder, vote) = r
-                                    .process_avid_message(
-                                        Some(&vcm),
-                                        messages.message_for(r.id).unwrap(),
-                                    )
-                                    .unwrap()
+                                    .process_avid_message(&vcm, messages.message_for(r.id).unwrap())
                                     .unwrap();
                                 if r.id == 1 {
                                     avid_cert = Some(
@@ -503,18 +418,18 @@ mod batch_avss_benches {
                                     .unwrap()
                             })
                             .collect();
-                        let ciphertext = match receivers[1]
-                            .decode_ciphertext(&echoes_for_party_1, &vcm1, &avid_cert)
+                        let output = match receivers[1]
+                            .decode_and_decrypt(
+                                &echoes_for_party_1,
+                                &vcm1,
+                                &avid_cert,
+                                &mut thread_rng(),
+                            )
                             .unwrap()
                         {
-                            batch_avss::DecodeOutcome::Decoded(c) => c,
-                            _ => panic!("expected Decoded outcome"),
+                            batch_avss::DecodeAndDecryptOutcome::Valid(_, output) => output,
+                            _ => panic!("expected Valid outcome"),
                         };
-                        let output = assert_valid_batch(
-                            receivers[1]
-                                .decrypt_and_verify(&ciphertext, &vcm1, &avid_cert)
-                                .unwrap(),
-                        );
                         // presigning consumes the legacy `batch_avss` output types; convert here
                         // while `receivers[1]` is still in scope to derive the share indices.
                         output.into_legacy(&receivers[1].my_indices())
@@ -570,10 +485,3 @@ mod batch_avss_benches {
 }
 
 criterion_main!(batch_avss_benches::batch_avss_benches);
-
-fn assert_valid_batch(outcome: batch_avss::DecryptionOutcome) -> batch_avss::ReceiverOutput {
-    match outcome {
-        batch_avss::DecryptionOutcome::Valid(output) => output,
-        _ => panic!("Expected valid outcome"),
-    }
-}

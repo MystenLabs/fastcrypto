@@ -12,7 +12,9 @@ use crate::threshold_schnorr::merkle::{NestedMerkleProof, NestedMerkleTree};
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
 use crate::threshold_schnorr::EG;
 use crate::types::get_uniform_value;
-use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage, NotEnoughWeight};
+use fastcrypto::error::FastCryptoError::{
+    InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
+};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::merkle;
 use itertools::Itertools;
@@ -29,8 +31,7 @@ pub struct Avid {
     f: u16,
 }
 
-/// Dealer-side cache built by [Avid::disperse_with_mutation] which can create individual [Dispersal]s
-/// on demand via [Self::dispersal_for].
+/// Dealer-side cache that can create individual [Dispersal] messages on demand.
 pub struct DispersalBuilder {
     nodes: Arc<Nodes<EG>>,
     tree: NestedMerkleTree,
@@ -216,9 +217,26 @@ impl Avid {
             .cloned()
             .map(|e| (e.sender, e.echo.authenticated_shards))
             .collect();
-        let payload = match self.decode(&shards) {
+        match self.decode_consistent(&shards, payload_ok)? {
+            Some(payload) => Ok(Ok(payload)),
+            None => Ok(Err(Complaint { shards })),
+        }
+    }
+
+    /// RS-decode the payload from authenticated `shards` and confirm it is a consistent codeword.
+    /// If this is the case, return `Some(payload)`.
+    ///
+    /// Returns `Err` only for malformed input or verification/re-encoding failures
+    /// (for example, empty `shards`, row-root derivation failure, or row-root recomputation
+    /// failure). Decode failure, payload rejection, or row-root mismatch return `Ok(None)`.
+    fn decode_consistent(
+        &self,
+        shards: &BTreeMap<PartyId, AuthenticatedShards>,
+        payload_ok: impl Fn(&[u8]) -> bool,
+    ) -> FastCryptoResult<Option<Vec<u8>>> {
+        let payload = match self.decode(shards) {
             Ok(p) if payload_ok(&p) => p,
-            _ => return Ok(Err(Complaint { shards })),
+            _ => return Ok(None),
         };
 
         // Re-encode the payload and rebuild the row's Merkle tree.
@@ -226,44 +244,57 @@ impl Avid {
             .nodes
             .collect_to_nodes(self.coder.encode(&payload)?.into_iter())?;
 
-        // Take the expected recipient root from any verified echo's proof, since they all share the same top root and row index.
-        let (sender, authenticated_shards) =
-            shards.iter().next().expect("non-empty by check above");
+        // Take the expected recipient root from any shard's proof, since they all share the same top root and row index.
+        let (sender, authenticated_shards) = shards.iter().next().ok_or(InvalidInput)?;
         let expected_recipient_root = authenticated_shards
             .proof
             .derive_row_root(&authenticated_shards.shards, *sender as usize)?;
         if NestedMerkleTree::compute_row_root(&re_encoded)? != expected_recipient_root {
-            return Ok(Err(Complaint { shards }));
+            return Ok(None);
         }
 
-        Ok(Ok(payload))
+        Ok(Some(payload))
     }
 
-    /// Check if `complaint` is a valid complaint against the dispersal.
+    /// Verify that `complaint` is a valid complaint against the dispersal certified by `vote`.
+    ///
+    /// Returns `Ok(())` if the complaint is valid. Otherwise returns an error: `InvalidInput` if the
+    /// accuser is not a recipient, a shard proof fails to verify, `NotEnoughWeight` if the complaint
+    /// carries too little weight to reconstruct, or `InvalidProof` if the complaint is well-formed
+    /// but unsubstantiated (the shards actually decode to a consistent payload).
     pub fn complaint_is_valid(
         &self,
         complaint: &Complaint,
         accuser_id: PartyId,
-        top_root: &merkle::Node,
-        pending_recipients: &BTreeSet<PartyId>,
+        vote: &Vote,
         payload_ok: impl Fn(&[u8]) -> bool,
-    ) -> FastCryptoResult<bool> {
-        let Some(accuser_idx) = pending_recipients.iter().position(|&id| id == accuser_id) else {
-            return Ok(false);
-        };
-        let shards_verify = complaint.shards.iter().all(|(&disperser, auth)| {
-            auth.proof
-                .verify(top_root, &auth.shards, accuser_idx, disperser as usize)
-                .is_ok()
-        });
-        if !shards_verify
-            || self.nodes.total_weight_of(complaint.shards.keys())? < self.required_weight()
-        {
-            return Ok(false);
+    ) -> FastCryptoResult<()> {
+        // An accuser that is not a pending recipient cannot have a dispersal complaint.
+        let accuser_idx = vote
+            .recipients
+            .iter()
+            .position(|&id| id == accuser_id)
+            .ok_or(InvalidInput)?;
+        for (&disperser, auth) in complaint.shards.iter() {
+            auth.proof.verify(
+                &vote.top_root,
+                &auth.shards,
+                accuser_idx,
+                disperser as usize,
+            )?;
         }
-        Ok(!self
-            .decode(&complaint.shards)
-            .is_ok_and(|payload| payload_ok(&payload)))
+        let weight = self.nodes.total_weight_of(complaint.shards.keys())?;
+        if weight < self.required_weight() {
+            return Err(NotEnoughWeight(weight as usize));
+        }
+        // A consistent payload means the complaint is unsubstantiated.
+        if self
+            .decode_consistent(&complaint.shards, payload_ok)?
+            .is_some()
+        {
+            return Err(InvalidProof);
+        }
+        Ok(())
     }
 
     /// RS-decode a payload from authenticated shard contributions keyed by disperser. Missing dispersers
@@ -475,14 +506,71 @@ mod tests {
             .unwrap_err();
 
         // Another party validates the complaint.
-        assert!(avid
-            .complaint_is_valid(
-                &complaint,
-                recipient,
-                &certified_vote.top_root,
-                &certified_vote.recipients,
-                |_| true
-            )
-            .unwrap());
+        avid.complaint_is_valid(&complaint, recipient, &certified_vote, |_| true)
+            .unwrap();
+    }
+
+    #[test]
+    fn inconsistent_row_accepted_from_consistent_subset() {
+        // The dealer commits an *inconsistent* full row (shards 3 and 4 corrupted before the tree
+        // is built) but the first W − 2f = 3 shards are a clean subset of the intended codeword. An
+        // accuser that gathers exactly those 3 shards decodes a valid payload, yet re-encoding it
+        // disagrees with the committed row root, so it raises a Complaint. A validator must accept
+        // that complaint even though the 3 shards alone form a consistent codeword — this is the
+        // case that bare `decode` (without the re-encode check) would have wrongly rejected.
+        let weights = [1u16; 5]; // total weight W = 5
+        let f = 1u16; // W − 2f = 3
+        let nodes = Arc::new(nodes_with_weights(&weights));
+        let avid = Avid::new(Arc::clone(&nodes), f).unwrap();
+
+        let recipient = 0u16;
+        let mut payload = vec![0u8; 200];
+        thread_rng().fill_bytes(&mut payload);
+        let payloads: BTreeMap<PartyId, Vec<u8>> =
+            std::iter::once((recipient, payload.clone())).collect();
+
+        // Corrupt the shards held by dispersers 3 and 4, leaving 0, 1, 2 clean.
+        let dispersal_builder = avid
+            .disperse_with_mutation(&payloads, |shards| {
+                let row = shards.get_mut(&recipient).unwrap();
+                row[3][0].0[0] ^= 1;
+                row[4][0].0[0] ^= 1;
+            })
+            .unwrap();
+
+        let mut certified_vote = None;
+        let party_echoes: Vec<(PartyId, Echo)> = avid
+            .nodes
+            .node_ids_iter()
+            .map(|j| {
+                let m = dispersal_builder.dispersal_for(j).unwrap();
+                let (builder, vote) = avid.process_dispersal(j, m).unwrap();
+                if certified_vote.is_none() {
+                    certified_vote = Some(vote);
+                }
+                (j, builder.create_echo(recipient).unwrap())
+            })
+            .collect();
+        let certified_vote = certified_vote.unwrap();
+
+        // Gather exactly the W − 2f = 3 clean echoes (dispersers 0, 1, 2).
+        let echoes: Vec<VerifiedEcho> = party_echoes
+            .into_iter()
+            .filter(|(sender, _)| *sender < 3)
+            .map(|(sender, echo)| {
+                avid.verify_echo(echo, sender, &certified_vote, recipient)
+                    .unwrap()
+            })
+            .collect();
+
+        // The clean subset decodes, but re-encoding disagrees with the committed (corrupted) row.
+        let complaint = avid
+            .decode_or_complain(&echoes, |_| true)
+            .unwrap()
+            .unwrap_err();
+
+        // A validator accepts the complaint via the same re-encode check.
+        avid.complaint_is_valid(&complaint, recipient, &certified_vote, |_| true)
+            .unwrap();
     }
 }
