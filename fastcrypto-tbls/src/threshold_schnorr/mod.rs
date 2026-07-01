@@ -320,7 +320,7 @@ mod tests {
             let state = dealer.create_avss_messages(&mut rng).unwrap();
             for r in &receivers {
                 let (output, _confirm, _verified_common) = r
-                    .process_avss_message(&state.message_for(&nodes, r.id).unwrap(), None)
+                    .process_avss_message(&state.message_for(r.id).unwrap(), None)
                     .unwrap();
                 presigning_outputs.get_mut(&r.id).unwrap().push(output);
             }

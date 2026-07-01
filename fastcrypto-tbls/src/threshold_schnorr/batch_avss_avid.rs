@@ -97,10 +97,12 @@ pub struct AvssVote {
     pub common_message_hash: Digest,
 }
 
-/// Dealer state carried from the optimistic to the pessimistic phase.
+/// Dealer-side state carried from the optimistic to the pessimistic phase. Builds the per-receiver
+/// [AvssMessage]s on demand and carries the ciphertexts into the pessimistic AVID phase.
 #[derive(Clone, Debug)]
-pub struct DealerState {
+pub struct AvssMessageBuilder {
     pub common: AvssCommonMessage,
+    // Ordered by node id: `ciphertexts[i]` is the ciphertext for receiver `i`.
     ciphertexts: Vec<Ciphertext>,
 }
 
@@ -257,32 +259,30 @@ impl Dealer {
         })
     }
 
-    /// 1. Build the [DealerState]. This encrypts the shares for every receiver and holds everything
-    ///    the dealer needs for the rest of the protocol:
-    ///     * In the optimistic phase, the per-receiver [AvssMessage]s are produced lazily from the
-    ///       state via [DealerState::messages] or [DealerState::message_for].
-    ///     * In the pessimistic (AVID) phase, the same state is passed to
-    ///       [Self::create_avid_messages] to disperse the pending recipients' ciphertexts, once the
-    ///       dealer has collected an AVSS certificate.
+    /// 1. Build the [AvssMessageBuilder]. This encrypts the shares for every receiver and holds
+    ///    everything the dealer needs to create the per-receiver [AvssMessage]s.
     ///
     ///    The dealer must send all [AvssMessage]s until it has collected an AVID certificate, even
     ///    after an AVSS certificate has been created.
     ///
-    ///    To survive a crash, the caller should persist the returned [DealerState] before sending
-    ///    any messages, so that even after a restart it can reproduce both the optimistic
-    ///    [AvssMessage]s and the pessimistic AVID dispersal from it.
-    pub fn create_avss_messages(&self, rng: &mut impl AllowedRng) -> FastCryptoResult<DealerState> {
-        self.create_encrypted_shares_with_mutation(rng, |_| {})
+    ///    To survive a crash, the caller should persist the returned [AvssMessageBuilder] before
+    ///    sending any messages, so that even after a restart it can reproduce both the optimistic
+    ///    [AvssMessage]s and use the same ciphertexts in the pessimistic AVID dispersal.
+    pub fn create_avss_messages(
+        &self,
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<AvssMessageBuilder> {
+        self.create_avss_messages_with_mutation(rng, |_| {})
     }
 
     /// Encrypt shares, build `v`, and return the dealer state. Test mutation hook runs after the
     /// plaintexts are constructed and before encryption.
     #[cfg_attr(not(test), allow(unused_variables, unused_mut))]
-    fn create_encrypted_shares_with_mutation(
+    fn create_avss_messages_with_mutation(
         &self,
         rng: &mut impl AllowedRng,
         mutate_plaintexts: impl FnOnce(&mut [(crate::ecies_v1::PublicKey<EG>, Vec<u8>)]),
-    ) -> FastCryptoResult<DealerState> {
+    ) -> FastCryptoResult<AvssMessageBuilder> {
         let secrets = repeat_with(|| S::rand(rng))
             .take(self.batch_size)
             .collect_vec();
@@ -375,7 +375,7 @@ impl Dealer {
             response_polynomial,
         };
 
-        Ok(DealerState {
+        Ok(AvssMessageBuilder {
             common,
             ciphertexts,
         })
@@ -401,10 +401,10 @@ impl Dealer {
     ///    If every receiver confirmed, the pessimistic phase can be skipped entirely.
     pub fn create_avid_messages<C: Certificate<Payload = AvssVote>>(
         &self,
-        state: &DealerState,
+        builder: &AvssMessageBuilder,
         avss_cert: C,
     ) -> FastCryptoResult<AvidMessageBuilder<C>> {
-        self.create_avid_messages_with_mutation(state, avss_cert, |_| {})
+        self.create_avid_messages_with_mutation(builder, avss_cert, |_| {})
     }
 
     /// Test-only variant of [Self::create_avid_messages] that runs `mutate_shards` over the
@@ -412,19 +412,23 @@ impl Dealer {
     #[cfg(test)]
     fn create_avid_messages_for_testing<C: Certificate<Payload = AvssVote>>(
         &self,
-        state: &DealerState,
+        builder: &AvssMessageBuilder,
         avss_cert: C,
         mutate_shards: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
     ) -> FastCryptoResult<AvidMessageBuilder<C>> {
-        self.create_avid_messages_with_mutation(state, avss_cert, mutate_shards)
+        self.create_avid_messages_with_mutation(builder, avss_cert, mutate_shards)
     }
 
     fn create_avid_messages_with_mutation<C: Certificate<Payload = AvssVote>>(
         &self,
-        state: &DealerState,
+        builder: &AvssMessageBuilder,
         avss_cert: C,
         mutate_shards: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
     ) -> FastCryptoResult<AvidMessageBuilder<C>> {
+        if builder.common.hash() != avss_cert.payload().common_message_hash {
+            warn!("batch_avss create_avid_messages_with_mutation: AVSS Cert binds a different common message");
+            return Err(InvalidInput);
+        }
         let pending_recipients: BTreeSet<PartyId> = self
             .nodes
             .node_ids_iter()
@@ -436,7 +440,7 @@ impl Dealer {
         }
         let payloads: BTreeMap<PartyId, Vec<u8>> = pending_recipients
             .iter()
-            .map(|&i| (i, state.ciphertexts[i as usize].0.clone()))
+            .map(|&i| (i, builder.ciphertexts[i as usize].0.clone()))
             .collect();
         self.avid
             .disperse_with_mutation(&payloads, mutate_shards)
@@ -965,26 +969,21 @@ impl Receiver {
     }
 }
 
-impl DealerState {
-    /// The optimistic-phase [AvssMessage] for every receiver, produced lazily from the state.
-    pub fn messages<'a>(
-        &'a self,
-        nodes: &'a Nodes<EG>,
-    ) -> impl Iterator<Item = (PartyId, AvssMessage)> + 'a {
-        nodes
-            .node_ids_iter()
-            .zip(&self.ciphertexts)
-            .map(|(id, ciphertext)| (id, self.message_from_ciphertext(ciphertext)))
+impl AvssMessageBuilder {
+    /// The optimistic-phase [AvssMessage] for every receiver.
+    pub fn messages(&self) -> impl Iterator<Item = (PartyId, AvssMessage)> + '_ {
+        self.ciphertexts
+            .iter()
+            .enumerate()
+            .map(|(i, ciphertext)| (i as PartyId, self.message_from_ciphertext(ciphertext)))
     }
 
-    /// The optimistic-phase [AvssMessage] for a given `receiver` or `None` if `receiver` is not part
-    /// of `nodes`.
-    pub fn message_for(&self, nodes: &Nodes<EG>, receiver: PartyId) -> Option<AvssMessage> {
-        nodes
-            .node_ids_iter()
-            .zip(&self.ciphertexts)
-            .find(|(id, _)| *id == receiver)
-            .map(|(_, ciphertext)| self.message_from_ciphertext(ciphertext))
+    /// The optimistic-phase [AvssMessage] for a given `receiver`, or `None` if `receiver` is not a
+    /// valid id.
+    pub fn message_for(&self, receiver: PartyId) -> Option<AvssMessage> {
+        self.ciphertexts
+            .get(receiver as usize)
+            .map(|ciphertext| self.message_from_ciphertext(ciphertext))
     }
 
     fn message_from_ciphertext(&self, ciphertext: &Ciphertext) -> AvssMessage {
@@ -1248,7 +1247,7 @@ fn compute_challenge_from_common_message(
 #[cfg(test)]
 mod tests {
     use super::{
-        AvidMessageBuilder, AvidVote, AvssMessage, AvssVote, Dealer, DealerState,
+        AvidMessageBuilder, AvidVote, AvssMessage, AvssMessageBuilder, AvssVote, Dealer,
         DecodeAndDecryptOutcome, Parameters, Receiver, ReceiverOutput, VerifiedEcho,
     };
     use crate::ecies_v1;
@@ -1369,7 +1368,7 @@ mod tests {
                 (
                     *id,
                     receivers[*id as usize]
-                        .process_avss_message(&state.message_for(&nodes, *id).unwrap(), None)
+                        .process_avss_message(&state.message_for(*id).unwrap(), None)
                         .unwrap()
                         .1,
                 )
@@ -1460,8 +1459,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         let state = dealer.create_encrypted_shares_cheating(&mut rng).unwrap();
         let common = state.common.clone();
-        let opt_messages: Vec<AvssMessage> =
-            state.messages(&dealer.nodes).map(|(_, m)| m).collect();
+        let opt_messages: Vec<AvssMessage> = state.messages().map(|(_, m)| m).collect();
 
         // Optimistic: receivers 1..n confirm; receiver 0's decryption fails.
         let mut outputs: HashMap<u16, ReceiverOutput> = HashMap::new();
@@ -1592,7 +1590,7 @@ mod tests {
         let mut votes: BTreeMap<PartyId, AvssVote> = BTreeMap::new();
         for r in receivers.iter().filter(|r| r.id != victim_id) {
             let (out, c, _) = r
-                .process_avss_message(&state.message_for(&dealer.nodes, r.id).unwrap(), None)
+                .process_avss_message(&state.message_for(r.id).unwrap(), None)
                 .unwrap();
             outputs.insert(r.id, out);
             votes.insert(r.id, c);
@@ -1783,15 +1781,15 @@ mod tests {
         fn create_encrypted_shares_cheating(
             &self,
             rng: &mut impl AllowedRng,
-        ) -> FastCryptoResult<DealerState> {
-            self.create_encrypted_shares_with_mutation(rng, |pk_and_msgs| {
+        ) -> FastCryptoResult<AvssMessageBuilder> {
+            self.create_avss_messages_with_mutation(rng, |pk_and_msgs| {
                 pk_and_msgs[0].1[7] ^= 1;
             })
         }
 
         fn pessimistic_with_corrupted_dispersal(
             &self,
-            state: &DealerState,
+            state: &AvssMessageBuilder,
             cert: AvssCert,
         ) -> FastCryptoResult<AvidMessageBuilder<AvssCert>> {
             let f = self.params.f as usize;
