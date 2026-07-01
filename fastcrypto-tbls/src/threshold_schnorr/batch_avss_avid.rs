@@ -400,10 +400,10 @@ impl Dealer {
     ///    If every receiver confirmed, the pessimistic phase can be skipped entirely.
     pub fn create_avid_messages<C: Certificate<Payload = AvssVote>>(
         &self,
-        builder: &AvssMessageBuilder,
+        avss_message_builder: &AvssMessageBuilder,
         avss_cert: C,
     ) -> FastCryptoResult<AvidMessageBuilder<C>> {
-        self.create_avid_messages_with_mutation(builder, avss_cert, |_| {})
+        self.create_avid_messages_with_mutation(avss_message_builder, avss_cert, |_| {})
     }
 
     /// Test-only variant of [Self::create_avid_messages] that runs `mutate_shards` over the
@@ -411,20 +411,20 @@ impl Dealer {
     #[cfg(test)]
     fn create_avid_messages_for_testing<C: Certificate<Payload = AvssVote>>(
         &self,
-        builder: &AvssMessageBuilder,
+        avss_message_builder: &AvssMessageBuilder,
         avss_cert: C,
         mutate_shards: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
     ) -> FastCryptoResult<AvidMessageBuilder<C>> {
-        self.create_avid_messages_with_mutation(builder, avss_cert, mutate_shards)
+        self.create_avid_messages_with_mutation(avss_message_builder, avss_cert, mutate_shards)
     }
 
     fn create_avid_messages_with_mutation<C: Certificate<Payload = AvssVote>>(
         &self,
-        builder: &AvssMessageBuilder,
+        avss_message_builder: &AvssMessageBuilder,
         avss_cert: C,
         mutate_shards: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
     ) -> FastCryptoResult<AvidMessageBuilder<C>> {
-        if builder.common.hash() != avss_cert.payload().common_message_hash {
+        if avss_message_builder.common.hash() != avss_cert.payload().common_message_hash {
             warn!("batch_avss create_avid_messages_with_mutation: AVSS Cert binds a different common message");
             return Err(InvalidInput);
         }
@@ -439,7 +439,7 @@ impl Dealer {
         }
         let payloads: BTreeMap<PartyId, Vec<u8>> = pending_recipients
             .iter()
-            .map(|&i| (i, builder.ciphertexts[i as usize].0.clone()))
+            .map(|&i| (i, avss_message_builder.ciphertexts[i as usize].0.clone()))
             .collect();
         self.avid
             .disperse_with_mutation(&payloads, mutate_shards)
@@ -822,14 +822,10 @@ impl Receiver {
             .ok_or(InvalidProof)?;
 
         let vote = &avid_cert.payload().vote;
-        if !self
-            .avid
+        self.avid
             .complaint_is_valid(blame, accuser_id, vote, |payload| {
                 Blake2b256::digest(payload) == *expected_hash
-            })?
-        {
-            return Err(InvalidProof);
-        }
+            })?;
 
         Ok(self.build_complaint_response(&verified_common.0, own_ciphertext, rng))
     }

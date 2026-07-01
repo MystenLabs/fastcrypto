@@ -12,7 +12,9 @@ use crate::threshold_schnorr::merkle::{NestedMerkleProof, NestedMerkleTree};
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
 use crate::threshold_schnorr::EG;
 use crate::types::get_uniform_value;
-use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage, NotEnoughWeight};
+use fastcrypto::error::FastCryptoError::{
+    InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
+};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::merkle;
 use itertools::Itertools;
@@ -254,39 +256,45 @@ impl Avid {
         Ok(Some(payload))
     }
 
-    /// Check if `complaint` is a valid complaint against the dispersal certified by `vote`.
+    /// Verify that `complaint` is a valid complaint against the dispersal certified by `vote`.
+    ///
+    /// Returns `Ok(())` if the complaint is valid. Otherwise returns an error: `InvalidInput` if the
+    /// accuser is not a recipient, a shard proof fails to verify, `NotEnoughWeight` if the complaint
+    /// carries too little weight to reconstruct, or `InvalidProof` if the complaint is well-formed
+    /// but unsubstantiated (the shards actually decode to a consistent payload).
     pub fn complaint_is_valid(
         &self,
         complaint: &Complaint,
         accuser_id: PartyId,
         vote: &Vote,
         payload_ok: impl Fn(&[u8]) -> bool,
-    ) -> FastCryptoResult<bool> {
-        // An accuser that is not a pending recipient cannot have a dispersal complaint at all, so
-        // this is malformed input rather than an unsubstantiated (but well-formed) complaint.
+    ) -> FastCryptoResult<()> {
+        // An accuser that is not a pending recipient cannot have a dispersal complaint.
         let accuser_idx = vote
             .recipients
             .iter()
             .position(|&id| id == accuser_id)
             .ok_or(InvalidInput)?;
-        let shards_verify = complaint.shards.iter().all(|(&disperser, auth)| {
-            auth.proof
-                .verify(
-                    &vote.top_root,
-                    &auth.shards,
-                    accuser_idx,
-                    disperser as usize,
-                )
-                .is_ok()
-        });
-        if !shards_verify
-            || self.nodes.total_weight_of(complaint.shards.keys())? < self.required_weight()
-        {
-            return Ok(false);
+        for (&disperser, auth) in complaint.shards.iter() {
+            auth.proof.verify(
+                &vote.top_root,
+                &auth.shards,
+                accuser_idx,
+                disperser as usize,
+            )?;
         }
-        Ok(self
+        let weight = self.nodes.total_weight_of(complaint.shards.keys())?;
+        if weight < self.required_weight() {
+            return Err(NotEnoughWeight(weight as usize));
+        }
+        // A consistent payload means the complaint is unsubstantiated.
+        if self
             .decode_consistent(&complaint.shards, payload_ok)?
-            .is_none())
+            .is_some()
+        {
+            return Err(InvalidProof);
+        }
+        Ok(())
     }
 
     /// RS-decode a payload from authenticated shard contributions keyed by disperser. Missing dispersers
@@ -498,9 +506,8 @@ mod tests {
             .unwrap_err();
 
         // Another party validates the complaint.
-        assert!(avid
-            .complaint_is_valid(&complaint, recipient, &certified_vote, |_| true)
-            .unwrap());
+        avid.complaint_is_valid(&complaint, recipient, &certified_vote, |_| true)
+            .unwrap();
     }
 
     #[test]
@@ -563,8 +570,7 @@ mod tests {
             .unwrap_err();
 
         // A validator accepts the complaint via the same re-encode check.
-        assert!(avid
-            .complaint_is_valid(&complaint, recipient, &certified_vote, |_| true)
-            .unwrap());
+        avid.complaint_is_valid(&complaint, recipient, &certified_vote, |_| true)
+            .unwrap();
     }
 }
