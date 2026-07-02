@@ -39,6 +39,10 @@ impl PedersenCommitment {
         )
     }
 
+    pub fn commit_u64(value: u64, rng: &mut impl AllowedRng) -> (Self, Blinding) {
+        Self::commit(&RistrettoScalar::from(value), rng)
+    }
+
     pub fn commit(value: &RistrettoScalar, rng: &mut impl AllowedRng) -> (Self, Blinding) {
         let blinding = Blinding::rand(rng);
         (Self::new(value, &blinding), blinding)
@@ -51,11 +55,21 @@ impl PedersenCommitment {
             Err(InvalidProof)
         }
     }
+
+    /// The compressed representation of this commitment as a [curve25519_dalek::ristretto::CompressedRistretto].
+    pub(crate) fn to_dalek(&self) -> curve25519_dalek::ristretto::CompressedRistretto {
+        self.0 .0.compress()
+    }
 }
 
 impl Blinding {
     pub fn rand(rng: &mut impl AllowedRng) -> Self {
         Self(RistrettoScalar::rand(rng))
+    }
+
+    /// The underlying scalar as a [curve25519_dalek::scalar::Scalar].
+    pub(crate) fn to_dalek(&self) -> curve25519_dalek::scalar::Scalar {
+        self.0 .0
     }
 }
 
