@@ -101,7 +101,7 @@
 <a href=#101 id=101 data-nosnippet>101</a>
 <a href=#102 id=102 data-nosnippet>102</a><span class="doccomment">/// Dealer-side state carried from the optimistic to the pessimistic phase. Builds the per-receiver
 <a href=#103 id=103 data-nosnippet>103</a>/// [AvssMessage]s on demand and carries the ciphertexts into the pessimistic AVID phase.
-<a href=#104 id=104 data-nosnippet>104</a></span><span class="attr">#[derive(Clone, Debug)]
+<a href=#104 id=104 data-nosnippet>104</a></span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
 <a href=#105 id=105 data-nosnippet>105</a></span><span class="kw">pub struct </span>AvssMessageBuilder {
 <a href=#106 id=106 data-nosnippet>106</a>    <span class="kw">pub </span>common: AvssCommonMessage,
 <a href=#107 id=107 data-nosnippet>107</a>    ciphertexts: Vec&lt;Ciphertext&gt;,
