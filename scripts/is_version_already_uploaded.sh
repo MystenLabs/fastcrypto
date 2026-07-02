@@ -35,11 +35,14 @@ echo >&2 "Crate $CRATE_NAME current version: $CURRENT_VERSION"
 # The leading whitespace is important! With it, we know that every version is both
 # preceded by and followed by whitespace. We use this fact to avoid matching
 # on substrings of versions.
-EXISTING_VERSIONS="
-$( \
-    curl 2>/dev/null "https://crates.io/api/v1/crates/$CRATE_NAME" | \
-    jq --exit-status -r 'try .versions[].num' \
+CRATE_RESPONSE="$( \
+    curl --fail --silent --show-error --location \
+        --header "User-Agent: MystenLabs/fastcrypto publish workflow" \
+        "https://crates.io/api/v1/crates/$CRATE_NAME" \
 )"
+EXISTING_VERSIONS="
+$(jq -r '.versions // [] | .[].num' <<< "$CRATE_RESPONSE")
+"
 echo >&2 -e "Versions on crates.io:$EXISTING_VERSIONS\n"
 
 # Use version sort (sort -V) to get all versions in ascending order, then use grep to:

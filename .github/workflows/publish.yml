@@ -3,6 +3,12 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'Cargo.toml'
+      - 'fastcrypto-derive/Cargo.toml'
+      - 'fastcrypto/Cargo.toml'
+      - 'fastcrypto-zkp/Cargo.toml'
+  workflow_dispatch:
 env:
   CARGO_TERM_COLOR: always
   # Disable incremental compilation.
@@ -32,54 +38,92 @@ jobs:
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        package:
-          - fastcrypto-derive
-          - fastcrypto
-          - fastcrypto-zkp
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # Pin v4.1.1
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@b2417cde72dcf67f306c0ae8e0828a81bf0b189f # pin@v1.0.7
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - id: check
+          fetch-depth: 2
+          ref: main
+
+      - name: Publish crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
-          set +e
-          ./scripts/is_version_already_uploaded.sh ${{ matrix.package }}
-          export EXIT_CODE="$?"
-          set -e
-          if [[ "$EXIT_CODE" == "7" ]]; then
-            echo '::set-output name=is_new_version::no'
-          elif [[ "$EXIT_CODE" == "0" ]]; then
-            echo '::set-output name=is_new_version::yes'
-          else
-            # Unexpected outcome, indicates a bug.
-            exit "$EXIT_CODE"
-          fi
-      # Disabled when API feels more stable 
-      # - name: Check semver
-      #   # Only run the semver script if the version changed, otherwise it errors out
-      #   if: steps.check.outputs.is_new_version == 'yes'
-      #   uses: obi1kenobi/cargo-semver-checks-action@v1
-      #   with:
-      #     crate-name: ${{ matrix.package }}
-      #     version-tag-prefix: ${{ matrix.package }}-v
-      - name: Tag the version
-        if: steps.check.outputs.is_new_version == 'yes'
-        run: |
-          set -euxo pipefail
-          export CURRENT_VERSION="$(./scripts/get_current_version.sh ${{ matrix.package }})"
-          git tag "${{ matrix.package }}-v$CURRENT_VERSION"
-          git push origin "${{ matrix.package }}-v$CURRENT_VERSION"
-      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # pin@v1
-        if: steps.check.outputs.is_new_version == 'yes'
-      - name: Login
-        run: cargo login ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      - name: Publish fastcrypto
-        if: steps.check.outputs.is_new_version == 'yes'
-        run: cargo publish -p ${{ matrix.package }} --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          set -euo pipefail
+
+          commit="$(git rev-parse HEAD)"
+
+          packages=(
+            fastcrypto-derive
+            fastcrypto
+            fastcrypto-zkp
+          )
+
+          ensure_tag() {
+            local tag="$1"
+
+            if git ls-remote --tags origin | grep -q "refs/tags/${tag}$"; then
+              echo "Tag ${tag} already exists; skipping tag creation"
+            else
+              echo "Creating tag ${tag} at ${commit}"
+              gh api repos/${{ github.repository }}/git/refs \
+                --method POST \
+                -f ref="refs/tags/${tag}" \
+                -f sha="${commit}"
+            fi
+          }
+
+          publish_package() {
+            local package="$1"
+            local attempts=6
+
+            for attempt in $(seq 1 "${attempts}"); do
+              if cargo publish -p "${package}" --token "${CARGO_REGISTRY_TOKEN}"; then
+                return 0
+              fi
+
+              if [[ "${attempt}" == "${attempts}" ]]; then
+                return 1
+              fi
+
+              echo "Publishing ${package} failed; retrying in 30 seconds"
+              sleep 30
+            done
+          }
+
+          ensure_release() {
+            local tag="$1"
+
+            if gh release view "${tag}" >/dev/null 2>&1; then
+              echo "Release ${tag} already exists; skipping release creation"
+            else
+              echo "Creating release ${tag}"
+              gh release create "${tag}" \
+                --title "${tag}" \
+                --generate-notes \
+                --target "${commit}"
+            fi
+          }
+
+          for package in "${packages[@]}"; do
+            version="$(./scripts/get_current_version.sh "${package}")"
+            tag="${package}-v${version}"
+            ensure_tag "${tag}"
+
+            set +e
+            ./scripts/is_version_already_uploaded.sh "${package}"
+            exit_code="$?"
+            set -e
+
+            if [[ "${exit_code}" == "7" ]]; then
+              echo "${package} is already published; skipping"
+            elif [[ "${exit_code}" != "0" ]]; then
+              exit "${exit_code}"
+            else
+              publish_package "${package}"
+            fi
+
+            ensure_release "${tag}"
+          done
