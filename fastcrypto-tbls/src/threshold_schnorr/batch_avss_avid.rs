@@ -101,7 +101,7 @@ pub struct AvssVote {
 
 /// Dealer-side state carried from the optimistic to the pessimistic phase. Builds the per-receiver
 /// [AvssMessage]s on demand and carries the ciphertexts into the pessimistic AVID phase.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AvssMessageBuilder {
     pub common: AvssCommonMessage,
     ciphertexts: Vec<Ciphertext>,
