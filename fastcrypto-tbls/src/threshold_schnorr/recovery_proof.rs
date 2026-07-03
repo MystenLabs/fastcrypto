@@ -45,7 +45,7 @@ impl RecoveryProof {
                 enc_pk,
                 accuser_id as usize,
             )
-            .and_then(|buffer| check_recovered_shares(&buffer, verifier))
+            .and_then(|bytes| check_recovered_shares(&bytes, verifier))
     }
 
     pub fn create(
