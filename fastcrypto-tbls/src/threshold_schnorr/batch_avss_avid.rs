@@ -711,8 +711,7 @@ impl Receiver {
             full_public_keys,
             ciphertext_shared,
             ..
-        } = &&common_message.0;
-        let random_oracle = self.random_oracle();
+        } = &common_message.0;
 
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         let plaintext = ciphertext_shared.decrypt(
@@ -722,7 +721,7 @@ impl Receiver {
             self.id as usize,
         );
 
-        let challenge = compute_challenge_from_common_message(&random_oracle, &common_message.0);
+        let challenge = self.challenge_for(common_message);
         let my_shares = SharesForNode::from_bytes(plaintext)?;
         my_shares.verify(
             &common_message.0,
@@ -754,8 +753,7 @@ impl Receiver {
         check_ciphertext_hash(&ciphertext.0, accuser_id, verified_common)
             .map_err(|_| InvalidProof)?;
 
-        let challenge =
-            compute_challenge_from_common_message(&self.random_oracle(), &verified_common.0);
+        let challenge = self.challenge_for(verified_common);
         proof.check(
             accuser_id,
             &accuser.pk,
@@ -846,7 +844,7 @@ impl Receiver {
 
         shares.verify(
             &verified_common.0,
-            &compute_challenge_from_common_message(&self.random_oracle(), &verified_common.0),
+            &self.challenge_for(verified_common),
             &self.nodes.share_ids_of(responder_id)?,
             self.batch_size,
         )?;
@@ -897,8 +895,7 @@ impl Receiver {
         // shares yields valid shares, so this final verification is defense-in-depth and should be
         // unreachable as a failure. Warn loudly if it ever does fail, since that signals a logic
         // error rather than a malicious input.
-        let challenge =
-            compute_challenge_from_common_message(&self.random_oracle(), &verified_common.0);
+        let challenge = self.challenge_for(verified_common);
         my_shares
             .verify(
                 &verified_common.0,
@@ -922,6 +919,11 @@ impl Receiver {
 
     fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
+    }
+
+    /// The Fiat-Shamir challenge for `common`, bound to this receiver's session random oracle.
+    fn challenge_for(&self, common: &VerifiedAvssCommonMessage) -> Vec<S> {
+        compute_challenge_from_common_message(&self.random_oracle(), &common.0)
     }
 }
 
