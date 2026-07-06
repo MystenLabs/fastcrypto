@@ -1,0 +1,105 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+//
+// The verifier in this module is a Rust port of the verify path of the
+// Falcon reference implementation, as packaged in PQClean
+// (crypto_sign/falcon-512/clean: vrfy.c, codec.c, common.c), with the
+// twiddle tables carried over verbatim. The reference code is:
+//
+//   Copyright (c) 2017-2019  Falcon Project
+//
+//   Permission is hereby granted, free of charge, to any person obtaining
+//   a copy of this software and associated documentation files (the
+//   "Software"), to deal in the Software without restriction, including
+//   without limitation the rights to use, copy, modify, merge, publish,
+//   distribute, sublicense, and/or sell copies of the Software, and to
+//   permit persons to whom the Software is furnished to do so, subject to
+//   the following conditions:
+//
+//   The above copyright notice and this permission notice shall be
+//   included in all copies or substantial portions of the Software.
+//
+//   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+//   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+//   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+//   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+//   CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+//   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+//   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+//
+//   author: Thomas Pornin <thomas.pornin@nccgroup.com>
+
+//! Self-contained Falcon-512 signature **verification**.
+//!
+//! A Rust port of the reference verify path (see the license notice above
+//! for provenance): Montgomery-NTT ring arithmetic with precomputed twiddle
+//! tables and no `%` reductions on the hot path, the compressed wire codec,
+//! and SHAKE-256 hash-to-point via the `sha3` crate this workspace already
+//! pins. Its correctness is gated by the 100 NIST Round-3 KAT vectors
+//! replayed in this crate's tests.
+//!
+//! Verification is the only operation that runs on-chain, so this module
+//! implements verify only. Key generation and signing need Falcon's
+//! floating-point Gaussian sampler and are out of scope here.
+//!
+//! ## Algorithm (Falcon spec §3.7, §3.11)
+//!
+//! Given public key h, message m, and signature (nonce r, s2):
+//! 1. challenge c = HashToPoint(r ‖ m) over Z_q via SHAKE-256 rejection sampling;
+//! 2. recover s1 = c − s2·h in R_q = Z_q[x]/(x^n + 1);
+//! 3. accept iff ‖(s1, s2)‖² ≤ [`L2_BOUND`].
+//!
+//! ## Two entry points: [`verify`] vs [`verify_strict`]
+//!
+//! - [`verify`] — **permissive / interop**: accepts both header families
+//!   (`0x29` variable-length compressed, `0x39` padded) and both body
+//!   encodings (natural length, or the fixed 666-byte zero-padded form).
+//!   Right for a bool-returning verifier that must accept signatures from
+//!   any real signer (falcon.py, PQClean, falcon-wasm, NIST KAT `sm` blobs).
+//! - [`verify_strict`] — **canonical / authenticator**: exactly one accepted
+//!   byte-string per signature — [`SIG_PADDED_LEN`] (666) bytes, header
+//!   `0x39` (PQClean `falcon-padded-512` wire format), zero tail. Required on
+//!   any path where the signature bytes feed a transaction digest: if two
+//!   encodings of the same signature verified, a third party could re-encode
+//!   a signed transaction in flight and change its digest (tx-malleability).
+//!   This is the only entry point a transaction authenticator should use.
+//!
+//! References:
+//! - Falcon specification: <https://falcon-sign.info/falcon.pdf>
+//! - FIPS 202 (SHAKE): <https://csrc.nist.gov/pubs/fips/202/final>
+
+mod ntt;
+mod verify;
+
+// The permissive `verify` is only referenced by the KAT tests (see the
+// module docs), so the re-export is unused in non-test builds.
+#[allow(unused_imports)]
+pub use self::verify::{validate_public_key, validate_secret_key, verify, verify_strict};
+
+// === Falcon-512 parameters (fixed by the NIST submission) ===
+
+/// Ring degree n = 2^9.
+pub const N: usize = 512;
+
+/// The Falcon ring modulus.
+pub const Q: u32 = 12289;
+
+/// Public-key length: 1 header byte + 512 coefficients at 14 bits each.
+pub const PUBKEY_LEN: usize = 897;
+
+/// Smallest acceptable signature: header(1) + nonce(40) + ≥1 body byte.
+pub const SIG_MIN_LEN: usize = 42;
+
+/// Largest acceptable signature. The 666-byte cap forbids the 809-byte
+/// constant-time format by construction; its decoder does not exist here.
+pub const SIG_MAX_LEN: usize = 666;
+
+/// The fixed "padded" signature size (header + nonce + zero-padded body).
+pub const SIG_PADDED_LEN: usize = 666;
+
+/// PQClean secret-key length: header byte `0x59`, then f and g at 6 bits per
+/// coefficient and F at 8 bits per coefficient (1 + 384 + 384 + 512).
+pub const SECKEY_LEN: usize = 1281;
+
+/// Squared L2-norm bound for a valid Falcon-512 signature (spec parameter).
+pub const L2_BOUND: u32 = 34034726;
