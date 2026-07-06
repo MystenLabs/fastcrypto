@@ -18,11 +18,11 @@
 //! signed message `sm` follows the NIST "sign" API layout:
 //!
 //! ```text
-//! sm = sig_len(2, big-endian) ‖ nonce(40) ‖ message(mlen) ‖ sig_data(sig_len)
-//! sig_data = header(1) ‖ compressed_body
+//! sm = sig_len(2, big-endian) || nonce(40) || message(mlen) || sig_data(sig_len)
+//! sig_data = header(1) || compressed_body
 //! ```
 //!
-//! so the standard detached signature `header ‖ nonce ‖ body` must be
+//! so the standard detached signature `header || nonce || body` must be
 //! reassembled from two non-adjacent pieces of `sm`.
 
 use crate::falcon512::verify::{validate_secret_key, verify, verify_strict, SIG_PADDED_LEN};
@@ -35,7 +35,7 @@ pub struct KatVector {
     /// PQClean-format secret key, used by the consistency-check test.
     pub sk: Vec<u8>,
     pub msg: Vec<u8>,
-    /// Detached signature `header(1) ‖ nonce(40) ‖ body`, reassembled from `sm`.
+    /// Detached signature `header(1) || nonce(40) || body`, reassembled from `sm`.
     pub sig: Vec<u8>,
 }
 
@@ -64,7 +64,7 @@ pub fn parse_kat_vectors() -> Vec<KatVector> {
                 let msg = msg.take().expect("msg precedes sm");
                 assert_eq!(msg.len(), mlen, "mlen disagrees with msg");
 
-                // Reassemble header ‖ nonce ‖ body from the sm layout above.
+                // Reassemble header || nonce || body from the sm layout above.
                 let sig_len = ((sm[0] as usize) << 8) | sm[1] as usize;
                 let nonce = &sm[2..42];
                 let sig_data = &sm[42 + mlen..];
@@ -96,7 +96,7 @@ pub fn parse_kat_vectors() -> Vec<KatVector> {
 /// strict verification accepts. Empirically (asserted by the strict tests
 /// below) this is the *entire* transformation: flip the header family nibble
 /// `0x29 → 0x39` and zero-pad to 666 bytes. It works because the header byte
-/// is not hashed (hash-to-point absorbs only `nonce ‖ message`) and the
+/// is not hashed (hash-to-point absorbs only `nonce || message`) and the
 /// padded body encoding is the same compressed bitstream with a zero tail.
 pub fn to_canonical_padded(sig: &[u8]) -> Vec<u8> {
     assert_eq!(sig[0], 0x29, "KAT signatures use the compressed header");
