@@ -400,6 +400,11 @@ impl Dealer {
     ///
     ///    This phase is only needed if any receiver failed to confirm in the optimistic phase.
     ///    If every receiver confirmed, the pessimistic phase can be skipped entirely.
+    ///
+    ///    The pending recipients (the non-confirmers) may carry at most `f` weight: the confirmers
+    ///    then hold `≥ W − f` weight, so `≥ W − 2f` of them are honest — exactly the AVID decode
+    ///    quorum needed to reconstruct each pending recipient's ciphertext. This returns
+    ///    [InvalidInput] if the pending weight exceeds `f`.
     pub fn create_avid_messages<C: Certificate<Payload = AvssVote>>(
         &self,
         avss_message_builder: &AvssMessageBuilder,
@@ -435,7 +440,7 @@ impl Dealer {
             .node_ids_iter()
             .filter(|id| !avss_cert.signers().contains(id))
             .collect();
-        if self.nodes.total_weight_of(pending_recipients.iter())? >= self.params.f {
+        if self.nodes.total_weight_of(pending_recipients.iter())? > self.params.f {
             warn!("batch_avss create_avid_messages_with_mutation: too many pending recipients");
             return Err(InvalidInput);
         }
@@ -1301,10 +1306,11 @@ mod tests {
 
     #[test]
     fn test_optimistic_then_pessimistic() {
-        // 8 of 10 parties confirm in the optimistic phase; the remaining 2 receive their shares
+        // 7 of 10 parties confirm in the optimistic phase; the remaining 3 receive their shares
         // via the pessimistic AVID phase, gated on the optimistic certificate. Pending weight
-        // (= 2) must be strictly less than `f` so the dealer-side precheck in
-        // `create_avid_messages_with_mutation` accepts the cert.
+        // (= 3) must be at most `f` so the dealer-side precheck in
+        // `create_avid_messages_with_mutation` accepts the cert; here it sits exactly at the
+        // `f = 3` boundary.
         let t = 3;
         let f = 3;
         let n = 10u16;
@@ -1355,10 +1361,10 @@ mod tests {
             })
             .collect_vec();
 
-        // Optimistic phase: only parties 0..=7 confirm; 8 and 9 are stragglers.
+        // Optimistic phase: only parties 0..=6 confirm; 7, 8 and 9 are stragglers.
         let state = dealer.create_avss_messages(&mut rng).unwrap();
-        let voters: Vec<PartyId> = (0u16..=7).collect();
-        let pending: BTreeSet<PartyId> = [8u16, 9].into_iter().collect();
+        let voters: Vec<PartyId> = (0u16..=6).collect();
+        let pending: BTreeSet<PartyId> = [7u16, 8, 9].into_iter().collect();
         let votes: BTreeMap<PartyId, AvssVote> = voters
             .iter()
             .map(|id| {
@@ -1382,7 +1388,7 @@ mod tests {
                 common_message_hash: state.common.hash(),
             },
         };
-        // Pessimistic phase: dispersal for the complement of voters (I = {5, 6}). The dealer
+        // Pessimistic phase: dispersal for the complement of voters (I = {7, 8, 9}). The dealer
         // bundles each dispersal with the cert into an [AvidMessage].
         let messages = dealer.create_avid_messages(&state, cert.clone()).unwrap();
 
@@ -1409,7 +1415,7 @@ mod tests {
             echo_sets.push(echoes);
         }
 
-        // Each receiver j sends echoes only for recipients in pending_recipients (= 2 echoes).
+        // Each receiver j sends echoes only for recipients in pending_recipients (= 3 echoes).
         for echo_set in &echo_sets {
             assert_eq!(echo_set.len(), pending.len());
         }
