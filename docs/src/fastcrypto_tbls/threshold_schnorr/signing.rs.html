@@ -32,166 +32,170 @@
 <a href=#32 id=32 data-nosnippet>32</a>    verifying_key: <span class="kw-2">&amp;</span>G,
 <a href=#33 id=33 data-nosnippet>33</a>    derivation_address: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Address&gt;,
 <a href=#34 id=34 data-nosnippet>34</a>) -&gt; FastCryptoResult&lt;(G, Vec&lt;Eval&lt;S&gt;&gt;)&gt; {
-<a href=#35 id=35 data-nosnippet>35</a>    <span class="kw">let </span>r_g = public_presig + G::generator() * beacon_value;
+<a href=#35 id=35 data-nosnippet>35</a>    <span class="kw">let </span>r_g = compute_nonce(<span class="kw-2">&amp;</span>public_presig, beacon_value)<span class="question-mark">?</span>;
 <a href=#36 id=36 data-nosnippet>36</a>
-<a href=#37 id=37 data-nosnippet>37</a>    <span class="comment">// Since both the public_presig and the beacon_value are random, this should happen only with negligible probability.
-<a href=#38 id=38 data-nosnippet>38</a>    </span><span class="kw">if </span>r_g == G::zero() {
-<a href=#39 id=39 data-nosnippet>39</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError);
-<a href=#40 id=40 data-nosnippet>40</a>    }
-<a href=#41 id=41 data-nosnippet>41</a>
-<a href=#42 id=42 data-nosnippet>42</a>    <span class="comment">// In BIP-340, the nonce R must have an even Y coordinate.
-<a href=#43 id=43 data-nosnippet>43</a>    // If it doesn't, we negate the secret nonce to get a new nonce R' = -R with an even Y.
-<a href=#44 id=44 data-nosnippet>44</a>    // Since only the X coordinate of R is included in the signature, we don't need to change R, but we must negate the presigs.
-<a href=#45 id=45 data-nosnippet>45</a>    </span><span class="kw">if </span>!r_g.has_even_y()<span class="question-mark">? </span>{
-<a href=#46 id=46 data-nosnippet>46</a>        <span class="kw">for </span>presig <span class="kw">in </span><span class="kw-2">&amp;mut </span>secret_presigs {
-<a href=#47 id=47 data-nosnippet>47</a>            <span class="kw-2">*</span>presig = -<span class="kw-2">*</span>presig;
-<a href=#48 id=48 data-nosnippet>48</a>        }
-<a href=#49 id=49 data-nosnippet>49</a>    }
-<a href=#50 id=50 data-nosnippet>50</a>
-<a href=#51 id=51 data-nosnippet>51</a>    <span class="comment">// If a derivation index is provided, derive a new verifying key (and implicitly also signing key) for this index.
-<a href=#52 id=52 data-nosnippet>52</a>    </span><span class="kw">let </span>verifying_key = <span class="kw">if let </span><span class="prelude-val">Some</span>(address) = derivation_address {
-<a href=#53 id=53 data-nosnippet>53</a>        derive_verifying_key_internal(verifying_key, address)<span class="question-mark">?
-<a href=#54 id=54 data-nosnippet>54</a>    </span>} <span class="kw">else </span>{
-<a href=#55 id=55 data-nosnippet>55</a>        <span class="kw-2">*</span>verifying_key
-<a href=#56 id=56 data-nosnippet>56</a>    };
-<a href=#57 id=57 data-nosnippet>57</a>
-<a href=#58 id=58 data-nosnippet>58</a>    <span class="comment">// The verifying key must also have an even Y coordinate.
-<a href=#59 id=59 data-nosnippet>59</a>    // If this is not the case, we must negate the verifying key (and hence also the signing key).
-<a href=#60 id=60 data-nosnippet>60</a>    // Since the signing key shares are multiplied with the challenge, we just change the sign of the challenge instead.
-<a href=#61 id=61 data-nosnippet>61</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>h = bip0340_hash(<span class="kw-2">&amp;</span>r_g, <span class="kw-2">&amp;</span>verifying_key, message)<span class="question-mark">?</span>;
-<a href=#62 id=62 data-nosnippet>62</a>    <span class="kw">if </span>!verifying_key.has_even_y()<span class="question-mark">? </span>{
-<a href=#63 id=63 data-nosnippet>63</a>        h = -h;
-<a href=#64 id=64 data-nosnippet>64</a>    }
-<a href=#65 id=65 data-nosnippet>65</a>
-<a href=#66 id=66 data-nosnippet>66</a>    <span class="prelude-val">Ok</span>((
-<a href=#67 id=67 data-nosnippet>67</a>        public_presig,
-<a href=#68 id=68 data-nosnippet>68</a>        my_signing_key_shares
-<a href=#69 id=69 data-nosnippet>69</a>            .shares
-<a href=#70 id=70 data-nosnippet>70</a>            .iter()
-<a href=#71 id=71 data-nosnippet>71</a>            .zip_eq(secret_presigs)
-<a href=#72 id=72 data-nosnippet>72</a>            .map(
-<a href=#73 id=73 data-nosnippet>73</a>                |(
-<a href=#74 id=74 data-nosnippet>74</a>                    Eval {
-<a href=#75 id=75 data-nosnippet>75</a>                        index,
-<a href=#76 id=76 data-nosnippet>76</a>                        value: sk_share,
-<a href=#77 id=77 data-nosnippet>77</a>                    },
-<a href=#78 id=78 data-nosnippet>78</a>                    presig,
-<a href=#79 id=79 data-nosnippet>79</a>                )| Eval {
-<a href=#80 id=80 data-nosnippet>80</a>                    index: <span class="kw-2">*</span>index,
-<a href=#81 id=81 data-nosnippet>81</a>                    value: presig + h * sk_share,
-<a href=#82 id=82 data-nosnippet>82</a>                },
-<a href=#83 id=83 data-nosnippet>83</a>            )
-<a href=#84 id=84 data-nosnippet>84</a>            .collect(),
-<a href=#85 id=85 data-nosnippet>85</a>    ))
-<a href=#86 id=86 data-nosnippet>86</a>}
-<a href=#87 id=87 data-nosnippet>87</a>
-<a href=#88 id=88 data-nosnippet>88</a><span class="doccomment">/// Given enough partial signatures, aggregate them into a full signature and verify it.
-<a href=#89 id=89 data-nosnippet>89</a>/// The signature produced follows the BIP-0340 standard.
-<a href=#90 id=90 data-nosnippet>90</a>///
-<a href=#91 id=91 data-nosnippet>91</a>/// If a derivation index is provided, a new verifying key is derived for this index (see
-<a href=#92 id=92 data-nosnippet>92</a>/// [derive_verifying_key]), and the signature is adjusted accordingly.
-<a href=#93 id=93 data-nosnippet>93</a>/// The signature will be valid for the derived verifying key.
-<a href=#94 id=94 data-nosnippet>94</a>///
-<a href=#95 id=95 data-nosnippet>95</a>/// Returns an `InputTooShort` error if not enough partial signatures are provided.
-<a href=#96 id=96 data-nosnippet>96</a>/// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
-<a href=#97 id=97 data-nosnippet>97</a>/// `InvalidSignature` is returned if the aggregated signature does not verify.
-<a href=#98 id=98 data-nosnippet>98</a>/// `InvalidInput` is returned if the provided verifying key is the identity element.
-<a href=#99 id=99 data-nosnippet>99</a></span><span class="kw">pub fn </span>aggregate_signatures(
-<a href=#100 id=100 data-nosnippet>100</a>    message: <span class="kw-2">&amp;</span>[u8],
-<a href=#101 id=101 data-nosnippet>101</a>    public_presig: <span class="kw-2">&amp;</span>G,
-<a href=#102 id=102 data-nosnippet>102</a>    beacon_value: <span class="kw-2">&amp;</span>S,
-<a href=#103 id=103 data-nosnippet>103</a>    partial_signatures: <span class="kw-2">&amp;</span>[Eval&lt;S&gt;],
-<a href=#104 id=104 data-nosnippet>104</a>    threshold: u16,
-<a href=#105 id=105 data-nosnippet>105</a>    verifying_key: <span class="kw-2">&amp;</span>G,
-<a href=#106 id=106 data-nosnippet>106</a>    derivation_address: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Address&gt;,
-<a href=#107 id=107 data-nosnippet>107</a>) -&gt; FastCryptoResult&lt;SchnorrSignature&gt; {
-<a href=#108 id=108 data-nosnippet>108</a>    <span class="kw">if </span>partial_signatures.len() &lt; threshold <span class="kw">as </span>usize {
-<a href=#109 id=109 data-nosnippet>109</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(InputTooShort(threshold <span class="kw">as </span>usize));
-<a href=#110 id=110 data-nosnippet>110</a>    }
-<a href=#111 id=111 data-nosnippet>111</a>
-<a href=#112 id=112 data-nosnippet>112</a>    <span class="kw">if </span>!partial_signatures.iter().map(|s| s.index).all_unique() {
-<a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
-<a href=#114 id=114 data-nosnippet>114</a>    }
-<a href=#115 id=115 data-nosnippet>115</a>
-<a href=#116 id=116 data-nosnippet>116</a>    <span class="comment">// Interpolate the partial signatures to get the full signature.
-<a href=#117 id=117 data-nosnippet>117</a>    </span><span class="kw">let </span>s = Poly::recover_c0(
-<a href=#118 id=118 data-nosnippet>118</a>        threshold,
-<a href=#119 id=119 data-nosnippet>119</a>        partial_signatures.iter().take(threshold <span class="kw">as </span>usize),
-<a href=#120 id=120 data-nosnippet>120</a>    )<span class="question-mark">?</span>;
-<a href=#121 id=121 data-nosnippet>121</a>
-<a href=#122 id=122 data-nosnippet>122</a>    finalize_schnorr_signature(
-<a href=#123 id=123 data-nosnippet>123</a>        message,
-<a href=#124 id=124 data-nosnippet>124</a>        public_presig,
-<a href=#125 id=125 data-nosnippet>125</a>        beacon_value,
-<a href=#126 id=126 data-nosnippet>126</a>        s,
-<a href=#127 id=127 data-nosnippet>127</a>        verifying_key,
-<a href=#128 id=128 data-nosnippet>128</a>        derivation_address,
-<a href=#129 id=129 data-nosnippet>129</a>    )
-<a href=#130 id=130 data-nosnippet>130</a>}
-<a href=#131 id=131 data-nosnippet>131</a>
-<a href=#132 id=132 data-nosnippet>132</a><span class="doccomment">/// Wrap an already-recovered signing scalar `s = f(0)` into a BIP-0340 Schnorr signature.
+<a href=#37 id=37 data-nosnippet>37</a>    <span class="comment">// In BIP-340, the nonce R must have an even Y coordinate.
+<a href=#38 id=38 data-nosnippet>38</a>    // If it doesn't, we negate the secret nonce to get a new nonce R' = -R with an even Y.
+<a href=#39 id=39 data-nosnippet>39</a>    // Since only the X coordinate of R is included in the signature, we don't need to change R, but we must negate the presigs.
+<a href=#40 id=40 data-nosnippet>40</a>    </span><span class="kw">if </span>!r_g.has_even_y()<span class="question-mark">? </span>{
+<a href=#41 id=41 data-nosnippet>41</a>        <span class="kw">for </span>presig <span class="kw">in </span><span class="kw-2">&amp;mut </span>secret_presigs {
+<a href=#42 id=42 data-nosnippet>42</a>            <span class="kw-2">*</span>presig = -<span class="kw-2">*</span>presig;
+<a href=#43 id=43 data-nosnippet>43</a>        }
+<a href=#44 id=44 data-nosnippet>44</a>    }
+<a href=#45 id=45 data-nosnippet>45</a>
+<a href=#46 id=46 data-nosnippet>46</a>    <span class="comment">// If a derivation index is provided, derive a new verifying key (and implicitly also signing key) for this index.
+<a href=#47 id=47 data-nosnippet>47</a>    </span><span class="kw">let </span>verifying_key = <span class="kw">if let </span><span class="prelude-val">Some</span>(address) = derivation_address {
+<a href=#48 id=48 data-nosnippet>48</a>        derive_verifying_key_internal(verifying_key, address)<span class="question-mark">?
+<a href=#49 id=49 data-nosnippet>49</a>    </span>} <span class="kw">else </span>{
+<a href=#50 id=50 data-nosnippet>50</a>        <span class="kw-2">*</span>verifying_key
+<a href=#51 id=51 data-nosnippet>51</a>    };
+<a href=#52 id=52 data-nosnippet>52</a>
+<a href=#53 id=53 data-nosnippet>53</a>    <span class="comment">// The verifying key must also have an even Y coordinate.
+<a href=#54 id=54 data-nosnippet>54</a>    // If this is not the case, we must negate the verifying key (and hence also the signing key).
+<a href=#55 id=55 data-nosnippet>55</a>    // Since the signing key shares are multiplied with the challenge, we just change the sign of the challenge instead.
+<a href=#56 id=56 data-nosnippet>56</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>h = bip0340_hash(<span class="kw-2">&amp;</span>r_g, <span class="kw-2">&amp;</span>verifying_key, message)<span class="question-mark">?</span>;
+<a href=#57 id=57 data-nosnippet>57</a>    <span class="kw">if </span>!verifying_key.has_even_y()<span class="question-mark">? </span>{
+<a href=#58 id=58 data-nosnippet>58</a>        h = -h;
+<a href=#59 id=59 data-nosnippet>59</a>    }
+<a href=#60 id=60 data-nosnippet>60</a>
+<a href=#61 id=61 data-nosnippet>61</a>    <span class="prelude-val">Ok</span>((
+<a href=#62 id=62 data-nosnippet>62</a>        public_presig,
+<a href=#63 id=63 data-nosnippet>63</a>        my_signing_key_shares
+<a href=#64 id=64 data-nosnippet>64</a>            .shares
+<a href=#65 id=65 data-nosnippet>65</a>            .iter()
+<a href=#66 id=66 data-nosnippet>66</a>            .zip_eq(secret_presigs)
+<a href=#67 id=67 data-nosnippet>67</a>            .map(
+<a href=#68 id=68 data-nosnippet>68</a>                |(
+<a href=#69 id=69 data-nosnippet>69</a>                    Eval {
+<a href=#70 id=70 data-nosnippet>70</a>                        index,
+<a href=#71 id=71 data-nosnippet>71</a>                        value: sk_share,
+<a href=#72 id=72 data-nosnippet>72</a>                    },
+<a href=#73 id=73 data-nosnippet>73</a>                    presig,
+<a href=#74 id=74 data-nosnippet>74</a>                )| Eval {
+<a href=#75 id=75 data-nosnippet>75</a>                    index: <span class="kw-2">*</span>index,
+<a href=#76 id=76 data-nosnippet>76</a>                    value: presig + h * sk_share,
+<a href=#77 id=77 data-nosnippet>77</a>                },
+<a href=#78 id=78 data-nosnippet>78</a>            )
+<a href=#79 id=79 data-nosnippet>79</a>            .collect(),
+<a href=#80 id=80 data-nosnippet>80</a>    ))
+<a href=#81 id=81 data-nosnippet>81</a>}
+<a href=#82 id=82 data-nosnippet>82</a>
+<a href=#83 id=83 data-nosnippet>83</a><span class="doccomment">/// Given enough partial signatures, aggregate them into a full signature and verify it.
+<a href=#84 id=84 data-nosnippet>84</a>/// The signature produced follows the BIP-0340 standard.
+<a href=#85 id=85 data-nosnippet>85</a>///
+<a href=#86 id=86 data-nosnippet>86</a>/// If a derivation index is provided, a new verifying key is derived for this index (see
+<a href=#87 id=87 data-nosnippet>87</a>/// [derive_verifying_key]), and the signature is adjusted accordingly.
+<a href=#88 id=88 data-nosnippet>88</a>/// The signature will be valid for the derived verifying key.
+<a href=#89 id=89 data-nosnippet>89</a>///
+<a href=#90 id=90 data-nosnippet>90</a>/// Returns an `InputTooShort` error if not enough partial signatures are provided.
+<a href=#91 id=91 data-nosnippet>91</a>/// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
+<a href=#92 id=92 data-nosnippet>92</a>/// `InvalidSignature` is returned if the aggregated signature does not verify.
+<a href=#93 id=93 data-nosnippet>93</a>/// `InvalidInput` is returned if the provided verifying key is the identity element.
+<a href=#94 id=94 data-nosnippet>94</a></span><span class="kw">pub fn </span>aggregate_signatures(
+<a href=#95 id=95 data-nosnippet>95</a>    message: <span class="kw-2">&amp;</span>[u8],
+<a href=#96 id=96 data-nosnippet>96</a>    public_presig: <span class="kw-2">&amp;</span>G,
+<a href=#97 id=97 data-nosnippet>97</a>    beacon_value: <span class="kw-2">&amp;</span>S,
+<a href=#98 id=98 data-nosnippet>98</a>    partial_signatures: <span class="kw-2">&amp;</span>[Eval&lt;S&gt;],
+<a href=#99 id=99 data-nosnippet>99</a>    threshold: u16,
+<a href=#100 id=100 data-nosnippet>100</a>    verifying_key: <span class="kw-2">&amp;</span>G,
+<a href=#101 id=101 data-nosnippet>101</a>    derivation_address: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Address&gt;,
+<a href=#102 id=102 data-nosnippet>102</a>) -&gt; FastCryptoResult&lt;SchnorrSignature&gt; {
+<a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">if </span>partial_signatures.len() &lt; threshold <span class="kw">as </span>usize {
+<a href=#104 id=104 data-nosnippet>104</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(InputTooShort(threshold <span class="kw">as </span>usize));
+<a href=#105 id=105 data-nosnippet>105</a>    }
+<a href=#106 id=106 data-nosnippet>106</a>
+<a href=#107 id=107 data-nosnippet>107</a>    <span class="kw">if </span>!partial_signatures.iter().map(|s| s.index).all_unique() {
+<a href=#108 id=108 data-nosnippet>108</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+<a href=#109 id=109 data-nosnippet>109</a>    }
+<a href=#110 id=110 data-nosnippet>110</a>
+<a href=#111 id=111 data-nosnippet>111</a>    <span class="comment">// Interpolate the partial signatures to get the full signature.
+<a href=#112 id=112 data-nosnippet>112</a>    </span><span class="kw">let </span>s = Poly::recover_c0(
+<a href=#113 id=113 data-nosnippet>113</a>        threshold,
+<a href=#114 id=114 data-nosnippet>114</a>        partial_signatures.iter().take(threshold <span class="kw">as </span>usize),
+<a href=#115 id=115 data-nosnippet>115</a>    )<span class="question-mark">?</span>;
+<a href=#116 id=116 data-nosnippet>116</a>
+<a href=#117 id=117 data-nosnippet>117</a>    finalize_schnorr_signature(
+<a href=#118 id=118 data-nosnippet>118</a>        message,
+<a href=#119 id=119 data-nosnippet>119</a>        public_presig,
+<a href=#120 id=120 data-nosnippet>120</a>        beacon_value,
+<a href=#121 id=121 data-nosnippet>121</a>        s,
+<a href=#122 id=122 data-nosnippet>122</a>        verifying_key,
+<a href=#123 id=123 data-nosnippet>123</a>        derivation_address,
+<a href=#124 id=124 data-nosnippet>124</a>    )
+<a href=#125 id=125 data-nosnippet>125</a>}
+<a href=#126 id=126 data-nosnippet>126</a>
+<a href=#127 id=127 data-nosnippet>127</a><span class="doccomment">/// Wrap an already-recovered signing scalar `s = f(0)` into a BIP-0340 Schnorr signature.
+<a href=#128 id=128 data-nosnippet>128</a>///
+<a href=#129 id=129 data-nosnippet>129</a>/// This is the second half of [aggregate_signatures], split out so callers that recover `s`
+<a href=#130 id=130 data-nosnippet>130</a>/// through a different path (e.g. Reed–Solomon decoding, which yields `s` as the constant
+<a href=#131 id=131 data-nosnippet>131</a>/// coefficient of the message polynomial) can reuse the BIP-0340 finalization without
+<a href=#132 id=132 data-nosnippet>132</a>/// re-running Lagrange interpolation.
 <a href=#133 id=133 data-nosnippet>133</a>///
-<a href=#134 id=134 data-nosnippet>134</a>/// This is the second half of [aggregate_signatures], split out so callers that recover `s`
-<a href=#135 id=135 data-nosnippet>135</a>/// through a different path (e.g. Reed–Solomon decoding, which yields `s` as the constant
-<a href=#136 id=136 data-nosnippet>136</a>/// coefficient of the message polynomial) can reuse the BIP-0340 finalization without
-<a href=#137 id=137 data-nosnippet>137</a>/// re-running Lagrange interpolation.
-<a href=#138 id=138 data-nosnippet>138</a>///
-<a href=#139 id=139 data-nosnippet>139</a>/// If a derivation index is provided, a new verifying key is derived for this index (see
-<a href=#140 id=140 data-nosnippet>140</a>/// [derive_verifying_key]), and the signature is adjusted accordingly. The signature will
-<a href=#141 id=141 data-nosnippet>141</a>/// be valid for the derived verifying key.
-<a href=#142 id=142 data-nosnippet>142</a>///
-<a href=#143 id=143 data-nosnippet>143</a>/// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
-<a href=#144 id=144 data-nosnippet>144</a>/// `InvalidSignature` is returned if the aggregated signature does not verify.
-<a href=#145 id=145 data-nosnippet>145</a>/// `InvalidInput` is returned if the provided verifying key is the identity element.
-<a href=#146 id=146 data-nosnippet>146</a></span><span class="kw">pub fn </span>finalize_schnorr_signature(
-<a href=#147 id=147 data-nosnippet>147</a>    message: <span class="kw-2">&amp;</span>[u8],
-<a href=#148 id=148 data-nosnippet>148</a>    public_presig: <span class="kw-2">&amp;</span>G,
-<a href=#149 id=149 data-nosnippet>149</a>    beacon_value: <span class="kw-2">&amp;</span>S,
-<a href=#150 id=150 data-nosnippet>150</a>    <span class="kw-2">mut </span>s: S,
-<a href=#151 id=151 data-nosnippet>151</a>    verifying_key: <span class="kw-2">&amp;</span>G,
-<a href=#152 id=152 data-nosnippet>152</a>    derivation_address: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Address&gt;,
-<a href=#153 id=153 data-nosnippet>153</a>) -&gt; FastCryptoResult&lt;SchnorrSignature&gt; {
-<a href=#154 id=154 data-nosnippet>154</a>    <span class="comment">// Compute the nonce R for the signature.
-<a href=#155 id=155 data-nosnippet>155</a>    </span><span class="kw">let </span>r_g = public_presig + G::generator() * beacon_value;
-<a href=#156 id=156 data-nosnippet>156</a>    <span class="kw">if </span>r_g == G::zero() {
-<a href=#157 id=157 data-nosnippet>157</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError);
-<a href=#158 id=158 data-nosnippet>158</a>    }
-<a href=#159 id=159 data-nosnippet>159</a>
-<a href=#160 id=160 data-nosnippet>160</a>    <span class="comment">// In acc. with BIP-0340, we need to ensure the nonce R has an even Y coordinate.
-<a href=#161 id=161 data-nosnippet>161</a>    // If it doesn't, we subtract the beacon value instead of adding it like it is done for the secret shares.
-<a href=#162 id=162 data-nosnippet>162</a>    // We don't need to change R itself since only the X coordinate of this is used in the hash and signature below.
-<a href=#163 id=163 data-nosnippet>163</a>    </span><span class="kw">if </span>r_g.has_even_y()<span class="question-mark">? </span>{
-<a href=#164 id=164 data-nosnippet>164</a>        s += beacon_value
-<a href=#165 id=165 data-nosnippet>165</a>    } <span class="kw">else </span>{
-<a href=#166 id=166 data-nosnippet>166</a>        s -= beacon_value
-<a href=#167 id=167 data-nosnippet>167</a>    };
-<a href=#168 id=168 data-nosnippet>168</a>
-<a href=#169 id=169 data-nosnippet>169</a>    <span class="comment">// If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
-<a href=#170 id=170 data-nosnippet>170</a>    </span><span class="kw">let </span>verifying_key = <span class="kw">if let </span><span class="prelude-val">Some</span>(address) = derivation_address {
-<a href=#171 id=171 data-nosnippet>171</a>        <span class="kw">let </span>tweak = compute_tweak(verifying_key, address)<span class="question-mark">?</span>;
-<a href=#172 id=172 data-nosnippet>172</a>        <span class="kw">let </span>derived_vk = derive_verifying_key_internal(verifying_key, address)<span class="question-mark">?</span>;
-<a href=#173 id=173 data-nosnippet>173</a>        <span class="kw">if </span>derived_vk.has_even_y()<span class="question-mark">? </span>{
-<a href=#174 id=174 data-nosnippet>174</a>            s += tweak * bip0340_hash(<span class="kw-2">&amp;</span>r_g, <span class="kw-2">&amp;</span>derived_vk, message)<span class="question-mark">?</span>;
-<a href=#175 id=175 data-nosnippet>175</a>        } <span class="kw">else </span>{
-<a href=#176 id=176 data-nosnippet>176</a>            s -= tweak * bip0340_hash(<span class="kw-2">&amp;</span>r_g, <span class="kw-2">&amp;</span>derived_vk, message)<span class="question-mark">?</span>;
-<a href=#177 id=177 data-nosnippet>177</a>        }
-<a href=#178 id=178 data-nosnippet>178</a>        derived_vk
-<a href=#179 id=179 data-nosnippet>179</a>    } <span class="kw">else </span>{
-<a href=#180 id=180 data-nosnippet>180</a>        <span class="kw-2">*</span>verifying_key
-<a href=#181 id=181 data-nosnippet>181</a>    };
-<a href=#182 id=182 data-nosnippet>182</a>
-<a href=#183 id=183 data-nosnippet>183</a>    <span class="kw">let </span>signature = SchnorrSignature::try_from((r_g, s))<span class="question-mark">?</span>;
-<a href=#184 id=184 data-nosnippet>184</a>
-<a href=#185 id=185 data-nosnippet>185</a>    <span class="comment">// TODO: Handle invalid signatures
-<a href=#186 id=186 data-nosnippet>186</a>    </span>SchnorrPublicKey::try_from(<span class="kw-2">&amp;</span>verifying_key)<span class="question-mark">?</span>.verify(message, <span class="kw-2">&amp;</span>signature)<span class="question-mark">?</span>;
-<a href=#187 id=187 data-nosnippet>187</a>
-<a href=#188 id=188 data-nosnippet>188</a>    <span class="prelude-val">Ok</span>(signature)
-<a href=#189 id=189 data-nosnippet>189</a>}
-<a href=#190 id=190 data-nosnippet>190</a>
-<a href=#191 id=191 data-nosnippet>191</a><span class="kw">fn </span>bip0340_hash(r_g: <span class="kw-2">&amp;</span>G, vk: <span class="kw-2">&amp;</span>G, message: <span class="kw-2">&amp;</span>[u8]) -&gt; FastCryptoResult&lt;S&gt; {
-<a href=#192 id=192 data-nosnippet>192</a>    <span class="prelude-val">Ok</span>(bip0340_hash_to_scalar(
-<a href=#193 id=193 data-nosnippet>193</a>        Tag::Challenge,
-<a href=#194 id=194 data-nosnippet>194</a>        [<span class="kw-2">&amp;</span>r_g.x_as_be_bytes()<span class="question-mark">?</span>, <span class="kw-2">&amp;</span>vk.x_as_be_bytes()<span class="question-mark">?</span>, message],
-<a href=#195 id=195 data-nosnippet>195</a>    ))
-<a href=#196 id=196 data-nosnippet>196</a>}
+<a href=#134 id=134 data-nosnippet>134</a>/// If a derivation index is provided, a new verifying key is derived for this index (see
+<a href=#135 id=135 data-nosnippet>135</a>/// [derive_verifying_key]), and the signature is adjusted accordingly. The signature will
+<a href=#136 id=136 data-nosnippet>136</a>/// be valid for the derived verifying key.
+<a href=#137 id=137 data-nosnippet>137</a>///
+<a href=#138 id=138 data-nosnippet>138</a>/// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
+<a href=#139 id=139 data-nosnippet>139</a>/// `InvalidSignature` is returned if the aggregated signature does not verify.
+<a href=#140 id=140 data-nosnippet>140</a>/// `InvalidInput` is returned if the provided verifying key is the identity element.
+<a href=#141 id=141 data-nosnippet>141</a></span><span class="kw">pub fn </span>finalize_schnorr_signature(
+<a href=#142 id=142 data-nosnippet>142</a>    message: <span class="kw-2">&amp;</span>[u8],
+<a href=#143 id=143 data-nosnippet>143</a>    public_presig: <span class="kw-2">&amp;</span>G,
+<a href=#144 id=144 data-nosnippet>144</a>    beacon_value: <span class="kw-2">&amp;</span>S,
+<a href=#145 id=145 data-nosnippet>145</a>    <span class="kw-2">mut </span>s: S,
+<a href=#146 id=146 data-nosnippet>146</a>    verifying_key: <span class="kw-2">&amp;</span>G,
+<a href=#147 id=147 data-nosnippet>147</a>    derivation_address: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Address&gt;,
+<a href=#148 id=148 data-nosnippet>148</a>) -&gt; FastCryptoResult&lt;SchnorrSignature&gt; {
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="comment">// Compute the nonce R for the signature.
+<a href=#150 id=150 data-nosnippet>150</a>    </span><span class="kw">let </span>r_g = compute_nonce(public_presig, beacon_value)<span class="question-mark">?</span>;
+<a href=#151 id=151 data-nosnippet>151</a>
+<a href=#152 id=152 data-nosnippet>152</a>    <span class="comment">// In acc. with BIP-0340, we need to ensure the nonce R has an even Y coordinate.
+<a href=#153 id=153 data-nosnippet>153</a>    // If it doesn't, we subtract the beacon value instead of adding it like it is done for the secret shares.
+<a href=#154 id=154 data-nosnippet>154</a>    // We don't need to change R itself since only the X coordinate of this is used in the hash and signature below.
+<a href=#155 id=155 data-nosnippet>155</a>    </span><span class="kw">if </span>r_g.has_even_y()<span class="question-mark">? </span>{
+<a href=#156 id=156 data-nosnippet>156</a>        s += beacon_value
+<a href=#157 id=157 data-nosnippet>157</a>    } <span class="kw">else </span>{
+<a href=#158 id=158 data-nosnippet>158</a>        s -= beacon_value
+<a href=#159 id=159 data-nosnippet>159</a>    };
+<a href=#160 id=160 data-nosnippet>160</a>
+<a href=#161 id=161 data-nosnippet>161</a>    <span class="comment">// If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
+<a href=#162 id=162 data-nosnippet>162</a>    </span><span class="kw">let </span>verifying_key = <span class="kw">if let </span><span class="prelude-val">Some</span>(address) = derivation_address {
+<a href=#163 id=163 data-nosnippet>163</a>        <span class="kw">let </span>tweak = compute_tweak(verifying_key, address)<span class="question-mark">?</span>;
+<a href=#164 id=164 data-nosnippet>164</a>        <span class="kw">let </span>derived_vk = derive_verifying_key_internal(verifying_key, address)<span class="question-mark">?</span>;
+<a href=#165 id=165 data-nosnippet>165</a>        <span class="kw">let </span>h = tweak * bip0340_hash(<span class="kw-2">&amp;</span>r_g, <span class="kw-2">&amp;</span>derived_vk, message)<span class="question-mark">?</span>;
+<a href=#166 id=166 data-nosnippet>166</a>        <span class="kw">if </span>derived_vk.has_even_y()<span class="question-mark">? </span>{
+<a href=#167 id=167 data-nosnippet>167</a>            s += h;
+<a href=#168 id=168 data-nosnippet>168</a>        } <span class="kw">else </span>{
+<a href=#169 id=169 data-nosnippet>169</a>            s -= h;
+<a href=#170 id=170 data-nosnippet>170</a>        }
+<a href=#171 id=171 data-nosnippet>171</a>        derived_vk
+<a href=#172 id=172 data-nosnippet>172</a>    } <span class="kw">else </span>{
+<a href=#173 id=173 data-nosnippet>173</a>        <span class="kw-2">*</span>verifying_key
+<a href=#174 id=174 data-nosnippet>174</a>    };
+<a href=#175 id=175 data-nosnippet>175</a>
+<a href=#176 id=176 data-nosnippet>176</a>    <span class="kw">let </span>signature = SchnorrSignature::try_from((r_g, s))<span class="question-mark">?</span>;
+<a href=#177 id=177 data-nosnippet>177</a>
+<a href=#178 id=178 data-nosnippet>178</a>    <span class="comment">// TODO: Handle invalid signatures
+<a href=#179 id=179 data-nosnippet>179</a>    </span>SchnorrPublicKey::try_from(<span class="kw-2">&amp;</span>verifying_key)<span class="question-mark">?</span>.verify(message, <span class="kw-2">&amp;</span>signature)<span class="question-mark">?</span>;
+<a href=#180 id=180 data-nosnippet>180</a>
+<a href=#181 id=181 data-nosnippet>181</a>    <span class="prelude-val">Ok</span>(signature)
+<a href=#182 id=182 data-nosnippet>182</a>}
+<a href=#183 id=183 data-nosnippet>183</a>
+<a href=#184 id=184 data-nosnippet>184</a><span class="doccomment">/// Compute the signature nonce `R = public_presig + G * beacon_value`. Since both inputs are
+<a href=#185 id=185 data-nosnippet>185</a>/// random, the identity element occurs only with negligible probability and is rejected with
+<a href=#186 id=186 data-nosnippet>186</a>/// [`FastCryptoError::GeneralOpaqueError`].
+<a href=#187 id=187 data-nosnippet>187</a></span><span class="kw">fn </span>compute_nonce(public_presig: <span class="kw-2">&amp;</span>G, beacon_value: <span class="kw-2">&amp;</span>S) -&gt; FastCryptoResult&lt;G&gt; {
+<a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">let </span>r_g = <span class="kw-2">*</span>public_presig + G::generator() * beacon_value;
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="kw">if </span>r_g == G::zero() {
+<a href=#190 id=190 data-nosnippet>190</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError);
+<a href=#191 id=191 data-nosnippet>191</a>    }
+<a href=#192 id=192 data-nosnippet>192</a>    <span class="prelude-val">Ok</span>(r_g)
+<a href=#193 id=193 data-nosnippet>193</a>}
+<a href=#194 id=194 data-nosnippet>194</a>
+<a href=#195 id=195 data-nosnippet>195</a><span class="kw">fn </span>bip0340_hash(r_g: <span class="kw-2">&amp;</span>G, vk: <span class="kw-2">&amp;</span>G, message: <span class="kw-2">&amp;</span>[u8]) -&gt; FastCryptoResult&lt;S&gt; {
+<a href=#196 id=196 data-nosnippet>196</a>    <span class="prelude-val">Ok</span>(bip0340_hash_to_scalar(
+<a href=#197 id=197 data-nosnippet>197</a>        Tag::Challenge,
+<a href=#198 id=198 data-nosnippet>198</a>        [<span class="kw-2">&amp;</span>r_g.x_as_be_bytes()<span class="question-mark">?</span>, <span class="kw-2">&amp;</span>vk.x_as_be_bytes()<span class="question-mark">?</span>, message],
+<a href=#199 id=199 data-nosnippet>199</a>    ))
+<a href=#200 id=200 data-nosnippet>200</a>}
 </code></pre></div></section></main></body></html>
