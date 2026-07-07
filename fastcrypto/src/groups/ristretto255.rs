@@ -21,12 +21,12 @@ use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek::ristretto::RistrettoPoint as ExternalPoint;
 use curve25519_dalek::scalar::Scalar as ExternalScalar;
 use curve25519_dalek::traits::{Identity, VartimeMultiscalarMul};
-use derive_more::{Add, Div, Neg, Sub};
+use derive_more::{Add, From, Mul, Neg, Sub};
 use elliptic_curve::group::GroupEncoding;
 use elliptic_curve::hash2curve::{ExpandMsg, ExpandMsgXmd, Expander};
-use elliptic_curve::Field;
+use elliptic_curve::{Field, Group};
 use fastcrypto_derive::GroupOpsExtend;
-use std::ops::{Add, Div, Mul};
+use std::ops::{Div, Mul};
 use zeroize::Zeroize;
 
 pub const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
@@ -68,7 +68,7 @@ impl RistrettoPoint {
 
 impl Doubling for RistrettoPoint {
     fn double(self) -> Self {
-        Self(self.0.add(self.0))
+        Self(self.0.double())
     }
 }
 
@@ -90,8 +90,7 @@ impl Div<RistrettoScalar> for RistrettoPoint {
     type Output = Result<Self, FastCryptoError>;
 
     fn div(self, rhs: RistrettoScalar) -> Self::Output {
-        let inv = rhs.inverse()?;
-        Ok(self * inv)
+        rhs.inverse().map(|inv| self * inv)
     }
 }
 
@@ -107,7 +106,7 @@ impl GroupElement for RistrettoPoint {
     type ScalarType = RistrettoScalar;
 
     fn zero() -> RistrettoPoint {
-        RistrettoPoint(ExternalPoint::identity())
+        RistrettoPoint(<curve25519_dalek::RistrettoPoint as Identity>::identity())
     }
 
     fn generator() -> Self {
@@ -124,7 +123,10 @@ impl HashToGroupElement for RistrettoPoint {
 
 impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
     fn from_byte_array(bytes: &[u8; RISTRETTO_POINT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
-        Option::from(ExternalPoint::from_bytes(bytes).map(RistrettoPoint)).ok_or(InvalidInput)
+        ExternalPoint::from_bytes(bytes)
+            .map(RistrettoPoint)
+            .into_option()
+            .ok_or(InvalidInput)
     }
 
     fn to_byte_array(&self) -> [u8; RISTRETTO_POINT_BYTE_LENGTH] {
@@ -138,7 +140,9 @@ impl FromTrustedByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
     ) -> FastCryptoResult<Self> {
         // Note that the external crate does not distinguish between from_bytes and from_bytes_unchecked:
         // https://github.com/dalek-cryptography/curve25519-dalek/blob/11f5375375d3d52c153049f18bd8b1b7669c2565/curve25519-dalek/src/ristretto.rs#L1221-L1224
-        Option::from(ExternalPoint::from_bytes_unchecked(bytes).map(RistrettoPoint))
+        ExternalPoint::from_bytes_unchecked(bytes)
+            .map(RistrettoPoint)
+            .into_option()
             .ok_or(InvalidInput)
     }
 }
@@ -146,7 +150,9 @@ impl FromTrustedByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
 serialize_deserialize_with_to_from_byte_array!(RistrettoPoint);
 
 /// Represents a scalar.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Add, Sub, Neg, Div, GroupOpsExtend, Zeroize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Mul, Neg, GroupOpsExtend, Zeroize)]
+#[mul(forward)]
+#[from(forward)]
 pub struct RistrettoScalar(pub(crate) ExternalScalar);
 
 impl RistrettoScalar {
@@ -161,33 +167,12 @@ impl RistrettoScalar {
     }
 }
 
-impl From<u128> for RistrettoScalar {
-    fn from(value: u128) -> RistrettoScalar {
-        RistrettoScalar(ExternalScalar::from(value))
-    }
-}
-
-impl From<u64> for RistrettoScalar {
-    fn from(value: u64) -> RistrettoScalar {
-        RistrettoScalar(ExternalScalar::from(value))
-    }
-}
-
-impl Mul<RistrettoScalar> for RistrettoScalar {
-    type Output = RistrettoScalar;
-
-    fn mul(self, rhs: RistrettoScalar) -> RistrettoScalar {
-        RistrettoScalar(self.0 * rhs.0)
-    }
-}
-
 #[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<RistrettoScalar> for RistrettoScalar {
     type Output = Result<RistrettoScalar, FastCryptoError>;
 
     fn div(self, rhs: RistrettoScalar) -> Result<RistrettoScalar, FastCryptoError> {
-        let inv = rhs.inverse()?;
-        Ok(self * inv)
+        rhs.inverse().map(|inv| self * inv)
     }
 }
 
@@ -234,9 +219,10 @@ impl ToFromByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
     fn from_byte_array(
         bytes: &[u8; RISTRETTO_SCALAR_BYTE_LENGTH],
     ) -> Result<Self, FastCryptoError> {
-        Ok(RistrettoScalar(
-            Option::from(ExternalScalar::from_canonical_bytes(*bytes)).ok_or(InvalidInput)?,
-        ))
+        ExternalScalar::from_canonical_bytes(*bytes)
+            .map(RistrettoScalar)
+            .into_option()
+            .ok_or(InvalidInput)
     }
 
     fn to_byte_array(&self) -> [u8; RISTRETTO_SCALAR_BYTE_LENGTH] {
