@@ -133,6 +133,11 @@ impl SharesForNode {
         self.shares.len()
     }
 
+    /// Get this node's share at `index`, if it has one.
+    pub fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
+        self.shares.iter().find(|s| s.index == index)
+    }
+
     fn verify(&self, message: &Message) -> FastCryptoResult<()> {
         for share in &self.shares {
             // TODO: possible optimization - all shares get be verified at once
@@ -503,7 +508,7 @@ fn verify_shares(
 
 impl DkOutput {
     pub fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
-        self.my_shares.shares.iter().find(|s| s.index == index)
+        self.my_shares.share_for_index(index)
     }
 
     pub fn commitment_for_index(&self, index: ShareIndex) -> Option<&Eval<G>> {
@@ -530,10 +535,11 @@ impl DkOutput {
             return Err(InvalidInput);
         }
 
-        let mut outputs = outputs.into_iter();
-        let first = outputs.next().ok_or(InvalidInput)?;
         outputs
-            .try_fold(first, |acc, output| acc.try_add(output))
+            .into_iter()
+            .map(Ok)
+            .reduce(|acc, output| acc?.try_add(output?))
+            .expect("outputs is non-empty, as checked above")
             .map(|o| o.into_dk_output(nodes))
     }
 
@@ -636,7 +642,7 @@ impl AvssOutput {
     }
 
     fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
-        self.my_shares.shares.iter().find(|s| s.index == index)
+        self.my_shares.share_for_index(index)
     }
 
     fn weight(&self) -> usize {
