@@ -47,7 +47,7 @@ impl<C: GroupElement> Iterator for LazyPascalVectorMultiplier<C> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.height - self.counter;
+        let remaining = self.remaining();
         (remaining, Some(remaining))
     }
 }
