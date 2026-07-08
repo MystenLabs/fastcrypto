@@ -1566,6 +1566,7 @@ dependencies = [
  "serde_json",
  "test-strategy",
  "tokio",
+ "tracing",
  "typenum",
 ]
 
