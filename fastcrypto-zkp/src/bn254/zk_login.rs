@@ -40,6 +40,9 @@ type ModulusHashKey = (Vec<u8>, u16);
 static MODULUS_HASH_CACHE: Lazy<RwLock<HashMap<ModulusHashKey, Bn254Fr>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
+/// Maximum number of entries in the modulus hash cache.
+const MODULUS_HASH_CACHE_MAX_SIZE: usize = 100;
+
 fn cached_modulus_hash(modulus: &[u8], max_rsa_bits: u16) -> Result<Bn254Fr, FastCryptoError> {
     if let Some(f) = MODULUS_HASH_CACHE
         .read()
@@ -50,6 +53,9 @@ fn cached_modulus_hash(modulus: &[u8], max_rsa_bits: u16) -> Result<Bn254Fr, Fas
     }
     let f = hash_to_field(&[BigUint::from_bytes_be(modulus)], max_rsa_bits, PACK_WIDTH)?;
     if let Ok(mut m) = MODULUS_HASH_CACHE.write() {
+        if m.len() >= MODULUS_HASH_CACHE_MAX_SIZE {
+            m.clear();
+        }
         m.insert((modulus.to_vec(), max_rsa_bits), f);
     }
     Ok(f)
