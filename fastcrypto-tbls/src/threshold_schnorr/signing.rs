@@ -32,12 +32,7 @@ pub fn generate_partial_signatures(
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
-    let r_g = public_presig + G::generator() * beacon_value;
-
-    // Since both the public_presig and the beacon_value are random, this should happen only with negligible probability.
-    if r_g == G::zero() {
-        return Err(FastCryptoError::GeneralOpaqueError);
-    }
+    let r_g = compute_nonce(&public_presig, beacon_value)?;
 
     // In BIP-340, the nonce R must have an even Y coordinate.
     // If it doesn't, we negate the secret nonce to get a new nonce R' = -R with an even Y.
@@ -152,10 +147,7 @@ pub fn finalize_schnorr_signature(
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<SchnorrSignature> {
     // Compute the nonce R for the signature.
-    let r_g = public_presig + G::generator() * beacon_value;
-    if r_g == G::zero() {
-        return Err(FastCryptoError::GeneralOpaqueError);
-    }
+    let r_g = compute_nonce(public_presig, beacon_value)?;
 
     // In acc. with BIP-0340, we need to ensure the nonce R has an even Y coordinate.
     // If it doesn't, we subtract the beacon value instead of adding it like it is done for the secret shares.
@@ -170,10 +162,11 @@ pub fn finalize_schnorr_signature(
     let verifying_key = if let Some(address) = derivation_address {
         let tweak = compute_tweak(verifying_key, address)?;
         let derived_vk = derive_verifying_key_internal(verifying_key, address)?;
+        let h = tweak * bip0340_hash(&r_g, &derived_vk, message)?;
         if derived_vk.has_even_y()? {
-            s += tweak * bip0340_hash(&r_g, &derived_vk, message)?;
+            s += h;
         } else {
-            s -= tweak * bip0340_hash(&r_g, &derived_vk, message)?;
+            s -= h;
         }
         derived_vk
     } else {
@@ -186,6 +179,17 @@ pub fn finalize_schnorr_signature(
     SchnorrPublicKey::try_from(&verifying_key)?.verify(message, &signature)?;
 
     Ok(signature)
+}
+
+/// Compute the signature nonce `R = public_presig + G * beacon_value`. Since both inputs are
+/// random, the identity element occurs only with negligible probability and is rejected with
+/// [`FastCryptoError::GeneralOpaqueError`].
+fn compute_nonce(public_presig: &G, beacon_value: &S) -> FastCryptoResult<G> {
+    let r_g = *public_presig + G::generator() * beacon_value;
+    if r_g == G::zero() {
+        return Err(FastCryptoError::GeneralOpaqueError);
+    }
+    Ok(r_g)
 }
 
 fn bip0340_hash(r_g: &G, vk: &G, message: &[u8]) -> FastCryptoResult<S> {

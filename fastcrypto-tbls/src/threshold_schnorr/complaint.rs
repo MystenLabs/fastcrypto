@@ -1,18 +1,19 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// TODO: This module is only used by the legacy `batch_avss` and can be removed once that is gone.
+
 use crate::ecies_v1;
 use crate::ecies_v1::RecoveryPackage;
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
+use crate::threshold_schnorr::recovery_proof::check_recovered_shares;
 use crate::threshold_schnorr::Extensions::{Encryption, Recovery};
 use crate::threshold_schnorr::EG;
-use fastcrypto::error::FastCryptoError::InvalidProof;
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
-use tracing::debug;
 
 /// A complaint by an accuser that it could not decrypt or verify its shares.
 /// Given enough responses to the complaint, the accuser can recover its shares.
@@ -32,35 +33,15 @@ impl Complaint {
         verifier: impl Fn(&S) -> FastCryptoResult<()>,
     ) -> FastCryptoResult<()> {
         // Check that the recovery package is valid, and if not, return an error since the complaint is invalid.
-        let buffer = ciphertext.decrypt_with_recovery_package(
-            &self.proof,
-            &random_oracle.extend(&Recovery(self.accuser_id).to_string()),
-            &random_oracle.extend(&Encryption.to_string()),
-            enc_pk,
-            self.accuser_id as usize,
-        )?;
-
-        let Ok(shares) = S::from_bytes(&buffer) else {
-            debug!(
-                "Complaint by party {} is valid: Failed to deserialize shares",
-                self.accuser_id
-            );
-            return Ok(());
-        };
-
-        if verifier(&shares).is_ok() {
-            debug!(
-                "Complaint by party {} is invalid: Shares verify correctly",
-                self.accuser_id
-            );
-            Err(InvalidProof)
-        } else {
-            debug!(
-                "Complaint by party {} is valid: Shares do not verify correctly",
-                self.accuser_id
-            );
-            Ok(())
-        }
+        ciphertext
+            .decrypt_with_recovery_package(
+                &self.proof,
+                &random_oracle.extend(&Recovery(self.accuser_id).to_string()),
+                &random_oracle.extend(&Encryption.to_string()),
+                enc_pk,
+                self.accuser_id as usize,
+            )
+            .and_then(|buffer| check_recovered_shares(&buffer, verifier))
     }
 
     pub fn create(

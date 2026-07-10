@@ -10,13 +10,12 @@
 //! # use fastcrypto::groups::ristretto255::RistrettoScalar;
 //! # use fastcrypto::groups::Scalar;
 //! use fastcrypto::pedersen::{Blinding, PedersenCommitment};
-//! let value = 300;
-//! let range = Bits16;
 //! let mut rng = rand::thread_rng();
-//! let blinding = Blinding::rand(&mut rng);
+//! let value = 300;
+//! let (commitment, blinding) = PedersenCommitment::commit_u64(value, &mut rng);
+//! let range = Bits16;
 //! let proof =
 //!    RangeProof::prove(value, &blinding, &range, b"dst", &mut rng).unwrap();
-//! let commitment = PedersenCommitment::new(&RistrettoScalar::from(value), &blinding);
 //! assert!(proof.verify(&commitment, &range, b"dst", &mut rng).is_ok());
 //! ```
 
@@ -25,6 +24,7 @@ use crate::error::FastCryptoResult;
 use crate::pedersen::{Blinding, PedersenCommitment, GENERATORS};
 use crate::traits::AllowedRng;
 use bulletproofs::{BulletproofGens, RangeProof as ExternalRangeProof};
+use itertools::Itertools;
 use merlin::Transcript;
 
 /// Bulletproof Range Proofs
@@ -110,17 +110,12 @@ impl RangeProof {
         }
 
         let bits = range.upper_bound_in_bits() as usize;
-        let bp_gens = BulletproofGens::new(bits, values.len());
-        let mut prover_transcript = Transcript::new(&[]);
-        prover_transcript.append_message(b"DST", dst);
-
-        // TODO: Can we avoid calculating the Pedersen commitments here?
         ExternalRangeProof::prove_multiple_with_rng(
-            &bp_gens,
+            &BulletproofGens::new(bits, values.len()),
             &GENERATORS,
-            &mut prover_transcript,
+            &mut transcript(dst),
             values,
-            &blindings.iter().map(|b| b.0 .0).collect::<Vec<_>>(),
+            &blindings.iter().map(Blinding::to_dalek).collect_vec(),
             bits,
             rng,
         )
@@ -137,19 +132,15 @@ impl RangeProof {
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
         let bits = range.upper_bound_in_bits() as usize;
-        let bp_gens = BulletproofGens::new(bits, commitments.len());
-        let mut verifier_transcript = Transcript::new(&[]);
-        verifier_transcript.append_message(b"DST", dst);
-
         self.0
             .verify_multiple_with_rng(
-                &bp_gens,
+                &BulletproofGens::new(bits, commitments.len()),
                 &GENERATORS,
-                &mut verifier_transcript,
+                &mut transcript(dst),
                 &commitments
                     .iter()
-                    .map(|c| c.0 .0.compress())
-                    .collect::<Vec<_>>(),
+                    .map(PedersenCommitment::to_dalek)
+                    .collect_vec(),
                 bits,
                 rng,
             )
@@ -170,6 +161,13 @@ impl RangeProof {
     }
 }
 
+/// Create a transcript bound to the given domain separation tag.
+fn transcript(dst: &[u8]) -> Transcript {
+    let mut transcript = Transcript::new(&[]);
+    transcript.append_message(b"DST", dst);
+    transcript
+}
+
 #[test]
 fn test_is_in_range() {
     assert!(Range::Bits8.is_in_range(0));
@@ -186,28 +184,29 @@ fn test_is_in_range() {
 }
 
 #[test]
-fn test_range_proof_valid() {
-    use crate::groups::ristretto255::RistrettoScalar;
-
-    let range = Range::Bits32;
+fn test_range_proof() {
+    let range = Range::Bits16;
     let mut rng = rand::thread_rng();
-    let blinding = Blinding::rand(&mut rng);
+    let value = 1234u64;
+    let (commitment, blinding) = PedersenCommitment::commit_u64(value, &mut rng);
 
-    let value = 1u64;
     let proof = RangeProof::prove(value, &blinding, &range, b"test", &mut rng).unwrap();
-    let commitment = PedersenCommitment::new(&RistrettoScalar::from(value), &blinding);
+    assert!(RangeProof::prove(value, &blinding, &Range::Bits8, b"test", &mut rng).is_err());
+
     assert!(proof.verify(&commitment, &range, b"test", &mut rng).is_ok());
+    assert!(proof
+        .verify(&commitment, &range, b"other", &mut rng)
+        .is_err());
 }
 
 #[test]
 fn test_batch_range_proof_valid() {
-    use crate::groups::ristretto255::RistrettoScalar;
     let range = Range::Bits32;
     let mut rng = rand::thread_rng();
     let values = (1u64..=8).collect::<Vec<_>>();
     let (commitments, blindings) = values
         .iter()
-        .map(|&v| PedersenCommitment::commit(&RistrettoScalar::from(v), &mut rng))
+        .map(|&v| PedersenCommitment::commit_u64(v, &mut rng))
         .unzip::<_, _, Vec<_>, Vec<_>>();
     let proof =
         RangeProof::prove_batch(&values, &blindings, &range, b"test_dst", &mut rng).unwrap();
@@ -218,14 +217,12 @@ fn test_batch_range_proof_valid() {
 
 #[test]
 fn test_to_from_bytes() {
-    use crate::groups::ristretto255::RistrettoScalar;
-
     let range = Range::Bits32;
     let mut rng = rand::thread_rng();
     let values = (1u64..=8).collect::<Vec<_>>();
     let (commitments, blindings) = values
         .iter()
-        .map(|&v| PedersenCommitment::commit(&RistrettoScalar::from(v), &mut rng))
+        .map(|&v| PedersenCommitment::commit_u64(v, &mut rng))
         .unzip::<_, _, Vec<_>, Vec<_>>();
     let proof = RangeProof::prove_batch(&values, &blindings, &range, b"test", &mut rng).unwrap();
     let proof_bytes = proof.to_bytes();

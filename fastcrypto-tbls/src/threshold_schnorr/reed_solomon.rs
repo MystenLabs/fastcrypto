@@ -136,6 +136,9 @@ type Element = [u8; ELEMENT_SIZE_IN_BYTES];
 /// Size in bytes of one `GF(2^16)` element.
 const ELEMENT_SIZE_IN_BYTES: usize = 2;
 
+/// Size in bytes of the `u32` length prefix framing an encoded payload.
+const LEN_PREFIX_SIZE: usize = std::mem::size_of::<u32>();
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Shard(pub(crate) Vec<u8>);
@@ -152,9 +155,7 @@ impl ErasureCoder {
     pub fn new(n: usize, k: usize) -> FastCryptoResult<Self> {
         // The code is defined over GF(2^16), which has 2^16 = 65536 elements; n cannot exceed
         // that or the evaluation points would collide.
-        if k == 0 || n <= k || n > 65536 {
-            return Err(InvalidInput);
-        }
+        Self::check_parameters(n, k)?;
         ReedSolomon::new(k, n - k)
             .map_err(|_| InvalidInput)
             .map(Self)
@@ -174,7 +175,7 @@ impl ErasureCoder {
             return Err(InvalidInput);
         }
         let len = u32::try_from(data.len()).map_err(|_| InvalidInput)?;
-        let framed_len = std::mem::size_of::<u32>() + data.len();
+        let framed_len = LEN_PREFIX_SIZE + data.len();
         let shard_size = framed_len.div_ceil(ELEMENT_SIZE_IN_BYTES * self.0.data_shard_count());
         let bytes_per_shard = ELEMENT_SIZE_IN_BYTES * shard_size;
         let mut framed = Vec::with_capacity(bytes_per_shard * self.0.total_shard_count());
@@ -221,18 +222,15 @@ impl ErasureCoder {
             .flatten()
             .flatten()
             .collect();
-        if framed.len() < std::mem::size_of::<u32>() {
+        if framed.len() < LEN_PREFIX_SIZE {
             return Err(InvalidInput);
         }
-        let len =
-            u32::from_le_bytes(framed[..std::mem::size_of::<u32>()].try_into().unwrap()) as usize;
-        let end = std::mem::size_of::<u32>()
-            .checked_add(len)
-            .ok_or(InvalidInput)?;
+        let len = u32::from_le_bytes(framed[..LEN_PREFIX_SIZE].try_into().unwrap()) as usize;
+        let end = LEN_PREFIX_SIZE.checked_add(len).ok_or(InvalidInput)?;
         if end > framed.len() {
             return Err(InvalidInput);
         }
-        Ok(framed[std::mem::size_of::<u32>()..end].to_vec())
+        Ok(framed[LEN_PREFIX_SIZE..end].to_vec())
     }
 }
 

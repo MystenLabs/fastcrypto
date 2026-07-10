@@ -16,6 +16,9 @@ use crate::random_oracle::RandomOracle;
 pub use crate::threshold_schnorr::avid::{
     AuthenticatedShards, Dispersal, Echo, EchoBuilder, VerifiedEcho,
 };
+use crate::threshold_schnorr::batch_avss_avid::DecodeAndDecryptOutcome::{
+    InvalidDecryption, InvalidDispersal, Valid,
+};
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::recovery_proof;
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
@@ -24,7 +27,7 @@ use crate::threshold_schnorr::{avid, Certificate, VerifiedCertificate};
 use crate::threshold_schnorr::{random_oracle_from_sid, Parameters, EG, G, S};
 use crate::types::{get_uniform_value, ShareIndex};
 use fastcrypto::error::FastCryptoError::{
-    InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
+    GeneralOpaqueError, InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
 };
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
@@ -340,10 +343,7 @@ impl Dealer {
 
         let ciphertext_hashes = ciphertexts
             .iter()
-            .map(|c| {
-                let bytes: &[u8] = &c.0;
-                Blake2b256::digest(bytes)
-            })
+            .map(|c| Blake2b256::digest(&c.0))
             .collect_vec();
 
         // "response" polynomial from https://eprint.iacr.org/2023/536.pdf
@@ -400,6 +400,11 @@ impl Dealer {
     ///
     ///    This phase is only needed if any receiver failed to confirm in the optimistic phase.
     ///    If every receiver confirmed, the pessimistic phase can be skipped entirely.
+    ///
+    ///    The pending recipients (the non-confirmers) may carry at most `f` weight: the confirmers
+    ///    then hold `≥ W − f` weight, so `≥ W − 2f` of them are honest — exactly the AVID decode
+    ///    quorum needed to reconstruct each pending recipient's ciphertext. This returns
+    ///    [InvalidInput] if the pending weight exceeds `f`.
     pub fn create_avid_messages<C: Certificate<Payload = AvssVote>>(
         &self,
         avss_message_builder: &AvssMessageBuilder,
@@ -435,7 +440,7 @@ impl Dealer {
             .node_ids_iter()
             .filter(|id| !avss_cert.signers().contains(id))
             .collect();
-        if self.nodes.total_weight_of(pending_recipients.iter())? >= self.params.f {
+        if self.nodes.total_weight_of(pending_recipients.iter())? > self.params.f {
             warn!("batch_avss create_avid_messages_with_mutation: too many pending recipients");
             return Err(InvalidInput);
         }
@@ -530,15 +535,18 @@ impl Receiver {
             }
             None => self.verify_common_message(message.common.clone())?,
         };
-        self.check_ciphertext_hash(&message.ciphertext, &verified_common)?;
-        let output = self.decrypt_and_verify_shares(&message.ciphertext, &verified_common)?;
-        Ok((
-            output,
-            AvssVote {
-                common_message_hash: verified_common.0.hash(),
-            },
-            verified_common,
-        ))
+        check_ciphertext_hash(&message.ciphertext.0, self.id, &verified_common)
+            .map_err(|_| InvalidMessage)?;
+        self.decrypt_and_verify_shares(&message.ciphertext, &verified_common)
+            .map(|output| {
+                (
+                    output,
+                    AvssVote {
+                        common_message_hash: verified_common.0.hash(),
+                    },
+                    verified_common,
+                )
+            })
     }
 
     /// Verify a [AvssCommonMessage] (see [AvssCommonMessage::verify]) and return the resulting
@@ -594,7 +602,7 @@ impl Receiver {
             return Err(NotEnoughWeight(required_weight_of_voters as usize));
         }
         avss_cert.verify()?;
-        // Dispersal recipients and voters must partition the node set (AVSS policy).
+        // Dispersal recipients and voters must partition the node set.
         if !dispersal
             .keys()
             .eq(self.nodes.relative_complement(avss_cert.signers()).iter())
@@ -661,14 +669,8 @@ impl Receiver {
             warn!("batch_avss decode_and_decrypt: AvidCert binds a different common message");
             return Err(InvalidMessage);
         }
-        let expected_hash = verified_common
-            .0
-            .ciphertext_hashes
-            .get(self.id as usize)
-            .ok_or(InvalidProof)?;
-
         let ciphertext = match self.avid.decode_or_complain(echoes, |payload| {
-            Blake2b256::digest(payload) == *expected_hash
+            check_ciphertext_hash(payload, self.id, verified_common).is_ok()
         })? {
             Ok(bytes) => Ciphertext(bytes),
             Err(complaint) => {
@@ -676,19 +678,19 @@ impl Receiver {
                     "batch_avss decode_and_decrypt: receiver {} raising AvidComplaint",
                     self.id,
                 );
-                return Ok(DecodeAndDecryptOutcome::InvalidDispersal(complaint));
+                return Ok(InvalidDispersal(complaint));
             }
         };
 
         Ok(
             match self.decrypt_and_verify_shares(&ciphertext, verified_common) {
-                Ok(output) => DecodeAndDecryptOutcome::Valid(ciphertext, output),
+                Ok(output) => Valid(ciphertext, output),
                 Err(e) => {
                     warn!(
                     "batch_avss decode_and_decrypt: receiver {} raising AvssComplaint after share decode/verify failed: {e:?}",
                     self.id,
                 );
-                    DecodeAndDecryptOutcome::InvalidDecryption(AvssComplaint {
+                    InvalidDecryption(AvssComplaint {
                         ciphertext,
                         proof: recovery_proof::RecoveryProof::create(
                             self.id,
@@ -703,30 +705,6 @@ impl Receiver {
         )
     }
 
-    /// Reject a ciphertext whose hash doesn't match the one pinned for this receiver in
-    /// [VerifiedAvssCommonMessage]. This stops a dealer from dispersing a different ciphertext
-    /// via AVID.
-    fn check_ciphertext_hash(
-        &self,
-        ciphertext: &Ciphertext,
-        verified_common: &VerifiedAvssCommonMessage,
-    ) -> FastCryptoResult<()> {
-        if Blake2b256::digest(&ciphertext.0)
-            != *verified_common
-                .0
-                .ciphertext_hashes
-                .get(self.id as usize)
-                .ok_or(InvalidMessage)?
-        {
-            warn!(
-                "batch_avss check_ciphertext_hash: ciphertext hash does not match ciphertext_hashes[{}]",
-                self.id,
-            );
-            return Err(InvalidMessage);
-        }
-        Ok(())
-    }
-
     /// Decrypt and verify this receiver's own shares against the common message, returning the
     /// [ReceiverOutput] on success or the underlying error.
     fn decrypt_and_verify_shares(
@@ -738,8 +716,7 @@ impl Receiver {
             full_public_keys,
             ciphertext_shared,
             ..
-        } = &&common_message.0;
-        let random_oracle = self.random_oracle();
+        } = &common_message.0;
 
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         let plaintext = ciphertext_shared.decrypt(
@@ -749,7 +726,7 @@ impl Receiver {
             self.id as usize,
         );
 
-        let challenge = compute_challenge_from_common_message(&random_oracle, &common_message.0);
+        let challenge = self.challenge_for(common_message);
         let my_shares = SharesForNode::from_bytes(plaintext)?;
         my_shares.verify(
             &common_message.0,
@@ -772,22 +749,16 @@ impl Receiver {
         own_ciphertext: Ciphertext,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<ComplaintResponse> {
-        let challenge =
-            compute_challenge_from_common_message(&self.random_oracle(), &verified_common.0);
-
         let AvssComplaint { proof, ciphertext } = reveal;
 
-        if Blake2b256::digest(&ciphertext.0)
-            != *verified_common
-                .0
-                .ciphertext_hashes
-                .get(accuser_id as usize)
-                .ok_or(InvalidProof)?
-        {
-            return Err(InvalidProof);
-        }
-        let accuser = self.nodes.node_id_to_node(accuser_id)?;
+        let accuser = self.nodes.node_id_to_node(accuser_id).tap_err(|_| {
+            warn!("batch_avss handle_avss_complaint: accuser_id not valid: {accuser_id}");
+        })?;
         let accuser_indices = self.nodes.share_ids_of(accuser_id)?;
+        check_ciphertext_hash(&ciphertext.0, accuser_id, verified_common)
+            .map_err(|_| InvalidProof)?;
+
+        let challenge = self.challenge_for(verified_common);
         proof.check(
             accuser_id,
             &accuser.pk,
@@ -817,18 +788,14 @@ impl Receiver {
         own_ciphertext: Ciphertext,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<ComplaintResponse> {
-        let expected_hash = verified_common
-            .0
-            .ciphertext_hashes
-            .get(accuser_id as usize)
-            .ok_or(InvalidProof)?;
-
-        let vote = &avid_cert.payload().vote;
+        if !self.nodes.is_valid_id(accuser_id) {
+            warn!("batch_avss handle_avid_complaint: accuser_id is not valid: {accuser_id}");
+            return Err(InvalidInput);
+        }
         self.avid
-            .complaint_is_valid(blame, accuser_id, vote, |payload| {
-                Blake2b256::digest(payload) == *expected_hash
+            .complaint_is_valid(blame, accuser_id, &avid_cert.payload().vote, |payload| {
+                check_ciphertext_hash(payload, accuser_id, verified_common).is_ok()
             })?;
-
         Ok(self.build_complaint_response(&verified_common.0, own_ciphertext, rng))
     }
 
@@ -861,15 +828,10 @@ impl Receiver {
             ciphertext,
             recovery_package,
         } = response;
-        if Blake2b256::digest(&ciphertext.0)
-            != *verified_common
-                .0
-                .ciphertext_hashes
-                .get(responder_id as usize)
-                .ok_or(InvalidProof)?
-        {
-            return Err(InvalidProof);
-        }
+        // node_id_to_node validates responder_id, so the ciphertext_hashes index below is safe.
+        let responder = self.nodes.node_id_to_node(responder_id)?;
+        check_ciphertext_hash(&ciphertext.0, responder_id, verified_common)
+            .map_err(|_| InvalidProof)?;
         let shares = verified_common
             .0
             .ciphertext_shared
@@ -880,14 +842,14 @@ impl Receiver {
                     .random_oracle()
                     .extend(&Recovery(responder_id).to_string()),
                 &self.random_oracle().extend(&Encryption.to_string()),
-                &self.nodes.node_id_to_node(responder_id)?.pk,
+                &responder.pk,
                 responder_id as usize,
             )
             .and_then(SharesForNode::from_bytes)?;
 
         shares.verify(
             &verified_common.0,
-            &compute_challenge_from_common_message(&self.random_oracle(), &verified_common.0),
+            &self.challenge_for(verified_common),
             &self.nodes.share_ids_of(responder_id)?,
             self.batch_size,
         )?;
@@ -938,13 +900,12 @@ impl Receiver {
         // shares yields valid shares, so this final verification is defense-in-depth and should be
         // unreachable as a failure. Warn loudly if it ever does fail, since that signals a logic
         // error rather than a malicious input.
-        let challenge =
-            compute_challenge_from_common_message(&self.random_oracle(), &verified_common.0);
+        let challenge = self.challenge_for(verified_common);
         my_shares
             .verify(
                 &verified_common.0,
                 &challenge,
-                &self.nodes.share_ids_of(self.id)?,
+                &self.my_indices(),
                 self.batch_size,
             )
             .tap_err(|e| {
@@ -964,6 +925,26 @@ impl Receiver {
     fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
     }
+
+    /// The Fiat-Shamir challenge for `common`, bound to this receiver's random oracle.
+    fn challenge_for(&self, common: &VerifiedAvssCommonMessage) -> Vec<S> {
+        compute_challenge_from_common_message(&self.random_oracle(), &common.0)
+    }
+}
+
+/// Whether `ciphertext` hashes to the digest pinned for `party_id` in
+/// [VerifiedAvssCommonMessage].
+///
+/// `party_id` must be a valid node id.
+fn check_ciphertext_hash(
+    ciphertext: &[u8],
+    party_id: PartyId,
+    verified_common: &VerifiedAvssCommonMessage,
+) -> FastCryptoResult<()> {
+    if Blake2b256::digest(ciphertext) != verified_common.0.ciphertext_hashes[party_id as usize] {
+        return Err(GeneralOpaqueError);
+    }
+    Ok(())
 }
 
 impl AvssMessageBuilder {
@@ -1301,10 +1282,11 @@ mod tests {
 
     #[test]
     fn test_optimistic_then_pessimistic() {
-        // 8 of 10 parties confirm in the optimistic phase; the remaining 2 receive their shares
+        // 7 of 10 parties confirm in the optimistic phase; the remaining 3 receive their shares
         // via the pessimistic AVID phase, gated on the optimistic certificate. Pending weight
-        // (= 2) must be strictly less than `f` so the dealer-side precheck in
-        // `create_avid_messages_with_mutation` accepts the cert.
+        // (= 3) must be at most `f` so the dealer-side precheck in
+        // `create_avid_messages_with_mutation` accepts the cert; here it sits exactly at the
+        // `f = 3` boundary.
         let t = 3;
         let f = 3;
         let n = 10u16;
@@ -1355,10 +1337,10 @@ mod tests {
             })
             .collect_vec();
 
-        // Optimistic phase: only parties 0..=7 confirm; 8 and 9 are stragglers.
+        // Optimistic phase: only parties 0..=6 confirm; 7, 8 and 9 are stragglers.
         let state = dealer.create_avss_messages(&mut rng).unwrap();
-        let voters: Vec<PartyId> = (0u16..=7).collect();
-        let pending: BTreeSet<PartyId> = [8u16, 9].into_iter().collect();
+        let voters: Vec<PartyId> = (0u16..=6).collect();
+        let pending: BTreeSet<PartyId> = [7u16, 8, 9].into_iter().collect();
         let votes: BTreeMap<PartyId, AvssVote> = voters
             .iter()
             .map(|id| {
@@ -1382,7 +1364,7 @@ mod tests {
                 common_message_hash: state.common.hash(),
             },
         };
-        // Pessimistic phase: dispersal for the complement of voters (I = {5, 6}). The dealer
+        // Pessimistic phase: dispersal for the complement of voters (I = {7, 8, 9}). The dealer
         // bundles each dispersal with the cert into an [AvidMessage].
         let messages = dealer.create_avid_messages(&state, cert.clone()).unwrap();
 
@@ -1409,7 +1391,7 @@ mod tests {
             echo_sets.push(echoes);
         }
 
-        // Each receiver j sends echoes only for recipients in pending_recipients (= 2 echoes).
+        // Each receiver j sends echoes only for recipients in pending_recipients (= 3 echoes).
         for echo_set in &echo_sets {
             assert_eq!(echo_set.len(), pending.len());
         }

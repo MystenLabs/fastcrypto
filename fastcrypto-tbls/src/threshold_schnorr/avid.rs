@@ -57,6 +57,16 @@ pub struct Vote {
     pub recipients: BTreeSet<PartyId>,
 }
 
+impl Vote {
+    /// The position of `id` among this vote's recipients.
+    fn recipient_index(&self, id: PartyId) -> FastCryptoResult<usize> {
+        self.recipients
+            .iter()
+            .position(|&r| r == id)
+            .ok_or(InvalidInput)
+    }
+}
+
 /// A precomputed dispersal-side cache produced by [Avid::process_dispersal] to build [Echo]s.
 pub struct EchoBuilder {
     dispersal: Dispersal,
@@ -180,11 +190,7 @@ impl Avid {
         if auth.shards.len() != self.nodes.weight_of(sender)? as usize {
             return Err(InvalidMessage);
         }
-        let receiver_idx = vote
-            .recipients
-            .iter()
-            .position(|&id| id == receiver)
-            .ok_or(InvalidInput)?;
+        let receiver_idx = vote.recipient_index(receiver)?;
         auth.proof
             .verify(&vote.top_root, &auth.shards, receiver_idx, sender as usize)?;
         Ok(VerifiedEcho { echo, sender })
@@ -270,11 +276,7 @@ impl Avid {
         payload_ok: impl Fn(&[u8]) -> bool,
     ) -> FastCryptoResult<()> {
         // An accuser that is not a pending recipient cannot have a dispersal complaint.
-        let accuser_idx = vote
-            .recipients
-            .iter()
-            .position(|&id| id == accuser_id)
-            .ok_or(InvalidInput)?;
+        let accuser_idx = vote.recipient_index(accuser_id)?;
         for (&disperser, auth) in complaint.shards.iter() {
             auth.proof.verify(
                 &vote.top_root,

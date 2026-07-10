@@ -141,12 +141,11 @@ impl<C: Certificate> VerifiedCertificate<C> {
 
 impl Display for Extensions {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let result = match self {
-            Recovery(accuser) => format!("recovery of {accuser}"),
-            Encryption => "encryption".to_string(),
-            Challenge => "challenge".to_string(),
-        };
-        write!(f, "{result}")
+        match self {
+            Recovery(accuser) => write!(f, "recovery of {accuser}"),
+            Encryption => write!(f, "encryption"),
+            Challenge => write!(f, "challenge"),
+        }
     }
 }
 

@@ -61,14 +61,15 @@ impl Presignatures {
         if batch_size_per_weight == 0 {
             return Err(InvalidInput);
         }
+        let batch_size_per_weight = batch_size_per_weight as usize;
 
         // Recover each dealer's weight from its public key count, which works even for a zero-weight party.
         let weights = outputs
             .iter()
             .map(|o| {
                 let batch_size = o.public_keys.len();
-                (batch_size % batch_size_per_weight as usize == 0)
-                    .then_some(batch_size / batch_size_per_weight as usize)
+                (batch_size % batch_size_per_weight == 0)
+                    .then_some(batch_size / batch_size_per_weight)
                     .ok_or(InvalidInput)
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
@@ -76,6 +77,9 @@ impl Presignatures {
         if total_weight_of_outputs < params.t as usize {
             return Err(InvalidInput);
         }
+
+        // The number of rows the Pascal multiplier folds the dealers' shares into.
+        let height = total_weight_of_outputs - params.f as usize;
 
         // This party's weight, aka it's number of shares
         let my_weight =
@@ -88,7 +92,7 @@ impl Presignatures {
                 && o.my_shares
                     .try_uniform_batch_size()
                     .ok()
-                    .is_none_or(|bs| bs != *w * batch_size_per_weight as usize)
+                    .is_none_or(|bs| bs != *w * batch_size_per_weight)
         }) {
             return Err(InvalidInput);
         }
@@ -97,8 +101,8 @@ impl Presignatures {
         let secret = (0..my_weight as usize)
             .map(|i| {
                 LazyPascalMatrixMultiplier::new(
-                    total_weight_of_outputs - params.f as usize,
-                    (0..batch_size_per_weight as usize)
+                    height,
+                    (0..batch_size_per_weight)
                         .map(|j| {
                             outputs
                                 .iter()
@@ -114,8 +118,8 @@ impl Presignatures {
             .collect_vec();
 
         let public = LazyPascalMatrixMultiplier::new(
-            total_weight_of_outputs - params.f as usize,
-            (0..batch_size_per_weight as usize)
+            height,
+            (0..batch_size_per_weight)
                 .map(|j| {
                     outputs
                         .iter()
@@ -127,8 +131,7 @@ impl Presignatures {
         );
 
         // Sanity check that the multiplier sizes match the expected nonce count.
-        let expected_len =
-            (total_weight_of_outputs - params.f as usize) * batch_size_per_weight as usize;
+        let expected_len = height * batch_size_per_weight;
         assert!(secret.iter().all(|s| s.len() == expected_len));
         assert_eq!(public.len(), expected_len);
 
