@@ -44,6 +44,11 @@ fn invalid_keygen(scheme: &str, seed: &str) {
 #[test]
 fn integration_test_keygen() {
     for test_case in TEST_CASES {
+        // falcon512 keygen is randomized (the seed is unused), so equality
+        // against fixed vectors cannot hold; covered by the falcon test below.
+        if test_case.name == "falcon512" {
+            continue;
+        }
         valid_keygen(test_case.name, SEED, test_case.private, test_case.public);
     }
 
@@ -90,6 +95,11 @@ fn valid_sign(
 #[test]
 fn integration_test_sign() {
     for test_case in TEST_CASES {
+        // falcon512 signatures are salted, so byte equality cannot hold;
+        // covered by the falcon test below.
+        if test_case.name == "falcon512" {
+            continue;
+        }
         valid_sign(
             test_case.name,
             test_case.private,
@@ -98,6 +108,54 @@ fn integration_test_sign() {
             test_case.sig,
         )
     }
+}
+
+#[test]
+fn integration_test_falcon512_randomized() {
+    let case = TEST_CASES.iter().find(|c| c.name == "falcon512").unwrap();
+
+    // Keygen ignores the seed, so only the output shape is stable.
+    let result = Command::cargo_bin("sigs-cli")
+        .unwrap()
+        .arg("keygen")
+        .arg("--scheme")
+        .arg("falcon512")
+        .arg("--seed")
+        .arg(SEED)
+        .ok();
+    assert!(result.is_ok());
+    let output = String::from_utf8(result.unwrap().stdout).unwrap();
+    let pattern = Regex::new(
+        "Private key in hex: \"([0-9a-fA-F]*)\"\nPublic key in hex: \"([0-9a-fA-F]*)\"\n",
+    )
+    .unwrap();
+    let captures = pattern.captures(&output).unwrap();
+    assert_eq!(captures.get(1).unwrap().as_str().len(), 2 * 1281);
+    assert_eq!(captures.get(2).unwrap().as_str().len(), 2 * 897);
+
+    // Sign with the fixed vector key: the salt makes the signature fresh,
+    // but the public key is derived from the secret key and must match the
+    // vector, and the fresh signature must verify.
+    let result = Command::cargo_bin("sigs-cli")
+        .unwrap()
+        .arg("sign")
+        .arg("--scheme")
+        .arg("falcon512")
+        .arg("--secret-key")
+        .arg(case.private)
+        .arg("--msg")
+        .arg(MSG)
+        .ok();
+    assert!(result.is_ok());
+    let output = String::from_utf8(result.unwrap().stdout).unwrap();
+    let pattern =
+        Regex::new("Signature in hex: \"([0-9a-fA-F]*)\"\nPublic key in hex: \"([0-9a-fA-F]*)\"\n")
+            .unwrap();
+    let captures = pattern.captures(&output).unwrap();
+    let signature = captures.get(1).unwrap().as_str().to_string();
+    assert_eq!(captures.get(2).unwrap().as_str(), case.public);
+
+    valid_verify("falcon512", MSG, case.public, &signature);
 }
 
 fn valid_verify(scheme: &str, msg: &str, public_key: &str, signature: &str) {

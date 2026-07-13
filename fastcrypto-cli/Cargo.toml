@@ -10,7 +10,7 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
 clap = { version = "4.1.8", features = ["derive"] }
-fastcrypto = { path = "../fastcrypto", features = ["copy_key"] }
+fastcrypto = { path = "../fastcrypto", features = ["copy_key", "falcon-sign"] }
 fastcrypto-vdf = { path = "../fastcrypto-vdf", features = ["experimental"] }
 hex = "0.4.3"
 rand.workspace = true

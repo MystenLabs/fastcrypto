@@ -7,6 +7,7 @@ use fastcrypto::{
     ed25519::{Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey, Ed25519Signature},
     encoding::{Encoding, Hex},
     error::FastCryptoError,
+    falcon512::{Falcon512KeyPair, Falcon512PrivateKey, Falcon512PublicKey, Falcon512Signature},
     secp256k1::{
         recoverable::Secp256k1RecoverableSignature, Secp256k1KeyPair, Secp256k1PrivateKey,
         Secp256k1PublicKey, Secp256k1Signature,
@@ -52,6 +53,7 @@ enum SignatureScheme {
     Secp256r1Recoverable,
     BLS12381MinSig,
     BLS12381MinPk,
+    Falcon512,
 }
 
 impl FromStr for SignatureScheme {
@@ -66,6 +68,7 @@ impl FromStr for SignatureScheme {
             "secp256r1-rec" => Ok(SignatureScheme::Secp256r1Recoverable),
             "bls12381-minsig" => Ok(SignatureScheme::BLS12381MinSig),
             "bls12381-minpk" => Ok(SignatureScheme::BLS12381MinPk),
+            "falcon512" => Ok(SignatureScheme::Falcon512),
             _ => Err(Error::other("Invalid signature scheme.")),
         }
     }
@@ -159,6 +162,15 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
                         Hex::encode(kp.public().as_ref()),
                     )
                 }
+                Ok(SignatureScheme::Falcon512) => {
+                    // The seed is unused: PQClean draws its own OS randomness,
+                    // so falcon512 keygen is not deterministic.
+                    let kp = Falcon512KeyPair::generate(rng);
+                    (
+                        Hex::encode(kp.copy().private().as_ref()),
+                        Hex::encode(kp.public().as_ref()),
+                    )
+                }
                 Err(_) => return Err(FastCryptoError::InvalidInput),
             };
             println!("Private key in hex: {:?}", sk);
@@ -225,6 +237,14 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
                         Hex::encode(kp.sign(&msg).as_ref()),
                     )
                 }
+                Ok(SignatureScheme::Falcon512) => {
+                    // The public key is derived from the secret key (h = g/f).
+                    let kp = Falcon512KeyPair::from(Falcon512PrivateKey::from_bytes(&sk)?);
+                    (
+                        Hex::encode(kp.public()),
+                        Hex::encode(kp.sign(&msg).as_ref()),
+                    )
+                }
                 Err(_) => return Err(FastCryptoError::InvalidInput),
             };
             println!("Signature in hex: {:?}", sig);
@@ -278,6 +298,11 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
                         &msg,
                         &fastcrypto::bls12381::min_pk::BLS12381Signature::from_bytes(&sig)?,
                     )
+                }
+                Ok(SignatureScheme::Falcon512) => {
+                    let pk = Falcon512PublicKey::from_bytes(&pk)
+                        .map_err(|_| FastCryptoError::InvalidInput)?;
+                    pk.verify(&msg, &Falcon512Signature::from_bytes(&sig)?)
                 }
                 Err(_) => return Err(FastCryptoError::InvalidInput),
             };
