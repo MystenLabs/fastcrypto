@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/zk_login_api.rs`."><title>zk_login_api.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.96.1 (31fca3adb 2026-06-26)" data-channel="1.96.1" data-search-js="search-b5634cc7.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">fastcrypto_zkp/bn254/</div>zk_login_api.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/zk_login_api.rs`."><title>zk_login_api.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.97.0 (2d8144b78 2026-07-07)" data-channel="1.97.0" data-search-js="search-fd9372ac.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-fcd733ba.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">fastcrypto_zkp/bn254/</div>zk_login_api.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 <a href=#2 id=2 data-nosnippet>2</a>// SPDX-License-Identifier: Apache-2.0
 <a href=#3 id=3 data-nosnippet>3</a>
 <a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">use </span>std::str::FromStr;
@@ -466,174 +466,181 @@
 <a href=#466 id=466 data-nosnippet>466</a>    </span>PreparedVerifyingKey::from(vk)
 <a href=#467 id=467 data-nosnippet>467</a>}
 <a href=#468 id=468 data-nosnippet>468</a>
-<a href=#469 id=469 data-nosnippet>469</a><span class="doccomment">/// Verify a zkLogin proof. If `enable_zklogin_v2` is set, verify against the v2 circuit first and
-<a href=#470 id=470 data-nosnippet>470</a>/// fall back to v1; otherwise verify against v1 only. This flag is expected to be wired from the
-<a href=#471 id=471 data-nosnippet>471</a>/// `enable_zklogin_auth_v2` protocol config so v2 can be enabled per-network during rollout.
-<a href=#472 id=472 data-nosnippet>472</a></span><span class="kw">pub fn </span>verify_zk_login(
-<a href=#473 id=473 data-nosnippet>473</a>    input: <span class="kw-2">&amp;</span>ZkLoginInputs,
-<a href=#474 id=474 data-nosnippet>474</a>    max_epoch: u64,
-<a href=#475 id=475 data-nosnippet>475</a>    eph_pubkey_bytes: <span class="kw-2">&amp;</span>[u8],
-<a href=#476 id=476 data-nosnippet>476</a>    all_jwk: <span class="kw-2">&amp;</span>ImHashMap&lt;JwkId, JWK&gt;,
-<a href=#477 id=477 data-nosnippet>477</a>    env: <span class="kw-2">&amp;</span>ZkLoginEnv,
-<a href=#478 id=478 data-nosnippet>478</a>    enable_zklogin_v2: bool,
-<a href=#479 id=479 data-nosnippet>479</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-<a href=#480 id=480 data-nosnippet>480</a>    <span class="comment">// Load the expected JWK based on (iss, kid).
-<a href=#481 id=481 data-nosnippet>481</a>    </span><span class="kw">let </span>(iss, kid) = (input.get_iss().to_string(), input.get_kid().to_string());
-<a href=#482 id=482 data-nosnippet>482</a>    <span class="kw">let </span>jwk = all_jwk
-<a href=#483 id=483 data-nosnippet>483</a>        .get(<span class="kw-2">&amp;</span>JwkId::new(iss.clone(), kid.clone()))
-<a href=#484 id=484 data-nosnippet>484</a>        .ok_or_else(|| {
-<a href=#485 id=485 data-nosnippet>485</a>            FastCryptoError::GeneralError(<span class="macro">format!</span>(<span class="string">"JWK not found ({} - {})"</span>, iss, kid))
-<a href=#486 id=486 data-nosnippet>486</a>        })<span class="question-mark">?</span>;
-<a href=#487 id=487 data-nosnippet>487</a>
-<a href=#488 id=488 data-nosnippet>488</a>    <span class="comment">// Decode modulus to bytes.
-<a href=#489 id=489 data-nosnippet>489</a>    </span><span class="kw">let </span>modulus = Base64UrlUnpadded::decode_vec(<span class="kw-2">&amp;</span>jwk.n).map_err(|<span class="kw">_</span>| {
-<a href=#490 id=490 data-nosnippet>490</a>        FastCryptoError::GeneralError(<span class="string">"Invalid Base64 encoded jwk modulus"</span>.to_string())
-<a href=#491 id=491 data-nosnippet>491</a>    })<span class="question-mark">?</span>;
-<a href=#492 id=492 data-nosnippet>492</a>
-<a href=#493 id=493 data-nosnippet>493</a>    <span class="kw">let </span>proof = input.get_proof().as_arkworks()<span class="question-mark">?</span>;
-<a href=#494 id=494 data-nosnippet>494</a>
-<a href=#495 id=495 data-nosnippet>495</a>    <span class="comment">// When v2 is enabled, try verifying with the v2 circuit + VK first, then fall back to v1.
-<a href=#496 id=496 data-nosnippet>496</a>    </span><span class="kw">if </span>enable_zklogin_v2 {
-<a href=#497 id=497 data-nosnippet>497</a>        <span class="kw">match </span>input.calculate_all_inputs_hash(
-<a href=#498 id=498 data-nosnippet>498</a>            eph_pubkey_bytes,
-<a href=#499 id=499 data-nosnippet>499</a>            <span class="kw-2">&amp;</span>modulus,
-<a href=#500 id=500 data-nosnippet>500</a>            max_epoch,
-<a href=#501 id=501 data-nosnippet>501</a>            CircuitVersion::V2,
-<a href=#502 id=502 data-nosnippet>502</a>        ) {
-<a href=#503 id=503 data-nosnippet>503</a>            <span class="prelude-val">Ok</span>(all_inputs_hash) =&gt; {
-<a href=#504 id=504 data-nosnippet>504</a>                <span class="kw">match </span>verify_zk_login_proof_with_fixed_vk(env, <span class="kw-2">&amp;</span>proof, <span class="kw-2">&amp;</span>[all_inputs_hash], <span class="bool-val">true</span>) {
-<a href=#505 id=505 data-nosnippet>505</a>                    <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
-<a href=#506 id=506 data-nosnippet>506</a>                    <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>) =&gt; {
-<a href=#507 id=507 data-nosnippet>507</a>                        <span class="macro">tracing::debug!</span>(
-<a href=#508 id=508 data-nosnippet>508</a>                            <span class="string">"[zkLogin] v2 verify returned false (env={:?}, iss={}), falling back to v1"</span>,
-<a href=#509 id=509 data-nosnippet>509</a>                            env,
-<a href=#510 id=510 data-nosnippet>510</a>                            iss
-<a href=#511 id=511 data-nosnippet>511</a>                        );
-<a href=#512 id=512 data-nosnippet>512</a>                    }
-<a href=#513 id=513 data-nosnippet>513</a>                    <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#514 id=514 data-nosnippet>514</a>                        <span class="macro">tracing::debug!</span>(
-<a href=#515 id=515 data-nosnippet>515</a>                            <span class="string">"[zkLogin] v2 verify failed (env={:?}, iss={}): {:?}, falling back to v1"</span>,
-<a href=#516 id=516 data-nosnippet>516</a>                            env,
-<a href=#517 id=517 data-nosnippet>517</a>                            iss,
-<a href=#518 id=518 data-nosnippet>518</a>                            e
-<a href=#519 id=519 data-nosnippet>519</a>                        );
-<a href=#520 id=520 data-nosnippet>520</a>                    }
-<a href=#521 id=521 data-nosnippet>521</a>                }
-<a href=#522 id=522 data-nosnippet>522</a>            }
-<a href=#523 id=523 data-nosnippet>523</a>            <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#524 id=524 data-nosnippet>524</a>                <span class="macro">tracing::debug!</span>(
-<a href=#525 id=525 data-nosnippet>525</a>                    <span class="string">"[zkLogin] v2 hash computation failed (env={:?}, iss={}): {:?}, falling back to v1"</span>,
-<a href=#526 id=526 data-nosnippet>526</a>                    env,
-<a href=#527 id=527 data-nosnippet>527</a>                    iss,
-<a href=#528 id=528 data-nosnippet>528</a>                    e
-<a href=#529 id=529 data-nosnippet>529</a>                );
-<a href=#530 id=530 data-nosnippet>530</a>            }
-<a href=#531 id=531 data-nosnippet>531</a>        }
-<a href=#532 id=532 data-nosnippet>532</a>    }
-<a href=#533 id=533 data-nosnippet>533</a>
-<a href=#534 id=534 data-nosnippet>534</a>    <span class="kw">let </span>all_inputs_hash = input.calculate_all_inputs_hash(
-<a href=#535 id=535 data-nosnippet>535</a>        eph_pubkey_bytes,
-<a href=#536 id=536 data-nosnippet>536</a>        <span class="kw-2">&amp;</span>modulus,
-<a href=#537 id=537 data-nosnippet>537</a>        max_epoch,
-<a href=#538 id=538 data-nosnippet>538</a>        CircuitVersion::V1,
-<a href=#539 id=539 data-nosnippet>539</a>    )<span class="question-mark">?</span>;
-<a href=#540 id=540 data-nosnippet>540</a>    <span class="kw">match </span>verify_zk_login_proof_with_fixed_vk(env, <span class="kw-2">&amp;</span>proof, <span class="kw-2">&amp;</span>[all_inputs_hash], <span class="bool-val">false</span>) {
-<a href=#541 id=541 data-nosnippet>541</a>        <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>) =&gt; <span class="prelude-val">Ok</span>(()),
-<a href=#542 id=542 data-nosnippet>542</a>        <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>) | <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-<a href=#543 id=543 data-nosnippet>543</a>            <span class="string">"Groth16 proof verify failed"</span>.to_string(),
-<a href=#544 id=544 data-nosnippet>544</a>        )),
-<a href=#545 id=545 data-nosnippet>545</a>    }
-<a href=#546 id=546 data-nosnippet>546</a>}
-<a href=#547 id=547 data-nosnippet>547</a>
-<a href=#548 id=548 data-nosnippet>548</a><span class="doccomment">/// Circuit version, which determines the layout of the `all_inputs_hash` public input.
-<a href=#549 id=549 data-nosnippet>549</a></span><span class="attr">#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-<a href=#550 id=550 data-nosnippet>550</a></span><span class="kw">pub enum </span>CircuitVersion {
-<a href=#551 id=551 data-nosnippet>551</a>    <span class="doccomment">/// V1 circuit: the iss claim is folded in as its *base64* value and `index_mod_4` is folded
-<a href=#552 id=552 data-nosnippet>552</a>    /// into the hash. There is no `rsa_num_bits` field.
-<a href=#553 id=553 data-nosnippet>553</a>    </span>V1,
-<a href=#554 id=554 data-nosnippet>554</a>    <span class="doccomment">/// V2 circuit: the iss claim is folded in as its *decoded* extended claim, `index_mod_4` is
-<a href=#555 id=555 data-nosnippet>555</a>    /// dropped, and the actual RSA modulus bit length (`rsa_num_bits`) is folded in instead.
-<a href=#556 id=556 data-nosnippet>556</a>    </span>V2,
-<a href=#557 id=557 data-nosnippet>557</a>}
-<a href=#558 id=558 data-nosnippet>558</a>
-<a href=#559 id=559 data-nosnippet>559</a><span class="kw">const </span>V1_MAX_EXT_ISS_LEN: u16 = <span class="number">165</span>;
-<a href=#560 id=560 data-nosnippet>560</a><span class="kw">const </span>V2_MAX_EXT_ISS_LEN: u16 = <span class="number">186</span>;
-<a href=#561 id=561 data-nosnippet>561</a>
-<a href=#562 id=562 data-nosnippet>562</a><span class="kw">impl </span>CircuitVersion {
-<a href=#563 id=563 data-nosnippet>563</a>    <span class="doccomment">/// Circuit-specific parameters (max field lengths) for this version.
-<a href=#564 id=564 data-nosnippet>564</a>    </span><span class="kw">pub fn </span>config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CircuitConfig {
-<a href=#565 id=565 data-nosnippet>565</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#566 id=566 data-nosnippet>566</a>            CircuitVersion::V1 =&gt; CircuitConfig {
-<a href=#567 id=567 data-nosnippet>567</a>                max_header_len_b64: <span class="number">248</span>,
-<a href=#568 id=568 data-nosnippet>568</a>                max_iss_len: <span class="number">4 </span>* (<span class="number">1 </span>+ V1_MAX_EXT_ISS_LEN / <span class="number">3</span>),
-<a href=#569 id=569 data-nosnippet>569</a>                max_rsa_bits: <span class="number">2048</span>,
-<a href=#570 id=570 data-nosnippet>570</a>            },
-<a href=#571 id=571 data-nosnippet>571</a>            CircuitVersion::V2 =&gt; CircuitConfig {
-<a href=#572 id=572 data-nosnippet>572</a>                max_header_len_b64: <span class="number">279</span>,
-<a href=#573 id=573 data-nosnippet>573</a>                max_iss_len: V2_MAX_EXT_ISS_LEN,
-<a href=#574 id=574 data-nosnippet>574</a>                max_rsa_bits: <span class="number">8192</span>,
-<a href=#575 id=575 data-nosnippet>575</a>            },
-<a href=#576 id=576 data-nosnippet>576</a>        }
-<a href=#577 id=577 data-nosnippet>577</a>    }
-<a href=#578 id=578 data-nosnippet>578</a>}
-<a href=#579 id=579 data-nosnippet>579</a>
-<a href=#580 id=580 data-nosnippet>580</a><span class="doccomment">/// Circuit-specific parameters, obtained via [CircuitVersion::config].
-<a href=#581 id=581 data-nosnippet>581</a></span><span class="attr">#[derive(Debug, Copy, Clone)]
-<a href=#582 id=582 data-nosnippet>582</a></span><span class="kw">pub struct </span>CircuitConfig {
-<a href=#583 id=583 data-nosnippet>583</a>    <span class="doccomment">/// Maximum header length in base64.
-<a href=#584 id=584 data-nosnippet>584</a>    </span><span class="kw">pub </span>max_header_len_b64: u16,
-<a href=#585 id=585 data-nosnippet>585</a>    <span class="doccomment">/// Maximum length passed to the iss hash. For [CircuitVersion::V1] this is the base64 length
-<a href=#586 id=586 data-nosnippet>586</a>    /// of the iss claim; for [CircuitVersion::V2] it is the byte length of the *decoded* extended
-<a href=#587 id=587 data-nosnippet>587</a>    /// iss claim (the circuit's `maxExtIssLength`).
-<a href=#588 id=588 data-nosnippet>588</a>    </span><span class="kw">pub </span>max_iss_len: u16,
-<a href=#589 id=589 data-nosnippet>589</a>    <span class="doccomment">/// Maximum RSA key size in bits. The modulus is padded to this size before hashing.
-<a href=#590 id=590 data-nosnippet>590</a>    </span><span class="kw">pub </span>max_rsa_bits: u16,
-<a href=#591 id=591 data-nosnippet>591</a>}
-<a href=#592 id=592 data-nosnippet>592</a>
-<a href=#593 id=593 data-nosnippet>593</a><span class="doccomment">/// Verify a proof against its public inputs using the fixed verifying key.
-<a href=#594 id=594 data-nosnippet>594</a></span><span class="kw">pub fn </span>verify_zk_login_proof_with_fixed_vk(
-<a href=#595 id=595 data-nosnippet>595</a>    usage: <span class="kw-2">&amp;</span>ZkLoginEnv,
-<a href=#596 id=596 data-nosnippet>596</a>    proof: <span class="kw-2">&amp;</span>Proof&lt;Bn254&gt;,
-<a href=#597 id=597 data-nosnippet>597</a>    public_inputs: <span class="kw-2">&amp;</span>[Bn254Fr],
-<a href=#598 id=598 data-nosnippet>598</a>    v2: bool,
-<a href=#599 id=599 data-nosnippet>599</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool, FastCryptoError&gt; {
-<a href=#600 id=600 data-nosnippet>600</a>    <span class="kw">let </span>vk = <span class="kw">if </span>v2 {
-<a href=#601 id=601 data-nosnippet>601</a>        <span class="kw">match </span>usage {
-<a href=#602 id=602 data-nosnippet>602</a>            ZkLoginEnv::Prod =&gt; <span class="kw-2">&amp;</span>GLOBAL_VERIFYING_KEY_V2,
-<a href=#603 id=603 data-nosnippet>603</a>            ZkLoginEnv::Test =&gt; <span class="kw-2">&amp;</span>INSECURE_VERIFYING_KEY_V2,
-<a href=#604 id=604 data-nosnippet>604</a>        }
-<a href=#605 id=605 data-nosnippet>605</a>    } <span class="kw">else </span>{
-<a href=#606 id=606 data-nosnippet>606</a>        <span class="kw">match </span>usage {
-<a href=#607 id=607 data-nosnippet>607</a>            ZkLoginEnv::Prod =&gt; <span class="kw-2">&amp;</span>GLOBAL_VERIFYING_KEY,
-<a href=#608 id=608 data-nosnippet>608</a>            ZkLoginEnv::Test =&gt; <span class="kw-2">&amp;</span>INSECURE_VERIFYING_KEY,
-<a href=#609 id=609 data-nosnippet>609</a>        }
-<a href=#610 id=610 data-nosnippet>610</a>    };
-<a href=#611 id=611 data-nosnippet>611</a>
-<a href=#612 id=612 data-nosnippet>612</a>    Groth16::&lt;Bn254&gt;::verify_with_processed_vk(vk, public_inputs, proof)
-<a href=#613 id=613 data-nosnippet>613</a>        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
-<a href=#614 id=614 data-nosnippet>614</a>}
-<a href=#615 id=615 data-nosnippet>615</a>
-<a href=#616 id=616 data-nosnippet>616</a><span class="doccomment">/// Verify that the given parameters (name, value, aud, iss and salt_hash) were used to generate the
-<a href=#617 id=617 data-nosnippet>617</a>/// given address.
-<a href=#618 id=618 data-nosnippet>618</a></span><span class="kw">pub fn </span>verify_zk_login_id(
-<a href=#619 id=619 data-nosnippet>619</a>    address: <span class="kw-2">&amp;</span>[u8],
-<a href=#620 id=620 data-nosnippet>620</a>    name: <span class="kw-2">&amp;</span>str,
-<a href=#621 id=621 data-nosnippet>621</a>    value: <span class="kw-2">&amp;</span>str,
-<a href=#622 id=622 data-nosnippet>622</a>    aud: <span class="kw-2">&amp;</span>str,
-<a href=#623 id=623 data-nosnippet>623</a>    iss: <span class="kw-2">&amp;</span>str,
-<a href=#624 id=624 data-nosnippet>624</a>    salt_hash: <span class="kw-2">&amp;</span>str,
-<a href=#625 id=625 data-nosnippet>625</a>) -&gt; FastCryptoResult&lt;()&gt; {
-<a href=#626 id=626 data-nosnippet>626</a>    <span class="kw">let </span>address_seed = gen_address_seed_with_salt_hash(salt_hash, name, value, aud)<span class="question-mark">?</span>;
-<a href=#627 id=627 data-nosnippet>627</a>    verify_zk_login_iss(address, <span class="kw-2">&amp;</span>address_seed, iss)
-<a href=#628 id=628 data-nosnippet>628</a>}
-<a href=#629 id=629 data-nosnippet>629</a>
-<a href=#630 id=630 data-nosnippet>630</a><span class="doccomment">/// Verify that the given parameters (address_seed and iss) were used to generate the given address.
-<a href=#631 id=631 data-nosnippet>631</a></span><span class="kw">pub fn </span>verify_zk_login_iss(address: <span class="kw-2">&amp;</span>[u8], address_seed: <span class="kw-2">&amp;</span>str, iss: <span class="kw-2">&amp;</span>str) -&gt; FastCryptoResult&lt;()&gt; {
-<a href=#632 id=632 data-nosnippet>632</a>    <span class="kw">let </span>reconstructed_address =
-<a href=#633 id=633 data-nosnippet>633</a>        get_zk_login_address(<span class="kw-2">&amp;</span>Bn254FrElement::from_str(address_seed)<span class="question-mark">?</span>, iss)<span class="question-mark">?</span>;
-<a href=#634 id=634 data-nosnippet>634</a>    <span class="kw">match </span>reconstructed_address == address {
-<a href=#635 id=635 data-nosnippet>635</a>        <span class="bool-val">true </span>=&gt; <span class="prelude-val">Ok</span>(()),
-<a href=#636 id=636 data-nosnippet>636</a>        <span class="bool-val">false </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidProof),
-<a href=#637 id=637 data-nosnippet>637</a>    }
-<a href=#638 id=638 data-nosnippet>638</a>}
+<a href=#469 id=469 data-nosnippet>469</a><span class="doccomment">/// Circuit verify mode.
+<a href=#470 id=470 data-nosnippet>470</a></span><span class="attr">#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+<a href=#471 id=471 data-nosnippet>471</a></span><span class="kw">pub enum </span>ZkLoginCircuitMode {
+<a href=#472 id=472 data-nosnippet>472</a>    <span class="doccomment">/// Accept proofs against the v1 vk only; v2 proofs are rejected. Currently supported.
+<a href=#473 id=473 data-nosnippet>473</a>    </span>V1Only,
+<a href=#474 id=474 data-nosnippet>474</a>    <span class="doccomment">/// Try the v2 circuit first, then fall back to v1. Migration phase.
+<a href=#475 id=475 data-nosnippet>475</a>    </span>Both,
+<a href=#476 id=476 data-nosnippet>476</a>    <span class="doccomment">/// Accept proofs against the v2 vk only; v1 proofs are rejected.
+<a href=#477 id=477 data-nosnippet>477</a>    </span>V2Only,
+<a href=#478 id=478 data-nosnippet>478</a>}
+<a href=#479 id=479 data-nosnippet>479</a>
+<a href=#480 id=480 data-nosnippet>480</a><span class="doccomment">/// Verify a zkLogin proof against the circuit versions allowed by `mode`.
+<a href=#481 id=481 data-nosnippet>481</a></span><span class="kw">pub fn </span>verify_zk_login(
+<a href=#482 id=482 data-nosnippet>482</a>    input: <span class="kw-2">&amp;</span>ZkLoginInputs,
+<a href=#483 id=483 data-nosnippet>483</a>    max_epoch: u64,
+<a href=#484 id=484 data-nosnippet>484</a>    eph_pubkey_bytes: <span class="kw-2">&amp;</span>[u8],
+<a href=#485 id=485 data-nosnippet>485</a>    all_jwk: <span class="kw-2">&amp;</span>ImHashMap&lt;JwkId, JWK&gt;,
+<a href=#486 id=486 data-nosnippet>486</a>    env: <span class="kw-2">&amp;</span>ZkLoginEnv,
+<a href=#487 id=487 data-nosnippet>487</a>    mode: ZkLoginCircuitMode,
+<a href=#488 id=488 data-nosnippet>488</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+<a href=#489 id=489 data-nosnippet>489</a>    <span class="comment">// Load the expected JWK based on (iss, kid).
+<a href=#490 id=490 data-nosnippet>490</a>    </span><span class="kw">let </span>(iss, kid) = (input.get_iss().to_string(), input.get_kid().to_string());
+<a href=#491 id=491 data-nosnippet>491</a>    <span class="kw">let </span>jwk = all_jwk
+<a href=#492 id=492 data-nosnippet>492</a>        .get(<span class="kw-2">&amp;</span>JwkId::new(iss.clone(), kid.clone()))
+<a href=#493 id=493 data-nosnippet>493</a>        .ok_or_else(|| {
+<a href=#494 id=494 data-nosnippet>494</a>            FastCryptoError::GeneralError(<span class="macro">format!</span>(<span class="string">"JWK not found ({} - {})"</span>, iss, kid))
+<a href=#495 id=495 data-nosnippet>495</a>        })<span class="question-mark">?</span>;
+<a href=#496 id=496 data-nosnippet>496</a>
+<a href=#497 id=497 data-nosnippet>497</a>    <span class="comment">// Decode modulus to bytes.
+<a href=#498 id=498 data-nosnippet>498</a>    </span><span class="kw">let </span>modulus = Base64UrlUnpadded::decode_vec(<span class="kw-2">&amp;</span>jwk.n).map_err(|<span class="kw">_</span>| {
+<a href=#499 id=499 data-nosnippet>499</a>        FastCryptoError::GeneralError(<span class="string">"Invalid Base64 encoded jwk modulus"</span>.to_string())
+<a href=#500 id=500 data-nosnippet>500</a>    })<span class="question-mark">?</span>;
+<a href=#501 id=501 data-nosnippet>501</a>
+<a href=#502 id=502 data-nosnippet>502</a>    <span class="kw">let </span>proof = input.get_proof().as_arkworks()<span class="question-mark">?</span>;
+<a href=#503 id=503 data-nosnippet>503</a>
+<a href=#504 id=504 data-nosnippet>504</a>    <span class="kw">let </span>verify = |version| {
+<a href=#505 id=505 data-nosnippet>505</a>        verify_with_version(
+<a href=#506 id=506 data-nosnippet>506</a>            input,
+<a href=#507 id=507 data-nosnippet>507</a>            max_epoch,
+<a href=#508 id=508 data-nosnippet>508</a>            eph_pubkey_bytes,
+<a href=#509 id=509 data-nosnippet>509</a>            <span class="kw-2">&amp;</span>modulus,
+<a href=#510 id=510 data-nosnippet>510</a>            env,
+<a href=#511 id=511 data-nosnippet>511</a>            <span class="kw-2">&amp;</span>proof,
+<a href=#512 id=512 data-nosnippet>512</a>            version,
+<a href=#513 id=513 data-nosnippet>513</a>        )
+<a href=#514 id=514 data-nosnippet>514</a>    };
+<a href=#515 id=515 data-nosnippet>515</a>    <span class="kw">match </span>mode {
+<a href=#516 id=516 data-nosnippet>516</a>        ZkLoginCircuitMode::V1Only =&gt; verify(CircuitVersion::V1),
+<a href=#517 id=517 data-nosnippet>517</a>        ZkLoginCircuitMode::V2Only =&gt; verify(CircuitVersion::V2),
+<a href=#518 id=518 data-nosnippet>518</a>        ZkLoginCircuitMode::Both =&gt; verify(CircuitVersion::V2).or_else(|e| {
+<a href=#519 id=519 data-nosnippet>519</a>            <span class="macro">tracing::debug!</span>(
+<a href=#520 id=520 data-nosnippet>520</a>                <span class="string">"[zkLogin] V2 verify failed (env={:?}, iss={}): {:?}, falling back to V1"</span>,
+<a href=#521 id=521 data-nosnippet>521</a>                env,
+<a href=#522 id=522 data-nosnippet>522</a>                iss,
+<a href=#523 id=523 data-nosnippet>523</a>                e
+<a href=#524 id=524 data-nosnippet>524</a>            );
+<a href=#525 id=525 data-nosnippet>525</a>            verify(CircuitVersion::V1)
+<a href=#526 id=526 data-nosnippet>526</a>        }),
+<a href=#527 id=527 data-nosnippet>527</a>    }
+<a href=#528 id=528 data-nosnippet>528</a>}
+<a href=#529 id=529 data-nosnippet>529</a>
+<a href=#530 id=530 data-nosnippet>530</a><span class="doccomment">/// Verify a zkLogin proof against a single circuit version's input hash and verifying key.
+<a href=#531 id=531 data-nosnippet>531</a></span><span class="kw">fn </span>verify_with_version(
+<a href=#532 id=532 data-nosnippet>532</a>    input: <span class="kw-2">&amp;</span>ZkLoginInputs,
+<a href=#533 id=533 data-nosnippet>533</a>    max_epoch: u64,
+<a href=#534 id=534 data-nosnippet>534</a>    eph_pubkey_bytes: <span class="kw-2">&amp;</span>[u8],
+<a href=#535 id=535 data-nosnippet>535</a>    modulus: <span class="kw-2">&amp;</span>[u8],
+<a href=#536 id=536 data-nosnippet>536</a>    env: <span class="kw-2">&amp;</span>ZkLoginEnv,
+<a href=#537 id=537 data-nosnippet>537</a>    proof: <span class="kw-2">&amp;</span>Proof&lt;Bn254&gt;,
+<a href=#538 id=538 data-nosnippet>538</a>    version: CircuitVersion,
+<a href=#539 id=539 data-nosnippet>539</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+<a href=#540 id=540 data-nosnippet>540</a>    <span class="kw">let </span>all_inputs_hash =
+<a href=#541 id=541 data-nosnippet>541</a>        input.calculate_all_inputs_hash(eph_pubkey_bytes, modulus, max_epoch, version)<span class="question-mark">?</span>;
+<a href=#542 id=542 data-nosnippet>542</a>    <span class="kw">match </span>verify_zk_login_proof_with_fixed_vk(
+<a href=#543 id=543 data-nosnippet>543</a>        env,
+<a href=#544 id=544 data-nosnippet>544</a>        proof,
+<a href=#545 id=545 data-nosnippet>545</a>        <span class="kw-2">&amp;</span>[all_inputs_hash],
+<a href=#546 id=546 data-nosnippet>546</a>        version == CircuitVersion::V2,
+<a href=#547 id=547 data-nosnippet>547</a>    ) {
+<a href=#548 id=548 data-nosnippet>548</a>        <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>) =&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#549 id=549 data-nosnippet>549</a>        <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>) | <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
+<a href=#550 id=550 data-nosnippet>550</a>            <span class="string">"Groth16 proof verify failed"</span>.to_string(),
+<a href=#551 id=551 data-nosnippet>551</a>        )),
+<a href=#552 id=552 data-nosnippet>552</a>    }
+<a href=#553 id=553 data-nosnippet>553</a>}
+<a href=#554 id=554 data-nosnippet>554</a>
+<a href=#555 id=555 data-nosnippet>555</a><span class="doccomment">/// Circuit version, which determines the layout of the `all_inputs_hash` public input.
+<a href=#556 id=556 data-nosnippet>556</a></span><span class="attr">#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+<a href=#557 id=557 data-nosnippet>557</a></span><span class="kw">pub enum </span>CircuitVersion {
+<a href=#558 id=558 data-nosnippet>558</a>    <span class="doccomment">/// V1 circuit: the iss claim is folded in as its *base64* value and `index_mod_4` is folded
+<a href=#559 id=559 data-nosnippet>559</a>    /// into the hash. There is no `rsa_num_bits` field.
+<a href=#560 id=560 data-nosnippet>560</a>    </span>V1,
+<a href=#561 id=561 data-nosnippet>561</a>    <span class="doccomment">/// V2 circuit: the iss claim is folded in as its *decoded* extended claim, `index_mod_4` is
+<a href=#562 id=562 data-nosnippet>562</a>    /// dropped, and the actual RSA modulus bit length (`rsa_num_bits`) is folded in instead.
+<a href=#563 id=563 data-nosnippet>563</a>    </span>V2,
+<a href=#564 id=564 data-nosnippet>564</a>}
+<a href=#565 id=565 data-nosnippet>565</a>
+<a href=#566 id=566 data-nosnippet>566</a><span class="kw">const </span>V1_MAX_EXT_ISS_LEN: u16 = <span class="number">165</span>;
+<a href=#567 id=567 data-nosnippet>567</a><span class="kw">const </span>V2_MAX_EXT_ISS_LEN: u16 = <span class="number">186</span>;
+<a href=#568 id=568 data-nosnippet>568</a>
+<a href=#569 id=569 data-nosnippet>569</a><span class="kw">impl </span>CircuitVersion {
+<a href=#570 id=570 data-nosnippet>570</a>    <span class="doccomment">/// Circuit-specific parameters (max field lengths) for this version.
+<a href=#571 id=571 data-nosnippet>571</a>    </span><span class="kw">pub fn </span>config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CircuitConfig {
+<a href=#572 id=572 data-nosnippet>572</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#573 id=573 data-nosnippet>573</a>            CircuitVersion::V1 =&gt; CircuitConfig {
+<a href=#574 id=574 data-nosnippet>574</a>                max_header_len_b64: <span class="number">248</span>,
+<a href=#575 id=575 data-nosnippet>575</a>                max_iss_len: <span class="number">4 </span>* (<span class="number">1 </span>+ V1_MAX_EXT_ISS_LEN / <span class="number">3</span>),
+<a href=#576 id=576 data-nosnippet>576</a>                max_rsa_bits: <span class="number">2048</span>,
+<a href=#577 id=577 data-nosnippet>577</a>            },
+<a href=#578 id=578 data-nosnippet>578</a>            CircuitVersion::V2 =&gt; CircuitConfig {
+<a href=#579 id=579 data-nosnippet>579</a>                max_header_len_b64: <span class="number">279</span>,
+<a href=#580 id=580 data-nosnippet>580</a>                max_iss_len: V2_MAX_EXT_ISS_LEN,
+<a href=#581 id=581 data-nosnippet>581</a>                max_rsa_bits: <span class="number">8192</span>,
+<a href=#582 id=582 data-nosnippet>582</a>            },
+<a href=#583 id=583 data-nosnippet>583</a>        }
+<a href=#584 id=584 data-nosnippet>584</a>    }
+<a href=#585 id=585 data-nosnippet>585</a>}
+<a href=#586 id=586 data-nosnippet>586</a>
+<a href=#587 id=587 data-nosnippet>587</a><span class="doccomment">/// Circuit-specific parameters, obtained via [CircuitVersion::config].
+<a href=#588 id=588 data-nosnippet>588</a></span><span class="attr">#[derive(Debug, Copy, Clone)]
+<a href=#589 id=589 data-nosnippet>589</a></span><span class="kw">pub struct </span>CircuitConfig {
+<a href=#590 id=590 data-nosnippet>590</a>    <span class="doccomment">/// Maximum header length in base64.
+<a href=#591 id=591 data-nosnippet>591</a>    </span><span class="kw">pub </span>max_header_len_b64: u16,
+<a href=#592 id=592 data-nosnippet>592</a>    <span class="doccomment">/// Maximum length passed to the iss hash. For [CircuitVersion::V1] this is the base64 length
+<a href=#593 id=593 data-nosnippet>593</a>    /// of the iss claim; for [CircuitVersion::V2] it is the byte length of the *decoded* extended
+<a href=#594 id=594 data-nosnippet>594</a>    /// iss claim (the circuit's `maxExtIssLength`).
+<a href=#595 id=595 data-nosnippet>595</a>    </span><span class="kw">pub </span>max_iss_len: u16,
+<a href=#596 id=596 data-nosnippet>596</a>    <span class="doccomment">/// Maximum RSA key size in bits. The modulus is padded to this size before hashing.
+<a href=#597 id=597 data-nosnippet>597</a>    </span><span class="kw">pub </span>max_rsa_bits: u16,
+<a href=#598 id=598 data-nosnippet>598</a>}
+<a href=#599 id=599 data-nosnippet>599</a>
+<a href=#600 id=600 data-nosnippet>600</a><span class="doccomment">/// Verify a proof against its public inputs using the fixed verifying key.
+<a href=#601 id=601 data-nosnippet>601</a></span><span class="kw">pub fn </span>verify_zk_login_proof_with_fixed_vk(
+<a href=#602 id=602 data-nosnippet>602</a>    usage: <span class="kw-2">&amp;</span>ZkLoginEnv,
+<a href=#603 id=603 data-nosnippet>603</a>    proof: <span class="kw-2">&amp;</span>Proof&lt;Bn254&gt;,
+<a href=#604 id=604 data-nosnippet>604</a>    public_inputs: <span class="kw-2">&amp;</span>[Bn254Fr],
+<a href=#605 id=605 data-nosnippet>605</a>    v2: bool,
+<a href=#606 id=606 data-nosnippet>606</a>) -&gt; <span class="prelude-ty">Result</span>&lt;bool, FastCryptoError&gt; {
+<a href=#607 id=607 data-nosnippet>607</a>    <span class="kw">let </span>vk = <span class="kw">if </span>v2 {
+<a href=#608 id=608 data-nosnippet>608</a>        <span class="kw">match </span>usage {
+<a href=#609 id=609 data-nosnippet>609</a>            ZkLoginEnv::Prod =&gt; <span class="kw-2">&amp;</span>GLOBAL_VERIFYING_KEY_V2,
+<a href=#610 id=610 data-nosnippet>610</a>            ZkLoginEnv::Test =&gt; <span class="kw-2">&amp;</span>INSECURE_VERIFYING_KEY_V2,
+<a href=#611 id=611 data-nosnippet>611</a>        }
+<a href=#612 id=612 data-nosnippet>612</a>    } <span class="kw">else </span>{
+<a href=#613 id=613 data-nosnippet>613</a>        <span class="kw">match </span>usage {
+<a href=#614 id=614 data-nosnippet>614</a>            ZkLoginEnv::Prod =&gt; <span class="kw-2">&amp;</span>GLOBAL_VERIFYING_KEY,
+<a href=#615 id=615 data-nosnippet>615</a>            ZkLoginEnv::Test =&gt; <span class="kw-2">&amp;</span>INSECURE_VERIFYING_KEY,
+<a href=#616 id=616 data-nosnippet>616</a>        }
+<a href=#617 id=617 data-nosnippet>617</a>    };
+<a href=#618 id=618 data-nosnippet>618</a>
+<a href=#619 id=619 data-nosnippet>619</a>    Groth16::&lt;Bn254&gt;::verify_with_processed_vk(vk, public_inputs, proof)
+<a href=#620 id=620 data-nosnippet>620</a>        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
+<a href=#621 id=621 data-nosnippet>621</a>}
+<a href=#622 id=622 data-nosnippet>622</a>
+<a href=#623 id=623 data-nosnippet>623</a><span class="doccomment">/// Verify that the given parameters (name, value, aud, iss and salt_hash) were used to generate the
+<a href=#624 id=624 data-nosnippet>624</a>/// given address.
+<a href=#625 id=625 data-nosnippet>625</a></span><span class="kw">pub fn </span>verify_zk_login_id(
+<a href=#626 id=626 data-nosnippet>626</a>    address: <span class="kw-2">&amp;</span>[u8],
+<a href=#627 id=627 data-nosnippet>627</a>    name: <span class="kw-2">&amp;</span>str,
+<a href=#628 id=628 data-nosnippet>628</a>    value: <span class="kw-2">&amp;</span>str,
+<a href=#629 id=629 data-nosnippet>629</a>    aud: <span class="kw-2">&amp;</span>str,
+<a href=#630 id=630 data-nosnippet>630</a>    iss: <span class="kw-2">&amp;</span>str,
+<a href=#631 id=631 data-nosnippet>631</a>    salt_hash: <span class="kw-2">&amp;</span>str,
+<a href=#632 id=632 data-nosnippet>632</a>) -&gt; FastCryptoResult&lt;()&gt; {
+<a href=#633 id=633 data-nosnippet>633</a>    <span class="kw">let </span>address_seed = gen_address_seed_with_salt_hash(salt_hash, name, value, aud)<span class="question-mark">?</span>;
+<a href=#634 id=634 data-nosnippet>634</a>    verify_zk_login_iss(address, <span class="kw-2">&amp;</span>address_seed, iss)
+<a href=#635 id=635 data-nosnippet>635</a>}
+<a href=#636 id=636 data-nosnippet>636</a>
+<a href=#637 id=637 data-nosnippet>637</a><span class="doccomment">/// Verify that the given parameters (address_seed and iss) were used to generate the given address.
+<a href=#638 id=638 data-nosnippet>638</a></span><span class="kw">pub fn </span>verify_zk_login_iss(address: <span class="kw-2">&amp;</span>[u8], address_seed: <span class="kw-2">&amp;</span>str, iss: <span class="kw-2">&amp;</span>str) -&gt; FastCryptoResult&lt;()&gt; {
+<a href=#639 id=639 data-nosnippet>639</a>    <span class="kw">let </span>reconstructed_address =
+<a href=#640 id=640 data-nosnippet>640</a>        get_zk_login_address(<span class="kw-2">&amp;</span>Bn254FrElement::from_str(address_seed)<span class="question-mark">?</span>, iss)<span class="question-mark">?</span>;
+<a href=#641 id=641 data-nosnippet>641</a>    <span class="kw">match </span>reconstructed_address == address {
+<a href=#642 id=642 data-nosnippet>642</a>        <span class="bool-val">true </span>=&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#643 id=643 data-nosnippet>643</a>        <span class="bool-val">false </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidProof),
+<a href=#644 id=644 data-nosnippet>644</a>    }
+<a href=#645 id=645 data-nosnippet>645</a>}
 </code></pre></div></section></main></body></html>
