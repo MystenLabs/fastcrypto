@@ -466,16 +466,25 @@ fn insecure_pvk_v2() -> PreparedVerifyingKey<Bn254> {
     PreparedVerifyingKey::from(vk)
 }
 
-/// Verify a zkLogin proof. If `enable_zklogin_v2` is set, verify against the v2 circuit first and
-/// fall back to v1; otherwise verify against v1 only. This flag is expected to be wired from the
-/// `enable_zklogin_auth_v2` protocol config so v2 can be enabled per-network during rollout.
+/// Circuit verify mode.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum ZkLoginCircuitMode {
+    /// Accept proofs against the v1 vk only; v2 proofs are rejected. Currently supported.
+    V1Only,
+    /// Try the v2 circuit first, then fall back to v1. Migration phase.
+    Both,
+    /// Accept proofs against the v2 vk only; v1 proofs are rejected.
+    V2Only,
+}
+
+/// Verify a zkLogin proof against the circuit versions allowed by `mode`.
 pub fn verify_zk_login(
     input: &ZkLoginInputs,
     max_epoch: u64,
     eph_pubkey_bytes: &[u8],
     all_jwk: &ImHashMap<JwkId, JWK>,
     env: &ZkLoginEnv,
-    enable_zklogin_v2: bool,
+    mode: ZkLoginCircuitMode,
 ) -> Result<(), FastCryptoError> {
     // Load the expected JWK based on (iss, kid).
     let (iss, kid) = (input.get_iss().to_string(), input.get_kid().to_string());
@@ -492,52 +501,50 @@ pub fn verify_zk_login(
 
     let proof = input.get_proof().as_arkworks()?;
 
-    // When v2 is enabled, try verifying with the v2 circuit + VK first, then fall back to v1.
-    if enable_zklogin_v2 {
-        match input.calculate_all_inputs_hash(
+    let verify = |version| {
+        verify_with_version(
+            input,
+            max_epoch,
             eph_pubkey_bytes,
             &modulus,
-            max_epoch,
-            CircuitVersion::V2,
-        ) {
-            Ok(all_inputs_hash) => {
-                match verify_zk_login_proof_with_fixed_vk(env, &proof, &[all_inputs_hash], true) {
-                    Ok(true) => return Ok(()),
-                    Ok(false) => {
-                        tracing::debug!(
-                            "[zkLogin] v2 verify returned false (env={:?}, iss={}), falling back to v1",
-                            env,
-                            iss
-                        );
-                    }
-                    Err(e) => {
-                        tracing::debug!(
-                            "[zkLogin] v2 verify failed (env={:?}, iss={}): {:?}, falling back to v1",
-                            env,
-                            iss,
-                            e
-                        );
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::debug!(
-                    "[zkLogin] v2 hash computation failed (env={:?}, iss={}): {:?}, falling back to v1",
-                    env,
-                    iss,
-                    e
-                );
-            }
-        }
+            env,
+            &proof,
+            version,
+        )
+    };
+    match mode {
+        ZkLoginCircuitMode::V1Only => verify(CircuitVersion::V1),
+        ZkLoginCircuitMode::V2Only => verify(CircuitVersion::V2),
+        ZkLoginCircuitMode::Both => verify(CircuitVersion::V2).or_else(|e| {
+            tracing::debug!(
+                "[zkLogin] V2 verify failed (env={:?}, iss={}): {:?}, falling back to V1",
+                env,
+                iss,
+                e
+            );
+            verify(CircuitVersion::V1)
+        }),
     }
+}
 
-    let all_inputs_hash = input.calculate_all_inputs_hash(
-        eph_pubkey_bytes,
-        &modulus,
-        max_epoch,
-        CircuitVersion::V1,
-    )?;
-    match verify_zk_login_proof_with_fixed_vk(env, &proof, &[all_inputs_hash], false) {
+/// Verify a zkLogin proof against a single circuit version's input hash and verifying key.
+fn verify_with_version(
+    input: &ZkLoginInputs,
+    max_epoch: u64,
+    eph_pubkey_bytes: &[u8],
+    modulus: &[u8],
+    env: &ZkLoginEnv,
+    proof: &Proof<Bn254>,
+    version: CircuitVersion,
+) -> Result<(), FastCryptoError> {
+    let all_inputs_hash =
+        input.calculate_all_inputs_hash(eph_pubkey_bytes, modulus, max_epoch, version)?;
+    match verify_zk_login_proof_with_fixed_vk(
+        env,
+        proof,
+        &[all_inputs_hash],
+        version == CircuitVersion::V2,
+    ) {
         Ok(true) => Ok(()),
         Ok(false) | Err(_) => Err(FastCryptoError::GeneralError(
             "Groth16 proof verify failed".to_string(),

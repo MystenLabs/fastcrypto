@@ -13,7 +13,9 @@ use crate::bn254::zk_login::{
     base64_to_bitarray, convert_base, decode_base64_url, fetch_jwks, hash_ascii_str_to_field,
     hash_to_field, parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId, OIDCProvider,
 };
-use crate::bn254::zk_login_api::{verify_zk_login_id, verify_zk_login_iss, Bn254Fr, ZkLoginEnv};
+use crate::bn254::zk_login_api::{
+    verify_zk_login_id, verify_zk_login_iss, Bn254Fr, ZkLoginCircuitMode, ZkLoginEnv,
+};
 use crate::bn254::{
     zk_login::{ZkLoginInputs, JWK},
     zk_login_api::verify_zk_login,
@@ -170,7 +172,7 @@ async fn test_verify_zk_login_google() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
-        false,
+        ZkLoginCircuitMode::V1Only,
     );
     assert!(res.is_ok());
 }
@@ -514,7 +516,7 @@ fn test_gen_seed() {
 }
 
 #[test]
-fn test_verify_zk_login() {
+fn test_verify_zk_login_id_and_iss() {
     // Test vector from [test_verify_zk_login_google]
     let address =
         hex::decode("1c6b623a2f2c91333df730c98d220f11484953b391a3818680f922c264cc0c6b").unwrap();
@@ -610,8 +612,9 @@ fn test_all_inputs_hash() {
         "2487117669597822357956926047501254969190518860900347921480370492048882803688".to_string()
     );
 }
-#[test]
-fn test_alternative_iss_for_google() {
+
+#[tokio::test]
+async fn test_verify_zk_login() {
     let input = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"7566241567720780416751598994698310678767195459947224622023785587667176814058\",\"18104499930818305143361187733659014043953751050617136254447624192327280445771\",\"1\"],\"b\":[[\"11369230593957954942221175389182778816136534144714579815927653075736806430994\",\"11928003240637992017698644299021052465098754853899210401706726930513411198353\"],[\"2597127058046351054449743605218058440565462021354202666955356076272028963802\",\"3385145993275542896693643488618289924488296318344621918448585222369718288892\"],[\"1\",\"0\"]],\"c\":[\"395141536511114303768253959602639884294254888080713473665269769443249414257\",\"21430657725804540809568084344756144327539843580919730138594118365564728808275\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ\"}", "4959624758616676340947699768172740454110375485415332267384397278368360470616").unwrap();
     let invalid_proof_input = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"1\",\"18104499930818305143361187733659014043953751050617136254447624192327280445771\",\"1\"],\"b\":[[\"1\",\"11928003240637992017698644299021052465098754853899210401706726930513411198353\"],[\"2597127058046351054449743605218058440565462021354202666955356076272028963802\",\"3385145993275542896693643488618289924488296318344621918448585222369718288892\"],[\"1\",\"0\"]],\"c\":[\"395141536511114303768253959602639884294254888080713473665269769443249414257\",\"21430657725804540809568084344756144327539843580919730138594118365564728808275\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ\"}", "4959624758616676340947699768172740454110375485415332267384397278368360470616").unwrap();
     let _ = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"18104499930818305143361187733659014043953751050617136254447624192327280445771\",\"1\"],\"b\":[[\"11369230593957954942221175389182778816136534144714579815927653075736806430994\",\"11928003240637992017698644299021052465098754853899210401706726930513411198353\"],[\"2597127058046351054449743605218058440565462021354202666955356076272028963802\",\"3385145993275542896693643488618289924488296318344621918448585222369718288892\"],[\"1\",\"0\"]],\"c\":[\"395141536511114303768253959602639884294254888080713473665269769443249414257\",\"21430657725804540809568084344756144327539843580919730138594118365564728808275\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ\"}", "4959624758616676340947699768172740454110375485415332267384397278368360470616").is_err();
@@ -638,15 +641,28 @@ fn test_alternative_iss_for_google() {
             alg: "RS256".to_string(),},
     );
 
-    let res = verify_zk_login(
+    // v1 proof verifies in v1-only mode and rollout mode.
+    for mode in [ZkLoginCircuitMode::V1Only, ZkLoginCircuitMode::Both] {
+        let res = verify_zk_login(
+            &input,
+            10000,
+            &eph_pubkey_bytes,
+            &all_jwk,
+            &ZkLoginEnv::Test,
+            mode,
+        );
+        assert!(res.is_ok());
+    }
+    // v1 proof fails in v2 only mode.
+    let res_v2_only = verify_zk_login(
         &input,
         10000,
         &eph_pubkey_bytes,
         &all_jwk,
         &ZkLoginEnv::Test,
-        false,
+        ZkLoginCircuitMode::V2Only,
     );
-    assert!(res.is_ok());
+    assert!(res_v2_only.is_err());
 
     let invalid_res = verify_zk_login(
         &invalid_proof_input,
@@ -654,13 +670,11 @@ fn test_alternative_iss_for_google() {
         &eph_pubkey_bytes,
         &all_jwk,
         &ZkLoginEnv::Test,
-        false,
+        ZkLoginCircuitMode::V1Only,
     );
     assert!(invalid_res.is_err());
-}
 
-#[tokio::test]
-async fn test_zklogin_v2() {
+    // --- v2 circuit: generate a fresh proof from the dev v2 prover. ---
     let max_epoch = 10;
     let jwt_randomness = "100681567828351849884072155819400689117";
     let user_salt = "129390038577185583942388216820280642146";
@@ -723,16 +737,47 @@ async fn test_zklogin_v2() {
         all_jwk.insert(jwk_id, jwk);
     }
 
-    // V2 proof should verify using INSECURE_VERIFYING_KEY_V2
-    let res_v2 = verify_zk_login(
+    // v2 proof should verify in rollout mode and v2 only mode.
+    for mode in [ZkLoginCircuitMode::Both, ZkLoginCircuitMode::V2Only] {
+        let res_v2 = verify_zk_login(
+            &zk_login_inputs,
+            max_epoch,
+            &eph_pubkey,
+            &all_jwk,
+            &ZkLoginEnv::Test,
+            mode,
+        );
+        assert!(res_v2.is_ok());
+    }
+
+    // v2 proof fails to verify in v1-only mode.
+    let res_v1_only = verify_zk_login(
         &zk_login_inputs,
         max_epoch,
         &eph_pubkey,
         &all_jwk,
         &ZkLoginEnv::Test,
-        true,
+        ZkLoginCircuitMode::V1Only,
     );
-    assert!(res_v2.is_ok());
+    assert!(res_v1_only.is_err());
+
+    // The Prod v2 VK is still the v1 placeholder (see `global_pvk_v2`), so a v2 proof must not
+    // verify in the Prod env under any mode. Revisit when the ceremony VK lands.
+    for mode in [
+        ZkLoginCircuitMode::V1Only,
+        ZkLoginCircuitMode::Both,
+        ZkLoginCircuitMode::V2Only,
+    ] {
+        let res_prod = verify_zk_login(
+            &zk_login_inputs,
+            max_epoch,
+            &eph_pubkey,
+            &all_jwk,
+            &ZkLoginEnv::Prod,
+            mode,
+        );
+        assert!(res_prod.is_err());
+    }
 }
 
 #[test]
