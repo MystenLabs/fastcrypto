@@ -23,7 +23,6 @@ assert!(kp.public().verify(message, &signature).is_ok());
 "#
 )]
 
-
 #[allow(
     dead_code,
     clippy::module_inception,
@@ -53,8 +52,7 @@ use std::str::FromStr;
 pub const FALCON512_PUBLIC_KEY_LENGTH: usize = verify::PUBKEY_LEN; // 897
 const PQCLEAN_SECRET_KEY_LENGTH: usize = verify::SECKEY_LEN; // 1281
 /// Key_pair = |sk| + |pk|
-pub const FALCON512_KEYPAIR_LENGTH: usize =
-    PQCLEAN_SECRET_KEY_LENGTH + FALCON512_PUBLIC_KEY_LENGTH; // 2178
+pub const FALCON512_KEYPAIR_LENGTH: usize = PQCLEAN_SECRET_KEY_LENGTH + FALCON512_PUBLIC_KEY_LENGTH; // 2178
 
 /// TODO: Enable SK -> PK function, then no need to store pk
 pub const FALCON512_PRIVATE_KEY_LENGTH: usize = FALCON512_KEYPAIR_LENGTH;
@@ -160,12 +158,9 @@ impl VerifyingKey for Falcon512PublicKey {
     type Sig = Falcon512Signature;
     const LENGTH: usize = FALCON512_PUBLIC_KEY_LENGTH;
 
-    /// Verify the signature in **strict canonical form only**: the fixed
-    /// 666-byte padded encoding with header `0x39` and zero tail. Any other
-    /// encoding of the same underlying signature (in particular the
-    /// variable-length `0x29` form emitted by the NIST KATs) is rejected, so
-    /// exactly one byte-string verifies per signature — see the module
-    /// documentation for the malleability rationale.
+    /// Strict canonical form only: 666 bytes, header `0x39`, zero tail.
+    /// Exactly one byte-string verifies per signature; see the verify module
+    /// docs for the malleability rationale.
     fn verify(&self, msg: &[u8], signature: &Falcon512Signature) -> Result<(), FastCryptoError> {
         if verify::verify_strict(&self.bytes, msg, signature.as_ref()) {
             Ok(())
@@ -200,15 +195,9 @@ impl ToFromBytes for Falcon512PrivateKey {
                 FALCON512_PRIVATE_KEY_LENGTH,
             ));
         }
-        // Validate both halves and their consistency: structural decode of
-        // (f, g, F), f invertible, h = g·f⁻¹ matching the embedded public
-        // key (which is itself decoded canonically, so
-        // `From<&Falcon512PrivateKey>` can never produce a malformed public
-        // key). This rejects corrupted secret halves and secret keys spliced
-        // onto a different key's public half. No probe-signing here:
-        // `sign` is infallible by trait, and PQClean's signer can loop
-        // without bound on adversarial key material, so it must never run on
-        // unvalidated bytes.
+        // Structural decode of (f, g, F) plus the h.f = g consistency check,
+        // so corrupted or spliced halves are rejected. No probe-signing:
+        // PQClean's signer can loop forever on adversarial key material.
         if !verify::validate_secret_key(
             &bytes[..PQCLEAN_SECRET_KEY_LENGTH],
             &bytes[PQCLEAN_SECRET_KEY_LENGTH..],

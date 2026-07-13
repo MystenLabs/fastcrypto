@@ -46,23 +46,18 @@
 //!
 //! ## Two entry points: [`verify`] vs [`verify_strict`]
 //!
-//! - [`verify`] — **permissive / interop**: accepts both header families
-//!   (`0x29` variable-length compressed, `0x39` padded) and both body
-//!   encodings (natural length, or the fixed 666-byte zero-padded form).
-//!   Right for a bool-returning verifier that must accept signatures from
-//!   any real signer (falcon.py, PQClean, falcon-wasm, NIST KAT `sm` blobs).
-//! - [`verify_strict`] — **canonical / authenticator**: exactly one accepted
-//!   byte-string per signature — [`SIG_PADDED_LEN`] (666) bytes, header
-//!   `0x39` (PQClean `falcon-padded-512` wire format), zero tail. Required on
-//!   any path where the signature bytes feed a transaction digest: if two
-//!   encodings of the same signature verified, a third party could re-encode
-//!   a signed transaction in flight and change its digest (tx-malleability).
-//!   This is the only entry point a transaction authenticator should use.
+//! - [`verify`] — permissive / interop: accepts both header families (`0x29`
+//!   compressed, `0x39` padded), i.e. any real signer's output.
+//! - [`verify_strict`] — canonical / authenticator: exactly one accepted
+//!   byte-string per signature (666 bytes, header `0x39`, zero tail). The
+//!   only entry point a transaction authenticator should use, otherwise a
+//!   re-encoded signature changes the tx digest (malleability).
 //!
 //! References:
 //! - Falcon specification: <https://falcon-sign.info/falcon.pdf>
 //! - FIPS 202 (SHAKE): <https://csrc.nist.gov/pubs/fips/202/final>
 
+mod codec;
 mod ntt;
 mod verify;
 

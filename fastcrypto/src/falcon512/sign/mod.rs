@@ -1,18 +1,15 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Falcon-512 signing and key generation through PQClean's
-//! `falcon-padded-512` (the Pornin reference lineage), via
-//! [`pqcrypto-falcon`](https://crates.io/crates/pqcrypto-falcon) built
-//! without SIMD features so the portable "clean" C is the only code path.
-//! Verification stays with the in-crate port in [`super::verify`]; nothing
-//! here routes to PQClean's verifier.
+//! Falcon-512 signing and key generation through PQClean `falcon-padded-512`
+//! via [`pqcrypto-falcon`](https://crates.io/crates/pqcrypto-falcon), built
+//! without SIMD features (portable C only). Verification stays with the
+//! in-crate port in [`super::verify`]; nothing here routes to PQClean's.
 //!
-//! The signing salt comes from the operating system, so signatures are
-//! randomized, and PQClean has no seeded keygen, so keys are generate-once
-//! (no mnemonic derivation). The pqcrypto crates are flagged unmaintained
-//! (RUSTSEC-2026-0163/0165) now that PQClean is archived; the migration
-//! target is Pornin's pure-Rust `fn-dsa` once FIPS 206 is final.
+//! The salt is OS randomness (signatures are randomized) and there is no
+//! seeded keygen, so no mnemonic derivation. pqcrypto is flagged unmaintained
+//! (RUSTSEC-2026-0163/0165) now that PQClean is archived; migration target is
+//! Pornin's pure-Rust `fn-dsa` once FIPS 206 is final.
 //!
 //! # Example
 //! ```rust
@@ -49,16 +46,10 @@ pub fn keygen() -> ([u8; SECKEY_LEN], [u8; PUBKEY_LEN]) {
     (sk, pk)
 }
 
-/// Sign `msg` with a PQClean-format secret key.
-///
-/// `pk` is the matching public key: PQClean cannot derive it from the secret
-/// key, and every signature is checked with [`verify::verify_strict`] before
-/// it is returned, so any format drift in the signer surfaces here as an
-/// error rather than as a signature the verifier rejects.
-///
-/// Returns `InvalidInput` if the secret key does not parse, and
-/// `GeneralError` if the emitted signature is not the strict canonical form
-/// (666 bytes, header `0x39`, zero tail) or does not verify under `pk`.
+/// Sign `msg` with a PQClean-format secret key. `pk` is the matching public
+/// key (not derivable from sk); every signature is checked with
+/// [`verify::verify_strict`] before it is returned, so signer drift surfaces
+/// as `GeneralError` here instead of a signature the verifier rejects.
 pub fn sign(
     sk: &[u8; SECKEY_LEN],
     pk: &[u8; PUBKEY_LEN],

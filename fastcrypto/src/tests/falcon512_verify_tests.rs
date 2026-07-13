@@ -8,7 +8,6 @@
 
 use crate::falcon512::verify::{validate_secret_key, verify, verify_strict, SIG_PADDED_LEN};
 
-
 pub struct KatVector {
     pub count: u32,
     pub pk: Vec<u8>,
@@ -40,10 +39,7 @@ pub fn parse_kat_vectors() -> Vec<KatVector> {
                 let sm = hex::decode(value).expect("sm is hex");
                 let mlen = mlen.take().expect("mlen precedes sm");
                 let msg = msg.take().expect("msg precedes sm");
-                assert_eq!(msg.len(),
-                    mlen,
-                    "mlen disagrees with msg"
-                );
+                assert_eq!(msg.len(), mlen, "mlen disagrees with msg");
 
                 // Reassemble header || nonce || body from the sm layout above.
                 let sig_len = ((sm[0] as usize) << 8) | sm[1] as usize;
@@ -80,15 +76,8 @@ pub fn parse_kat_vectors() -> Vec<KatVector> {
 /// padded body encoding is the same compressed bitstream with a zero tail.
 /// This works well for us, as we need to have our own headers, possibly 0x08
 pub fn to_canonical_padded(sig: &[u8]) -> Vec<u8> {
-    assert_eq!(
-        sig[0],
-        0x29,
-        "KAT signatures use the compressed header"
-    );
-    assert!(
-        sig.len() <= SIG_PADDED_LEN,
-        "vector too long to pad"
-    );
+    assert_eq!(sig[0], 0x29, "KAT signatures use the compressed header");
+    assert!(sig.len() <= SIG_PADDED_LEN, "vector too long to pad");
     let mut padded = sig.to_vec();
     padded[0] = 0x39;
     padded.resize(SIG_PADDED_LEN, 0);
@@ -172,11 +161,7 @@ fn kat_bit_flips_are_rejected() {
         let mut pk = v.pk.clone();
         let mid = pk.len() / 2;
         pk[mid] ^= 0x01;
-        assert!(
-            !verify(&pk, &v.msg, &v.sig),
-            "vector {}: pk flip",
-            v.count
-        );
+        assert!(!verify(&pk, &v.msg, &v.sig), "vector {}: pk flip", v.count);
     }
 }
 
@@ -211,18 +196,12 @@ fn strict_rejects_every_non_canonical_encoding() {
     let v = &vectors[0];
     let padded = to_canonical_padded(&v.sig);
 
-    assert!(
-        verify_strict(&v.pk, &v.msg, &padded),
-        "baseline must pass"
-    );
+    assert!(verify_strict(&v.pk, &v.msg, &padded), "baseline must pass");
 
     // Non-zero padding tail
     let mut tampered = padded.clone();
     *tampered.last_mut().unwrap() = 0x01;
-    assert!(
-        !verify_strict(&v.pk, &v.msg, &tampered),
-        "non-zero tail"
-    );
+    assert!(!verify_strict(&v.pk, &v.msg, &tampered), "non-zero tail");
     assert!(
         !verify(&v.pk, &v.msg, &tampered),
         "non-zero tail (permissive)"
@@ -241,14 +220,8 @@ fn strict_rejects_every_non_canonical_encoding() {
     // 667 bytes: one zero byte too many.
     let mut long = padded.clone();
     long.push(0);
-    assert!(
-        !verify_strict(&v.pk, &v.msg, &long),
-        "667 bytes"
-    );
-    assert!(
-        !verify(&v.pk, &v.msg, &long),
-        "667 bytes (permissive)"
-    );
+    assert!(!verify_strict(&v.pk, &v.msg, &long), "667 bytes");
+    assert!(!verify(&v.pk, &v.msg, &long), "667 bytes (permissive)");
 
     // Header 0x29 at the padded length
     let mut compressed_header = padded.clone();
@@ -279,21 +252,15 @@ fn kat_secret_keys_validate_against_their_public_keys() {
 
     // A secret key spliced onto a different vector's public key fails the
     // h·f = g check.
-    assert!(
-        !validate_secret_key(&vectors[0].sk, &vectors[1].pk)
-    );
+    assert!(!validate_secret_key(&vectors[0].sk, &vectors[1].pk));
 
     // A bit flip inside f is caught by the structural decode or by the consistency check
     let mut sk = vectors[0].sk.clone();
     sk[100] ^= 0x01;
-    assert!(
-        !validate_secret_key(&sk, &vectors[0].pk)
-    );
+    assert!(!validate_secret_key(&sk, &vectors[0].pk));
 
     // Wrong header byte.
     let mut sk = vectors[0].sk.clone();
     sk[0] ^= 0x01;
-    assert!(
-        !validate_secret_key(&sk, &vectors[0].pk)
-    );
+    assert!(!validate_secret_key(&sk, &vectors[0].pk));
 }
