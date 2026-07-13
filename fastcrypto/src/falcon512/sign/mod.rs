@@ -47,7 +47,7 @@ pub fn keygen() -> ([u8; SECKEY_LEN], [u8; PUBKEY_LEN]) {
 }
 
 /// Sign `msg` with a PQClean-format secret key. `pk` is the matching public
-/// key (not derivable from sk); every signature is checked with
+/// key, passed in to avoid re-deriving it per call; every signature is checked with
 /// [`verify::verify_strict`] before it is returned, so signer drift surfaces
 /// as `GeneralError` here instead of a signature the verifier rejects.
 pub fn sign(

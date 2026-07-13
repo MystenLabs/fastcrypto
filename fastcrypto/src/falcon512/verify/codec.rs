@@ -48,6 +48,29 @@ pub fn decode_pubkey(pubkey: &[u8], h: &mut [u16; N]) -> bool {
     true
 }
 
+/// Encode h as a public key: header 0x09, then 512 coefficients at 14 bits
+/// each, MSB-first. Coefficients must already be reduced mod q; 512 * 14 bits
+/// is byte-aligned, so the encoding is unique.
+pub fn encode_pubkey(h: &[u16; N]) -> [u8; PUBKEY_LEN] {
+    let mut out = [0u8; PUBKEY_LEN];
+    out[0] = 9;
+    let mut acc: u32 = 0;
+    let mut acc_len: u32 = 0;
+    let mut idx = 1;
+    for &c in h.iter() {
+        debug_assert!((c as u32) < Q);
+        acc = (acc << 14) | c as u32;
+        acc_len += 14;
+        while acc_len >= 8 {
+            acc_len -= 8;
+            out[idx] = (acc >> acc_len) as u8;
+            idx += 1;
+        }
+    }
+    debug_assert_eq!(idx, PUBKEY_LEN);
+    out
+}
+
 /// Decode a compressed signature body into s2. Returns bytes consumed, or 0
 /// on error. Per coefficient: 1 sign bit, low 7 magnitude bits, high bits in
 /// unary. Rejects negative zero, magnitude > 2047, and non-zero padding bits.

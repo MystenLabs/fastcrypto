@@ -100,9 +100,8 @@ fn import_export_public_key() {
 
 #[test]
 fn keypair_from_bytes_roundtrip() {
-    // The keypair serializes to the private key bytes only
-    // (PQClean sk ‖ pk = 2178 bytes); the public key is re-derived from the
-    // embedded copy on deserialization.
+    // The keypair serializes to the bare 1281-byte secret key; the public
+    // key is re-derived (h = g/f) on deserialization.
     let kp = keys().pop().unwrap();
     let bytes = kp.as_ref().to_vec();
     assert_eq!(bytes.len(), FALCON512_PRIVATE_KEY_LENGTH);
@@ -111,40 +110,32 @@ fn keypair_from_bytes_roundtrip() {
     assert_eq!(restored.public(), kp.public());
     assert_eq!(restored.as_ref(), bytes.as_slice());
 
-    // The public key is exactly the last 897 bytes of the private key.
-    assert_eq!(
-        kp.public().as_ref(),
-        &bytes[FALCON512_PRIVATE_KEY_LENGTH - FALCON512_PUBLIC_KEY_LENGTH..]
-    );
-
     // The restored keypair produces signatures the original key verifies.
     let signature = restored.sign(MSG);
     assert!(kp.public().verify(MSG, &signature).is_ok());
 }
 
 #[test]
-fn from_bytes_rejects_inconsistent_secret_and_public_halves() {
-    // A secret key spliced onto a different key's public half is well-formed
-    // in both halves but inconsistent. It must be rejected at deserialization
-    // rather than accepted into an infallible `sign` that would then produce
-    // signatures the embedded public key rejects.
-    let mut ks = keys();
-    let a = ks.pop().unwrap();
-    let b = ks.pop().unwrap();
-    let mut spliced = a.as_ref().to_vec();
-    spliced[FALCON512_PRIVATE_KEY_LENGTH - FALCON512_PUBLIC_KEY_LENGTH..]
-        .copy_from_slice(&b.as_ref()[FALCON512_PRIVATE_KEY_LENGTH - FALCON512_PUBLIC_KEY_LENGTH..]);
-    assert!(Falcon512KeyPair::from_bytes(&spliced).is_err());
+fn from_bytes_rejects_malformed_secret_key() {
+    let kp = keys().pop().unwrap();
 
-    // A corrupted secret-key half (valid public tail) is rejected too:
-    // flipping the header byte fails the structural decode, and flipping a
-    // bit inside f breaks the h·f = g consistency check.
-    let mut corrupt = a.as_ref().to_vec();
-    corrupt[0] ^= 0x01;
-    assert!(Falcon512KeyPair::from_bytes(&corrupt).is_err());
-    let mut corrupt = a.as_ref().to_vec();
-    corrupt[100] ^= 0x01;
-    assert!(Falcon512KeyPair::from_bytes(&corrupt).is_err());
+    // Wrong header byte.
+    let mut bad = kp.as_ref().to_vec();
+    bad[0] ^= 0x01;
+    assert!(Falcon512KeyPair::from_bytes(&bad).is_err());
+
+    // First f coefficient forced to the forbidden -2^(bits-1) pattern.
+    let mut bad = kp.as_ref().to_vec();
+    bad[1] = 0x80;
+    assert!(Falcon512KeyPair::from_bytes(&bad).is_err());
+
+    // A bit flip inside f is not an error, it is a different key: the
+    // derived public key must change.
+    let mut flipped = kp.as_ref().to_vec();
+    flipped[100] ^= 0x01;
+    if let Ok(other) = Falcon512KeyPair::from_bytes(&flipped) {
+        assert_ne!(other.public(), kp.public());
+    }
 }
 
 #[test]

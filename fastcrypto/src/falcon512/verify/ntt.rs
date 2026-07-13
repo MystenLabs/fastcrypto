@@ -202,6 +202,37 @@ pub fn poly_sub(f: &mut [u16; N], g: &[u16; N]) {
     }
 }
 
+/// Pointwise h = g / f in the NTT domain, natural form in and out. None if
+/// any f coefficient is zero (f not invertible in R_q). Inversion is Fermat:
+/// f^(q-2), q prime.
+pub fn poly_div_pointwise(g: &[u16; N], f: &[u16; N]) -> Option<[u16; N]> {
+    let mut h = [0u16; N];
+    for i in 0..N {
+        if f[i] == 0 {
+            return None;
+        }
+        // inv = f^(q-2) in Montgomery form; mont_mul(inv, g) drops the R
+        // factor, leaving g.f^-1 in natural form.
+        let inv = mont_pow(montgomery_mul(f[i] as u32, R2), Q - 2);
+        h[i] = montgomery_mul(inv, g[i] as u32) as u16;
+    }
+    Some(h)
+}
+
+/// base^e with base in Montgomery form; the result stays in Montgomery form.
+fn mont_pow(base: u32, mut e: u32) -> u32 {
+    let mut acc = R; // 1 in Montgomery form
+    let mut b = base;
+    while e > 0 {
+        if e & 1 == 1 {
+            acc = montgomery_mul(acc, b);
+        }
+        b = montgomery_mul(b, b);
+        e >>= 1;
+    }
+    acc
+}
+
 pub fn poly_prepare_for_mul(h: &mut [u16; N]) {
     ntt_forward(h);
     poly_to_montgomery(h);

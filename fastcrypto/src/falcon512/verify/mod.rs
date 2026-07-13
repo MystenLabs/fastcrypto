@@ -64,7 +64,9 @@ mod verify;
 // The permissive `verify` is only referenced by the KAT tests (see the
 // module docs), so the re-export is unused in non-test builds.
 #[allow(unused_imports)]
-pub use self::verify::{validate_public_key, validate_secret_key, verify, verify_strict};
+pub use self::verify::{
+    derive_public_key, validate_public_key, validate_secret_key, verify, verify_strict,
+};
 
 // === Falcon-512 parameters (fixed by the NIST submission) ===
 

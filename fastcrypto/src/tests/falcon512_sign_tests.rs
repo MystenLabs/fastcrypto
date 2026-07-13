@@ -88,15 +88,14 @@ fn signatures_are_strict_canonical_form() {
     }
 }
 
-/// Keystore round-trip: flag ‖ sk ‖ pk, reload through the trait types, sign
-/// and verify. The flag byte is whatever the caller assigns; only the layout
-/// matters here.
+/// Keystore round-trip: flag ‖ sk, reload through the trait types, sign and
+/// verify. The reloaded public key must match PQClean's, which pins the
+/// derivation against PQClean keygen too.
 #[test]
 fn keystore_blob_roundtrip() {
     let (sk, pk) = keygen();
     let mut blob = vec![0xffu8];
     blob.extend_from_slice(&sk);
-    blob.extend_from_slice(&pk);
 
     let kp = Falcon512KeyPair::from_bytes(&blob[1..]).expect("blob body parses");
     let msg = b"keystore roundtrip";

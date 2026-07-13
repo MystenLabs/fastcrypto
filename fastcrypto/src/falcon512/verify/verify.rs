@@ -15,9 +15,10 @@
 //! 2. recover s1 = c − s2.h in R_q = Z_q[x]/(x^n + 1);
 //! 3. accept iff ||(s1, s2)||^2 ≤ [`L2_BOUND`].
 
-use super::codec::{decode_pubkey, decode_sig_compressed, trim_i8_decode};
+use super::codec::{decode_pubkey, decode_sig_compressed, encode_pubkey, trim_i8_decode};
 use super::ntt::{
-    field_sub, ntt_forward, ntt_inverse, poly_pointwise_mul, poly_prepare_for_mul, poly_sub,
+    field_sub, ntt_forward, ntt_inverse, poly_div_pointwise, poly_pointwise_mul,
+    poly_prepare_for_mul, poly_sub,
 };
 use super::{L2_BOUND, N, PUBKEY_LEN, Q, SECKEY_LEN, SIG_MAX_LEN, SIG_MIN_LEN, SIG_PADDED_LEN};
 
@@ -52,24 +53,21 @@ pub fn validate_public_key(pk: &[u8]) -> bool {
     decode_pubkey(pk, &mut [0u16; N])
 }
 
-/// Validate a PQClean-format secret key (`0x59 || f || g || F`, trimmed
-/// two's-complement) against the public key stored alongside it, without
-/// invoking the signer.
+/// Derive the public key from a PQClean-format secret key
+/// (`0x59 || f || g || F`, trimmed two's-complement): h = g / f in R_q,
+/// encoded canonically. None if the key is structurally invalid or f is not invertible.
 ///
-/// Checks: structural decode of all three polynomials, `pk` decodes
-/// canonically, f invertible in R_q, and h.f = g in R_q — so a secret key
-/// spliced onto a different key's public half is rejected. F is structural
-/// only (G is not stored, and fG − gF = q cannot be confirmed in Z_q alone);
-/// a bad F cannot make a wrong signature verify, it fails at signing time.
-/// Do not probe-sign instead: Falcon signers need not terminate on a
-/// degenerate basis.
-pub fn validate_secret_key(sk: &[u8], pk: &[u8]) -> bool {
+/// F is only checked structurally (G is not stored, and fG − gF = q cannot
+/// be confirmed in Z_q alone); a bad F cannot make a wrong signature verify,
+/// it fails at signing time. Do not probe-sign to compensate: Falcon signers
+/// need not terminate on a degenerate basis.
+pub fn derive_public_key(sk: &[u8]) -> Option<[u8; PUBKEY_LEN]> {
     // f and g pack to 512 . 6 / 8 bytes each, F to 512 . 8 / 8.
     const FG_BYTES: usize = N * 6 / 8;
     const F_START: usize = 1 + 2 * FG_BYTES;
 
     if sk.len() != SECKEY_LEN || sk[0] != 0x50 + 9 {
-        return false;
+        return None;
     }
     let mut f = [0i8; N];
     let mut g = [0i8; N];
@@ -78,15 +76,11 @@ pub fn validate_secret_key(sk: &[u8], pk: &[u8]) -> bool {
         || !trim_i8_decode(&sk[1 + FG_BYTES..F_START], 6, &mut g)
         || !trim_i8_decode(&sk[F_START..], 8, &mut big_f)
     {
-        return false;
+        return None;
     }
 
-    let mut h = [0u16; N];
-    if !decode_pubkey(pk, &mut h) {
-        return false;
-    }
-
-    // Lift f and g from signed coefficients into Z_q and transform.
+    // Lift f and g from signed coefficients into Z_q, then h = g/f pointwise
+    // in the NTT domain.
     let mut fq = [0u16; N];
     let mut gq = [0u16; N];
     for i in 0..N {
@@ -95,14 +89,14 @@ pub fn validate_secret_key(sk: &[u8], pk: &[u8]) -> bool {
     }
     ntt_forward(&mut fq);
     ntt_forward(&mut gq);
-    if fq.contains(&0) {
-        return false;
-    }
+    let mut h = poly_div_pointwise(&gq, &fq)?;
+    ntt_inverse(&mut h);
+    Some(encode_pubkey(&h))
+}
 
-    // h.f = g holds in R_q iff it holds pointwise in the NTT domain.
-    poly_prepare_for_mul(&mut h);
-    poly_pointwise_mul(&mut h, &fq);
-    h == gq
+/// A secret key is consistent with `pk` iff it derives exactly those bytes.
+pub fn validate_secret_key(sk: &[u8], pk: &[u8]) -> bool {
+    derive_public_key(sk).is_some_and(|derived| derived[..] == *pk)
 }
 
 /// Full verification of a (compressed or padded) signature. Total on all

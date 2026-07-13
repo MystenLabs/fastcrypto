@@ -50,12 +50,10 @@ use std::str::FromStr;
 
 /// The length of a parameter
 pub const FALCON512_PUBLIC_KEY_LENGTH: usize = verify::PUBKEY_LEN; // 897
-const PQCLEAN_SECRET_KEY_LENGTH: usize = verify::SECKEY_LEN; // 1281
-/// Key_pair = |sk| + |pk|
-pub const FALCON512_KEYPAIR_LENGTH: usize = PQCLEAN_SECRET_KEY_LENGTH + FALCON512_PUBLIC_KEY_LENGTH; // 2178
-
-/// TODO: Enable SK -> PK function, then no need to store pk
-pub const FALCON512_PRIVATE_KEY_LENGTH: usize = FALCON512_KEYPAIR_LENGTH;
+/// The bare PQClean secret key; the public key is derived from it (h = g/f),
+/// not stored.
+pub const FALCON512_PRIVATE_KEY_LENGTH: usize = verify::SECKEY_LEN; // 1281
+pub const FALCON512_KEYPAIR_LENGTH: usize = FALCON512_PRIVATE_KEY_LENGTH;
 // zero-padded signatures
 pub const FALCON512_SIGNATURE_LENGTH: usize = verify::SIG_PADDED_LEN; // 666
 
@@ -138,10 +136,9 @@ impl Debug for Falcon512PublicKey {
 
 impl<'a> From<&'a Falcon512PrivateKey> for Falcon512PublicKey {
     fn from(secret: &'a Falcon512PrivateKey) -> Self {
-        // The public key is stored verbatim as the tail of the private key
-        // bytes (validated when the private key was constructed).
-        let mut bytes = [0u8; FALCON512_PUBLIC_KEY_LENGTH];
-        bytes.copy_from_slice(&secret.bytes[PQCLEAN_SECRET_KEY_LENGTH..]);
+        // h = g/f; cannot fail, the bytes were validated at construction.
+        let bytes =
+            verify::derive_public_key(&secret.bytes).expect("private key bytes are validated");
         Falcon512PublicKey { bytes }
     }
 }
@@ -195,13 +192,10 @@ impl ToFromBytes for Falcon512PrivateKey {
                 FALCON512_PRIVATE_KEY_LENGTH,
             ));
         }
-        // Structural decode of (f, g, F) plus the h.f = g consistency check,
-        // so corrupted or spliced halves are rejected. No probe-signing:
-        // PQClean's signer can loop forever on adversarial key material.
-        if !verify::validate_secret_key(
-            &bytes[..PQCLEAN_SECRET_KEY_LENGTH],
-            &bytes[PQCLEAN_SECRET_KEY_LENGTH..],
-        ) {
+        // Structural decode of (f, g, F) and f invertible, i.e. the key
+        // derives a public key. No probe-signing: PQClean's signer can loop
+        // forever on adversarial key material.
+        if verify::derive_public_key(bytes).is_none() {
             return Err(FastCryptoError::InvalidInput);
         }
         Ok(Falcon512PrivateKey {
@@ -337,14 +331,15 @@ impl KeyPair for Falcon512KeyPair {
     /// inject a caller-provided RNG. In particular, seeded generation is NOT
     /// deterministic for Falcon-512.
     fn generate<R: AllowedRng>(_rng: &mut R) -> Self {
+        // PQClean returns both halves, so skip the re-derivation `.into()`
+        // would do.
         let (sk, pk) = sign::keygen();
-        let mut bytes = Vec::with_capacity(FALCON512_PRIVATE_KEY_LENGTH);
-        bytes.extend_from_slice(&sk);
-        bytes.extend_from_slice(&pk);
-        Falcon512PrivateKey {
-            bytes: zeroize::Zeroizing::new(bytes),
+        Falcon512KeyPair {
+            public: Falcon512PublicKey { bytes: pk },
+            private: Falcon512PrivateKey {
+                bytes: zeroize::Zeroizing::new(sk.to_vec()),
+            },
         }
-        .into()
     }
 }
 
@@ -362,15 +357,11 @@ impl Signer<Falcon512Signature> for Falcon512KeyPair {
     /// (`from_bytes` or `generate`); PQClean's signer may reject or fail to
     /// terminate on key material that never went through those paths.
     fn sign(&self, msg: &[u8]) -> Falcon512Signature {
-        // Both slice lengths are struct invariants.
-        let sk = self.private.bytes[..PQCLEAN_SECRET_KEY_LENGTH]
+        let sk = self.private.bytes[..]
             .try_into()
-            .expect("secret half is 1281 bytes");
-        let pk = self.private.bytes[PQCLEAN_SECRET_KEY_LENGTH..]
-            .try_into()
-            .expect("public half is 897 bytes");
-        let sig =
-            sign::sign(sk, pk, msg).expect("signing with a validated key emits the canonical form");
+            .expect("length is a struct invariant");
+        let sig = sign::sign(sk, &self.public.bytes, msg)
+            .expect("signing with a validated key emits the canonical form");
         Falcon512Signature { sig: Box::new(sig) }
     }
 }

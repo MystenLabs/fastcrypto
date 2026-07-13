@@ -6,7 +6,9 @@
 //! Parses the official 100-vector response file (`falcon512-KAT.rsp`, copied
 //! verbatim from the Falcon submission).
 
-use crate::falcon512::verify::{validate_secret_key, verify, verify_strict, SIG_PADDED_LEN};
+use crate::falcon512::verify::{
+    derive_public_key, validate_secret_key, verify, verify_strict, SIG_PADDED_LEN,
+};
 
 pub struct KatVector {
     pub count: u32,
@@ -63,7 +65,7 @@ pub fn parse_kat_vectors() -> Vec<KatVector> {
                     sig,
                 });
             }
-            _ => {} // seed, smlen: unused, TODO: to have seed -> sk -> pk function to reduce key size
+            _ => {} // seed, smlen: unused
         }
     }
     vectors
@@ -234,6 +236,19 @@ fn strict_rejects_every_non_canonical_encoding() {
         verify(&v.pk, &v.msg, &compressed_header),
         "0x29 stays valid permissively"
     );
+}
+
+/// The derived public key must match the KAT public key byte for byte, for
+/// all 100 vectors. The whole sk -> pk path consists of: trimmed decode, NTT,
+/// pointwise inversion, inverse NTT, 14-bit encode.
+#[test]
+fn kat_secret_keys_derive_their_public_keys() {
+    let vectors = parse_kat_vectors();
+    assert_eq!(vectors.len(), 100);
+    for v in &vectors {
+        let derived = derive_public_key(&v.sk).expect("KAT sk derives");
+        assert_eq!(&derived[..], v.pk.as_slice(), "vector {}", v.count);
+    }
 }
 
 /// The KAT secret keys must pass the consistency check against their own
