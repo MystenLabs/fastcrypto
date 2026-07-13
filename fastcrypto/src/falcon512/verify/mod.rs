@@ -33,21 +33,16 @@
 //!
 //! A Rust port of the reference verify path (see the license notice above
 //! for provenance): Montgomery-NTT ring arithmetic with precomputed twiddle
-//! tables and no `%` reductions on the hot path, the compressed wire codec,
+//! tables and no naive modular reductions on the hot path, the compressed wire codec,
 //! and SHAKE-256 hash-to-point via the `sha3` crate this workspace already
 //! pins. Its correctness is gated by the 100 NIST Round-3 KAT vectors
-//! replayed in this crate's tests.
+//! replayed in this crate's tests, "tests/vectors/falcon512-KAT.rsp"
 //!
-//! Verification is the only operation that runs on-chain, so this module
+//! Verification is run by the validators, so this module
 //! implements verify only. Key generation and signing need Falcon's
 //! floating-point Gaussian sampler and are out of scope here.
-//!
-//! ## Algorithm (Falcon spec §3.7, §3.11)
-//!
-//! Given public key h, message m, and signature (nonce r, s2):
-//! 1. challenge c = HashToPoint(r ‖ m) over Z_q via SHAKE-256 rejection sampling;
-//! 2. recover s1 = c − s2·h in R_q = Z_q[x]/(x^n + 1);
-//! 3. accept iff ‖(s1, s2)‖² ≤ [`L2_BOUND`].
+//! Hypothesis: we need to own the verifier as the FIPS-206 might change its specs
+//!     and we might need to hyper personalize the verifers per interface!
 //!
 //! ## Two entry points: [`verify`] vs [`verify_strict`]
 //!
@@ -82,12 +77,12 @@ pub use self::verify::{validate_public_key, validate_secret_key, verify, verify_
 pub const N: usize = 512;
 
 /// The Falcon ring modulus.
-pub const Q: u32 = 12289;
+pub const Q: u32 = 12289; // it has enough roots of unities
 
 /// Public-key length: 1 header byte + 512 coefficients at 14 bits each.
 pub const PUBKEY_LEN: usize = 897;
 
-/// Smallest acceptable signature: header(1) + nonce(40) + ≥1 body byte.
+/// Smallest acceptable signature: header(1) + nonce(40) + 1 body byte.
 pub const SIG_MIN_LEN: usize = 42;
 
 /// Largest acceptable signature. The 666-byte cap forbids the 809-byte

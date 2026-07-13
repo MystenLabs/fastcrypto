@@ -91,9 +91,9 @@ fn import_export_public_key() {
     let kpref = keys().pop().unwrap();
     let public_key = kpref.public();
     let export = public_key.encode_base64();
-    println!("{:#?}",export);
+    println!("{:#?}", export);
     let import = Falcon512PublicKey::decode_base64(&export);
-    println!("{:#?}",import);
+    println!("{:#?}", import);
     assert!(import.is_ok());
     assert_eq!(import.unwrap().as_ref(), public_key.as_ref());
 }

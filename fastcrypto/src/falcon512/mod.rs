@@ -4,26 +4,26 @@
 //! This module contains an implementation of the [Falcon-512](https://falcon-sign.info) signature scheme
 //! (NIST PQC Round-3; FIPS 206 / FN-DSA is not final yet, so this ships clearly labeled pre-standard).
 //! Verification uses the in-crate Montgomery-NTT port of the reference verifier in strict canonical
-//! mode (exactly one accepted byte encoding per signature); signing uses PQClean via
-//! [`pqcrypto-falcon`](https://crates.io/crates/pqcrypto-falcon).
-//!
-//! Messages can be signed and the signature can be verified again:
-//! # Example
-//! ```rust
-//! # use fastcrypto::falcon512::*;
-//! # use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
-//! use rand::thread_rng;
-//! let kp = Falcon512KeyPair::generate(&mut thread_rng());
-//! let message: &[u8] = b"Hello, world!";
-//! let signature = kp.sign(message);
-//! assert!(kp.public().verify(message, &signature).is_ok());
-//! ```
+//! mode (exactly one accepted byte encoding per signature) and is always available. Signing and key
+//! generation go through PQClean C (the `sign` submodule).
+#![cfg_attr(
+    feature = "falcon-sign",
+    doc = r#"
+Messages can be signed and the signature can be verified again:
+# Example
+```rust
+# use fastcrypto::falcon512::*;
+# use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
+use rand::thread_rng;
+let kp = Falcon512KeyPair::generate(&mut thread_rng());
+let message: &[u8] = b"Hello, world!";
+let signature = kp.sign(message);
+assert!(kp.public().verify(message, &signature).is_ok());
+```
+"#
+)]
 
-// The permissive verify path and some spec constants of the ported module
-// are only exercised by the KAT tests (and documented for future interop
-// use), so dead-code analysis of the non-test build is silenced for it. The
-// clippy style lints are also silenced to keep the ported code close to
-// its source.
+
 #[allow(
     dead_code,
     clippy::module_inception,
@@ -32,78 +32,57 @@
 )]
 pub(crate) mod verify;
 
+#[cfg(feature = "falcon-sign")]
+pub mod sign;
+
 use crate::serde_helpers::BytesRepresentation;
-use crate::traits::Signer;
+#[cfg(feature = "falcon-sign")]
+use crate::traits::{AllowedRng, KeyPair, Signer};
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
     generate_bytes_representation, impl_base64_display_fmt,
     serialize_deserialize_with_to_from_bytes,
-    traits::{
-        AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
-        VerifyingKey,
-    },
+    traits::{Authenticator, EncodeDecodeBase64, SigningKey, ToFromBytes, VerifyingKey},
 };
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
-use pqcrypto_falcon::falconpadded512;
-use pqcrypto_traits::sign::{DetachedSignature as _, PublicKey as _, SecretKey as _};
 use std::fmt::{self, Debug};
 use std::str::FromStr;
 
-/// The length of a public key in bytes.
+/// The length of a parameter
 pub const FALCON512_PUBLIC_KEY_LENGTH: usize = verify::PUBKEY_LEN; // 897
-
-/// The length of the PQClean Falcon-512 secret key in bytes.
-const PQCLEAN_SECRET_KEY_LENGTH: usize = 1281;
-
-/// The length of a private key in bytes: the PQClean secret key followed by
-/// the public key (PQClean cannot derive the public key from the secret key
-/// alone, so it is stored alongside it).
-pub const FALCON512_PRIVATE_KEY_LENGTH: usize =
+const PQCLEAN_SECRET_KEY_LENGTH: usize = verify::SECKEY_LEN; // 1281
+/// Key_pair = |sk| + |pk|
+pub const FALCON512_KEYPAIR_LENGTH: usize =
     PQCLEAN_SECRET_KEY_LENGTH + FALCON512_PUBLIC_KEY_LENGTH; // 2178
 
-/// The length of a signature in bytes (the fixed, zero-padded canonical form).
+/// TODO: Enable SK -> PK function, then no need to store pk
+pub const FALCON512_PRIVATE_KEY_LENGTH: usize = FALCON512_KEYPAIR_LENGTH;
+// zero-padded signatures
 pub const FALCON512_SIGNATURE_LENGTH: usize = verify::SIG_PADDED_LEN; // 666
 
-/// The key pair bytes length is the same as the private key length. This
-/// enforces deserialization to always derive the public key from the private
-/// key bytes.
-pub const FALCON512_KEYPAIR_LENGTH: usize = FALCON512_PRIVATE_KEY_LENGTH;
-
-/// Falcon-512 public key.
+/// Structures
 #[derive(Clone)]
 pub struct Falcon512PublicKey {
-    /// The 897-byte encoded public key (header byte `0x09`, then 512
-    /// coefficients packed at 14 bits each). Validated on construction.
+    /// The 897-byte encoded pk (header byte `0x09`, then 512 coeffs packed at 14 bits each), i.e. (512*14)/8+1 = 897
     bytes: [u8; FALCON512_PUBLIC_KEY_LENGTH],
 }
-
-/// Falcon-512 private key: PQClean secret key ‖ public key.
 #[derive(SilentDebug, SilentDisplay)]
 pub struct Falcon512PrivateKey {
-    /// `PQClean sk (1281 bytes) ‖ pk (897 bytes)`. Kept in a `Zeroizing` heap
-    /// allocation so the secret half is wiped on drop.
     bytes: zeroize::Zeroizing<Vec<u8>>,
 }
 
-/// Falcon-512 signature in the canonical 666-byte padded encoding.
 #[derive(Clone)]
 pub struct Falcon512Signature {
-    /// Boxed to keep the (fairly large) signature off the stack of every
-    /// enum/struct that embeds it.
+    /// Inside a box
     sig: Box<[u8; FALCON512_SIGNATURE_LENGTH]>,
 }
 
-/// Falcon-512 public/private key pair.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Falcon512KeyPair {
     public: Falcon512PublicKey,
     private: Falcon512PrivateKey,
 }
-
-//
-// Implementation of [Falcon512PublicKey].
-//
 
 impl std::hash::Hash for Falcon512PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -334,6 +313,7 @@ impl AsRef<[u8]> for Falcon512KeyPair {
 
 serialize_deserialize_with_to_from_bytes!(Falcon512KeyPair, FALCON512_KEYPAIR_LENGTH);
 
+#[cfg(feature = "falcon-sign")]
 impl KeyPair for Falcon512KeyPair {
     type PubKey = Falcon512PublicKey;
     type PrivKey = Falcon512PrivateKey;
@@ -368,11 +348,10 @@ impl KeyPair for Falcon512KeyPair {
     /// inject a caller-provided RNG. In particular, seeded generation is NOT
     /// deterministic for Falcon-512.
     fn generate<R: AllowedRng>(_rng: &mut R) -> Self {
-        let (pk, sk) = falconpadded512::keypair();
+        let (sk, pk) = sign::keygen();
         let mut bytes = Vec::with_capacity(FALCON512_PRIVATE_KEY_LENGTH);
-        bytes.extend_from_slice(sk.as_bytes());
-        bytes.extend_from_slice(pk.as_bytes());
-        debug_assert_eq!(bytes.len(), FALCON512_PRIVATE_KEY_LENGTH);
+        bytes.extend_from_slice(&sk);
+        bytes.extend_from_slice(&pk);
         Falcon512PrivateKey {
             bytes: zeroize::Zeroizing::new(bytes),
         }
@@ -388,22 +367,21 @@ impl FromStr for Falcon512KeyPair {
     }
 }
 
+#[cfg(feature = "falcon-sign")]
 impl Signer<Falcon512Signature> for Falcon512KeyPair {
     /// Signing assumes the key bytes were validated at construction
     /// (`from_bytes` or `generate`); PQClean's signer may reject or fail to
     /// terminate on key material that never went through those paths.
     fn sign(&self, msg: &[u8]) -> Falcon512Signature {
-        // Reconstructing the PQClean secret key is a length-checked copy of
-        // the first 1281 private-key bytes; the length is a struct invariant.
-        let sk = falconpadded512::SecretKey::from_bytes(
-            &self.private.bytes[..PQCLEAN_SECRET_KEY_LENGTH],
-        )
-        .expect("private key length is a struct invariant");
-        let sig = falconpadded512::detached_sign(msg, &sk);
-        // PQClean falcon-padded-512 emits exactly the fixed 666-byte padded
-        // form (header 0x39), which is the canonical encoding this module's
-        // verify accepts.
-        Falcon512Signature::from_bytes(sig.as_bytes())
-            .expect("falcon-padded-512 signatures are exactly 666 bytes")
+        // Both slice lengths are struct invariants.
+        let sk = self.private.bytes[..PQCLEAN_SECRET_KEY_LENGTH]
+            .try_into()
+            .expect("secret half is 1281 bytes");
+        let pk = self.private.bytes[PQCLEAN_SECRET_KEY_LENGTH..]
+            .try_into()
+            .expect("public half is 897 bytes");
+        let sig =
+            sign::sign(sk, pk, msg).expect("signing with a validated key emits the canonical form");
+        Falcon512Signature { sig: Box::new(sig) }
     }
 }

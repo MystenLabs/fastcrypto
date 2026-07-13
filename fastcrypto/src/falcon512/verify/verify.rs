@@ -9,14 +9,12 @@
 //! Top-level Falcon-512 verification: the ported Montgomery core
 //! ([`FalconVerifier`]) plus the two entry points the scheme uses.
 //!
-//! # Verification algorithm (Falcon spec §3.7, §3.11)
+//! # Verification algorithm (Falcon spec §3.7, §3.11) #
 //!
 //! Given public key h, message m, and signature (nonce r, s2):
-//!
-//! 1. challenge c = HashToPoint(r ‖ m) over Z_q via SHAKE-256 rejection
-//!    sampling;
-//! 2. recover s1 = c − s2·h in R_q = Z_q[x]/(x^n + 1);
-//! 3. accept iff ‖(s1, s2)‖² ≤ [`L2_BOUND`].
+//! 1. challenge c = HashToPoint(r || m) over Z_q via SHAKE-256 rejection sampling;
+//! 2. recover s1 = c − s2.h in R_q = Z_q[x]/(x^n + 1);
+//! 3. accept iff ||(s1, s2)||^2 ≤ [`L2_BOUND`].
 
 use super::ntt::{
     field_sub, ntt_forward, ntt_inverse, poly_pointwise_mul, poly_prepare_for_mul, poly_sub,
@@ -24,10 +22,6 @@ use super::ntt::{
 use super::{L2_BOUND, N, PUBKEY_LEN, Q, SECKEY_LEN, SIG_MAX_LEN, SIG_MIN_LEN, SIG_PADDED_LEN};
 
 /// Verify a Falcon-512 signature (permissive / interop mode).
-///
-/// Returns `true` iff `signature` is a valid Falcon-512 signature on `message`
-/// under `public_key`. Total on all inputs: any malformed key or signature
-/// yields `false` rather than a panic.
 ///
 /// The header's low nibble must be `logn = 9`. The high nibble selects the
 /// encoding family and **both `0x2X` and `0x3X` are accepted**, because real
@@ -52,26 +46,21 @@ pub fn verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> bool {
 /// compressed data ends. Everything [`verify`] rejects is also rejected here;
 /// additionally the variable-length form and the `0x2X` header family fail.
 ///
-/// # Why
-///
+/// # Why?
 /// A transaction authenticator must not let two distinct byte-strings be valid
 /// encodings of the same signature: anyone could then re-encode a signed
 /// transaction in flight, changing its digest without the signer's consent
 /// (tx-malleability). Restricting to one fixed-length encoding makes the map
-/// signature-bytes → accepted-signature injective, so the signature bytes can
+/// signature-bytes -> accepted-signature injective, so the signature bytes can
 /// safely be part of the transaction digest.
 pub fn verify_strict(public_key: &[u8], message: &[u8], signature: &[u8]) -> bool {
-    // One length, one header byte. With the length fixed at 666 the core's
-    // padded-tail rule leaves exactly one encoding per (nonce, s2), which is
-    // the whole point of strict mode.
     if signature.len() != SIG_PADDED_LEN || signature[0] != 0x39 {
         return false;
     }
     FalconVerifier::verify_512(public_key, message, signature)
 }
 
-/// Structural public-key validation for parse time: length, header byte,
-/// every coefficient < q, zero trailing padding bits.
+/// Structural public-key validation
 pub fn validate_public_key(pk: &[u8]) -> bool {
     FalconVerifier::decode_pubkey(pk, &mut [0u16; N])
 }
@@ -87,9 +76,9 @@ pub fn validate_public_key(pk: &[u8]) -> bool {
 /// 1. length, header byte, and per-polynomial structural decode (the
 ///    forbidden −2^(bits−1) value and non-zero trailing bits are rejected,
 ///    matching the reference `trim_i8_decode`);
-/// 2. `pk` decodes canonically (same rules as [`validate_public_key`]);
+/// 2. `pk` decodes canonically
 /// 3. f is invertible in R_q (every NTT coefficient non-zero), and
-///    h·f = g in R_q — the defining relation of a Falcon public key — so a
+///    h.f = g in R_q — the defining relation of a Falcon public key — so a
 ///    secret key spliced onto a different key's public half is rejected.
 ///
 /// F is checked structurally only: G is not stored, and the integer NTRU
@@ -100,7 +89,7 @@ pub fn validate_public_key(pk: &[u8]) -> bool {
 /// probe-signing: Falcon signers search for a short vector in a retry loop
 /// and need not terminate when handed a degenerate basis.
 pub fn validate_secret_key(sk: &[u8], pk: &[u8]) -> bool {
-    // f and g pack to 512 · 6 / 8 bytes each, F to 512 · 8 / 8.
+    // f and g pack to 512 . 6 / 8 bytes each, F to 512 . 8 / 8.
     const FG_BYTES: usize = N * 6 / 8;
     const F_START: usize = 1 + 2 * FG_BYTES;
 
@@ -135,8 +124,8 @@ pub fn validate_secret_key(sk: &[u8], pk: &[u8]) -> bool {
         return false;
     }
 
-    // h·f = g holds in R_q iff it holds pointwise in the NTT domain.
-    // montgomery_mul(h·R, f) = h·f in natural form, directly comparable
+    // h.f = g holds in R_q iff it holds pointwise in the NTT domain.
+    // montgomery_mul(h.R, f) = h.f in natural form, directly comparable
     // against the natural-form NTT of g.
     poly_prepare_for_mul(&mut h);
     poly_pointwise_mul(&mut h, &fq);
@@ -146,7 +135,7 @@ pub fn validate_secret_key(sk: &[u8], pk: &[u8]) -> bool {
 /// Decode `N` trimmed two's-complement values of `bits` width (the reference
 /// `trim_i8_decode`, MSB-first): rejects the forbidden −2^(bits−1) value and
 /// non-zero padding bits in the final byte. `data` must hold exactly
-/// `N · bits / 8` bytes (both widths used here are byte-aligned over N = 512).
+/// `N . bits / 8` bytes (both widths used here are byte-aligned over N = 512).
 fn trim_i8_decode(data: &[u8], bits: u32, out: &mut [i8; N]) -> bool {
     debug_assert_eq!(data.len() * 8, N * bits as usize);
     let mask1: u32 = (1 << bits) - 1;
@@ -181,7 +170,6 @@ fn trim_i8_decode(data: &[u8], bits: u32, out: &mut [i8; N]) -> bool {
 /// parent module docs for provenance).
 ///
 /// This struct provides static methods for signature verification.
-/// It is stateless and all methods can be called without instantiation.
 pub struct FalconVerifier;
 
 impl FalconVerifier {
@@ -195,7 +183,7 @@ impl FalconVerifier {
     /// # Returns
     /// `true` if the signature is valid, `false` otherwise.
     pub fn verify_512(pubkey: &[u8], message: &[u8], signature: &[u8]) -> bool {
-        // Step 1: Validate public key format
+        // Step 1: Validate public key length and its header
         if pubkey.len() != PUBKEY_LEN {
             return false;
         }
@@ -293,13 +281,13 @@ impl FalconVerifier {
             tt[i] = w as u16;
         }
 
-        // Step 2: Compute s2·h in the ring Z_q[X]/(X^n + 1)
+        // Step 2: Compute s2.h in the ring Z_q[X]/(X^n + 1)
         // Since h is already in NTT+Montgomery form, we only need to transform tt.
         ntt_forward(&mut tt);
         poly_pointwise_mul(&mut tt, h);
         ntt_inverse(&mut tt);
 
-        // Step 3: Compute s1 = c0 - s2·h  (equivalently, -s1 = s2·h - c0).
+        // Step 3: Compute s1 = c0 - s2.h  (equivalently, -s1 = s2.h - c0).
         // ||s1|| = ||-s1||, so the sign flip does not affect the norm check below.
         poly_sub(&mut tt, c0);
 
@@ -315,22 +303,7 @@ impl FalconVerifier {
         Self::is_short(&s1, s2)
     }
 
-    /// Verifies that ||(s1, s2)||² ≤ [`L2_BOUND`].
-    ///
-    /// # Overflow handling
-    ///
-    /// The running squared-norm can exceed `2^32` (worst-case ≈ `1024 ·
-    /// (q/2)² ≈ 3.86·10¹⁰`), so `s` uses wrapping additions. We still need
-    /// the check to reject when the true value is larger than the bound but
-    /// a wrap makes the observed value small.
-    ///
-    /// **Invariant.** Every `z²` summand satisfies `z² ≤ (q/2)² ≈ 3.77·10⁷ <
-    /// 2³¹`. Therefore, if an addition wraps past `2³²`, the value *before*
-    /// the wrap must have been `≥ 2³² − z² > 2³¹`, i.e. with bit 31 set.
-    /// `ng |= s` is evaluated after every addition and captures that high bit
-    /// into `ng`. The final `s |= 0 - (ng >> 31)` saturates `s` to `0xFFFFFFFF`
-    /// when any wrap (or sub-wrap that drove `s ≥ 2³¹`) has occurred, causing
-    /// the bounds check to reject.
+    /// Verifies that ||(s1, s2)||^2 ≤ [`L2_BOUND`].
     fn is_short(s1: &[i16; N], s2: &[i16; N]) -> bool {
         let mut s: u32 = 0;
         let mut ng: u32 = 0;
@@ -353,6 +326,7 @@ impl FalconVerifier {
 
     /// Decodes a Falcon-512 public key from its packed binary format (14 bits per coefficient, MSB-first).
     pub fn decode_pubkey(pubkey: &[u8], h: &mut [u16; N]) -> bool {
+        // Step1: check if the length and the flag match Falcon-512 parameters
         if pubkey.len() != PUBKEY_LEN {
             return false;
         }
@@ -362,9 +336,9 @@ impl FalconVerifier {
 
         let data = &pubkey[1..];
         let mut acc: u32 = 0;
-        let mut acc_len = 0;
-        let mut u = 0;
-        let mut buf_idx = 0;
+        let mut acc_len: i32 = 0;
+        let mut u: usize = 0;
+        let mut buf_idx: usize = 0;
 
         while u < N {
             acc = (acc << 8) | (data[buf_idx] as u32);
@@ -514,7 +488,7 @@ mod tests {
 
     #[test]
     fn is_short_rejects_overflow() {
-        // Fill with ±(q/2 - 1); true squared norm ≈ 1024 · 6144² ≈ 3.87·10¹⁰,
+        // Fill with ±(q/2 - 1); true squared norm ≈ 1024 . 6144² ≈ 3.87.10¹⁰,
         // which is ~9× u32::MAX, and must be rejected.
         let mut s1 = [0i16; N];
         let mut s2 = [0i16; N];

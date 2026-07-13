@@ -65,10 +65,13 @@ merlin = "3.0.0"
 tracing.workspace = true
 itertools = "0.12.0"
 
-# Falcon-512 signing/keygen (PQClean C bindings). Verification uses the
-# in-crate `falcon512::verify` module instead.
-pqcrypto-falcon = "0.4"
-pqcrypto-traits = "0.3"
+# Falcon-512 signing/keygen (PQClean C bindings), behind `falcon-sign` so the
+# default build stays pure Rust. Verification uses the in-crate
+# `falcon512::verify` module instead. default-features = false drops the
+# AVX2/NEON dispatch and keeps the single portable "clean" code path; `std`
+# stays on for the system RNG.
+pqcrypto-falcon = { version = "0.4.1", default-features = false, features = ["std"], optional = true }
+pqcrypto-traits = { version = "0.3", optional = true }
 
 # Required for the unsecure signature and hash schemes
 twox-hash = { version = "1.6.3", optional = true }
@@ -135,6 +138,10 @@ unsecure_schemes = ["dep:twox-hash", "dep:serde-big-array"]
 
 # Used for feature that are not yet audited.
 experimental = []
+
+# Falcon-512 signing/keygen through PQClean C. Verification never needs this;
+# validators can build without it.
+falcon-sign = ["dep:pqcrypto-falcon", "dep:pqcrypto-traits"]
 
 # Include AES and its modes.
 aes = ["dep:aes", "dep:cbc", "dep:aes-gcm", "dep:ctr", "dep:aes-gcm-siv"]

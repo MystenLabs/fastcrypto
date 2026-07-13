@@ -92,9 +92,13 @@ pub mod merkle_tests;
 #[path = "tests/falcon512_verify_tests.rs"]
 pub mod falcon512_verify_tests;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "falcon-sign"))]
 #[path = "tests/falcon512_tests.rs"]
 pub mod falcon512_tests;
+
+#[cfg(all(test, feature = "falcon-sign"))]
+#[path = "tests/falcon512_sign_tests.rs"]
+pub mod falcon512_sign_tests;
 
 pub mod traits;
 

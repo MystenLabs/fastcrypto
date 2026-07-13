@@ -223,7 +223,7 @@ mod tests {
         fa
     }
 
-    /// (1 + x)·(1 + x) = 1 + 2x + x^2 in R_q — small enough to check by hand
+    /// (1 + x).(1 + x) = 1 + 2x + x^2 in R_q — small enough to check by hand
     /// and catch a wrong table, scale, or Montgomery conversion.
     #[test]
     fn square_of_one_plus_x() {
@@ -239,7 +239,7 @@ mod tests {
         }
     }
 
-    /// The negacyclic wrap must carry a minus sign: x^{n-1} · x = x^n ≡ −1.
+    /// The negacyclic wrap must carry a minus sign: x^{n-1} . x = x^n ≡ −1.
     #[test]
     fn wraps_with_negation() {
         let mut a = [0u16; N];
