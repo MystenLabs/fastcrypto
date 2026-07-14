@@ -7,7 +7,8 @@
 //! Before the protocol starts, the following setup is needed:
 //! * Each receiver has an encryption key pair (ECIES) and these public keys are known to all parties.
 //! * The public keys along with the weights of each receiver are known to all parties and defined in the [Nodes] structure.
-//! * Define a new [crate::threshold_schnorr::Dealer] with the secrets, who begins by calling [crate::threshold_schnorr::Dealer::create_message].
+//!
+//! See [Dealer] and [Receiver] below for the protocol steps.
 
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
 use crate::nodes::{Nodes, PartyId};
@@ -30,8 +31,6 @@ use std::collections::HashMap;
 use tap::TapFallible;
 use tracing::warn;
 
-/// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
-#[allow(dead_code)]
 pub struct Dealer {
     nodes: Nodes<EG>,
     sid: Vec<u8>,
@@ -39,14 +38,13 @@ pub struct Dealer {
     secret: S, // For key rotation this is set to the previous round's share; otherwise sampled in `new`.
 }
 
-#[allow(dead_code)]
 pub struct Receiver {
     nodes: Nodes<EG>,
     sid: Vec<u8>,
     params: Parameters,
     id: PartyId,
     enc_secret_key: PrivateKey<EG>,
-    commitment: Option<G>,
+    commitment: Option<G>, // Commitment to the secret being shared if any (used for key rotation).
 }
 
 /// An upper bound on the BCS-serialized size of a [Message], to be enforced when deserializing
@@ -61,14 +59,14 @@ pub struct Message {
 }
 
 /// The result of a [Receiver] processing a [Message]: Either valid shares or a complaint.
-#[allow(clippy::large_enum_variant)] // Clippy complains because DkOutput can be very small if BATCH_SIZE is small.
+#[allow(clippy::large_enum_variant)]
 pub enum ProcessedMessage {
     Valid(AvssOutput),
     Complaint(Complaint),
 }
 
 /// A complaint by a receiver who could not decrypt or verify its shares from the dealer's
-/// broadcast. Given enough responses, the accuser can recover its shares.
+/// broadcast.
 ///
 /// The accuser's id is not carried here; the higher-level protocol tracks which party a complaint
 /// came from and passes it to [Receiver::handle_complaint].
@@ -77,7 +75,7 @@ pub struct Complaint {
     pub proof: RecoveryProof,
 }
 
-/// A response to a [Complaint], containing the responder's shares so the accuser can
+/// A response of an honest receiver to a [Complaint], containing the responder's shares so the accuser can
 /// Lagrange-interpolate their own.
 ///
 /// The responder's id is not carried here; the higher-level protocol tracks which party a response
@@ -108,20 +106,16 @@ pub struct AvssOutput {
 /// either using [AvssOutput::complete_dkg] or [AvssOutput::complete_key_rotation].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DkOutput {
-    /// The public key corresponding to the secret the dealer is sharing.
-    pub vk: G,
-
-    /// The commitments to the polynomials will be used for key rotation.
-    pub commitments: Vec<Eval<G>>,
-
+    pub vk: G,                     // The aggregated public key.
+    pub commitments: Vec<Eval<G>>, // The commitments to the polynomials will be used for key rotation.
     pub my_shares: SharesForNode,
 }
 
-/// A single share: an evaluation of the secret-sharing polynomial at a share index.
+/// A single share.
 pub type Share = Eval<S>;
 
 /// All the shares given to a node. One share per the node's weight.
-/// These can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
+/// These can be created either by decrypting the shares from the dealer or by recovering them from complaint responses.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharesForNode {
     pub shares: Vec<Share>,
@@ -133,14 +127,13 @@ impl SharesForNode {
         self.shares.len()
     }
 
-    /// Get this node's share at `index`, if it has one.
     pub fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
         self.shares.iter().find(|s| s.index == index)
     }
 
     fn verify(&self, message: &Message) -> FastCryptoResult<()> {
         for share in &self.shares {
-            // TODO: possible optimization - all shares get be verified at once
+            // TODO[possible optimization]: all shares can be verified at once
             message
                 .feldman_commitment
                 .verify_share(share.index, &share.value)?
@@ -188,14 +181,13 @@ impl BCSSerialized for SharesForNode {}
 
 impl Dealer {
     /// Create a new dealer.
-    ///
     /// * `secret`: The secret to share. If None, a random secret is sampled from `rng`.
-    /// * `nodes`: The set of nodes (parties) participating in the protocol, including their public keys and weights.
+    ///   For key rotation, this should be set to the previous round's secret.
+    /// * `nodes`: The set of nodes (parties) participating in the protocol.
     /// * `params`: The threshold parameters.
-    /// * `sid`: A session identifier that should be unique for each invocation of the protocol (for each dealer).
-    /// * `rng`: Used to sample the secret when `secret` is None.
+    /// * `sid`: A session identifier that should be unique for each invocation of the protocol, including for each dealer.
     ///
-    /// Returns an error if `t` is zero or larger than the total weight of the nodes.
+    /// Returns an error if the parameters are invalid.
     pub fn new<R: AllowedRng>(
         secret: Option<S>,
         nodes: Nodes<EG>,
@@ -212,11 +204,12 @@ impl Dealer {
         })
     }
 
-    /// 1. The Dealer samples nonces, generates shares and broadcasts the encrypted shares.
+    /// 1. The Dealer generates shares and creates a message containing the encrypted shares.
+    ///
+    ///    That message is broadcast to all receivers by the caller. Receivers process it to decrypt and verify their shares (see below),
+    ///    and contribute a signature on the message to a certificate. The dealer posts the certificate to the TOB channel.
     pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> Message {
         let polynomial = Poly::rand_fixed_c0(self.params.t - 1, self.secret, rng);
-
-        // Compute all shares
         let all_shares = polynomial.eval_range(self.nodes.total_weight());
 
         // Encrypt all shares to the receivers
@@ -237,7 +230,6 @@ impl Dealer {
                 )
             })
             .collect_vec();
-
         let ciphertext = MultiRecipientEncryption::encrypt(
             &pk_and_msgs,
             &self.random_oracle().extend(&Encryption.to_string()),
@@ -258,12 +250,14 @@ impl Dealer {
 impl Receiver {
     /// Create a new receiver.
     ///
-    /// * `nodes`: The set of nodes (parties) participating in the protocol, including their public keys and weights.
+    /// * `nodes`: The set of nodes (parties) participating in the protocol.
     /// * `id`: The unique identifier of this receiver. Should match one of the party ids in `nodes`.
-    /// * `params`: The threshold parameters. Only `params.t` is used by the AVSS; `params.f` is carried for consistency with the other protocols.
+    /// * `params`: The threshold parameters.
     /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
-    /// * `commitment`: A commitment to the secret being shared. This should be equal to `secret * G` and is typically found as the commitment from a previous round (see [DkOutput]). If None, no consistency check will be performed.
+    /// * `commitment`: An optional commitment to the secret being shared (used for key rotation).
     /// * `enc_secret_key`: The private key used to decrypt the shares sent to this receiver.
+    ///
+    /// Returns an error if the parameters are invalid.
     pub fn new(
         nodes: Nodes<EG>,
         id: PartyId,
@@ -272,7 +266,7 @@ impl Receiver {
         commitment: Option<G>,
         enc_secret_key: PrivateKey<EG>,
     ) -> FastCryptoResult<Self> {
-        // Validate that `id` is one of the parties in `nodes`.
+        params.validate(nodes.total_weight())?;
         nodes.node_id_to_node(id)?;
         Ok(Self {
             id,
@@ -288,17 +282,14 @@ impl Receiver {
         self.id
     }
 
-    /// 2. Each receiver processes the message, verifies and decrypts its shares.
+    /// 2. A receiver processes the message, verifies and decrypts its shares.
     ///
     /// If this works, the receiver can store the shares and contribute a signature on the message to a certificate.
     ///
-    /// This returns an [InvalidMessage] error if the ciphertext cannot be verified, if the commitments are invalid or do not match the commitments from a previous round.
+    /// Returns an [InvalidMessage] error if the ciphertext cannot be verified, if the commitments are invalid or do not match the commitments from a previous round.
     /// All honest receivers will reject such a message with the same error, and such a message should be ignored.
     ///
     /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
-    /// `rng` is used to create the recovery package attached to such a complaint.
-    ///
-    /// 3. When t+f signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
     pub fn process_message<R: AllowedRng>(
         &self,
         message: &Message,
@@ -368,10 +359,14 @@ impl Receiver {
         }
     }
 
+    // The following steps happen at the caller level, before a receiver handles complaints:
+    //   3. Once t+f signatures have been collected in the certificate, the receivers can finish
+    //      the distribution phase of the protocol.
+    //      Then, upon seeing a certificate for a message for which it got a complaint, a receiver
+    //      broadcasts its complaint.
+
     /// 4. Upon receiving a complaint, a receiver verifies it and responds with its shares.
-    ///
-    /// `accuser_id` is the party that raised the complaint (tracked by the caller, see [Complaint]).
-    /// Assumes the dealer's `message` has already been validated via [Receiver::process_message].
+    ///    `accuser_id` is the party that raised the complaint (tracked by the caller).
     pub fn handle_complaint(
         &self,
         message: &Message,
@@ -387,7 +382,7 @@ impl Receiver {
                 .ciphertext
                 .encs
                 .get(accuser_id as usize)
-                .ok_or(InvalidInput)?,
+                .ok_or(InvalidInput)?, // Should never happen if the message has been validated.
             &message.ciphertext.shared(),
             &self.random_oracle(),
             |shares: &SharesForNode| verify_shares(shares, &accuser_share_ids, accuser_id, message),
@@ -398,8 +393,7 @@ impl Receiver {
     }
 
     /// Verify a [ComplaintResponse] received from `responder_id` against the dealer's `message`,
-    /// binding the verified shares to the responder. The resulting [VerifiedComplaintResponse]s are
-    /// the input to [Receiver::recover].
+    /// binding the verified shares to the responder.
     pub fn verify_complaint_response(
         &self,
         message: &Message,
@@ -418,24 +412,19 @@ impl Receiver {
         })
     }
 
-    /// 5. Upon receiving enough verified responses (by weight) to a complaint, the accuser can
-    ///    recover its shares. Each response must first be verified with
-    ///    [Receiver::verify_complaint_response].
+    /// 5. Upon receiving enough verified responses to a complaint, the accuser can recover its shares.
     ///
-    ///    Fails if the responses do not come from distinct parties or if their combined weight is
+    ///    Returns an error if the responses do not come from distinct parties or if their combined weight is
     ///    below the threshold `t`.
     pub fn recover(
         &self,
         message: &Message,
         responses: Vec<VerifiedComplaintResponse>,
     ) -> FastCryptoResult<AvssOutput> {
-        // Responses must come from distinct parties, otherwise a single responder could be counted
-        // multiple times towards the threshold.
         if !responses.iter().map(|r| r.responder_id).all_unique() {
             return Err(InvalidInput);
         }
 
-        // The responses are already verified, so we only need enough weight to interpolate.
         let total_response_weight = self
             .nodes
             .total_weight_of(responses.iter().map(|r| &r.responder_id))?;
@@ -483,9 +472,8 @@ fn verify_shares(
     receiver: PartyId,
     message: &Message,
 ) -> FastCryptoResult<()> {
-    // TODO: this function returs err both in case verify failed and in case there is a bug in the impl.
-    // We should decide on a consistent error handling strategy here
-
+    // TODO: this function returns an error both in case verify failed and in case there is a bug in the impl.
+    // For now we assume that impl bugs are detected by the tests.
     if !shares
         .shares
         .iter()
@@ -515,14 +503,14 @@ impl DkOutput {
         self.commitments.iter().find(|c| c.index == index)
     }
 
-    /// Combine multiple outputs from different dealers into a single output by summing.
-    /// This is used after a successful AVSS used for DKG to combine the shares from multiple dealers into a single share for each party.
+    /// Combine multiple AVSS outputs from different dealers into a single output by summing.
+    /// Called by the app level with AVSS outputs that represent at least t of the weight. The set of outputs is determined based on the order of the messages on the TOB channel.
     /// Panics if the given `DkOutput`s are not compatible (same weight, same indices, same number of commitments)
     /// Returns the combined output, including the joint verifying key
     pub fn complete_dkg(
         t: u16,
         nodes: &Nodes<EG>,
-        outputs: HashMap<PartyId, AvssOutput>,
+        outputs: HashMap<PartyId, AvssOutput>, // The outputs from the different dealers.
     ) -> FastCryptoResult<Self> {
         if nodes.total_weight_of(outputs.keys())? < t {
             return Err(NotEnoughWeight(t as usize));
@@ -546,6 +534,7 @@ impl DkOutput {
     /// Interpolate shares from multiple outputs to create new shares for the given indices.
     /// This is used after key rotation where each party shares their shares from the previous round as the new secret.
     /// After collecting t such shares from different parties, new shares for the given indices can be created using this function.
+    /// Called by the app level with at least t AVSS outputs. The set of outputs is determined based on the order of the messages on the TOB channel.
     ///
     /// The `outputs` parameter is a list of `IndexedValue`, where each `value` is the output of an
     /// AVSS instance and the corresponding `index` indicates which share from the previous round
@@ -560,6 +549,9 @@ impl DkOutput {
             return Err(InputLengthWrong(t as usize));
         }
         if outputs.is_empty() {
+            return Err(InvalidInput);
+        }
+        if !outputs.iter().map(|output| output.index).all_unique() {
             return Err(InvalidInput);
         }
 

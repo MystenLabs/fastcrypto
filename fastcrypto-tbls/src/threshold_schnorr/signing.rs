@@ -11,6 +11,8 @@ use fastcrypto::groups::secp256k1::schnorr::{
 };
 use fastcrypto::groups::GroupElement;
 use itertools::Itertools;
+use tap::TapFallible;
+use tracing::warn;
 
 /// Generate partial threshold Schnorr signatures for a given message using a presigning tuple.
 /// The presigning tuple must be taken from a [Presignatures] iterator, the other parties should use the same tuple and one tuple may only be used once.
@@ -58,12 +60,17 @@ pub fn generate_partial_signatures(
         h = -h;
     }
 
+    // sanity check.
+    if my_signing_key_shares.shares.len() != secret_presigs.len() {
+        return Err(FastCryptoError::InvalidInput);
+    }
+
     Ok((
         public_presig,
         my_signing_key_shares
             .shares
             .iter()
-            .zip_eq(secret_presigs)
+            .zip(secret_presigs)
             .map(
                 |(
                     Eval {
@@ -108,7 +115,6 @@ pub fn aggregate_signatures(
         return Err(FastCryptoError::InvalidInput);
     }
 
-    // Interpolate the partial signatures to get the full signature.
     let s = Poly::recover_c0(
         threshold,
         partial_signatures.iter().take(threshold as usize),
@@ -175,8 +181,9 @@ pub fn finalize_schnorr_signature(
 
     let signature = SchnorrSignature::try_from((r_g, s))?;
 
-    // TODO: Handle invalid signatures
-    SchnorrPublicKey::try_from(&verifying_key)?.verify(message, &signature)?;
+    SchnorrPublicKey::try_from(&verifying_key)?
+        .verify(message, &signature)
+        .tap_err(|e| warn!("signing: aggregated signature failed verification: {e:?}"))?;
 
     Ok(signature)
 }

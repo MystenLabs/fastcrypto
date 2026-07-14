@@ -1,15 +1,17 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generic Asynchronous Verifiable Information Dispersal (AVID).
+//! Asynchronous Verifiable Information Dispersal (AVID).
 //!
 //! A dealer disperses one payload per recipient across weighted parties such that any `≥ W-2f`
 //! weight of authenticated shards can reconstruct it, while a Merkle commitment binds every shard
 //! to the dealer's broadcast. The set of recipients does not have to be all nodes.
+//! We call the message from the dealer to the recipients a "dispersal", and the message from a
+//! disperser to a recipient an "echo".
 
 use crate::nodes::{Nodes, PartyId};
 use crate::threshold_schnorr::merkle::{NestedMerkleProof, NestedMerkleTree};
-use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard};
+use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard, Shards};
 use crate::threshold_schnorr::EG;
 use crate::types::get_uniform_value;
 use fastcrypto::error::FastCryptoError::{
@@ -24,21 +26,24 @@ use std::sync::Arc;
 use tap::TapFallible;
 use tracing::warn;
 
-/// AVID over a fixed node set and Byzantine bound `f`.
+/// A payload dispersed to a single recipient (an opaque byte string).
+pub(crate) type Payload = Vec<u8>;
+
+/// AVID parameters over a fixed node set and Byzantine bound `f`.
 pub struct Avid {
     nodes: Arc<Nodes<EG>>,
     coder: ErasureCoder,
     f: u16,
 }
 
-/// Dealer-side cache that can create individual [Dispersal] messages on demand.
+/// Dealer-side builder that can create individual [Dispersal] messages on demand.
 pub struct DispersalBuilder {
     nodes: Arc<Nodes<EG>>,
     tree: NestedMerkleTree,
-    shards_by_recipient: BTreeMap<PartyId, Vec<Vec<Shard>>>,
+    shards_by_recipient: BTreeMap<PartyId, Vec<Shards>>,
 }
 
-/// The dealer's per-party dispersal message. One [AuthenticatedShards] per recipient.
+/// The dealer's per-party dispersal message. One [AuthenticatedShards] per message recipient.
 pub type Dispersal = BTreeMap<PartyId, AuthenticatedShards>;
 
 /// One disperser's shards for a recipient's payload with a two-level Merkle proof against the
@@ -46,7 +51,7 @@ pub type Dispersal = BTreeMap<PartyId, AuthenticatedShards>;
 /// to `top_root`).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthenticatedShards {
-    pub(crate) shards: Vec<Shard>,
+    pub(crate) shards: Shards,
     pub(crate) proof: NestedMerkleProof,
 }
 
@@ -67,19 +72,18 @@ impl Vote {
     }
 }
 
-/// A precomputed dispersal-side cache produced by [Avid::process_dispersal] to build [Echo]s.
+/// A precomputed dispersal-side builder produced to build [Echo]s.
 pub struct EchoBuilder {
     dispersal: Dispersal,
     pub top_root: merkle::Node,
 }
 
-/// One disperser's echo to a single recipient.
+/// One disperser's message to a single message recipient.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Echo {
     authenticated_shards: AuthenticatedShards,
 }
 
-/// An [Echo] verified by [Avid::verify_echo].
 #[derive(Clone, Debug)]
 pub struct VerifiedEcho {
     sender: PartyId,
@@ -93,10 +97,36 @@ pub struct Complaint {
     pub shards: BTreeMap<PartyId, AuthenticatedShards>,
 }
 
+/// The outcome of [Avid::decode_or_complain]: either the reconstructed payload, or a [Complaint]
+/// witnessing that the dealer's dispersal is inconsistent.
+#[derive(Clone, Debug)]
+pub enum DecodeOutcome {
+    Decoded(Payload),
+    Complaint(Complaint),
+}
+
+#[cfg(test)]
+impl DecodeOutcome {
+    fn unwrap_decoded(self) -> Payload {
+        match self {
+            Self::Decoded(payload) => payload,
+            Self::Complaint(_) => panic!("expected a decoded payload, got a complaint"),
+        }
+    }
+
+    fn unwrap_complaint(self) -> Complaint {
+        match self {
+            Self::Complaint(complaint) => complaint,
+            Self::Decoded(_) => panic!("expected a complaint, got a decoded payload"),
+        }
+    }
+}
+
 impl Avid {
     /// Build an AVID instance over `nodes` with Byzantine bound `f`, constructing the
     /// `(W, W − 2f)` Reed-Solomon coder once. Fails if `f == 0`, `W ≤ 2f`, or the RS parameters
     /// are otherwise invalid.
+    /// W can be assumed to be <=10000.
     pub fn new(nodes: Arc<Nodes<EG>>, f: u16) -> FastCryptoResult<Self> {
         let total_weight = nodes.total_weight();
         if f == 0 {
@@ -108,32 +138,50 @@ impl Avid {
     }
 
     /// 1. RS-encode every payload and return a [DispersalBuilder] that can mint per-disperser
-    ///    [Dispersal]s on demand via [DispersalBuilder::dispersal_for].
-    ///
-    ///    Runs `mutate` over the per-recipient, per-disperser shards before the Merkle tree is
-    ///    built — production callers pass `|_| {}`. Fails if any of the payloads are empty.
-    #[cfg_attr(not(test), allow(unused_variables, unused_mut))]
-    pub fn disperse_with_mutation(
+    ///    [Dispersal]s on demand via [DispersalBuilder::dispersal_for]. Fails if any of the
+    ///    payloads are empty.
+    pub fn disperse(
         &self,
-        payloads_by_recipient: &BTreeMap<PartyId, Vec<u8>>,
-        mutate: impl FnOnce(&mut BTreeMap<PartyId, Vec<Vec<Shard>>>),
+        payloads_by_recipient: &BTreeMap<PartyId, Payload>,
     ) -> FastCryptoResult<DispersalBuilder> {
-        // RS-encode each recipient's payload and bucket the shards by disperser.
-        let mut shards_by_recipient: BTreeMap<PartyId, Vec<Vec<Shard>>> = payloads_by_recipient
+        self.commit(self.encode_and_bucket(payloads_by_recipient)?)
+    }
+
+    /// Test-only variant of [Self::disperse] that runs `mutate` over the per-recipient,
+    /// per-disperser shards before they are committed, to simulate a cheating dealer.
+    #[cfg(test)]
+    pub(crate) fn disperse_with_mutation(
+        &self,
+        payloads_by_recipient: &BTreeMap<PartyId, Payload>,
+        mutate: impl FnOnce(&mut BTreeMap<PartyId, Vec<Shards>>),
+    ) -> FastCryptoResult<DispersalBuilder> {
+        let mut shards_by_recipient = self.encode_and_bucket(payloads_by_recipient)?;
+        mutate(&mut shards_by_recipient);
+        self.commit(shards_by_recipient)
+    }
+
+    /// RS-encode each recipient's payload and bucket the shards by disperser.
+    fn encode_and_bucket(
+        &self,
+        payloads_by_recipient: &BTreeMap<PartyId, Payload>,
+    ) -> FastCryptoResult<BTreeMap<PartyId, Vec<Shards>>> {
+        payloads_by_recipient
             .iter()
             .map(|(&i, payload)| {
                 let shards = self.coder.encode(payload)?;
                 let by_disperser = self.nodes.collect_to_nodes(shards.into_iter())?;
                 Ok((i, by_disperser))
             })
-            .collect::<FastCryptoResult<_>>()?;
+            .collect()
+    }
 
-        #[cfg(test)]
-        mutate(&mut shards_by_recipient);
-
-        // Two-level Merkle commitment: per-recipient row trees + a top tree over the row roots.
+    /// Build the two-level Merkle commitment (per-recipient row trees + a top tree over the row
+    /// roots) over `shards_by_recipient` and return the [DispersalBuilder].
+    fn commit(
+        &self,
+        shards_by_recipient: BTreeMap<PartyId, Vec<Shards>>,
+    ) -> FastCryptoResult<DispersalBuilder> {
         let tree = NestedMerkleTree::new(shards_by_recipient.values().cloned())?;
-
         Ok(DispersalBuilder {
             nodes: Arc::clone(&self.nodes),
             tree,
@@ -141,22 +189,32 @@ impl Avid {
         })
     }
 
-    /// 2. Verify a [Dispersal] and return an [EchoBuilder] that can produce individual [Echo]s on demand via
-    ///    [EchoBuilder::create_echo] and a [Vote] to return to the disperser.
+    /// 2. Verify a [Dispersal] and return an [EchoBuilder] that can produce individual [Echo]s on
+    ///    demand and a [Vote] to return to the disperser.
     pub fn process_dispersal(
         &self,
         my_id: PartyId,
         dispersal: Dispersal,
     ) -> FastCryptoResult<(EchoBuilder, Vote)> {
+        if dispersal.is_empty() {
+            warn!("avid echo: empty dispersal");
+            return Err(InvalidMessage);
+        }
         if dispersal.keys().any(|i| !self.nodes.is_valid_id(*i)) {
             warn!("avid echo: dispersal contains an invalid recipient id");
             return Err(InvalidMessage);
         }
 
+        // Every recipient's row must carry exactly this disperser's own share of the shards.
+        let my_weight = self.nodes.weight_of(my_id)? as usize;
         let implied_roots = dispersal
             .iter()
             .enumerate()
             .map(|(recipient_idx, (_, shards))| {
+                if shards.shards.len() != my_weight {
+                    warn!("avid echo: dispersal has wrong shard count for disperser {my_id}");
+                    return Err(InvalidMessage);
+                }
                 shards
                     .proof
                     .derive_top_root(&shards.shards, recipient_idx, my_id as usize)
@@ -177,8 +235,11 @@ impl Avid {
         ))
     }
 
-    /// 3a. Verify an [Echo] addressed to `receiver`, against the certified [Vote] published
-    ///     by the dealer.
+    // Steps 3 and 4 happen at the caller level:
+    //   3. The dealer collects W-f votes to form a certificate.
+    //   4. A party seeing the certificate can ask signers to send their echoes.
+
+    /// 5. Verify an [Echo] addressed to `receiver`, against the certified [Vote].
     pub fn verify_echo(
         &self,
         echo: Echo,
@@ -196,17 +257,13 @@ impl Avid {
         Ok(VerifiedEcho { echo, sender })
     }
 
-    /// 3b. Reconstruct the caller's payload from a quorum of [VerifiedEcho]s, or raise a
-    ///     [Complaint]. Rejects duplicate dispersers, requires `≥ W − 2f` weight (the RS-decode
-    ///     minimum). With well-formed inputs returns `Ok(Ok(payload))` iff the shards decode to a
-    ///     payload that passes `payload_ok` and re-encoding it rebuilds a row tree whose root
-    ///     matches the dispersal's `recipient_root` (so the dealer's cells form a valid
-    ///     codeword). Otherwise `Ok(Err(Complaint))` over the shards.
+    /// 6. Reconstruct the caller's payload from a quorum of [VerifiedEcho]s, or raise a
+    ///    [Complaint]. Rejects duplicate dispersers, requires `≥ W − 2f` weight.
     pub fn decode_or_complain(
         &self,
         echoes: &[VerifiedEcho],
         payload_ok: impl Fn(&[u8]) -> bool,
-    ) -> FastCryptoResult<Result<Vec<u8>, Complaint>> {
+    ) -> FastCryptoResult<DecodeOutcome> {
         if echoes.is_empty() || !echoes.iter().map(|e| e.sender).all_unique() {
             return Err(InvalidInput);
         }
@@ -223,52 +280,44 @@ impl Avid {
             .cloned()
             .map(|e| (e.sender, e.echo.authenticated_shards))
             .collect();
-        match self.decode_consistent(&shards, payload_ok)? {
-            Some(payload) => Ok(Ok(payload)),
-            None => Ok(Err(Complaint { shards })),
-        }
+        Ok(match self.decode_consistent(&shards, payload_ok) {
+            Ok(payload) => DecodeOutcome::Decoded(payload),
+            Err(_) => DecodeOutcome::Complaint(Complaint { shards }),
+        })
     }
 
-    /// RS-decode the payload from authenticated `shards` and confirm it is a consistent codeword.
-    /// If this is the case, return `Some(payload)`.
-    ///
-    /// Returns `Err` only for malformed input or verification/re-encoding failures
-    /// (for example, empty `shards`, row-root derivation failure, or row-root recomputation
-    /// failure). Decode failure, payload rejection, or row-root mismatch return `Ok(None)`.
+    /// RS-decode the payload from authenticated `shards` and confirm it is a consistent codeword
+    /// accepted by `payload_ok`, returning the payload.
     fn decode_consistent(
         &self,
         shards: &BTreeMap<PartyId, AuthenticatedShards>,
         payload_ok: impl Fn(&[u8]) -> bool,
-    ) -> FastCryptoResult<Option<Vec<u8>>> {
-        let payload = match self.decode(shards) {
-            Ok(p) if payload_ok(&p) => p,
-            _ => return Ok(None),
-        };
+    ) -> FastCryptoResult<Payload> {
+        let payload = self.decode(shards)?;
+        if !payload_ok(&payload) {
+            return Err(InvalidProof);
+        }
 
         // Re-encode the payload and rebuild the row's Merkle tree.
-        let re_encoded: Vec<Vec<Shard>> = self
+        let re_encoded: Vec<Shards> = self
             .nodes
             .collect_to_nodes(self.coder.encode(&payload)?.into_iter())?;
 
-        // Take the expected recipient root from any shard's proof, since they all share the same top root and row index.
+        // Take the expected recipient root from any shard's proof, since they all share the same
+        // top root and row index.
         let (sender, authenticated_shards) = shards.iter().next().ok_or(InvalidInput)?;
         let expected_recipient_root = authenticated_shards
             .proof
             .derive_row_root(&authenticated_shards.shards, *sender as usize)?;
         if NestedMerkleTree::compute_row_root(&re_encoded)? != expected_recipient_root {
-            return Ok(None);
+            return Err(InvalidProof);
         }
 
-        Ok(Some(payload))
+        Ok(payload)
     }
 
     /// Verify that `complaint` is a valid complaint against the dispersal certified by `vote`.
-    ///
-    /// Returns `Ok(())` if the complaint is valid. Otherwise returns an error: `InvalidInput` if the
-    /// accuser is not a recipient, a shard proof fails to verify, `NotEnoughWeight` if the complaint
-    /// carries too little weight to reconstruct, or `InvalidProof` if the complaint is well-formed
-    /// but unsubstantiated (the shards actually decode to a consistent payload).
-    pub fn complaint_is_valid(
+    pub fn verify_complaint(
         &self,
         complaint: &Complaint,
         accuser_id: PartyId,
@@ -278,6 +327,9 @@ impl Avid {
         // An accuser that is not a pending recipient cannot have a dispersal complaint.
         let accuser_idx = vote.recipient_index(accuser_id)?;
         for (&disperser, auth) in complaint.shards.iter() {
+            if auth.shards.len() != self.nodes.weight_of(disperser)? as usize {
+                return Err(InvalidInput);
+            }
             auth.proof.verify(
                 &vote.top_root,
                 &auth.shards,
@@ -289,20 +341,22 @@ impl Avid {
         if weight < self.required_weight() {
             return Err(NotEnoughWeight(weight as usize));
         }
-        // A consistent payload means the complaint is unsubstantiated.
+        // A consistent payload means the complaint is unsubstantiated. The shards were
+        // proof-checked above and carry enough weight, so a decode error here reflects a genuine
+        // inconsistency.
         if self
-            .decode_consistent(&complaint.shards, payload_ok)?
-            .is_some()
+            .decode_consistent(&complaint.shards, payload_ok)
+            .is_ok()
         {
             return Err(InvalidProof);
         }
         Ok(())
     }
 
-    /// RS-decode a payload from authenticated shard contributions keyed by disperser. Missing dispersers
-    /// and dispersers whose shard count doesn't match their weight are treated as erasures, so
-    /// decoding fails if those exceed `2f` weight.
-    fn decode(&self, shards: &BTreeMap<PartyId, AuthenticatedShards>) -> FastCryptoResult<Vec<u8>> {
+    /// RS-decode a payload from authenticated shard contributions keyed by disperser. Missing
+    /// dispersers and dispersers whose shard count doesn't match their weight are treated as
+    /// erasures, so decoding fails if those exceed `2f` weight.
+    fn decode(&self, shards: &BTreeMap<PartyId, AuthenticatedShards>) -> FastCryptoResult<Payload> {
         let matrix = self
             .nodes
             .node_ids_iter()
@@ -325,7 +379,7 @@ impl Avid {
 }
 
 impl EchoBuilder {
-    /// The recipients of the dispersal (sorted by [PartyId]).
+    /// The recipients of the dispersal.
     pub fn recipients(&self) -> BTreeSet<PartyId> {
         self.dispersal.keys().copied().collect()
     }
@@ -406,11 +460,11 @@ mod tests {
         let recipient = 0u16;
         let mut payload = vec![0u8; 200];
         thread_rng().fill_bytes(&mut payload);
-        let payloads: BTreeMap<PartyId, Vec<u8>> =
+        let payloads: BTreeMap<PartyId, Payload> =
             std::iter::once((recipient, payload.clone())).collect();
 
         // 1. Dealer disperses: builder mints messages on demand.
-        let dispersal_builder = avid.disperse_with_mutation(&payloads, |_| {}).unwrap();
+        let dispersal_builder = avid.disperse(&payloads).unwrap();
 
         // 2. Each party verifies its dispersal and emits the echoes it will send to others.
         let mut certified_vote = None;
@@ -444,7 +498,10 @@ mod tests {
             .collect();
 
         // 3. The recipient reconstructs its payload from the quorum of echoes.
-        let recovered = avid.decode_or_complain(&echoes, |_| true).unwrap().unwrap();
+        let recovered = avid
+            .decode_or_complain(&echoes, |_| true)
+            .unwrap()
+            .unwrap_decoded();
         assert_eq!(recovered, payload);
     }
 
@@ -460,7 +517,7 @@ mod tests {
         let cheater = 4u16;
         let mut payload = vec![0u8; 200];
         thread_rng().fill_bytes(&mut payload);
-        let payloads: BTreeMap<PartyId, Vec<u8>> =
+        let payloads: BTreeMap<PartyId, Payload> =
             std::iter::once((recipient, payload.clone())).collect();
 
         let dispersal_builder = avid
@@ -505,10 +562,10 @@ mod tests {
         let complaint = avid
             .decode_or_complain(&echoes, |_| true)
             .unwrap()
-            .unwrap_err();
+            .unwrap_complaint();
 
         // Another party validates the complaint.
-        avid.complaint_is_valid(&complaint, recipient, &certified_vote, |_| true)
+        avid.verify_complaint(&complaint, recipient, &certified_vote, |_| true)
             .unwrap();
     }
 
@@ -528,7 +585,7 @@ mod tests {
         let recipient = 0u16;
         let mut payload = vec![0u8; 200];
         thread_rng().fill_bytes(&mut payload);
-        let payloads: BTreeMap<PartyId, Vec<u8>> =
+        let payloads: BTreeMap<PartyId, Payload> =
             std::iter::once((recipient, payload.clone())).collect();
 
         // Corrupt the shards held by dispersers 3 and 4, leaving 0, 1, 2 clean.
@@ -569,10 +626,10 @@ mod tests {
         let complaint = avid
             .decode_or_complain(&echoes, |_| true)
             .unwrap()
-            .unwrap_err();
+            .unwrap_complaint();
 
         // A validator accepts the complaint via the same re-encode check.
-        avid.complaint_is_valid(&complaint, recipient, &certified_vote, |_| true)
+        avid.verify_complaint(&complaint, recipient, &certified_vote, |_| true)
             .unwrap();
     }
 }
