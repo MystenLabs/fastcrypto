@@ -143,6 +143,8 @@ const LEN_PREFIX_SIZE: usize = std::mem::size_of::<u32>();
 #[serde(transparent)]
 pub struct Shard(pub(crate) Vec<u8>);
 
+pub type Shards = Vec<Shard>;
+
 impl ErasureCoder {
     /// Create a new erasure encoder/decoder.
     ///
@@ -170,7 +172,7 @@ impl ErasureCoder {
 
     /// Encode `data` into `n` shards of equal size, the first `k` of which hold the (zero-padded)
     /// data and the remaining `n - k` parity. Any `k` shards suffice to reconstruct the data.
-    pub fn encode(&self, data: &[u8]) -> FastCryptoResult<Vec<Shard>> {
+    pub fn encode(&self, data: &[u8]) -> FastCryptoResult<Shards> {
         if data.is_empty() {
             return Err(InvalidInput);
         }

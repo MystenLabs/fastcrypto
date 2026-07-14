@@ -39,17 +39,24 @@ impl Iterator for Presignatures {
 impl ExactSizeIterator for Presignatures {}
 
 impl Presignatures {
-    /// Based on the output of a batched AVSS from multiple dealers, create a presignature generator.
+    /// Based on the output of a batched AVSS from multiple dealers, create a presignature
+    /// generator.
     ///
-    /// All parties must use the same outputs in the same order, and the output from a dealer with weight `w` should be equal to `batch_size_per_weight * w`.
+    /// All parties must use the same outputs in the same order, and the output from a dealer with
+    /// weight `w` should be equal to `batch_size_per_weight * w`.
     ///
-    /// More parties contributing outputs gives more presignatures, so include as many as possible but at least `params.t` (by weight).
+    /// More parties contributing outputs gives more presignatures, so include as many as possible
+    /// but at least `params.t` (by weight).
+    /// Caller should wait for at least `params.t` outputs, plus some \delta time to collect more.
     ///
-    /// `params.t` is the reconstruction threshold and `params.f` is the Byzantine bound used to size
-    /// the Pascal matrix, which produces `total_weight - params.f` presignatures per nonce position.
-    /// Requires `params.t > params.f`.
+    /// `params.t` is the reconstruction threshold. The nonce polynomials are shared at degree
+    /// `params.t - 1`, so this produces `total_weight - (params.t - 1)` presignatures per nonce
+    /// position: the privacy threshold of the sharings is `t - 1`, meaning a sub-`t` coalition can
+    /// know or bias up to `t - 1` of the input nonces, so only `total_weight - (t - 1)` combined
+    /// nonces per position remain uniformly random and safe to output.
     ///
     /// An InvalidInput error will be returned if:
+    /// * `params.t` is zero,
     /// * The total weight of the dealers for the outputs is not at least `params.t`,
     /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
     /// * or if batch_size_per_weight is zero.
@@ -57,13 +64,15 @@ impl Presignatures {
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,
         params: Parameters,
+        use_legacy: bool,
     ) -> FastCryptoResult<Self> {
         if batch_size_per_weight == 0 {
             return Err(InvalidInput);
         }
         let batch_size_per_weight = batch_size_per_weight as usize;
 
-        // Recover each dealer's weight from its public key count, which works even for a zero-weight party.
+        // Recover each dealer's weight from its public key count, which works even for a
+        // zero-weight party.
         let weights = outputs
             .iter()
             .map(|o| {
@@ -74,12 +83,16 @@ impl Presignatures {
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
         let total_weight_of_outputs: usize = weights.iter().sum();
-        if total_weight_of_outputs < params.t as usize {
+        if params.t == 0 || total_weight_of_outputs < params.t as usize {
             return Err(InvalidInput);
         }
 
-        // The number of rows the Pascal multiplier folds the dealers' shares into.
-        let height = total_weight_of_outputs - params.f as usize;
+        // TODO: remove legacy mode once the old protocol is deprecated.
+        let height = if use_legacy {
+            total_weight_of_outputs - params.f as usize
+        } else {
+            total_weight_of_outputs - (params.t as usize - 1)
+        };
 
         // This party's weight, aka it's number of shares
         let my_weight =
@@ -161,11 +174,12 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let presignatures = Presignatures::new(outputs, batch_size_per_weight, params).unwrap();
+        let presignatures =
+            Presignatures::new(outputs, batch_size_per_weight, params, false).unwrap();
 
         let total_weight_of_outputs = 2;
         let expected_len =
-            (total_weight_of_outputs - params.f as usize) * batch_size_per_weight as usize;
+            (total_weight_of_outputs - (params.t as usize - 1)) * batch_size_per_weight as usize;
         assert_eq!(presignatures.len(), expected_len);
 
         let tuples = presignatures.collect::<Vec<_>>();
@@ -174,9 +188,45 @@ mod tests {
     }
 
     #[test]
+    fn test_presig_count_uses_privacy_threshold_not_f() {
+        // Regression test for the SI-matrix height: in the default (non-legacy) mode it must be
+        // `total_weight - (t - 1)`, the privacy threshold of the degree-`(t-1)` nonce sharings,
+        // NOT `total_weight - f`. The two differ exactly when `t > f + 1`, so pick such a case:
+        // t = 3, f = 1 (t - 1 = 2 != f = 1). The legacy mode still uses `total_weight - f`.
+        let batch_size_per_weight: u16 = 2;
+        let params = Parameters { t: 3, f: 1 };
+
+        // Four weight-1 dealers -> total weight 4. Zero-weight receiver perspective (empty shares).
+        let outputs = (0..4)
+            .map(|_| ReceiverOutput {
+                my_shares: SharesForNode { shares: vec![] },
+                public_keys: vec![G::generator(); batch_size_per_weight as usize],
+            })
+            .collect::<Vec<_>>();
+
+        // Default mode (privacy threshold t-1): (4 - (3 - 1)) * 2 = 4.
+        let new =
+            Presignatures::new(outputs.clone(), batch_size_per_weight, params, false).unwrap();
+        assert_eq!(
+            new.len(),
+            (4 - (params.t as usize - 1)) * batch_size_per_weight as usize
+        );
+        assert_eq!(new.len(), 4);
+
+        // Legacy mode (total_weight - f): (4 - 1) * 2 = 6.
+        let legacy = Presignatures::new(outputs, batch_size_per_weight, params, true).unwrap();
+        assert_eq!(
+            legacy.len(),
+            (4 - params.f as usize) * batch_size_per_weight as usize
+        );
+        assert_eq!(legacy.len(), 6);
+    }
+
+    #[test]
     fn test_new_rejects_too_short_batch() {
         // Each dealer deals batch_size_per_weight nonces per weight, so a weight-1 dealer's share
-        // batch must have batch_size_per_weight entries. A shorter batch must be rejected, not panic.
+        // batch must have batch_size_per_weight entries. A shorter batch must be rejected, not
+        // panic.
         let batch_size_per_weight: u16 = 2;
         let params = Parameters { t: 2, f: 1 }; // total weight is 2; requires t > f
 
@@ -193,6 +243,6 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert!(Presignatures::new(outputs, batch_size_per_weight, params).is_err());
+        assert!(Presignatures::new(outputs, batch_size_per_weight, params, false).is_err());
     }
 }
