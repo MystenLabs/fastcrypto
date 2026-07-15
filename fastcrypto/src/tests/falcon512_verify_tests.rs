@@ -12,6 +12,10 @@ use crate::falcon512::verify::{
 
 pub struct KatVector {
     pub count: u32,
+    /// 48-byte entropy the KAT harness fed its AES-256-CTR DRBG for this
+    /// vector; replaying the DRBG recovers the exact `randombytes` stream
+    /// keygen consumed (see `keygen_seed_reproduces_reference_kats`).
+    pub seed: Vec<u8>,
     pub pk: Vec<u8>,
     pub sk: Vec<u8>,
     pub msg: Vec<u8>,
@@ -24,7 +28,8 @@ pub fn parse_kat_vectors() -> Vec<KatVector> {
     let content = include_str!("vectors/falcon512-KAT.rsp");
 
     let mut vectors = Vec::new();
-    let (mut count, mut mlen, mut msg, mut pk, mut sk) = (None, None, None, None, None);
+    let (mut count, mut seed, mut mlen, mut msg, mut pk, mut sk) =
+        (None, None, None, None, None, None);
 
     for line in content.lines() {
         let line = line.trim();
@@ -33,6 +38,7 @@ pub fn parse_kat_vectors() -> Vec<KatVector> {
         };
         match key {
             "count" => count = Some(value.parse::<u32>().expect("count is decimal")),
+            "seed" => seed = Some(hex::decode(value).expect("seed is hex")),
             "mlen" => mlen = Some(value.parse::<usize>().expect("mlen is decimal")),
             "msg" => msg = Some(hex::decode(value).expect("msg is hex")),
             "pk" => pk = Some(hex::decode(value).expect("pk is hex")),
@@ -59,13 +65,14 @@ pub fn parse_kat_vectors() -> Vec<KatVector> {
 
                 vectors.push(KatVector {
                     count: count.take().expect("count precedes sm"),
+                    seed: seed.take().expect("seed precedes sm"),
                     pk: pk.take().expect("pk precedes sm"),
                     sk: sk.take().expect("sk precedes sm"),
                     msg,
                     sig,
                 });
             }
-            _ => {} // seed, smlen: unused
+            _ => {} // smlen: unused
         }
     }
     vectors

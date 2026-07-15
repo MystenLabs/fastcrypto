@@ -69,8 +69,10 @@ itertools = "0.12.0"
 # default build stays pure Rust. Verification uses the in-crate
 # `falcon512::verify` module instead. default-features = false drops the
 # AVX2/NEON dispatch and keeps the single portable "clean" code path; `std`
-# stays on for the system RNG.
-pqcrypto-falcon = { version = "0.4.1", default-features = false, features = ["std"], optional = true }
+# stays on for the system RNG. Pinned exactly: falcon512::sign binds internal
+# symbols of the vendored PQClean sources (seeded keygen; see sign/mod.rs), so
+# a version bump could silently change the consensus-critical seed -> key map.
+pqcrypto-falcon = { version = "=0.4.1", default-features = false, features = ["std"], optional = true }
 pqcrypto-traits = { version = "0.3", optional = true }
 
 # Required for the unsecure signature and hash schemes
@@ -150,6 +152,8 @@ aes = ["dep:aes", "dep:cbc", "dep:aes-gcm", "dep:ctr", "dep:aes-gcm-siv"]
 wasm = ["dep:getrandom"]
 
 [dev-dependencies]
+# The Falcon KAT cross-check reimplements the NIST AES-256-CTR DRBG.
+aes = "0.8.2"
 criterion = "0.5.1"
 k256 = { version = "0.11.6", features = ["ecdsa", "sha256", "keccak256"] }
 proptest = "1.1.0"

@@ -43,12 +43,9 @@ fn invalid_keygen(scheme: &str, seed: &str) {
 
 #[test]
 fn integration_test_keygen() {
+    // Every scheme, falcon512 included, derives its key pair
+    // deterministically from the seed, so all vectors must reproduce.
     for test_case in TEST_CASES {
-        // falcon512 keygen is randomized (the seed is unused), so equality
-        // against fixed vectors cannot hold; covered by the falcon test below.
-        if test_case.name == "falcon512" {
-            continue;
-        }
         valid_keygen(test_case.name, SEED, test_case.private, test_case.public);
     }
 
@@ -110,28 +107,12 @@ fn integration_test_sign() {
     }
 }
 
+/// Keygen is deterministic (covered with the other schemes above), but
+/// falcon512 signatures stay salted, so the sign arm is checked for a fresh
+/// signature that verifies rather than for byte equality.
 #[test]
-fn integration_test_falcon512_randomized() {
+fn integration_test_falcon512_salted_signature() {
     let case = TEST_CASES.iter().find(|c| c.name == "falcon512").unwrap();
-
-    // Keygen ignores the seed, so only the output shape is stable.
-    let result = Command::cargo_bin("sigs-cli")
-        .unwrap()
-        .arg("keygen")
-        .arg("--scheme")
-        .arg("falcon512")
-        .arg("--seed")
-        .arg(SEED)
-        .ok();
-    assert!(result.is_ok());
-    let output = String::from_utf8(result.unwrap().stdout).unwrap();
-    let pattern = Regex::new(
-        "Private key in hex: \"([0-9a-fA-F]*)\"\nPublic key in hex: \"([0-9a-fA-F]*)\"\n",
-    )
-    .unwrap();
-    let captures = pattern.captures(&output).unwrap();
-    assert_eq!(captures.get(1).unwrap().as_str().len(), 2 * 1281);
-    assert_eq!(captures.get(2).unwrap().as_str().len(), 2 * 897);
 
     // Sign with the fixed vector key: the salt makes the signature fresh,
     // but the public key is derived from the secret key and must match the

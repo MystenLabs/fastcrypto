@@ -163,8 +163,6 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
                     )
                 }
                 Ok(SignatureScheme::Falcon512) => {
-                    // The seed is unused: PQClean draws its own OS randomness,
-                    // so falcon512 keygen is not deterministic.
                     let kp = Falcon512KeyPair::generate(rng);
                     (
                         Hex::encode(kp.copy().private().as_ref()),

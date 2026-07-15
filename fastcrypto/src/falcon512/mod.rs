@@ -9,7 +9,11 @@
 #![cfg_attr(
     feature = "falcon-sign",
     doc = r#"
-Messages can be signed and the signature can be verified again:
+Messages can be signed and the signature can be verified again. Key
+generation draws nothing but a 32-byte seed from the given RNG and expands it
+deterministically, so — as with the other schemes — a seeded RNG reproduces
+the same key pair; wallets deriving from a mnemonic should use
+[`Falcon512KeyPair::generate_from_seed`] directly.
 # Example
 ```rust
 # use fastcrypto::falcon512::*;
@@ -19,6 +23,11 @@ let kp = Falcon512KeyPair::generate(&mut thread_rng());
 let message: &[u8] = b"Hello, world!";
 let signature = kp.sign(message);
 assert!(kp.public().verify(message, &signature).is_ok());
+
+// Deterministic derivation: same seed, same key pair.
+let kp1 = Falcon512KeyPair::generate_from_seed(&[7u8; 32]);
+let kp2 = Falcon512KeyPair::generate_from_seed(&[7u8; 32]);
+assert_eq!(kp1.public(), kp2.public());
 ```
 "#
 )]
@@ -323,17 +332,30 @@ impl KeyPair for Falcon512KeyPair {
         }
     }
 
-    /// Generate a new key pair.
-    ///
-    /// **Note**: the `rng` parameter is *unused* for this scheme. Key
-    /// generation goes through PQClean's `keypair()`, which draws its own
-    /// randomness from the operating system; the C API offers no way to
-    /// inject a caller-provided RNG. In particular, seeded generation is NOT
-    /// deterministic for Falcon-512.
-    fn generate<R: AllowedRng>(_rng: &mut R) -> Self {
-        // PQClean returns both halves, so skip the re-derivation `.into()`
+    /// Generate a new key pair. All randomness is a 32-byte seed drawn from
+    /// `rng` and expanded deterministically (see [`sign::keygen_from_seed`]),
+    /// so a seeded `StdRng` reproduces the same key pair — the same seed
+    /// semantics as the other schemes.
+    fn generate<R: AllowedRng>(rng: &mut R) -> Self {
+        use zeroize::Zeroize as _;
+        let mut seed = [0u8; sign::KEYGEN_SEED_LEN];
+        rng.fill_bytes(&mut seed);
+        let kp = Self::generate_from_seed(&seed);
+        seed.zeroize();
+        kp
+    }
+}
+
+#[cfg(feature = "falcon-sign")]
+impl Falcon512KeyPair {
+    /// Derive the key pair for `seed`. This is the stable derivation contract
+    /// for wallet recovery: unlike `generate(&mut StdRng::from_seed(..))`, it
+    /// does not additionally depend on the rand crate keeping `StdRng`'s
+    /// ChaCha12 stream stable across versions.
+    pub fn generate_from_seed(seed: &[u8; sign::KEYGEN_SEED_LEN]) -> Self {
+        // Keygen returns both halves, so skip the re-derivation `.into()`
         // would do.
-        let (sk, pk) = sign::keygen();
+        let (sk, pk) = sign::keygen_from_seed(seed);
         Falcon512KeyPair {
             public: Falcon512PublicKey { bytes: pk },
             private: Falcon512PrivateKey {

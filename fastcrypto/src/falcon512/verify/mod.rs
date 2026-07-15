@@ -57,7 +57,9 @@
 //! - Falcon specification: <https://falcon-sign.info/falcon.pdf>
 //! - FIPS 202 (SHAKE): <https://csrc.nist.gov/pubs/fips/202/final>
 
-mod codec;
+// Crate-visible so `falcon512::sign` can encode keygen output with the same
+// codec the verifier parses.
+pub(crate) mod codec;
 mod ntt;
 mod verify;
 

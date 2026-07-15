@@ -15,7 +15,7 @@ cargo test -p fastcrypto --features falcon-sign --lib falcon512
 
 ## CLI
 
-`sigs-cli` covers keygen, sign, verify. The seed must be 32 bytes but is ignored for falcon512 (keys are randomized), and signatures are salted, so each run differs. `sign` also prints the public key it derives from the sk.
+`sigs-cli` covers keygen, sign, verify. The 32-byte seed deterministically fixes the falcon512 key pair (same seed, same keys — see `falcon512::sign::keygen_from_seed`); signatures are salted, so only `sign` output differs per run. `sign` also prints the public key it derives from the sk.
 
 ```sh
 SEED=0101010101010101010101010101010101010101010101010101010101010101

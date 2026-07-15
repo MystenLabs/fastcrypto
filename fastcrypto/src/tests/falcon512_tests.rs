@@ -16,8 +16,8 @@ use crate::traits::{EncodeDecodeBase64, KeyPair, Signer, ToFromBytes, VerifyingK
 const MSG: &[u8] = b"Hello, world!";
 
 pub fn keys() -> Vec<Falcon512KeyPair> {
-    // Note: the rng is unused by Falcon key generation (PQClean draws its own
-    // OS randomness), so unlike the other schemes these keys differ per run.
+    // Seeded rng, so — like the other schemes — the same four key pairs on
+    // every run.
     let mut rng = StdRng::from_seed([0; 32]);
     (0..4)
         .map(|_| Falcon512KeyPair::generate(&mut rng))
@@ -270,8 +270,8 @@ fn public_api_rejects_every_non_canonical_encoding() {
 
 // Arbitrary implementations for the proptests
 fn arb_keypair() -> impl Strategy<Value = Falcon512KeyPair> {
-    // The seed only feeds proptest's case bookkeeping: Falcon key generation
-    // ignores the rng (see `Falcon512KeyPair::generate`).
+    // Key generation is deterministic in the rng, so proptest's seed fully
+    // determines the key pair (and failures replay).
     any::<[u8; 32]>()
         .prop_map(|seed| {
             let mut rng = StdRng::from_seed(seed);
