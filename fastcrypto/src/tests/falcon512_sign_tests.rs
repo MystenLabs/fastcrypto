@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Compatibility tests for the PQClean-backed signer, checking KATs, etc
-use crate::falcon512::sign::{
-    keygen, keygen_from_seed, keygen_from_shake_input, sign, KEYGEN_SEED_LEN,
-};
+use crate::falcon512::sign::{keygen, keygen_from_seed, sign, KEYGEN_SEED_LEN};
 use crate::falcon512::verify::{
     derive_public_key, verify_strict, PUBKEY_LEN, SECKEY_LEN, SIG_PADDED_LEN,
 };
@@ -190,12 +188,13 @@ fn keygen_seed_reproduces_reference_kats() {
 
     for v in &vectors {
         // In the KAT harness, keypair generation is the first randombytes
-        // consumer after randombytes_init(seed), drawing exactly 48 bytes.
+        // consumer after randombytes_init(seed), drawing exactly 48 bytes —
+        // the same size and construction as the public seeded path.
         let entropy: &[u8; 48] = v.seed.as_slice().try_into().expect("KAT seed is 48 bytes");
-        let mut keygen_seed = [0u8; 48];
+        let mut keygen_seed = [0u8; KEYGEN_SEED_LEN];
         AesCtrDrbg::new(entropy).random_bytes(&mut keygen_seed);
 
-        let (sk, pk) = keygen_from_shake_input(&keygen_seed);
+        let (sk, pk) = keygen_from_seed(&keygen_seed);
         assert_eq!(sk.as_slice(), v.sk, "vector {}: secret key", v.count);
         assert_eq!(pk.as_slice(), v.pk, "vector {}: public key", v.count);
     }
@@ -245,22 +244,25 @@ fn generate_is_deterministic_from_rng_seed() {
     assert_eq!(kp1, Falcon512KeyPair::generate_from_seed(&seed));
 }
 
-/// Regression pin for the frozen map on the public 32-byte path (the KAT
-/// cross-check covers the internal 48-byte path). If this fails, account
-/// derivation broke: do not update the constants — find the drift.
+/// Regression pin for the frozen map, and the cross-implementation anchor:
+/// these digests also match `@noble/post-quantum` 0.6.1's
+/// `falcon512padded.keygen(new Uint8Array(48).fill(b))` for the same seeds
+/// (checked 2026-07-15; noble ports the same reference keygen, so TS and
+/// Rust derive identical key pairs). If this fails, account derivation
+/// broke: do not update the constants — find the drift.
 #[test]
 fn keygen_from_seed_pinned_vectors() {
     use crate::hash::{HashFunction, Sha256};
     for (seed, want_sk, want_pk) in [
         (
             [0u8; KEYGEN_SEED_LEN],
-            "988110b53167ce1e18c81f56456a89b23e617f44e29311f1b202b34fdc5309d4",
-            "74bad071e929e3b3b62f44d0da560765d059be335fee5fc9490781ea10ccdf33",
+            "e18d9980ecd7dc95d2ef4c65be1101e7657433dd3ecaffb8b78e68935669581d",
+            "049a39503b551ae8695c1ff40a16f12e7a40df3a1b666dd25f2c95a182487440",
         ),
         (
-            [0xffu8; KEYGEN_SEED_LEN],
-            "f27a96921def4b2bdd3538fec6d3c1ba09d44972e1cbdc5a9dca6bc69e3f42fd",
-            "06d39b9e3c27a337a62ada3afc1c5eea59343dd9cc34ca532ce913908d168872",
+            [1u8; KEYGEN_SEED_LEN],
+            "c24cb48c546579fe40bfe592a97beb442fd8a748dfa9b83523639ffc2d949dce",
+            "21d87d4443761e214c23ca99028081670b1656a789bfa955dcd0a4ecfc3754cc",
         ),
     ] {
         let (sk, pk) = keygen_from_seed(&seed);

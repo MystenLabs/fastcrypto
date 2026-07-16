@@ -10,10 +10,11 @@
     feature = "falcon-sign",
     doc = r#"
 Messages can be signed and the signature can be verified again. Key
-generation draws nothing but a 32-byte seed from the given RNG and expands it
+generation draws nothing but a 48-byte seed from the given RNG and expands it
 deterministically, so — as with the other schemes — a seeded RNG reproduces
 the same key pair; wallets deriving from a mnemonic should use
-[`Falcon512KeyPair::generate_from_seed`] directly.
+[`Falcon512KeyPair::generate_from_seed`] directly, which is bit-compatible
+with `@noble/post-quantum`'s `falcon512padded.keygen` for the same seed.
 # Example
 ```rust
 # use fastcrypto::falcon512::*;
@@ -25,8 +26,8 @@ let signature = kp.sign(message);
 assert!(kp.public().verify(message, &signature).is_ok());
 
 // Deterministic derivation: same seed, same key pair.
-let kp1 = Falcon512KeyPair::generate_from_seed(&[7u8; 32]);
-let kp2 = Falcon512KeyPair::generate_from_seed(&[7u8; 32]);
+let kp1 = Falcon512KeyPair::generate_from_seed(&[7u8; 48]);
+let kp2 = Falcon512KeyPair::generate_from_seed(&[7u8; 48]);
 assert_eq!(kp1.public(), kp2.public());
 ```
 "#
@@ -332,7 +333,7 @@ impl KeyPair for Falcon512KeyPair {
         }
     }
 
-    /// Generate a new key pair. All randomness is a 32-byte seed drawn from
+    /// Generate a new key pair. All randomness is a 48-byte seed drawn from
     /// `rng` and expanded deterministically (see [`sign::keygen_from_seed`]),
     /// so a seeded `StdRng` reproduces the same key pair — the same seed
     /// semantics as the other schemes.
@@ -352,6 +353,10 @@ impl Falcon512KeyPair {
     /// for wallet recovery: unlike `generate(&mut StdRng::from_seed(..))`, it
     /// does not additionally depend on the rand crate keeping `StdRng`'s
     /// ChaCha12 stream stable across versions.
+    //
+    // TODO: wire the wallet path mnemonic -> HKDF -> this 48-byte seed; the
+    // HKDF helpers in src/hmac.rs assume 32-byte outputs/inputs today. See
+    // the TODOs on [`sign::KEYGEN_SEED_LEN`] for what has to change.
     pub fn generate_from_seed(seed: &[u8; sign::KEYGEN_SEED_LEN]) -> Self {
         // Keygen returns both halves, so skip the re-derivation `.into()`
         // would do.

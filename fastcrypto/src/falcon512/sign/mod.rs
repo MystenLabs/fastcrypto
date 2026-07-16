@@ -8,13 +8,17 @@
 //!
 //! # Seeded key generation
 //!
-//! [`keygen_from_seed`] fixes the map seed → key pair: the seed is absorbed
-//! into SHAKE256 and the stream drives the reference keygen — exactly the
-//! construction PQClean applies to its own OS-drawn seed, and the one
-//! Algorand's `GenerateKey` uses in their Falcon fork. The "clean" backend
+//! [`keygen_from_seed`] fixes the map seed → key pair: the 48-byte seed is
+//! absorbed into SHAKE256 and the stream drives the reference keygen —
+//! exactly the construction PQClean applies to its own OS-drawn seed, the
+//! one Algorand's `GenerateKey` uses in their Falcon fork, and the one
+//! `@noble/post-quantum` implements in TypeScript. The "clean" backend
 //! emulates floating point in integers (`fpr` is a `uint64_t`), so the
-//! result is bit-identical across platforms: same seed, same key pair, which
-//! is what mnemonic-derived accounts need. The KAT cross-check in
+//! result is bit-identical across platforms — and across implementations:
+//! the same seed reproduces the same key pair here and in noble's
+//! `falcon512padded.keygen` (checked against `@noble/post-quantum` 0.6.1;
+//! signatures also cross-verify in both directions), which is what
+//! mnemonic-derived accounts need. The KAT cross-check in
 //! `falcon512_sign_tests` pins this map to the 100 NIST Round-3 vectors.
 //!
 //! FIPS 206 (per NIST's 2025 status updates) is expected to *forbid* seeds
@@ -34,8 +38,8 @@
 //! use fastcrypto::falcon512::sign::{keygen_from_seed, sign};
 //! use fastcrypto::falcon512::Falcon512PublicKey;
 //! use fastcrypto::traits::{ToFromBytes, VerifyingKey};
-//! let (sk, pk) = keygen_from_seed(&[7u8; 32]);
-//! assert_eq!(keygen_from_seed(&[7u8; 32]), (sk, pk)); // same seed, same keys
+//! let (sk, pk) = keygen_from_seed(&[7u8; 48]);
+//! assert_eq!(keygen_from_seed(&[7u8; 48]), (sk, pk)); // same seed, same keys
 //! let sig = sign(&sk, &pk, b"Hello, world!").unwrap();
 //! let pk = Falcon512PublicKey::from_bytes(&pk).unwrap();
 //! let sig = <fastcrypto::falcon512::Falcon512Signature as ToFromBytes>::from_bytes(&sig).unwrap();
@@ -52,10 +56,23 @@ use zeroize::Zeroize as _;
 use super::verify;
 use super::verify::{codec, N, PUBKEY_LEN, SECKEY_LEN, SIG_PADDED_LEN};
 
-/// Keygen consumes a 32-byte seed: 256-bit entropy (Falcon-512 targets NIST
-/// level 1), sized like the seeds of the other fastcrypto schemes so one
-/// mnemonic-derived format serves them all. go-algorand settled on 32 too.
-pub const KEYGEN_SEED_LEN: usize = 32;
+/// Keygen consumes a 48-byte seed — the reference implementation's explicit
+/// SHAKE256 seed size (falcon.h), which is also what PQClean's own keypair
+/// draws internally and what `@noble/post-quantum`'s `keygen` takes, so one
+/// seed value reproduces the same key pair across all three.
+//
+// TODO: 48 — not 32 like the other fastcrypto schemes — is deliberate: any
+// other length changes the SHAKE input and loses byte-compatibility with the
+// reference/noble construction, which is the point of seeded keygen (same
+// seed -> same account in Rust and TypeScript). Revisit only if that
+// cross-stack interop requirement is ever dropped.
+// TODO: the mnemonic side must produce these 48 bytes natively.
+// `hkdf_generate_from_ikm` (src/hmac.rs) expands to `PrivKey::LENGTH` and
+// re-parses with `from_bytes`, which cannot work for Falcon's structured
+// 1281-byte sk — it needs a per-scheme keygen-seed length (48 here) fed to
+// `generate_from_seed` instead. `hkdf_sha3_256`'s output length already
+// covers 48, but its `HkdfIkm` input type is pinned to 32 bytes.
+pub const KEYGEN_SEED_LEN: usize = 48;
 
 /// `FALCON_KEYGEN_TEMP_9` from PQClean's inner.h: keygen scratch for
 /// logn = 9, which the C code requires to be 64-bit aligned.
@@ -112,22 +129,21 @@ extern "C" {
 
 /// Deterministically derive a PQClean-format key pair from a seed, returned
 /// as (secret key, public key) bytes. Same seed, same key pair, on every
-/// platform — this is the frozen account-derivation map (see the module docs
-/// for why it can never change once accounts depend on it).
+/// platform and across implementations of the reference keygen — this is the
+/// frozen account-derivation map (see the module docs for why it can never
+/// change once accounts depend on it), and the byte-for-byte mirror of
+/// PQClean's `crypto_sign_keypair` with the OS draw replaced by the caller's
+/// seed. The NIST KAT cross-check replays exactly this function, and
+/// `@noble/post-quantum`'s `falcon512padded.keygen` returns the same key
+/// pair for the same seed.
 //
 // TODO: decide whether the production wallet path should domain-separate the
 // seed (SHAKE256(tag || seed)) instead of raw injection. Raw injection is
-// kept for now: the KAT cross-check exercises the identical code path.
+// what the reference/Algorand/noble construction does — switching would buy
+// cross-protocol seed hygiene at the cost of that cross-implementation
+// equality, so the hygiene likely belongs one layer up, in how the wallet
+// derives the 48 bytes from the mnemonic.
 pub fn keygen_from_seed(seed: &[u8; KEYGEN_SEED_LEN]) -> ([u8; SECKEY_LEN], [u8; PUBKEY_LEN]) {
-    keygen_from_shake_input(seed)
-}
-
-/// Keygen core over the raw SHAKE256 input, length-agnostic and
-/// crate-visible so the KAT test can replay the reference 48-byte seeds; the
-/// public surface commits to [`KEYGEN_SEED_LEN`]. Mirrors PQClean's
-/// `crypto_sign_keypair` byte-for-byte except that the seed is the caller's
-/// instead of an OS draw.
-pub(crate) fn keygen_from_shake_input(seed: &[u8]) -> ([u8; SECKEY_LEN], [u8; PUBKEY_LEN]) {
     let mut rng = Shake256IncCtx { ctx: [0; 26] };
     let mut f = [0i8; N];
     let mut g = [0i8; N];

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use assert_cmd::Command;
-use fastcrypto_cli::sigs_cli_test_vectors::{MSG, SEED, TEST_CASES};
+use fastcrypto_cli::sigs_cli_test_vectors::{FALCON512_SEED, MSG, SEED, TEST_CASES};
 use regex::Regex;
 
 fn valid_keygen(scheme: &str, seed: &str, expected_secret_key: &str, expected_public_key: &str) {
@@ -45,14 +45,25 @@ fn invalid_keygen(scheme: &str, seed: &str) {
 fn integration_test_keygen() {
     // Every scheme, falcon512 included, derives its key pair
     // deterministically from the seed, so all vectors must reproduce.
+    // falcon512 consumes a raw 48-byte seed; the rest expand 32 bytes
+    // through a StdRng.
     for test_case in TEST_CASES {
-        valid_keygen(test_case.name, SEED, test_case.private, test_case.public);
+        let seed = if test_case.name == "falcon512" {
+            FALCON512_SEED
+        } else {
+            SEED
+        };
+        valid_keygen(test_case.name, seed, test_case.private, test_case.public);
     }
 
     let invalid_seed = "invalid seed";
     for test_case in TEST_CASES {
         invalid_keygen(test_case.name, invalid_seed);
     }
+
+    // Wrong seed length for the scheme.
+    invalid_keygen("falcon512", SEED);
+    invalid_keygen("ed25519", FALCON512_SEED);
 
     invalid_keygen("invalid_scheme", SEED);
 }
