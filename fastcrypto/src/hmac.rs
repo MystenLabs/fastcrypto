@@ -60,13 +60,11 @@ use hkdf::hmac::{Hmac, Mac};
 ///     assert_ne!(native_sk.to_bytes(), my_keypair.private().as_bytes());
 /// # }
 /// ```
-// TODO: Falcon-512 cannot be derived through this path: it expands to
-// `PrivKey::LENGTH` bytes and re-parses with `from_bytes`, but a Falcon
-// private key is a structured 1281-byte encoding that only keygen emits.
-// Supporting it means expanding to the scheme's keygen-seed length instead
-// (48 bytes, `falcon512::sign::KEYGEN_SEED_LEN`) and feeding
-// `Falcon512KeyPair::generate_from_seed` — i.e. a per-scheme notion of
-// "seed length" rather than the 32-byte/`PrivKey::LENGTH` assumptions here.
+// Note: Falcon-512 does not fit this path — its private key is a structured
+// 1281-byte encoding only keygen emits, so expanding to `PrivKey::LENGTH`
+// and re-parsing cannot work. Falcon derives via
+// `Falcon512KeyPair::generate_from_ikm`, which expands [`hkdf_sha3_256`] to
+// the scheme's 48-byte keygen seed instead.
 #[cfg(any(test, feature = "experimental"))]
 pub fn hkdf_generate_from_ikm<H, K>(
     ikm: &[u8],  // IKM (32 bytes).

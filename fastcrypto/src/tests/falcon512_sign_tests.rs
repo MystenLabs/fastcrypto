@@ -178,7 +178,7 @@ impl AesCtrDrbg {
 
 /// The strongest claim about the seeded path: replaying each KAT vector's
 /// DRBG reproduces the reference implementation's key pair bit-for-bit, for
-/// all 100 vectors. This pins the frozen seed → key map to the Round-3
+/// all 100 vectors. This pins the frozen seed -> key map to the Round-3
 /// reference code (the KATs predate PQClean's port), and doubles as a drift
 /// alarm for the extern bindings if `pqcrypto-falcon` is ever bumped.
 #[test]
@@ -242,6 +242,42 @@ fn generate_is_deterministic_from_rng_seed() {
     let mut seed = [0u8; KEYGEN_SEED_LEN];
     rand::RngCore::fill_bytes(&mut StdRng::from_seed([7u8; 32]), &mut seed);
     assert_eq!(kp1, Falcon512KeyPair::generate_from_seed(&seed));
+}
+
+/// The wallet derivation layer: HKDF-SHA3-256 under the fixed falcon label.
+/// Deterministic, sensitive to both inputs, identical to running the two
+/// steps by hand, and pinned so the mnemonic → account map can never drift.
+/// The same inputs through `@noble/hashes`' `hkdf(sha3_256, ...)` produce
+/// the same 48 bytes, so a TS wallet lands on the same keys.
+#[test]
+fn generate_from_ikm_is_deterministic_and_pinned() {
+    use crate::falcon512::FALCON512_KEYGEN_HKDF_INFO;
+    use crate::hash::{HashFunction, Sha256};
+    use crate::hmac::{hkdf_sha3_256, HkdfIkm};
+
+    let ikm = HkdfIkm::from_bytes(&[7u8; 32]).unwrap();
+    let kp = Falcon512KeyPair::generate_from_ikm(&ikm, b"salt-a");
+    assert_eq!(kp, Falcon512KeyPair::generate_from_ikm(&ikm, b"salt-a"));
+    assert_ne!(kp, Falcon512KeyPair::generate_from_ikm(&ikm, b"salt-b"));
+    let other_ikm = HkdfIkm::from_bytes(&[8u8; 32]).unwrap();
+    assert_ne!(
+        kp,
+        Falcon512KeyPair::generate_from_ikm(&other_ikm, b"salt-a")
+    );
+
+    // The convenience function is exactly the two-step pipeline.
+    let seed = hkdf_sha3_256(&ikm, b"salt-a", FALCON512_KEYGEN_HKDF_INFO, KEYGEN_SEED_LEN).unwrap();
+    assert_eq!(
+        kp,
+        Falcon512KeyPair::generate_from_seed(&seed.as_slice().try_into().unwrap())
+    );
+
+    // Pin the full ikm → key map. If this fails, wallet derivation broke:
+    // do not update the constant — find the drift.
+    assert_eq!(
+        hex::encode(Sha256::digest(kp.public().as_ref()).digest),
+        "83dfdba714c241124d9d3077638f57ecc9a0b36e7d5763d9c6b44cba12653df3"
+    );
 }
 
 /// Regression pin for the frozen map, and the cross-implementation anchor:

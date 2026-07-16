@@ -12,13 +12,15 @@
 Messages can be signed and the signature can be verified again. Key
 generation draws nothing but a 48-byte seed from the given RNG and expands it
 deterministically, so — as with the other schemes — a seeded RNG reproduces
-the same key pair; wallets deriving from a mnemonic should use
-[`Falcon512KeyPair::generate_from_seed`] directly, which is bit-compatible
-with `@noble/post-quantum`'s `falcon512padded.keygen` for the same seed.
+the same key pair. [`Falcon512KeyPair::generate_from_seed`] is bit-compatible
+with `@noble/post-quantum`'s `falcon512padded.keygen` for the same seed;
+wallets deriving from a mnemonic should go through
+[`Falcon512KeyPair::generate_from_ikm`], which produces those 48 bytes from a
+master secret with the falcon domain-separation label built in.
 # Example
 ```rust
 # use fastcrypto::falcon512::*;
-# use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
+# use fastcrypto::traits::{KeyPair, Signer, ToFromBytes, VerifyingKey};
 use rand::thread_rng;
 let kp = Falcon512KeyPair::generate(&mut thread_rng());
 let message: &[u8] = b"Hello, world!";
@@ -29,6 +31,12 @@ assert!(kp.public().verify(message, &signature).is_ok());
 let kp1 = Falcon512KeyPair::generate_from_seed(&[7u8; 48]);
 let kp2 = Falcon512KeyPair::generate_from_seed(&[7u8; 48]);
 assert_eq!(kp1.public(), kp2.public());
+
+// Wallet derivation: master secret -> HKDF-SHA3-256 -> 48-byte seed -> keys.
+use fastcrypto::hmac::HkdfIkm;
+let ikm = HkdfIkm::from_bytes(&[0u8; 32]).unwrap();
+let kp3 = Falcon512KeyPair::generate_from_ikm(&ikm, b"m/44'/784'/0'");
+assert_eq!(kp3, Falcon512KeyPair::generate_from_ikm(&ikm, b"m/44'/784'/0'"));
 ```
 "#
 )]
@@ -66,6 +74,14 @@ pub const FALCON512_PRIVATE_KEY_LENGTH: usize = verify::SECKEY_LEN; // 1281
 pub const FALCON512_KEYPAIR_LENGTH: usize = FALCON512_PRIVATE_KEY_LENGTH;
 // zero-padded signatures
 pub const FALCON512_SIGNATURE_LENGTH: usize = verify::SIG_PADDED_LEN; // 666
+
+/// HKDF domain-separation label for [`Falcon512KeyPair::generate_from_ikm`].
+/// It is what keeps a falcon seed from colliding with any other scheme
+/// derived off the same master secret, and it is part of the frozen
+/// mnemonic → account map: any other stack (e.g. a TS wallet expanding with
+/// `@noble/hashes`' HKDF over SHA3-256) must use this exact label to arrive
+/// at the same keys.
+pub const FALCON512_KEYGEN_HKDF_INFO: &[u8] = b"falcon512-keygen-v1";
 
 /// Structures
 #[derive(Clone)]
@@ -352,11 +368,9 @@ impl Falcon512KeyPair {
     /// Derive the key pair for `seed`. This is the stable derivation contract
     /// for wallet recovery: unlike `generate(&mut StdRng::from_seed(..))`, it
     /// does not additionally depend on the rand crate keeping `StdRng`'s
-    /// ChaCha12 stream stable across versions.
-    //
-    // TODO: wire the wallet path mnemonic -> HKDF -> this 48-byte seed; the
-    // HKDF helpers in src/hmac.rs assume 32-byte outputs/inputs today. See
-    // the TODOs on [`sign::KEYGEN_SEED_LEN`] for what has to change.
+    /// ChaCha12 stream stable across versions. Wallets deriving from a
+    /// master secret should prefer [`Self::generate_from_ikm`], which
+    /// produces the 48 bytes with domain separation built in.
     pub fn generate_from_seed(seed: &[u8; sign::KEYGEN_SEED_LEN]) -> Self {
         // Keygen returns both halves, so skip the re-derivation `.into()`
         // would do.
@@ -367,6 +381,29 @@ impl Falcon512KeyPair {
                 bytes: zeroize::Zeroizing::new(sk.to_vec()),
             },
         }
+    }
+
+    /// Derive the key pair for a master secret: HKDF-SHA3-256 expands `ikm`
+    /// under the fixed [`FALCON512_KEYGEN_HKDF_INFO`] label into the 48-byte
+    /// keygen seed for [`Self::generate_from_seed`]. The fixed label
+    /// domain-separates falcon from every other scheme derived off the same
+    /// secret; per-account context (e.g. a derivation path) goes in `salt`.
+    pub fn generate_from_ikm(ikm: &crate::hmac::HkdfIkm, salt: &[u8]) -> Self {
+        use zeroize::Zeroize as _;
+        let mut seed = crate::hmac::hkdf_sha3_256(
+            ikm,
+            salt,
+            FALCON512_KEYGEN_HKDF_INFO,
+            sign::KEYGEN_SEED_LEN,
+        )
+        .expect("48 bytes is far below the HKDF-SHA3-256 output bound");
+        let kp = Self::generate_from_seed(
+            seed.as_slice()
+                .try_into()
+                .expect("HKDF returns the requested length"),
+        );
+        seed.zeroize();
+        kp
     }
 }
 

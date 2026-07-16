@@ -8,7 +8,7 @@
 //!
 //! # Seeded key generation
 //!
-//! [`keygen_from_seed`] fixes the map seed → key pair: the 48-byte seed is
+//! [`keygen_from_seed`] fixes the map seed -> key pair: the 48-byte seed is
 //! absorbed into SHAKE256 and the stream drives the reference keygen —
 //! exactly the construction PQClean applies to its own OS-drawn seed, the
 //! one Algorand's `GenerateKey` uses in their Falcon fork, and the one
@@ -28,7 +28,7 @@
 //! PQClean sources (`pqcrypto-falcon = "=0.4.1"`, upstream archived). Note
 //! that Pornin's `fn-dsa` crate — the migration target for sign/verify once
 //! FIPS 206 is final — generates keys with the ntrugen algorithm, a
-//! *different* seed → key map; it can take over signing but never account
+//! *different* seed -> key map; it can take over signing but never account
 //! derivation.
 //!
 //! Signatures remain randomized (OS salt) and need no reproducibility.
@@ -61,17 +61,13 @@ use super::verify::{codec, N, PUBKEY_LEN, SECKEY_LEN, SIG_PADDED_LEN};
 /// draws internally and what `@noble/post-quantum`'s `keygen` takes, so one
 /// seed value reproduces the same key pair across all three.
 //
-// TODO: 48 — not 32 like the other fastcrypto schemes — is deliberate: any
-// other length changes the SHAKE input and loses byte-compatibility with the
+// 48 — not 32 like the other fastcrypto schemes — is deliberate: any other
+// length changes the SHAKE input and loses byte-compatibility with the
 // reference/noble construction, which is the point of seeded keygen (same
-// seed -> same account in Rust and TypeScript). Revisit only if that
-// cross-stack interop requirement is ever dropped.
-// TODO: the mnemonic side must produce these 48 bytes natively.
-// `hkdf_generate_from_ikm` (src/hmac.rs) expands to `PrivKey::LENGTH` and
-// re-parses with `from_bytes`, which cannot work for Falcon's structured
-// 1281-byte sk — it needs a per-scheme keygen-seed length (48 here) fed to
-// `generate_from_seed` instead. `hkdf_sha3_256`'s output length already
-// covers 48, but its `HkdfIkm` input type is pinned to 32 bytes.
+// seed -> same account in Rust and TypeScript). noble declined to relax
+// their exact-48 check (noble-post-quantum#44), so this is settled; the
+// mnemonic side produces the 48 bytes via
+// `Falcon512KeyPair::generate_from_ikm` (HKDF-SHA3-256 expand).
 pub const KEYGEN_SEED_LEN: usize = 48;
 
 /// `FALCON_KEYGEN_TEMP_9` from PQClean's inner.h: keygen scratch for
