@@ -15,7 +15,7 @@ cargo test -p fastcrypto --features falcon-sign --lib falcon512
 
 ## CLI
 
-`sigs-cli` covers keygen, sign, verify. falcon512 consumes a raw 48-byte seed that deterministically fixes the key pair (same seed, same keys — see `falcon512::sign::keygen_from_seed`; the same seed reproduces the pair in `@noble/post-quantum`'s `falcon512padded.keygen`); signatures are salted, so only `sign` output differs per run. `sign` also prints the public key it derives from the sk.
+`sigs-cli` covers keygen, sign, verify. falcon512 consumes a raw 48-byte seed that deterministically fixes the key pair (same seed, same keys — see `falcon512::sign::keygen_from_seed`; `@noble/post-quantum`'s `falcon512padded.keygen` reproduces the pair for most seeds, including the shipped vectors, but noble keygen equivalence is not universal — see the sign module docs); signatures are salted, so only `sign` output differs per run. `sign` also prints the public key it derives from the sk.
 
 ```sh
 SEED=010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101

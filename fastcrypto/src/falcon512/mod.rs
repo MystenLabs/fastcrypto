@@ -12,9 +12,10 @@
 Messages can be signed and the signature can be verified again. Key
 generation draws nothing but a 48-byte seed from the given RNG and expands it
 deterministically, so — as with the other schemes — a seeded RNG reproduces
-the same key pair. [`Falcon512KeyPair::generate_from_seed`] is bit-compatible
-with `@noble/post-quantum`'s `falcon512padded.keygen` for the same seed;
-wallets deriving from a mnemonic should go through
+the same key pair. [`Falcon512KeyPair::generate_from_seed`] is the canonical
+seed → key map (`@noble/post-quantum`'s `falcon512padded.keygen` agrees on
+most seeds but not all; see the `sign` module docs before relying on TS-side
+derivation). Wallets deriving from a mnemonic should go through
 [`Falcon512KeyPair::generate_from_ikm`], which produces those 48 bytes from a
 master secret with the falcon domain-separation label built in.
 # Example

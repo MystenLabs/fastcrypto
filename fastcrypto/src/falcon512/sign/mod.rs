@@ -10,16 +10,23 @@
 //!
 //! [`keygen_from_seed`] fixes the map seed -> key pair: the 48-byte seed is
 //! absorbed into SHAKE256 and the stream drives the reference keygen —
-//! exactly the construction PQClean applies to its own OS-drawn seed, the
-//! one Algorand's `GenerateKey` uses in their Falcon fork, and the one
-//! `@noble/post-quantum` implements in TypeScript. The "clean" backend
-//! emulates floating point in integers (`fpr` is a `uint64_t`), so the
-//! result is bit-identical across platforms — and across implementations:
-//! the same seed reproduces the same key pair here and in noble's
-//! `falcon512padded.keygen` (checked against `@noble/post-quantum` 0.6.1;
-//! signatures also cross-verify in both directions), which is what
-//! mnemonic-derived accounts need. The KAT cross-check in
-//! `falcon512_sign_tests` pins this map to the 100 NIST Round-3 vectors.
+//! exactly the construction PQClean applies to its own OS-drawn seed and
+//! the one Algorand's `GenerateKey` uses in their Falcon fork. The "clean"
+//! backend emulates floating point in integers (`fpr` is a `uint64_t`), so
+//! the result is bit-identical across platforms, and the KAT cross-check in
+//! `falcon512_sign_tests` pins the map to the 100 NIST Round-3 vectors.
+//! **This module is the canonical map**; mnemonic-derived accounts must
+//! treat its output as the source of truth.
+//!
+//! On TypeScript interop: `@noble/post-quantum`'s `falcon512padded.keygen`
+//! (0.6.1) matches this map on most seeds — all 100 KATs and our pinned
+//! vectors — but NOT all: differential testing found a seed (~1 in 10^3)
+//! where noble emits a different, equally valid key pair, because its
+//! bigint NTRU-solve applies implementation-specific accept/reject bounds
+//! (noble's own docs call falcon keys "implementation-specific").
+//! Signatures cross-verify in both directions regardless; key *derivation*
+//! done in TS must therefore be validated against this module per account,
+//! never trusted blindly.
 //!
 //! FIPS 206 (per NIST's 2025 status updates) is expected to *forbid* seeds
 //! as a portable key format, precisely because FN-DSA keygen KAT-exactness
@@ -63,11 +70,11 @@ use super::verify::{codec, N, PUBKEY_LEN, SECKEY_LEN, SIG_PADDED_LEN};
 //
 // 48 — not 32 like the other fastcrypto schemes — is deliberate: any other
 // length changes the SHAKE input and loses byte-compatibility with the
-// reference/noble construction, which is the point of seeded keygen (same
-// seed -> same account in Rust and TypeScript). noble declined to relax
-// their exact-48 check (noble-post-quantum#44), so this is settled; the
-// mnemonic side produces the 48 bytes via
-// `Falcon512KeyPair::generate_from_ikm` (HKDF-SHA3-256 expand).
+// reference construction (and noble's API, which requires exactly 48;
+// they declined to relax it in noble-post-quantum#44). The mnemonic side
+// produces the 48 bytes via `Falcon512KeyPair::generate_from_ikm`
+// (HKDF-SHA3-256 expand). See the module docs for the limits of noble
+// keygen equivalence.
 pub const KEYGEN_SEED_LEN: usize = 48;
 
 /// `FALCON_KEYGEN_TEMP_9` from PQClean's inner.h: keygen scratch for

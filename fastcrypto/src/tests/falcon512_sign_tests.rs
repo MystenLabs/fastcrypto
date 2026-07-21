@@ -248,7 +248,9 @@ fn generate_is_deterministic_from_rng_seed() {
 /// Deterministic, sensitive to both inputs, identical to running the two
 /// steps by hand, and pinned so the mnemonic → account map can never drift.
 /// The same inputs through `@noble/hashes`' `hkdf(sha3_256, ...)` produce
-/// the same 48 bytes, so a TS wallet lands on the same keys.
+/// the same 48 bytes (the HKDF layer is standard and exact); whether the
+/// keygen tail matches in TS is per-seed — see the module docs on noble
+/// keygen equivalence.
 #[test]
 fn generate_from_ikm_is_deterministic_and_pinned() {
     use crate::falcon512::FALCON512_KEYGEN_HKDF_INFO;
@@ -280,12 +282,14 @@ fn generate_from_ikm_is_deterministic_and_pinned() {
     );
 }
 
-/// Regression pin for the frozen map, and the cross-implementation anchor:
-/// these digests also match `@noble/post-quantum` 0.6.1's
-/// `falcon512padded.keygen(new Uint8Array(48).fill(b))` for the same seeds
-/// (checked 2026-07-15; noble ports the same reference keygen, so TS and
-/// Rust derive identical key pairs). If this fails, account derivation
-/// broke: do not update the constants — find the drift.
+/// Regression pin for the frozen map. These digests also match
+/// `@noble/post-quantum` 0.6.1's `falcon512padded.keygen` for these exact
+/// seeds (checked 2026-07-15) — but that equality is per-seed, not
+/// universal: differential testing later found rare seeds (~1 in 10^3)
+/// where noble's implementation-specific NTRU-solve bounds yield a
+/// different valid key. This module, KAT-anchored, is canonical; see the
+/// sign module docs. If this test fails, account derivation broke: do not
+/// update the constants — find the drift.
 #[test]
 fn keygen_from_seed_pinned_vectors() {
     use crate::hash::{HashFunction, Sha256};
