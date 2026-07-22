@@ -1,4 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Shape-constrained reciprocal range circuit (the spec's fully-constrained
@@ -284,7 +284,9 @@ pub(crate) fn prove(
     let v_commitments: Vec<RistrettoPoint> = values
         .iter()
         .zip(blindings)
-        .map(|(&v, s)| RistrettoPoint::multi_scalar_mul(&[S::from(v), *s], &[gens.g, gens.h_vec[0]]))
+        .map(|(&v, s)| {
+            RistrettoPoint::multi_scalar_mul(&[S::from(v), *s], &[gens.g, gens.h_vec[0]])
+        })
         .collect::<FastCryptoResult<_>>()?;
 
     transcript.domain_sep(b"bppp_circuit");
@@ -298,8 +300,14 @@ pub(crate) fn prove(
         .iter()
         .flat_map(|&v| decompose(v, params.d))
         .collect();
-    let n_l = pad_to(&digits.iter().map(|&d| S::from(d)).collect::<Vec<_>>(), params.nm);
-    let mut n_o: Vec<S> = multiplicities(&digits).iter().map(|&m| S::from(m)).collect();
+    let n_l = pad_to(
+        &digits.iter().map(|&d| S::from(d)).collect::<Vec<_>>(),
+        params.nm,
+    );
+    let mut n_o: Vec<S> = multiplicities(&digits)
+        .iter()
+        .map(|&m| S::from(m))
+        .collect();
     n_o.resize(params.nm, S::zero());
     let r_o = blinding_vector(rng, &[4, 7]);
     let r_l = blinding_vector(rng, &[3, 6, 7]);
@@ -341,10 +349,9 @@ pub(crate) fn prove(
     // Rescaled aggregate input hat_V = 2*sum_i lambda^{i-1} V_i:
     // hat_v = 2*sum lambda^{i-1} v_i, r_V = (0, 2*sum lambda^{i-1} s_i, 0, ...).
     let v_hat = two
-        * values
-            .iter()
-            .enumerate()
-            .fold(S::zero(), |acc, (i, &v)| acc + blocks.lambdas[i] * S::from(v));
+        * values.iter().enumerate().fold(S::zero(), |acc, (i, &v)| {
+            acc + blocks.lambdas[i] * S::from(v)
+        });
     let mut r_v = vec![S::zero(); H_LEN];
     r_v[1] = two
         * blindings
@@ -534,12 +541,7 @@ mod tests {
     fn prove_batch(
         n_bits: usize,
         values: &[u64],
-    ) -> (
-        Generators,
-        CircuitParams,
-        CircuitProof,
-        Vec<RistrettoPoint>,
-    ) {
+    ) -> (Generators, CircuitParams, CircuitProof, Vec<RistrettoPoint>) {
         let mut rng = rand::thread_rng();
         let gens = Generators::new(n_bits, values.len()).unwrap();
         let params = CircuitParams::new(n_bits, values.len()).unwrap();
@@ -591,13 +593,13 @@ mod tests {
     fn test_roundtrip_batched_configs() {
         let mut rng = rand::thread_rng();
         let configs: [(usize, usize, usize, usize); 8] = [
-            (16, 2, 3, 2),  // 416 bytes
-            (16, 4, 3, 2),  // 416 bytes
-            (16, 8, 3, 4),  // 480 bytes
-            (32, 8, 4, 4),  // 544 bytes
+            (16, 2, 3, 2), // 416 bytes
+            (16, 4, 3, 2), // 416 bytes
+            (16, 8, 3, 4), // 480 bytes
+            (32, 8, 4, 4), // 544 bytes
             (8, 1, 3, 2),
             (8, 4, 3, 2),
-            (16, 5, 3, 4),  // non-power-of-two digit count
+            (16, 5, 3, 4), // non-power-of-two digit count
             (64, 4, 4, 4),
         ];
         for (n_bits, m, rounds, n_final) in configs {
@@ -721,8 +723,10 @@ mod tests {
         junk: Option<Junk>,
     ) -> FastCryptoResult<(CircuitProof, RistrettoPoint)> {
         let two = S::from(2u64);
-        let mut v_commitment =
-            RistrettoPoint::multi_scalar_mul(&[S::from(value), *blinding], &[gens.g, gens.h_vec[0]])?;
+        let mut v_commitment = RistrettoPoint::multi_scalar_mul(
+            &[S::from(value), *blinding],
+            &[gens.g, gens.h_vec[0]],
+        )?;
         // Coordinates of hat_V = 2V' outside the (G, H_0)-plane.
         let mut n_v_hat = vec![S::zero(); params.nm];
         let mut l_v_hat = S::zero();
@@ -746,7 +750,10 @@ mod tests {
             &digits.iter().map(|&d| S::from(d)).collect::<Vec<_>>(),
             params.nm,
         );
-        let mut n_o: Vec<S> = multiplicities(&digits).iter().map(|&m| S::from(m)).collect();
+        let mut n_o: Vec<S> = multiplicities(&digits)
+            .iter()
+            .map(|&m| S::from(m))
+            .collect();
         n_o.resize(params.nm, S::zero());
         let r_o = blinding_vector(rng, &[4, 7]);
         let r_l = blinding_vector(rng, &[3, 6, 7]);
@@ -791,8 +798,7 @@ mod tests {
             vec_add(&vec_scalar_mul(delta_inv, &blocks.cn_o), &n_v_hat),
         ];
 
-        let n_weighted: Vec<Vec<S>> =
-            n_poly.iter().map(|v| hadamard(v, &blocks.bar_mu)).collect();
+        let n_weighted: Vec<Vec<S>> = n_poly.iter().map(|v| hadamard(v, &blocks.bar_mu)).collect();
         let mut fh = [S::zero(); 9];
         for (p, &c) in ps.iter().enumerate() {
             fh[p + 2] += c;
