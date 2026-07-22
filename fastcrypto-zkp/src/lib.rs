@@ -18,6 +18,9 @@ pub struct Fr([u64; 4]);
 
 pub mod bls12381;
 
+/// Bulletproofs++ range proofs over Ristretto255
+pub mod bppp;
+
 pub mod bn254;
 
 /// Simple circuits used in benchmarks and demos
