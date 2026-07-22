@@ -1,4 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 //! High-level BP++ range proof API.
@@ -181,7 +181,9 @@ impl RangeProof {
         const MAX_ROUNDS: usize = 32;
         let (rounds, l_len, n_len) = match elems {
             13 => (3, 1, 2),
-            e if e >= 15 && !e.is_multiple_of(2) && (e - 9) / 2 <= MAX_ROUNDS => ((e - 9) / 2, 1, 4),
+            e if e >= 15 && !e.is_multiple_of(2) && (e - 9) / 2 <= MAX_ROUNDS => {
+                ((e - 9) / 2, 1, 4)
+            }
             _ => return Err(FastCryptoError::InvalidInput),
         };
         // 4 + 2*rounds + l_len + n_len equals `elems` in every match arm, so
@@ -330,7 +332,9 @@ mod tests {
         // 16x2 has the 64-bit shape: 10 group elements + 3 scalars.
         assert_eq!(bytes.len(), 416);
         let recovered = RangeProof::from_bytes(&bytes).unwrap();
-        assert!(recovered.verify_batch(&commitments, &range, b"test").is_ok());
+        assert!(recovered
+            .verify_batch(&commitments, &range, b"test")
+            .is_ok());
 
         // Length and encoding validation.
         assert!(RangeProof::from_bytes(&bytes[..415]).is_err());
