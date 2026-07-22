@@ -1,4 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Weighted norm-linear argument (spec, "Norm-linear argument"; BP++ paper §4).
@@ -204,9 +204,7 @@ pub(crate) fn verify(
     // The prover's fold count and final lengths are determined by the base
     // lengths; reject any other shape.
     let (rounds, l_len, n_len) = proof_shape(gens.h_vec.len(), gens.g_vec.len());
-    if proof.rounds.len() != rounds
-        || proof.l_final.len() != l_len
-        || proof.n_final.len() != n_len
+    if proof.rounds.len() != rounds || proof.l_final.len() != l_len || proof.n_final.len() != n_len
     {
         return Err(FastCryptoError::InvalidProof);
     }
