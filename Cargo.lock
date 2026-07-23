@@ -1488,6 +1488,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastcrypto-pq"
+version = "0.1.0"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "fastcrypto-tbls"
 version = "0.1.0"
 dependencies = [

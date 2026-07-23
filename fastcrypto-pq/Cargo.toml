@@ -1,0 +1,15 @@
+[package]
+name = "fastcrypto-pq"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Mysten Labs <build@mystenlabs.com>"]
+readme = "../README.md"
+description = "Post-quantum signature schemes"
+repository = "https://github.com/MystenLabs/fastcrypto"
+links = "mldsa65"
+# Publishing is blocked until an include-list is written and packaging is deliberately tested.
+publish = false
+
+[build-dependencies]
+cc = "1"

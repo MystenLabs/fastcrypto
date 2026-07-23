@@ -1,0 +1,3 @@
+[submodule "fastcrypto-pq/deps/mldsa-native"]
+	path = fastcrypto-pq/deps/mldsa-native
+	url = https://github.com/pq-code-package/mldsa-native.git
