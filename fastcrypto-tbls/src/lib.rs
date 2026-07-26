@@ -14,6 +14,7 @@
 pub mod dkg_v1;
 pub mod dl_verification;
 pub mod ecies_v1;
+pub mod knapsack_weight_reduction;
 pub mod mocked_dkg;
 pub mod nodes;
 pub mod polynomial;
@@ -48,6 +49,10 @@ pub mod dkg_v1_tests;
 #[cfg(test)]
 #[path = "tests/nodes_tests.rs"]
 pub mod nodes_tests;
+
+#[cfg(test)]
+#[path = "tests/knapsack_weight_reduction_tests.rs"]
+pub mod knapsack_weight_reduction_tests;
 
 // TODO: needs to use ecies_v1
 // #[cfg(test)]

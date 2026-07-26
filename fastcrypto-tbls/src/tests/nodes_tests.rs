@@ -272,6 +272,18 @@ const SUI_EPOCH_DATA: &[(&str, &str)] = &[
         "974",
         include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_974_details.txt"),
     ),
+    (
+        "1000",
+        include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_1000_details.txt"),
+    ),
+    (
+        "1100",
+        include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_1100_details.txt"),
+    ),
+    (
+        "1200",
+        include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_1200_details.txt"),
+    ),
 ];
 
 fn parse_sui_epoch(contents: &str) -> Vec<u16> {
