@@ -1,0 +1,127 @@
+Validator Name,Voting Power
+Mysten-1,281
+Mysten-2,251
+Galaxy Digital,217
+Luganodes,203
+Aftermath,200
+Coinbase,196
+DSRV,181
+Figment,173
+Suilend,171
+Blockscope.net,169
+BartestneT,165
+Overclock,161
+Chainode Tech,160
+RepublicCrypto,157
+Persimmon,156
+Durian,156
+Blockdaemon,150
+Chorus One,149
+n1stake,148
+Staketab,148
+BlockVision,147
+Triton One,140
+mrgn,139
+Kraken,124
+P2P.ORG,124
+Moonlet,117
+Staking Defense League,115
+ContributionDAO,112
+KiligLab,112
+Alchemy,108
+Artifact,108
+Everstake,107
+Nodeinfra,107
+Stardust Staking,106
+Kiln,105
+TPT,105
+P-OPS Team,103
+TrustedPoint,102
+LumiWave,100
+Coinage x DAIC,99
+ChainIDE,98
+Cosmostation,94
+OKXEarn,90
+HEEBOO,90
+StakingCabin,88
+01node,88
+Swyke,88
+Chainflow,87
+Laine,86
+Staking Facilities,84
+Citadel.one,84
+Haedal Protocol,84
+Stakin,83
+Ankr,83
+HashedPotatoes,75
+Ahoy Validator,75
+ORBR,75
+Anchorage Digital-2,72
+Studio Mirai,69
+NAVI Protocol,69
+Shinlabs,60
+Allnodes,60
+Cetus,60
+Nelrann,55
+AlphaFi,55
+Nansen | Stake to Stack Points,52
+H2O Nodes,51
+Nodes.Guru,51
+Astro-Stakers,50
+proofgroup,50
+Imperator.co,50
+SynergyNodes,50
+Anchorage Digital-1,48
+SyncNode,47
+Suiet,47
+Interest Labs,47
+Obelisk,46
+Chainbase Staking,45
+Ika,44
+Ledger by P2P.ORG,44
+Sentio,43
+Karrier One,43
+Kuna Labs,43
+TradePort,42
+Stakely,41
+Surf,41
+Bluefin,41
+Bucket Protocol,40
+Asymmetric Research,40
+Hinode Technologies,39
+Encapsulate,39
+BLRD,38
+QuantNode,38
+ProStaking,38
+TDMTech,38
+iBriz.ai,38
+Latitude.sh,37
+Forbole,36
+B-Harvest,36
+XPRV,36
+Brightlystake,36
+GiveRep,36
+Cypher Capital,35
+HashKey Cloud,35
+Swiss Staking,34
+[NODERS] x Talentum,34
+hoh.zone,34
+stakefish,33
+MIDL.dev,32
+Neuler,31
+Peeranha,31
+ZKV,30
+SenseiNode,29
+Scallop,29
+Omnistake,26
+Scale3Labs,25
+Cogent Crypto,23
+BiXinKelePool,22
+Node Guardians,21
+DoubleUp,21
+FP Validated,20
+InfStones,18
+Lofi The Yeti,18
+Aphelion,7
+TenX Protocols,4
+YOLOTRUMP,3
