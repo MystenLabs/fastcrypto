@@ -23,10 +23,15 @@
 //! - (L2) Liveness: `w(S) >= t + f + delta  =>  w'(S) >= t' + f'`. Sets that
 //!   could form a Byzantine-tolerant quorum originally still can.
 //!
-//! The reduced-space feasibility conditions hold by construction: `t' > f'`
-//! follows from monotonicity of `g` and `t > f`, and `t' + 2f' <= W'` follows
-//! from (L2) applied to the complement of a coalition attaining `f'`, whenever
-//! the operational precondition `W >= t + 2f + delta` holds.
+//! The reduced-space feasibility conditions hold by construction:
+//! - `t' > f'` - follows from monotonicity of `g` and `t > f`.
+//! - `t' + 2f' <= W'` - let T be a set with `w(T) <= f` and
+//!   `w'(T) = f'` (one exists because `f'` is defined as the maximum of
+//!   `w'` over the nonempty finite family `{S : w(S) <= f}`).
+//!   T's complement C has `w(C) = W - w(T) >= W - f >= t + f + delta`
+//!   assuming `W >= t + 2f + delta`, so (L2) gives `w'(C) >= t' + f'`.
+//!   Since T and C partition the parties, we have
+//!   `W' = w'(T) + w'(C) >= f' + (t' + f') = t' + 2f'`.
 //!
 //! # Algorithm
 //!
@@ -96,8 +101,7 @@ pub(crate) fn reduce_weights(
     // Prefer fewer total shares, then a lower reconstruction threshold.
     let rank = |c: &ReducedWeights| (c.weights.iter().map(|&w| w as u32).sum::<u32>(), c.t);
 
-    // Start from the identity fallback (d = 1) and keep the best of the two
-    // rounding sweeps.
+    // Start from the identity fallback (d = 1).
     let mut best = ReducedWeights {
         weights: weights.to_vec(),
         t,
