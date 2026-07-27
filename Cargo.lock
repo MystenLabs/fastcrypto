@@ -1488,6 +1488,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastcrypto-pq"
+version = "0.1.0"
+dependencies = [
+ "bcs",
+ "bincode",
+ "fastcrypto",
+ "fastcrypto-derive",
+ "mysten-mldsa-native-rs",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "fastcrypto-tbls"
 version = "0.1.0"
 dependencies = [
@@ -2379,6 +2393,14 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "mysten-mldsa-native-rs"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "zeroize",
 ]
 
 [[package]]
