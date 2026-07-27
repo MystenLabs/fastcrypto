@@ -405,3 +405,41 @@ fn test_prop_reduce_vs_new_reduced_with_f() {
         }
     }
 }
+
+#[test]
+fn test_knapsack_reduce() {
+    let node_vec = get_nodes::<RistrettoPoint>(100);
+    let nodes = Nodes::new(node_vec.clone()).unwrap();
+    let w = nodes.total_weight();
+    let t = w / 3;
+    let f = t - 1;
+    let delta = w / 10;
+
+    let (reduced, new_t, new_f) = Nodes::knapsack_reduce(node_vec.clone(), t, f, delta, 1).unwrap();
+    // Structure is preserved: same parties, same keys, no weight grows.
+    assert_eq!(reduced.num_nodes(), nodes.num_nodes());
+    for (orig, red) in nodes.iter().zip(reduced.iter()) {
+        assert_eq!(orig.id, red.id);
+        assert_eq!(orig.pk, red.pk);
+        assert!(red.weight <= orig.weight);
+    }
+    // Weights were actually reduced, and the thresholds are consistent.
+    assert!(reduced.total_weight() < nodes.total_weight());
+    assert!(new_t <= t && new_f <= f);
+    assert!(new_t > new_f);
+    // Share ids are consistent with the reduced weights.
+    let share_count: usize = reduced
+        .node_ids_iter()
+        .map(|id| reduced.share_ids_of(id).unwrap().len())
+        .sum();
+    assert_eq!(share_count, reduced.total_weight() as usize);
+
+    // A lower bound equal to the total weight forces the identity weights.
+    let (identity, id_t, id_f) = Nodes::knapsack_reduce(node_vec.clone(), t, f, delta, w).unwrap();
+    assert_eq!(identity, nodes);
+    assert!(id_t <= t && id_f <= f);
+
+    // Invalid parameters are rejected: f >= t, and t + f + delta > W.
+    assert!(Nodes::<RistrettoPoint>::knapsack_reduce(node_vec.clone(), t, t, delta, 1).is_err());
+    assert!(Nodes::<RistrettoPoint>::knapsack_reduce(node_vec, t, f, w, 1).is_err());
+}
