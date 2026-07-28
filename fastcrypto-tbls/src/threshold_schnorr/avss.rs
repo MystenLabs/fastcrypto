@@ -696,9 +696,7 @@ mod tests {
         // Worst case for total weight <= 2500: the maximum number of nodes (Nodes::MAX_NODES = 1000,
         // which maximizes the per-recipient encryption overhead) summing to the maximum total weight
         // 2500, with t as large as the parameters allow (which maximizes the feldman commitment of t
-        // group elements). We pick `t` as large as the security/liveness condition
-        // `t + 2f <= total_weight` allows (which the caller is expected to enforce, see
-        // `Parameters`).
+        // group elements). We pick `t` as large as `t + 2f <= total_weight` allows.
         let num_nodes = 1000usize;
         let total_weight = 2500u16;
         let params = Parameters {

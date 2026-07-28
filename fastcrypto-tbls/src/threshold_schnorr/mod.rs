@@ -28,10 +28,8 @@
 //! * <i>f</i> = maximum Byzantine weight
 //! * <i>t</i> = threshold for signing
 //!
-//! For the original weights, the caller must ensure <i>t + 2f &leq; W</i> and <i>t > f</i>. These
-//! may be relaxed for a reduced weight set, so [Parameters::validate] only checks what is needed
-//! functionally here (`t < W` and `t &geq; f`), not the trust and liveness assumptions. See
-//! [Parameters] for details.
+//! For the weights used here, [Parameters::validate] checks what is needed functionally:
+//! `t < W` and `t &geq; f`.
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
@@ -82,12 +80,8 @@ pub struct Parameters {
 }
 
 impl Parameters {
-    /// Validate `(t, f)` against the given total weight `W`, checking `0 < f`, `t < W` and
-    /// `t ≥ f`.
-    ///
-    /// This only checks what must hold for a (possibly reduced) weight set. The full
-    /// security/liveness conditions `t > f` and `t + 2f ≤ W` are required for the original weights
-    /// and are the caller's responsibility (see the module-level documentation).
+    /// Validate `(t, f)` against the given total weight `W`, checking what is needed functionally
+    /// for the weights used here: `0 < f`, `t < W` and `t ≥ f`.
     pub fn validate(&self, total_weight: u16) -> FastCryptoResult<()> {
         let Parameters { t, f } = *self;
         if f == 0 || t == 0 || t >= total_weight || t < f {
