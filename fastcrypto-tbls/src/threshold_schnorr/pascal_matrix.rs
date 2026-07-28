@@ -6,7 +6,7 @@ use fastcrypto::groups::GroupElement;
 
 /// Lazy evaluation of Pascal matrix-vector multiplication, returning one element at a time.
 /// Computing the next element takes O(h) group additions, where h is the height of the input column.
-/// The construction is from https://eprint.iacr.org/2023/1175.pdf.
+/// The construction is from <https://eprint.iacr.org/2023/1175.pdf>.
 pub struct LazyPascalVectorMultiplier<C> {
     height: usize,
     buffer: Vec<C>,
@@ -56,7 +56,7 @@ impl<C: GroupElement> ExactSizeIterator for LazyPascalVectorMultiplier<C> {}
 
 /// Lazy evaluation of Pascal matrix multiplication, returning one element at a time.
 /// Computing the next element takes O(h) group additions, where h is the height of the given columns.
-/// The construction is from https://eprint.iacr.org/2023/1175.pdf.
+/// The construction is from <https://eprint.iacr.org/2023/1175.pdf>.
 pub struct LazyPascalMatrixMultiplier<C> {
     height: usize,
     buffers: Vec<Vec<C>>,

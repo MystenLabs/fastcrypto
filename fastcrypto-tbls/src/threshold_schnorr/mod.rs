@@ -24,11 +24,13 @@
 //! reused for all instances of the protocols.
 //!
 //! The thresholds are defined as follows:
-//! * <i>n</i> = total number of parties
-//! * <i>f</i> = maximum number of Byzantine parties
+//! * <i>W</i> = total weight of all parties
+//! * <i>f</i> = maximum Byzantine weight
 //! * <i>t</i> = threshold for signing
 //!
-//! The following conditions must hold: <i>t + 2f &leq; n</i> and <i>t > f</i>.
+//! For the weights used here, [Parameters::validate] checks the basic invariants `t < W` and
+//! `t &geq; f`. The AVID-based nonce protocol additionally requires `W > 2f` (enforced in
+//! `Avid::new`).
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
@@ -79,11 +81,10 @@ pub struct Parameters {
 }
 
 impl Parameters {
-    /// Validate `(t, f)` against the given total weight `W`:
-    /// * `0 < f, t < W`
-    /// * `t ≥ f`
-    ///
-    /// Note that we allow `t = f` here since this may happen after weight reduction.
+    /// Validate `(t, f)` against the given total weight `W`, checking the basic invariants needed
+    /// for the sharing here: `0 < f`, `t < W` and `t ≥ f`. Note the AVID-based nonce protocol has a
+    /// further requirement, `W > 2f`, which is enforced when its Reed-Solomon coder is built
+    /// (`Avid::new`), not here.
     pub fn validate(&self, total_weight: u16) -> FastCryptoResult<()> {
         let Parameters { t, f } = *self;
         if f == 0 || t == 0 || t >= total_weight || t < f {
@@ -618,7 +619,7 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         // Mock DKG
-        // Here, we don't assume anything about the partity of the vk's Y coordinate since we can't do that in a real DKG.
+        // Here, we don't assume anything about the parity of the vk's Y coordinate since we can't do that in a real DKG.
         let sk_element = S::rand(&mut rng);
         let vk_element = G::generator() * sk_element;
 
@@ -755,7 +756,7 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         // Mock DKG
-        // Here, we don't assume anything about the partity of the vk's Y coordinate since we can't do that in a real DKG.
+        // Here, we don't assume anything about the parity of the vk's Y coordinate since we can't do that in a real DKG.
         let sk_element = S::rand(&mut rng);
         let vk_element = G::generator() * sk_element;
 

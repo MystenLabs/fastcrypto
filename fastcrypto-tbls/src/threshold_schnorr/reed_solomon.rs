@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 /// The distance is given by `n - k + 1`, where `n` is the length of `a`.
 ///
 /// The implementation follows the Gao decoding algorithm
-/// (see https://www.math.clemson.edu/~sgao/papers/RS.pdf).
+/// (see <https://www.math.clemson.edu/~sgao/papers/RS.pdf>).
 pub struct RSDecoder {
     g0: Poly<S>,
     a: Vec<ShareIndex>,

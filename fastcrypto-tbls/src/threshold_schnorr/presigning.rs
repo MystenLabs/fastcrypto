@@ -94,7 +94,7 @@ impl Presignatures {
             total_weight_of_outputs - (params.t as usize - 1)
         };
 
-        // This party's weight, aka it's number of shares
+        // This party's weight, aka its number of shares
         let my_weight =
             get_uniform_value(outputs.iter().map(|o| o.my_shares.weight())).ok_or(InvalidInput)?;
 
