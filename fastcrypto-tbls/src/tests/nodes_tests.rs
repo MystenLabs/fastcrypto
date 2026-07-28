@@ -412,8 +412,9 @@ fn test_knapsack_reduce() {
     let nodes = Nodes::new(node_vec.clone()).unwrap();
     let w = nodes.total_weight();
     let t = w / 3;
-    let f = t - 1;
     let delta = w / 10;
+    // The largest f satisfying the precondition t + 2f + delta <= W.
+    let f = (w - t - delta) / 2;
 
     let (reduced, new_t, new_f) = Nodes::knapsack_reduce(node_vec.clone(), t, f, delta, 1).unwrap();
     // Structure is preserved: same parties, same keys, no weight grows.

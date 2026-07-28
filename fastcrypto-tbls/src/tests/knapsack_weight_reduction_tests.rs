@@ -61,10 +61,10 @@ fn test_verify_reduction_matches_brute_force() {
         if w_total < 2 {
             continue;
         }
-        // reduce_weights requires f < t and t + f + delta <= W.
+        // reduce_weights requires f < t and t + 2f + delta <= W.
         let t = rng.gen_range(1..=w_total as u16);
-        let f = rng.gen_range(0..=(t - 1).min(w_total as u16 - t));
-        let delta = rng.gen_range(0..=(w_total as u16 - t - f));
+        let f = rng.gen_range(0..=(t - 1).min((w_total as u16 - t) / 2));
+        let delta = rng.gen_range(0..=(w_total as u16 - t - 2 * f));
         let r = reduce_weights(&weights, t, f, delta, 1).unwrap();
         assert!(r.t > r.f);
         assert!(verify_reduction(&weights, t, f, delta, &r).is_ok());
@@ -83,9 +83,11 @@ fn test_verify_reduction_matches_brute_force() {
                     };
                 }
             }
+            // The verifier checks the four coalition predicates plus the
+            // t' > f' sanity condition.
             assert_eq!(
                 verify_reduction(&weights, t, f, delta, &m).is_ok(),
-                brute_force_violation(&weights, t, f, delta, &m).is_none(),
+                brute_force_violation(&weights, t, f, delta, &m).is_none() && m.t > m.f,
             );
         }
     }
@@ -97,6 +99,7 @@ fn test_verify_reduction_accepts_legacy_ceiling_reductions() {
     // ceiling thresholds) satisfies the four properties, so the verifier must
     // accept it at exactly that criterion's budget.
     let mut rng = StdRng::seed_from_u64(17);
+    let mut checked = 0;
     for _ in 0..50 {
         let n = rng.gen_range(3..=30);
         let weights = (0..n)
@@ -106,23 +109,35 @@ fn test_verify_reduction_accepts_legacy_ceiling_reductions() {
         let f = rng.gen_range(0..=w_total / 3);
         let t = rng.gen_range(f + 1..=w_total);
         for d in [2u16, 3, 5, 7, 10, 17, 25, 33, 40] {
+            // Skip divisors where the ceilings collide (t' == f'): the four
+            // coalition predicates still hold there, but the verifier's t' > f'
+            // sanity check rejects such candidates.
+            if t.div_ceil(d) == f.div_ceil(d) {
+                continue;
+            }
             let delta =
                 weights.iter().map(|&w| w % d).sum::<u16>() + (d - t % d) % d + (d - f % d) % d;
+            // The verifier requires the operational precondition.
+            if (t as u32) + 2 * (f as u32) + (delta as u32) > w_total as u32 {
+                continue;
+            }
             let r = ReducedWeights {
                 weights: weights.iter().map(|&w| w / d).collect(),
                 t: t.div_ceil(d),
                 f: f.div_ceil(d),
             };
             assert!(verify_reduction(&weights, t, f, delta, &r).is_ok());
+            checked += 1;
         }
     }
+    assert!(checked > 0);
 }
 
 #[test]
 fn test_reduce_weights_is_deterministic() {
     let weights = (0..100u16).map(|i| i % 37 + 1).collect::<Vec<_>>();
-    let a = reduce_weights(&weights, 700, 500, 300, 1).unwrap();
-    let b = reduce_weights(&weights, 700, 500, 300, 1).unwrap();
+    let a = reduce_weights(&weights, 700, 350, 300, 1).unwrap();
+    let b = reduce_weights(&weights, 700, 350, 300, 1).unwrap();
     assert_eq!(a, b);
 }
 
@@ -133,10 +148,11 @@ fn test_reduce_weights_input_validation() {
     // t == 0 or t > W
     assert!(reduce_weights(&[5, 5], 0, 0, 0, 1).is_err());
     assert!(reduce_weights(&[5, 5], 11, 0, 0, 1).is_err());
-    // t + f + delta > W (liveness hypotheses unsatisfiable)
+    // t + 2f + delta > W (operational precondition violated)
     assert!(reduce_weights(&[5, 5], 5, 11, 0, 1).is_err());
     assert!(reduce_weights(&[5, 5], 5, 0, 6, 1).is_err());
     assert!(reduce_weights(&[5, 5], 5, 3, 3, 1).is_err());
+    assert!(reduce_weights(&[5, 5], 5, 2, 2, 1).is_err());
     // f >= t
     assert!(reduce_weights(&[5, 5], 3, 3, 0, 1).is_err());
     assert!(reduce_weights(&[5, 5], 3, 4, 0, 1).is_err());
@@ -150,8 +166,8 @@ fn test_reduce_weights_input_validation() {
 #[test]
 fn test_reduce_weights_respects_lower_bound() {
     let weights = vec![100u16; 50];
-    let unrestricted = reduce_weights(&weights, 1700, 1600, 500, 1).unwrap();
-    let bounded = reduce_weights(&weights, 1700, 1600, 500, 2000).unwrap();
+    let unrestricted = reduce_weights(&weights, 1700, 1400, 500, 1).unwrap();
+    let bounded = reduce_weights(&weights, 1700, 1400, 500, 2000).unwrap();
     let total = |r: &ReducedWeights| r.weights.iter().map(|&w| w as u32).sum::<u32>();
     assert!(total(&unrestricted) < total(&bounded));
     assert!(total(&bounded) >= 2000);
@@ -209,21 +225,21 @@ fn test_reduce_weights_on_sui_epochs() {
     // Expected totals from the analysis prototype (delta = 800); each is 30-50%
     // below Nodes::prop_reduce on the same inputs.
     let expected: &[(&str, u16, u16, u32)] = &[
-        ("100", 3400, 3300, 469),
+        ("100", 3400, 2900, 469),
         ("100", 5200, 2000, 252),
-        ("200", 3400, 3300, 280),
+        ("200", 3400, 2900, 277),
         ("200", 5200, 2000, 273),
-        ("400", 3400, 3300, 438),
+        ("400", 3400, 2900, 438),
         ("400", 5200, 2000, 267),
-        ("800", 3400, 3300, 448),
+        ("800", 3400, 2900, 447),
         ("800", 5200, 2000, 442),
-        ("974", 3400, 3300, 479),
+        ("974", 3400, 2900, 479),
         ("974", 5200, 2000, 461),
-        ("1000", 3400, 3300, 485),
+        ("1000", 3400, 2900, 485),
         ("1000", 5200, 2000, 453),
-        ("1100", 3400, 3300, 485),
+        ("1100", 3400, 2900, 485),
         ("1100", 5200, 2000, 443),
-        ("1200", 3400, 3300, 485),
+        ("1200", 3400, 2900, 485),
         ("1200", 5200, 2000, 439),
     ];
     for &(epoch, t, f, expected_total) in expected {
@@ -262,7 +278,7 @@ fn test_reduce_weights_sui_benchmark() {
     let mut cases = 0u32;
     for (epoch, contents) in SUI_EPOCH_DATA {
         let weights = parse_sui_epoch(contents);
-        for (t, f) in [(3400u16, 3300u16), (5200, 2000)] {
+        for (t, f) in [(3400u16, 2900u16), (5200, 2000)] {
             let start = std::time::Instant::now();
             let r = reduce_weights(&weights, t, f, 800, 1).unwrap();
             let elapsed = start.elapsed();

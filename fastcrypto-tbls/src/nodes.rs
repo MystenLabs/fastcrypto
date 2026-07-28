@@ -463,16 +463,9 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             total_weight_lower_bound,
         )?;
 
-        // Defense in depth: independently re-verify the four security
-        // properties of the reduction.
-        debug_assert!(knapsack_weight_reduction::verify_reduction(
-            &weights,
-            t,
-            f,
-            allowed_delta,
-            &reduction
-        )
-        .is_ok());
+        // Defense in depth: independently re-verify the security properties of
+        // the reduction (cheap, and runs only once per epoch).
+        knapsack_weight_reduction::verify_reduction(&weights, t, f, allowed_delta, &reduction)?;
 
         debug!(
             "Nodes::knapsack_reduce reducing from {} to {} with t' {}, f' {}, allowed_delta {}, total_weight_lower_bound {}",
