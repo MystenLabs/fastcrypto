@@ -28,10 +28,9 @@
 //! * <i>f</i> = maximum Byzantine weight
 //! * <i>t</i> = threshold for signing
 //!
-//! For the protocols to be secure and live, the following conditions must hold:
-//! <i>t + 2f &leq; W</i> and <i>t > f</i>. These are <b>not</b> fully enforced by
-//! [Parameters::validate] (which only checks the weaker `t < W` and `t &geq; f`); it is the
-//! caller's responsibility to ensure them. See [Parameters] for details.
+//! For the original weights, the caller must ensure <i>t + 2f &leq; W</i> and <i>t > f</i>. These
+//! may be relaxed for a reduced weight set (e.g. <i>t = f</i>), so [Parameters::validate] only
+//! checks the weaker `t < W` and `t &geq; f`. See [Parameters] for details.
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
