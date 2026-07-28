@@ -274,7 +274,7 @@ mod batch_avss_benches {
                     signers: (0..*n).collect(),
                     vote: vote1,
                 }
-                .into_verified()
+                .to_verified()
                 .unwrap();
                 verify_echo.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
@@ -318,7 +318,7 @@ mod batch_avss_benches {
                                     signers: (0..*n).collect(),
                                     vote,
                                 }
-                                .into_verified()
+                                .to_verified()
                                 .unwrap(),
                             );
                         }
@@ -407,7 +407,7 @@ mod batch_avss_benches {
                                             signers: (0..*n).collect(),
                                             vote,
                                         }
-                                        .into_verified()
+                                        .to_verified()
                                         .unwrap(),
                                     );
                                 }
