@@ -29,8 +29,9 @@
 //! * <i>t</i> = threshold for signing
 //!
 //! For the original weights, the caller must ensure <i>t + 2f &leq; W</i> and <i>t > f</i>. These
-//! may be relaxed for a reduced weight set (e.g. <i>t = f</i>), so [Parameters::validate] only
-//! checks the weaker `t < W` and `t &geq; f`. See [Parameters] for details.
+//! may be relaxed for a reduced weight set, so [Parameters::validate] only checks what is needed
+//! functionally here (`t < W` and `t &geq; f`), not the trust and liveness assumptions. See
+//! [Parameters] for details.
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
