@@ -1493,6 +1493,7 @@ version = "0.1.0"
 dependencies = [
  "bcs",
  "bincode",
+ "criterion",
  "fastcrypto",
  "fastcrypto-derive",
  "mysten-mldsa-native-rs",

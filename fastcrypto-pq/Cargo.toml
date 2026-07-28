@@ -28,4 +28,9 @@ bincode.workspace = true
 
 [dev-dependencies]
 bcs.workspace = true
+criterion = "0.5.1"
 serde_json = "1.0.93"
+
+[[bench]]
+name = "mldsa65"
+harness = false

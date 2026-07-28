@@ -63,11 +63,30 @@ pub const MLDSA65_KEYPAIR_LENGTH: usize = MLDSA65_PRIVATE_KEY_LENGTH;
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MLDSA65PublicKey(mldsa::VerifyingKey);
 
-/// ML-DSA-65 private key: the 32-byte FIPS 204 seed. The wrapper key caches the expanded
-/// signing key and encoded public key so signing never re-runs key generation, and zeroizes
-/// all of it on drop.
-#[derive(SilentDebug, SilentDisplay, PartialEq, Eq)]
-pub struct MLDSA65PrivateKey(mldsa::SigningKey);
+/// ML-DSA-65 private key: the 32-byte FIPS 204 seed, kept next to the expanded signing key
+/// derived from it so signing never re-runs key generation. Only the seed is serialized;
+/// both wrapper types zeroize their material on drop.
+#[derive(SilentDebug, SilentDisplay)]
+pub struct MLDSA65PrivateKey {
+    seed: mldsa::SigningKeySeed,
+    key: mldsa::SigningKey,
+}
+
+impl MLDSA65PrivateKey {
+    fn from_seed(seed: mldsa::SigningKeySeed) -> Self {
+        let key = seed.expand();
+        MLDSA65PrivateKey { seed, key }
+    }
+}
+
+impl PartialEq for MLDSA65PrivateKey {
+    fn eq(&self, other: &Self) -> bool {
+        // The expanded key is derived from the seed, so seed equality is key equality.
+        self.seed == other.seed
+    }
+}
+
+impl Eq for MLDSA65PrivateKey {}
 
 /// ML-DSA-65 key pair.
 #[derive(Debug, PartialEq, Eq)]
@@ -92,14 +111,14 @@ impl SigningKey for MLDSA65PrivateKey {
 
 impl ToFromBytes for MLDSA65PrivateKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        let seed: [u8; MLDSA65_PRIVATE_KEY_LENGTH] = bytes.try_into().map_err(|_| InvalidInput)?;
-        Ok(MLDSA65PrivateKey(mldsa::SigningKey::from_seed(&seed)))
+        let seed = mldsa::SigningKeySeed::from_bytes(bytes).map_err(|_| InvalidInput)?;
+        Ok(MLDSA65PrivateKey::from_seed(seed))
     }
 }
 
 impl AsRef<[u8]> for MLDSA65PrivateKey {
     fn as_ref(&self) -> &[u8] {
-        self.0.seed()
+        self.seed.as_ref()
     }
 }
 
@@ -149,14 +168,16 @@ impl KeyPair for MLDSA65KeyPair {
     fn copy(&self) -> Self {
         MLDSA65KeyPair {
             public: self.public.clone(),
-            private: MLDSA65PrivateKey(mldsa::SigningKey::from_seed(self.private.0.seed())),
+            private: MLDSA65PrivateKey::from_seed(mldsa::SigningKeySeed::from(
+                *self.private.seed.as_bytes(),
+            )),
         }
     }
 
     fn generate<R: AllowedRng>(rng: &mut R) -> Self {
         let mut seed = [0u8; MLDSA65_PRIVATE_KEY_LENGTH];
         rng.fill_bytes(&mut seed);
-        MLDSA65PrivateKey(mldsa::SigningKey::from_seed(&seed)).into()
+        MLDSA65PrivateKey::from_seed(mldsa::SigningKeySeed::from(seed)).into()
     }
 }
 
@@ -175,7 +196,12 @@ impl Signer<MLDSA65Signature> for MLDSA65KeyPair {
         // sigs. `rnd` need not be kept secret, so it is not zeroized.
         let mut rnd = [0u8; mldsa::RND_LENGTH];
         OsRng.fill_bytes(&mut rnd);
-        MLDSA65Signature(self.private.0.sign(msg, &rnd))
+        MLDSA65Signature(
+            self.private
+                .key
+                .sign(msg, b"", &rnd)
+                .expect("the empty context cannot exceed the length limit"),
+        )
     }
 }
 
@@ -226,7 +252,7 @@ impl Debug for MLDSA65Signature {
 impl<'a> From<&'a MLDSA65PrivateKey> for MLDSA65PublicKey {
     fn from(private: &'a MLDSA65PrivateKey) -> Self {
         // A copy of the wrapper key's cache, not a key generation.
-        MLDSA65PublicKey(private.0.verifying_key())
+        MLDSA65PublicKey(private.key.verifying_key())
     }
 }
 
@@ -272,13 +298,14 @@ impl VerifyingKey for MLDSA65PublicKey {
 
     fn verify(&self, msg: &[u8], signature: &MLDSA65Signature) -> Result<(), FastCryptoError> {
         // Every failure maps to InvalidSignature without classification; the backend reports
-        // malformed encodings and ordinary mismatches through one code.
+        // malformed encodings and ordinary mismatches through one code. The context is this
+        // crate's frozen policy: always empty, matching the signing path.
         self.0
-            .verify(msg, &signature.0)
+            .verify(msg, b"", &signature.0)
             .map_err(|_| InvalidSignature)
     }
 }
 
-//! TODO: add test file
+// TODO: add test file
 // #[cfg(test)]
 // mod tests;
