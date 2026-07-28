@@ -24,11 +24,14 @@
 //! reused for all instances of the protocols.
 //!
 //! The thresholds are defined as follows:
-//! * <i>n</i> = total number of parties
-//! * <i>f</i> = maximum number of Byzantine parties
+//! * <i>W</i> = total weight of all parties
+//! * <i>f</i> = maximum Byzantine weight
 //! * <i>t</i> = threshold for signing
 //!
-//! The following conditions must hold: <i>t + 2f &leq; n</i> and <i>t > f</i>.
+//! For the protocols to be secure and live, the following conditions must hold:
+//! <i>t + 2f &leq; W</i> and <i>t > f</i>. These are <b>not</b> fully enforced by
+//! [Parameters::validate] (which only checks the weaker `t < W` and `t &geq; f`); it is the
+//! caller's responsibility to ensure them. See [Parameters] for details.
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
@@ -84,6 +87,19 @@ impl Parameters {
     /// * `t ≥ f`
     ///
     /// Note that we allow `t = f` here since this may happen after weight reduction.
+    ///
+    /// This is intentionally weaker than the full security/liveness conditions `t > f` and
+    /// `t + 2f ≤ W` (see the module-level documentation). Those are **not** enforced here and
+    /// are the caller's responsibility to guarantee:
+    /// * `t > f` is required for privacy: with `t = f`, an adversary controlling `f` weight holds
+    ///   `t` shares and could reconstruct the secret. `t = f` is only safe as a post-weight-reduction
+    ///   artifact, where the actual adversarial weight is provably `< t`.
+    /// * `t + 2f ≤ W` is required for liveness of the pessimistic phase, which needs `t + f` weight
+    ///   of voters while only `W - f` weight is guaranteed honest.
+    ///
+    /// Violating either condition does not break the correctness of the honest-path computation
+    /// (nothing panics and outputs are correct), which is why they are left to the caller rather
+    /// than rejected here.
     pub fn validate(&self, total_weight: u16) -> FastCryptoResult<()> {
         let Parameters { t, f } = *self;
         if f == 0 || t == 0 || t >= total_weight || t < f {
@@ -618,7 +634,7 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         // Mock DKG
-        // Here, we don't assume anything about the partity of the vk's Y coordinate since we can't do that in a real DKG.
+        // Here, we don't assume anything about the parity of the vk's Y coordinate since we can't do that in a real DKG.
         let sk_element = S::rand(&mut rng);
         let vk_element = G::generator() * sk_element;
 
@@ -755,7 +771,7 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         // Mock DKG
-        // Here, we don't assume anything about the partity of the vk's Y coordinate since we can't do that in a real DKG.
+        // Here, we don't assume anything about the parity of the vk's Y coordinate since we can't do that in a real DKG.
         let sk_element = S::rand(&mut rng);
         let vk_element = G::generator() * sk_element;
 

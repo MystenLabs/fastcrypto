@@ -22,7 +22,7 @@ pub(crate) fn compute_tweak(vk: &G, address: &Address) -> FastCryptoResult<S> {
 }
 
 /// Derive a new verifying key from an existing one and a Sui address.
-/// This is computed as vk + [compute_tweak](vk, index) * G.
+/// This is computed as vk + [compute_tweak](vk, address) * G.
 ///
 /// The derived key can have odd Y coordinate and hence not be a valid BIP-0340 Schnorr public key.
 /// However, the signing protocol ensures that the signature will be valid for the derived key
@@ -33,7 +33,7 @@ pub(crate) fn derive_verifying_key_internal(vk: &G, address: &Address) -> FastCr
     Ok(vk + G::generator() * compute_tweak(vk, address)?)
 }
 
-/// Derive a new verifying key from an existing one and a Sui addreess.
+/// Derive a new verifying key from an existing one and a Sui address.
 /// This will be a valid BIP-0340 Schnorr public key.
 ///
 /// Returns an error if `vk` is the identity point.

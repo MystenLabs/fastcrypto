@@ -234,8 +234,7 @@ impl Dealer {
     /// * `dealer_id` is the id of this dealer as a node.
     /// * `params` carries the reconstruction thresholds.
     /// * `sid` is a session identifier that should be unique for each invocation of a dealer, but
-    ///   the same
-    ///   for all parties in the same session.
+    ///   the same for all parties in the same session.
     /// * `batch_size_per_weight` is the number of secrets a dealer should deal per weight it has.
     pub fn new(
         nodes: Nodes<EG>,
@@ -482,7 +481,7 @@ impl Receiver {
     ) -> FastCryptoResult<Self> {
         let _ = nodes.node_id_to_node(id)?;
 
-        // The dealer is expected to deal a number of nonces proportional to it's weight
+        // The dealer is expected to deal a number of nonces proportional to its weight
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
 
         let total_weight = nodes.total_weight();
