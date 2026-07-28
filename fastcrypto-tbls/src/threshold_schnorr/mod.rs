@@ -81,24 +81,12 @@ pub struct Parameters {
 }
 
 impl Parameters {
-    /// Validate `(t, f)` against the given total weight `W`:
-    /// * `0 < f, t < W`
-    /// * `t ≥ f`
+    /// Validate `(t, f)` against the given total weight `W`, checking `0 < f`, `t < W` and
+    /// `t ≥ f`.
     ///
-    /// Note that we allow `t = f` here since this may happen after weight reduction.
-    ///
-    /// This is intentionally weaker than the full security/liveness conditions `t > f` and
-    /// `t + 2f ≤ W` (see the module-level documentation). Those are **not** enforced here and
-    /// are the caller's responsibility to guarantee:
-    /// * `t > f` is required for privacy: with `t = f`, an adversary controlling `f` weight holds
-    ///   `t` shares and could reconstruct the secret. `t = f` is only safe as a post-weight-reduction
-    ///   artifact, where the actual adversarial weight is provably `< t`.
-    /// * `t + 2f ≤ W` is required for liveness of the pessimistic phase, which needs `t + f` weight
-    ///   of voters while only `W - f` weight is guaranteed honest.
-    ///
-    /// Violating either condition does not break the correctness of the honest-path computation
-    /// (nothing panics and outputs are correct), which is why they are left to the caller rather
-    /// than rejected here.
+    /// This only checks what must hold for a (possibly reduced) weight set. The full
+    /// security/liveness conditions `t > f` and `t + 2f ≤ W` are required for the original weights
+    /// and are the caller's responsibility (see the module-level documentation).
     pub fn validate(&self, total_weight: u16) -> FastCryptoResult<()> {
         let Parameters { t, f } = *self;
         if f == 0 || t == 0 || t >= total_weight || t < f {
