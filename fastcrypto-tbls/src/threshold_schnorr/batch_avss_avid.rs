@@ -1160,10 +1160,8 @@ fn compute_challenge(
     ciphertext_hashes: &[Digest],
 ) -> Vec<S> {
     let random_oracle = random_oracle.extend(&Challenge.to_string());
-    let inner_hash = Blake2b256::digest(
-        bcs::to_bytes(&(c.to_vec(), c_prime, shared, ciphertext_hashes)).unwrap(),
-    )
-    .digest;
+    let inner_hash =
+        Blake2b256::digest(bcs::to_bytes(&(c, c_prime, shared, ciphertext_hashes)).unwrap()).digest;
     (0..c.len())
         .map(|l| random_oracle.evaluate_to_group_element(&(l, inner_hash.to_vec())))
         .collect()

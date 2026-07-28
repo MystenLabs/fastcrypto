@@ -617,11 +617,7 @@ impl AvssOutput {
         DkOutput {
             commitments: self
                 .feldman_commitment
-                .eval_range(
-                    ShareIndex::new(nodes.total_weight())
-                        .expect("Weight is non-zero")
-                        .get(),
-                )
+                .eval_range(nodes.total_weight())
                 .to_vec(),
             vk: self.feldman_commitment.c0(),
             my_shares: self.my_shares,
