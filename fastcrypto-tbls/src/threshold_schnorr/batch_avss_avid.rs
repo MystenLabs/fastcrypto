@@ -1356,7 +1356,7 @@ mod tests {
             signers: voters.iter().copied().collect(),
             vote: avid_votes[&voters[0]].clone(),
         }
-        .into_verified()
+        .to_verified()
         .unwrap();
 
         // For each i in pending: learn the common message from the cert signers (no
@@ -1442,7 +1442,7 @@ mod tests {
             signers: avid_votes.keys().copied().collect(),
             vote: avid_votes.values().next().unwrap().clone(),
         }
-        .into_verified()
+        .to_verified()
         .unwrap();
 
         // Receiver 0 learns it is pending from the cert, gets the common message from the
@@ -1577,7 +1577,7 @@ mod tests {
             signers: avid_votes.keys().copied().collect(),
             vote: avid_votes.values().next().unwrap().clone(),
         }
-        .into_verified()
+        .to_verified()
         .unwrap();
 
         // Receiver 0 learns the common message from the cert signers (no re-verification),

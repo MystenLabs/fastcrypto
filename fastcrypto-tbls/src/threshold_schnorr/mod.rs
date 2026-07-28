@@ -118,8 +118,7 @@ pub trait Certificate {
 
     fn verify(&self) -> FastCryptoResult<()>;
 
-    #[allow(clippy::wrong_self_convention)]
-    fn into_verified(&self) -> FastCryptoResult<VerifiedCertificate<Self>>
+    fn to_verified(&self) -> FastCryptoResult<VerifiedCertificate<Self>>
     where
         Self: Clone,
     {
