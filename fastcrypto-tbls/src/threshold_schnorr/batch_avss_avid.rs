@@ -1160,10 +1160,8 @@ fn compute_challenge(
     ciphertext_hashes: &[Digest],
 ) -> Vec<S> {
     let random_oracle = random_oracle.extend(&Challenge.to_string());
-    let inner_hash = Blake2b256::digest(
-        bcs::to_bytes(&(c.to_vec(), c_prime, shared, ciphertext_hashes)).unwrap(),
-    )
-    .digest;
+    let inner_hash =
+        Blake2b256::digest(bcs::to_bytes(&(c, c_prime, shared, ciphertext_hashes)).unwrap()).digest;
     (0..c.len())
         .map(|l| random_oracle.evaluate_to_group_element(&(l, inner_hash.to_vec())))
         .collect()
@@ -1358,7 +1356,7 @@ mod tests {
             signers: voters.iter().copied().collect(),
             vote: avid_votes[&voters[0]].clone(),
         }
-        .into_verified()
+        .to_verified()
         .unwrap();
 
         // For each i in pending: learn the common message from the cert signers (no
@@ -1444,7 +1442,7 @@ mod tests {
             signers: avid_votes.keys().copied().collect(),
             vote: avid_votes.values().next().unwrap().clone(),
         }
-        .into_verified()
+        .to_verified()
         .unwrap();
 
         // Receiver 0 learns it is pending from the cert, gets the common message from the
@@ -1579,7 +1577,7 @@ mod tests {
             signers: avid_votes.keys().copied().collect(),
             vote: avid_votes.values().next().unwrap().clone(),
         }
-        .into_verified()
+        .to_verified()
         .unwrap();
 
         // Receiver 0 learns the common message from the cert signers (no re-verification),

@@ -131,12 +131,39 @@ impl SharesForNode {
         self.shares.iter().find(|s| s.index == index)
     }
 
-    fn verify(&self, message: &Message) -> FastCryptoResult<()> {
+    /// Verify a set of shares received from a Dealer: that the share indices are exactly
+    /// `expected_share_ids` and that each share is consistent with the dealer's commitment.
+    fn verify(
+        &self,
+        message: &Message,
+        expected_share_ids: &[ShareIndex],
+        receiver: PartyId,
+    ) -> FastCryptoResult<()> {
+        // TODO: this function returns an error both in case verify failed and in case there is a bug in the impl.
+        // For now we assume that impl bugs are detected by the tests.
+        if !self
+            .shares
+            .iter()
+            .map(|s| s.index)
+            .eq(expected_share_ids.iter().copied())
+        {
+            warn!(
+                "AVSS SharesForNode::verify: share indices do not match the receiver's assigned indices for receiver {}",
+                receiver,
+            );
+            return Err(InvalidMessage);
+        }
         for share in &self.shares {
             // TODO[possible optimization]: all shares can be verified at once
             message
                 .feldman_commitment
-                .verify_share(share.index, &share.value)?
+                .verify_share(share.index, &share.value)
+                .tap_err(|e| {
+                    warn!(
+                        "AVSS SharesForNode::verify: cryptographic share verification failed for receiver {}: {e:?}",
+                        receiver,
+                    );
+                })?
         }
         Ok(())
     }
@@ -335,12 +362,7 @@ impl Receiver {
         );
 
         match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
-            verify_shares(
-                &my_shares,
-                &self.nodes.share_ids_of(self.id)?,
-                self.id,
-                message,
-            )?;
+            my_shares.verify(message, &self.nodes.share_ids_of(self.id)?, self.id)?;
             Ok(my_shares)
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(AvssOutput {
@@ -385,7 +407,7 @@ impl Receiver {
                 .ok_or(InvalidInput)?, // Should never happen if the message has been validated.
             &message.ciphertext.shared(),
             &self.random_oracle(),
-            |shares: &SharesForNode| verify_shares(shares, &accuser_share_ids, accuser_id, message),
+            |shares: &SharesForNode| shares.verify(message, &accuser_share_ids, accuser_id),
         )?;
         Ok(ComplaintResponse {
             shares: my_output.my_shares.clone(),
@@ -400,11 +422,10 @@ impl Receiver {
         responder_id: PartyId,
         response: ComplaintResponse,
     ) -> FastCryptoResult<VerifiedComplaintResponse> {
-        verify_shares(
-            &response.shares,
+        response.shares.verify(
+            message,
             &self.nodes.share_ids_of(responder_id)?,
             responder_id,
-            message,
         )?;
         Ok(VerifiedComplaintResponse {
             responder_id,
@@ -437,11 +458,13 @@ impl Receiver {
 
         // The recovered shares are interpolated from already-verified shares, so this should never
         // fail; if it does, something is seriously wrong.
-        my_shares.verify(message).tap_err(|e| {
-            warn!(
-                "AVSS recover: recovered shares failed verification, this should never happen: {e:?}"
-            );
-        })?;
+        my_shares
+            .verify(message, &self.my_indices(), self.id)
+            .tap_err(|e| {
+                warn!(
+                    "AVSS recover: recovered shares failed verification, this should never happen: {e:?}"
+                );
+            })?;
 
         Ok(AvssOutput {
             my_shares,
@@ -462,36 +485,6 @@ impl Receiver {
     fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
     }
-}
-
-/// Verify a set of shares received from a Dealer: that the share indices are exactly
-/// `expected_share_ids` and that each share is consistent with the dealer's commitment.
-fn verify_shares(
-    shares: &SharesForNode,
-    expected_share_ids: &[ShareIndex],
-    receiver: PartyId,
-    message: &Message,
-) -> FastCryptoResult<()> {
-    // TODO: this function returns an error both in case verify failed and in case there is a bug in the impl.
-    // For now we assume that impl bugs are detected by the tests.
-    if !shares
-        .shares
-        .iter()
-        .map(|s| s.index)
-        .eq(expected_share_ids.iter().copied())
-    {
-        warn!(
-            "AVSS verify_shares: share indices do not match the receiver's assigned indices for receiver {}",
-            receiver,
-        );
-        return Err(InvalidMessage);
-    }
-    shares.verify(message).tap_err(|e| {
-        warn!(
-            "AVSS verify_shares: cryptographic share verification failed for receiver {}: {e:?}",
-            receiver,
-        );
-    })
 }
 
 impl DkOutput {
@@ -617,11 +610,7 @@ impl AvssOutput {
         DkOutput {
             commitments: self
                 .feldman_commitment
-                .eval_range(
-                    ShareIndex::new(nodes.total_weight())
-                        .expect("Weight is non-zero")
-                        .get(),
-                )
+                .eval_range(nodes.total_weight())
                 .to_vec(),
             vk: self.feldman_commitment.c0(),
             my_shares: self.my_shares,
