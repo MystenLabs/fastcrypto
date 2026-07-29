@@ -708,8 +708,7 @@ impl Receiver {
 
         let my_shares = SharesForNode::from_bytes(plaintext)?;
         my_shares.verify(
-            &common_message.message,
-            &common_message.challenge,
+            common_message,
             &self.nodes.share_ids_of(self.id)?,
             self.batch_size,
         )?;
@@ -747,12 +746,7 @@ impl Receiver {
             &verified_common.message.ciphertext_shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
-                shares.verify(
-                    &verified_common.message,
-                    &verified_common.challenge,
-                    &accuser_indices,
-                    self.batch_size,
-                )
+                shares.verify(verified_common, &accuser_indices, self.batch_size)
             },
         )?;
 
@@ -832,8 +826,7 @@ impl Receiver {
             .and_then(SharesForNode::from_bytes)?;
 
         shares.verify(
-            &verified_common.message,
-            &verified_common.challenge,
+            verified_common,
             &self.nodes.share_ids_of(responder_id)?,
             self.batch_size,
         )?;
@@ -883,12 +876,7 @@ impl Receiver {
         // unreachable as a failure. Warn loudly if it ever does fail, since that signals a logic
         // error rather than a malicious input.
         my_shares
-            .verify(
-                &verified_common.message,
-                &verified_common.challenge,
-                &self.my_indices(),
-                self.batch_size,
-            )
+            .verify(verified_common, &self.my_indices(), self.batch_size)
             .tap_err(|e| {
                 warn!("batch_avss recover: recovered shares failed final verification, which should be unreachable with verified responses: {e:?}")
             })?;
@@ -1070,8 +1058,7 @@ impl SharesForNode {
 
     fn verify(
         &self,
-        message: &AvssCommonMessage,
-        challenge: &[S],
+        common: &VerifiedAvssCommonMessage,
         expected_indices: &[ShareIndex],
         expected_batch_size: usize,
     ) -> FastCryptoResult<()> {
@@ -1092,7 +1079,9 @@ impl SharesForNode {
             return Err(InvalidMessage);
         }
         for (shares, &index) in self.shares.iter().zip(expected_indices) {
-            shares.verify(index, message, challenge).map_err(|e| {
+            shares
+                .verify(index, &common.message, &common.challenge)
+                .map_err(|e| {
                 warn!(
                     "batch_avss SharesForNode::verify: cryptographic share verification failed at index {:?}: {e:?}",
                     index,
