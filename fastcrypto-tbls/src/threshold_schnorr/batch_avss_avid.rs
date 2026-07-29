@@ -102,7 +102,11 @@ pub struct AvssCommonMessage {
 /// ciphertext hashes). It carries no claim about whether this receiver's own shares were
 /// decrypted or verified.
 #[derive(Clone, Debug)]
-pub struct VerifiedAvssCommonMessage(AvssCommonMessage);
+pub struct VerifiedAvssCommonMessage {
+    message: AvssCommonMessage,
+    challenge: Vec<S>,
+    hash: Digest,
+}
 
 /// A receiver's acknowledgement that it successfully decrypted and verified its
 /// shares from the [AvssMessage] (i.e., first phase vote).
@@ -530,7 +534,7 @@ impl Receiver {
                 (
                     output,
                     AvssVote {
-                        common_message_hash: verified_common.0.hash(),
+                        common_message_hash: verified_common.hash,
                     },
                     verified_common,
                 )
@@ -560,7 +564,7 @@ impl Receiver {
             avss_cert,
         } = message;
 
-        if avss_cert.payload().common_message_hash != verified_avss_common_message.0.hash() {
+        if avss_cert.payload().common_message_hash != verified_avss_common_message.hash {
             warn!("batch_avss process_avid_message: AVSS Cert binds a different common message");
             return Err(InvalidMessage);
         }
@@ -600,13 +604,20 @@ impl Receiver {
         avid_cert: &VerifiedCertificate<C>,
         common_message: AvssCommonMessage,
     ) -> FastCryptoResult<VerifiedAvssCommonMessage> {
-        if common_message.hash() != avid_cert.payload().common_message_hash {
+        let hash = common_message.hash();
+        if hash != avid_cert.payload().common_message_hash {
             warn!(
                 "batch_avss verify_common_message: common message does not match the certified hash"
             );
             return Err(InvalidMessage);
         }
-        Ok(VerifiedAvssCommonMessage(common_message))
+        let challenge =
+            compute_challenge_from_common_message(&self.random_oracle(), &common_message);
+        Ok(VerifiedAvssCommonMessage {
+            message: common_message,
+            challenge,
+            hash,
+        })
     }
 
     /// 7b. Validate an [Echo] addressed to this receiver.
@@ -663,7 +674,7 @@ impl Receiver {
                         ciphertext,
                         proof: recovery_proof::RecoveryProof::create(
                             self.id,
-                            &verified_common.0.ciphertext_shared,
+                            &verified_common.message.ciphertext_shared,
                             &self.enc_secret_key,
                             &self.random_oracle(),
                             rng,
@@ -685,7 +696,7 @@ impl Receiver {
             full_public_keys,
             ciphertext_shared,
             ..
-        } = &common_message.0;
+        } = &common_message.message;
 
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         let plaintext = ciphertext_shared.decrypt(
@@ -695,11 +706,9 @@ impl Receiver {
             self.id as usize,
         );
 
-        let challenge = self.challenge_for(common_message);
         let my_shares = SharesForNode::from_bytes(plaintext)?;
         my_shares.verify(
-            &common_message.0,
-            &challenge,
+            common_message,
             &self.nodes.share_ids_of(self.id)?,
             self.batch_size,
         )?;
@@ -730,24 +739,18 @@ impl Receiver {
         check_ciphertext_hash(&ciphertext.0, accuser_id, verified_common)
             .map_err(|_| InvalidProof)?;
 
-        let challenge = self.challenge_for(verified_common);
         proof.check(
             accuser_id,
             &accuser.pk,
             ciphertext,
-            &verified_common.0.ciphertext_shared,
+            &verified_common.message.ciphertext_shared,
             &self.random_oracle(),
             |shares: &SharesForNode| {
-                shares.verify(
-                    &verified_common.0,
-                    &challenge,
-                    &accuser_indices,
-                    self.batch_size,
-                )
+                shares.verify(verified_common, &accuser_indices, self.batch_size)
             },
         )?;
 
-        Ok(self.build_complaint_response(&verified_common.0, own_ciphertext, rng))
+        Ok(self.build_complaint_response(&verified_common.message, own_ciphertext, rng))
     }
 
     /// 8b. Validate a [AvidComplaint] and respond with this party's own shares.
@@ -769,7 +772,7 @@ impl Receiver {
             .verify_complaint(blame, accuser_id, &avid_cert.payload().vote, |payload| {
                 check_ciphertext_hash(payload, accuser_id, verified_common).is_ok()
             })?;
-        Ok(self.build_complaint_response(&verified_common.0, own_ciphertext, rng))
+        Ok(self.build_complaint_response(&verified_common.message, own_ciphertext, rng))
     }
 
     /// Build a [ComplaintResponse] for a validated [AvssComplaint] / [AvidComplaint].
@@ -808,7 +811,7 @@ impl Receiver {
         check_ciphertext_hash(&ciphertext.0, responder_id, verified_common)
             .map_err(|_| InvalidProof)?;
         let shares = verified_common
-            .0
+            .message
             .ciphertext_shared
             .decrypt_with_recovery_package(
                 &ciphertext,
@@ -823,8 +826,7 @@ impl Receiver {
             .and_then(SharesForNode::from_bytes)?;
 
         shares.verify(
-            &verified_common.0,
-            &self.challenge_for(verified_common),
+            verified_common,
             &self.nodes.share_ids_of(responder_id)?,
             self.batch_size,
         )?;
@@ -873,21 +875,15 @@ impl Receiver {
         // shares yields valid shares, so this final verification is defense-in-depth and should be
         // unreachable as a failure. Warn loudly if it ever does fail, since that signals a logic
         // error rather than a malicious input.
-        let challenge = self.challenge_for(verified_common);
         my_shares
-            .verify(
-                &verified_common.0,
-                &challenge,
-                &self.my_indices(),
-                self.batch_size,
-            )
+            .verify(verified_common, &self.my_indices(), self.batch_size)
             .tap_err(|e| {
                 warn!("batch_avss recover: recovered shares failed final verification, which should be unreachable with verified responses: {e:?}")
             })?;
 
         Ok(ReceiverOutput {
             my_shares,
-            public_keys: verified_common.0.full_public_keys.clone(),
+            public_keys: verified_common.message.full_public_keys.clone(),
         })
     }
 
@@ -898,10 +894,6 @@ impl Receiver {
     fn random_oracle(&self) -> RandomOracle {
         random_oracle_from_sid(&self.sid)
     }
-
-    fn challenge_for(&self, common: &VerifiedAvssCommonMessage) -> Vec<S> {
-        compute_challenge_from_common_message(&self.random_oracle(), &common.0)
-    }
 }
 
 fn check_ciphertext_hash(
@@ -909,7 +901,9 @@ fn check_ciphertext_hash(
     party_id: PartyId,
     verified_common: &VerifiedAvssCommonMessage,
 ) -> FastCryptoResult<()> {
-    if Blake2b256::digest(ciphertext) != verified_common.0.ciphertext_hashes[party_id as usize] {
+    if Blake2b256::digest(ciphertext)
+        != verified_common.message.ciphertext_hashes[party_id as usize]
+    {
         return Err(GeneralOpaqueError);
     }
     Ok(())
@@ -980,7 +974,12 @@ impl AvssCommonMessage {
             );
             return Err(InvalidMessage);
         }
-        Ok(VerifiedAvssCommonMessage(self))
+        let hash = self.hash();
+        Ok(VerifiedAvssCommonMessage {
+            message: self,
+            challenge,
+            hash,
+        })
     }
 
     pub fn hash(&self) -> Digest {
@@ -1002,7 +1001,7 @@ impl ShareBatch {
     fn verify(
         &self,
         index: ShareIndex,
-        message: &AvssCommonMessage,
+        response_polynomial: &Poly<S>,
         challenge: &[S],
     ) -> FastCryptoResult<()> {
         if challenge.len() != self.batch.len() {
@@ -1017,7 +1016,7 @@ impl ShareBatch {
             .fold(self.blinding_share, |acc, (r_l, gamma_l)| {
                 acc + r_l * gamma_l
             })
-            != message.response_polynomial.eval(index).value
+            != response_polynomial.eval(index).value
         {
             return Err(InvalidInput);
         }
@@ -1059,8 +1058,7 @@ impl SharesForNode {
 
     fn verify(
         &self,
-        message: &AvssCommonMessage,
-        challenge: &[S],
+        common: &VerifiedAvssCommonMessage,
         expected_indices: &[ShareIndex],
         expected_batch_size: usize,
     ) -> FastCryptoResult<()> {
@@ -1081,13 +1079,13 @@ impl SharesForNode {
             return Err(InvalidMessage);
         }
         for (shares, &index) in self.shares.iter().zip(expected_indices) {
-            shares.verify(index, message, challenge).map_err(|e| {
-                warn!(
-                    "batch_avss SharesForNode::verify: cryptographic share verification failed at index {:?}: {e:?}",
-                    index,
-                );
-                e
-            })?;
+            shares
+                .verify(index, &common.message.response_polynomial, &common.challenge)
+                .tap_err(|e| {
+                    warn!(
+                        "batch_avss SharesForNode::verify: cryptographic share verification failed at index {index:?}: {e:?}",
+                    );
+                })?;
         }
         Ok(())
     }
