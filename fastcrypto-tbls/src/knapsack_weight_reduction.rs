@@ -295,10 +295,7 @@ pub(crate) fn verify_reduction(
     {
         return Err(FastCryptoError::InvalidInput);
     }
-    // Same sanity checks as reduce_weights, in both spaces. The reduced-space
-    // feasibility t' + 2f' <= W' is required by the protocols run on the
-    // reduced weights (e.g., AVID); reduce_weights outputs satisfy it by the
-    // module-docs argument, but arbitrary candidates need the explicit check.
+    // Same sanity checks as reduce_weights, in both spaces.
     if f >= t
         || reduction.f >= reduction.t
         || (t as u32) + 2 * (f as u32) + (delta as u32) > w_total
