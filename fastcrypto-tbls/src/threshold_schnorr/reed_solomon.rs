@@ -3,7 +3,7 @@
 
 use crate::polynomial::{Eval, MonicLinear, Poly};
 use crate::threshold_schnorr::S;
-use crate::types::{to_scalar, ShareIndex};
+use crate::types::{get_uniform_value, to_scalar, ShareIndex};
 use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, TooManyErrors};
 use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
@@ -136,8 +136,8 @@ type Element = [u8; ELEMENT_SIZE_IN_BYTES];
 /// Size in bytes of one `GF(2^16)` element.
 const ELEMENT_SIZE_IN_BYTES: usize = 2;
 
-/// Size in bytes of the `u32` length prefix framing an encoded payload.
-const LEN_PREFIX_SIZE: usize = std::mem::size_of::<u32>();
+/// Size in bytes of a `u32`, the width of the length prefix framing an encoded payload.
+const U32_SIZE: usize = std::mem::size_of::<u32>();
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -176,18 +176,7 @@ impl ErasureCoder {
         if data.is_empty() {
             return Err(InvalidInput);
         }
-        let len = u32::try_from(data.len()).map_err(|_| InvalidInput)?;
-        let framed_len = LEN_PREFIX_SIZE + data.len();
-        let shard_size = framed_len.div_ceil(ELEMENT_SIZE_IN_BYTES * self.0.data_shard_count());
-        let bytes_per_shard = ELEMENT_SIZE_IN_BYTES * shard_size;
-        let mut framed = Vec::with_capacity(bytes_per_shard * self.0.total_shard_count());
-        framed.extend_from_slice(&len.to_le_bytes());
-        framed.extend_from_slice(data);
-        framed.resize(bytes_per_shard * self.0.total_shard_count(), 0);
-        let mut shards: Vec<Vec<Element>> = framed
-            .chunks_exact(bytes_per_shard)
-            .map(bytes_to_elements)
-            .collect::<FastCryptoResult<_>>()?;
+        let mut shards = self.bytes_to_element_shards(data)?;
         self.0.encode(&mut shards).map_err(|_| InvalidInput)?;
         Ok(shards.into_iter().map(|s| Shard(s.concat())).collect_vec())
     }
@@ -218,21 +207,61 @@ impl ErasureCoder {
             return Err(TooManyErrors(0)); // This is just an erasure code, so we can't correct errors.
         }
 
+        self.element_shards_to_bytes(shards)
+    }
+
+    /// An injective mapping from arbitrary binary `data` to `Vec<Vec<Element>>`, inverted by
+    /// [`Self::element_shards_to_bytes`]. Returns [`InvalidInput`] if `data.len()` does not fit in a
+    /// `u32`.
+    fn bytes_to_element_shards(&self, data: &[u8]) -> FastCryptoResult<Vec<Vec<Element>>> {
+        // Data format: a little-endian u32 length prefix followed by `data`, then zero padding to
+        // fill a whole number of `Element`s across all shards.
+        let len = u32::try_from(data.len()).map_err(|_| InvalidInput)?;
+        let framed_len = U32_SIZE + data.len();
+        let shard_size = framed_len.div_ceil(ELEMENT_SIZE_IN_BYTES * self.0.data_shard_count());
+        let total = ELEMENT_SIZE_IN_BYTES * shard_size * self.0.total_shard_count();
+        Ok(len
+            .to_le_bytes()
+            .into_iter()
+            .chain(data.iter().copied())
+            .chain(std::iter::repeat(0))
+            .take(total)
+            // Each `Element` is two bytes.
+            .tuples::<(u8, u8)>()
+            .map(|(a, b)| [a, b])
+            .chunks(shard_size)
+            .into_iter()
+            .map(|shard| shard.collect_vec())
+            .collect())
+    }
+
+    /// Recover the data from the reconstructed `shards`. Returns [`InvalidInput`] if the encoding
+    /// is invalid.
+    fn element_shards_to_bytes(&self, shards: Vec<Vec<Element>>) -> FastCryptoResult<Vec<u8>> {
+        // A valid codeword has exactly `total_shard_count` shards, all of the same element length.
+        if shards.len() != self.0.total_shard_count()
+            || get_uniform_value(shards.iter().map(Vec::len)).is_none()
+        {
+            return Err(InvalidInput);
+        }
         let framed: Vec<u8> = shards
             .into_iter()
             .take(self.0.data_shard_count())
             .flatten()
             .flatten()
             .collect();
-        if framed.len() < LEN_PREFIX_SIZE {
+        let prefix = framed.get(..U32_SIZE).ok_or(InvalidInput)?;
+        let len = u32::from_le_bytes(prefix.try_into().unwrap()) as usize;
+        let end = U32_SIZE.checked_add(len).ok_or(InvalidInput)?;
+        if framed
+            .get(end..)
+            .ok_or(InvalidInput)?
+            .iter()
+            .any(|&b| b != 0)
+        {
             return Err(InvalidInput);
         }
-        let len = u32::from_le_bytes(framed[..LEN_PREFIX_SIZE].try_into().unwrap()) as usize;
-        let end = LEN_PREFIX_SIZE.checked_add(len).ok_or(InvalidInput)?;
-        if end > framed.len() {
-            return Err(InvalidInput);
-        }
-        Ok(framed[LEN_PREFIX_SIZE..end].to_vec())
+        Ok(framed[U32_SIZE..end].to_vec())
     }
 }
 
@@ -381,5 +410,46 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_element_shards_to_bytes_validation() {
+        let coder = ErasureCoder::new(10, 6).unwrap();
+
+        // One `Element` per shard so all shards have the same length. Flattening the first
+        // `k = 6` shards yields `u32_le(1) || data_byte || pad || zero padding`.
+        let data_byte = 0xABu8;
+        let make_shards = |pad: u8| -> Vec<Vec<Element>> {
+            let mut shards: Vec<Vec<Element>> =
+                vec![vec![[1, 0]], vec![[0, 0]], vec![[data_byte, pad]]];
+            shards.resize(coder.0.total_shard_count(), vec![[0, 0]]);
+            shards
+        };
+
+        // Well-formed with zero padding decodes; non-zero padding is rejected.
+        assert_eq!(
+            coder.element_shards_to_bytes(make_shards(0)).unwrap(),
+            vec![data_byte]
+        );
+        assert!(matches!(
+            coder.element_shards_to_bytes(make_shards(1)),
+            Err(InvalidInput)
+        ));
+
+        // Wrong shard count is rejected.
+        let mut too_few = make_shards(0);
+        too_few.pop();
+        assert!(matches!(
+            coder.element_shards_to_bytes(too_few),
+            Err(InvalidInput)
+        ));
+
+        // Shards of differing lengths are rejected.
+        let mut ragged = make_shards(0);
+        ragged[0].push([0, 0]);
+        assert!(matches!(
+            coder.element_shards_to_bytes(ragged),
+            Err(InvalidInput)
+        ));
     }
 }
