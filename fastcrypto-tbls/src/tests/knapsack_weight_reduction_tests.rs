@@ -84,10 +84,13 @@ fn test_verify_reduction_matches_brute_force() {
                 }
             }
             // The verifier checks the four coalition predicates plus the
-            // t' > f' sanity condition.
+            // t' > f' and t' + 2f' <= W' sanity conditions.
+            let m_total = m.weights.iter().map(|&w| w as u32).sum::<u32>();
             assert_eq!(
                 verify_reduction(&weights, t, f, delta, &m).is_ok(),
-                brute_force_violation(&weights, t, f, delta, &m).is_none() && m.t > m.f,
+                brute_force_violation(&weights, t, f, delta, &m).is_none()
+                    && m.t > m.f
+                    && (m.t as u32) + 2 * (m.f as u32) <= m_total,
             );
         }
     }
@@ -126,6 +129,12 @@ fn test_verify_reduction_accepts_legacy_ceiling_reductions() {
                 t: t.div_ceil(d),
                 f: f.div_ceil(d),
             };
+            // Ceiling thresholds do not always satisfy the reduced-space
+            // feasibility t' + 2f' <= W' (no attainment); skip those.
+            let r_total = r.weights.iter().map(|&w| w as u32).sum::<u32>();
+            if (r.t as u32) + 2 * (r.f as u32) > r_total {
+                continue;
+            }
             assert!(verify_reduction(&weights, t, f, delta, &r).is_ok());
             checked += 1;
         }
