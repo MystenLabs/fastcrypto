@@ -1081,13 +1081,11 @@ impl SharesForNode {
         for (shares, &index) in self.shares.iter().zip(expected_indices) {
             shares
                 .verify(index, &common.message.response_polynomial, &common.challenge)
-                .map_err(|e| {
-                warn!(
-                    "batch_avss SharesForNode::verify: cryptographic share verification failed at index {:?}: {e:?}",
-                    index,
-                );
-                e
-            })?;
+                .tap_err(|e| {
+                    warn!(
+                        "batch_avss SharesForNode::verify: cryptographic share verification failed at index {index:?}: {e:?}",
+                    );
+                })?;
         }
         Ok(())
     }
