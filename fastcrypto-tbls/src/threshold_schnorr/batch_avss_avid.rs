@@ -1001,7 +1001,7 @@ impl ShareBatch {
     fn verify(
         &self,
         index: ShareIndex,
-        message: &AvssCommonMessage,
+        response_polynomial: &Poly<S>,
         challenge: &[S],
     ) -> FastCryptoResult<()> {
         if challenge.len() != self.batch.len() {
@@ -1016,7 +1016,7 @@ impl ShareBatch {
             .fold(self.blinding_share, |acc, (r_l, gamma_l)| {
                 acc + r_l * gamma_l
             })
-            != message.response_polynomial.eval(index).value
+            != response_polynomial.eval(index).value
         {
             return Err(InvalidInput);
         }
@@ -1080,7 +1080,7 @@ impl SharesForNode {
         }
         for (shares, &index) in self.shares.iter().zip(expected_indices) {
             shares
-                .verify(index, &common.message, &common.challenge)
+                .verify(index, &common.message.response_polynomial, &common.challenge)
                 .map_err(|e| {
                 warn!(
                     "batch_avss SharesForNode::verify: cryptographic share verification failed at index {:?}: {e:?}",
