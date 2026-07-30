@@ -233,16 +233,12 @@ impl Dealer {
         self.config.nodes()
     }
 
-    fn params(&self) -> Parameters {
-        self.config.parameters()
-    }
-
     /// 1. The Dealer generates shares and creates a message containing the encrypted shares.
     ///
     ///    That message is broadcast to all receivers by the caller. Receivers process it to decrypt and verify their shares (see below),
     ///    and contribute a signature on the message to a certificate. The dealer posts the certificate to the TOB channel.
     pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> Message {
-        let polynomial = Poly::rand_fixed_c0(self.params().t - 1, self.secret, rng);
+        let polynomial = Poly::rand_fixed_c0(self.config.sharing_degree(), self.secret, rng);
         let all_shares = polynomial.eval_range(self.nodes().total_weight());
 
         // Encrypt all shares to the receivers
@@ -335,11 +331,11 @@ impl Receiver {
         message: &Message,
         rng: &mut R,
     ) -> FastCryptoResult<ProcessedMessage> {
-        if message.feldman_commitment.degree() + 1 != self.params().t as usize {
+        if message.feldman_commitment.degree() != self.config.sharing_degree() as usize {
             warn!(
                 "AVSS process_message: invalid feldman commitment degree {} (expected {})",
                 message.feldman_commitment.degree(),
-                self.params().t as usize - 1,
+                self.config.sharing_degree(),
             );
             return Err(InvalidMessage);
         }
@@ -459,11 +455,13 @@ impl Receiver {
             return Err(InvalidInput);
         }
 
-        let total_response_weight = self
-            .nodes()
-            .total_weight_of(responses.iter().map(|r| &r.responder_id))?;
-        if total_response_weight < self.params().t {
-            return Err(FastCryptoError::InputTooShort(self.params().t as usize));
+        if !self
+            .config
+            .has_reconstruction_threshold(responses.iter().map(|r| &r.responder_id))?
+        {
+            return Err(FastCryptoError::InputTooShort(
+                self.config.reconstruction_threshold() as usize,
+            ));
         }
 
         let valid_shares = responses.into_iter().map(|r| r.shares).collect_vec();
@@ -1025,7 +1023,7 @@ mod tests {
             &self,
             rng: &mut Rng,
         ) -> FastCryptoResult<Message> {
-            let polynomial = Poly::rand_fixed_c0(self.params().t - 1, self.secret, rng);
+            let polynomial = Poly::rand_fixed_c0(self.config.sharing_degree(), self.secret, rng);
             let commitment = polynomial.commit();
 
             // Encrypt all shares to the receivers

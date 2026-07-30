@@ -33,7 +33,7 @@
 //! the reduced thresholds can never drift apart from the reduced weights, and the re-checkable
 //! invariants run again in `new`.
 
-use crate::nodes::{Node, Nodes};
+use crate::nodes::{Node, Nodes, PartyId};
 use crate::threshold_schnorr::Parameters;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
@@ -125,6 +125,17 @@ impl<G: GroupElement + Serialize> ShareConfig<G> {
     /// nonce sharing. Well-defined because `t − 1 < W`.
     pub fn safe_presignatures(&self) -> u16 {
         self.total_weight() - self.sharing_degree()
+    }
+
+    /// Whether the parties in `ids` jointly hold at least the reconstruction threshold `t` by
+    /// weight — i.e. enough to reconstruct a shared secret. Returns
+    /// [`InvalidInput`](fastcrypto::error::FastCryptoError::InvalidInput) if any id is not a party
+    /// in this set. The caller chooses which error to raise when the threshold is not met.
+    pub fn has_reconstruction_threshold<'a>(
+        &self,
+        ids: impl Iterator<Item = &'a PartyId>,
+    ) -> FastCryptoResult<bool> {
+        Ok(self.nodes.total_weight_of(ids)? >= self.params.t)
     }
 
     /// `W − 2f` — the weight of authenticated shards needed to reconstruct in the AVID dispersal

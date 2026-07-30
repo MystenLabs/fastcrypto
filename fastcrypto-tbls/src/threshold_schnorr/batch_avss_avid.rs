@@ -867,12 +867,13 @@ impl Receiver {
             return Err(InvalidInput);
         }
 
-        if self
-            .nodes()
-            .total_weight_of(responses.iter().map(|r| &r.responder_id))?
-            < self.params().t
+        if !self
+            .config
+            .has_reconstruction_threshold(responses.iter().map(|r| &r.responder_id))?
         {
-            return Err(NotEnoughWeight(self.params().t as usize));
+            return Err(NotEnoughWeight(
+                self.config.reconstruction_threshold() as usize
+            ));
         }
 
         let response_shares: Vec<(PartyId, SharesForNode)> = responses
