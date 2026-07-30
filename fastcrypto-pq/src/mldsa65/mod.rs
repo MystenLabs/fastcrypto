@@ -70,12 +70,13 @@ pub struct MLDSA65PublicKey(mldsa::VerifyingKey);
 pub struct MLDSA65PrivateKey {
     seed: mldsa::SigningKeySeed,
     key: mldsa::SigningKey,
+    public: mldsa::VerifyingKey,
 }
 
 impl MLDSA65PrivateKey {
     fn from_seed(seed: mldsa::SigningKeySeed) -> Self {
-        let key = seed.expand();
-        MLDSA65PrivateKey { seed, key }
+        let (key, public) = seed.expand();
+        MLDSA65PrivateKey { seed, key, public }
     }
 }
 
@@ -251,8 +252,8 @@ impl Debug for MLDSA65Signature {
 
 impl<'a> From<&'a MLDSA65PrivateKey> for MLDSA65PublicKey {
     fn from(private: &'a MLDSA65PrivateKey) -> Self {
-        // A copy of the wrapper key's cache, not a key generation.
-        MLDSA65PublicKey(private.key.verifying_key())
+        // A clone of the public key the expansion produced, not a key generation.
+        MLDSA65PublicKey(private.public.clone())
     }
 }
 

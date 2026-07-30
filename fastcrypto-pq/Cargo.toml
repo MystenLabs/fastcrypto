@@ -26,6 +26,11 @@ rand.workspace = true
 serde.workspace = true
 bincode.workspace = true
 
+[features]
+# Forwards to the wrapper's verified assembly backends: NEON on aarch64, AVX2 on x86_64
+# behind a runtime CPU probe. Identical signatures either way, roughly 2.5x faster.
+native = ["mysten-mldsa-native-rs/native"]
+
 [dev-dependencies]
 bcs.workspace = true
 criterion = "0.5.1"
