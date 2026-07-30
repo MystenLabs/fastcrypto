@@ -162,7 +162,9 @@ fn sweep(
             .map(|&w| reduce_weight(w, d_candidate, rounding))
             .collect::<Vec<_>>();
         let reduced_total = reduced.iter().map(|&w| w as u32).sum::<u32>();
-        if reduced_total >= lower_bound as u32 {
+        if reduced_total >= lower_bound as u32
+            && !greedy_reject(weights, &reduced, w_total, t, f, delta, reduced_total)
+        {
             if let Ok((tp, fp)) = check_candidate(weights, w_total, t, f, delta, &reduced) {
                 return Some(ReducedWeights {
                     weights: reduced,
@@ -231,6 +233,68 @@ fn max_reduced_weight(min_original_weight: &[u32], weight: u32) -> u32 {
         .iter()
         .rposition(|&x| x <= weight)
         .expect("min_original_weight[0] = 0 always qualifies") as u32
+}
+
+/// A cheap rejection test that costs `O(n log n)`. It never errs when claiming
+/// infeasibility.
+fn greedy_reject(
+    weights: &[u16],
+    reduced: &[u16],
+    w_total: u16,
+    t: u16,
+    f: u16,
+    delta: u16,
+    reduced_total: u32,
+) -> bool {
+    // Sort by "density", i.e., reduced_weight/original_weight, densest first.
+    // Densities are compared using cross-multiplication,
+    // reduced_weight_a / original_weight_a > reduced_weight_b / original_weight_b <=>
+    // reduced_weight_a * original_weight_b > reduced_weight_b * original_weight_a
+    let mut by_density = (0..weights.len())
+        .filter(|&i| reduced[i] > 0)
+        .collect::<Vec<_>>();
+    by_density.sort_by(|&a, &b| {
+        ((reduced[b] as u32) * (weights[a] as u32))
+            .cmp(&((reduced[a] as u32) * (weights[b] as u32)))
+    });
+
+    // Lower bound on g(weight): *any* ordering of the parties would work for a lower bound.
+    // We chose the density-sorted ordering because it can be proven to guarantee:
+    //  g(weight) − g_lower(weight) < max_i reduced_weight
+    // thus fairly tight.
+    let g_lower = |weight: u32| {
+        let (mut remaining_weight, mut reduced_weight) = (weight, 0u32);
+        for &i in &by_density {
+            let w = weights[i] as u32;
+            if w <= remaining_weight {
+                remaining_weight -= w;
+                reduced_weight += reduced[i] as u32;
+            }
+        }
+        reduced_weight
+    };
+
+    // 1. (L1) requires w(S) >= t + delta => w'(S) >= t'. A set S has
+    //    w(S) >= t + delta exactly when its complement T fits the budget
+    //    w(T) = W - w(S) <= W - t - delta, and w'(S) = W' - w'(T), so
+    //    minimizing w'(S) is maximizing w'(T):
+    //      min { w'(S) : w(S) >= t + delta } = W' - g(W-t-delta) >= t'.
+    // 2. Substituting t' = g(t-1) + 1 and rearranging:
+    //      (L1) => g(t-1) + g(W-t-delta) <= W' - 1.
+    //    Doing the same for (L2) with t' + f' = g(t-1) + 1 + g(f):
+    //      (L2) => g(t-1) + g(f) + g(W-t-f-delta) <= W' - 1.
+    // 3. g_lower(b) <= g(b) by construction.
+
+    // Lower bound on (L1): g_lower(t-1) + g_lower(W-t-delta) <= W' - 1.
+    if g_lower((t - 1) as u32) + g_lower(w_total as u32 - t as u32 - delta as u32) >= reduced_total
+    {
+        return true;
+    }
+    // Lower bound on (L2): g_lower(t-1) + g_lower(f) + g_lower(W-t-f-delta) <= W' - 1.
+    g_lower((t - 1) as u32)
+        + g_lower(f as u32)
+        + g_lower(w_total as u32 - t as u32 - f as u32 - delta as u32)
+        >= reduced_total
 }
 
 /// Feasibility check of a candidate. Returns `(t', f')` if all constraints hold,
