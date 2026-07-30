@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! [`ShareConfig`] bundles the `(nodes, t, f)` configuration behind one validated constructor and
-//! exposes the derived quantities the AVSS / AVID protocols need (`W − 2f`, `t + f`, `W − (t−1)`, …)
-//! as named getters — one home for checks otherwise re-derived ad hoc at each call site.
+//! exposes the derived quantities (`W − 2f`, `t + f`, `W − (t−1)`, …) as named getters.
 
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::threshold_schnorr::Parameters;
@@ -13,7 +12,7 @@ use fastcrypto::groups::GroupElement;
 use serde::Serialize;
 use std::sync::Arc;
 
-/// A validated `(nodes, t, f)` configuration for the AVSS / AVID protocols.
+/// A validated `(nodes, t, f)` configuration.
 ///
 /// Constructing a `ShareConfig` guarantees the structural and trust invariants (`0 < f`, `0 < t`,
 /// `t ≤ W`, `t ≥ f`). The functional requirement `W > 2f` is checked on demand by
@@ -41,7 +40,7 @@ impl<G: GroupElement + Serialize> ShareConfig<G> {
         &self.nodes
     }
 
-    /// A cheap `Arc` handle to the node set, for sub-protocols (like `Avid`) that hold their own.
+    /// A cheap `Arc` handle to the node set.
     pub fn nodes_arc(&self) -> Arc<Nodes<G>> {
         Arc::clone(&self.nodes)
     }
@@ -78,9 +77,8 @@ impl<G: GroupElement + Serialize> ShareConfig<G> {
         self.total_weight() - self.params.f
     }
 
-    /// `t + f` — the certificate / vote quorum: the signer weight a dispersal certificate must
-    /// gather so that at least `t` of it is honest. Trust-side (BFT liveness). Returned as `u32` to
-    /// keep the sum overflow-free for large weights.
+    /// `t + f` — a quorum weight that contains at least `t` honest weight when up to `f` is
+    /// Byzantine. Returned as `u32` so the sum cannot overflow for large weights.
     pub fn certificate_quorum(&self) -> u32 {
         self.params.t as u32 + self.params.f as u32
     }
@@ -102,19 +100,14 @@ impl<G: GroupElement + Serialize> ShareConfig<G> {
         Ok(self.nodes.total_weight_of(ids)? >= self.params.t)
     }
 
-    /// `W − 2f` — the weight of authenticated shards needed to reconstruct in the AVID dispersal
-    /// path, i.e. the message length of the `(W, W − 2f)` Reed-Solomon code.
-    ///
-    /// **Functional invariant (AVID only):** returns
-    /// [`InvalidInput`](fastcrypto::error::FastCryptoError::InvalidInput) unless `W > 2f`. This is
-    /// the single source of truth shared with `Avid::new`; non-dispersal protocols never call it,
-    /// which is why `W > 2f` is not a global constructor precondition.
+    /// `W − 2f`, the message length of the `(W, W − 2f)` Reed-Solomon code. Returns
+    /// [`InvalidInput`](fastcrypto::error::FastCryptoError::InvalidInput) unless `W > 2f`.
     pub fn recoverable_weight(&self) -> FastCryptoResult<u16> {
         Self::recoverable_weight_from(self.total_weight(), self.params.f)
     }
 
-    /// The `W > 2f ⇒ W − 2f` computation, factored out so `Avid::new` (which only knows
-    /// `(nodes, f)`, not `t`) shares one implementation with [`recoverable_weight`](Self::recoverable_weight).
+    /// `W − 2f` for a given total weight `W` and Byzantine bound `f`. Returns
+    /// [`InvalidInput`](fastcrypto::error::FastCryptoError::InvalidInput) if `f == 0` or `W ≤ 2f`.
     pub(crate) fn recoverable_weight_from(total_weight: u16, f: u16) -> FastCryptoResult<u16> {
         if f == 0 {
             return Err(InvalidInput);
