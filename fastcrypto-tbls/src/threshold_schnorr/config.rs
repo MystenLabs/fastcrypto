@@ -1,37 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! A single, validated home for the `(nodes, t, f)` configuration and every derived quantity the
-//! AVSS / AVID protocols compute from it.
-//!
-//! Today the three quantities have two owners — `W` lives in [`Nodes`], `(t, f)` live in
-//! [`Parameters`] — and the relationships between them are re-derived ad hoc at each call site
-//! (`Avid::new`'s `W − 2f`, `batch_avss`'s `t ≤ W`, presigning's `W − (t−1)`, …). [`ShareConfig`]
-//! bundles them behind one constructor and exposes the combinations as named getters, so the
-//! invariants are enforced once and the arithmetic has a single source of truth.
-//!
-//! # Invariant taxonomy
-//!
-//! The requirements split along two axes — *what breaks if violated*, and *whether weight
-//! reduction preserves them for free*:
-//!
-//! | Invariant   | Kind                    | Violated ⇒                                   | Preserved by [`reduce`](ShareConfig::reduce)? |
-//! |-------------|-------------------------|----------------------------------------------|-----------------------------------------------|
-//! | `0 < f`     | structural              | no fault budget                              | ✅ `⌈f/d⌉ ≥ 1`                                 |
-//! | `0 < t`     | structural              | trivial threshold                            | ✅ `⌈t/d⌉ ≥ 1`                                 |
-//! | `t ≤ W`     | functional              | secret can never be reconstructed            | ❌ `W` shrinks — re-checked in [`new`](ShareConfig::new) |
-//! | `t ≥ f`     | **trust**               | adversary alone reconstructs (loss of secrecy)| ✅ `⌈·/d⌉` monotone: `t ≥ f ⇒ ⌈t/d⌉ ≥ ⌈f/d⌉`  |
-//! | `W > 2f`    | **functional** (AVID)   | Reed-Solomon message length `≤ 0`, decode breaks| ❌ only within `allowed_delta` — re-checked   |
-//!
-//! Structural + trust invariants are **constructor preconditions**: any `ShareConfig` that exists
-//! satisfies them. The AVID-only functional requirement `W > 2f` is *not* globally required (only
-//! the dispersal path needs it), so it is exposed as the fallible getter
-//! [`recoverable_weight`](ShareConfig::recoverable_weight) rather than baked into `new` — you
-//! cannot obtain `W − 2f` without its precondition having been checked.
-//!
-//! [`reduce`](ShareConfig::reduce) returns a `ShareConfig` (never a bare `(Nodes, t, f)` tuple), so
-//! the reduced thresholds can never drift apart from the reduced weights, and the re-checkable
-//! invariants run again in `new`.
+//! [`ShareConfig`] bundles the `(nodes, t, f)` configuration behind one validated constructor and
+//! exposes the derived quantities the AVSS / AVID protocols need (`W − 2f`, `t + f`, `W − (t−1)`, …)
+//! as named getters — one home for checks otherwise re-derived ad hoc at each call site.
 
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::threshold_schnorr::Parameters;
@@ -44,12 +16,10 @@ use std::sync::Arc;
 /// A validated `(nodes, t, f)` configuration for the AVSS / AVID protocols.
 ///
 /// Constructing a `ShareConfig` guarantees the structural and trust invariants (`0 < f`, `0 < t`,
-/// `t ≤ W`, `t ≥ f`); see the [module docs](self) for the full taxonomy. The functional
-/// requirement `W > 2f` is checked on demand by [`recoverable_weight`](Self::recoverable_weight).
+/// `t ≤ W`, `t ≥ f`). The functional requirement `W > 2f` is checked on demand by
+/// [`recoverable_weight`](Self::recoverable_weight).
 #[derive(Clone, Debug)]
 pub struct ShareConfig<G: GroupElement> {
-    // `Arc` so the node set can be shared cheaply with sub-protocols that need their own handle to
-    // it (e.g. the AVID Reed-Solomon coder) without duplicating it — see [`nodes_arc`](Self::nodes_arc).
     nodes: Arc<Nodes<G>>,
     params: Parameters,
 }
@@ -66,8 +36,6 @@ impl<G: GroupElement + Serialize> ShareConfig<G> {
         })
     }
 
-    // --- accessors -----------------------------------------------------------------------------
-
     /// The underlying node set.
     pub fn nodes(&self) -> &Nodes<G> {
         &self.nodes
@@ -82,8 +50,6 @@ impl<G: GroupElement + Serialize> ShareConfig<G> {
     pub fn parameters(&self) -> Parameters {
         self.params
     }
-
-    // --- raw quantities, always well-defined ---------------------------------------------------
 
     /// `W` — total weight of all parties.
     pub fn total_weight(&self) -> u16 {
@@ -105,8 +71,6 @@ impl<G: GroupElement + Serialize> ShareConfig<G> {
     pub fn sharing_degree(&self) -> u16 {
         self.params.t - 1
     }
-
-    // --- derived quantities, tagged by invariant class -----------------------------------------
 
     /// `W − f` — honest weight guaranteed available once the Byzantine set is removed. Trust-side;
     /// well-defined because `f ≤ t < W`.
@@ -160,8 +124,6 @@ impl<G: GroupElement + Serialize> ShareConfig<G> {
             .filter(|&k| k > 0)
             .ok_or(InvalidInput)
     }
-
-    // --- weight reduction ----------------------------------------------------------------------
 
     /// Reduce weights by the largest integer divisor `d` whose precision loss stays within
     /// `allowed_delta`, scaling both thresholds by `⌈·/d⌉`. Delegates to
