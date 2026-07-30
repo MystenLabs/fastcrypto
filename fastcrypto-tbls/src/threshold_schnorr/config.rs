@@ -39,6 +39,7 @@ use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::GroupElement;
 use serde::Serialize;
+use std::sync::Arc;
 
 /// A validated `(nodes, t, f)` configuration for the AVSS / AVID protocols.
 ///
@@ -47,7 +48,9 @@ use serde::Serialize;
 /// requirement `W > 2f` is checked on demand by [`recoverable_weight`](Self::recoverable_weight).
 #[derive(Clone, Debug)]
 pub struct ShareConfig<G: GroupElement> {
-    nodes: Nodes<G>,
+    // `Arc` so the node set can be shared cheaply with sub-protocols that need their own handle to
+    // it (e.g. the AVID Reed-Solomon coder) without duplicating it — see [`nodes_arc`](Self::nodes_arc).
+    nodes: Arc<Nodes<G>>,
     params: Parameters,
 }
 
@@ -57,7 +60,10 @@ impl<G: GroupElement + Serialize> ShareConfig<G> {
     /// [`InvalidInput`](fastcrypto::error::FastCryptoError::InvalidInput) if they do not hold.
     pub fn new(nodes: Nodes<G>, params: Parameters) -> FastCryptoResult<Self> {
         params.validate(nodes.total_weight())?;
-        Ok(Self { nodes, params })
+        Ok(Self {
+            nodes: Arc::new(nodes),
+            params,
+        })
     }
 
     // --- accessors -----------------------------------------------------------------------------
@@ -65,6 +71,11 @@ impl<G: GroupElement + Serialize> ShareConfig<G> {
     /// The underlying node set.
     pub fn nodes(&self) -> &Nodes<G> {
         &self.nodes
+    }
+
+    /// A cheap `Arc` handle to the node set, for sub-protocols (like `Avid`) that hold their own.
+    pub fn nodes_arc(&self) -> Arc<Nodes<G>> {
+        Arc::clone(&self.nodes)
     }
 
     /// The threshold parameters `(t, f)`.
