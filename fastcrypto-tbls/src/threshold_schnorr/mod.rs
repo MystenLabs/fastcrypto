@@ -31,6 +31,12 @@
 //! For the weights used here, [Parameters::validate] checks the basic invariants `t < W` and
 //! `t &geq; f`. The AVID-based nonce protocol additionally requires `W > 2f` (enforced in
 //! `Avid::new`).
+//!
+//! The [config::ShareConfig] type bundles `(nodes, t, f)` behind one validated constructor and
+//! exposes every derived quantity (`W − 2f`, `t + f`, `W − (t−1)`, …) as a named getter, tagged by
+//! whether it is a structural, trust, or functional invariant and whether weight reduction
+//! preserves it. See that module for the full taxonomy; this is the intended home for the checks
+//! currently scattered across the protocol entry points.
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
@@ -49,6 +55,7 @@ pub mod avss;
 pub mod batch_avss;
 pub mod batch_avss_avid;
 mod bcs;
+pub mod config;
 pub mod complaint;
 pub mod key_derivation;
 mod merkle;
