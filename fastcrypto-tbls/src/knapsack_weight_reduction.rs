@@ -7,8 +7,8 @@
 //! (total `W'`) and thresholds `t', f'`, minimizing `W'` while preserving the
 //! security of the weighted protocols when instantiated with
 //! `(t', f', W')` in place of `(t, f, W)`. Inputs are the privacy threshold
-//! `t`, the Byzantine weight bound `f` (with `t > f` and
-//! `W >= t + 2f + delta` enforced), and the
+//! `t`, the Byzantine weight bound `f` (with `t > f`, `t + 2f <= W` and
+//! `t + f + delta <= W` enforced), and the
 //! allowed liveness degradation `delta` in original weight units.
 //!
 //! # Guarantees
@@ -17,22 +17,15 @@
 //! and set `t' = g(t-1) + 1`, `f' = g(f)`. For every subset S of parties:
 //!
 //! - (P) Privacy: `w(S) < t  =>  w'(S) < t'`.
-//! - (B) Byzantine bound: `w(S) <= f  =>  w'(S) <= f'`.
-//! - (L1) Liveness: `w(S) >= t + delta  =>  w'(S) >= t'`. Sets that could
+//! - (L1) Liveness: `w(S) >= t + f + delta  =>  w'(S) >= t' + f'`. Sets that
+//!   could form a Byzantine-tolerant quorum originally still can.
+//! - (L2) Byzantine bound: `w(S) <= f  =>  w'(S) <= f'`. Limits how much of
+//!   the (L1) quorum might be Byzantine.
+//! - (L3) Liveness: `w(S) >= t + delta  =>  w'(S) >= t'`. Sets that could
 //!   reconstruct originally (with `delta` slack) still reach the reduced
 //!   threshold.
-//! - (L2) Liveness: `w(S) >= t + f + delta  =>  w'(S) >= t' + f'`. Sets that
-//!   could form a Byzantine-tolerant quorum originally still can.
 //!
-//! The reduced-space feasibility conditions follow:
-//! - `t > f` => `t' > f'` - follows from monotonicity of `g`.
-//! - `W >= t + 2f + delta` => `t' + 2f' <= W'` - let T be a set with `w(T) <= f`
-//!   and `w'(T) = f'` (one exists because `f'` is defined as the maximum of
-//!   `w'` over the nonempty finite family `{S : w(S) <= f}`).
-//!   T's complement C has `w(C) = W - w(T) >= W - f >= t + f + delta`, so (L2)
-//!   gives `w'(C) >= t' + f'`.
-//!   Since T and C partition the parties, we have
-//!   `W' = w'(T) + w'(C) >= f' + (t' + f') = t' + 2f'`.
+//! `t > f` => `t' > f'` follows from monotonicity of `g`.
 //!
 //! # Algorithm
 //!
@@ -95,7 +88,8 @@ pub(crate) fn reduce_weights(
     if t == 0
         || t > w_total
         || f >= t
-        || (t as u32) + 2 * (f as u32) + (delta as u32) > total_weight
+        || (t as u32) + 2 * (f as u32) > total_weight
+        || (t as u32) + (f as u32) + (delta as u32) > total_weight
     {
         return Err(FastCryptoError::InvalidInput);
     }
@@ -274,23 +268,23 @@ fn greedy_reject(
         reduced_weight
     };
 
-    // 1. (L1) requires w(S) >= t + delta => w'(S) >= t'. A set S has
+    // 1. (L3) requires w(S) >= t + delta => w'(S) >= t'. A set S has
     //    w(S) >= t + delta exactly when its complement T fits the budget
     //    w(T) = W - w(S) <= W - t - delta, and w'(S) = W' - w'(T), so
     //    minimizing w'(S) is maximizing w'(T):
     //      min { w'(S) : w(S) >= t + delta } = W' - g(W-t-delta) >= t'.
     // 2. Substituting t' = g(t-1) + 1 and rearranging:
-    //      (L1) => g(t-1) + g(W-t-delta) <= W' - 1.
-    //    Doing the same for (L2) with t' + f' = g(t-1) + 1 + g(f):
-    //      (L2) => g(t-1) + g(f) + g(W-t-f-delta) <= W' - 1.
+    //      (L3) => g(t-1) + g(W-t-delta) <= W' - 1.
+    //    Doing the same for (L1) with t' + f' = g(t-1) + 1 + g(f):
+    //      (L1) => g(t-1) + g(f) + g(W-t-f-delta) <= W' - 1.
     // 3. g_lower(b) <= g(b) by construction.
 
-    // Lower bound on (L1): g_lower(t-1) + g_lower(W-t-delta) <= W' - 1.
+    // Lower bound on (L3): g_lower(t-1) + g_lower(W-t-delta) <= W' - 1.
     if g_lower((t - 1) as u32) + g_lower(w_total as u32 - t as u32 - delta as u32) >= reduced_total
     {
         return true;
     }
-    // Lower bound on (L2): g_lower(t-1) + g_lower(f) + g_lower(W-t-f-delta) <= W' - 1.
+    // Lower bound on (L1): g_lower(t-1) + g_lower(f) + g_lower(W-t-f-delta) <= W' - 1.
     g_lower((t - 1) as u32)
         + g_lower(f as u32)
         + g_lower(w_total as u32 - t as u32 - f as u32 - delta as u32)
@@ -313,30 +307,30 @@ fn check_candidate(
     // t' is the smallest threshold that maintains privacy (P): w(S) < t => w'(S) < t'.
     let tp = max_reduced_weight(&min_original_weight_map, (t - 1) as u32) + 1;
 
-    // f' is the smallest bound satisfying (B): w(S) <= f => w'(S) <= f'.
+    // f' is the smallest bound satisfying (L2): w(S) <= f => w'(S) <= f'.
     let fp = max_reduced_weight(&min_original_weight_map, f as u32);
 
-    // Liveness (L1): w(S) >= t + delta => w'(S) >= t'.
+    // Liveness (L3): w(S) >= t + delta => w'(S) >= t'.
     // Checked via the complement T of the worst such S:
     //   min { w'(S) : w(S) >= t + delta } = W' - max { w'(T) : w(T) <= W - t - delta }.
     let b1 = (w_total as u32) - (t as u32 + delta as u32);
     if reduced_total - max_reduced_weight(&min_original_weight_map, b1) < tp {
-        return Err(FastCryptoError::GeneralError("L1 violated".to_string()));
+        return Err(FastCryptoError::GeneralError("L3 violated".to_string()));
     }
 
-    // Liveness (L2): w(S) >= t + f + delta => w'(S) >= t' + f'.
+    // Liveness (L1): w(S) >= t + f + delta => w'(S) >= t' + f'.
     // Checked via the complement T of the worst such S:
     //   min { w'(S) : w(S) >= t + f + delta } = W' - max { w'(T) : w(T) <= W - t - f - delta }.
     let b2 = (w_total as u32) - (t as u32 + f as u32 + delta as u32);
     if reduced_total - max_reduced_weight(&min_original_weight_map, b2) < tp + fp {
-        return Err(FastCryptoError::GeneralError("L2 violated".to_string()));
+        return Err(FastCryptoError::GeneralError("L1 violated".to_string()));
     }
 
     // tp <= t and fp <= f, so both fit u16.
     Ok((tp as u16, fp as u16))
 }
 
-/// Verifier for a candidate reduction: checks conditions (P), (B), (L1), and (L2)
+/// Verifier for a candidate reduction: checks conditions (P), (L1), (L2), and (L3)
 /// for an arbitrary `(weights', t', f')` in `O(n * W')` time. Returns
 /// `InvalidInput` for malformed inputs and a `GeneralError` naming the first
 /// violated condition otherwise.
@@ -362,8 +356,8 @@ pub(crate) fn verify_reduction(
     // Same sanity checks as reduce_weights, in both spaces.
     if f >= t
         || reduction.f >= reduction.t
-        || (t as u32) + 2 * (f as u32) + (delta as u32) > w_total
-        || (reduction.t as u32) + 2 * (reduction.f as u32) > reduced_total
+        || (t as u32) + 2 * (f as u32) > w_total
+        || (t as u32) + (f as u32) + (delta as u32) > w_total
     {
         return Err(FastCryptoError::InvalidInput);
     }
@@ -374,23 +368,23 @@ pub(crate) fn verify_reduction(
         return Err(FastCryptoError::GeneralError("P violated".to_string()));
     }
 
-    // (B): max { w'(S) : w(S) <= f } <= f'.
+    // (L2): max { w'(S) : w(S) <= f } <= f'.
     if max_reduced_weight(&min_original_weight_map, f as u32) > reduction.f as u32 {
-        return Err(FastCryptoError::GeneralError("B violated".to_string()));
+        return Err(FastCryptoError::GeneralError("L2 violated".to_string()));
     }
 
-    // (L1): min { w'(S) : w(S) >= t + delta } >= t'.
+    // (L3): min { w'(S) : w(S) >= t + delta } >= t'.
     let b1 = w_total - (t as u32 + delta as u32);
     if reduced_total - max_reduced_weight(&min_original_weight_map, b1) < reduction.t as u32 {
-        return Err(FastCryptoError::GeneralError("L1 violated".to_string()));
+        return Err(FastCryptoError::GeneralError("L3 violated".to_string()));
     }
 
-    // (L2): min { w'(S) : w(S) >= t + f + delta } >= t' + f'.
+    // (L1): min { w'(S) : w(S) >= t + f + delta } >= t' + f'.
     let b2 = w_total - (t as u32 + f as u32 + delta as u32);
     if reduced_total - max_reduced_weight(&min_original_weight_map, b2)
         < reduction.t as u32 + reduction.f as u32
     {
-        return Err(FastCryptoError::GeneralError("L2 violated".to_string()));
+        return Err(FastCryptoError::GeneralError("L1 violated".to_string()));
     }
     Ok(())
 }

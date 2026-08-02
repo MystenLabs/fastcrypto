@@ -61,10 +61,10 @@ fn test_verify_reduction_matches_brute_force() {
         if w_total < 2 {
             continue;
         }
-        // reduce_weights requires f < t and t + 2f + delta <= W.
+        // reduce_weights requires f < t, t + 2f <= W and t + f + delta <= W.
         let t = rng.gen_range(1..=w_total as u16);
         let f = rng.gen_range(0..=(t - 1).min((w_total as u16 - t) / 2));
-        let delta = rng.gen_range(0..=(w_total as u16 - t - 2 * f));
+        let delta = rng.gen_range(0..=(w_total as u16 - t - f));
         let r = reduce_weights(&weights, t, f, delta, 1).unwrap();
         assert!(r.t > r.f);
         assert!(verify_reduction(&weights, t, f, delta, &r).is_ok());
@@ -84,13 +84,10 @@ fn test_verify_reduction_matches_brute_force() {
                 }
             }
             // The verifier checks the four coalition predicates plus the
-            // t' > f' and t' + 2f' <= W' sanity conditions.
-            let m_total = m.weights.iter().map(|&w| w as u32).sum::<u32>();
+            // t' > f' sanity condition.
             assert_eq!(
                 verify_reduction(&weights, t, f, delta, &m).is_ok(),
-                brute_force_violation(&weights, t, f, delta, &m).is_none()
-                    && m.t > m.f
-                    && (m.t as u32) + 2 * (m.f as u32) <= m_total,
+                brute_force_violation(&weights, t, f, delta, &m).is_none() && m.t > m.f,
             );
         }
     }
@@ -120,8 +117,10 @@ fn test_verify_reduction_accepts_legacy_ceiling_reductions() {
             }
             let delta =
                 weights.iter().map(|&w| w % d).sum::<u16>() + (d - t % d) % d + (d - f % d) % d;
-            // The verifier requires the operational precondition.
-            if (t as u32) + 2 * (f as u32) + (delta as u32) > w_total as u32 {
+            // The verifier requires t + 2f <= W and t + f + delta <= W.
+            if (t as u32) + 2 * (f as u32) > w_total as u32
+                || (t as u32) + (f as u32) + (delta as u32) > w_total as u32
+            {
                 continue;
             }
             let r = ReducedWeights {
@@ -129,12 +128,7 @@ fn test_verify_reduction_accepts_legacy_ceiling_reductions() {
                 t: t.div_ceil(d),
                 f: f.div_ceil(d),
             };
-            // Ceiling thresholds do not always satisfy the reduced-space
-            // feasibility t' + 2f' <= W' (no attainment); skip those.
-            let r_total = r.weights.iter().map(|&w| w as u32).sum::<u32>();
-            if (r.t as u32) + 2 * (r.f as u32) > r_total {
-                continue;
-            }
+
             assert!(verify_reduction(&weights, t, f, delta, &r).is_ok());
             checked += 1;
         }
@@ -157,11 +151,15 @@ fn test_reduce_weights_input_validation() {
     // t == 0 or t > W
     assert!(reduce_weights(&[5, 5], 0, 0, 0, 1).is_err());
     assert!(reduce_weights(&[5, 5], 11, 0, 0, 1).is_err());
-    // t + 2f + delta > W (operational precondition violated)
-    assert!(reduce_weights(&[5, 5], 5, 11, 0, 1).is_err());
+    // t + f + delta > W (liveness hypotheses unsatisfiable)
     assert!(reduce_weights(&[5, 5], 5, 0, 6, 1).is_err());
     assert!(reduce_weights(&[5, 5], 5, 3, 3, 1).is_err());
-    assert!(reduce_weights(&[5, 5], 5, 2, 2, 1).is_err());
+    // t + 2f > W (structural feasibility violated)
+    assert!(reduce_weights(&[5, 5], 5, 4, 0, 1).is_err());
+    // valid: t + 2f <= W and t + f + delta <= W
+    assert!(reduce_weights(&[5, 5], 5, 2, 2, 1).is_ok());
+    // f >= t
+    assert!(reduce_weights(&[5, 5], 5, 11, 0, 1).is_err());
     // f >= t
     assert!(reduce_weights(&[5, 5], 3, 3, 0, 1).is_err());
     assert!(reduce_weights(&[5, 5], 3, 4, 0, 1).is_err());
@@ -313,5 +311,24 @@ fn test_reduce_weights_sui_benchmark() {
             "worst {:?}",
             worst
         );
+    }
+}
+
+#[test]
+fn test_reduce_weights_hashi_parameters() {
+    // The Hashi parametrization: t and delta fixed in bps, f structural:
+    // f = floor((W - t) / 2), so t + 2f = W up to a rounding unit.
+    let (t, delta) = (3334u16, 800u16);
+    for (epoch, contents) in SUI_EPOCH_DATA {
+        let weights = parse_sui_epoch(contents);
+        let w_total = weights.iter().map(|&w| w as u32).sum::<u32>() as u16;
+        let f = (w_total - t) / 2;
+        let r = reduce_weights(&weights, t, f, delta, 1).unwrap();
+        assert!(verify_reduction(&weights, t, f, delta, &r).is_ok());
+        let total = r.weights.iter().map(|&w| w as u32).sum::<u32>();
+        // A real reduction must be found, with consistent thresholds.
+        assert!(total < w_total as u32, "epoch {}: no reduction", epoch);
+        assert!(r.t > r.f);
+        println!("epoch {}: W'={} t'={} f'={}", epoch, total, r.t, r.f);
     }
 }
