@@ -16,10 +16,10 @@
 //! # use fastcrypto_pq::mldsa65::*;
 //! # use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
 //! use rand::thread_rng;
-//! let kp = MLDSA65KeyPair::generate(&mut thread_rng());
+//! let keypair = MLDSA65KeyPair::generate(&mut thread_rng());
 //! let msg: &[u8] = b"Hello, world!";
-//! let signature = kp.sign(msg);
-//! assert!(kp.public().verify(msg, &signature).is_ok());
+//! let signature = keypair.sign(msg);
+//! assert!(keypair.public().verify(msg, &signature).is_ok());
 //! ```
 
 use std::{
@@ -64,19 +64,22 @@ pub const MLDSA65_KEYPAIR_LENGTH: usize = MLDSA65_PRIVATE_KEY_LENGTH;
 pub struct MLDSA65PublicKey(mldsa::VerifyingKey);
 
 /// ML-DSA-65 private key: the 32-byte FIPS 204 seed, kept next to the expanded signing key
-/// derived from it so signing never re-runs key generation. Only the seed is serialized;
+/// derived from it so signing never re-runs key generation. Only the seed is serialized, and
 /// both wrapper types zeroize their material on drop.
+///
+/// This holds secret material only. The public key is not cached here even though key
+/// expansion produces it for free, because a type named for the private key we would prefer
+/// to not carry public data in this struct; Deriving it costs one more expansion
 #[derive(SilentDebug, SilentDisplay)]
 pub struct MLDSA65PrivateKey {
     seed: mldsa::SigningKeySeed,
     key: mldsa::SigningKey,
-    public: mldsa::VerifyingKey,
 }
 
 impl MLDSA65PrivateKey {
     fn from_seed(seed: mldsa::SigningKeySeed) -> Self {
-        let (key, public) = seed.expand();
-        MLDSA65PrivateKey { seed, key, public }
+        let (key, _) = seed.expand();
+        MLDSA65PrivateKey { seed, key }
     }
 }
 
@@ -252,8 +255,10 @@ impl Debug for MLDSA65Signature {
 
 impl<'a> From<&'a MLDSA65PrivateKey> for MLDSA65PublicKey {
     fn from(private: &'a MLDSA65PrivateKey) -> Self {
-        // A clone of the public key the expansion produced, not a key generation.
-        MLDSA65PublicKey(private.public.clone())
+        // re-expanding the seed is the only way to recover public key. Callers that
+        // need it repeatedly should hold the MLDSA65KeyPair, which keeps it.
+        let (_, public) = private.seed.expand();
+        MLDSA65PublicKey(public)
     }
 }
 
@@ -299,14 +304,9 @@ impl VerifyingKey for MLDSA65PublicKey {
 
     fn verify(&self, msg: &[u8], signature: &MLDSA65Signature) -> Result<(), FastCryptoError> {
         // Every failure maps to InvalidSignature without classification; the backend reports
-        // malformed encodings and ordinary mismatches through one code. The context is this
-        // crate's frozen policy: always empty, matching the signing path.
+        // malformed encodings and ordinary mismatches through one code.
         self.0
             .verify(msg, b"", &signature.0)
             .map_err(|_| InvalidSignature)
     }
 }
-
-// TODO: add test file
-// #[cfg(test)]
-// mod tests;
