@@ -81,6 +81,21 @@ impl From<&PrivateKey> for PublicKey {
 }
 
 impl Ciphertext {
+    pub fn new(commitment: PedersenCommitment, decryption_handle: RistrettoPoint) -> Self {
+        Self {
+            commitment,
+            decryption_handle,
+        }
+    }
+
+    pub fn commitment(&self) -> &PedersenCommitment {
+        &self.commitment
+    }
+
+    pub fn decryption_handle(&self) -> &RistrettoPoint {
+        &self.decryption_handle
+    }
+
     pub fn encrypt(
         encryption_key: &PublicKey,
         message: u32,
@@ -203,6 +218,21 @@ impl ConsistencyProof {
 }
 
 impl MultiRecipientCiphertext {
+    pub fn new(commitment: PedersenCommitment, decryption_handles: Vec<RistrettoPoint>) -> Self {
+        Self {
+            commitment,
+            decryption_handles,
+        }
+    }
+
+    pub fn commitment(&self) -> &PedersenCommitment {
+        &self.commitment
+    }
+
+    pub fn decryption_handles(&self) -> &[RistrettoPoint] {
+        &self.decryption_handles
+    }
+
     // Encrypt a 32-bit ciphertext to multiple recipients where the decryption handles share the same blinding factor.
     pub fn encrypt(
         encryption_keys: &[PublicKey],
