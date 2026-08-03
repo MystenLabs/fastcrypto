@@ -1000,8 +1000,8 @@ mod tests {
 
         // Recover with the first f+1 shares, including the reconstructed
         let shares = all_shares
-            .iter()
-            .flat_map(|(_id, s)| s.my_shares.shares.clone())
+            .values()
+            .flat_map(|s| s.my_shares.shares.clone())
             .collect_vec();
         let recovered = Poly::recover_c0(t, shares.iter().take(t as usize)).unwrap();
 
