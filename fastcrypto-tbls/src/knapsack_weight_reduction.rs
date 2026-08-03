@@ -7,7 +7,7 @@
 //! (total `W'`) and thresholds `t', f'`, minimizing `W'` while preserving the
 //! security of the weighted protocols when instantiated with
 //! `(t', f', W')` in place of `(t, f, W)`. Inputs are the privacy threshold
-//! `t`, the Byzantine weight bound `f` (with `t > f`, `t + 2f <= W` and
+//! `t`, the Byzantine weight bound `f` (with `0 < f < t`, `t + 2f <= W` and
 //! `t + f + delta <= W` enforced), and the
 //! allowed liveness degradation `delta` in original weight units.
 //!
@@ -25,7 +25,8 @@
 //!   reconstruct originally (with `delta` slack) still reach the reduced
 //!   threshold.
 //!
-//! `t > f` => `t' > f'` follows from monotonicity of `g`.
+//! `t > f` => `t' > f'` follows from monotonicity of `g`, and the output
+//! satisfies `t' > f' >= 1` (candidates with `f' == 0` are rejected).
 //!
 //! # Algorithm
 //!
@@ -86,6 +87,7 @@ pub(crate) fn reduce_weights(
     }
     let w_total = total_weight as u16;
     if t == 0
+        || f == 0
         || t > w_total
         || f >= t
         || (t as u32) + 2 * (f as u32) > total_weight
@@ -309,6 +311,10 @@ fn check_candidate(
 
     // f' is the smallest bound satisfying (L2): w(S) <= f => w'(S) <= f'.
     let fp = max_reduced_weight(&min_original_weight_map, f as u32);
+    // Downstream protocols require positive thresholds.
+    if fp == 0 {
+        return Err(FastCryptoError::GeneralError("f' == 0".to_string()));
+    }
 
     // Liveness (L3): w(S) >= t + delta => w'(S) >= t'.
     // Checked via the complement T of the worst such S:
@@ -346,10 +352,12 @@ pub(crate) fn verify_reduction(
     if weights.len() != reduction.weights.len()
         || weights.len() > MAX_PARTIES
         || t == 0
+        || f == 0
         || (t as u32) > w_total
         || w_total > u16::MAX as u32
         || reduced_total > u16::MAX as u32
         || reduction.t == 0
+        || reduction.f == 0
     {
         return Err(FastCryptoError::InvalidInput);
     }

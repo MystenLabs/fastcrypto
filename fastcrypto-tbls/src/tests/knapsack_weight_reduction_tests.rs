@@ -58,12 +58,12 @@ fn test_verify_reduction_matches_brute_force() {
             .map(|_| rng.gen_range(0..=200u16))
             .collect::<Vec<_>>();
         let w_total = weights.iter().map(|&w| w as u32).sum::<u32>();
-        if w_total < 2 {
+        if w_total < 4 {
             continue;
         }
-        // reduce_weights requires f < t, t + 2f <= W and t + f + delta <= W.
-        let t = rng.gen_range(1..=w_total as u16);
-        let f = rng.gen_range(0..=(t - 1).min((w_total as u16 - t) / 2));
+        // reduce_weights requires 0 < f < t, t + 2f <= W and t + f + delta <= W.
+        let t = rng.gen_range(2..=(w_total as u16 - 2));
+        let f = rng.gen_range(1..=(t - 1).min((w_total as u16 - t) / 2));
         let delta = rng.gen_range(0..=(w_total as u16 - t - f));
         let r = reduce_weights(&weights, t, f, delta, 1).unwrap();
         assert!(r.t > r.f);
@@ -87,7 +87,7 @@ fn test_verify_reduction_matches_brute_force() {
             // t' > f' sanity condition.
             assert_eq!(
                 verify_reduction(&weights, t, f, delta, &m).is_ok(),
-                brute_force_violation(&weights, t, f, delta, &m).is_none() && m.t > m.f,
+                brute_force_violation(&weights, t, f, delta, &m).is_none() && m.t > m.f && m.f >= 1,
             );
         }
     }
@@ -106,7 +106,7 @@ fn test_verify_reduction_accepts_legacy_ceiling_reductions() {
             .map(|_| rng.gen_range(1..=200u16))
             .collect::<Vec<_>>();
         let w_total = weights.iter().map(|&w| w as u32).sum::<u32>() as u16;
-        let f = rng.gen_range(0..=w_total / 3);
+        let f = rng.gen_range(1..=w_total / 3);
         let t = rng.gen_range(f + 1..=w_total);
         for d in [2u16, 3, 5, 7, 10, 17, 25, 33, 40] {
             // Skip divisors where the ceilings collide (t' == f'): the four
@@ -151,8 +151,10 @@ fn test_reduce_weights_input_validation() {
     // t == 0 or t > W
     assert!(reduce_weights(&[5, 5], 0, 0, 0, 1).is_err());
     assert!(reduce_weights(&[5, 5], 11, 0, 0, 1).is_err());
+    // f == 0
+    assert!(reduce_weights(&[5, 5], 5, 0, 0, 1).is_err());
     // t + f + delta > W (liveness hypotheses unsatisfiable)
-    assert!(reduce_weights(&[5, 5], 5, 0, 6, 1).is_err());
+    assert!(reduce_weights(&[5, 5], 5, 1, 5, 1).is_err());
     assert!(reduce_weights(&[5, 5], 5, 3, 3, 1).is_err());
     // t + 2f > W (structural feasibility violated)
     assert!(reduce_weights(&[5, 5], 5, 4, 0, 1).is_err());
@@ -164,10 +166,10 @@ fn test_reduce_weights_input_validation() {
     assert!(reduce_weights(&[5, 5], 3, 3, 0, 1).is_err());
     assert!(reduce_weights(&[5, 5], 3, 4, 0, 1).is_err());
     // individual weight above MAX_WEIGHT
-    assert!(reduce_weights(&[10_001, 5], 5, 0, 0, 1).is_err());
+    assert!(reduce_weights(&[10_001, 5], 5, 1, 0, 1).is_err());
     // bad lower bound
-    assert!(reduce_weights(&[5, 5], 5, 0, 0, 0).is_err());
-    assert!(reduce_weights(&[5, 5], 5, 0, 0, 11).is_err());
+    assert!(reduce_weights(&[5, 5], 5, 1, 0, 0).is_err());
+    assert!(reduce_weights(&[5, 5], 5, 1, 0, 11).is_err());
 }
 
 #[test]
