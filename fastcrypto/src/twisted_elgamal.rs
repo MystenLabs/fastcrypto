@@ -74,6 +74,18 @@ pub fn generate_keypair(rng: &mut impl AllowedRng) -> (PublicKey, PrivateKey) {
     (PublicKey::from(&sk), sk)
 }
 
+impl PublicKey {
+    pub fn as_point(&self) -> &RistrettoPoint {
+        &self.0
+    }
+}
+
+impl PrivateKey {
+    pub fn new(scalar: RistrettoScalar) -> Self {
+        Self(scalar)
+    }
+}
+
 impl From<&PrivateKey> for PublicKey {
     fn from(sk: &PrivateKey) -> Self {
         PublicKey(*G * sk.0)
@@ -130,6 +142,37 @@ impl Ciphertext {
             rng,
         )?;
         Ok((ciphertext, blinding, proof))
+    }
+
+    /// Check that this encrypts `message` to `encryption_key` under `blinding`, for a
+    /// caller holding the randomness.
+    pub fn verify(
+        &self,
+        message: &RistrettoScalar,
+        encryption_key: &PublicKey,
+        blinding: &Blinding,
+    ) -> FastCryptoResult<()> {
+        self.commitment.verify(message, blinding)?;
+        if self.decryption_handle == encryption_key.0 * blinding.0 {
+            Ok(())
+        } else {
+            Err(InvalidProof)
+        }
+    }
+
+    /// Check that this opens to `message` under `private_key`, for a caller holding
+    /// the key rather than the randomness.
+    pub fn verify_opening(
+        &self,
+        message: &RistrettoScalar,
+        private_key: &PrivateKey,
+    ) -> FastCryptoResult<()> {
+        let handle = (self.decryption_handle / private_key.0)?;
+        if self.commitment.0 - handle == *H * *message {
+            Ok(())
+        } else {
+            Err(InvalidProof)
+        }
     }
 
     pub fn decrypt(
@@ -218,21 +261,6 @@ impl ConsistencyProof {
 }
 
 impl MultiRecipientCiphertext {
-    pub fn new(commitment: PedersenCommitment, decryption_handles: Vec<RistrettoPoint>) -> Self {
-        Self {
-            commitment,
-            decryption_handles,
-        }
-    }
-
-    pub fn commitment(&self) -> &PedersenCommitment {
-        &self.commitment
-    }
-
-    pub fn decryption_handles(&self) -> &[RistrettoPoint] {
-        &self.decryption_handles
-    }
-
     // Encrypt a 32-bit ciphertext to multiple recipients where the decryption handles share the same blinding factor.
     pub fn encrypt(
         encryption_keys: &[PublicKey],
@@ -636,6 +664,32 @@ pub fn precompute_table() -> HashMap<[u8; RISTRETTO_POINT_BYTE_LENGTH], u16> {
         .map(|(i, p)| (p.to_byte_array(), i as u16))
         .take(1 << 16)
         .collect()
+}
+
+#[test]
+fn verify_known_plaintext() {
+    let mut rng = rand::thread_rng();
+    let (pk, sk) = generate_keypair(&mut rng);
+    let (ciphertext, blinding) = Ciphertext::encrypt(&pk, 1234, &mut rng);
+    let message = RistrettoScalar::from(1234u64);
+
+    assert!(ciphertext.verify(&message, &pk, &blinding).is_ok());
+    assert!(ciphertext.verify_opening(&message, &sk).is_ok());
+
+    // Wrong message.
+    let other = RistrettoScalar::from(1235u64);
+    assert!(ciphertext.verify(&other, &pk, &blinding).is_err());
+    assert!(ciphertext.verify_opening(&other, &sk).is_err());
+
+    // Wrong blinding.
+    assert!(ciphertext
+        .verify(&message, &pk, &Blinding(RistrettoScalar::from(7u64)))
+        .is_err());
+
+    // Wrong key.
+    let (other_pk, other_sk) = generate_keypair(&mut rng);
+    assert!(ciphertext.verify(&message, &other_pk, &blinding).is_err());
+    assert!(ciphertext.verify_opening(&message, &other_sk).is_err());
 }
 
 #[test]
