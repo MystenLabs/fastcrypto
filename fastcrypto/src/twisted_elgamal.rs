@@ -75,10 +75,6 @@ pub fn generate_keypair(rng: &mut impl AllowedRng) -> (PublicKey, PrivateKey) {
 }
 
 impl PublicKey {
-    pub fn new(point: RistrettoPoint) -> Self {
-        Self(point)
-    }
-
     pub fn as_point(&self) -> &RistrettoPoint {
         &self.0
     }
@@ -87,10 +83,6 @@ impl PublicKey {
 impl PrivateKey {
     pub fn new(scalar: RistrettoScalar) -> Self {
         Self(scalar)
-    }
-
-    pub fn as_scalar(&self) -> &RistrettoScalar {
-        &self.0
     }
 }
 
@@ -269,21 +261,6 @@ impl ConsistencyProof {
 }
 
 impl MultiRecipientCiphertext {
-    pub fn new(commitment: PedersenCommitment, decryption_handles: Vec<RistrettoPoint>) -> Self {
-        Self {
-            commitment,
-            decryption_handles,
-        }
-    }
-
-    pub fn commitment(&self) -> &PedersenCommitment {
-        &self.commitment
-    }
-
-    pub fn decryption_handles(&self) -> &[RistrettoPoint] {
-        &self.decryption_handles
-    }
-
     // Encrypt a 32-bit ciphertext to multiple recipients where the decryption handles share the same blinding factor.
     pub fn encrypt(
         encryption_keys: &[PublicKey],
