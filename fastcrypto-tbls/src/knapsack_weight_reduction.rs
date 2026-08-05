@@ -30,14 +30,14 @@
 //!
 //! # Algorithm
 //!
-//! Candidates are scaled roundings `w'_i = floor(w_i / d)` or
-//! `w'_i = round(w_i / d)` for divisors `d` on a 0.01 grid.
-//! For a fixed rounding, `W'` is non-increasing in `d`, so the sweep goes downward
-//! and returns the first candidate that passes the feasibility check.
-//! It starts at the largest useful divisor (`max weight` for floor,
-//! `2 * max weight` for nearest). Consecutive grid points usually
-//! produce identical reduced vectors, so the sweep jumps directly between
-//! "breakpoints" where some `w'_i` changes.
+//! Candidates are scaled roundings `w'_i = floor(w_i / d + c)` for divisors
+//! `d` on a 0.01 grid and rounding offsets `c in [0, 1)` on a 0.1 grid.
+//! For a fixed offset, `W'` is non-increasing in `d`, so the sweep goes downward
+//! and returns the first candidate that passes the feasibility check; the best
+//! result over all offsets is returned. Each sweep starts at the largest useful
+//! divisor (`max weight / (1 - c)`, above which all reduced weights are zero).
+//! Consecutive grid points usually produce identical reduced vectors, so the
+//! sweep jumps directly between "breakpoints" where some `w'_i` changes.
 //!
 //! The same DP powers `verify_reduction`, an `O(n * W')` exact checker of the
 //! above four properties for an arbitrary candidate `(w', t', f')`.
@@ -46,9 +46,9 @@
 //! Freitas, PODC 2024, <https://arxiv.org/abs/2307.15561>): scaled-rounding
 //! candidates verified via knapsack computations.
 //! Our variant differs in enforcing the four absolute predicates above with tight
-//! output thresholds `t', f'`, trying two rounding profiles, and sweeping divisors
-//! downward instead of binary search, as our feasibility predicate is non-monotone
-//! in `d`.
+//! output thresholds `t', f'`, trying a grid of rounding offsets, and sweeping
+//! divisors downward instead of binary search, as our feasibility predicate is
+//! non-monotone in `d`.
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 
@@ -61,12 +61,6 @@ pub struct ReducedWeights {
     pub weights: Vec<u16>,
     pub t: u16,
     pub f: u16,
-}
-
-#[derive(Clone, Copy)]
-enum Rounding {
-    Floor,
-    Nearest,
 }
 
 pub(crate) fn reduce_weights(
@@ -108,8 +102,9 @@ pub(crate) fn reduce_weights(
         t,
         f,
     };
-    // Try both roundings and keep the best.
-    for rounding in [Rounding::Floor, Rounding::Nearest] {
+    // Try all rounding offsets on the 0.1 grid and keep the best.
+    for offset in (0..100).step_by(10) {
+        let best_total = rank(&best).0;
         if let Some(candidate) = sweep(
             weights,
             w_total,
@@ -117,7 +112,8 @@ pub(crate) fn reduce_weights(
             f,
             delta,
             total_weight_lower_bound,
-            rounding,
+            offset,
+            best_total,
         ) {
             if rank(&candidate) < rank(&best) {
                 best = candidate;
@@ -127,9 +123,11 @@ pub(crate) fn reduce_weights(
     Ok(best)
 }
 
-/// Sweep divisors downward (largest first) on the 0.01 grid for one rounding,
-/// jumping between "breakpoints" where the reduced vector changes, and return the
-/// first candidate that passes the feasibility check.
+/// Sweep divisors downward (largest first) on the 0.01 grid for one rounding
+/// offset, jumping between "breakpoints" where the reduced vector changes, and return the first candidate that passes the
+/// feasibility check. Since `W'` only grows as `d` shrinks, the sweep gives up
+/// once the candidate total exceeds `best_total`.
+#[allow(clippy::too_many_arguments)]
 fn sweep(
     weights: &[u16],
     w_total: u16,
@@ -137,27 +135,27 @@ fn sweep(
     f: u16,
     delta: u16,
     lower_bound: u16,
-    rounding: Rounding,
+    offset: u64,
+    best_total: u32,
 ) -> Option<ReducedWeights> {
-    let max_weight = *weights.iter().max().expect("non-empty") as u32;
+    let max_weight = *weights.iter().max().expect("non-empty") as u64;
 
     // The candidate divisor currently under test, times 100 (0.01 grid),
-    // starting from the largest useful divisor.
-    // To have at least one party with non-zero reduced weight, we need
-    // round(w/d) > 0.
-    let mut d_candidate = match rounding {
-        // round(w/d) > 0 <-> floor(w/d) > 0 <-> w/d > 0 <-> d <= w
-        Rounding::Floor => max_weight * 100,
-        // round(w/d) > 0 <-> floor(w/d + 1/2) > 0 <-> w/d > 1/2 <-> d <= 2w
-        Rounding::Nearest => max_weight * 200,
-    };
+    // starting from the largest useful divisor: to have at least one party
+    // with non-zero reduced weight, we need floor(w/d + c) > 0
+    // <-> w/d >= 1 - c <-> d <= w/(1-c), i.e., d <= 10000w/(100-offset) on the
+    // grid.
+    let mut d_candidate = (10_000 * max_weight / (100 - offset)) as u32;
 
     while d_candidate > 100 {
         let reduced = weights
             .iter()
-            .map(|&w| reduce_weight(w, d_candidate, rounding))
+            .map(|&w| reduce_weight(w, d_candidate, offset))
             .collect::<Vec<_>>();
         let reduced_total = reduced.iter().map(|&w| w as u32).sum::<u32>();
+        if reduced_total > best_total {
+            return None;
+        }
         if reduced_total >= lower_bound as u32
             && !greedy_reject(weights, &reduced, w_total, t, f, delta, reduced_total)
         {
@@ -172,19 +170,14 @@ fn sweep(
 
         // Jump to the largest divisor where some reduced weight increases; all
         // divisors in between yield the current (just rejected) vector again.
-        // Reduced weights only grow as d shrinks; for each party we compute the
-        // largest grid divisor d' at which its q ticks up to q+1.
+        // Reduced weights only grow as d shrinks, and a party at q reaches q+1
+        // exactly when floor(w/d' + c) >= q+1 <-> w/d' >= q+1-c
+        // <-> d' <= w/(q+1-c), i.e., d' <= 10000w/(100(q+1) - offset) on the
+        // grid.
         let next = weights
             .iter()
             .zip(reduced.iter())
-            .map(|(&w, &q)| match rounding {
-                // floor(w/d') >= q+1 <-> w/d' >= q+1 <-> d' <= w/(q+1),
-                // i.e., d' <= 100w/(q+1) on the 0.01 grid.
-                Rounding::Floor => (w as u32) * 100 / (q as u32 + 1),
-                // round(w/d') = floor(w/d' + 1/2) >= q+1 <-> w/d' >= q + 1/2
-                // <-> d' <= 2w/(2q+1), i.e., d' <= 200w/(2q+1) on the grid.
-                Rounding::Nearest => (w as u32) * 200 / (2 * q as u32 + 1),
-            })
+            .map(|(&w, &q)| (10_000 * (w as u64) / (100 * (q as u64 + 1) - offset)) as u32)
             .max()
             .expect("non-empty");
         d_candidate = next.min(d_candidate - 1);
@@ -192,14 +185,9 @@ fn sweep(
     None
 }
 
-fn reduce_weight(w: u16, d: u32, rounding: Rounding) -> u16 {
-    let w = w as u32;
-    (match rounding {
-        // floor(w / (d/100)) = floor(100w / d).
-        Rounding::Floor => w * 100 / d,
-        // round(w / (d/100)) = floor(100w/d + 1/2) = floor((200w + d) / 2d).
-        Rounding::Nearest => (w * 200 + d) / (2 * d),
-    }) as u16
+/// `floor(w / (d/100) + offset/100) = floor((10000w + offset * d) / (100d))`.
+fn reduce_weight(w: u16, d: u32, offset: u64) -> u16 {
+    ((10_000 * (w as u64) + offset * (d as u64)) / (100 * (d as u64))) as u16
 }
 
 /// The value-space knapsack table `min_original_weight[v] = min { w(S) : w'(S) = v }` for
