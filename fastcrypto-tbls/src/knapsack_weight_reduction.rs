@@ -85,6 +85,8 @@ pub(crate) fn reduce_weights(
         || t > w_total
         || f >= t
         || (t as u32) + 2 * (f as u32) > total_weight
+        // While in practice we would only use delta < f, what is needed
+        // for liveness is t + f + delta <= W
         || (t as u32) + (f as u32) + (delta as u32) > total_weight
     {
         return Err(FastCryptoError::InvalidInput);

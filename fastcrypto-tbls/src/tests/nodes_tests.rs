@@ -413,7 +413,7 @@ fn test_knapsack_reduce() {
     let w = nodes.total_weight();
     let t = w / 3;
     let delta = w / 10;
-    // The largest f satisfying the precondition t + 2f + delta <= W.
+    // A valid f: both t + 2f <= W and t + f + delta <= W hold.
     let f = (w - t - delta) / 2;
 
     let (reduced, new_t, new_f) = Nodes::knapsack_reduce(node_vec.clone(), t, f, delta, 1).unwrap();
@@ -442,5 +442,7 @@ fn test_knapsack_reduce() {
 
     // Invalid parameters are rejected: f >= t, and t + f + delta > W.
     assert!(Nodes::<RistrettoPoint>::knapsack_reduce(node_vec.clone(), t, t, delta, 1).is_err());
-    assert!(Nodes::<RistrettoPoint>::knapsack_reduce(node_vec, t, f, w, 1).is_err());
+    assert!(Nodes::<RistrettoPoint>::knapsack_reduce(node_vec.clone(), t, f, w, 1).is_err());
+    // t + 2f > W while t + f + delta <= W: rejected by the t + 2f check alone.
+    assert!(Nodes::<RistrettoPoint>::knapsack_reduce(node_vec, w / 2, w / 3, delta, 1).is_err());
 }
