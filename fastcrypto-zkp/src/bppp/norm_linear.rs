@@ -396,6 +396,105 @@ mod tests {
         assert!(verify_instance(&wrong_rho, &proof).is_err());
     }
 
+    /// The relation, not just the commitment, is binding: a commitment built
+    /// with any `sigma` other than `<c, l> + |n|^2_mu` must be rejected even
+    /// though the prover opens `(l, n)` honestly.
+    #[test]
+    fn test_wrong_sigma_rejected() {
+        for (l_len, n_len) in [(8, 16), (8, 15), (1, 2), (3, 5)] {
+            let inst = random_instance(l_len, n_len);
+            let proof = prove_instance(&inst);
+            let mut shifted = inst.clone();
+            shifted.commitment = inst.commitment + inst.gens.g;
+            assert!(
+                verify_instance(&shifted, &proof).is_err(),
+                "sigma shift accepted for ({l_len}, {n_len})"
+            );
+        }
+    }
+
+    /// Every final scalar is bound, including the slots that exist only
+    /// because of odd-length padding. A folded generator that collapsed to
+    /// the identity would leave its slot free; these shapes pad at several
+    /// rounds and must still bind each coordinate.
+    #[test]
+    fn test_every_final_scalar_is_bound() {
+        for (l_len, n_len) in [(8, 16), (8, 15), (8, 64), (3, 5), (2, 4)] {
+            let inst = random_instance(l_len, n_len);
+            let proof = prove_instance(&inst);
+            assert!(verify_instance(&inst, &proof).is_ok());
+
+            for i in 0..proof.l_final.len() {
+                let mut bad = proof.clone();
+                bad.l_final[i] += RistrettoScalar::generator();
+                assert!(
+                    verify_instance(&inst, &bad).is_err(),
+                    "l_final[{i}] unbound for ({l_len}, {n_len})"
+                );
+            }
+            for i in 0..proof.n_final.len() {
+                let mut bad = proof.clone();
+                bad.n_final[i] += RistrettoScalar::generator();
+                assert!(
+                    verify_instance(&inst, &bad).is_err(),
+                    "n_final[{i}] unbound for ({l_len}, {n_len})"
+                );
+            }
+            for i in 0..proof.rounds.len() {
+                for which in 0..2 {
+                    let mut bad = proof.clone();
+                    let p = if which == 0 {
+                        &mut bad.rounds[i].0
+                    } else {
+                        &mut bad.rounds[i].1
+                    };
+                    *p += inst.gens.g;
+                    assert!(
+                        verify_instance(&inst, &bad).is_err(),
+                        "round {i} point {which} unbound for ({l_len}, {n_len})"
+                    );
+                }
+            }
+        }
+    }
+
+    /// No folded generator may collapse to the identity: the odd-length
+    /// padding uses the identity point, and if it ever survived a fold the
+    /// corresponding witness slot would be unconstrained.
+    #[test]
+    fn test_folded_generators_are_nondegenerate() {
+        for (l_len, n_len) in [(8, 15), (8, 16), (3, 5), (7, 13), (5, 31)] {
+            let inst = random_instance(l_len, n_len);
+            let mut t = BpppTranscript::new(b"test");
+            let mut h_vec = inst.gens.h_vec.clone();
+            let mut g_vec = inst.gens.g_vec.clone();
+            let mut rho = inst.rho;
+            let mut mu = rho * rho;
+            let proof = prove(&mut t, &inst.gens, &inst.c, inst.rho, &inst.l, &inst.n).unwrap();
+
+            let mut t = BpppTranscript::new(b"test");
+            t.domain_sep(b"norm_linear");
+            for (x, r) in &proof.rounds {
+                t.append_point(b"X", x);
+                t.append_point(b"R", r);
+                let gamma = t.challenge_scalar(b"gamma");
+                pad_even_point(&mut h_vec);
+                pad_even_point(&mut g_vec);
+                h_vec = fold_points(&h_vec, one(), gamma);
+                g_vec = fold_points(&g_vec, rho, gamma);
+                rho = mu;
+                mu = mu * mu;
+                for (i, p) in h_vec.iter().chain(&g_vec).enumerate() {
+                    assert_ne!(
+                        *p,
+                        RistrettoPoint::zero(),
+                        "folded generator {i} is the identity for ({l_len}, {n_len})"
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn test_wrong_shape_fails() {
         let inst = random_instance(8, 16);
