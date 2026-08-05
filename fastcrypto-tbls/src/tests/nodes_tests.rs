@@ -272,6 +272,18 @@ const SUI_EPOCH_DATA: &[(&str, &str)] = &[
         "974",
         include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_974_details.txt"),
     ),
+    (
+        "1000",
+        include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_1000_details.txt"),
+    ),
+    (
+        "1100",
+        include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_1100_details.txt"),
+    ),
+    (
+        "1200",
+        include_str!("../weight_reduction/data/sui_real_all_voting_power_epoch_1200_details.txt"),
+    ),
 ];
 
 fn parse_sui_epoch(contents: &str) -> Vec<u16> {
@@ -392,4 +404,45 @@ fn test_prop_reduce_vs_new_reduced_with_f() {
             );
         }
     }
+}
+
+#[test]
+fn test_knapsack_reduce() {
+    let node_vec = get_nodes::<RistrettoPoint>(100);
+    let nodes = Nodes::new(node_vec.clone()).unwrap();
+    let w = nodes.total_weight();
+    let t = w / 3;
+    let delta = w / 10;
+    // A valid f: both t + 2f <= W and t + f + delta <= W hold.
+    let f = (w - t - delta) / 2;
+
+    let (reduced, new_t, new_f) = Nodes::knapsack_reduce(node_vec.clone(), t, f, delta, 1).unwrap();
+    // Structure is preserved: same parties, same keys, no weight grows.
+    assert_eq!(reduced.num_nodes(), nodes.num_nodes());
+    for (orig, red) in nodes.iter().zip(reduced.iter()) {
+        assert_eq!(orig.id, red.id);
+        assert_eq!(orig.pk, red.pk);
+        assert!(red.weight <= orig.weight);
+    }
+    // Weights were actually reduced, and the thresholds are consistent.
+    assert!(reduced.total_weight() < nodes.total_weight());
+    assert!(new_t <= t && new_f <= f);
+    assert!(new_t > new_f);
+    // Share ids are consistent with the reduced weights.
+    let share_count: usize = reduced
+        .node_ids_iter()
+        .map(|id| reduced.share_ids_of(id).unwrap().len())
+        .sum();
+    assert_eq!(share_count, reduced.total_weight() as usize);
+
+    // A lower bound equal to the total weight forces the identity weights.
+    let (identity, id_t, id_f) = Nodes::knapsack_reduce(node_vec.clone(), t, f, delta, w).unwrap();
+    assert_eq!(identity, nodes);
+    assert!(id_t <= t && id_f <= f);
+
+    // Invalid parameters are rejected: f >= t, and t + f + delta > W.
+    assert!(Nodes::<RistrettoPoint>::knapsack_reduce(node_vec.clone(), t, t, delta, 1).is_err());
+    assert!(Nodes::<RistrettoPoint>::knapsack_reduce(node_vec.clone(), t, f, w, 1).is_err());
+    // t + 2f > W while t + f + delta <= W: rejected by the t + 2f check alone.
+    assert!(Nodes::<RistrettoPoint>::knapsack_reduce(node_vec, w / 2, w / 3, delta, 1).is_err());
 }

@@ -1,0 +1,126 @@
+Validator Name,Voting Power
+Mysten-1,300
+Mysten-2,247
+Coinbase,226
+Galaxy Digital,207
+Aftermath,196
+DSRV,180
+Figment,171
+RepublicCrypto,166
+Suilend,165
+BartestneT,164
+Triton One,162
+Overclock,162
+Blockscope.net,159
+Persimmon,158
+Durian,158
+Chainode Tech,157
+n1stake,156
+mrgn,156
+Certora,156
+Staketab,153
+BlockVision,148
+Kraken,147
+Luganodes,135
+Blockdaemon,123
+Moonlet,121
+P2P.ORG,119
+KiligLab,118
+OKXEarn,117
+Staking Defense League,116
+Alchemy,114
+Artifact,114
+Stakin by The Tie,113
+ContributionDAO,113
+Stardust Staking,112
+Ankr,112
+P-OPS Team,108
+TPT,106
+LumiWave,105
+TrustedPoint,103
+Nodeinfra,102
+Everstake,101
+Asymmetric Research,100
+Chainflow,98
+ChainIDE,94
+StakingCabin,93
+Swyke,93
+Anchorage Digital-2,89
+Coinage x DAIC,88
+Kiln,85
+NAVI Protocol,81
+Bitwise Onchain Solutions,80
+ORBR,76
+Allnodes,75
+Studio Mirai,73
+HashedPotatoes,72
+H2O Nodes,69
+Cetus,63
+Shinlabs,62
+AlphaFi,61
+Staking Facilities,60
+Kuna Labs,60
+Nelrann,58
+01node,55
+Nansen | Stake to Stack Points,55
+Astro-Stakers,54
+Nodes.Guru,54
+proofgroup,53
+Imperator.co,53
+SynergyNodes,53
+Haedal Protocol,53
+Ledger by P2P.ORG,52
+SyncNode,50
+Interest Labs,49
+Ahoy Validator,48
+Suiet,48
+Chainbase Staking,47
+Ika,46
+Anchorage Digital-1,45
+Sentio,45
+Karrier One,45
+TradePort,44
+Stakely,43
+Hinode Technologies,43
+Surf,43
+Bluefin,43
+omnistake.com,43
+0x195454d23060552575a68cf0215819f817a6bf45a84f60507b217fe7e2abb623,43
+Bucket Protocol,42
+Ruby Nodes,42
+Encapsulate,41
+mission69b,41
+Obelisk,40
+ProStaking,40
+iBriz.ai,40
+TDMTech,39
+Latitude.sh,39
+B-Harvest,38
+Brightlystake,38
+GiveRep,38
+Coinbase 2,38
+HashKey Cloud,37
+[NODERS] x Talentum,36
+hoh.zone,36
+Citadel.one,34
+stakefish,34
+MIDL.dev,34
+Cypher Capital,33
+ZKV,31
+Scallop,31
+Forbole,30
+SenseiNode,30
+Peeranha,29
+Scale3Labs,26
+0xb5ba8c5d646594e8811afa4789e2fcae3b9709cae6409063f78b54d8e22aadf7,24
+Swiss Staking,22
+unwinding soon please redelegate,22
+BiXinKelePool,21
+FP Validated,21
+QuantNode,18
+Lofi The Yeti,18
+InfStones,13
+Aphelion,8
+CertiK,6
+TenX Protocols,4
+YOLOTRUMP,3

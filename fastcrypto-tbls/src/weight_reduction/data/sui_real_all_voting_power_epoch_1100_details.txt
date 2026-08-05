@@ -1,0 +1,128 @@
+Validator Name,Voting Power
+Mysten-1,281
+Mysten-2,249
+Luganodes,241
+Blockdaemon,212
+Galaxy Digital,200
+Chorus One,191
+Aftermath,191
+Coinbase,182
+Figment,177
+DSRV,170
+Overclock,161
+Suilend,158
+RepublicCrypto,157
+ChainIDE,157
+Chainode Tech,156
+BartestneT,155
+Blockscope.net,150
+Persimmon,150
+Durian,150
+n1stake,147
+Staketab,145
+Triton One,140
+BlockVision,140
+mrgn,132
+Everstake,119
+Kraken,119
+Ankr,118
+P2P.ORG,117
+Moonlet,116
+KiligLab,112
+ContributionDAO,111
+Kiln,110
+Staking Defense League,109
+Alchemy,108
+Artifact,108
+Nodeinfra,107
+Stardust Staking,106
+P-OPS Team,103
+LumiWave,100
+TPT,100
+TrustedPoint,98
+Asymmetric Research,95
+Coinage x DAIC,94
+OKXEarn,94
+Chainflow,93
+Cosmostation,89
+Anchorage Digital-2,89
+StakingCabin,88
+Swyke,88
+Laine,86
+Citadel.one,84
+Stakin by The Tie,83
+ORBR,73
+Allnodes,71
+Studio Mirai,69
+NAVI Protocol,69
+HashedPotatoes,68
+H2O Nodes,65
+AlphaFi,65
+Haedal Protocol,63
+Cetus,60
+Shinlabs,59
+Staking Facilities,57
+Kuna Labs,56
+Nelrann,54
+Nansen | Stake to Stack Points,52
+01node,51
+Nodes.Guru,51
+Astro-Stakers,50
+proofgroup,50
+Imperator.co,50
+SynergyNodes,50
+SyncNode,47
+Anchorage Digital-1,47
+Interest Labs,47
+Ledger by P2P.ORG,46
+Chainbase Staking,45
+Ahoy Validator,45
+Suiet,45
+0x195454d23060552575a68cf0215819f817a6bf45a84f60507b217fe7e2abb623,45
+Ika,44
+Sentio,43
+Karrier One,43
+Obelisk,42
+Stakely,41
+Surf,41
+Bluefin,41
+TradePort,41
+Bucket Protocol,40
+omnistake.com,40
+Hinode Technologies,39
+Encapsulate,39
+Ruby Nodes,39
+BLRD,38
+ProStaking,38
+iBriz.ai,38
+TDMTech,37
+Latitude.sh,37
+B-Harvest,36
+Brightlystake,36
+GiveRep,36
+HashKey Cloud,35
+[NODERS] x Talentum,34
+hoh.zone,34
+stakefish,33
+Cypher Capital,32
+MIDL.dev,32
+ZKV,30
+Scallop,29
+Forbole,28
+SenseiNode,28
+Peeranha,27
+Scale3Labs,25
+Swiss Staking,21
+BiXinKelePool,21
+Node Guardians,21
+DoubleUp,21
+FP Validated,20
+0xb5ba8c5d646594e8811afa4789e2fcae3b9709cae6409063f78b54d8e22aadf7,20
+QuantNode,17
+Neuler,17
+Lofi The Yeti,17
+Cogent Crypto,16
+InfStones,13
+Aphelion,7
+TenX Protocols,4
+YOLOTRUMP,3

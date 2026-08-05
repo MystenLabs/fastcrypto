@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::ecies_v1;
+use crate::knapsack_weight_reduction;
 use crate::types::ShareIndex;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
@@ -441,6 +442,51 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             new_t,
             new_f,
         ))
+    }
+
+    /// Create a new set of nodes with reduced weights using the knapsack-verified
+    /// reduction.
+    pub fn knapsack_reduce(
+        nodes_vec: Vec<Node<G>>,
+        t: u16,
+        f: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
+    ) -> FastCryptoResult<(Self, u16, u16)> {
+        let n = Self::new(nodes_vec)?; // checks the input, etc
+        let weights = n.nodes.iter().map(|node| node.weight).collect::<Vec<_>>();
+        let reduction = knapsack_weight_reduction::reduce_weights(
+            &weights,
+            t,
+            f,
+            allowed_delta,
+            total_weight_lower_bound,
+        )?;
+
+        // Defense in depth: independently re-verify the security properties of
+        // the reduction (cheap, and runs only once per epoch).
+        knapsack_weight_reduction::verify_reduction(&weights, t, f, allowed_delta, &reduction)?;
+
+        debug!(
+            "Nodes::knapsack_reduce reducing from {} to {} with t' {}, f' {}, allowed_delta {}, total_weight_lower_bound {}",
+            n.total_weight,
+            reduction.weights.iter().map(|&w| w as u32).sum::<u32>(),
+            reduction.t,
+            reduction.f,
+            allowed_delta,
+            total_weight_lower_bound
+        );
+        let nodes = n
+            .nodes
+            .iter()
+            .zip(reduction.weights.iter())
+            .map(|(node, &weight)| Node {
+                id: node.id,
+                pk: node.pk.clone(),
+                weight,
+            })
+            .collect::<Vec<_>>();
+        Ok((Self::new(nodes)?, reduction.t, reduction.f))
     }
 }
 
