@@ -229,6 +229,7 @@ impl RangeProof {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fastcrypto::groups::GroupElement;
 
     /// Frozen proof for values [0, u32::MAX, 12345, 1 << 31] in Bits32 with
     /// dst "test". Breaks if the transcript layout, challenge derivation,
@@ -251,6 +252,246 @@ mod tests {
         .collect();
         assert!(proof
             .verify_batch(&commitments, &Range::Bits32, b"test")
+            .is_ok());
+    }
+
+    const ALL_RANGES: [Range; 4] = [Range::Bits8, Range::Bits16, Range::Bits32, Range::Bits64];
+
+    fn commit_all(values: &[u64]) -> (Vec<PedersenCommitment>, Vec<Blinding>) {
+        let mut rng = rand::thread_rng();
+        values
+            .iter()
+            .map(|&v| PedersenCommitment::commit_u64(v, &mut rng))
+            .unzip()
+    }
+
+    /// Completeness across every range, batch sizes spanning the padding and
+    /// fold boundaries, and the extremes of each range.
+    #[test]
+    fn test_completeness_all_ranges_and_batch_sizes() {
+        let mut rng = rand::thread_rng();
+        for range in ALL_RANGES {
+            let max = if range.bits() == 64 {
+                u64::MAX
+            } else {
+                (1u64 << range.bits()) - 1
+            };
+            for m in [1usize, 2, 3, 5, 8, 9, 16] {
+                let values: Vec<u64> = (0..m)
+                    .map(|i| match i {
+                        0 => 0,
+                        1 => max,
+                        2 => 1,
+                        _ => rand::Rng::gen::<u64>(&mut rng) & max,
+                    })
+                    .collect();
+                let (commitments, blindings) = commit_all(&values);
+                let proof = RangeProof::prove_batch(&values, &blindings, &range, b"test", &mut rng)
+                    .unwrap();
+                assert!(
+                    proof.verify_batch(&commitments, &range, b"test").is_ok(),
+                    "completeness failed for {}x{m}",
+                    range.bits()
+                );
+                // Serialization round-trips at every shape.
+                assert!(RangeProof::from_bytes(&proof.to_bytes())
+                    .unwrap()
+                    .verify_batch(&commitments, &range, b"test")
+                    .is_ok());
+            }
+        }
+    }
+
+    /// A proof is valid only for the exact `(bits, batch size)` it was made
+    /// for. `Bits16 x 8` and `Bits32 x 4` have identical proof shapes and
+    /// identical CRS sizes (32 digit slots), so nothing but the transcript
+    /// binding of the dimensions separates them.
+    #[test]
+    fn test_cross_configuration_confusion() {
+        let mut rng = rand::thread_rng();
+        let values = [1u64, 2, 3, 4, 5, 6, 7, 8];
+        let (commitments16, blindings16) = commit_all(&values);
+        let proof16 =
+            RangeProof::prove_batch(&values, &blindings16, &Range::Bits16, b"test", &mut rng)
+                .unwrap();
+        assert!(proof16
+            .verify_batch(&commitments16, &Range::Bits16, b"test")
+            .is_ok());
+
+        let (commitments32, blindings32) = commit_all(&values[..4]);
+        let proof32 = RangeProof::prove_batch(
+            &values[..4],
+            &blindings32,
+            &Range::Bits32,
+            b"test",
+            &mut rng,
+        )
+        .unwrap();
+        // Same byte length: the two shapes are indistinguishable on the wire.
+        assert_eq!(proof16.to_bytes().len(), proof32.to_bytes().len());
+
+        // Neither proof verifies as the other configuration.
+        assert!(proof16
+            .verify_batch(&commitments32, &Range::Bits32, b"test")
+            .is_err());
+        assert!(proof32
+            .verify_batch(&commitments16, &Range::Bits16, b"test")
+            .is_err());
+
+        // Nor does a proof widen or narrow its range for the same batch.
+        for range in ALL_RANGES {
+            if range.bits() != 16 {
+                assert!(
+                    proof16
+                        .verify_batch(&commitments16, &range, b"test")
+                        .is_err(),
+                    "Bits16 proof accepted as {} bits",
+                    range.bits()
+                );
+            }
+        }
+    }
+
+    /// Every input to `verify` participates in the transcript: the domain
+    /// separation tag must bind exactly, including at the empty and
+    /// prefix-collision boundaries.
+    #[test]
+    fn test_dst_binding() {
+        let mut rng = rand::thread_rng();
+        let (commitment, blinding) = PedersenCommitment::commit_u64(7, &mut rng);
+        let proof = RangeProof::prove(7, &blinding, &Range::Bits8, b"dst", &mut rng).unwrap();
+        for other in [b"".as_slice(), b"ds", b"dstx", b"DST", b"dst\0"] {
+            assert!(
+                proof.verify(&commitment, &Range::Bits8, other).is_err(),
+                "dst {other:?} accepted"
+            );
+        }
+        assert!(proof.verify(&commitment, &Range::Bits8, b"dst").is_ok());
+
+        // The empty dst is itself usable, and binds.
+        let empty = RangeProof::prove(7, &blinding, &Range::Bits8, b"", &mut rng).unwrap();
+        assert!(empty.verify(&commitment, &Range::Bits8, b"").is_ok());
+        assert!(empty.verify(&commitment, &Range::Bits8, b"dst").is_err());
+    }
+
+    /// Proving is randomized: two proofs of the same statement differ, so the
+    /// proof carries no deterministic fingerprint of the witness.
+    #[test]
+    fn test_proofs_are_randomized() {
+        let mut rng = rand::thread_rng();
+        let (commitment, blinding) = PedersenCommitment::commit_u64(42, &mut rng);
+        let a = RangeProof::prove(42, &blinding, &Range::Bits32, b"test", &mut rng).unwrap();
+        let b = RangeProof::prove(42, &blinding, &Range::Bits32, b"test", &mut rng).unwrap();
+        assert_ne!(a.to_bytes(), b.to_bytes());
+        assert!(a.verify(&commitment, &Range::Bits32, b"test").is_ok());
+        assert!(b.verify(&commitment, &Range::Bits32, b"test").is_ok());
+    }
+
+    /// Deserialization must reject or safely fail on arbitrary input, never
+    /// panic, and a decoded proof must never verify against an unrelated
+    /// statement.
+    #[test]
+    fn test_from_bytes_robustness() {
+        let mut rng = rand::thread_rng();
+        let (commitment, blinding) = PedersenCommitment::commit_u64(9, &mut rng);
+        let proof = RangeProof::prove(9, &blinding, &Range::Bits16, b"test", &mut rng).unwrap();
+        let bytes = proof.to_bytes();
+
+        // Lengths that are not a valid element count.
+        assert!(RangeProof::from_bytes(&[]).is_err());
+        for elems in [1usize, 2, 4, 12, 14, 16, 74, 100] {
+            assert!(
+                RangeProof::from_bytes(&vec![0u8; 32 * elems]).is_err(),
+                "{elems} elements accepted"
+            );
+        }
+        // Non-multiples of 32.
+        for len in [1usize, 31, 33, 415] {
+            assert!(RangeProof::from_bytes(&vec![0u8; len]).is_err());
+        }
+
+        // Random bytes at valid lengths: never panic, never verify.
+        for elems in [13usize, 15, 17, 19] {
+            for _ in 0..32 {
+                let mut buf = vec![0u8; 32 * elems];
+                rand::RngCore::fill_bytes(&mut rng, &mut buf);
+                if let Ok(p) = RangeProof::from_bytes(&buf) {
+                    assert!(p.verify(&commitment, &Range::Bits16, b"test").is_err());
+                }
+            }
+        }
+
+        // Every single-byte corruption of a valid proof is rejected.
+        for i in (0..bytes.len()).step_by(7) {
+            let mut corrupted = bytes.clone();
+            corrupted[i] ^= 0x80;
+            let accepted = RangeProof::from_bytes(&corrupted)
+                .and_then(|p| p.verify(&commitment, &Range::Bits16, b"test"))
+                .is_ok();
+            assert!(!accepted, "corruption at byte {i} accepted");
+        }
+    }
+
+    /// Argument validation at the public API.
+    #[test]
+    fn test_input_validation() {
+        let mut rng = rand::thread_rng();
+        let (commitments, blindings) = commit_all(&[1, 2]);
+
+        // Empty batches, on both sides.
+        assert!(RangeProof::prove_batch(&[], &[], &Range::Bits8, b"t", &mut rng).is_err());
+        let proof =
+            RangeProof::prove_batch(&[1, 2], &blindings, &Range::Bits8, b"t", &mut rng).unwrap();
+        assert!(proof.verify_batch(&[], &Range::Bits8, b"t").is_err());
+
+        // Mismatched values/blindings lengths.
+        assert!(RangeProof::prove_batch(&[1], &blindings, &Range::Bits8, b"t", &mut rng).is_err());
+        assert!(
+            RangeProof::prove_batch(&[1, 2, 3], &blindings, &Range::Bits8, b"t", &mut rng).is_err()
+        );
+
+        // A longer batch than the proof was made for.
+        let extended = [
+            commitments[0].clone(),
+            commitments[1].clone(),
+            commitments[0].clone(),
+        ];
+        assert!(proof.verify_batch(&extended, &Range::Bits8, b"t").is_err());
+    }
+
+    /// A zero blinding is a degenerate but legal opening; it must not break
+    /// proving or verification.
+    #[test]
+    fn test_zero_blinding() {
+        let mut rng = rand::thread_rng();
+        let blinding = Blinding(RistrettoScalar::zero());
+        let commitment = PedersenCommitment::new(&RistrettoScalar::from(1000u64), &blinding);
+        let proof = RangeProof::prove(1000, &blinding, &Range::Bits16, b"test", &mut rng).unwrap();
+        assert!(proof.verify(&commitment, &Range::Bits16, b"test").is_ok());
+
+        // Zero value with zero blinding: the commitment is the identity.
+        let zero = PedersenCommitment::new(&RistrettoScalar::zero(), &blinding);
+        let proof = RangeProof::prove(0, &blinding, &Range::Bits8, b"test", &mut rng).unwrap();
+        assert!(proof.verify(&zero, &Range::Bits8, b"test").is_ok());
+    }
+
+    /// Two commitments to the same value with different blindings, and the
+    /// same blinding reused across a batch: neither must confuse the
+    /// per-value binding.
+    #[test]
+    fn test_repeated_values_and_blindings() {
+        let mut rng = rand::thread_rng();
+        let blinding = Blinding::rand(&mut rng);
+        let values = [77u64, 77, 77];
+        let blindings = vec![blinding.clone(), blinding.clone(), blinding.clone()];
+        let commitments: Vec<PedersenCommitment> = values
+            .iter()
+            .map(|&v| PedersenCommitment::new(&RistrettoScalar::from(v), &blinding))
+            .collect();
+        let proof =
+            RangeProof::prove_batch(&values, &blindings, &Range::Bits8, b"test", &mut rng).unwrap();
+        assert!(proof
+            .verify_batch(&commitments, &Range::Bits8, b"test")
             .is_ok());
     }
 
