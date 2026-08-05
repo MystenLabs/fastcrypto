@@ -1,0 +1,42 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Knapsack-verified weight reduction."><title>fastcrypto_tbls::knapsack_weight_reduction - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-17e0aaed.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.97.1 (8bab26f4f 2026-07-14)" data-channel="1.97.1" data-search-js="search-fd9372ac.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-fcd733ba.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module knapsack_weight_reduction</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../fastcrypto_tbls/index.html">fastcrypto_<wbr>tbls</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module knapsack_<wbr>weight_<wbr>reduction</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#guarantees" title="Guarantees">Guarantees</a></li><li><a href="#algorithm" title="Algorithm">Algorithm</a></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate fastcrypto_<wbr>tbls</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">fastcrypto_tbls</a></div><h1>Module <span>knapsack_<wbr>weight_<wbr>reduction</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/fastcrypto_tbls/knapsack_weight_reduction.rs.html#4-388">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Knapsack-verified weight reduction.</p>
+<p>Replaces weights <code>w_1..w_n</code> (total <code>W</code>) by smaller weights <code>w'_1..w'_n</code>
+(total <code>W'</code>) and thresholds <code>t', f'</code>, minimizing <code>W'</code> while preserving the
+security of the weighted protocols when instantiated with
+<code>(t', f', W')</code> in place of <code>(t, f, W)</code>. Inputs are the privacy threshold
+<code>t</code>, the Byzantine weight bound <code>f</code> (with <code>0 &lt; f &lt; t</code>, <code>t + 2f &lt;= W</code> and
+<code>t + f + delta &lt;= W</code> enforced), and the
+allowed liveness degradation <code>delta</code> in original weight units.</p>
+<h2 id="guarantees"><a class="doc-anchor" href="#guarantees">§</a>Guarantees</h2>
+<p>Let <code>g(b) = max { w'(S) : w(S) &lt;= b }</code>, computed exactly by a knapsack DP,
+and set <code>t' = g(t-1) + 1</code>, <code>f' = g(f)</code>. For every subset S of parties:</p>
+<ul>
+<li>(P) Privacy: <code>w(S) &lt; t  =&gt;  w'(S) &lt; t'</code>.</li>
+<li>(L1) Liveness: <code>w(S) &gt;= t + f + delta  =&gt;  w'(S) &gt;= t' + f'</code>. Sets that
+could form a Byzantine-tolerant quorum originally still can.</li>
+<li>(L2) Byzantine bound: <code>w(S) &lt;= f  =&gt;  w'(S) &lt;= f'</code>. Limits how much of
+the (L1) quorum might be Byzantine.</li>
+<li>(L3) Liveness: <code>w(S) &gt;= t + delta  =&gt;  w'(S) &gt;= t'</code>. Sets that could
+reconstruct originally (with <code>delta</code> slack) still reach the reduced
+threshold.</li>
+</ul>
+<p><code>t &gt; f</code> =&gt; <code>t' &gt; f'</code> follows from monotonicity of <code>g</code>, and the output
+satisfies <code>t' &gt; f' &gt;= 1</code> (candidates with <code>f' == 0</code> are rejected).</p>
+<h2 id="algorithm"><a class="doc-anchor" href="#algorithm">§</a>Algorithm</h2>
+<p>Candidates are scaled roundings <code>w'_i = floor(w_i / d + c)</code> for divisors
+<code>d</code> on a 0.01 grid and rounding offsets <code>c in [0, 1)</code> on a 0.1 grid.
+For a fixed offset, <code>W'</code> is non-increasing in <code>d</code>, so the sweep goes downward
+and returns the first candidate that passes the feasibility check; the best
+result over all offsets is returned. Each sweep starts at the largest useful
+divisor (<code>max weight / (1 - c)</code>, above which all reduced weights are zero).
+Consecutive grid points usually produce identical reduced vectors, so the
+sweep jumps directly between “breakpoints” where some <code>w'_i</code> changes.</p>
+<p>The same DP powers <code>verify_reduction</code>, an <code>O(n * W')</code> exact checker of the
+above four properties for an arbitrary candidate <code>(w', t', f')</code>.</p>
+<p>The implementation follows the weight-reduction framework of Swiper (Tonkikh and
+Freitas, PODC 2024, <a href="https://arxiv.org/abs/2307.15561">https://arxiv.org/abs/2307.15561</a>): scaled-rounding
+candidates verified via knapsack computations.
+Our variant differs in enforcing the four absolute predicates above with tight
+output thresholds <code>t', f'</code>, trying a grid of rounding offsets, and sweeping
+divisors downward instead of binary search, as our feasibility predicate is
+non-monotone in <code>d</code>.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.ReducedWeights.html" title="struct fastcrypto_tbls::knapsack_weight_reduction::ReducedWeights">Reduced<wbr>Weights</a></dt></dl></section></div></main></body></html>
