@@ -15,6 +15,7 @@ use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
+use crate::threshold_schnorr::config::ShareConfig;
 use crate::threshold_schnorr::recovery_proof::RecoveryProof;
 use crate::threshold_schnorr::Extensions::Encryption;
 use crate::threshold_schnorr::{random_oracle_from_sid, Parameters, EG, G, S};
@@ -32,16 +33,14 @@ use tap::TapFallible;
 use tracing::warn;
 
 pub struct Dealer {
-    nodes: Nodes<EG>,
+    config: ShareConfig<EG>,
     sid: Vec<u8>,
-    params: Parameters,
     secret: S, // For key rotation this is set to the previous round's share; otherwise sampled in `new`.
 }
 
 pub struct Receiver {
-    nodes: Nodes<EG>,
+    config: ShareConfig<EG>,
     sid: Vec<u8>,
-    params: Parameters,
     id: PartyId,
     enc_secret_key: PrivateKey<EG>,
     commitment: Option<G>, // Commitment to the secret being shared if any (used for key rotation).
@@ -222,13 +221,16 @@ impl Dealer {
         sid: Vec<u8>,
         rng: &mut R,
     ) -> FastCryptoResult<Self> {
-        params.validate(nodes.total_weight())?;
+        let config = ShareConfig::new(nodes, params)?;
         Ok(Self {
             secret: secret.unwrap_or_else(|| S::rand(rng)),
-            params,
-            nodes,
+            config,
             sid,
         })
+    }
+
+    fn nodes(&self) -> &Nodes<EG> {
+        self.config.nodes()
     }
 
     /// 1. The Dealer generates shares and creates a message containing the encrypted shares.
@@ -236,14 +238,14 @@ impl Dealer {
     ///    That message is broadcast to all receivers by the caller. Receivers process it to decrypt and verify their shares (see below),
     ///    and contribute a signature on the message to a certificate. The dealer posts the certificate to the TOB channel.
     pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> Message {
-        let polynomial = Poly::rand_fixed_c0(self.params.t - 1, self.secret, rng);
-        let all_shares = polynomial.eval_range(self.nodes.total_weight());
+        let polynomial = Poly::rand_fixed_c0(self.config.sharing_degree(), self.secret, rng);
+        let all_shares = polynomial.eval_range(self.nodes().total_weight());
 
         // Encrypt all shares to the receivers
         let pk_and_msgs = self
-            .nodes
+            .nodes()
             .iter()
-            .map(|node| (node.pk.clone(), self.nodes.share_ids_of(node.id).unwrap()))
+            .map(|node| (node.pk.clone(), self.nodes().share_ids_of(node.id).unwrap()))
             .map(|(public_key, share_ids)| {
                 (
                     public_key,
@@ -293,20 +295,27 @@ impl Receiver {
         commitment: Option<G>,
         enc_secret_key: PrivateKey<EG>,
     ) -> FastCryptoResult<Self> {
-        params.validate(nodes.total_weight())?;
-        nodes.node_id_to_node(id)?;
+        let config = ShareConfig::new(nodes, params)?;
+        config.nodes().node_id_to_node(id)?;
         Ok(Self {
             id,
             enc_secret_key,
             commitment,
             sid,
-            params,
-            nodes,
+            config,
         })
     }
 
     pub fn id(&self) -> PartyId {
         self.id
+    }
+
+    fn nodes(&self) -> &Nodes<EG> {
+        self.config.nodes()
+    }
+
+    fn params(&self) -> Parameters {
+        self.config.parameters()
     }
 
     /// 2. A receiver processes the message, verifies and decrypts its shares.
@@ -322,11 +331,11 @@ impl Receiver {
         message: &Message,
         rng: &mut R,
     ) -> FastCryptoResult<ProcessedMessage> {
-        if message.feldman_commitment.degree() + 1 != self.params.t as usize {
+        if message.feldman_commitment.degree() != self.config.sharing_degree() as usize {
             warn!(
                 "AVSS process_message: invalid feldman commitment degree {} (expected {})",
                 message.feldman_commitment.degree(),
-                self.params.t as usize - 1,
+                self.config.sharing_degree(),
             );
             return Err(InvalidMessage);
         }
@@ -341,7 +350,7 @@ impl Receiver {
             }
         }
 
-        if message.ciphertext.len() != self.nodes.num_nodes() {
+        if message.ciphertext.len() != self.nodes().num_nodes() {
             warn!("AVSS process_message: ciphertext has the wrong number of recipients");
             return Err(InvalidMessage);
         }
@@ -362,7 +371,7 @@ impl Receiver {
         );
 
         match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
-            my_shares.verify(message, &self.nodes.share_ids_of(self.id)?, self.id)?;
+            my_shares.verify(message, &self.nodes().share_ids_of(self.id)?, self.id)?;
             Ok(my_shares)
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(AvssOutput {
@@ -396,10 +405,10 @@ impl Receiver {
         complaint: &Complaint,
         my_output: &AvssOutput,
     ) -> FastCryptoResult<ComplaintResponse> {
-        let accuser_share_ids = self.nodes.share_ids_of(accuser_id)?;
+        let accuser_share_ids = self.nodes().share_ids_of(accuser_id)?;
         complaint.proof.check(
             accuser_id,
-            &self.nodes.node_id_to_node(accuser_id)?.pk,
+            &self.nodes().node_id_to_node(accuser_id)?.pk,
             message
                 .ciphertext
                 .encs
@@ -424,7 +433,7 @@ impl Receiver {
     ) -> FastCryptoResult<VerifiedComplaintResponse> {
         response.shares.verify(
             message,
-            &self.nodes.share_ids_of(responder_id)?,
+            &self.nodes().share_ids_of(responder_id)?,
             responder_id,
         )?;
         Ok(VerifiedComplaintResponse {
@@ -446,15 +455,17 @@ impl Receiver {
             return Err(InvalidInput);
         }
 
-        let total_response_weight = self
-            .nodes
-            .total_weight_of(responses.iter().map(|r| &r.responder_id))?;
-        if total_response_weight < self.params.t {
-            return Err(FastCryptoError::InputTooShort(self.params.t as usize));
+        if !self
+            .config
+            .has_reconstruction_threshold(responses.iter().map(|r| &r.responder_id))?
+        {
+            return Err(FastCryptoError::InputTooShort(
+                self.config.reconstruction_threshold() as usize,
+            ));
         }
 
         let valid_shares = responses.into_iter().map(|r| r.shares).collect_vec();
-        let my_shares = SharesForNode::recover(self.my_indices(), self.params.t, &valid_shares)?;
+        let my_shares = SharesForNode::recover(self.my_indices(), self.params().t, &valid_shares)?;
 
         // The recovered shares are interpolated from already-verified shares, so this should never
         // fail; if it does, something is seriously wrong.
@@ -473,11 +484,11 @@ impl Receiver {
     }
 
     pub fn my_indices(&self) -> Vec<ShareIndex> {
-        self.nodes.share_ids_of(self.id).unwrap()
+        self.nodes().share_ids_of(self.id).unwrap()
     }
 
     pub fn my_weight(&self) -> usize {
-        self.nodes
+        self.nodes()
             .total_weight_of(std::iter::once(&self.id))
             .unwrap() as usize
     }
@@ -866,8 +877,7 @@ mod tests {
                 |Receiver {
                      id,
                      enc_secret_key,
-                     params,
-                     nodes,
+                     config,
                      ..
                  }| {
                     let commitment = all_shares
@@ -876,9 +886,9 @@ mod tests {
                         .commitment_for_index(secret.index);
                     assert_eq!(commitment.index, secret.index);
                     Receiver::new(
-                        nodes,
+                        config.nodes().clone(),
                         id,
-                        params,
+                        config.parameters(),
                         sid2.clone(),
                         Some(commitment.value),
                         enc_secret_key,
@@ -1013,14 +1023,14 @@ mod tests {
             &self,
             rng: &mut Rng,
         ) -> FastCryptoResult<Message> {
-            let polynomial = Poly::rand_fixed_c0(self.params.t - 1, self.secret, rng);
+            let polynomial = Poly::rand_fixed_c0(self.config.sharing_degree(), self.secret, rng);
             let commitment = polynomial.commit();
 
             // Encrypt all shares to the receivers
             let mut pk_and_msgs = self
-                .nodes
+                .nodes()
                 .iter()
-                .map(|node| (node.pk.clone(), self.nodes.share_ids_of(node.id).unwrap()))
+                .map(|node| (node.pk.clone(), self.nodes().share_ids_of(node.id).unwrap()))
                 .map(|(public_key, share_ids)| {
                     (
                         public_key,

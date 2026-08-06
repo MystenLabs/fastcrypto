@@ -30,6 +30,7 @@ use crate::threshold_schnorr::batch_avss_avid::DecodeAndDecryptOutcome::{
 };
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::recovery_proof;
+use crate::threshold_schnorr::config::ShareConfig;
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use crate::threshold_schnorr::{avid, Certificate, VerifiedCertificate};
 use crate::threshold_schnorr::{random_oracle_from_sid, Parameters, EG, G, S};
@@ -46,7 +47,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 use std::iter::repeat_with;
-use std::sync::Arc;
 use tap::TapFallible;
 use tracing::warn;
 
@@ -57,8 +57,7 @@ pub type Digest = fastcrypto::hash::Digest<{ Blake2b256::OUTPUT_SIZE }>;
 
 /// The Dealer for the protocol. Exactly one per instance.
 pub struct Dealer {
-    nodes: Arc<Nodes<EG>>,
-    params: Parameters,
+    config: ShareConfig<EG>,
     sid: Vec<u8>,
     batch_size: usize,
     avid: avid::Avid,
@@ -68,8 +67,7 @@ pub struct Dealer {
 pub struct Receiver {
     pub id: PartyId,
     enc_secret_key: PrivateKey<EG>,
-    nodes: Arc<Nodes<EG>>,
-    params: Parameters,
+    config: ShareConfig<EG>,
     sid: Vec<u8>,
     batch_size: usize,
     avid: avid::Avid,
@@ -247,18 +245,24 @@ impl Dealer {
         sid: Vec<u8>,
         batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
-        let total_weight = nodes.total_weight();
-        params.validate(total_weight)?;
-        let nodes = Arc::new(nodes);
-        let avid = avid::Avid::new(Arc::clone(&nodes), params.f)?;
-        let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
+        let config = ShareConfig::new(nodes, params)?;
+        let avid = avid::Avid::new(config.nodes_arc(), config.byzantine_bound())?;
+        let batch_size =
+            config.nodes().weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
         Ok(Self {
-            params,
-            nodes,
+            config,
             sid,
             batch_size,
             avid,
         })
+    }
+
+    fn nodes(&self) -> &Nodes<EG> {
+        self.config.nodes()
+    }
+
+    fn params(&self) -> Parameters {
+        self.config.parameters()
     }
 
     /// 1. Build the [AvssMessageBuilder]. This encrypts the shares for every receiver and holds
@@ -293,23 +297,23 @@ impl Dealer {
         let full_public_keys = secrets.iter().map(|s| G::generator() * s).collect_vec();
 
         // "blinding" polynomial as defined in https://eprint.iacr.org/2023/536.pdf.
-        let total_weight = self.nodes.total_weight();
+        let total_weight = self.nodes().total_weight();
         let blinding_secret = S::rand(rng);
         let blinding_poly_evaluations =
-            create_secret_sharing(rng, blinding_secret, self.params.t, total_weight);
+            create_secret_sharing(rng, blinding_secret, self.params().t, total_weight);
         let blinding_commit = G::generator() * blinding_secret;
 
         // Compute all evaluations of all polynomials
         let share_batches = secrets
             .iter()
-            .map(|&s| create_secret_sharing(rng, s, self.params.t, total_weight))
+            .map(|&s| create_secret_sharing(rng, s, self.params().t, total_weight))
             .collect_vec();
 
         // Encrypt all shares to the receivers
         let mut pk_and_msgs = self
-            .nodes
+            .nodes()
             .iter()
-            .map(|node| (node.pk.clone(), self.nodes.share_ids_of(node.id).unwrap()))
+            .map(|node| (node.pk.clone(), self.nodes().share_ids_of(node.id).unwrap()))
             .map(|(pk, share_ids)| {
                 (
                     pk,
@@ -358,10 +362,10 @@ impl Dealer {
         let response_polynomial = Poly::interpolate(
             &share_batches
                 .into_iter()
-                .map(|s| s.take(self.params.t))
+                .map(|s| s.take(self.params().t))
                 .zip_eq(&challenge)
                 .fold(
-                    blinding_poly_evaluations.take(self.params.t),
+                    blinding_poly_evaluations.take(self.params().t),
                     |acc, (p_l, gamma_l)| acc + p_l * gamma_l,
                 )
                 .to_vec(),
@@ -441,11 +445,11 @@ impl Dealer {
             return Err(InvalidInput);
         }
         let pending_recipients: BTreeSet<PartyId> = self
-            .nodes
+            .nodes()
             .node_ids_iter()
             .filter(|id| !avss_cert.signers().contains(id))
             .collect();
-        if self.nodes.total_weight_of(pending_recipients.iter())? > self.params.f {
+        if self.nodes().total_weight_of(pending_recipients.iter())? > self.params().f {
             warn!("batch_avss prepare_avid_payloads: too many pending recipients");
             return Err(InvalidInput);
         }
@@ -488,20 +492,25 @@ impl Receiver {
         // The dealer is expected to deal a number of nonces proportional to its weight
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
 
-        let total_weight = nodes.total_weight();
-        params.validate(total_weight)?;
-        let nodes = Arc::new(nodes);
-        let avid = avid::Avid::new(nodes.clone(), params.f)?;
+        let config = ShareConfig::new(nodes, params)?;
+        let avid = avid::Avid::new(config.nodes_arc(), config.byzantine_bound())?;
 
         Ok(Self {
             id,
             enc_secret_key,
-            nodes,
+            config,
             sid,
-            params,
             batch_size,
             avid,
         })
+    }
+
+    fn nodes(&self) -> &Nodes<EG> {
+        self.config.nodes()
+    }
+
+    fn params(&self) -> Parameters {
+        self.config.parameters()
     }
 
     /// 2. Process an [AvssMessage] sent by the dealer in the first phase. This verifies the
@@ -522,9 +531,9 @@ impl Receiver {
         message: &AvssMessage,
     ) -> FastCryptoResult<(ReceiverOutput, AvssVote, VerifiedAvssCommonMessage)> {
         let verified_common = message.common.clone().verify(
-            self.params.t,
+            self.params().t,
             self.batch_size,
-            self.nodes.num_nodes(),
+            self.nodes().num_nodes(),
             &self.random_oracle(),
         )?;
         check_ciphertext_hash(&message.ciphertext.0, self.id, &verified_common)
@@ -569,8 +578,10 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        let required_weight_of_voters = self.params.t + self.params.f;
-        if self.nodes.total_weight_of(avss_cert.signers().iter())? < required_weight_of_voters {
+        let required_weight_of_voters = self.config.certificate_quorum();
+        if (self.nodes().total_weight_of(avss_cert.signers().iter())? as u32)
+            < required_weight_of_voters
+        {
             warn!("batch_avss echo: not enough voters");
             return Err(NotEnoughWeight(required_weight_of_voters as usize));
         }
@@ -578,7 +589,7 @@ impl Receiver {
         // Dispersal recipients and voters must partition the node set.
         if !dispersal
             .keys()
-            .eq(self.nodes.relative_complement(avss_cert.signers()).iter())
+            .eq(self.nodes().relative_complement(avss_cert.signers()).iter())
         {
             warn!("batch_avss echo: dispersal recipients and voters do not partition the node set");
             return Err(InvalidMessage);
@@ -709,7 +720,7 @@ impl Receiver {
         let my_shares = SharesForNode::from_bytes(plaintext)?;
         my_shares.verify(
             common_message,
-            &self.nodes.share_ids_of(self.id)?,
+            &self.nodes().share_ids_of(self.id)?,
             self.batch_size,
         )?;
         Ok(ReceiverOutput {
@@ -732,10 +743,10 @@ impl Receiver {
     ) -> FastCryptoResult<ComplaintResponse> {
         let AvssComplaint { proof, ciphertext } = reveal;
 
-        let accuser = self.nodes.node_id_to_node(accuser_id).tap_err(|_| {
+        let accuser = self.nodes().node_id_to_node(accuser_id).tap_err(|_| {
             warn!("batch_avss handle_avss_complaint: accuser_id not valid: {accuser_id}");
         })?;
-        let accuser_indices = self.nodes.share_ids_of(accuser_id)?;
+        let accuser_indices = self.nodes().share_ids_of(accuser_id)?;
         check_ciphertext_hash(&ciphertext.0, accuser_id, verified_common)
             .map_err(|_| InvalidProof)?;
 
@@ -764,7 +775,7 @@ impl Receiver {
         own_ciphertext: Ciphertext,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<ComplaintResponse> {
-        if !self.nodes.is_valid_id(accuser_id) {
+        if !self.nodes().is_valid_id(accuser_id) {
             warn!("batch_avss handle_avid_complaint: accuser_id is not valid: {accuser_id}");
             return Err(InvalidInput);
         }
@@ -807,7 +818,7 @@ impl Receiver {
             recovery_package,
         } = response;
         // node_id_to_node validates responder_id, so the ciphertext_hashes index below is safe.
-        let responder = self.nodes.node_id_to_node(responder_id)?;
+        let responder = self.nodes().node_id_to_node(responder_id)?;
         check_ciphertext_hash(&ciphertext.0, responder_id, verified_common)
             .map_err(|_| InvalidProof)?;
         let shares = verified_common
@@ -827,7 +838,7 @@ impl Receiver {
 
         shares.verify(
             verified_common,
-            &self.nodes.share_ids_of(responder_id)?,
+            &self.nodes().share_ids_of(responder_id)?,
             self.batch_size,
         )?;
 
@@ -848,7 +859,7 @@ impl Receiver {
         }
 
         if responses.iter().any(|r| {
-            self.nodes
+            self.nodes()
                 .weight_of(r.responder_id)
                 .ok()
                 .is_none_or(|w| w != r.shares.weight())
@@ -856,12 +867,13 @@ impl Receiver {
             return Err(InvalidInput);
         }
 
-        if self
-            .nodes
-            .total_weight_of(responses.iter().map(|r| &r.responder_id))?
-            < self.params.t
+        if !self
+            .config
+            .has_reconstruction_threshold(responses.iter().map(|r| &r.responder_id))?
         {
-            return Err(NotEnoughWeight(self.params.t as usize));
+            return Err(NotEnoughWeight(
+                self.config.reconstruction_threshold() as usize
+            ));
         }
 
         let response_shares: Vec<(PartyId, SharesForNode)> = responses
@@ -888,7 +900,7 @@ impl Receiver {
     }
 
     pub fn my_indices(&self) -> Vec<ShareIndex> {
-        self.nodes.share_ids_of(self.id).unwrap()
+        self.nodes().share_ids_of(self.id).unwrap()
     }
 
     fn random_oracle(&self) -> RandomOracle {
@@ -1102,7 +1114,7 @@ impl SharesForNode {
         // Pre-compute each responder's share indices once.
         let responders: Vec<(Vec<ShareIndex>, &SharesForNode)> = other_shares
             .iter()
-            .map(|(id, s)| Ok((receiver.nodes.share_ids_of(*id)?, s)))
+            .map(|(id, s)| Ok((receiver.nodes().share_ids_of(*id)?, s)))
             .collect::<FastCryptoResult<_>>()?;
 
         let shares = receiver
@@ -1117,14 +1129,14 @@ impl SharesForNode {
                             .collect::<FastCryptoResult<Vec<_>>>()?
                             .into_iter()
                             .flatten()
-                            .take(receiver.params.t as usize)
+                            .take(receiver.params().t as usize)
                             .collect_vec();
-                        Ok(Poly::recover_at(receiver.params.t, index, &evaluations)?.value)
+                        Ok(Poly::recover_at(receiver.params().t, index, &evaluations)?.value)
                     })
                     .collect::<FastCryptoResult<Vec<_>>>()?;
 
                 let blinding_share = Poly::recover_at(
-                    receiver.params.t,
+                    receiver.params().t,
                     index,
                     &responders
                         .iter()
@@ -1133,7 +1145,7 @@ impl SharesForNode {
                             index,
                             value: share.blinding_share,
                         })
-                        .take(receiver.params.t as usize)
+                        .take(receiver.params().t as usize)
                         .collect_vec(),
                 )?
                 .value;
@@ -1731,8 +1743,8 @@ mod tests {
             state: &AvssMessageBuilder,
             cert: AvssCert,
         ) -> FastCryptoResult<AvidMessageBuilder<AvssCert>> {
-            let f = self.params.f as usize;
-            let n = self.nodes.total_weight() as usize;
+            let f = self.params().f as usize;
+            let n = self.nodes().total_weight() as usize;
             self.create_avid_messages_for_testing(state, cert, |shards_by_recipient| {
                 // Flip a byte in the shards held by the last `f` dispersers for receiver 0's
                 // ciphertext.

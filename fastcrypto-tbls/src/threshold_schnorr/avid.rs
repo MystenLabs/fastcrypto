@@ -10,6 +10,7 @@
 //! disperser to a recipient an "echo".
 
 use crate::nodes::{Nodes, PartyId};
+use crate::threshold_schnorr::config::ShareConfig;
 use crate::threshold_schnorr::merkle::{NestedMerkleProof, NestedMerkleTree};
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard, Shards};
 use crate::threshold_schnorr::EG;
@@ -129,10 +130,8 @@ impl Avid {
     /// W can be assumed to be <=10000.
     pub fn new(nodes: Arc<Nodes<EG>>, f: u16) -> FastCryptoResult<Self> {
         let total_weight = nodes.total_weight();
-        if f == 0 {
-            return Err(InvalidInput);
-        }
-        let k = total_weight.checked_sub(2 * f).ok_or(InvalidInput)?;
+        // `W − 2f` (and the `W > 2f` requirement) has a single source of truth on `ShareConfig`.
+        let k = ShareConfig::<EG>::recoverable_weight_from(total_weight, f)?;
         let coder = ErasureCoder::new(total_weight as usize, k as usize)?;
         Ok(Self { nodes, coder, f })
     }
@@ -374,7 +373,8 @@ impl Avid {
     }
 
     fn required_weight(&self) -> u16 {
-        self.nodes.total_weight() - 2 * self.f
+        ShareConfig::<EG>::recoverable_weight_from(self.nodes.total_weight(), self.f)
+            .expect("W > 2f checked in Avid::new")
     }
 }
 
