@@ -92,6 +92,11 @@ impl Parameters {
         }
         Ok(())
     }
+
+    /// Weight of signatures needed to certify a single AVSS message: `t + f`.
+    pub fn certificate_weight(&self) -> u16 {
+        self.t + self.f
+    }
 }
 
 /// Helper function to create a random oracle from a session ID.
@@ -167,6 +172,19 @@ mod tests {
     use itertools::Itertools;
     use std::collections::HashMap;
     use std::hash::Hash;
+
+    #[test]
+    fn test_quorum_weight_helpers() {
+        // Certificate quorum for a single AVSS message is `t + f`.
+        assert_eq!(Parameters { t: 3, f: 2 }.certificate_weight(), 5);
+
+        // AVID vote quorum is `W - f`, and fails closed once `f >= W`.
+        assert_eq!(batch_avss::avid_vote_weight(7, 2).unwrap(), 5);
+        assert_eq!(batch_avss::avid_vote_weight(7, 6).unwrap(), 1);
+        assert!(batch_avss::avid_vote_weight(7, 7).is_err());
+        assert!(batch_avss::avid_vote_weight(7, 8).is_err());
+    }
+
     #[test]
     fn test_e2e() {
         // No complaints, all honest

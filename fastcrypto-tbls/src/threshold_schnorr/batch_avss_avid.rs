@@ -55,6 +55,14 @@ use crate::threshold_schnorr::reed_solomon::Shards;
 
 pub type Digest = fastcrypto::hash::Digest<{ Blake2b256::OUTPUT_SIZE }>;
 
+/// Weight of [AvidVote]s needed to form the AVID certificate: `W − f` (errs if `f ≥ W`).
+pub fn avid_vote_weight(total_weight: u16, f: u16) -> FastCryptoResult<u16> {
+    match total_weight.checked_sub(f) {
+        Some(w) if w > 0 => Ok(w),
+        _ => Err(InvalidInput),
+    }
+}
+
 /// The Dealer for the protocol. Exactly one per instance.
 pub struct Dealer {
     nodes: Arc<Nodes<EG>>,
@@ -569,7 +577,7 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        let required_weight_of_voters = self.params.t + self.params.f;
+        let required_weight_of_voters = self.params.certificate_weight();
         if self.nodes.total_weight_of(avss_cert.signers().iter())? < required_weight_of_voters {
             warn!("batch_avss echo: not enough voters");
             return Err(NotEnoughWeight(required_weight_of_voters as usize));
