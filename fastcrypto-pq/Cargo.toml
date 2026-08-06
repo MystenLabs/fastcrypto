@@ -4,24 +4,17 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
-readme = "../README.md"
+readme = "README.md"
 description = "Post-quantum signature schemes"
 repository = "https://github.com/MystenLabs/fastcrypto"
 publish = false
 
 [dependencies]
-# copy_key is not optional here: fastcrypto-cli enables fastcrypto/copy_key in every
-# whole-workspace build, which adds copy() to the KeyPair trait; enabling it here
-# unconditionally keeps the trait impl valid in standalone and workspace builds alike.
+# copy_key is not optional here
 fastcrypto = { path = "../fastcrypto", features = ["copy_key"] }
 fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.4" }
-# TODO: The C backend (mldsa-native, pinned as a submodule inside the wrapper) and the unsafe FFI
-# surface live behind this crate. A local path while the wrapper repo is under internal
-# review; once it is published, switch to the exact-commit git pin (consensus-critical), e.g.
-# mysten-mldsa-native-rs = { git = "https://github.com/MystenLabs/mysten-mldsa-native-rs.git", rev = "c46c89c57b7554d6d17bd280a8015c222c09024f" }
-# Cargo fetches the wrapper's submodule automatically for git dependencies, so no submodule
-# handling will be needed in this repo or its CI.
-mysten-mldsa-native-rs = { path = "../../mysten-mldsa-native-rs" }
+# The C backend (mldsa-native, pinned as a submodule inside the wrapper)
+mysten-mldsa-native-rs = { git = "https://github.com/MystenLabs/mysten-mldsa-native-rs.git", rev = "ea1a9794c7ad0c68b9410121964b7439540826bc", version = "0.1.0" }
 rand.workspace = true
 serde.workspace = true
 bincode.workspace = true

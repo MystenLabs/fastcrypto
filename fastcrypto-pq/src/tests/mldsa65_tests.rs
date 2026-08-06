@@ -4,7 +4,7 @@
 //! Tests for the fastcrypto trait layer over ML-DSA-65.
 //!
 //! The scheme itself is tested in the `mysten-mldsa-native-rs` wrapper, against
-//! cross-implementation known-answer vectors. What is exercised here is everything this
+//! cross-implementation KAT vectors. What is exercised here is everything this
 //! crate adds on top: the trait implementations, serialization, encoding, and the
 //! seed-as-private-key contract that the rest of Sui relies on.
 
@@ -15,7 +15,7 @@ use std::str::FromStr;
 use rand::rngs::StdRng;
 use rand::SeedableRng as _;
 
-use fastcrypto::encoding::{Base64, Encoding};
+use fastcrypto::encoding::{Base64, Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::traits::{
     EncodeDecodeBase64, InsecureDefault, KeyPair, Signer, ToFromBytes, VerifyingKey,
@@ -186,8 +186,7 @@ fn serialize_deserialize() {
     verify_serialization(&signature, Some(signature.as_ref()));
 }
 
-/// Mirrors `fastcrypto::tests::test_helpers::verify_serialization`, which is not exported
-/// across crate boundaries.
+/// Mirrors `fastcrypto::tests::test_helpers::verify_serialization`
 fn verify_serialization<T>(obj: &T, expected: Option<&[u8]>)
 where
     T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
@@ -271,8 +270,6 @@ fn insecure_default_is_not_a_usable_key() {
 
 #[test]
 fn public_key_ordering_and_hashing() {
-    // Sui stores public keys in ordered and hashed collections, so both must be consistent
-    // with equality.
     let keypair = keys().pop().unwrap();
     let same = MLDSA65PublicKey::from_bytes(keypair.public().as_ref()).unwrap();
 
@@ -298,6 +295,83 @@ fn debug_output_is_redacted_for_secrets() {
         format!("{:?}", keypair.public()),
         Base64::encode(keypair.public().as_ref())
     );
+}
+
+/// Cross-stack interop vectors, produced by the ts wallet stack (`@noble/post-quantum` 0.6.1)
+/// FIPS 204 fixes the seed -> key expansion, and pinning the hedge randomness `rnd` fixes
+/// the whole signature, so the TS and Rust stacks must agree byte for byte, not merely
+/// cross-verify.
+///
+/// Per case: the seed expands to the vector's public key through this crate's types,
+/// the wrapper reproduces the vector's signature byte for byte, and the TS-produced
+/// signature verifies here. The trait layer freezes the context to "", so the two
+/// non-empty-ctx cases verify through the wrapper instead.
+#[test]
+fn matches_typescript_interop_vectors() {
+    use mysten_mldsa_native_rs as mldsa;
+
+    #[derive(serde::Deserialize)]
+    struct Case {
+        name: String,
+        seed: String,
+        msg: String,
+        ctx: String,
+        rnd: String,
+        pk: String,
+        sig: String,
+    }
+    #[derive(serde::Deserialize)]
+    struct Vectors {
+        scheme: String,
+        producer: String,
+        cases: Vec<Case>,
+    }
+
+    let vectors: Vectors = serde_json::from_str(include_str!("ts_interop_vectors.json")).unwrap();
+    assert_eq!(vectors.scheme, "ML-DSA-65");
+    assert_eq!(vectors.producer, "@noble/post-quantum");
+    assert_eq!(vectors.cases.len(), 5, "the vector file changed shape");
+
+    for case in &vectors.cases {
+        let seed = Hex::decode(&case.seed).unwrap();
+        let msg = Hex::decode(&case.msg).unwrap();
+        let ctx = Hex::decode(&case.ctx).unwrap();
+        let rnd: [u8; 32] = Hex::decode(&case.rnd).unwrap().try_into().unwrap();
+        let pk = Hex::decode(&case.pk).unwrap();
+        let sig = Hex::decode(&case.sig).unwrap();
+
+        // Same seed, same account, on both stacks.
+        let private = MLDSA65PrivateKey::from_bytes(&seed).unwrap();
+        let public = MLDSA65PublicKey::from(&private);
+        assert_eq!(public.as_ref(), &pk[..], "{}: seed->pk diverged", case.name);
+
+        // Fixed rnd makes signing deterministic: the wrapper must reproduce the
+        // TS-produced signature exactly.
+        let (wrapper_key, wrapper_public) =
+            mldsa::SigningKeySeed::from_bytes(&seed).unwrap().expand();
+        let ours = wrapper_key.sign(&msg, &ctx, &rnd).unwrap();
+        assert_eq!(
+            ours.as_bytes()[..],
+            sig[..],
+            "{}: signature bytes diverged",
+            case.name
+        );
+
+        if ctx.is_empty() {
+            let parsed = MLDSA65Signature::from_bytes(&sig).unwrap();
+            assert!(
+                public.verify(&msg, &parsed).is_ok(),
+                "{}: TS signature rejected",
+                case.name
+            );
+            // The wire format is the raw bytes: no serialization envelope may sneak in.
+            verify_serialization(&public, Some(public.as_ref()));
+            verify_serialization(&parsed, Some(parsed.as_ref()));
+        } else {
+            let parsed = mldsa::Signature::from_bytes(&sig).unwrap();
+            assert!(wrapper_public.verify(&msg, &ctx, &parsed).is_ok());
+        }
+    }
 }
 
 #[test]

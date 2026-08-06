@@ -9,7 +9,7 @@
 //! Serialization emits only the seed, and key expansion is fully specified by the standard.
 //! Signing is hedged (the FIPS 204 default): each signature draws fresh randomness from the
 //! operating system, so two signatures over the same msg differ while both verify. The FIPS
-//! 204 context string is fixed to empty.
+//! 204 context string is fixed to empty but the wrapper gets context up to 255-bytes.
 //!
 //! msgs can be signed and the signature can be verified again:
 //! ```rust
@@ -17,7 +17,7 @@
 //! # use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
 //! use rand::thread_rng;
 //! let keypair = MLDSA65KeyPair::generate(&mut thread_rng());
-//! let msg: &[u8] = b"Hello, world!";
+//! let msg: &[u8] = b"Hello, Q world!";
 //! let signature = keypair.sign(msg);
 //! assert!(keypair.public().verify(msg, &signature).is_ok());
 //! ```
@@ -256,7 +256,7 @@ impl Debug for MLDSA65Signature {
 impl<'a> From<&'a MLDSA65PrivateKey> for MLDSA65PublicKey {
     fn from(private: &'a MLDSA65PrivateKey) -> Self {
         // re-expanding the seed is the only way to recover public key. Callers that
-        // need it repeatedly should hold the MLDSA65KeyPair, which keeps it.
+        // need it repeatedly should hold/cache the MLDSA65KeyPair.
         let (_, public) = private.seed.expand();
         MLDSA65PublicKey(public)
     }

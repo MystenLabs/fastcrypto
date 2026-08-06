@@ -2399,8 +2399,10 @@ dependencies = [
 [[package]]
 name = "mysten-mldsa-native-rs"
 version = "0.1.0"
+source = "git+https://github.com/MystenLabs/mysten-mldsa-native-rs.git?rev=ea1a9794c7ad0c68b9410121964b7439540826bc#ea1a9794c7ad0c68b9410121964b7439540826bc"
 dependencies = [
  "cc",
+ "cpufeatures",
  "zeroize",
 ]
 

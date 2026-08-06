@@ -42,7 +42,7 @@ mod mldsa65_benches {
             b.iter(|| MLDSA65KeyPair::generate(&mut csprng))
         });
 
-        // Parsing a private key costs a key generation: the wire format is the 32-byte
+        // Parsing a private key (i.e. the seed) costs a key generation: the wire format is the 32-byte
         // seed, so from_bytes re-runs the FIPS 204 key expansion.
         let mut csprng2: ThreadRng = thread_rng();
         let seed = MLDSA65KeyPair::generate(&mut csprng2).as_ref().to_vec();
