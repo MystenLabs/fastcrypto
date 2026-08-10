@@ -67,19 +67,17 @@ pub struct MLDSA65PublicKey(mldsa::VerifyingKey);
 /// derived from it so signing never re-runs key generation. Only the seed is serialized, and
 /// both wrapper types zeroize their material on drop.
 ///
-/// This holds secret material only. The public key is not cached here even though key
-/// expansion produces it for free, because a type named for the private key we would prefer
-/// to not carry public data in this struct; Deriving it costs one more expansion
 #[derive(SilentDebug, SilentDisplay)]
 pub struct MLDSA65PrivateKey {
     seed: mldsa::SigningKeySeed,
-    key: mldsa::SigningKey,
+    /// The expanded form of `seed`, cached so signing never re-runs key expansion.
+    signing_key: mldsa::SigningKey,
 }
 
 impl MLDSA65PrivateKey {
     fn from_seed(seed: mldsa::SigningKeySeed) -> Self {
-        let (key, _) = seed.expand();
-        MLDSA65PrivateKey { seed, key }
+        let (signing_key, _) = seed.expand();
+        MLDSA65PrivateKey { seed, signing_key }
     }
 }
 
@@ -132,6 +130,17 @@ serialize_deserialize_with_to_from_bytes!(MLDSA65PrivateKey, MLDSA65_PRIVATE_KEY
 // Implementation of [MLDSA65KeyPair].
 //
 
+impl MLDSA65KeyPair {
+    /// Build the pair with a single key expansion
+    fn from_seed(seed: mldsa::SigningKeySeed) -> Self {
+        let (signing_key, verifying_key) = seed.expand();
+        MLDSA65KeyPair {
+            public: MLDSA65PublicKey(verifying_key),
+            private: MLDSA65PrivateKey { seed, signing_key },
+        }
+    }
+}
+
 impl From<MLDSA65PrivateKey> for MLDSA65KeyPair {
     fn from(private: MLDSA65PrivateKey) -> Self {
         let public = MLDSA65PublicKey::from(&private);
@@ -142,7 +151,8 @@ impl From<MLDSA65PrivateKey> for MLDSA65KeyPair {
 /// The bytes form of the keypair always only contain the private key bytes
 impl ToFromBytes for MLDSA65KeyPair {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        MLDSA65PrivateKey::from_bytes(bytes).map(|private| private.into())
+        let seed = mldsa::SigningKeySeed::from_bytes(bytes).map_err(|_| InvalidInput)?;
+        Ok(MLDSA65KeyPair::from_seed(seed))
     }
 }
 
@@ -181,7 +191,7 @@ impl KeyPair for MLDSA65KeyPair {
     fn generate<R: AllowedRng>(rng: &mut R) -> Self {
         let mut seed = [0u8; MLDSA65_PRIVATE_KEY_LENGTH];
         rng.fill_bytes(&mut seed);
-        MLDSA65PrivateKey::from_seed(mldsa::SigningKeySeed::from(seed)).into()
+        MLDSA65KeyPair::from_seed(mldsa::SigningKeySeed::from(seed))
     }
 }
 
@@ -202,7 +212,7 @@ impl Signer<MLDSA65Signature> for MLDSA65KeyPair {
         OsRng.fill_bytes(&mut rnd);
         MLDSA65Signature(
             self.private
-                .key
+                .signing_key
                 .sign(msg, b"", &rnd)
                 .expect("the empty context cannot exceed the length limit"),
         )

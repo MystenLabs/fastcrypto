@@ -52,7 +52,7 @@ Measured through this crate on an Apple M2 Max, medians:
 | -------------- | ------- | -------------------- | ---------------------- |
 | Sign           | 13 µs   | 66 µs                | 189 µs                 |
 | Verify         | 28 µs   | 24 µs                | 57 µs                  |
-| Key generation | 11 µs   | 53 µs                | 136 µs                 |
+| Key generation | 11 µs   | 27 µs                | 73 µs                  |
 
 Verification, the cost validators pay per transaction, is at parity with Ed25519. The
 `native` feature forwards to the wrapper's formally verified NEON (aarch64) and AVX2
