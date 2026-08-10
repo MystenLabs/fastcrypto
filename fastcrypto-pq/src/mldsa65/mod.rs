@@ -141,6 +141,11 @@ impl MLDSA65KeyPair {
     }
 }
 
+/// The one construction path that must expand the seed a second time: recovering
+/// the public key from a standalone private key. The wrapper deliberately has no
+/// signing-key-to-public-key accessor, so the seed is the only route back to the
+/// public key. Key generation and deserialization do not come through here; they
+/// use [`MLDSA65KeyPair::from_seed`], which keeps both halves of one expansion.
 impl From<MLDSA65PrivateKey> for MLDSA65KeyPair {
     fn from(private: MLDSA65PrivateKey) -> Self {
         let public = MLDSA65PublicKey::from(&private);

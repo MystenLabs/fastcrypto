@@ -184,6 +184,16 @@ fn serialize_deserialize() {
 
     verify_serialization(keypair.public(), Some(keypair.public().as_ref()));
     verify_serialization(&signature, Some(signature.as_ref()));
+
+    // The secret side serializes as the 32-byte seed, for both the private key
+    // and the key pair; deserializing either re-derives everything from it.
+    let private = keypair.copy().private();
+    verify_serialization(&private, Some(private.as_ref()));
+    let kp_bytes = bincode::serialize(&keypair).unwrap();
+    assert_eq!(kp_bytes, keypair.as_ref());
+    let restored: MLDSA65KeyPair = bincode::deserialize(&kp_bytes).unwrap();
+    assert_eq!(restored.public(), keypair.public());
+    assert_eq!(restored.as_ref(), keypair.as_ref());
 }
 
 /// Mirrors `fastcrypto::tests::test_helpers::verify_serialization`
