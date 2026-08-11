@@ -322,9 +322,21 @@ impl Receiver {
         message: &Message,
         rng: &mut R,
     ) -> FastCryptoResult<ProcessedMessage> {
+        Ok(match self.verify_message(message)? {
+            Some(output) => ProcessedMessage::Valid(output),
+            None => ProcessedMessage::Complaint(self.create_complaint(message, rng)),
+        })
+    }
+
+    /// Verify and decrypt this receiver's shares.
+    ///
+    /// `Ok(Some)`: valid shares. `Ok(None)`: shares are invalid for this receiver;
+    /// call [`Self::create_complaint`] to build a broadcastable complaint. `Err`
+    /// ([InvalidMessage]): the message is malformed and should be ignored.
+    pub fn verify_message(&self, message: &Message) -> FastCryptoResult<Option<AvssOutput>> {
         if message.feldman_commitment.degree() + 1 != self.params.t as usize {
             warn!(
-                "AVSS process_message: invalid feldman commitment degree {} (expected {})",
+                "AVSS verify_message: invalid feldman commitment degree {} (expected {})",
                 message.feldman_commitment.degree(),
                 self.params.t as usize - 1,
             );
@@ -335,14 +347,14 @@ impl Receiver {
         if let Some(c) = &self.commitment {
             if message.feldman_commitment.c0() != *c {
                 warn!(
-                    "AVSS process_message: feldman commitment c0 does not match the expected commitment from a previous round"
+                    "AVSS verify_message: feldman commitment c0 does not match the expected commitment from a previous round"
                 );
                 return Err(InvalidMessage);
             }
         }
 
         if message.ciphertext.len() != self.nodes.num_nodes() {
-            warn!("AVSS process_message: ciphertext has the wrong number of recipients");
+            warn!("AVSS verify_message: ciphertext has the wrong number of recipients");
             return Err(InvalidMessage);
         }
 
@@ -351,7 +363,7 @@ impl Receiver {
             .ciphertext
             .verify(&random_oracle_encryption)
             .map_err(|e| {
-                warn!("AVSS process_message: ciphertext verification failed: {e:?}");
+                warn!("AVSS verify_message: ciphertext verification failed: {e:?}");
                 InvalidMessage
             })?;
 
@@ -365,19 +377,25 @@ impl Receiver {
             my_shares.verify(message, &self.nodes.share_ids_of(self.id)?, self.id)?;
             Ok(my_shares)
         }) {
-            Ok(my_shares) => Ok(ProcessedMessage::Valid(AvssOutput {
+            Ok(my_shares) => Ok(Some(AvssOutput {
                 my_shares,
                 feldman_commitment: message.feldman_commitment.clone(),
             })),
-            Err(_) => Ok(ProcessedMessage::Complaint(Complaint {
-                proof: RecoveryProof::create(
-                    self.id,
-                    &message.ciphertext.shared(),
-                    &self.enc_secret_key,
-                    &self.random_oracle(),
-                    rng,
-                ),
-            })),
+            Err(_) => Ok(None),
+        }
+    }
+
+    /// Build a complaint proving this receiver got invalid shares. Only meaningful
+    /// when [`Self::verify_message`] returned `Ok(None)`.
+    pub fn create_complaint<R: AllowedRng>(&self, message: &Message, rng: &mut R) -> Complaint {
+        Complaint {
+            proof: RecoveryProof::create(
+                self.id,
+                &message.ciphertext.shared(),
+                &self.enc_secret_key,
+                &self.random_oracle(),
+                rng,
+            ),
         }
     }
 
