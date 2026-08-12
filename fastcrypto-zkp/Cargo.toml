@@ -21,6 +21,10 @@ required-features = ["test-utils"]
 name = "poseidon"
 harness = false
 
+[[bench]]
+name = "bppp"
+harness = false
+
 [dependencies]
 ark-bn254 = "0.4.0"
 ark-ec = { version = "0.4.1" }
