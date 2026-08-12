@@ -11,7 +11,7 @@
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::groups::{GroupElement, MultiScalarMul, PrecomputedMultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 
 use crate::bppp::crs::{dims, validate_dims, Generators, BASE, H_LEN};
@@ -99,7 +99,7 @@ struct Blocks {
     lambda_al: S,
     mu_am: S,
     /// `(1, lambda, ..., lambda^M)`: the per-value aggregation weights.
-    /// Only `lambda^0..lambda^{M-1}` are read outside this module.
+    /// Only `lambda^0..lambda^{M-1}` are read outside `compute_blocks`.
     lambdas: Vec<S>,
 }
 
@@ -181,6 +181,9 @@ impl Blocks {
     /// Coefficients of `p_s(T) = |p_n(T)|^2_mu + 2*(lambda_al + mu_am)*T^3`
     /// at powers `T^0..T^6`, where
     /// `p_n(T) = cn_v + T*cn_r + T^2*cn_l + T^3*delta^{-1}*cn_o`.
+    /// Reference formulation kept for the test provers; production code
+    /// evaluates `p_s(tau)` directly and cancels `|p_n|^2` inside `hat_f`.
+    #[cfg(test)]
     fn ps_coefficients(&self, delta_inv: S) -> [S; 7] {
         let pn3 = vec_scalar_mul(delta_inv, &self.cn_o);
         let pn = [&self.cn_v, &self.cn_r, &self.cn_l, &pn3];
@@ -224,19 +227,17 @@ impl Blocks {
 }
 
 /// Norm-linear commitment `C_X = r[0]*G + <r[1..8] || l, H> + <n, G_vec>`.
-/// `H_0..H_6` carry the blinding slots 1..7, `H_7` the linear witness.
+/// `H_0..H_6` carry the blinding slots 1..7, `H_7` the linear witness. The
+/// scalar layout matches the precomputed tables `[G, h_vec.., g_vec..]`.
 fn commit(gens: &Generators, r: &[S], l: S, n: &[S]) -> FastCryptoResult<RistrettoPoint> {
     debug_assert_eq!(r.len(), H_LEN);
+    debug_assert_eq!(n.len(), gens.g_vec.len());
     let mut scalars = Vec::with_capacity(1 + H_LEN + n.len());
     scalars.push(r[0]);
     scalars.extend(&r[1..H_LEN]);
     scalars.push(l);
     scalars.extend(n);
-    let mut points = Vec::with_capacity(scalars.len());
-    points.push(gens.g);
-    points.extend(&gens.h_vec);
-    points.extend(&gens.g_vec[..n.len()]);
-    RistrettoPoint::multi_scalar_mul(&scalars, &points)
+    RistrettoPoint::mixed_multi_scalar_mul(&gens.precomp, &scalars, &[], &[])
 }
 
 /// A blinding vector with the spec's zero pattern: random except at the
@@ -354,7 +355,6 @@ pub(crate) fn prove(
     let mu = rho * rho;
     let delta_inv = delta.inverse()?;
     let blocks = compute_blocks(params, alpha, mu, lambda)?;
-    let ps = blocks.ps_coefficients(delta_inv);
 
     // Step 5: masks, then solve the blinding r_S of C_S.
     let n_s: Vec<S> = (0..params.nm).map(|_| S::rand(rng)).collect();
@@ -383,19 +383,30 @@ pub(crate) fn prove(
     ];
 
     // Error polynomial hat_f(T) = p_s(T) + hat_v*T^3 - |n(T)|^2_mu, Laurent
-    // coefficients at T^{-2}..T^6 stored at index p+2. |n(T)|^2_mu expands
-    // into the 15 unordered pairs <n_i, n_j>_mu at T^{p_i+p_j}.
-    let n_weighted: Vec<Vec<S>> = n_poly.iter().map(|v| hadamard(v, &blocks.bar_mu)).collect();
+    // coefficients at T^{-2}..T^6 stored at index p+2. The public square
+    // |p_n(T)|^2 inside p_s cancels against |n(T)|^2, leaving
+    //   hat_f = (hat_v + 2*(lambda_al + mu_am))*T^3 - <w(T), n(T) + p_n(T)>_mu
+    // with w = n - p_n the witness part (n_s, delta*n_o, n_l, n_r at
+    // T^{-1}..T^2), so only the 4x5 witness-side products are computed.
+    let w_weighted: [Vec<S>; 4] = [
+        hadamard(&n_s, &blocks.bar_mu),
+        hadamard(&vec_scalar_mul(delta, &n_o), &blocks.bar_mu),
+        hadamard(&n_l, &blocks.bar_mu),
+        hadamard(&n_r, &blocks.bar_mu),
+    ];
+    let n_plus_pn: [Vec<S>; 5] = [
+        n_poly[0].clone(),
+        vec_add(&n_poly[1], &blocks.cn_v),
+        vec_add(&n_poly[2], &blocks.cn_r),
+        vec_add(&n_poly[3], &blocks.cn_l),
+        vec_scalar_mul(two, &n_poly[4]),
+    ];
     let mut fh = [S::zero(); 9];
-    for (p, &c) in ps.iter().enumerate() {
-        fh[p + 2] += c;
-    }
-    fh[3 + 2] += v_hat;
-    for i in 0..n_poly.len() {
-        for j in i..n_poly.len() {
-            let ip = inner_product(&n_weighted[i], &n_poly[j]);
+    fh[3 + 2] = v_hat + two * (blocks.lambda_al + blocks.mu_am);
+    for (i, w) in w_weighted.iter().enumerate() {
+        for (j, s) in n_plus_pn.iter().enumerate() {
             // powers: p_i = i - 1, p_j = j - 1, index (p_i + p_j) + 2 = i + j.
-            fh[i + j] -= if i == j { ip } else { ip + ip };
+            fh[i + j] -= inner_product(w, s);
         }
     }
     // Value row: zero for a valid witness. This checks every block formula
@@ -510,38 +521,36 @@ pub(crate) fn verify(
     let t3 = t2 * tau;
 
     let blocks = compute_blocks(params, alpha, mu, lambda)?;
-    let ps = blocks.ps_coefficients(delta_inv);
-    let mut ps_tau = S::zero();
-    let mut t_pow = one();
-    for &c in &ps {
-        ps_tau += c * t_pow;
-        t_pow *= tau;
-    }
     let pn_tau = blocks.pn_at(tau, delta_inv);
+    // p_s(tau) = |p_n(tau)|^2_mu + 2*(lambda_al + mu_am)*tau^3, evaluated
+    // directly on pn_tau rather than via the coefficients of p_s(T).
+    let ps_tau =
+        weighted_norm(&pn_tau, mu) + S::from(2u64) * (blocks.lambda_al + blocks.mu_am) * t3;
     let c_tau = blocks.c_at(tau, tau_inv, beta);
 
-    // Combined commitment:
-    //   C(tau) = p_s(tau)*G + <p_n(tau), G_vec>
+    // Combined commitment, decomposed so it joins the norm-linear verifier's
+    // single MSM (g_vec is touched only there):
+    //   C(tau) = <p_n(tau), G_vec> + p_s(tau)*G
     //          + tau^{-1}*C_S + delta*C_O + tau*C_L + tau^2*C_R + tau^3*hat_V
     // with hat_V = 2*sum_i lambda^{i-1} V_i.
     let two_t3 = S::from(2u64) * t3;
-    let mut scalars = vec![ps_tau];
-    let mut points = vec![gens.g];
-    scalars.extend(&pn_tau);
-    points.extend(&gens.g_vec);
-    scalars.extend([tau_inv, delta, tau, t2]);
-    points.extend([proof.c_s, proof.c_o, proof.c_l, proof.c_r]);
+    let mut extra = vec![
+        (ps_tau, gens.g),
+        (tau_inv, proof.c_s),
+        (delta, proof.c_o),
+        (tau, proof.c_l),
+        (t2, proof.c_r),
+    ];
     for (i, v) in v_commitments.iter().enumerate() {
-        scalars.push(two_t3 * blocks.lambdas[i]);
-        points.push(*v);
+        extra.push((two_t3 * blocks.lambdas[i], *v));
     }
-    let c_tau_commitment = RistrettoPoint::multi_scalar_mul(&scalars, &points)?;
 
     norm_linear::verify(
         transcript,
         gens,
         &c_tau,
-        c_tau_commitment,
+        &pn_tau,
+        &extra,
         rho,
         &proof.nl_proof,
     )
