@@ -217,7 +217,11 @@ pub(crate) fn prove(
             }
             let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) = coeffs
                 .iter()
-                .zip(std::iter::once(&gens.g).chain(base_h.iter()).chain(base_g.iter()))
+                .zip(
+                    std::iter::once(&gens.g)
+                        .chain(base_h.iter())
+                        .chain(base_g.iter()),
+                )
                 .filter(|(s, _)| **s != RistrettoScalar::zero())
                 .map(|(s, p)| (*s, *p))
                 .unzip();
