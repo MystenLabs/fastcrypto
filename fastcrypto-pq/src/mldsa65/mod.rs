@@ -6,10 +6,9 @@
 //! mldsa-native C library.
 //!
 //! The private key is the 32-byte seed from which FIPS 204 derives the full signing key.
-//! Serialization emits only the seed, and key expansion is fully specified by the standard.
 //! Signing is hedged (the FIPS 204 default): each signature draws fresh randomness from the
 //! operating system, so two signatures over the same msg differ while both verify. The FIPS
-//! 204 context string is fixed to empty but the wrapper gets context up to 255-bytes.
+//! 204 context string is fixed to empty.
 //!
 //! msgs can be signed and the signature can be verified again:
 //! ```rust
@@ -55,8 +54,7 @@ pub const MLDSA65_PUBLIC_KEY_LENGTH: usize = mldsa::PUBLIC_KEY_LENGTH;
 /// The length of a signature in bytes.
 pub const MLDSA65_SIGNATURE_LENGTH: usize = mldsa::SIGNATURE_LENGTH;
 
-/// The key pair bytes length is the same as the private key length. This enforces
-/// deserialization to always derive the public key from the private key.
+/// The key pair bytes length is the same as the private key length.
 pub const MLDSA65_KEYPAIR_LENGTH: usize = MLDSA65_PRIVATE_KEY_LENGTH;
 
 /// ML-DSA-65 public key.
@@ -64,13 +62,11 @@ pub const MLDSA65_KEYPAIR_LENGTH: usize = MLDSA65_PRIVATE_KEY_LENGTH;
 pub struct MLDSA65PublicKey(mldsa::VerifyingKey);
 
 /// ML-DSA-65 private key: the 32-byte FIPS 204 seed, kept next to the expanded signing key
-/// derived from it so signing never re-runs key generation. Only the seed is serialized, and
-/// both wrapper types zeroize their material on drop.
+/// derived from it so signing never re-runs key generation.
 ///
 #[derive(SilentDebug, SilentDisplay)]
 pub struct MLDSA65PrivateKey {
     seed: mldsa::SigningKeySeed,
-    /// The expanded form of `seed`, cached so signing never re-runs key expansion.
     signing_key: mldsa::SigningKey,
 }
 
@@ -83,7 +79,6 @@ impl MLDSA65PrivateKey {
 
 impl PartialEq for MLDSA65PrivateKey {
     fn eq(&self, other: &Self) -> bool {
-        // The expanded key is derived from the seed, so seed equality is key equality.
         self.seed == other.seed
     }
 }
@@ -141,11 +136,8 @@ impl MLDSA65KeyPair {
     }
 }
 
-/// The one construction path that must expand the seed a second time: recovering
-/// the public key from a standalone private key. The wrapper deliberately has no
-/// signing-key-to-public-key accessor, so the seed is the only route back to the
-/// public key. Key generation and deserialization do not come through here; they
-/// use [`MLDSA65KeyPair::from_seed`], which keeps both halves of one expansion.
+/// Recovers the public key from a standalone private key by re-expanding its seed.
+/// Other construction paths use [`MLDSA65KeyPair::from_seed`] to expand once.
 impl From<MLDSA65PrivateKey> for MLDSA65KeyPair {
     fn from(private: MLDSA65PrivateKey) -> Self {
         let public = MLDSA65PublicKey::from(&private);
@@ -182,8 +174,7 @@ impl KeyPair for MLDSA65KeyPair {
         self.private
     }
 
-    // Not cfg-gated on copy_key; this crate always enables fastcrypto/copy_key, so the
-    // trait method always exists here.
+    // Not cfg-gated on copy_key; this crate always enables fastcrypto/copy_key
     fn copy(&self) -> Self {
         MLDSA65KeyPair {
             public: self.public.clone(),
@@ -211,8 +202,7 @@ impl FromStr for MLDSA65KeyPair {
 impl Signer<MLDSA65Signature> for MLDSA65KeyPair {
     fn sign(&self, msg: &[u8]) -> MLDSA65Signature {
         // Hedged signing, the FIPS 204 default: fresh randomness from the operating system
-        // (OsRng/getrandom) for every sig, so signing the same msg twice gives different
-        // sigs. `rnd` need not be kept secret, so it is not zeroized.
+        // (OsRng/getrandom) for every sig.
         let mut rnd = [0u8; mldsa::RND_LENGTH];
         OsRng.fill_bytes(&mut rnd);
         MLDSA65Signature(
@@ -270,8 +260,8 @@ impl Debug for MLDSA65Signature {
 
 impl<'a> From<&'a MLDSA65PrivateKey> for MLDSA65PublicKey {
     fn from(private: &'a MLDSA65PrivateKey) -> Self {
-        // re-expanding the seed is the only way to recover public key. Callers that
-        // need it repeatedly should hold/cache the MLDSA65KeyPair.
+        // re-expands the seed; callers that need the public key repeatedly
+        // should hold a MLDSA65KeyPair, which caches it
         let (_, public) = private.seed.expand();
         MLDSA65PublicKey(public)
     }
@@ -318,8 +308,7 @@ impl VerifyingKey for MLDSA65PublicKey {
     const LENGTH: usize = MLDSA65_PUBLIC_KEY_LENGTH;
 
     fn verify(&self, msg: &[u8], signature: &MLDSA65Signature) -> Result<(), FastCryptoError> {
-        // Every failure maps to InvalidSignature without classification; the backend reports
-        // malformed encodings and ordinary mismatches through one code.
+        // Every failure maps to InvalidSignature without classification
         self.0
             .verify(msg, b"", &signature.0)
             .map_err(|_| InvalidSignature)

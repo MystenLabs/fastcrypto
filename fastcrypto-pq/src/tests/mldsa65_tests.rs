@@ -2,11 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Tests for the fastcrypto trait layer over ML-DSA-65.
-//!
-//! The scheme itself is tested in the `mysten-mldsa-native-rs` wrapper, against
-//! cross-implementation KAT vectors. What is exercised here is everything this
-//! crate adds on top: the trait implementations, serialization, encoding, and the
-//! seed-as-private-key contract that the rest of Sui relies on.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -33,7 +28,7 @@ fn keys() -> Vec<MLDSA65KeyPair> {
     (0..4).map(|_| MLDSA65KeyPair::generate(&mut rng)).collect()
 }
 
-/// A key pair from a fixed seed, so a test can name the same key twice.
+/// A key pair from a fixed seed
 fn keypair_from_seed(byte: u8) -> MLDSA65KeyPair {
     MLDSA65PrivateKey::from_bytes(&[byte; MLDSA65_PRIVATE_KEY_LENGTH])
         .unwrap()
@@ -88,8 +83,7 @@ fn verify_rejects_tampered_signature() {
 #[test]
 fn signing_is_hedged() {
     // Signing draws fresh randomness per call (the FIPS 204 default), so two signatures over
-    // the same message differ while both verify. A deterministic scheme would break the
-    // assumption Sui makes about signature uniqueness.
+    // the same message differ while both verify. Deterministic signing does not guarantee signature uniqueness.
     let keypair = keys().pop().unwrap();
     let first = keypair.sign(MSG);
     let second = keypair.sign(MSG);
@@ -101,7 +95,7 @@ fn signing_is_hedged() {
 #[test]
 fn private_key_is_the_seed_and_expansion_is_deterministic() {
     // The private key's serialized form is the 32-byte FIPS 204 seed, and FIPS 204 fixes the
-    // seed to key expansion. Both properties are load-bearing: wallets store the seed, and
+    // seed to key expansion. The core idea is: wallets store the seed, and
     // the same recovery phrase must yield the same account everywhere.
     let seed = [7u8; MLDSA65_PRIVATE_KEY_LENGTH];
     let first = MLDSA65PrivateKey::from_bytes(&seed).unwrap();
@@ -117,8 +111,8 @@ fn private_key_is_the_seed_and_expansion_is_deterministic() {
 
 #[test]
 fn keypair_bytes_are_only_the_private_key() {
-    // Deserializing a key pair always re-derives the public key rather than trusting bytes
-    // on the wire, so a mismatched pair cannot be constructed.
+    // Deserializing a keypair always re-derives the public key rather than trusting bytes
+    // on the wire
     let keypair = keys().pop().unwrap();
     assert_eq!(keypair.as_ref().len(), MLDSA65_PRIVATE_KEY_LENGTH);
 
@@ -185,8 +179,7 @@ fn serialize_deserialize() {
     verify_serialization(keypair.public(), Some(keypair.public().as_ref()));
     verify_serialization(&signature, Some(signature.as_ref()));
 
-    // The secret side serializes as the 32-byte seed, for both the private key
-    // and the key pair; deserializing either re-derives everything from it.
+    // The secret side serializes as the 32-byte seed
     let private = keypair.copy().private();
     verify_serialization(&private, Some(private.as_ref()));
     let kp_bytes = bincode::serialize(&keypair).unwrap();
@@ -308,14 +301,6 @@ fn debug_output_is_redacted_for_secrets() {
 }
 
 /// Cross-stack interop vectors, produced by the ts wallet stack (`@noble/post-quantum` 0.6.1)
-/// FIPS 204 fixes the seed -> key expansion, and pinning the hedge randomness `rnd` fixes
-/// the whole signature, so the TS and Rust stacks must agree byte for byte, not merely
-/// cross-verify.
-///
-/// Per case: the seed expands to the vector's public key through this crate's types,
-/// the wrapper reproduces the vector's signature byte for byte, and the TS-produced
-/// signature verifies here. The trait layer freezes the context to "", so the two
-/// non-empty-ctx cases verify through the wrapper instead.
 #[test]
 fn matches_typescript_interop_vectors() {
     use mysten_mldsa_native_rs as mldsa;
@@ -356,7 +341,7 @@ fn matches_typescript_interop_vectors() {
         assert_eq!(public.as_ref(), &pk[..], "{}: seed->pk diverged", case.name);
 
         // Fixed rnd makes signing deterministic: the wrapper must reproduce the
-        // TS-produced signature exactly.
+        // ts-produced signature exactly.
         let (wrapper_key, wrapper_public) =
             mldsa::SigningKeySeed::from_bytes(&seed).unwrap().expand();
         let ours = wrapper_key.sign(&msg, &ctx, &rnd).unwrap();
