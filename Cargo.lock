@@ -1488,6 +1488,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastcrypto-pq"
+version = "0.1.0"
+dependencies = [
+ "bcs",
+ "bincode",
+ "criterion",
+ "fastcrypto",
+ "fastcrypto-derive",
+ "mysten-mldsa-native-rs",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "fastcrypto-tbls"
 version = "0.1.0"
 dependencies = [
@@ -2379,6 +2394,16 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "mysten-mldsa-native-rs"
+version = "0.1.0"
+source = "git+https://github.com/MystenLabs/mysten-mldsa-native-rs.git?rev=ea1a9794c7ad0c68b9410121964b7439540826bc#ea1a9794c7ad0c68b9410121964b7439540826bc"
+dependencies = [
+ "cc",
+ "cpufeatures",
+ "zeroize",
 ]
 
 [[package]]
