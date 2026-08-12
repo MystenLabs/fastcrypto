@@ -1,9 +1,11 @@
 # Bulletproofs++ Range Proofs
 
-Implementation of [Bulletproofs++](https://eprint.iacr.org/2022/510), a zero-knowledge range proof, over Ristretto255. 
+Implementation of [Bulletproofs++](https://eprint.iacr.org/2022/510) (BP++), a zero-knowledge range proof, over Ristretto255. 
 Given Pedersen commitments `V_1, ..., V_M`, a proof demonstrates knowledge of openings `V_i = v_i*G + s_i*H_0` with values `0 <= v_i < 2^b` for `i = 1, ..., M`, bit size `b` in `{8, 16, 32, 64}` and any batch size `M >= 1`, in a single short transcript.
 
-Each value `v_i` is decomposed into `b/4` base-16 digits, digit-set membership is proven via the reciprocal argument with one multiplicity vector shared across the batch, per-value challenge weights bind each value individually, and everything reduces to a single weighted norm-linear argument. Proofs are non-interactive (Fiat–Shamir over a Merlin transcript) and honest-verifier zero-knowledge (perfect outside a challenge set of density `O(1)/q`). Knowledge soundness holds under the discrete-logarithm assumption in the random-oracle model, in exact form: the extractor outputs the openings `(v_i, s_i)` for arbitrary group elements `V_i`, with no assumption on how the inputs were formed.
+Each value `v_i` is decomposed into `b/4` base-16 digits, digit-set membership is proven via the reciprocal argument with one multiplicity vector shared across the batch, per-value challenge weights bind each value individually, and everything reduces to a single weighted norm-linear argument. 
+Proofs are non-interactive (Fiat–Shamir over a Merlin transcript) and honest-verifier zero-knowledge (perfect outside a challenge set of density `O(1)/q`). 
+Knowledge soundness holds under the discrete-logarithm assumption in the random-oracle model, in exact form: the extractor outputs the openings `(v_i, s_i)` for arbitrary group elements `V_i`, with no assumption on how the inputs were formed.
 
 ## Module layout
 
@@ -22,27 +24,27 @@ base to `pedersen::H` and the blinding base to `pedersen::G`, so existing
 
 ## Proof sizes
 
-`|proof| = 64*log2(nm) + 160` bytes, where `nm = max(M*b/4, 16)` rounded up
-to a power of two. Baseline: aggregated range proofs of the dalek
-`bulletproofs` crate v5 (Ristretto255), which requires aggregation sizes to
-be powers of two.
+Proofs have a size of `64*log2(nm) + 160` bytes, where `nm = max(M*b/4, 16)` rounded up
+to a power of two. 
+The table below compares BulletProofs (BP) and BulletProofs++ proof sizes for different (aggregate) range proof configurations.
 
-| Config | BP++ (bytes) | BP (bytes) | smaller |
+| Config | BP (bytes) | BP++ (bytes) | smaller |
 | --- | ---: | ---: | ---: |
-| 16-bit x1 | 416 | 544 | 24% |
-| 32-bit x1 | 416 | 608 | 32% |
-| 64-bit x1 | 416 | 672 | 38% |
-| 16-bit x4 | 416 | 672 | 38% |
-| 16-bit x8 | 480 | 736 | 35% |
-| 32-bit x8 | 544 | 800 | 32% |
-| 64-bit x16 | 672 | 928 | 28% |
-| 64-bit x32 | 736 | 992 | 26% |
+| 16-bit x1 | 544 | 416 | 24% |
+| 32-bit x1 | 608 | 416 | 32% |
+| 64-bit x1 | 672 | 416 | 38% |
+| 16-bit x4 | 672 | 416 | 38% |
+| 16-bit x8 | 736 | 480 | 35% |
+| 32-bit x8 | 800 | 544 | 32% |
+| 64-bit x16 | 928 | 672 | 28% |
+| 64-bit x32 | 992 | 736 | 26% |
 
 ## Benchmarks
 
-Apple M2 Max, criterion medians; reproduce the BP++ side with
-`cargo bench -p fastcrypto-zkp --bench bppp`. BP baseline measured on the
-same machine with the dalek `bulletproofs` crate v5.
+The two tables below compare BP and BP++ prover and verifier performance for different (aggregate) range proof configurations.
+All benchmarks were done on an Apple M2 Max MacBook Pro with 96 GB RAM.
+For the BP baseline, the dalek `bulletproofs` crate v5 was used. 
+To reproduce the BP++ benchmarks run `cargo bench -p fastcrypto-zkp --bench bppp`. 
 
 **Proving (ms):**
 
