@@ -11,7 +11,7 @@
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::groups::{GroupElement, MultiScalarMul, PrecomputedMultiScalarMul, Scalar};
 
 use crate::bppp::crs::Generators;
 use crate::bppp::transcript::BpppTranscript;
@@ -49,6 +49,7 @@ fn pad_even_scalar(v: &mut Vec<RistrettoScalar>) {
     }
 }
 
+#[cfg(test)]
 fn pad_even_point(v: &mut Vec<RistrettoPoint>) {
     if !v.len().is_multiple_of(2) {
         v.push(RistrettoPoint::zero());
@@ -56,6 +57,8 @@ fn pad_even_point(v: &mut Vec<RistrettoPoint>) {
 }
 
 /// Element-wise point fold `f0*[p]_0 + f1*[p]_1` of the even/odd halves.
+/// Test-only reference for the lazy folding in [prove].
+#[cfg(test)]
 fn fold_points(
     p: &[RistrettoPoint],
     f0: RistrettoScalar,
@@ -68,9 +71,34 @@ fn fold_points(
         .collect()
 }
 
+/// Execute deferred folds at once, collapsing the lazily folded generators
+/// into real points: `out[j] = sum_t w[t] * base[j*|w| + t]`.
+fn batch_fold(
+    base: &[RistrettoPoint],
+    w: &[RistrettoScalar],
+) -> FastCryptoResult<Vec<RistrettoPoint>> {
+    base.chunks(w.len())
+        .map(|chunk| RistrettoPoint::multi_scalar_mul(&w[..chunk.len()], chunk))
+        .collect()
+}
+
+/// Batch-fold the base generators every this many rounds: one
+/// `2^FOLD_BATCH_ROUNDS`-term MSM per surviving generator is ~4x cheaper
+/// than the equivalent chain of per-round 2-term combinations.
+const FOLD_BATCH_ROUNDS: u32 = 3;
+
 /// Prove the norm-linear relation for the opening `(l, n)` of a commitment
 /// under `gens`. Requires `l`, `c`, `gens.h_vec` of equal length and `n`,
 /// `gens.g_vec` of equal length.
+///
+/// Generator folding is lazy: no points are folded per round. After `levels`
+/// rounds (since the last batch fold) the current generators are implicit,
+///   `H'_j = sum_t w_h[t] * base_h[j*2^levels + t]`, `w_h = tensor_i (1, gamma_i)`,
+///   `G'_j = sum_t w_g[t] * base_g[j*2^levels + t]`, `w_g = tensor_i (rho_i, gamma_i)`
+/// (newest round in the top bit; absent base points read as the identity,
+/// reproducing the odd-length padding), so each round's X and R are single
+/// MSMs over the base generators with tensor-expanded coefficients — over
+/// the precomputed tables while the base is still the original CRS.
 pub(crate) fn prove(
     transcript: &mut BpppTranscript,
     gens: &Generators,
@@ -82,13 +110,16 @@ pub(crate) fn prove(
     debug_assert_eq!(l.len(), c.len());
     debug_assert_eq!(l.len(), gens.h_vec.len());
     debug_assert_eq!(n.len(), gens.g_vec.len());
-    let g = gens.g;
     let two = RistrettoScalar::from(2u64);
     let mut l = l.to_vec();
     let mut n = n.to_vec();
     let mut c = c.to_vec();
-    let mut h_vec = gens.h_vec.clone();
-    let mut g_vec = gens.g_vec.clone();
+    let mut base_h = gens.h_vec.clone();
+    let mut base_g = gens.g_vec.clone();
+    let mut original_base = true;
+    let mut w_h: Vec<RistrettoScalar> = vec![one()];
+    let mut w_g: Vec<RistrettoScalar> = vec![one()];
+    let mut levels: u32 = 0;
     let mut rho = rho;
     let mut mu = rho * rho;
     let mut rounds = Vec::new();
@@ -96,11 +127,18 @@ pub(crate) fn prove(
     transcript.domain_sep(b"norm_linear");
 
     while l.len() + n.len() >= FOLD_THRESHOLD {
+        if levels == FOLD_BATCH_ROUNDS {
+            base_h = batch_fold(&base_h, &w_h)?;
+            base_g = batch_fold(&base_g, &w_g)?;
+            w_h = vec![one()];
+            w_g = vec![one()];
+            levels = 0;
+            original_base = false;
+        }
+
         pad_even_scalar(&mut l);
         pad_even_scalar(&mut n);
         pad_even_scalar(&mut c);
-        pad_even_point(&mut h_vec);
-        pad_even_point(&mut g_vec);
 
         let l0 = even_elements(&l);
         let l1 = odd_elements(&l);
@@ -108,10 +146,6 @@ pub(crate) fn prove(
         let n1 = odd_elements(&n);
         let c0 = even_elements(&c);
         let c1 = odd_elements(&c);
-        let h0 = even_elements(&h_vec);
-        let h1 = odd_elements(&h_vec);
-        let g0 = even_elements(&g_vec);
-        let g1 = odd_elements(&g_vec);
 
         let rho_inv = rho.inverse()?;
         let mu2 = mu * mu;
@@ -124,50 +158,96 @@ pub(crate) fn prove(
             + inner_product(&c1, &l0);
         let vr = weighted_norm(&n1, mu2) + inner_product(&c1, &l1);
 
-        // X carries the cross terms:
-        //   X = vx*G + <l1, H_even> + <l0, H_odd> + rho*<n1, G_even> + rho^{-1}*<n0, G_odd>
-        let mut x_scalars = vec![vx];
-        let mut x_points = vec![g];
-        for s in 0..h0.len() {
-            x_scalars.push(l1[s]);
-            x_points.push(h0[s]);
-            x_scalars.push(l0[s]);
-            x_points.push(h1[s]);
+        // Per folded position, X carries the cross terms and R the odd-odd
+        // terms:
+        //   X = vx*G + <l1, H'_even> + <l0, H'_odd> + rho*<n1, G'_even> + rho^{-1}*<n0, G'_odd>
+        //   R = vr*G + <l1, H'_odd> + <n1, G'_odd>
+        let mut xh = vec![RistrettoScalar::zero(); l.len()];
+        let mut rh = vec![RistrettoScalar::zero(); l.len()];
+        for s in 0..l.len() / 2 {
+            xh[2 * s] = l1[s];
+            xh[2 * s + 1] = l0[s];
+            rh[2 * s + 1] = l1[s];
         }
-        for s in 0..g0.len() {
-            x_scalars.push(rho * n1[s]);
-            x_points.push(g0[s]);
-            x_scalars.push(rho_inv * n0[s]);
-            x_points.push(g1[s]);
+        let mut xg = vec![RistrettoScalar::zero(); n.len()];
+        let mut rg = vec![RistrettoScalar::zero(); n.len()];
+        for s in 0..n.len() / 2 {
+            xg[2 * s] = rho * n1[s];
+            xg[2 * s + 1] = rho_inv * n0[s];
+            rg[2 * s + 1] = n1[s];
         }
-        let x_point = RistrettoPoint::multi_scalar_mul(&x_scalars, &x_points)?;
 
-        // R carries the odd-odd terms:
-        //   R = vr*G + <l1, H_odd> + <n1, G_odd>
-        let mut r_scalars = vec![vr];
-        let mut r_points = vec![g];
-        for s in 0..h0.len() {
-            r_scalars.push(l1[s]);
-            r_points.push(h1[s]);
+        // Expand folded-position coefficients onto the base generators, laid
+        // out as [G, base_h.., base_g..]: base index i contributes
+        // w[t] * coeff[j] with j = i >> levels, t = i & (2^levels - 1).
+        let mask = (1usize << levels) - 1;
+        let g_off = 1 + base_h.len();
+        let mut x_coeffs = vec![RistrettoScalar::zero(); 1 + base_h.len() + base_g.len()];
+        let mut r_coeffs = vec![RistrettoScalar::zero(); x_coeffs.len()];
+        x_coeffs[0] = vx;
+        r_coeffs[0] = vr;
+        for i in 0..base_h.len() {
+            let (j, t) = (i >> levels, i & mask);
+            if j >= xh.len() {
+                continue;
+            }
+            x_coeffs[1 + i] = w_h[t] * xh[j];
+            if rh[j] != RistrettoScalar::zero() {
+                r_coeffs[1 + i] = w_h[t] * rh[j];
+            }
         }
-        for s in 0..g0.len() {
-            r_scalars.push(n1[s]);
-            r_points.push(g1[s]);
+        for i in 0..base_g.len() {
+            let (j, t) = (i >> levels, i & mask);
+            if j >= xg.len() {
+                continue;
+            }
+            x_coeffs[g_off + i] = w_g[t] * xg[j];
+            if rg[j] != RistrettoScalar::zero() {
+                r_coeffs[g_off + i] = w_g[t] * rg[j];
+            }
         }
-        let r_point = RistrettoPoint::multi_scalar_mul(&r_scalars, &r_points)?;
+
+        // One MSM per commitment: over the precomputed tables while the base
+        // is the original CRS (the coefficient layout matches them exactly),
+        // afterwards a dynamic MSM over the shrunken base, skipping zero
+        // coefficients (R's even positions, padding).
+        let msm = |coeffs: &[RistrettoScalar]| -> FastCryptoResult<RistrettoPoint> {
+            if original_base {
+                return RistrettoPoint::mixed_multi_scalar_mul(&gens.precomp, coeffs, &[], &[]);
+            }
+            let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) = coeffs
+                .iter()
+                .zip(std::iter::once(&gens.g).chain(base_h.iter()).chain(base_g.iter()))
+                .filter(|(s, _)| **s != RistrettoScalar::zero())
+                .map(|(s, p)| (*s, *p))
+                .unzip();
+            RistrettoPoint::multi_scalar_mul(&sc, &pts)
+        };
+        let x_point = msm(&x_coeffs)?;
+        let r_point = msm(&r_coeffs)?;
 
         transcript.append_point(b"X", &x_point);
         transcript.append_point(b"R", &r_point);
         rounds.push((x_point, r_point));
         let gamma = transcript.challenge_scalar(b"gamma");
 
-        // Fold: l' = l0 + gamma*l1, n' = rho^{-1}*n0 + gamma*n1,
-        // c' = c0 + gamma*c1, H' = H0 + gamma*H1, G' = rho*G0 + gamma*G1.
+        // Fold the scalar vectors: l' = l0 + gamma*l1,
+        // n' = rho^{-1}*n0 + gamma*n1, c' = c0 + gamma*c1.
         l = vec_add(&l0, &vec_scalar_mul(gamma, &l1));
         n = vec_add(&vec_scalar_mul(rho_inv, &n0), &vec_scalar_mul(gamma, &n1));
         c = vec_add(&c0, &vec_scalar_mul(gamma, &c1));
-        h_vec = fold_points(&h_vec, one(), gamma);
-        g_vec = fold_points(&g_vec, rho, gamma);
+
+        // Grow the implicit fold tensors by one level (the new round is the
+        // top bit): H' = H0 + gamma*H1, G' = rho*G0 + gamma*G1.
+        let grow = |w: &[RistrettoScalar], f0: RistrettoScalar, f1: RistrettoScalar| {
+            let mut next = Vec::with_capacity(2 * w.len());
+            next.extend(w.iter().map(|wt| *wt * f0));
+            next.extend(w.iter().map(|wt| *wt * f1));
+            next
+        };
+        w_h = grow(&w_h, one(), gamma);
+        w_g = grow(&w_g, rho, gamma);
+        levels += 1;
 
         rho = mu;
         mu = mu2;
@@ -187,18 +267,36 @@ pub(crate) fn prove(
     })
 }
 
-/// Verify a norm-linear proof against `commitment`. `c` must have the length
-/// of `gens.h_vec`. Errors with `InvalidProof` on any mismatch, including a
-/// proof whose shape differs from the one implied by the base lengths.
+/// Verify a norm-linear proof in a single multi-scalar multiplication.
+///
+/// The commitment is supplied in decomposed form so it joins the same MSM:
+/// `pn` are public coefficients over `g_vec` and `extra` the remaining
+/// `(scalar, point)` terms, i.e. the commitment equals
+/// `<pn, g_vec> + sum extra` (missing tail entries of `pn` count as zero).
+///
+/// Instead of folding the generator vectors round by round, each base
+/// generator's final coefficient is computed from the bits of its index:
+/// position `i` survives the `k` rounds at final slot `i >> k`, picking up
+/// per round `r` a factor `gamma_r` when bit `r` of `i` is set, else
+/// `rho_r = rho^{2^r}` on the `g_vec` side and `1` on the `h_vec` side.
+/// The per-round identity padding never hosts a base generator, so the
+/// per-bit product is exact, and the base-case check becomes
+///   sigma*G + <w_h ⊙ l, H> + <w_g ⊙ n - pn, G_vec>
+///     - sum extra - sum_r (gamma_r*X_r + (gamma_r^2 - 1)*R_r) == 0.
+///
+/// `c` must have the length of `gens.h_vec`. Errors with `InvalidProof` on
+/// any mismatch, including a proof whose shape differs from the one implied
+/// by the base lengths.
 pub(crate) fn verify(
     transcript: &mut BpppTranscript,
     gens: &Generators,
     c: &[RistrettoScalar],
-    commitment: RistrettoPoint,
+    pn: &[RistrettoScalar],
+    extra: &[(RistrettoScalar, RistrettoPoint)],
     rho: RistrettoScalar,
     proof: &NormLinearProof,
 ) -> FastCryptoResult<()> {
-    if c.len() != gens.h_vec.len() {
+    if c.len() != gens.h_vec.len() || pn.len() > gens.g_vec.len() {
         return Err(FastCryptoError::InvalidInput);
     }
     // The prover's fold count and final lengths are determined by the base
@@ -209,13 +307,12 @@ pub(crate) fn verify(
         return Err(FastCryptoError::InvalidProof);
     }
 
-    let g = gens.g;
+    let k = rounds;
     let mut c = c.to_vec();
-    let mut h_vec = gens.h_vec.clone();
-    let mut g_vec = gens.g_vec.clone();
-    let mut commitment = commitment;
     let mut rho = rho;
     let mut mu = rho * rho;
+    let mut gammas = Vec::with_capacity(k);
+    let mut rhos = Vec::with_capacity(k);
 
     transcript.domain_sep(b"norm_linear");
 
@@ -223,19 +320,15 @@ pub(crate) fn verify(
         transcript.append_point(b"X", x_point);
         transcript.append_point(b"R", r_point);
         let gamma = transcript.challenge_scalar(b"gamma");
+        rhos.push(rho);
+        gammas.push(gamma);
 
-        // C' = C + gamma*X + (gamma^2 - 1)*R.
-        commitment = commitment + *x_point * gamma + *r_point * (gamma * gamma - one());
-
+        // Fold only the (cheap) scalar constraint vector.
         pad_even_scalar(&mut c);
-        pad_even_point(&mut h_vec);
-        pad_even_point(&mut g_vec);
         c = vec_add(
             &even_elements(&c),
             &vec_scalar_mul(gamma, &odd_elements(&c)),
         );
-        h_vec = fold_points(&h_vec, one(), gamma);
-        g_vec = fold_points(&g_vec, rho, gamma);
 
         rho = mu;
         mu = mu * mu;
@@ -248,19 +341,73 @@ pub(crate) fn verify(
         transcript.append_scalar(b"n_final", s);
     }
 
-    // Base case: with sigma = <c, l> + |n|^2_mu computed from
-    // the final scalars, check that the folded commitment opens as
-    //   C = sigma*G + <l, H> + <n, G_vec>.
     let sigma = inner_product(&c, &proof.l_final) + weighted_norm(&proof.n_final, mu);
-    let mut scalars = vec![sigma];
-    let mut points = vec![g];
-    scalars.extend(&proof.l_final);
-    points.extend(&h_vec);
-    scalars.extend(&proof.n_final);
-    points.extend(&g_vec);
-    let recomputed = RistrettoPoint::multi_scalar_mul(&scalars, &points)?;
 
-    if commitment == recomputed {
+    // Challenge-product weights via tensor tables (all 2^k products in
+    // 2^{k+1} muls): w[t] = prod_r (set_r if bit_r(t) else unset_r).
+    let tensor_table = |set: &[RistrettoScalar], unset: &[RistrettoScalar]| {
+        let mut w = vec![one()];
+        for (s, u) in set.iter().zip(unset) {
+            let mut next = Vec::with_capacity(2 * w.len());
+            next.extend(w.iter().map(|p| *p * *u)); // bit r = 0
+            next.extend(w.iter().map(|p| *p * *s)); // bit r = 1
+            w = next;
+        }
+        w
+    };
+    let ones = vec![one(); k];
+    let w_h = tensor_table(&gammas, &ones);
+    let w_g = tensor_table(&gammas, &rhos);
+    let mask = (1usize << k) - 1;
+
+    // Static scalars, laid out to match the precomputed tables
+    // `[G, h_vec.., g_vec..]`.
+    let mut static_scalars = Vec::with_capacity(1 + gens.h_vec.len() + gens.g_vec.len());
+    static_scalars.push(sigma);
+    for i in 0..gens.h_vec.len() {
+        static_scalars.push(w_h[i & mask] * proof.l_final[i >> k]);
+    }
+    for i in 0..gens.g_vec.len() {
+        let pn_i = pn.get(i).copied().unwrap_or_else(RistrettoScalar::zero);
+        static_scalars.push(w_g[i & mask] * proof.n_final[i >> k] - pn_i);
+    }
+
+    let mut dyn_scalars = Vec::with_capacity(extra.len() + 2 * k);
+    let mut dyn_points = Vec::with_capacity(extra.len() + 2 * k);
+    for (s, p) in extra {
+        dyn_scalars.push(-*s);
+        dyn_points.push(*p);
+    }
+    for ((x_point, r_point), gamma) in proof.rounds.iter().zip(&gammas) {
+        dyn_scalars.push(-*gamma);
+        dyn_points.push(*x_point);
+        dyn_scalars.push(one() - *gamma * *gamma);
+        dyn_points.push(*r_point);
+    }
+
+    // The precomputed path always uses Straus, which loses to Pippenger for
+    // large MSMs; above the measured crossover (bulletproofpp's
+    // benches/mixed_msm.rs, ~440 static points for this workload shape) fall
+    // back to one plain MSM.
+    let result = if static_scalars.len() <= 440 {
+        RistrettoPoint::mixed_multi_scalar_mul(
+            &gens.precomp,
+            &static_scalars,
+            &dyn_scalars,
+            &dyn_points,
+        )?
+    } else {
+        let mut scalars = static_scalars;
+        scalars.append(&mut dyn_scalars);
+        let mut points = Vec::with_capacity(scalars.len());
+        points.push(gens.g);
+        points.extend(&gens.h_vec);
+        points.extend(&gens.g_vec);
+        points.append(&mut dyn_points);
+        RistrettoPoint::multi_scalar_mul(&scalars, &points)?
+    };
+
+    if result == RistrettoPoint::zero() {
         Ok(())
     } else {
         Err(FastCryptoError::InvalidProof)
@@ -286,11 +433,12 @@ mod tests {
     fn random_instance(l_len: usize, n_len: usize) -> Instance {
         let mut rng = rand::thread_rng();
         let full = Generators::new(64, 4).unwrap();
-        let gens = Generators {
-            g: full.g,
-            h_vec: full.h_vec[..l_len].to_vec(),
-            g_vec: full.g_vec[..n_len].to_vec(),
-        };
+        let gens = Generators::from_parts(
+            full.g,
+            full.h_vec[..l_len].to_vec(),
+            full.g_vec[..n_len].to_vec(),
+        )
+        .unwrap();
         let rand_vec = |len: usize, rng: &mut rand::rngs::ThreadRng| -> Vec<RistrettoScalar> {
             (0..len).map(|_| RistrettoScalar::rand(rng)).collect()
         };
@@ -330,7 +478,8 @@ mod tests {
             &mut t,
             &inst.gens,
             &inst.c,
-            inst.commitment,
+            &[],
+            &[(one(), inst.commitment)],
             inst.rho,
             proof,
         )
