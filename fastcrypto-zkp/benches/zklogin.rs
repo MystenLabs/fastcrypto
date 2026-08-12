@@ -19,7 +19,7 @@ mod zklogin_benches {
     use fastcrypto_zkp::bn254::zk_login::JWK;
     use fastcrypto_zkp::bn254::zk_login::{JwkId, OIDCProvider};
     use fastcrypto_zkp::bn254::zk_login_api::{CircuitVersion, ZkLoginCircuitMode, ZkLoginEnv};
-    use im::hashmap::HashMap as ImHashMap;
+    use imbl::hashmap::HashMap as ImHashMap;
 
     /// Benchmark the `fastcrypto_zkp::bn254::zk_login_api::verify_zk_login` function and it's main
     /// sub-functions.

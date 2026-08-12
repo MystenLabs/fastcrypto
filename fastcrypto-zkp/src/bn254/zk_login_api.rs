@@ -16,7 +16,7 @@ pub use ark_ff::ToConstraintField;
 use ark_groth16::{Groth16, PreparedVerifyingKey, Proof, VerifyingKey};
 pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use im::hashmap::HashMap as ImHashMap;
+use imbl::hashmap::HashMap as ImHashMap;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 

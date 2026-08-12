@@ -29,7 +29,7 @@ use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::jwt_utils::{parse_and_validate_jwt, JWTHeader};
 use fastcrypto::traits::KeyPair;
-use im::hashmap::HashMap as ImHashMap;
+use imbl::hashmap::HashMap as ImHashMap;
 use num_bigint::BigUint;
 
 const GOOGLE_JWK_BYTES: &[u8] = r#"{

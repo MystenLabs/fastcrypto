@@ -14,7 +14,7 @@ use crate::bn254::{
 use ark_std::rand::{rngs::StdRng, SeedableRng};
 use fastcrypto::jwt_utils::parse_and_validate_jwt;
 use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
-use im::HashMap as ImHashMap;
+use imbl::HashMap as ImHashMap;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use test_strategy::proptest;
