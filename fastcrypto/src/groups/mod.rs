@@ -131,6 +131,36 @@ pub trait MultiScalarMul: GroupElement {
     fn multi_scalar_mul(scalars: &[Self::ScalarType], points: &[Self]) -> FastCryptoResult<Self>;
 }
 
+/// Trait for groups that support multi-scalar multiplication with precomputed
+/// tables over a fixed set of points, trading memory for speed when the same
+/// points (e.g. a commitment key) are used in many multi-scalar
+/// multiplications.
+pub trait PrecomputedMultiScalarMul: GroupElement {
+    /// Precomputed tables for a fixed set of points.
+    type Precomputation;
+
+    /// Build precomputation tables for `points`.
+    fn precompute(points: &[Self]) -> FastCryptoResult<Self::Precomputation>;
+
+    /// Compute the mixed multi-scalar multiplication
+    ///
+    /// `a_1*P_1 + ... + a_n*P_n + b_1*Q_1 + ... + b_m*Q_m`,
+    ///
+    /// where `P_1, ..., P_n` are the fixed points `precomputation` was built
+    /// for and only their scalars `a_i` (= `static_scalars`, which must have
+    /// exactly the length of the precomputed set) change between calls, while
+    /// the scalars `b_j` (= `dyn_scalars`) and points `Q_j` (= `dyn_points`)
+    /// are both given fresh on every call. The static half is evaluated from
+    /// the precomputed tables, so when the `P_i` are reused across many calls
+    /// this is faster than a regular MSM over all n + m points.
+    fn mixed_multi_scalar_mul(
+        precomputation: &Self::Precomputation,
+        static_scalars: &[Self::ScalarType],
+        dyn_scalars: &[Self::ScalarType],
+        dyn_points: &[Self],
+    ) -> FastCryptoResult<Self>;
+}
+
 /// Faster deserialization that skips validation of the result: the subgroup membership check for
 /// curve points and the canonical range check for scalars. Only safe for trusted input; otherwise
 /// use [`crate::serde_helpers::ToFromByteArray::from_byte_array`].

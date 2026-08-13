@@ -4,7 +4,9 @@
 use crate::encoding::{Encoding, Hex};
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::ristretto255::RistrettoScalar;
-use crate::groups::{GroupElement, HashToGroupElement, MultiScalarMul};
+use crate::groups::{
+    GroupElement, HashToGroupElement, MultiScalarMul, PrecomputedMultiScalarMul, Scalar,
+};
 use crate::serde_helpers::ToFromByteArray;
 use hex_literal::hex;
 
@@ -236,6 +238,52 @@ fn test_multiscalar_mul() {
         &[g, g, g]
     )
     .is_err());
+}
+
+#[test]
+fn test_precomputed_multiscalar_mul() {
+    let mut rng = rand::thread_rng();
+    let rand_scalars = |k: usize, rng: &mut rand::rngs::ThreadRng| -> Vec<RistrettoScalar> {
+        (0..k).map(|_| RistrettoScalar::rand(rng)).collect()
+    };
+    let static_points: Vec<RistrettoPoint> = rand_scalars(5, &mut rng)
+        .iter()
+        .map(|s| RistrettoPoint::generator() * s)
+        .collect();
+    let dyn_points: Vec<RistrettoPoint> = rand_scalars(3, &mut rng)
+        .iter()
+        .map(|s| RistrettoPoint::generator() * s)
+        .collect();
+    let precomputation = RistrettoPoint::precompute(&static_points).unwrap();
+
+    // Agrees with the plain MSM, with and without dynamic terms.
+    for dyn_len in [3, 0] {
+        let static_scalars = rand_scalars(5, &mut rng);
+        let dyn_scalars = rand_scalars(dyn_len, &mut rng);
+        let expected = RistrettoPoint::multi_scalar_mul(
+            &[static_scalars.clone(), dyn_scalars.clone()].concat(),
+            &[static_points.clone(), dyn_points[..dyn_len].to_vec()].concat(),
+        )
+        .unwrap();
+        let actual = RistrettoPoint::mixed_multi_scalar_mul(
+            &precomputation,
+            &static_scalars,
+            &dyn_scalars,
+            &dyn_points[..dyn_len],
+        )
+        .unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    // Invalid lengths: static scalars not matching the precomputed set,
+    // mismatched dynamic sides.
+    let s = rand_scalars(6, &mut rng);
+    assert!(RistrettoPoint::mixed_multi_scalar_mul(&precomputation, &s, &[], &[]).is_err());
+    assert!(RistrettoPoint::mixed_multi_scalar_mul(&precomputation, &s[..4], &[], &[]).is_err());
+    assert!(
+        RistrettoPoint::mixed_multi_scalar_mul(&precomputation, &s[..5], &s[..2], &dyn_points)
+            .is_err()
+    );
 }
 
 #[test]

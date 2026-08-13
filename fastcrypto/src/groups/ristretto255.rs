@@ -8,7 +8,7 @@ use crate::error::FastCryptoError::InvalidInput;
 use crate::error::FastCryptoResult;
 use crate::groups::{
     Doubling, FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement,
-    MultiScalarMul, Scalar,
+    MultiScalarMul, PrecomputedMultiScalarMul, Scalar,
 };
 use crate::hash::{Blake2b256, ReverseWrapper, Sha512};
 use crate::serde_helpers::ToFromByteArray;
@@ -19,8 +19,9 @@ use crate::{
 use curve25519_dalek;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek::ristretto::RistrettoPoint as ExternalPoint;
+use curve25519_dalek::ristretto::VartimeRistrettoPrecomputation;
 use curve25519_dalek::scalar::Scalar as ExternalScalar;
-use curve25519_dalek::traits::{Identity, VartimeMultiscalarMul};
+use curve25519_dalek::traits::{Identity, VartimeMultiscalarMul, VartimePrecomputedMultiscalarMul};
 use derive_more::{Add, From, Mul, Neg, Sub};
 use elliptic_curve::group::GroupEncoding;
 use elliptic_curve::hash2curve::{ExpandMsg, ExpandMsgXmd, Expander};
@@ -82,6 +83,41 @@ impl MultiScalarMul for RistrettoPoint {
             scalars.iter().map(|s| s.0),
             points.iter().map(|g| g.0),
         )))
+    }
+}
+
+/// Precomputed multiplication tables over a fixed set of Ristretto points.
+pub struct RistrettoPrecomputation {
+    tables: VartimeRistrettoPrecomputation,
+    len: usize,
+}
+
+impl PrecomputedMultiScalarMul for RistrettoPoint {
+    type Precomputation = RistrettoPrecomputation;
+
+    fn precompute(points: &[Self]) -> FastCryptoResult<Self::Precomputation> {
+        Ok(RistrettoPrecomputation {
+            tables: VartimeRistrettoPrecomputation::new(points.iter().map(|p| p.0)),
+            len: points.len(),
+        })
+    }
+
+    fn mixed_multi_scalar_mul(
+        precomputation: &Self::Precomputation,
+        static_scalars: &[Self::ScalarType],
+        dyn_scalars: &[Self::ScalarType],
+        dyn_points: &[Self],
+    ) -> FastCryptoResult<Self> {
+        if static_scalars.len() != precomputation.len || dyn_scalars.len() != dyn_points.len() {
+            return Err(InvalidInput);
+        }
+        Ok(RistrettoPoint(
+            precomputation.tables.vartime_mixed_multiscalar_mul(
+                static_scalars.iter().map(|s| s.0),
+                dyn_scalars.iter().map(|s| s.0),
+                dyn_points.iter().map(|p| p.0),
+            ),
+        ))
     }
 }
 
