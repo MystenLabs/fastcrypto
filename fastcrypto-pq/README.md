@@ -1,7 +1,8 @@
 # fastcrypto-pq
 
-Post-quantum signature schemes behind fastcrypto's traits. Today that is ML-DSA-65
-(FIPS 204), the scheme Sui is integrating for quantum-safe accounts.
+Post-quantum signature schemes behind fastcrypto's traits: ML-DSA-65 (FIPS 204), the
+scheme Sui is integrating for quantum-safe accounts, and the SLH-DSA (FIPS 205)
+building blocks for hash-based signatures.
 
 > [!WARNING]
 > This crate has not been audited and is not ready for production use.
@@ -14,9 +15,10 @@ flowchart LR
 ```
 
 The wrapper is a separate crate because it needs a C toolchain and does not build for
-wasm32; consumers who only want fastcrypto's classical schemes pay neither cost. This
-crate adds no cryptography of its own. What it adds is the trait implementations,
-serialization, and the key-management contract the rest of Sui relies on.
+wasm32; consumers who only want fastcrypto's classical schemes pay neither cost. On
+the ML-DSA side this crate adds no cryptography of its own, only the trait
+implementations, serialization, and the key-management contract the rest of Sui
+relies on. The SLH-DSA side is implemented here directly, in pure Rust.
 
 ## The trait layer's contract
 
@@ -33,17 +35,46 @@ serialization, and the key-management contract the rest of Sui relies on.
   bytes, and the human-readable serde form is base64.
 - Sizes: public key 1,952 B, signature 3,309 B, private key 32 B.
 
+## SLH-DSA (FIPS 205)
+
+`src/sphincs/` is a hand-written Rust implementation of the SLH-DSA building blocks:
+WOTS+ one-time signatures, FORS, XMSS, and the hypertree. The top-level FIPS 205
+sign/verify API is in progress on the `feat/slh-dsa-toplevel` branch and lands here
+next.
+
+At the parameter set Sui plans for vaults, SLH-DSA-SHA2-128s: public key 32 B,
+signature 7,856 B. The full FIPS 205 and draft SP 800-230 parameter tables are in
+[src/sphincs/README.md](src/sphincs/README.md).
+
+Measured through this implementation on an Apple M2 Max (pure Rust; treat timings as
+an upper bound): key generation 105.5 ms, sign 805 ms, verify 761 µs. Slow signing
+and a signature that caching cannot shrink are why this scheme targets Move
+smart-contract vaults rather than the native transaction path.
+
 ## Testing
+
+```bash
+# everything, both schemes
+cargo test -p fastcrypto-pq --features native
+
+# only the SLH-DSA building blocks
+cargo test -p fastcrypto-pq sphincs
+```
 
 Beyond trait mechanics, CI pins the wire format itself: interop vectors produced by
 `@noble/post-quantum`, an independent TypeScript implementation of FIPS 204, must
 reproduce byte for byte through this crate and the wrapper, and its signatures must
-verify here. The scheme's own known-answer tests live in the wrapper repository.
+verify here. The ML-DSA known-answer tests live in the wrapper repository; the
+sphincs module's tests live inline with the module.
 
 ## Benchmarks
 
 ```bash
-cargo bench -p fastcrypto-pq --features native
+# ML-DSA-65: sign, verify, key generation, serde
+cargo bench -p fastcrypto-pq --features native --bench mldsa65
+
+# WOTS+ one-time signatures across parameter sets
+cargo bench -p fastcrypto-pq --bench winternitz_ots
 ```
 
 Measured through this crate on an Apple M2 Max, medians:

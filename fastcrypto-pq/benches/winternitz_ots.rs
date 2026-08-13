@@ -4,8 +4,8 @@
 extern crate criterion;
 
 use criterion::{BenchmarkId, Criterion};
-use fastcrypto::sphincs::winternitz_ots::{wots_pk_from_sig, wots_sign, WotsParams};
-use fastcrypto::sphincs::Adrs;
+use fastcrypto_pq::sphincs::winternitz_ots::{wots_pk_from_sig, wots_sign, WotsParams};
+use fastcrypto_pq::sphincs::Adrs;
 
 /// For a fixed `n`, benches sign and verify across the given `lg_w` values in
 /// two separate Criterion groups (`.../sign` and `.../verify`). Separating the
