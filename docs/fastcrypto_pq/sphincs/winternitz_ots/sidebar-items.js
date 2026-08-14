@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["wots_pk_from_sig","wots_pk_gen","wots_sign"],"struct":["WotsParams","WotsSignature"]};
