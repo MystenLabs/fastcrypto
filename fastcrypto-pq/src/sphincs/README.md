@@ -1,6 +1,6 @@
 # SPHINCS+ / SLH-DSA (FIPS 205)
 
-Hand-written Rust impl, gated behind `--features experimental`.
+Hand-written Rust impl, part of the `fastcrypto-pq` crate.
 
 ## Approved parameter sets (FIPS 205)
 
@@ -30,8 +30,8 @@ bytes), security category, pk / sig bytes.
 ## Run
 
 ```bash
-cargo test  -p fastcrypto --features experimental sphincs
-cargo bench -p fastcrypto --features experimental --bench winternitz_ots
+cargo test  -p fastcrypto-pq sphincs
+cargo bench -p fastcrypto-pq --bench winternitz_ots
 ```
 
 ## Signature sizes

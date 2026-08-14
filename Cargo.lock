@@ -1503,12 +1503,14 @@ dependencies = [
  "bcs",
  "bincode",
  "criterion",
+ "digest 0.10.7",
  "fastcrypto",
  "fastcrypto-derive",
  "mysten-mldsa-native-rs",
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]
