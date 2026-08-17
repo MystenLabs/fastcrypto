@@ -8,7 +8,7 @@ use crate::error::FastCryptoError::InvalidInput;
 use crate::error::FastCryptoResult;
 use crate::groups::{
     Doubling, FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement,
-    MultiScalarMul, PrecomputedMultiScalarMul, Scalar,
+    MixedMultiScalarMul, MultiScalarMul, PrecomputableMultiScalarMul, Scalar,
 };
 use crate::hash::{Blake2b256, ReverseWrapper, Sha512};
 use crate::serde_helpers::ToFromByteArray;
@@ -89,35 +89,41 @@ impl MultiScalarMul for RistrettoPoint {
 /// Precomputed multiplication tables over a fixed set of Ristretto points.
 pub struct RistrettoPrecomputation {
     tables: VartimeRistrettoPrecomputation,
-    len: usize,
+    num_points: usize,
 }
 
-impl PrecomputedMultiScalarMul for RistrettoPoint {
+impl PrecomputableMultiScalarMul for RistrettoPoint {
     type Precomputation = RistrettoPrecomputation;
 
     fn precompute(points: &[Self]) -> FastCryptoResult<Self::Precomputation> {
         Ok(RistrettoPrecomputation {
             tables: VartimeRistrettoPrecomputation::new(points.iter().map(|p| p.0)),
-            len: points.len(),
+            num_points: points.len(),
         })
+    }
+}
+
+impl MixedMultiScalarMul for RistrettoPrecomputation {
+    type Point = RistrettoPoint;
+
+    fn num_static_points(&self) -> usize {
+        self.num_points
     }
 
     fn mixed_multi_scalar_mul(
-        precomputation: &Self::Precomputation,
-        static_scalars: &[Self::ScalarType],
-        dyn_scalars: &[Self::ScalarType],
-        dyn_points: &[Self],
-    ) -> FastCryptoResult<Self> {
-        if static_scalars.len() != precomputation.len || dyn_scalars.len() != dyn_points.len() {
+        &self,
+        scalars: &[RistrettoScalar],
+        dynamic_points: &[RistrettoPoint],
+    ) -> FastCryptoResult<RistrettoPoint> {
+        if scalars.len() != self.num_points + dynamic_points.len() {
             return Err(InvalidInput);
         }
-        Ok(RistrettoPoint(
-            precomputation.tables.vartime_mixed_multiscalar_mul(
-                static_scalars.iter().map(|s| s.0),
-                dyn_scalars.iter().map(|s| s.0),
-                dyn_points.iter().map(|p| p.0),
-            ),
-        ))
+        let (static_scalars, dynamic_scalars) = scalars.split_at(self.num_points);
+        Ok(RistrettoPoint(self.tables.vartime_mixed_multiscalar_mul(
+            static_scalars.iter().map(|s| s.0),
+            dynamic_scalars.iter().map(|s| s.0),
+            dynamic_points.iter().map(|p| p.0),
+        )))
     }
 }
 
