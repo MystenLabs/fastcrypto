@@ -4,8 +4,8 @@
 use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use fastcrypto::bppp::{Range, RangeProof};
 use fastcrypto::pedersen::{Blinding, PedersenCommitment};
-use fastcrypto_zkp::bppp::{Range, RangeProof};
 use rand::Rng;
 
 const DST: &[u8] = b"bench";

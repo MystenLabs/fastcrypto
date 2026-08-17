@@ -9,10 +9,10 @@
 //! norm-linear relation at a random evaluation point, and delegates to the
 //! norm-linear argument.
 
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use fastcrypto::groups::{GroupElement, MixedMultiScalarMul, MultiScalarMul, Scalar};
-use fastcrypto::traits::AllowedRng;
+use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
+use crate::groups::{GroupElement, MixedMultiScalarMul, MultiScalarMul, Scalar};
+use crate::traits::AllowedRng;
 
 use crate::bppp::crs::{dims, validate_dims, Generators, BASE, H_LEN};
 use crate::bppp::norm_linear::{self, NormLinearProof};

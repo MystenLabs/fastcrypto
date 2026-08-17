@@ -3,8 +3,8 @@
 
 //! Merlin-based Fiat-Shamir transcript for BP++.
 
-use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use fastcrypto::serde_helpers::ToFromByteArray;
+use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
+use crate::serde_helpers::ToFromByteArray;
 use merlin::Transcript;
 
 pub(crate) struct BpppTranscript {
@@ -57,7 +57,7 @@ impl BpppTranscript {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fastcrypto::groups::GroupElement;
+    use crate::groups::GroupElement;
 
     #[test]
     fn test_deterministic_and_binding() {

@@ -3,11 +3,11 @@
 
 //! High-level BP++ range proof API.
 
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use fastcrypto::pedersen::{Blinding, PedersenCommitment};
-use fastcrypto::serde_helpers::ToFromByteArray;
-use fastcrypto::traits::AllowedRng;
+use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
+use crate::pedersen::{Blinding, PedersenCommitment};
+use crate::serde_helpers::ToFromByteArray;
+use crate::traits::AllowedRng;
 
 use crate::bppp::circuit::{self, CircuitParams, CircuitProof};
 use crate::bppp::crs::Generators;
@@ -46,7 +46,7 @@ impl Range {
 }
 
 /// A BP++ range proof that one or more Pedersen commitments (as in
-/// [`fastcrypto::pedersen`]) open to values in a given [`Range`].
+/// [`crate::pedersen`]) open to values in a given [`Range`].
 ///
 /// Unlike `fastcrypto::bulletproofs`, batches of any size `>= 1` are
 /// supported; amortization per value is best when the total digit count
@@ -229,7 +229,7 @@ impl RangeProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fastcrypto::groups::GroupElement;
+    use crate::groups::GroupElement;
 
     /// Frozen proof for values [0, u32::MAX, 12345, 1 << 31] in Bits32 with
     /// dst "test". Breaks if the transcript layout, challenge derivation,

@@ -3,10 +3,10 @@
 
 //! Common reference string and statement dimensioning for BP++.
 
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoPrecomputation};
-use fastcrypto::groups::PrecomputableMultiScalarMul;
-use fastcrypto::pedersen;
+use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::groups::ristretto255::{RistrettoPoint, RistrettoPrecomputation};
+use crate::groups::PrecomputableMultiScalarMul;
+use crate::pedersen;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::{Arc, PoisonError, RwLock};
@@ -52,7 +52,7 @@ pub(crate) fn dims(n_bits: usize, k: usize) -> (usize, usize, usize) {
 ///
 /// Base mapping matches roles, not letters: BP++'s value base `g` is
 /// [`pedersen::H`] and the blinding base `h_vec[0]` is [`pedersen::G`], so
-/// commitments from [`fastcrypto::pedersen`] open directly under this CRS.
+/// commitments from [`crate::pedersen`] open directly under this CRS.
 /// The remaining generators are derived by hash-to-curve and have no known
 /// discrete-log relation to each other or to the Pedersen bases.
 #[derive(Clone)]
