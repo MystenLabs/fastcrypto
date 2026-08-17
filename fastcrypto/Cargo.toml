@@ -116,6 +116,11 @@ harness = false
 
 required-features = ["experimental"]
 
+[[bench]]
+name = "bppp"
+harness = false
+required-features = ["experimental"]
+
 [features]
 default = []
 
