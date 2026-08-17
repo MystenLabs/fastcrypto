@@ -11,7 +11,7 @@
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use fastcrypto::groups::{GroupElement, MultiScalarMul, PrecomputedMultiScalarMul, Scalar};
+use fastcrypto::groups::{GroupElement, MixedMultiScalarMul, MultiScalarMul, Scalar};
 
 use crate::bppp::crs::Generators;
 use crate::bppp::transcript::BpppTranscript;
@@ -213,7 +213,7 @@ pub(crate) fn prove(
         // coefficients (R's even positions, padding).
         let msm = |coeffs: &[RistrettoScalar]| -> FastCryptoResult<RistrettoPoint> {
             if original_base {
-                return RistrettoPoint::mixed_multi_scalar_mul(&gens.precomp, coeffs, &[], &[]);
+                return gens.precomp.mixed_multi_scalar_mul(coeffs, &[]);
             }
             let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) = coeffs
                 .iter()
@@ -389,20 +389,17 @@ pub(crate) fn verify(
         dyn_points.push(*r_point);
     }
 
+    // Both paths take the same scalars, the static ones first.
+    let mut scalars = static_scalars;
+    scalars.append(&mut dyn_scalars);
+
     // The precomputed path always uses Straus, which loses to Pippenger for
     // large MSMs; above the measured crossover (bulletproofpp's
     // benches/mixed_msm.rs, ~440 static points for this workload shape) fall
     // back to one plain MSM.
-    let result = if static_scalars.len() <= 440 {
-        RistrettoPoint::mixed_multi_scalar_mul(
-            &gens.precomp,
-            &static_scalars,
-            &dyn_scalars,
-            &dyn_points,
-        )?
+    let result = if gens.precomp.num_static_points() <= 440 {
+        gens.precomp.mixed_multi_scalar_mul(&scalars, &dyn_points)?
     } else {
-        let mut scalars = static_scalars;
-        scalars.append(&mut dyn_scalars);
         let mut points = Vec::with_capacity(scalars.len());
         points.push(gens.g);
         points.extend(&gens.h_vec);
