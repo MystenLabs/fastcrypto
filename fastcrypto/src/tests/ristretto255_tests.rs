@@ -277,6 +277,23 @@ fn test_precomputed_multiscalar_mul() {
         assert_eq!(expected, actual);
     }
 
+    // Empty precomputed set: the result is the plain MSM over the dynamic
+    // points, and with both sides empty it is the identity. The case of an
+    // empty dynamic side is covered by the loop above.
+    let empty = RistrettoPoint::precompute(&[]).unwrap();
+    assert_eq!(empty.num_static_points(), 0);
+    let scalars = rand_scalars(dynamic_points.len(), &mut rng);
+    assert_eq!(
+        empty
+            .mixed_multi_scalar_mul(&scalars, &dynamic_points)
+            .unwrap(),
+        RistrettoPoint::multi_scalar_mul(&scalars, &dynamic_points).unwrap()
+    );
+    assert_eq!(
+        empty.mixed_multi_scalar_mul(&[], &[]).unwrap(),
+        RistrettoPoint::zero()
+    );
+
     // The scalars of the precomputed points come first: giving the two halves
     // in the wrong order has the same total length, so it is accepted but
     // computes something else.
