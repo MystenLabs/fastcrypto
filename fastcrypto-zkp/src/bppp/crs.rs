@@ -5,7 +5,7 @@
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoPrecomputation};
-use fastcrypto::groups::PrecomputedMultiScalarMul;
+use fastcrypto::groups::PrecomputableMultiScalarMul;
 use fastcrypto::pedersen;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;

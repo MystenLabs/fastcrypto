@@ -11,7 +11,7 @@
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use fastcrypto::groups::{GroupElement, MultiScalarMul, PrecomputedMultiScalarMul, Scalar};
+use fastcrypto::groups::{GroupElement, MixedMultiScalarMul, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 
 use crate::bppp::crs::{dims, validate_dims, Generators, BASE, H_LEN};
@@ -237,7 +237,7 @@ fn commit(gens: &Generators, r: &[S], l: S, n: &[S]) -> FastCryptoResult<Ristret
     scalars.extend(&r[1..H_LEN]);
     scalars.push(l);
     scalars.extend(n);
-    RistrettoPoint::mixed_multi_scalar_mul(&gens.precomp, &scalars, &[], &[])
+    gens.precomp.mixed_multi_scalar_mul(&scalars, &[])
 }
 
 /// A blinding vector with the spec's zero pattern: random except at the
