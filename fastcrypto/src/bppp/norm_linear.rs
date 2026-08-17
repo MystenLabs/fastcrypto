@@ -9,9 +9,9 @@
 //! Each round halves `l` and `n` by a symmetric even/odd fold until fewer
 //! than 6 scalars remain, which are then sent in the clear.
 
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use fastcrypto::groups::{GroupElement, MixedMultiScalarMul, MultiScalarMul, Scalar};
+use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
+use crate::groups::{GroupElement, MixedMultiScalarMul, MultiScalarMul, Scalar};
 
 use crate::bppp::crs::Generators;
 use crate::bppp::transcript::BpppTranscript;

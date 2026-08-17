@@ -21,10 +21,6 @@ required-features = ["test-utils"]
 name = "poseidon"
 harness = false
 
-[[bench]]
-name = "bppp"
-harness = false
-
 [dependencies]
 ark-bn254 = "0.4.0"
 ark-ec = { version = "0.4.1" }
@@ -51,7 +47,6 @@ typenum = "1.13.0"
 lazy_static = "1.4.0"
 itertools = "0.12.0"
 regex = "1.7.1"
-merlin = "3.0.0"
 
 [dev-dependencies]
 ark-bls12-377 = "0.4.0"
@@ -67,7 +62,6 @@ poseidon-ark = { git = "https://github.com/arnaucube/poseidon-ark.git", rev = "f
 tokio = { version = "1.24.1", features = ["sync", "rt", "macros", "rt-multi-thread"] }
 lazy_static = "1.4.0"
 proptest = "1.1.0"
-rand.workspace = true
 
 [features]
 e2e = []

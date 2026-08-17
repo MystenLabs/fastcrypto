@@ -3,9 +3,9 @@
 
 //! Scalar-vector helpers shared by the BP++ modules.
 
-use fastcrypto::error::FastCryptoResult;
-use fastcrypto::groups::ristretto255::RistrettoScalar;
-use fastcrypto::groups::{GroupElement, Scalar};
+use crate::error::FastCryptoResult;
+use crate::groups::ristretto255::RistrettoScalar;
+use crate::groups::{GroupElement, Scalar};
 
 /// The scalar 1. `GroupElement::generator` is the multiplicative identity
 /// for fastcrypto's scalar types; this name says what it means here.
