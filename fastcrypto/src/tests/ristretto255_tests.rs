@@ -4,7 +4,10 @@
 use crate::encoding::{Encoding, Hex};
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::ristretto255::RistrettoScalar;
-use crate::groups::{GroupElement, HashToGroupElement, MultiScalarMul};
+use crate::groups::{
+    GroupElement, HashToGroupElement, MixedMultiScalarMul, MultiScalarMul,
+    PrecomputableMultiScalarMul, Scalar,
+};
 use crate::serde_helpers::ToFromByteArray;
 use hex_literal::hex;
 
@@ -236,6 +239,86 @@ fn test_multiscalar_mul() {
         &[g, g, g]
     )
     .is_err());
+}
+
+#[test]
+fn test_precomputed_multiscalar_mul() {
+    let mut rng = rand::thread_rng();
+    let rand_scalars = |k: usize, rng: &mut rand::rngs::ThreadRng| -> Vec<RistrettoScalar> {
+        (0..k).map(|_| RistrettoScalar::rand(rng)).collect()
+    };
+    let static_points: Vec<RistrettoPoint> = rand_scalars(5, &mut rng)
+        .iter()
+        .map(|s| RistrettoPoint::generator() * s)
+        .collect();
+    let dynamic_points: Vec<RistrettoPoint> = rand_scalars(3, &mut rng)
+        .iter()
+        .map(|s| RistrettoPoint::generator() * s)
+        .collect();
+    let precomputation = RistrettoPoint::precompute(&static_points).unwrap();
+    assert_eq!(precomputation.num_static_points(), static_points.len());
+
+    // Agrees with the plain MSM over [static_points, dynamic_points], with and
+    // without dynamic terms.
+    for dynamic_len in [3, 0] {
+        let scalars = rand_scalars(static_points.len() + dynamic_len, &mut rng);
+        let expected = RistrettoPoint::multi_scalar_mul(
+            &scalars,
+            &[
+                static_points.clone(),
+                dynamic_points[..dynamic_len].to_vec(),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        let actual = precomputation
+            .mixed_multi_scalar_mul(&scalars, &dynamic_points[..dynamic_len])
+            .unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    // Empty precomputed set: the result is the plain MSM over the dynamic
+    // points, and with both sides empty it is the identity. The case of an
+    // empty dynamic side is covered by the loop above.
+    let empty = RistrettoPoint::precompute(&[]).unwrap();
+    assert_eq!(empty.num_static_points(), 0);
+    let scalars = rand_scalars(dynamic_points.len(), &mut rng);
+    assert_eq!(
+        empty
+            .mixed_multi_scalar_mul(&scalars, &dynamic_points)
+            .unwrap(),
+        RistrettoPoint::multi_scalar_mul(&scalars, &dynamic_points).unwrap()
+    );
+    assert_eq!(
+        empty.mixed_multi_scalar_mul(&[], &[]).unwrap(),
+        RistrettoPoint::zero()
+    );
+
+    // The scalars of the precomputed points come first: giving the two halves
+    // in the wrong order has the same total length, so it is accepted but
+    // computes something else.
+    let n = static_points.len();
+    let scalars = rand_scalars(n + dynamic_points.len(), &mut rng);
+    let swapped = [&scalars[n..], &scalars[..n]].concat();
+    assert_ne!(
+        precomputation
+            .mixed_multi_scalar_mul(&scalars, &dynamic_points)
+            .unwrap(),
+        precomputation
+            .mixed_multi_scalar_mul(&swapped, &dynamic_points)
+            .unwrap()
+    );
+
+    // Invalid lengths: the scalars must number the precomputed points plus the
+    // dynamic ones, both when there are too many and too few of them.
+    let s = rand_scalars(9, &mut rng);
+    assert!(precomputation
+        .mixed_multi_scalar_mul(&s, &dynamic_points)
+        .is_err());
+    assert!(precomputation
+        .mixed_multi_scalar_mul(&s[..7], &dynamic_points)
+        .is_err());
+    assert!(precomputation.mixed_multi_scalar_mul(&s[..4], &[]).is_err());
 }
 
 #[test]

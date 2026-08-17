@@ -8,7 +8,7 @@ use crate::error::FastCryptoError::InvalidInput;
 use crate::error::FastCryptoResult;
 use crate::groups::{
     Doubling, FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement,
-    MultiScalarMul, Scalar,
+    MixedMultiScalarMul, MultiScalarMul, PrecomputableMultiScalarMul, Scalar,
 };
 use crate::hash::{Blake2b256, ReverseWrapper, Sha512};
 use crate::serde_helpers::ToFromByteArray;
@@ -19,8 +19,9 @@ use crate::{
 use curve25519_dalek;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek::ristretto::RistrettoPoint as ExternalPoint;
+use curve25519_dalek::ristretto::VartimeRistrettoPrecomputation;
 use curve25519_dalek::scalar::Scalar as ExternalScalar;
-use curve25519_dalek::traits::{Identity, VartimeMultiscalarMul};
+use curve25519_dalek::traits::{Identity, VartimeMultiscalarMul, VartimePrecomputedMultiscalarMul};
 use derive_more::{Add, From, Mul, Neg, Sub};
 use elliptic_curve::group::GroupEncoding;
 use elliptic_curve::hash2curve::{ExpandMsg, ExpandMsgXmd, Expander};
@@ -81,6 +82,47 @@ impl MultiScalarMul for RistrettoPoint {
         Ok(RistrettoPoint(ExternalPoint::vartime_multiscalar_mul(
             scalars.iter().map(|s| s.0),
             points.iter().map(|g| g.0),
+        )))
+    }
+}
+
+/// Precomputed multiplication tables over a fixed set of Ristretto points.
+pub struct RistrettoPrecomputation {
+    tables: VartimeRistrettoPrecomputation,
+    num_points: usize,
+}
+
+impl PrecomputableMultiScalarMul for RistrettoPoint {
+    type Precomputation = RistrettoPrecomputation;
+
+    fn precompute(points: &[Self]) -> FastCryptoResult<Self::Precomputation> {
+        Ok(RistrettoPrecomputation {
+            tables: VartimeRistrettoPrecomputation::new(points.iter().map(|p| p.0)),
+            num_points: points.len(),
+        })
+    }
+}
+
+impl MixedMultiScalarMul for RistrettoPrecomputation {
+    type Point = RistrettoPoint;
+
+    fn num_static_points(&self) -> usize {
+        self.num_points
+    }
+
+    fn mixed_multi_scalar_mul(
+        &self,
+        scalars: &[RistrettoScalar],
+        dynamic_points: &[RistrettoPoint],
+    ) -> FastCryptoResult<RistrettoPoint> {
+        if scalars.len() != self.num_points + dynamic_points.len() {
+            return Err(InvalidInput);
+        }
+        let (static_scalars, dynamic_scalars) = scalars.split_at(self.num_points);
+        Ok(RistrettoPoint(self.tables.vartime_mixed_multiscalar_mul(
+            static_scalars.iter().map(|s| s.0),
+            dynamic_scalars.iter().map(|s| s.0),
+            dynamic_points.iter().map(|p| p.0),
         )))
     }
 }
