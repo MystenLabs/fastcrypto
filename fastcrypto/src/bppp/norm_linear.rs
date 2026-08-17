@@ -364,16 +364,17 @@ pub(crate) fn verify(
     let w_g = tensor_table(&gammas, &rhos);
     let mask = (1usize << k) - 1;
 
-    // Static scalars, laid out to match the precomputed tables
-    // `[G, h_vec.., g_vec..]`.
-    let mut static_scalars = Vec::with_capacity(1 + gens.h_vec.len() + gens.g_vec.len());
-    static_scalars.push(sigma);
+    // All scalars, the static ones first to match the precomputed tables
+    // `[G, h_vec.., g_vec..]`; both MSM paths below expect this order.
+    let mut scalars =
+        Vec::with_capacity(1 + gens.h_vec.len() + gens.g_vec.len() + extra.len() + 2 * k);
+    scalars.push(sigma);
     for i in 0..gens.h_vec.len() {
-        static_scalars.push(w_h[i & mask] * proof.l_final[i >> k]);
+        scalars.push(w_h[i & mask] * proof.l_final[i >> k]);
     }
     for i in 0..gens.g_vec.len() {
         let pn_i = pn.get(i).copied().unwrap_or_else(RistrettoScalar::zero);
-        static_scalars.push(w_g[i & mask] * proof.n_final[i >> k] - pn_i);
+        scalars.push(w_g[i & mask] * proof.n_final[i >> k] - pn_i);
     }
 
     let mut dyn_scalars = Vec::with_capacity(extra.len() + 2 * k);
@@ -389,8 +390,6 @@ pub(crate) fn verify(
         dyn_points.push(*r_point);
     }
 
-    // Both paths take the same scalars, the static ones first.
-    let mut scalars = static_scalars;
     scalars.append(&mut dyn_scalars);
 
     // The precomputed path always uses Straus, which loses to Pippenger for
@@ -418,12 +417,13 @@ pub(crate) fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     /// A random valid instance: a CRS sliced to the requested lengths,
     /// random `(c, rho, l, n)`, and the commitment to `(sigma, l, n)`.
     #[derive(Clone)]
     struct Instance {
-        gens: Generators,
+        gens: Arc<Generators>,
         c: Vec<RistrettoScalar>,
         rho: RistrettoScalar,
         l: Vec<RistrettoScalar>,
@@ -434,12 +434,14 @@ mod tests {
     fn random_instance(l_len: usize, n_len: usize) -> Instance {
         let mut rng = rand::thread_rng();
         let full = Generators::new(64, 4).unwrap();
-        let gens = Generators::from_parts(
-            full.g,
-            full.h_vec[..l_len].to_vec(),
-            full.g_vec[..n_len].to_vec(),
-        )
-        .unwrap();
+        let gens = Arc::new(
+            Generators::from_parts(
+                full.g,
+                full.h_vec[..l_len].to_vec(),
+                full.g_vec[..n_len].to_vec(),
+            )
+            .unwrap(),
+        );
         let rand_vec = |len: usize, rng: &mut rand::rngs::ThreadRng| -> Vec<RistrettoScalar> {
             (0..len).map(|_| RistrettoScalar::rand(rng)).collect()
         };
