@@ -44,33 +44,33 @@ The table below compares BulletProofs (BP) and BulletProofs++ proof sizes for di
 The two tables below compare BP and BP++ prover and verifier performance for different (aggregate) range proof configurations.
 All benchmarks were done on an Apple M2 Max MacBook Pro with 96 GB RAM.
 For the BP baseline, the dalek `bulletproofs` crate v5 was used. 
-To reproduce the BP++ benchmarks run `cargo bench -p fastcrypto-zkp --bench bppp`. 
+To reproduce the BP++ benchmarks run `cargo bench -p fastcrypto --features experimental --bench bppp`. 
 
 **Proving (ms):**
 
 | Config | BP | BP++ | speedup |
 | --- | ---: | ---: | ---: |
-| 16-bit x1 | 2.03 | 1.24 | 1.6x |
-| 32-bit x1 | 3.69 | 1.25 | 2.9x |
-| 64-bit x1 | 6.86 | 1.29 | 5.3x |
+| 16-bit x1 | 2.03 | 1.22 | 1.7x |
+| 32-bit x1 | 3.69 | 1.24 | 3.0x |
+| 64-bit x1 | 6.86 | 1.28 | 5.4x |
 | 16-bit x4 | 7.59 | 1.38 | 5.5x |
-| 16-bit x8 | 15.24 | 2.10 | 7.3x |
-| 32-bit x8 | 27.71 | 3.98 | 7.0x |
-| 64-bit x16 | 101.7 | 13.74 | 7.4x |
-| 64-bit x32 | 199.5 | 27.36 | 7.3x |
+| 16-bit x8 | 15.24 | 2.07 | 7.4x |
+| 32-bit x8 | 27.71 | 3.95 | 7.0x |
+| 64-bit x16 | 101.7 | 13.42 | 7.6x |
+| 64-bit x32 | 199.5 | 26.91 | 7.4x |
 
 **Verification (ms):**
 
 | Config | BP | BP++ | speedup |
 | --- | ---: | ---: | ---: |
-| 16-bit x1 | 0.37 | 0.32 | 1.2x |
-| 32-bit x1 | 0.56 | 0.32 | 1.8x |
+| 16-bit x1 | 0.37 | 0.31 | 1.2x |
+| 32-bit x1 | 0.56 | 0.31 | 1.8x |
 | 64-bit x1 | 0.98 | 0.32 | 3.1x |
-| 16-bit x4 | 1.03 | 0.35 | 3.0x |
-| 16-bit x8 | 1.66 | 0.49 | 3.4x |
-| 32-bit x8 | 2.68 | 0.70 | 3.8x |
-| 64-bit x16 | 8.13 | 1.98 | 4.1x |
-| 64-bit x32 | 15.06 | 3.67 | 4.1x |
+| 16-bit x4 | 1.03 | 0.34 | 3.0x |
+| 16-bit x8 | 1.66 | 0.48 | 3.5x |
+| 32-bit x8 | 2.68 | 0.68 | 3.9x |
+| 64-bit x16 | 8.13 | 1.94 | 4.2x |
+| 64-bit x32 | 15.06 | 3.56 | 4.2x |
 
 ## Implementation notes
 
@@ -82,7 +82,7 @@ To reproduce the BP++ benchmarks run `cargo bench -p fastcrypto-zkp --bench bppp
   batch folds), so each round's messages are one MSM each over the base
   generators.
 - MSMs over the fixed generator set use precomputed tables
-  (`fastcrypto::groups::PrecomputedMultiScalarMul`), with a fallback to a
+  (`fastcrypto::groups::PrecomputableMultiScalarMul`), with a fallback to a
   plain MSM above the measured Straus/Pippenger crossover.
 - Derived CRSs (hash-to-curve generators plus tables) are cached per size for
   the lifetime of the process.

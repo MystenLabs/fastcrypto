@@ -559,11 +559,17 @@ pub(crate) fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     fn prove_batch(
         n_bits: usize,
         values: &[u64],
-    ) -> (Generators, CircuitParams, CircuitProof, Vec<RistrettoPoint>) {
+    ) -> (
+        Arc<Generators>,
+        CircuitParams,
+        CircuitProof,
+        Vec<RistrettoPoint>,
+    ) {
         let mut rng = rand::thread_rng();
         let gens = Generators::new(n_bits, values.len()).unwrap();
         let params = CircuitParams::new(n_bits, values.len()).unwrap();
