@@ -55,27 +55,25 @@ pub(crate) fn dims(n_bits: usize, k: usize) -> (usize, usize, usize) {
 /// commitments from [`crate::pedersen`] open directly under this CRS.
 /// The remaining generators are derived by hash-to-curve and have no known
 /// discrete-log relation to each other or to the Pedersen bases.
-#[derive(Clone)]
 pub(crate) struct Generators {
     pub(crate) g: RistrettoPoint,
     pub(crate) h_vec: Vec<RistrettoPoint>,
     pub(crate) g_vec: Vec<RistrettoPoint>,
-    /// Precomputed MSM tables over `[g, h_vec.., g_vec..]`, shared across
-    /// clones.
-    pub(crate) precomp: Arc<RistrettoPrecomputation>,
+    /// Precomputed MSM tables over `[g, h_vec.., g_vec..]`.
+    pub(crate) precomp: RistrettoPrecomputation,
 }
 
 /// Process-wide cache of derived CRSs, keyed by the norm length `nm` — the
 /// only dimension a CRS depends on. The generator derivation (one
 /// hash-to-curve per point) and the MSM table build are paid once per `nm`;
-/// a hit clones the point vectors and shares the tables.
-static CRS_CACHE: Lazy<RwLock<HashMap<usize, Generators>>> =
+/// a hit shares the entry rather than copying it.
+static CRS_CACHE: Lazy<RwLock<HashMap<usize, Arc<Generators>>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
 impl Generators {
     /// Create the CRS for proofs over `k` values of `n_bits` bits each.
     /// `n_bits` must be a positive multiple of 4 (at most 64) and `k >= 1`.
-    pub(crate) fn new(n_bits: usize, k: usize) -> FastCryptoResult<Self> {
+    pub(crate) fn new(n_bits: usize, k: usize) -> FastCryptoResult<Arc<Self>> {
         validate_dims(n_bits, k)?;
         let (_, _, nm) = dims(n_bits, k);
 
@@ -84,25 +82,25 @@ impl Generators {
             .unwrap_or_else(PoisonError::into_inner)
             .get(&nm)
         {
-            return Ok(gens.clone());
+            return Ok(Arc::clone(gens));
         }
 
         let mut h_vec = Vec::with_capacity(H_LEN);
         h_vec.push(*pedersen::G);
         h_vec.extend((1..H_LEN).map(|i| hash_to_generator(DST_H, i)));
 
-        let gens = Self::from_parts(
+        let gens = Arc::new(Self::from_parts(
             *pedersen::H,
             h_vec,
             (0..nm).map(|i| hash_to_generator(DST_G, i)).collect(),
-        )?;
+        )?);
 
         // Derivation is deterministic, so a concurrent double-build inserts
         // an identical entry.
         CRS_CACHE
             .write()
             .unwrap_or_else(PoisonError::into_inner)
-            .insert(nm, gens.clone());
+            .insert(nm, Arc::clone(&gens));
         Ok(gens)
     }
 
@@ -121,7 +119,7 @@ impl Generators {
             g,
             h_vec,
             g_vec,
-            precomp: Arc::new(RistrettoPoint::precompute(&all)?),
+            precomp: RistrettoPoint::precompute(&all)?,
         })
     }
 }
