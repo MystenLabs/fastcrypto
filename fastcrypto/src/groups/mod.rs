@@ -133,8 +133,7 @@ pub trait MultiScalarMul: GroupElement {
 
 /// Trait for groups that support multi-scalar multiplication with precomputed
 /// tables over a fixed set of points, trading memory for speed when the same
-/// points (e.g. a commitment key) are used in many multi-scalar
-/// multiplications.
+/// points (e.g. a commitment key) are used in many multi-scalar multiplications.
 pub trait PrecomputableMultiScalarMul: GroupElement {
     /// Precomputed tables for a fixed set of points.
     type Precomputation: MixedMultiScalarMul<Point = Self>;
@@ -155,18 +154,19 @@ pub trait MixedMultiScalarMul {
     ///
     /// `a_1*P_1 + ... + a_n*P_n + b_1*Q_1 + ... + b_m*Q_m`,
     ///
-    /// where the `P_i` are the `n` fixed points these tables were built for
-    /// and only their scalars `a_i` change between calls, while the `m` points
-    /// `Q_j` (= `dynamic_points`) and their scalars `b_j` are both given fresh
-    /// on every call. All `n + m` scalars are passed as a single slice of the
-    /// form `scalars = [a_1, ..., a_n, b_1, ..., b_m]` of length
-    /// `self.num_static_points() + dynamic_points.len()`. The
-    /// `a_i*P_i` part is evaluated from the precomputed tables, so when the
-    /// `P_i` are reused across many calls this is faster than a regular MSM
-    /// over all `n + m` points.
+    /// where the `P_i` are the `n` static points these tables were built for,
+    /// and the `Q_j` are the `m` dynamic points freshly supplied on every
+    /// call. `static_scalars` holds the `a_i` and must have length `n`;
+    /// `dynamic_scalars` holds the `b_j` and must have length `m`. The scalar
+    /// multiplication `a_i*P_i` is evaluated via the precomputed tables, so
+    /// when the `P_i` are reused across many calls this is faster than a regular
+    /// MSM over all `n + m` points. This only holds up to a size that depends on the
+    /// implementation; above it a regular MSM is faster and the caller should
+    /// use one instead.
     fn mixed_multi_scalar_mul(
         &self,
-        scalars: &[<Self::Point as GroupElement>::ScalarType],
+        static_scalars: &[<Self::Point as GroupElement>::ScalarType],
+        dynamic_scalars: &[<Self::Point as GroupElement>::ScalarType],
         dynamic_points: &[Self::Point],
     ) -> FastCryptoResult<Self::Point>;
 }
