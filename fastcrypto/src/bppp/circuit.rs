@@ -237,7 +237,7 @@ fn commit(gens: &Generators, r: &[S], l: S, n: &[S]) -> FastCryptoResult<Ristret
     scalars.extend(&r[1..H_LEN]);
     scalars.push(l);
     scalars.extend(n);
-    gens.precomp.mixed_multi_scalar_mul(&scalars, &[])
+    gens.precomp.mixed_multi_scalar_mul(&scalars, &[], &[])
 }
 
 /// A blinding vector with the spec's zero pattern: random except at the

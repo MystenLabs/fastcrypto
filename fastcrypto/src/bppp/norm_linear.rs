@@ -213,7 +213,7 @@ pub(crate) fn prove(
         // coefficients (R's even positions, padding).
         let msm = |coeffs: &[RistrettoScalar]| -> FastCryptoResult<RistrettoPoint> {
             if original_base {
-                return gens.precomp.mixed_multi_scalar_mul(coeffs, &[]);
+                return gens.precomp.mixed_multi_scalar_mul(coeffs, &[], &[]);
             }
             let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) = coeffs
                 .iter()
@@ -364,17 +364,16 @@ pub(crate) fn verify(
     let w_g = tensor_table(&gammas, &rhos);
     let mask = (1usize << k) - 1;
 
-    // All scalars, the static ones first to match the precomputed tables
-    // `[G, h_vec.., g_vec..]`; both MSM paths below expect this order.
-    let mut scalars =
-        Vec::with_capacity(1 + gens.h_vec.len() + gens.g_vec.len() + extra.len() + 2 * k);
-    scalars.push(sigma);
+    // Static scalars, laid out to match the precomputed tables
+    // `[G, h_vec.., g_vec..]`.
+    let mut static_scalars = Vec::with_capacity(1 + gens.h_vec.len() + gens.g_vec.len());
+    static_scalars.push(sigma);
     for i in 0..gens.h_vec.len() {
-        scalars.push(w_h[i & mask] * proof.l_final[i >> k]);
+        static_scalars.push(w_h[i & mask] * proof.l_final[i >> k]);
     }
     for i in 0..gens.g_vec.len() {
         let pn_i = pn.get(i).copied().unwrap_or_else(RistrettoScalar::zero);
-        scalars.push(w_g[i & mask] * proof.n_final[i >> k] - pn_i);
+        static_scalars.push(w_g[i & mask] * proof.n_final[i >> k] - pn_i);
     }
 
     let mut dyn_scalars = Vec::with_capacity(extra.len() + 2 * k);
@@ -390,15 +389,16 @@ pub(crate) fn verify(
         dyn_points.push(*r_point);
     }
 
-    scalars.append(&mut dyn_scalars);
-
     // The precomputed path always uses Straus, which loses to Pippenger for
     // large MSMs; above the measured crossover (bulletproofpp's
     // benches/mixed_msm.rs, ~440 static points for this workload shape) fall
     // back to one plain MSM.
     let result = if gens.precomp.num_static_points() <= 440 {
-        gens.precomp.mixed_multi_scalar_mul(&scalars, &dyn_points)?
+        gens.precomp
+            .mixed_multi_scalar_mul(&static_scalars, &dyn_scalars, &dyn_points)?
     } else {
+        let mut scalars = static_scalars;
+        scalars.append(&mut dyn_scalars);
         let mut points = Vec::with_capacity(scalars.len());
         points.push(gens.g);
         points.extend(&gens.h_vec);
