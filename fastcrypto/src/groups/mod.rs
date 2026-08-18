@@ -157,9 +157,9 @@ pub trait MixedMultiScalarMul {
     /// where the `P_i` are the `n` static points these tables were built for,
     /// and the `Q_j` are the `m` dynamic points freshly supplied on every
     /// call. `static_scalars` holds the `a_i` and must have length `n`;
-    /// `dynamic_scalars` holds the `b_j` and must have length `m`. The scalar 
-    /// multiplication `a_i*P_i` is evaluated via the precomputed tables, so 
-    /// when the `P_i` are reused across many calls this is faster than a regular 
+    /// `dynamic_scalars` holds the `b_j` and must have length `m`. The scalar
+    /// multiplication `a_i*P_i` is evaluated via the precomputed tables, so
+    /// when the `P_i` are reused across many calls this is faster than a regular
     /// MSM over all `n + m` points. This only holds up to a size that depends on the
     /// implementation; above it a regular MSM is faster and the caller should
     /// use one instead.
