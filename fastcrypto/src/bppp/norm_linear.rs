@@ -376,34 +376,34 @@ pub(crate) fn verify(
         static_scalars.push(w_g[i & mask] * proof.n_final[i >> k] - pn_i);
     }
 
-    let mut dyn_scalars = Vec::with_capacity(extra.len() + 2 * k);
-    let mut dyn_points = Vec::with_capacity(extra.len() + 2 * k);
+    let mut dynamic_scalars = Vec::with_capacity(extra.len() + 2 * k);
+    let mut dynamic_points = Vec::with_capacity(extra.len() + 2 * k);
     for (s, p) in extra {
-        dyn_scalars.push(-*s);
-        dyn_points.push(*p);
+        dynamic_scalars.push(-*s);
+        dynamic_points.push(*p);
     }
     for ((x_point, r_point), gamma) in proof.rounds.iter().zip(&gammas) {
-        dyn_scalars.push(-*gamma);
-        dyn_points.push(*x_point);
-        dyn_scalars.push(one() - *gamma * *gamma);
-        dyn_points.push(*r_point);
+        dynamic_scalars.push(-*gamma);
+        dynamic_points.push(*x_point);
+        dynamic_scalars.push(one() - *gamma * *gamma);
+        dynamic_points.push(*r_point);
     }
 
     // The precomputed path always uses Straus, which loses to Pippenger for
-    // large MSMs; above the measured crossover (bulletproofpp's
-    // benches/mixed_msm.rs, ~440 static points for this workload shape) fall
-    // back to one plain MSM.
+    // large MSMs; above the measured crossover (~440 static points for this
+    // workload shape, calibrated by `benches/mixed_msm.rs`) fall back to one
+    // plain MSM.
     let result = if gens.precomp.num_static_points() <= 440 {
         gens.precomp
-            .mixed_multi_scalar_mul(&static_scalars, &dyn_scalars, &dyn_points)?
+            .mixed_multi_scalar_mul(&static_scalars, &dynamic_scalars, &dynamic_points)?
     } else {
         let mut scalars = static_scalars;
-        scalars.append(&mut dyn_scalars);
+        scalars.append(&mut dynamic_scalars);
         let mut points = Vec::with_capacity(scalars.len());
         points.push(gens.g);
         points.extend(&gens.h_vec);
         points.extend(&gens.g_vec);
-        points.append(&mut dyn_points);
+        points.append(&mut dynamic_points);
         RistrettoPoint::multi_scalar_mul(&scalars, &points)?
     };
 
