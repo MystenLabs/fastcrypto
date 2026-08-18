@@ -112,13 +112,14 @@ impl MixedMultiScalarMul for RistrettoPrecomputation {
 
     fn mixed_multi_scalar_mul(
         &self,
-        scalars: &[RistrettoScalar],
+        static_scalars: &[RistrettoScalar],
+        dynamic_scalars: &[RistrettoScalar],
         dynamic_points: &[RistrettoPoint],
     ) -> FastCryptoResult<RistrettoPoint> {
-        if scalars.len() != self.num_points + dynamic_points.len() {
+        if static_scalars.len() != self.num_points || dynamic_scalars.len() != dynamic_points.len()
+        {
             return Err(InvalidInput);
         }
-        let (static_scalars, dynamic_scalars) = scalars.split_at(self.num_points);
         Ok(RistrettoPoint(self.tables.vartime_mixed_multiscalar_mul(
             static_scalars.iter().map(|s| s.0),
             dynamic_scalars.iter().map(|s| s.0),
