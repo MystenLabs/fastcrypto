@@ -94,7 +94,8 @@ impl RangeProof {
     /// Prove that all `values` are in `range` under the commitments given by
     /// `values` and `blindings`, as one aggregated proof. Fails with
     /// `InvalidInput` if any value is out of range, the lengths differ, or
-    /// `values` is empty.
+    /// `values` is empty, and with `GeneralOpaqueError` if proving itself
+    /// fails.
     pub fn prove_batch(
         values: &[u64],
         blindings: &[Blinding],
@@ -109,8 +110,14 @@ impl RangeProof {
             return Err(FastCryptoError::InvalidInput);
         }
         let (n_bits, m) = (range.bits(), values.len());
-        let gens = Generators::new(n_bits, m)?;
-        let params = CircuitParams::new(n_bits, m)?;
+
+        // Past the input checks, proving can only fail on the dimension checks
+        // (unreachable for a `Range` and a non-empty batch) or on a challenge
+        // that degenerates a scalar inversion. The latter has negligible
+        // probability but depends on the witness, so report both opaquely.
+        let opaque = |_| FastCryptoError::GeneralOpaqueError;
+        let gens = Generators::new(n_bits, m).map_err(opaque)?;
+        let params = CircuitParams::new(n_bits, m).map_err(opaque)?;
         let blinding_scalars: Vec<RistrettoScalar> = blindings.iter().map(|b| b.0).collect();
         let (proof, _) = circuit::prove(
             &mut transcript(dst, n_bits, m),
@@ -119,7 +126,8 @@ impl RangeProof {
             rng,
             values,
             &blinding_scalars,
-        )?;
+        )
+        .map_err(opaque)?;
         Ok(RangeProof { proof })
     }
 
