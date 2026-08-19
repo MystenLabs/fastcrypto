@@ -3,7 +3,6 @@
 [![crate][crate-image]][crate-link]
 [![Docs][docs-image]][docs-link]
 [![Build status](https://github.com/MystenLabs/fastcrypto/actions/workflows/rust.yml/badge.svg)](https://github.com/MystenLabs/fastcrypto/actions)
-[![Update the fastcrypto pointer Sui](https://github.com/MystenLabs/sui/actions/workflows/fastcrypto_pull.yml/badge.svg)](https://github.com/MystenLabs/sui/actions/workflows/fastcrypto_pull.yml)
 ![Apache2/MIT licensed][license-image]
 ![Rust Version][rustc-image]
 [![codecov](https://codecov.io/gh/MystenLabs/fastcrypto/branch/main/graph/badge.svg?token=zlB0v8k4O5)](https://codecov.io/gh/MystenLabs/fastcrypto)
@@ -12,7 +11,7 @@
  <img width="300" src="images/fastcrypto_logo_800.png">
 </p>
 
-`fastcrypto` is a common cryptography library used in software at Mysten Labs. It contains three individual crates: `fastcrypto`, `fastcrypto-zkp` and `fastcrypto-cli`. They are published as independent crates to encourage reusability across different applications and domains.
+`fastcrypto` is a common cryptography library used in software at Mysten Labs. Its workspace contains six crates: `fastcrypto`, `fastcrypto-derive`, `fastcrypto-tbls`, `fastcrypto-zkp`, `fastcrypto-cli`, and `fastcrypto-vdf`. They are organized as independent crates to encourage reusability across different applications and domains.
 
 `fastcrypto` is a wrapper library around several carefully selected crates with the following considerations:
 
@@ -52,15 +51,15 @@ The `fastcrypto` crate contains:
     - Bulletproofs Range Proof: Function to prove that a committed value is an unsigned integer that is within the range `[0, 2^bits)`. Function to verify that the commitment is a Pedersen commitment of some value with an unsigned bit length, a value is an integer within the range `[0, 2^bits)`.
     - Elliptic Curve VRF (ECVRF): A verifiable random function implementation using the Ristretto255 group. Function to create a proof based on a given input and verify a proof for a given output, based on specification in [draft-irtf-cfrg-vrf-15](https://datatracker.ietf.org/doc/draft-irtf-cfrg-vrf/).
 
-- Encoding: Base64 and Hex are defined with an encoding trait with its customized serialization and validations, backed by [base64ct](https://crates.io/crates/base64ct) and [hex]((https://crates.io/crates/base64ct)). Notably, the base64ct crate has been chosen instead of the most popular base64 Rust crate, because (a) it is constant time and (b) mangled encodings are explicitly rejected to prevent malleability attacks when decoding, see [paper](https://dl.acm.org/doi/10.1145/3488932.3527284) on in-depth analysis.
+- Encoding: Base64 and Hex are defined with an encoding trait with its customized serialization and validations, backed by [base64ct](https://crates.io/crates/base64ct) and [hex](https://crates.io/crates/hex). Notably, the base64ct crate has been chosen instead of the most popular base64 Rust crate, because (a) it is constant time and (b) mangled encodings are explicitly rejected to prevent malleability attacks when decoding, see [paper](https://dl.acm.org/doi/10.1145/3488932.3527284) on in-depth analysis.
 
 - Hash functions wrappers: [SHA2_256](https://en.wikipedia.org/wiki/SHA-2) with 256 bit digests, [SHA3_256](https://en.wikipedia.org/wiki/SHA-3) with 256 bit digests, [SHA2_512](https://en.wikipedia.org/wiki/SHA-2) with 512 bit digests, [SHA3_512](https://en.wikipedia.org/wiki/SHA-3) with 512 bit digests, [KECCAK](https://keccak.team/files/Keccak-reference-3.0.pdf) with 256 bit digests, [BLAKE2-256](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2) with 256 bit digests.
 
 - Multiset Hash: A hash function where the output of the hash function is a point on the elliptic curve. It also allows for efficient computation for the hash of the union of two multiset. 
 
-- A asynchronous signature service is provided for testing and benchmarking.
+- An asynchronous signature service is provided for testing and benchmarking.
 
-The `fastcryto-zkp` crate contains APIs to verify a Groth16 proof along with its prepared verifying key and public inputs. BN254 and BLS12381 curves are supported. The verifier is backed [Arkworks](https://github.com/arkworks-rs/) and [`blst`](https://github.com/supranational/blst) libraries.
+The `fastcrypto-zkp` crate contains APIs to verify a Groth16 proof along with its prepared verifying key and public inputs. BN254 and BLS12381 curves are supported. The verifier is backed [Arkworks](https://github.com/arkworks-rs/) and [`blst`](https://github.com/supranational/blst) libraries.
 
 The `fastcrypto-cli` crate includes CLI tools available for debugging. See usages with `-h` flag.
 
@@ -79,7 +78,7 @@ The `fastcrypto` crate can be used when building WASM modules. To do this, enabl
 
 ## Tests
 
-There exist unit tests for all primitives in all three crates, which can be run by: 
+There are unit tests for primitives across the workspace, which can be run with:
 ```
 $ cargo test
 ```
@@ -115,7 +114,7 @@ All crates licensed under either of
 
 [//]: # (badges)
 
-[crate-image]: https://buildstats.info/crate/fastcrypto
+[crate-image]: https://img.shields.io/crates/v/fastcrypto.svg
 [crate-link]: https://crates.io/crates/fastcrypto
 [docs-image]: https://docs.rs/fastcrypto/badge.svg
 [docs-link]: https://docs.rs/fastcrypto/
