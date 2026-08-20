@@ -6,7 +6,7 @@
 //! for the BP++ verifier's workload shape: S static generators with dense
 //! scalars plus D dynamic points (proof points + commitments).
 //!
-//! This calibrates the fallback threshold in `bppp::norm_linear::verify`.
+//! This calibrates the fallback threshold in `bulletproofspp::norm_linear::verify`.
 //!
 //! Run with: `cargo bench -p fastcrypto --bench mixed_msm`
 

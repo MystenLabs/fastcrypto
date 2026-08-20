@@ -116,7 +116,7 @@ pub mod utils;
 pub mod vrf;
 
 #[cfg(feature = "experimental")]
-pub mod bppp;
+pub mod bulletproofspp;
 
 /// This module contains unsecure cryptographic primitives. The purpose of this library is to allow seamless
 /// benchmarking of systems without taking into account the cost of cryptographic primitives - and hence
