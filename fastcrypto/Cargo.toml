@@ -113,7 +113,7 @@ harness = false
 required-features = ["experimental"]
 
 [[bench]]
-name = "bppp"
+name = "bulletproofspp"
 harness = false
 required-features = ["experimental"]
 

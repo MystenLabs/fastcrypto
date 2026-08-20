@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use fastcrypto::bppp::{Range, RangeProof};
+use fastcrypto::bulletproofspp::{Range, RangeProof};
 use fastcrypto::pedersen::{Blinding, PedersenCommitment};
 use rand::Rng;
 

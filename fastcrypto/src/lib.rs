@@ -116,4 +116,4 @@ pub mod utils;
 pub mod vrf;
 
 #[cfg(feature = "experimental")]
-pub mod bppp;
+pub mod bulletproofspp;

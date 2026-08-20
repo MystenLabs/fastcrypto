@@ -12,10 +12,11 @@
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MixedMultiScalarMul, MultiScalarMul, Scalar};
+use crate::serde_helpers::ToFromByteArray;
 
-use crate::bppp::crs::Generators;
-use crate::bppp::transcript::BpppTranscript;
-use crate::bppp::util::*;
+use crate::bulletproofspp::crs::Generators;
+use crate::bulletproofspp::transcript::BpppTranscript;
+use crate::bulletproofspp::util::*;
 
 /// Fold until fewer than this many scalars remain; the remaining opening is
 /// sent in the clear. 6 balances rounds (2 points each) against final scalars.
@@ -30,6 +31,56 @@ pub(crate) struct NormLinearProof {
     pub(crate) n_final: Vec<RistrettoScalar>,
 }
 
+impl NormLinearProof {
+    /// Serialized size of a proof for initial vector lengths `(l_len, n_len)`.
+    pub(crate) fn serialized_len_for(l_len: usize, n_len: usize) -> usize {
+        let (rounds, l_len, n_len) = proof_shape(l_len, n_len);
+        32 * (2 * rounds + l_len + n_len)
+    }
+
+    pub(crate) fn serialized_len(&self) -> usize {
+        32 * (2 * self.rounds.len() + self.l_final.len() + self.n_final.len())
+    }
+
+    /// Serialize: the per-round `(X, R)` pairs, then `l_final`, then
+    /// `n_final`, 32 bytes each.
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(self.serialized_len());
+        for (x, r) in &self.rounds {
+            bytes.extend(x.to_byte_array());
+            bytes.extend(r.to_byte_array());
+        }
+        for scalar in self.l_final.iter().chain(&self.n_final) {
+            bytes.extend(scalar.to_byte_array());
+        }
+        bytes
+    }
+
+    /// Deserialize a proof for initial vector lengths `(l_len, n_len)`. The
+    /// byte length must match the implied shape exactly.
+    pub(crate) fn from_bytes(bytes: &[u8], l_len: usize, n_len: usize) -> FastCryptoResult<Self> {
+        if bytes.len() != Self::serialized_len_for(l_len, n_len) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let (rounds, l_len, n_len) = proof_shape(l_len, n_len);
+        let mut chunks = bytes.chunks_exact(32);
+        let rounds = (0..rounds)
+            .map(|_| Ok((decode_next(&mut chunks)?, decode_next(&mut chunks)?)))
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+        let l_final = (0..l_len)
+            .map(|_| decode_next(&mut chunks))
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+        let n_final = (0..n_len)
+            .map(|_| decode_next(&mut chunks))
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+        Ok(NormLinearProof {
+            rounds,
+            l_final,
+            n_final,
+        })
+    }
+}
+
 /// The vector lengths of a proof for initial sizes `(l_len, n_len)`:
 /// number of rounds and final `l`/`n` lengths. Each round pads to even
 /// length and halves.
@@ -41,6 +92,20 @@ fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize, usize) {
         rounds += 1;
     }
     (rounds, l_len, n_len)
+}
+
+/// Grow a fold tensor by one level, the new round in the top bit:
+/// `[w*f0.., w*f1..]`, i.e. entry `t + b*|w|` is `w[t]` times `f1` if `b`
+/// else `f0`.
+fn tensor_grow(
+    w: &[RistrettoScalar],
+    f0: RistrettoScalar,
+    f1: RistrettoScalar,
+) -> Vec<RistrettoScalar> {
+    let mut next = Vec::with_capacity(2 * w.len());
+    next.extend(w.iter().map(|wt| *wt * f0));
+    next.extend(w.iter().map(|wt| *wt * f1));
+    next
 }
 
 fn pad_even_scalar(v: &mut Vec<RistrettoScalar>) {
@@ -241,16 +306,10 @@ pub(crate) fn prove(
         n = vec_add(&vec_scalar_mul(rho_inv, &n0), &vec_scalar_mul(gamma, &n1));
         c = vec_add(&c0, &vec_scalar_mul(gamma, &c1));
 
-        // Grow the implicit fold tensors by one level (the new round is the
-        // top bit): H' = H0 + gamma*H1, G' = rho*G0 + gamma*G1.
-        let grow = |w: &[RistrettoScalar], f0: RistrettoScalar, f1: RistrettoScalar| {
-            let mut next = Vec::with_capacity(2 * w.len());
-            next.extend(w.iter().map(|wt| *wt * f0));
-            next.extend(w.iter().map(|wt| *wt * f1));
-            next
-        };
-        w_h = grow(&w_h, one(), gamma);
-        w_g = grow(&w_g, rho, gamma);
+        // Grow the implicit fold tensors by one level:
+        // H' = H0 + gamma*H1, G' = rho*G0 + gamma*G1.
+        w_h = tensor_grow(&w_h, one(), gamma);
+        w_g = tensor_grow(&w_g, rho, gamma);
         levels += 1;
 
         rho = mu;
@@ -348,20 +407,15 @@ pub(crate) fn verify(
     let sigma = inner_product(&c, &proof.l_final) + weighted_norm(&proof.n_final, mu);
 
     // Challenge-product weights via tensor tables (all 2^k products in
-    // 2^{k+1} muls): w[t] = prod_r (set_r if bit_r(t) else unset_r).
-    let tensor_table = |set: &[RistrettoScalar], unset: &[RistrettoScalar]| {
-        let mut w = vec![one()];
-        for (s, u) in set.iter().zip(unset) {
-            let mut next = Vec::with_capacity(2 * w.len());
-            next.extend(w.iter().map(|p| *p * *u)); // bit r = 0
-            next.extend(w.iter().map(|p| *p * *s)); // bit r = 1
-            w = next;
-        }
-        w
-    };
-    let ones = vec![one(); k];
-    let w_h = tensor_table(&gammas, &ones);
-    let w_g = tensor_table(&gammas, &rhos);
+    // 2^{k+1} muls), grown round by round exactly as the prover's:
+    // w_h[t] = prod_r (gamma_r if bit_r(t) else 1),
+    // w_g[t] = prod_r (gamma_r if bit_r(t) else rho_r).
+    let mut w_h = vec![one()];
+    let mut w_g = vec![one()];
+    for (gamma, rho_r) in gammas.iter().zip(&rhos) {
+        w_h = tensor_grow(&w_h, one(), *gamma);
+        w_g = tensor_grow(&w_g, *rho_r, *gamma);
+    }
     let mask = (1usize << k) - 1;
 
     // Static scalars, laid out to match the precomputed tables
@@ -644,6 +698,24 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    #[test]
+    fn test_to_from_bytes() {
+        for (l_len, n_len) in [(8, 16), (8, 15), (8, 64), (3, 5), (4, 1)] {
+            let inst = random_instance(l_len, n_len);
+            let proof = prove_instance(&inst);
+            let bytes = proof.to_bytes();
+            assert_eq!(
+                bytes.len(),
+                NormLinearProof::serialized_len_for(l_len, n_len)
+            );
+            let recovered = NormLinearProof::from_bytes(&bytes, l_len, n_len).unwrap();
+            assert!(verify_instance(&inst, &recovered).is_ok());
+            assert!(NormLinearProof::from_bytes(&bytes[..bytes.len() - 32], l_len, n_len).is_err());
+            // The shape is fixed by the declared lengths, not by the bytes.
+            assert!(NormLinearProof::from_bytes(&bytes, l_len, 2 * n_len).is_err());
         }
     }
 
