@@ -134,6 +134,14 @@ impl MLDSA65KeyPair {
             private: MLDSA65PrivateKey { seed, signing_key },
         }
     }
+
+    /// Derive a keypair from a BIP-39 seed along a hardened SLIP-0010 path,
+    /// per the satoshilabs/slips#1968 construction.
+    pub fn derive_slip10(seed: &[u8], indexes: &[u32]) -> Result<Self, FastCryptoError> {
+        let node =
+            fastcrypto::slip10::derive_hardened(crate::slip10::MLDSA65_MASTER_KEY, seed, indexes);
+        Self::from_bytes(&node.secret)
+    }
 }
 
 /// Recovers the public key from a standalone private key by re-expanding its seed.
