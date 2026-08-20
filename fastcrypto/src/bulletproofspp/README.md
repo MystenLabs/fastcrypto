@@ -44,7 +44,7 @@ The table below compares BulletProofs (BP) and BulletProofs++ proof sizes for di
 The two tables below compare BP and BP++ prover and verifier performance for different (aggregate) range proof configurations.
 All benchmarks were done on an Apple M2 Max MacBook Pro with 96 GB RAM.
 For the BP baseline, the dalek `bulletproofs` crate v5 was used. 
-To reproduce the BP++ benchmarks run `cargo bench -p fastcrypto --features experimental --bench bppp`. 
+To reproduce the BP++ benchmarks run `cargo bench -p fastcrypto --features experimental --bench bulletproofspp`. 
 
 **Proving (ms):**
 

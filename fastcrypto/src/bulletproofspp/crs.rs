@@ -73,6 +73,11 @@ static CRS_CACHE: Lazy<RwLock<HashMap<usize, Arc<Generators>>>> =
 impl Generators {
     /// Create the CRS for proofs over `k` values of `n_bits` bits each.
     /// `n_bits` must be a positive multiple of 4 (at most 64) and `k >= 1`.
+    ///
+    /// A cache miss is expensive (one hash-to-curve per generator plus the
+    /// precomputed MSM table build, both linear in `nm`) and the entry is
+    /// retained for the lifetime of the process, so the dimensions must not
+    /// be taken from untrusted input.
     pub(crate) fn new(n_bits: usize, k: usize) -> FastCryptoResult<Arc<Self>> {
         validate_dims(n_bits, k)?;
         let (_, _, nm) = dims(n_bits, k);

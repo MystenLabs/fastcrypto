@@ -12,18 +12,24 @@
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MixedMultiScalarMul, MultiScalarMul, Scalar};
+use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 
-use crate::bppp::crs::{dims, validate_dims, Generators, BASE, H_LEN};
-use crate::bppp::norm_linear::{self, NormLinearProof};
-use crate::bppp::transcript::BpppTranscript;
-use crate::bppp::util::*;
+use crate::bulletproofspp::crs::{dims, validate_dims, Generators, BASE, H_LEN};
+use crate::bulletproofspp::norm_linear::{self, NormLinearProof};
+use crate::bulletproofspp::transcript::BpppTranscript;
+use crate::bulletproofspp::util::*;
 
 type S = RistrettoScalar;
 
 /// tau-powers of the blinding constraint entries `hat_c_r`,
 /// slots 1..7. The gap at 4 keeps `C_S` out of the value row.
 const CR_POWERS: [i32; 7] = [-1, 1, 2, 3, 5, 6, 7];
+
+/// Largest `log2(nm)` a decoded proof may claim; bounds the shape search in
+/// [CircuitProof::from_bytes] far above any practical statement (2^32 norm
+/// slots is 2^28 values of 64 bits).
+const MAX_LOG_NM: u32 = 32;
 
 /// Circuit proof: the four commitments plus the norm-linear proof.
 /// For 1x64: 4 + 6 group elements + 3 scalars = 416 bytes.
@@ -34,6 +40,41 @@ pub(crate) struct CircuitProof {
     pub(crate) c_r: RistrettoPoint,
     pub(crate) c_s: RistrettoPoint,
     pub(crate) nl_proof: NormLinearProof,
+}
+
+impl CircuitProof {
+    /// Serialize: `C_L, C_O, C_R, C_S`, then the norm-linear proof.
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(4 * 32 + self.nl_proof.serialized_len());
+        for point in [&self.c_l, &self.c_o, &self.c_r, &self.c_s] {
+            bytes.extend(point.to_byte_array());
+        }
+        bytes.extend(self.nl_proof.to_bytes());
+        bytes
+    }
+
+    /// Deserialize. The length of the norm-linear part selects the norm
+    /// length `nm` (a power of two from `BASE` to `2^MAX_LOG_NM`), which
+    /// fixes the proof shape; consistency with the statement is checked at
+    /// verification.
+    pub(crate) fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
+        if bytes.len() < 4 * 32 {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let (head, tail) = bytes.split_at(4 * 32);
+        let nm = (BASE.ilog2()..=MAX_LOG_NM)
+            .map(|k| 1usize << k)
+            .find(|&nm| NormLinearProof::serialized_len_for(H_LEN, nm) == tail.len())
+            .ok_or(FastCryptoError::InvalidInput)?;
+        let mut chunks = head.chunks_exact(32);
+        Ok(CircuitProof {
+            c_l: decode_next(&mut chunks)?,
+            c_o: decode_next(&mut chunks)?,
+            c_r: decode_next(&mut chunks)?,
+            c_s: decode_next(&mut chunks)?,
+            nl_proof: NormLinearProof::from_bytes(tail, H_LEN, nm)?,
+        })
+    }
 }
 
 /// Dimensions of a batched instance: `m` values of `n_bits` bits, `d = n_bits/4`
@@ -60,10 +101,6 @@ impl CircuitParams {
             n_d,
             nm,
         })
-    }
-
-    fn value_in_range(&self, value: u64) -> bool {
-        self.n_bits == 64 || value >> self.n_bits == 0
     }
 }
 
@@ -289,7 +326,7 @@ pub(crate) fn prove(
     if values.len() != params.m
         || blindings.len() != params.m
         || gens.g_vec.len() != params.nm
-        || values.iter().any(|&v| !params.value_in_range(v))
+        || values.iter().any(|&v| !fits_in_bits(v, params.n_bits))
     {
         return Err(FastCryptoError::InvalidInput);
     }

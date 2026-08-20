@@ -6,13 +6,12 @@
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::pedersen::{Blinding, PedersenCommitment};
-use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 
-use crate::bppp::circuit::{self, CircuitParams, CircuitProof};
-use crate::bppp::crs::Generators;
-use crate::bppp::norm_linear::NormLinearProof;
-use crate::bppp::transcript::BpppTranscript;
+use crate::bulletproofspp::circuit::{self, CircuitParams, CircuitProof};
+use crate::bulletproofspp::crs::Generators;
+use crate::bulletproofspp::transcript::BpppTranscript;
+use crate::bulletproofspp::util::fits_in_bits;
 
 /// The provable ranges.
 #[derive(Clone, Copy, Debug)]
@@ -29,10 +28,7 @@ pub enum Range {
 
 impl Range {
     pub fn is_in_range(&self, value: u64) -> bool {
-        if value == 0 {
-            return true;
-        }
-        value.ilog2() < self.bits() as u32
+        fits_in_bits(value, self.bits())
     }
 
     fn bits(&self) -> usize {
@@ -158,79 +154,14 @@ impl RangeProof {
     /// Serialize: the four circuit commitments, the per-round `(X, R)`
     /// pairs, and the final scalars, 32 bytes each.
     pub fn to_bytes(&self) -> Vec<u8> {
-        let p = &self.proof;
-        let nl = &p.nl_proof;
-        let elems = 4 + 2 * nl.rounds.len() + nl.l_final.len() + nl.n_final.len();
-        let mut bytes = Vec::with_capacity(32 * elems);
-        for point in [&p.c_l, &p.c_o, &p.c_r, &p.c_s] {
-            bytes.extend(point.to_byte_array());
-        }
-        for (x, r) in &nl.rounds {
-            bytes.extend(x.to_byte_array());
-            bytes.extend(r.to_byte_array());
-        }
-        for scalar in nl.l_final.iter().chain(&nl.n_final) {
-            bytes.extend(scalar.to_byte_array());
-        }
-        bytes
+        self.proof.to_bytes()
     }
 
-    /// Deserialize. The element count determines the proof shape: 13
-    /// elements for norm length 16 (3 rounds, 3 final scalars), 2*rounds + 9
-    /// otherwise (final scalars 1 + 4). Points and scalars are validated;
-    /// consistency with the statement is checked at verification.
+    /// Deserialize. The byte length determines the proof shape (13 elements
+    /// for norm length 16, 2*rounds + 9 otherwise). Points and scalars are
+    /// validated; consistency with the statement is checked at verification.
     pub fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
-        if !bytes.len().is_multiple_of(32) {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        let elems = bytes.len() / 32;
-        // Sanity bound: `rounds` grows with log2 of the norm length, so even
-        // absurdly large statements stay far below 32 rounds.
-        const MAX_ROUNDS: usize = 32;
-        let (rounds, l_len, n_len) = match elems {
-            13 => (3, 1, 2),
-            e if e >= 15 && !e.is_multiple_of(2) && (e - 9) / 2 <= MAX_ROUNDS => {
-                ((e - 9) / 2, 1, 4)
-            }
-            _ => return Err(FastCryptoError::InvalidInput),
-        };
-        // 4 + 2*rounds + l_len + n_len equals `elems` in every match arm, so
-        // the chunk iterator yields exactly as many chunks as taken below.
-        let mut chunks = bytes.chunks_exact(32);
-        let mut next_point = || -> FastCryptoResult<RistrettoPoint> {
-            let chunk: &[u8; 32] = chunks.next().unwrap().try_into().unwrap();
-            RistrettoPoint::from_byte_array(chunk).map_err(|_| FastCryptoError::InvalidInput)
-        };
-        let c_l = next_point()?;
-        let c_o = next_point()?;
-        let c_r = next_point()?;
-        let c_s = next_point()?;
-        let round_points = (0..rounds)
-            .map(|_| Ok((next_point()?, next_point()?)))
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        let mut next_scalar = || -> FastCryptoResult<RistrettoScalar> {
-            let chunk: &[u8; 32] = chunks.next().unwrap().try_into().unwrap();
-            RistrettoScalar::from_byte_array(chunk).map_err(|_| FastCryptoError::InvalidInput)
-        };
-        let l_final = (0..l_len)
-            .map(|_| next_scalar())
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        let n_final = (0..n_len)
-            .map(|_| next_scalar())
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        Ok(RangeProof {
-            proof: CircuitProof {
-                c_l,
-                c_o,
-                c_r,
-                c_s,
-                nl_proof: NormLinearProof {
-                    rounds: round_points,
-                    l_final,
-                    n_final,
-                },
-            },
-        })
+        CircuitProof::from_bytes(bytes).map(|proof| RangeProof { proof })
     }
 }
 
@@ -238,6 +169,7 @@ impl RangeProof {
 mod tests {
     use super::*;
     use crate::groups::GroupElement;
+    use crate::serde_helpers::ToFromByteArray;
 
     /// Frozen proof for values [0, u32::MAX, 12345, 1 << 31] in Bits32 with
     /// dst "test". Breaks if the transcript layout, challenge derivation,
