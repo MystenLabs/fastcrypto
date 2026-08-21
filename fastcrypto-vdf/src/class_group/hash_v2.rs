@@ -336,7 +336,8 @@ mod tests {
         // 512 bits is too small for the output to be guaranteed reduced.
         let discriminant = Discriminant::from_seed(b"seed", 512).unwrap();
         assert!(
-            QuadraticForm::hash_to_group_v2_with_default_parameters(b"seed", &discriminant).is_err()
+            QuadraticForm::hash_to_group_v2_with_default_parameters(b"seed", &discriminant)
+                .is_err()
         );
     }
 
@@ -344,17 +345,15 @@ mod tests {
     fn test_deterministic_and_seed_dependent() {
         let discriminant = Discriminant::from_seed(b"discriminant seed", 1024).unwrap();
 
-        let base =
-            QuadraticForm::hash_to_group_v2_with_default_parameters(b"seed", &discriminant).unwrap();
-        let same =
-            QuadraticForm::hash_to_group_v2_with_default_parameters(b"seed", &discriminant).unwrap();
+        let base = QuadraticForm::hash_to_group_v2_with_default_parameters(b"seed", &discriminant)
+            .unwrap();
+        let same = QuadraticForm::hash_to_group_v2_with_default_parameters(b"seed", &discriminant)
+            .unwrap();
         assert_eq!(base, same);
 
-        let other = QuadraticForm::hash_to_group_v2_with_default_parameters(
-            b"another seed",
-            &discriminant,
-        )
-        .unwrap();
+        let other =
+            QuadraticForm::hash_to_group_v2_with_default_parameters(b"another seed", &discriminant)
+                .unwrap();
         assert_ne!(base, other);
 
         // A different k than the default gives a different element.
