@@ -13,11 +13,15 @@
 //! The `v1` group measures the current default hash function for comparison. Note that the v1
 //! default (two prime factors of equal size) is the same configuration as v2 with `k = 1`, so those
 //! two should give the same timings.
+//!
+//! The `Wesolowski` group measures Wesolowski's original construction, which samples a single prime
+//! just below sqrt(|discriminant|) / 2. That is the same code path with no small factors and the
+//! largest security parameter the reducedness bound allows, so it needs no special case here.
 
 use criterion::measurement::Measurement;
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use num_bigint::BigInt;
-use num_traits::Num;
+use num_traits::{Num, One, Signed};
 use rand::{thread_rng, RngCore};
 
 use fastcrypto_vdf::class_group::discriminant::Discriminant;
@@ -35,7 +39,32 @@ const DISCRIMINANT_3072: &str = "-3956718340719431033560816005739172412770466038
 const DISCRIMINANT_2400: &str = "-197094279717529776652945533421408519016291293185778176422038767173246838389717778782272450609952179792102389097362657787152898007436991089430517979761145200893975140029279440383697629952398509684430189989830512427761221044255503309237697000446508821686655886069366603792908696660367648281136978401042076354619587515552611650395121072487799107192700364331538210709886133279169829259881605487142555274403314509719321602412760314496712012939372327177464352472192738122541539747842405435171078768578664156285412471750348778431888800482596404122201686947621151032470989798594881908508768154982514267787085456831726879055929531619461354230569362180363281846948763424056650300352728927552479847814231289623672826128091486169286759";
 
 fn discriminant_from(s: &str) -> Discriminant {
-    Discriminant::try_from(BigInt::from_str_radix(s, 10).unwrap()).unwrap()
+    Discriminant::try_from(bigint_from(s)).unwrap()
+}
+
+fn bigint_from(s: &str) -> BigInt {
+    BigInt::from_str_radix(s, 10).unwrap()
+}
+
+/// The largest security parameter which still gives a reduced form when the whole `a` coordinate is
+/// a single prime, which is Wesolowski's construction.
+///
+/// The reducedness bound requires `a < sqrt(|discriminant|) / 2`, and the number of primes below
+/// 2^n which have the discriminant as a quadratic residue is ~2^n / (2 n ln 2). For the 3072 bit
+/// discriminant this gives primes below 2^1534 and an image of ~2^1522.9, which matches the ~2^1524
+/// of Wesolowski's construction to within about a bit.
+fn wesolowski_security_parameter(discriminant_value: &BigInt) -> u64 {
+    let bound: BigInt = discriminant_value.abs().sqrt() >> 1u8;
+    // The largest n with 2^n < bound.
+    let bits = bound.bits();
+    let max_bits = if bound == BigInt::one() << (bits - 1) {
+        bits - 2
+    } else {
+        bits - 1
+    };
+    // log2 of the number of usable primes below 2^max_bits. This mirrors `bits_for_set_size` in the
+    // class group module, which is not public.
+    (max_bits as f64 - (max_bits as f64).log2() - 2f64.ln().log2() - 1.0).floor() as u64
 }
 
 fn k_sweep_single<M: Measurement>(discriminant_string: &str, group: &mut BenchmarkGroup<M>) {
@@ -107,10 +136,50 @@ fn hash_v1_baseline(c: &mut Criterion) {
     }
 }
 
+fn wesolowski_baseline(c: &mut Criterion) {
+    let mut group: BenchmarkGroup<_> = c.benchmark_group("Wesolowski".to_string());
+    for discriminant_string in [DISCRIMINANT_3072, DISCRIMINANT_2400] {
+        let discriminant = discriminant_from(discriminant_string);
+        let bits = discriminant.bits();
+        let security_parameter_in_bits =
+            wesolowski_security_parameter(&bigint_from(discriminant_string));
+
+        // Skip the discriminant if a single prime cannot fill the reducedness bound.
+        let mut probe_seed = [0u8; 32];
+        thread_rng().fill_bytes(&mut probe_seed);
+        if hash_to_group_v2_with_custom_parameters(
+            &probe_seed,
+            &discriminant,
+            security_parameter_in_bits,
+            0,
+        )
+        .is_err()
+        {
+            continue;
+        }
+
+        group.bench_function(
+            format!("{} bits/lambda = {}", bits, security_parameter_in_bits),
+            move |b| {
+                let mut seed = [0u8; 32];
+                b.iter(|| {
+                    thread_rng().fill_bytes(&mut seed);
+                    hash_to_group_v2_with_custom_parameters(
+                        &seed,
+                        &discriminant,
+                        security_parameter_in_bits,
+                        0,
+                    )
+                })
+            },
+        );
+    }
+}
+
 criterion_group! {
     name = hash_v2_benchmarks;
     config = Criterion::default().sample_size(100);
-    targets = hash_v2_k_sweep, hash_v1_baseline
+    targets = hash_v2_k_sweep, hash_v1_baseline, wesolowski_baseline
 }
 
 criterion_main!(hash_v2_benchmarks);
