@@ -28,6 +28,11 @@ mod tests;
 /// group but not the entire class group.
 pub(crate) mod hash;
 
+/// Version 2 of the hash function above, implementing the algorithm from
+/// https://eprint.iacr.org/2024/295.pdf where the prime factors of the `a` coordinate have
+/// different sizes. This will replace [hash] once it has been rolled out.
+pub mod hash_v2;
+
 /// Two quadratic forms may represent the same element in the class group, but each equivalence class contains exactly
 /// one reduced form. This module contains methods to reduce quadratic forms, which besides uniqueness also ensures that
 /// the coefficients do not become too large.

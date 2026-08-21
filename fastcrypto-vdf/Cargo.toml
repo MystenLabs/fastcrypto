@@ -41,6 +41,11 @@ harness = false
 required-features = ["experimental"]
 
 [[bench]]
+name = "hash_v2"
+harness = false
+required-features = ["experimental"]
+
+[[bench]]
 name = "math"
 harness = false
 required-features = ["experimental"]
