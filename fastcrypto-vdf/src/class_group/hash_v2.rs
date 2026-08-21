@@ -37,10 +37,11 @@ use crate::math::modular_sqrt::modular_square_root;
 /// which makes the hash function collision resistant.
 const SECURITY_PARAMETER_IN_BITS: u64 = 128;
 
-/// The number of small prime factors, called k in the paper. The benchmarks show that there is no
-/// benefit in increasing this beyond 2 because the sampling of the large prime factor dominates the
-/// running time.
-const DEFAULT_SMALL_PRIME_FACTORS: u64 = 2;
+/// The number of small prime factors, called k in the paper. The benchmarks show that the running
+/// time keeps decreasing up to k = 3, after which the sampling of the large prime factor dominates
+/// and there is no further benefit. Increasing k also divides the size of the image by k!, so there
+/// is no reason to go higher.
+const DEFAULT_SMALL_PRIME_FACTORS: u64 = 3;
 
 impl QuadraticForm {
     /// Generate a random quadratic form from a seed with the given discriminant. This method is
@@ -90,7 +91,10 @@ pub fn hash_to_group_v2_with_custom_parameters(
 
     // Ensure that the result is reduced. The `a` coordinate is smaller than 2^total_bits, and by
     // Lemma 1 in the paper, the form is reduced if this is smaller than sqrt(|discriminant|) / 2.
-    let total_bits = large_factor_bits + small_prime_factors * small_factor_bits;
+    let total_bits = small_prime_factors
+        .checked_mul(small_factor_bits)
+        .and_then(|small_bits| large_factor_bits.checked_add(small_bits))
+        .ok_or(InvalidInput)?;
     if discriminant.as_bigint().abs().sqrt().shr(1) <= BigInt::one().shl(total_bits) {
         return Err(InvalidInput);
     }
@@ -180,14 +184,20 @@ fn sample_modulus_v2(
 }
 
 /// Returns the smallest `n` such that there are at least 2^`target_bits` primes smaller than 2^`n`
-/// which have a given non-square integer as a quadratic residue, or an [InvalidInput] error if this
-/// does not fit in a `u64`.
+/// which have a given non-square integer as a quadratic residue, or an [InvalidInput] error if
+/// `target_bits` is zero or if the result does not fit in a `u64`.
 ///
 /// By the prime number theorem there are ~2^n / (n ln 2) primes smaller than 2^n, and half of them
 /// have a given non-square as a quadratic residue, so the log2 of the number of usable primes is
 ///
 /// log2(2^n / (2 n ln 2)) = n - log2(n) - log2(ln 2) - 1.
 fn bits_for_set_size(target_bits: u64) -> FastCryptoResult<u64> {
+    // A target of zero would be satisfied by n = 0 below, since log2(0) is -infinity, and we would
+    // end up sampling from an empty range. There is no meaningful set size to ask for here.
+    if target_bits == 0 {
+        return Err(InvalidInput);
+    }
+
     // The right-hand side above is increasing in n, so we can just increase n until it is large
     // enough. Starting from target_bits is safe since the correction term is positive.
     for n in target_bits..=target_bits + 64 {
@@ -259,6 +269,7 @@ mod tests {
             // and it is the smallest such value.
             assert!(usable_primes_below_2_pow(n - 1) < target as f64);
         }
+        assert!(bits_for_set_size(0).is_err());
     }
 
     #[test]
@@ -304,8 +315,24 @@ mod tests {
     }
 
     #[test]
+    fn test_zero_security_parameter_is_rejected() {
+        let discriminant = Discriminant::from_seed(b"seed", 1024).unwrap();
+        // There is no valid range to sample the factors from, so this must be rejected instead of
+        // panicking.
+        for small_prime_factors in 0..=3 {
+            assert!(hash_to_group_v2_with_custom_parameters(
+                b"seed",
+                &discriminant,
+                0,
+                small_prime_factors
+            )
+            .is_err());
+        }
+    }
+
+    #[test]
     fn test_too_small_discriminant_is_rejected() {
-        // The default parameters need a in a set of ~2^{136 + 2*71} = 2^278, so a discriminant of
+        // The default parameters need a in a set of ~2^{136 + 3*50} = 2^286, so a discriminant of
         // 512 bits is too small for the output to be guaranteed reduced.
         let discriminant = Discriminant::from_seed(b"seed", 512).unwrap();
         assert!(
@@ -330,9 +357,9 @@ mod tests {
         .unwrap();
         assert_ne!(base, other);
 
-        // Different k gives a different element.
+        // A different k than the default gives a different element.
         let other_k =
-            hash_to_group_v2_with_custom_parameters(b"seed", &discriminant, 128, 3).unwrap();
+            hash_to_group_v2_with_custom_parameters(b"seed", &discriminant, 128, 2).unwrap();
         assert_ne!(base, other_k);
     }
 }
