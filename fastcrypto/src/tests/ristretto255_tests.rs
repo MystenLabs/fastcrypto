@@ -4,6 +4,7 @@
 use crate::encoding::{Encoding, Hex};
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::ristretto255::RistrettoScalar;
+use crate::groups::ristretto255::{DYNAMIC_POINT_WEIGHT, MAX_STRAUS_POINTS};
 use crate::groups::{
     GroupElement, HashToGroupElement, MixedMultiScalarMul, MultiScalarMul,
     PrecomputableMultiScalarMul, Scalar,
@@ -309,6 +310,44 @@ fn test_precomputed_multiscalar_mul() {
     assert!(precomputation
         .mixed_multi_scalar_mul(&s[..5], &s[..2], &dynamic_points)
         .is_err());
+
+    // Above the weighted point bound the call falls back to a plain MSM, with
+    // the same results and length checks: first by static points alone, then
+    // by dynamic points alone.
+    let rand_points = |n: usize, rng: &mut rand::rngs::ThreadRng| -> Vec<RistrettoPoint> {
+        rand_scalars(n, rng)
+            .iter()
+            .map(|s| RistrettoPoint::generator() * s)
+            .collect()
+    };
+    let many_static = rand_points(MAX_STRAUS_POINTS + 1, &mut rng);
+    let many_dynamic = rand_points(MAX_STRAUS_POINTS / DYNAMIC_POINT_WEIGHT, &mut rng);
+    for (static_points, dynamic_points) in [
+        (&many_static, &dynamic_points),
+        (&many_static, &Vec::new()),
+        (&static_points, &many_dynamic),
+    ] {
+        let precomputation = RistrettoPoint::precompute(static_points).unwrap();
+        assert_eq!(precomputation.num_static_points(), static_points.len());
+        let static_scalars = rand_scalars(static_points.len(), &mut rng);
+        let dynamic_scalars = rand_scalars(dynamic_points.len(), &mut rng);
+        let expected = RistrettoPoint::multi_scalar_mul(
+            &[static_scalars.clone(), dynamic_scalars.clone()].concat(),
+            &[static_points.clone(), dynamic_points.clone()].concat(),
+        )
+        .unwrap();
+        let actual = precomputation
+            .mixed_multi_scalar_mul(&static_scalars, &dynamic_scalars, dynamic_points)
+            .unwrap();
+        assert_eq!(expected, actual);
+        assert!(precomputation
+            .mixed_multi_scalar_mul(&static_scalars[1..], &dynamic_scalars, dynamic_points)
+            .is_err());
+        let one_more = rand_points(dynamic_points.len() + 1, &mut rng);
+        assert!(precomputation
+            .mixed_multi_scalar_mul(&static_scalars, &dynamic_scalars, &one_more)
+            .is_err());
+    }
 }
 
 #[test]
