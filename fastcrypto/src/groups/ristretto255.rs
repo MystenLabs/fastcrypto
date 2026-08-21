@@ -86,19 +86,40 @@ impl MultiScalarMul for RistrettoPoint {
     }
 }
 
-/// Precomputed multiplication tables over a fixed set of Ristretto points.
+/// Straus over the precomputed tables beats a plain MSM (dalek's Pippenger
+/// above 190 points) while the weighted point count
+/// `static + DYNAMIC_POINT_WEIGHT * dynamic` stays within this bound. A
+/// heuristic, measured with dense scalars on an Apple M2 Max
+/// (`benches/mixed_msm.rs`): the crossover lies at about 600 static points
+/// with no dynamic ones, 490 with 32 and 245 with 128, and with 512 dynamic
+/// points the plain MSM wins at every static size. The least-squares fit is
+/// `589 - 2.7 * dynamic`; with the weight rounded to 3 the bound refits to
+/// about 605, rounded down here. The crossover sits far below what
+/// operation counts predict, consistent with the ~7.7 KB per-point tables
+/// falling out of cache.
+pub(crate) const MAX_STRAUS_POINTS: usize = 600;
+
+/// A dynamic point counts as this many static ones, fitted to how the
+/// measured crossover moves with the dynamic count. In the Straus path a
+/// dynamic point is dearer than a static one: its table is built per call
+/// and its additions are projective rather than affine.
+pub(crate) const DYNAMIC_POINT_WEIGHT: usize = 3;
+
+/// Precomputed multiplication tables over a fixed set of Ristretto points;
+/// the points themselves are kept for the plain-MSM fallback.
 pub struct RistrettoPrecomputation {
     tables: VartimeRistrettoPrecomputation,
-    num_points: usize,
+    points: Vec<ExternalPoint>,
 }
 
 impl PrecomputableMultiScalarMul for RistrettoPoint {
     type Precomputation = RistrettoPrecomputation;
 
     fn precompute(points: &[Self]) -> FastCryptoResult<Self::Precomputation> {
+        let points: Vec<ExternalPoint> = points.iter().map(|p| p.0).collect();
         Ok(RistrettoPrecomputation {
-            tables: VartimeRistrettoPrecomputation::new(points.iter().map(|p| p.0)),
-            num_points: points.len(),
+            tables: VartimeRistrettoPrecomputation::new(points.iter()),
+            points,
         })
     }
 }
@@ -107,7 +128,7 @@ impl MixedMultiScalarMul for RistrettoPrecomputation {
     type Point = RistrettoPoint;
 
     fn num_static_points(&self) -> usize {
-        self.num_points
+        self.points.len()
     }
 
     fn mixed_multi_scalar_mul(
@@ -116,15 +137,27 @@ impl MixedMultiScalarMul for RistrettoPrecomputation {
         dynamic_scalars: &[RistrettoScalar],
         dynamic_points: &[RistrettoPoint],
     ) -> FastCryptoResult<RistrettoPoint> {
-        if static_scalars.len() != self.num_points || dynamic_scalars.len() != dynamic_points.len()
+        if static_scalars.len() != self.points.len()
+            || dynamic_scalars.len() != dynamic_points.len()
         {
             return Err(InvalidInput);
         }
-        Ok(RistrettoPoint(self.tables.vartime_mixed_multiscalar_mul(
-            static_scalars.iter().map(|s| s.0),
-            dynamic_scalars.iter().map(|s| s.0),
-            dynamic_points.iter().map(|p| p.0),
-        )))
+        let weighted = self.points.len() + DYNAMIC_POINT_WEIGHT * dynamic_points.len();
+        Ok(RistrettoPoint(if weighted <= MAX_STRAUS_POINTS {
+            self.tables.vartime_mixed_multiscalar_mul(
+                static_scalars.iter().map(|s| s.0),
+                dynamic_scalars.iter().map(|s| s.0),
+                dynamic_points.iter().map(|p| p.0),
+            )
+        } else {
+            ExternalPoint::vartime_multiscalar_mul(
+                static_scalars.iter().chain(dynamic_scalars).map(|s| s.0),
+                self.points
+                    .iter()
+                    .copied()
+                    .chain(dynamic_points.iter().map(|p| p.0)),
+            )
+        }))
     }
 }
 
