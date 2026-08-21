@@ -11,35 +11,8 @@ use crate::traits::AllowedRng;
 use crate::bulletproofspp::circuit::{self, CircuitParams, CircuitProof};
 use crate::bulletproofspp::crs::Generators;
 use crate::bulletproofspp::transcript::BpppTranscript;
-use crate::bulletproofspp::util::fits_in_bits;
 
-/// The provable ranges.
-#[derive(Clone, Copy, Debug)]
-pub enum Range {
-    /// The range [0, 2^8).
-    Bits8,
-    /// The range [0, 2^16).
-    Bits16,
-    /// The range [0, 2^32).
-    Bits32,
-    /// The range [0, 2^64).
-    Bits64,
-}
-
-impl Range {
-    pub fn is_in_range(&self, value: u64) -> bool {
-        fits_in_bits(value, self.bits())
-    }
-
-    fn bits(&self) -> usize {
-        match self {
-            Range::Bits8 => 8,
-            Range::Bits16 => 16,
-            Range::Bits32 => 32,
-            Range::Bits64 => 64,
-        }
-    }
-}
+pub use crate::bulletproofspp::crs::Range;
 
 /// A BP++ range proof that one or more Pedersen commitments (as in
 /// [`crate::pedersen`]) open to values in a given [`Range`].
@@ -112,8 +85,8 @@ impl RangeProof {
         // that degenerates a scalar inversion. The latter has negligible
         // probability but depends on the witness, so report both opaquely.
         let opaque = |_| FastCryptoError::GeneralOpaqueError;
-        let gens = Generators::new(n_bits, m).map_err(opaque)?;
-        let params = CircuitParams::new(n_bits, m).map_err(opaque)?;
+        let gens = Generators::new(*range, m).map_err(opaque)?;
+        let params = CircuitParams::new(*range, m).map_err(opaque)?;
         let blinding_scalars: Vec<RistrettoScalar> = blindings.iter().map(|b| b.0).collect();
         let (proof, _) = circuit::prove(
             &mut transcript(dst, n_bits, m),
@@ -138,8 +111,8 @@ impl RangeProof {
             return Err(FastCryptoError::InvalidInput);
         }
         let (n_bits, m) = (range.bits(), commitments.len());
-        let gens = Generators::new(n_bits, m)?;
-        let params = CircuitParams::new(n_bits, m)?;
+        let gens = Generators::new(*range, m)?;
+        let params = CircuitParams::new(*range, m)?;
         let points: Vec<RistrettoPoint> = commitments.iter().map(|c| c.0).collect();
         circuit::verify(
             &mut transcript(dst, n_bits, m),

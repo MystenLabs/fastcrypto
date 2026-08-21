@@ -15,11 +15,6 @@ pub(crate) fn one() -> RistrettoScalar {
     RistrettoScalar::generator()
 }
 
-/// Whether `value < 2^n_bits`.
-pub(crate) fn fits_in_bits(value: u64, n_bits: usize) -> bool {
-    n_bits >= 64 || value >> n_bits == 0
-}
-
 /// The next 32-byte chunk of `chunks` decoded as `T`; `InvalidInput` if the
 /// chunk is missing or not a valid encoding.
 pub(crate) fn decode_next<T: ToFromByteArray<32>>(
@@ -159,17 +154,6 @@ mod tests {
             weighted_inner_product(&a, &b, mu),
             inner_product(&hadamard(&a, &bar_mu), &b)
         );
-    }
-
-    #[test]
-    fn test_fits_in_bits() {
-        for n_bits in [4usize, 8, 16, 32, 60] {
-            assert!(fits_in_bits(0, n_bits));
-            assert!(fits_in_bits((1 << n_bits) - 1, n_bits));
-            assert!(!fits_in_bits(1 << n_bits, n_bits));
-            assert!(!fits_in_bits(u64::MAX, n_bits));
-        }
-        assert!(fits_in_bits(u64::MAX, 64));
     }
 
     #[test]
