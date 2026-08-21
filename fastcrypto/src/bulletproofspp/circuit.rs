@@ -773,176 +773,6 @@ mod tests {
         Linear,
     }
 
-    /// A single-value prover for a forged commitment
-    /// `V' = v*G + s*H_0 + junk`: it runs the honest algorithm but opens the
-    /// junk coordinate of `hat_V = 2V'` honestly at `T^3`, and cancels every
-    /// blinded error row with `r_S` as usual. Against the unconstrained
-    /// protocol this strategy produces accepting proofs; the shape blocks
-    /// pair the junk into the value row, which no `r_S` slot can reach, so
-    /// verification must fail. With `junk = None` it reduces to the honest
-    /// prover (the control case validating this reimplementation).
-    fn prove_forged(
-        transcript: &mut BpppTranscript,
-        gens: &Generators,
-        params: &CircuitParams,
-        rng: &mut impl AllowedRng,
-        value: u64,
-        blinding: &S,
-        junk: Option<Junk>,
-    ) -> FastCryptoResult<(CircuitProof, RistrettoPoint)> {
-        let two = S::from(2u64);
-        let mut v_commitment = RistrettoPoint::multi_scalar_mul(
-            &[S::from(value), *blinding],
-            &[gens.g, gens.h_vec[0]],
-        )?;
-        // Coordinates of hat_V = 2V' outside the (G, H_0)-plane.
-        let mut n_v_hat = vec![S::zero(); params.nm];
-        let mut l_v_hat = S::zero();
-        match junk {
-            Some(Junk::Norm(slot)) => {
-                v_commitment += gens.g_vec[slot];
-                n_v_hat[slot] = two;
-            }
-            Some(Junk::Linear) => {
-                v_commitment += gens.h_vec[7];
-                l_v_hat = two;
-            }
-            None => {}
-        }
-
-        transcript.domain_sep(b"bppp_circuit");
-        transcript.append_point(b"V", &v_commitment);
-
-        let digits = decompose(value, params.d);
-        let n_l = pad_to(
-            &digits.iter().map(|&d| S::from(d)).collect::<Vec<_>>(),
-            params.nm,
-        );
-        let mut n_o: Vec<S> = multiplicities(&digits)
-            .iter()
-            .map(|&m| S::from(m))
-            .collect();
-        n_o.resize(params.nm, S::zero());
-        let r_o = blinding_vector(rng, &[4, 7]);
-        let r_l = blinding_vector(rng, &[3, 6, 7]);
-        let c_l = commit(gens, &r_l, S::zero(), &n_l)?;
-        let c_o = commit(gens, &r_o, S::zero(), &n_o)?;
-        transcript.append_point(b"C_L", &c_l);
-        transcript.append_point(b"C_O", &c_o);
-        let alpha = transcript.challenge_scalar(b"alpha");
-
-        let recips = batch_invert(
-            &digits
-                .iter()
-                .map(|&d| alpha + S::from(d))
-                .collect::<Vec<_>>(),
-        )?;
-        let n_r = pad_to(&recips, params.nm);
-        let r_r = blinding_vector(rng, &[2, 5, 6, 7]);
-        let c_r = commit(gens, &r_r, S::zero(), &n_r)?;
-        transcript.append_point(b"C_R", &c_r);
-
-        let rho = transcript.challenge_scalar(b"rho");
-        let lambda = transcript.challenge_scalar(b"lambda");
-        let beta = transcript.challenge_scalar(b"beta");
-        let delta = transcript.challenge_scalar(b"delta");
-        let mu = rho * rho;
-        let delta_inv = delta.inverse()?;
-        let blocks = compute_blocks(params, alpha, mu, lambda)?;
-        let ps = blocks.ps_coefficients(delta_inv);
-
-        let n_s: Vec<S> = (0..params.nm).map(|_| S::rand(rng)).collect();
-        let l_s = S::rand(rng);
-        let v_hat = two * S::from(value);
-        let mut r_v = vec![S::zero(); H_LEN];
-        r_v[1] = two * blinding;
-
-        // n(T) with the junk opening at T^3 alongside the public block.
-        let n_poly: [Vec<S>; 5] = [
-            n_s.clone(),
-            vec_add(&vec_scalar_mul(delta, &n_o), &blocks.cn_v),
-            vec_add(&n_l, &blocks.cn_r),
-            vec_add(&n_r, &blocks.cn_l),
-            vec_add(&vec_scalar_mul(delta_inv, &blocks.cn_o), &n_v_hat),
-        ];
-
-        let n_weighted: Vec<Vec<S>> = n_poly.iter().map(|v| hadamard(v, &blocks.bar_mu)).collect();
-        let mut fh = [S::zero(); 9];
-        for (p, &c) in ps.iter().enumerate() {
-            fh[p + 2] += c;
-        }
-        fh[3 + 2] += v_hat;
-        for i in 0..n_poly.len() {
-            for j in i..n_poly.len() {
-                let ip = inner_product(&n_weighted[i], &n_poly[j]);
-                fh[i + j] -= if i == j { ip } else { ip + ip };
-            }
-        }
-        // No value-row assertion here: with junk it is nonzero by design.
-
-        let mut known = [S::zero(); 13];
-        for slot in 1..H_LEN {
-            let committed = [
-                (0i32, delta * r_o[slot]),
-                (1, r_l[slot]),
-                (2, r_r[slot]),
-                (3, r_v[slot]),
-            ];
-            let a = CR_POWERS[slot - 1];
-            for &(q, coefficient) in &committed {
-                known[(a + q + 2) as usize] += beta * coefficient;
-                known[(q + 2) as usize] += blocks.cl_v[slot - 1] * coefficient;
-            }
-        }
-        known[2] -= delta * r_o[0];
-        known[3] -= r_l[0];
-        known[4] -= r_r[0];
-
-        let beta_inv = beta.inverse()?;
-        let mut r_s = vec![S::zero(); H_LEN];
-        for slot in 1..H_LEN {
-            let p = CR_POWERS[slot - 1] - 1;
-            r_s[slot] = (fh[(p + 2) as usize] - known[(p + 2) as usize]) * beta_inv;
-        }
-        let shape_sum = (2..H_LEN).fold(S::zero(), |acc, j| acc + blocks.cl_v[j - 1] * r_s[j]);
-        r_s[0] = -(fh[1] - known[1] - shape_sum - blocks.cl_v[7] * (l_s + l_v_hat));
-
-        let c_s = commit(gens, &r_s, l_s, &n_s)?;
-        transcript.append_point(b"C_S", &c_s);
-        let tau = transcript.challenge_scalar(b"tau");
-
-        let tau_inv = tau.inverse()?;
-        let t2 = tau * tau;
-        let t3 = t2 * tau;
-        let r_tau: Vec<S> = (0..H_LEN)
-            .map(|i| tau_inv * r_s[i] + delta * r_o[i] + tau * r_l[i] + t2 * r_r[i] + t3 * r_v[i])
-            .collect();
-        let mut l_tau = r_tau[1..H_LEN].to_vec();
-        l_tau.push(tau_inv * l_s + t3 * l_v_hat);
-        let n_tau: Vec<S> = (0..params.nm)
-            .map(|k| {
-                tau_inv * n_poly[0][k]
-                    + n_poly[1][k]
-                    + tau * n_poly[2][k]
-                    + t2 * n_poly[3][k]
-                    + t3 * n_poly[4][k]
-            })
-            .collect();
-        let c_tau = blocks.c_at(tau, tau_inv, beta);
-
-        let nl_proof = norm_linear::prove(transcript, gens, &c_tau, rho, &l_tau, &n_tau)?;
-        Ok((
-            CircuitProof {
-                c_l,
-                c_o,
-                c_r,
-                c_s,
-                nl_proof,
-            },
-            v_commitment,
-        ))
-    }
-
     /// A freely chosen witness for the cheating prover below. The honest
     /// prover derives all of these from `values`; a cheater may pick any of
     /// them, so soundness must come from the circuit and not from the
@@ -964,6 +794,9 @@ mod tests {
         n_r_padding: Option<Vec<S>>,
         /// Slots of `r_L` forced nonzero, breaking the spec's zero pattern.
         r_l_nonzero: Vec<usize>,
+        /// A component outside the `(G, H_0)`-plane added to the first
+        /// statement commitment `V_0`, i.e. a forged `V_0' = v*G + s*H_0 + junk`.
+        junk: Option<Junk>,
     }
 
     /// The witness an honest prover would build for `values`.
@@ -980,6 +813,7 @@ mod tests {
             n_r: None,
             n_r_padding: None,
             r_l_nonzero: vec![],
+            junk: None,
         }
     }
 
@@ -987,7 +821,9 @@ mod tests {
     /// caller's choices. The `r_S` solve is left intact, so the cheater still
     /// cancels every blinded error row it is able to; a rejection therefore
     /// comes from the circuit constraints, which are aggregated into the
-    /// `T^3` row that no `r_S` slot can reach.
+    /// `T^3` row that no `r_S` slot can reach. A `junk` component of `V_0`
+    /// is opened honestly at `T^3`: the unconstrained protocol accepts that,
+    /// the shape blocks pair it into the value row.
     fn prove_cheating(
         transcript: &mut BpppTranscript,
         gens: &Generators,
@@ -997,12 +833,27 @@ mod tests {
         cheat: &Cheat,
     ) -> FastCryptoResult<(CircuitProof, Vec<RistrettoPoint>)> {
         let two = S::from(2u64);
-        let v_commitments: Vec<RistrettoPoint> = cheat
+        let mut v_commitments: Vec<RistrettoPoint> = cheat
             .values
             .iter()
             .zip(blindings)
             .map(|(v, s)| RistrettoPoint::multi_scalar_mul(&[*v, *s], &[gens.g, gens.h_vec[0]]))
             .collect::<FastCryptoResult<_>>()?;
+        // Coordinates of hat_V = 2*sum_i lambda^{i-1} V_i outside the
+        // (G, H_0)-plane; the junk sits on V_0, so its weight is 2.
+        let mut n_v_hat = vec![S::zero(); params.nm];
+        let mut l_v_hat = S::zero();
+        match cheat.junk {
+            Some(Junk::Norm(slot)) => {
+                v_commitments[0] += gens.g_vec[slot];
+                n_v_hat[slot] = two;
+            }
+            Some(Junk::Linear) => {
+                v_commitments[0] += gens.h_vec[7];
+                l_v_hat = two;
+            }
+            None => {}
+        }
 
         transcript.domain_sep(b"bppp_circuit");
         for v in &v_commitments {
@@ -1064,12 +915,13 @@ mod tests {
                 .enumerate()
                 .fold(S::zero(), |acc, (i, s)| acc + blocks.lambdas[i] * s);
 
+        // n(T) with the junk opening at T^3 alongside the public block.
         let n_poly: [Vec<S>; 5] = [
             n_s.clone(),
             vec_add(&vec_scalar_mul(delta, &n_o), &blocks.cn_v),
             vec_add(&n_l, &blocks.cn_r),
             vec_add(&n_r, &blocks.cn_l),
-            vec_scalar_mul(delta_inv, &blocks.cn_o),
+            vec_add(&vec_scalar_mul(delta_inv, &blocks.cn_o), &n_v_hat),
         ];
 
         let n_weighted: Vec<Vec<S>> = n_poly.iter().map(|v| hadamard(v, &blocks.bar_mu)).collect();
@@ -1112,7 +964,7 @@ mod tests {
             r_s[slot] = (fh[(p + 2) as usize] - known[(p + 2) as usize]) * beta_inv;
         }
         let shape_sum = (2..H_LEN).fold(S::zero(), |acc, j| acc + blocks.cl_v[j - 1] * r_s[j]);
-        r_s[0] = -(fh[1] - known[1] - shape_sum - blocks.cl_v[7] * l_s);
+        r_s[0] = -(fh[1] - known[1] - shape_sum - blocks.cl_v[7] * (l_s + l_v_hat));
 
         let c_s = commit(gens, &r_s, l_s, &n_s)?;
         transcript.append_point(b"C_S", &c_s);
@@ -1125,7 +977,7 @@ mod tests {
             .map(|i| tau_inv * r_s[i] + delta * r_o[i] + tau * r_l[i] + t2 * r_r[i] + t3 * r_v[i])
             .collect();
         let mut l_tau = r_tau[1..H_LEN].to_vec();
-        l_tau.push(tau_inv * l_s);
+        l_tau.push(tau_inv * l_s + t3 * l_v_hat);
         let n_tau: Vec<S> = (0..params.nm)
             .map(|k| {
                 tau_inv * n_poly[0][k]
@@ -1388,27 +1240,16 @@ mod tests {
     /// The exact-form soundness fix: a prover opening a commitment with
     /// components outside the (G, H_0)-plane, cancelling every blinded row,
     /// must still be rejected (the unconstrained protocol accepts this).
+    /// The junk-free control is `test_cheating_prover_control`.
     #[test]
     fn test_forged_commitment_rejected() {
-        let mut rng = rand::thread_rng();
-        let gens = Generators::new(Range::Bits64, 1).unwrap();
         let params = CircuitParams::new(Range::Bits64, 1).unwrap();
-        let blinding = S::rand(&mut rng);
-
-        let run = |junk: Option<Junk>| {
-            let mut rng = rand::thread_rng();
-            let mut t = BpppTranscript::new(b"test");
-            let (proof, v_commitment) =
-                prove_forged(&mut t, &gens, &params, &mut rng, 42, &blinding, junk).unwrap();
-            let mut t = BpppTranscript::new(b"test");
-            verify(&mut t, &gens, &params, &proof, &[v_commitment])
+        let forged = |junk| Cheat {
+            junk: Some(junk),
+            ..honest_witness(&params, &[42])
         };
-
-        // Control: without junk the forged prover is the honest prover.
-        assert!(run(None).is_ok());
-
-        assert!(run(Some(Junk::Norm(15))).is_err());
-        assert!(run(Some(Junk::Norm(0))).is_err());
-        assert!(run(Some(Junk::Linear)).is_err());
+        assert!(run_cheat(Range::Bits64, &forged(Junk::Norm(15))).is_err());
+        assert!(run_cheat(Range::Bits64, &forged(Junk::Norm(0))).is_err());
+        assert!(run_cheat(Range::Bits64, &forged(Junk::Linear)).is_err());
     }
 }
