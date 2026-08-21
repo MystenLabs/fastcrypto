@@ -25,21 +25,43 @@ pub(crate) const H_LEN: usize = 8;
 const DST_H: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_fastcrypto-bppp-gen-h-01";
 const DST_G: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_fastcrypto-bppp-gen-g-01";
 
-/// Check the statement dimensions: `n_bits` must be a positive multiple of 4
-/// (at most 64) and `k >= 1`.
-pub(crate) fn validate_dims(n_bits: usize, k: usize) -> FastCryptoResult<()> {
-    if n_bits == 0 || n_bits > 64 || !n_bits.is_multiple_of(BASE.ilog2() as usize) || k == 0 {
-        return Err(FastCryptoError::InvalidInput);
-    }
-    Ok(())
+/// The provable ranges.
+#[derive(Clone, Copy, Debug)]
+pub enum Range {
+    /// The range [0, 2^8).
+    Bits8,
+    /// The range [0, 2^16).
+    Bits16,
+    /// The range [0, 2^32).
+    Bits32,
+    /// The range [0, 2^64).
+    Bits64,
 }
 
-/// Digit-count dimensions for a batch of `k` values of `n_bits` bits each:
-/// `d` digits per value, `n_d = k*d` digits overall, and the norm-vector
-/// length `nm = max(n_d, BASE)` rounded up to a power of two (the BASE-1
+impl Range {
+    pub fn is_in_range(&self, value: u64) -> bool {
+        match self {
+            Range::Bits64 => true,
+            _ => value >> self.bits() == 0,
+        }
+    }
+
+    pub(crate) fn bits(&self) -> usize {
+        match self {
+            Range::Bits8 => 8,
+            Range::Bits16 => 16,
+            Range::Bits32 => 32,
+            Range::Bits64 => 64,
+        }
+    }
+}
+
+/// Digit-count dimensions for a batch of `k` values in `range`: `d` digits
+/// per value, `n_d = k*d` digits overall, and the norm-vector length
+/// `nm = max(n_d, BASE)` rounded up to a power of two (the BASE-1
 /// multiplicity slots set the floor; slots beyond `n_d` are zero-padded).
-pub(crate) fn dims(n_bits: usize, k: usize) -> (usize, usize, usize) {
-    let d = n_bits / BASE.ilog2() as usize;
+pub(crate) fn dims(range: Range, k: usize) -> (usize, usize, usize) {
+    let d = range.bits() / BASE.ilog2() as usize;
     let n_d = k * d;
     (d, n_d, n_d.max(BASE as usize).next_power_of_two())
 }
@@ -71,16 +93,17 @@ static CRS_CACHE: Lazy<RwLock<HashMap<usize, Arc<Generators>>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
 impl Generators {
-    /// Create the CRS for proofs over `k` values of `n_bits` bits each.
-    /// `n_bits` must be a positive multiple of 4 (at most 64) and `k >= 1`.
+    /// Create the CRS for proofs over `k >= 1` values in `range`.
     ///
     /// A cache miss is expensive (one hash-to-curve per generator plus the
     /// precomputed MSM table build, both linear in `nm`) and the entry is
     /// retained for the lifetime of the process, so the dimensions must not
     /// be taken from untrusted input.
-    pub(crate) fn new(n_bits: usize, k: usize) -> FastCryptoResult<Arc<Self>> {
-        validate_dims(n_bits, k)?;
-        let (_, _, nm) = dims(n_bits, k);
+    pub(crate) fn new(range: Range, k: usize) -> FastCryptoResult<Arc<Self>> {
+        if k == 0 {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let (_, _, nm) = dims(range, k);
 
         if let Some(gens) = CRS_CACHE
             .read()
@@ -139,43 +162,40 @@ mod tests {
 
     #[test]
     fn test_dims() {
-        assert_eq!(dims(64, 1), (16, 16, 16));
+        assert_eq!(dims(Range::Bits64, 1), (16, 16, 16));
         // Fewer digits than the multiplicity floor: nm stays at 16.
-        assert_eq!(dims(16, 1), (4, 4, 16));
-        assert_eq!(dims(32, 1), (8, 8, 16));
-        assert_eq!(dims(8, 1), (2, 2, 16));
+        assert_eq!(dims(Range::Bits16, 1), (4, 4, 16));
+        assert_eq!(dims(Range::Bits32, 1), (8, 8, 16));
+        assert_eq!(dims(Range::Bits8, 1), (2, 2, 16));
         // Batches, including non-power-of-two digit counts.
-        assert_eq!(dims(16, 2), (4, 8, 16));
-        assert_eq!(dims(16, 4), (4, 16, 16));
-        assert_eq!(dims(16, 5), (4, 20, 32));
-        assert_eq!(dims(16, 8), (4, 32, 32));
-        assert_eq!(dims(32, 8), (8, 64, 64));
-        assert_eq!(dims(64, 16), (16, 256, 256));
+        assert_eq!(dims(Range::Bits16, 2), (4, 8, 16));
+        assert_eq!(dims(Range::Bits16, 4), (4, 16, 16));
+        assert_eq!(dims(Range::Bits16, 5), (4, 20, 32));
+        assert_eq!(dims(Range::Bits16, 8), (4, 32, 32));
+        assert_eq!(dims(Range::Bits32, 8), (8, 64, 64));
+        assert_eq!(dims(Range::Bits64, 16), (16, 256, 256));
     }
 
     #[test]
     fn test_generators_sizes_and_validation() {
-        let gens = Generators::new(64, 1).unwrap();
+        let gens = Generators::new(Range::Bits64, 1).unwrap();
         assert_eq!(gens.h_vec.len(), H_LEN);
         assert_eq!(gens.g_vec.len(), 16);
-        assert_eq!(Generators::new(16, 1).unwrap().g_vec.len(), 16);
-        assert_eq!(Generators::new(32, 8).unwrap().g_vec.len(), 64);
+        assert_eq!(Generators::new(Range::Bits16, 1).unwrap().g_vec.len(), 16);
+        assert_eq!(Generators::new(Range::Bits32, 8).unwrap().g_vec.len(), 64);
 
-        assert!(Generators::new(0, 1).is_err());
-        assert!(Generators::new(10, 1).is_err());
-        assert!(Generators::new(128, 1).is_err());
-        assert!(Generators::new(64, 0).is_err());
+        assert!(Generators::new(Range::Bits64, 0).is_err());
     }
 
     #[test]
     fn test_generators_pedersen_interop_and_distinctness() {
-        let gens = Generators::new(64, 2).unwrap();
+        let gens = Generators::new(Range::Bits64, 2).unwrap();
         // Value base and blinding base are the fastcrypto Pedersen bases.
         assert_eq!(gens.g, *pedersen::H);
         assert_eq!(gens.h_vec[0], *pedersen::G);
 
         // Derivation is deterministic and a prefix of any larger CRS.
-        let again = Generators::new(64, 1).unwrap();
+        let again = Generators::new(Range::Bits64, 1).unwrap();
         assert_eq!(gens.h_vec, again.h_vec);
         assert_eq!(&gens.g_vec[..16], &again.g_vec[..]);
 
