@@ -14,7 +14,7 @@
 use lazy_static::lazy_static;
 use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
-use num_traits::One;
+use num_traits::{One, Signed};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use std::ops::{Shl, Shr};
@@ -236,7 +236,7 @@ lazy_static! {
 #[cfg(test)]
 mod tests {
     use num_bigint::BigInt;
-    use num_traits::One;
+    use num_traits::{One, Signed};
     use rand::{thread_rng, RngCore};
     use std::ops::{Shl, Shr};
 

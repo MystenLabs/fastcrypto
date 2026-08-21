@@ -3,10 +3,12 @@
 
 //! Benchmarks for the v2 hash-to-class-group function.
 //!
-//! The `k` sweep measures the running time as a function of the number of small prime factors, with
-//! the size of the large prime factor held fixed. `k = 0` is a single large prime and is included as
-//! a baseline only: the image is then just 2^lambda, so this configuration is not collision
-//! resistant and must not be used.
+//! The `k` sweep measures the running time as a function of the number of small prime factors. For
+//! `k >= 1` the size of the large prime factor is held fixed and the image has size
+//! ~2^(2 lambda) / k!, and the `k = 0` baseline samples its single prime from a set of size
+//! 2^(2 lambda) so that its image is ~2^(2 lambda) too. All the points in the sweep are therefore
+//! comparable at roughly equal image size, and the sweep measures the speed-up from splitting `a`
+//! into several factors rather than the speed-up from shrinking the output.
 //!
 //! The `v1` group measures the current default hash function for comparison. Note that the v1
 //! default (two prime factors of equal size) is the same configuration as v2 with `k = 1`, so those
@@ -41,6 +43,15 @@ fn k_sweep_single<M: Measurement>(discriminant_string: &str, group: &mut Benchma
     let bits = discriminant.bits();
 
     for k in 0..=4u64 {
+        // A single prime sampled from a set of size 2^lambda would only give an image of
+        // 2^lambda, so the baseline is run with twice the security parameter to give it the same
+        // image size as the rest of the sweep.
+        let security_parameter_in_bits = if k == 0 {
+            2 * SECURITY_PARAMETER_IN_BITS
+        } else {
+            SECURITY_PARAMETER_IN_BITS
+        };
+
         // Skip parameters which are rejected, e.g. because the discriminant is too small for the
         // output to be guaranteed reduced.
         let mut probe_seed = [0u8; 32];
@@ -48,7 +59,7 @@ fn k_sweep_single<M: Measurement>(discriminant_string: &str, group: &mut Benchma
         if hash_to_group_v2_with_custom_parameters(
             &probe_seed,
             &discriminant,
-            SECURITY_PARAMETER_IN_BITS,
+            security_parameter_in_bits,
             k,
         )
         .is_err()
@@ -67,7 +78,7 @@ fn k_sweep_single<M: Measurement>(discriminant_string: &str, group: &mut Benchma
                 hash_to_group_v2_with_custom_parameters(
                     &seed,
                     &discriminant,
-                    SECURITY_PARAMETER_IN_BITS,
+                    security_parameter_in_bits,
                     k,
                 )
             })
