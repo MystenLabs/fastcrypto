@@ -20,6 +20,7 @@ sha2 = "0.10.6"
 digest.workspace = true
 serde.workspace = true
 bincode.workspace = true
+zeroize.workspace = true
 
 [features]
 # Forwards to the wrapper's verified assembly backends: NEON on aarch64, AVX2 on x86_64

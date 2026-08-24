@@ -29,6 +29,7 @@ use std::{
 use mysten_mldsa_native_rs as mldsa;
 use rand::rngs::OsRng;
 use rand::RngCore;
+use zeroize::{ZeroizeOnDrop, Zeroizing};
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
@@ -84,6 +85,8 @@ impl PartialEq for MLDSA65PrivateKey {
 }
 
 impl Eq for MLDSA65PrivateKey {}
+
+impl ZeroizeOnDrop for MLDSA65PrivateKey {}
 
 /// ML-DSA-65 key pair.
 #[derive(Debug, PartialEq, Eq)]
@@ -178,16 +181,17 @@ impl KeyPair for MLDSA65KeyPair {
     fn copy(&self) -> Self {
         MLDSA65KeyPair {
             public: self.public.clone(),
-            private: MLDSA65PrivateKey::from_seed(mldsa::SigningKeySeed::from(
-                *self.private.seed.as_bytes(),
-            )),
+            private: MLDSA65PrivateKey::from_seed(
+                mldsa::SigningKeySeed::from_bytes(self.private.seed.as_ref())
+                    .expect("a seed has the seed length"),
+            ),
         }
     }
 
     fn generate<R: AllowedRng>(rng: &mut R) -> Self {
-        let mut seed = [0u8; MLDSA65_PRIVATE_KEY_LENGTH];
-        rng.fill_bytes(&mut seed);
-        MLDSA65KeyPair::from_seed(mldsa::SigningKeySeed::from(seed))
+        let mut seed = Zeroizing::new([0u8; MLDSA65_PRIVATE_KEY_LENGTH]);
+        rng.fill_bytes(seed.as_mut());
+        MLDSA65KeyPair::from_seed(mldsa::SigningKeySeed::from(*seed))
     }
 }
 
