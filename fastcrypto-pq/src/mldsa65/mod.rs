@@ -6,9 +6,12 @@
 //! mldsa-native C library.
 //!
 //! The private key is the 32-byte seed from which FIPS 204 derives the full signing key.
-//! Signing is hedged (the FIPS 204 default): each signature draws fresh randomness from the
-//! operating system, so two signatures over the same msg differ while both verify. The FIPS
+//! Signing is hedged (the FIPS 204 default): each signature draws fresh randomness from
+//! `thread_rng`, so two signatures over the same msg differ while both verify. The FIPS
 //! 204 context string is fixed to empty.
+//!
+//! Signatures are therefore neither reproducible nor unique for a given key and msg, so
+//! signature bytes must not be used as an identifier or a replay key.
 //!
 //! msgs can be signed and the signature can be verified again:
 //! ```rust
@@ -27,8 +30,7 @@ use std::{
 };
 
 use mysten_mldsa_native_rs as mldsa;
-use rand::rngs::OsRng;
-use rand::RngCore;
+use rand::{thread_rng, RngCore};
 use zeroize::{ZeroizeOnDrop, Zeroizing};
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -128,6 +130,9 @@ serialize_deserialize_with_to_from_bytes!(MLDSA65PrivateKey, MLDSA65_PRIVATE_KEY
 // Implementation of [MLDSA65KeyPair].
 //
 
+/// The length of the FIPS 204 hedging randomness in bytes.
+pub(crate) const MLDSA65_RND_LENGTH: usize = mldsa::RND_LENGTH;
+
 impl MLDSA65KeyPair {
     /// Build the pair with a single key expansion
     fn from_seed(seed: mldsa::SigningKeySeed) -> Self {
@@ -136,6 +141,20 @@ impl MLDSA65KeyPair {
             public: MLDSA65PublicKey(verifying_key),
             private: MLDSA65PrivateKey { seed, signing_key },
         }
+    }
+
+    /// Sign with the given FIPS 204 hedging randomness.
+    pub(crate) fn sign_with_rnd(
+        &self,
+        msg: &[u8],
+        rnd: &[u8; MLDSA65_RND_LENGTH],
+    ) -> MLDSA65Signature {
+        MLDSA65Signature(
+            self.private
+                .signing_key
+                .sign(msg, b"", rnd)
+                .expect("the empty context cannot exceed the length limit"),
+        )
     }
 }
 
@@ -205,16 +224,10 @@ impl FromStr for MLDSA65KeyPair {
 
 impl Signer<MLDSA65Signature> for MLDSA65KeyPair {
     fn sign(&self, msg: &[u8]) -> MLDSA65Signature {
-        // Hedged signing, the FIPS 204 default: fresh randomness from the operating system
-        // (OsRng/getrandom) for every sig.
-        let mut rnd = [0u8; mldsa::RND_LENGTH];
-        OsRng.fill_bytes(&mut rnd);
-        MLDSA65Signature(
-            self.private
-                .signing_key
-                .sign(msg, b"", &rnd)
-                .expect("the empty context cannot exceed the length limit"),
-        )
+        // Hedged signing, the FIPS 204 default: fresh randomness for every sig.
+        let mut rnd = [0u8; MLDSA65_RND_LENGTH];
+        thread_rng().fill_bytes(&mut rnd);
+        self.sign_with_rnd(msg, &rnd)
     }
 }
 

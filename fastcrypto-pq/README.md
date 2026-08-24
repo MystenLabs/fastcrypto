@@ -29,8 +29,9 @@ relies on. The SLH-DSA side is implemented here directly, in pure Rust.
 - The private key's serialized form is the 32-byte FIPS 204 seed, so wallets store and
   back up exactly what they do today. Deserializing a key pair re-derives the public
   key from the seed; a mismatched pair cannot be constructed.
-- Signing is hedged, the FIPS 204 default: fresh OS randomness for every signature.
-  The FIPS 204 context string is frozen to the empty string.
+- Signing is hedged, the FIPS 204 default: fresh randomness from `thread_rng` for every
+  signature, so signatures are neither reproducible nor unique for a given key and
+  message. The FIPS 204 context string is frozen to the empty string.
 - Serialization is the raw encoding: bincode, BCS, and `as_ref()` produce identical
   bytes, and the human-readable serde form is base64.
 - Sizes: public key 1,952 B, signature 3,309 B, private key 32 B.

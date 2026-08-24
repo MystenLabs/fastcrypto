@@ -18,7 +18,8 @@ use fastcrypto::traits::{
 
 use crate::mldsa65::{
     MLDSA65KeyPair, MLDSA65PrivateKey, MLDSA65PublicKey, MLDSA65Signature,
-    MLDSA65_PRIVATE_KEY_LENGTH, MLDSA65_PUBLIC_KEY_LENGTH, MLDSA65_SIGNATURE_LENGTH,
+    MLDSA65_PRIVATE_KEY_LENGTH, MLDSA65_PUBLIC_KEY_LENGTH, MLDSA65_RND_LENGTH,
+    MLDSA65_SIGNATURE_LENGTH,
 };
 
 const MSG: &[u8] = b"Hello, world!";
@@ -331,7 +332,7 @@ fn matches_typescript_interop_vectors() {
         let seed = Hex::decode(&case.seed).unwrap();
         let msg = Hex::decode(&case.msg).unwrap();
         let ctx = Hex::decode(&case.ctx).unwrap();
-        let rnd: [u8; 32] = Hex::decode(&case.rnd).unwrap().try_into().unwrap();
+        let rnd: [u8; MLDSA65_RND_LENGTH] = Hex::decode(&case.rnd).unwrap().try_into().unwrap();
         let pk = Hex::decode(&case.pk).unwrap();
         let sig = Hex::decode(&case.sig).unwrap();
 
@@ -340,19 +341,19 @@ fn matches_typescript_interop_vectors() {
         let public = MLDSA65PublicKey::from(&private);
         assert_eq!(public.as_ref(), &pk[..], "{}: seed->pk diverged", case.name);
 
-        // Fixed rnd makes signing deterministic: the wrapper must reproduce the
-        // ts-produced signature exactly.
-        let (wrapper_key, wrapper_public) =
-            mldsa::SigningKeySeed::from_bytes(&seed).unwrap().expand();
-        let ours = wrapper_key.sign(&msg, &ctx, &rnd).unwrap();
-        assert_eq!(
-            ours.as_bytes()[..],
-            sig[..],
-            "{}: signature bytes diverged",
-            case.name
-        );
-
+        // Fixed rnd makes signing deterministic, so the ts-produced signature must come out
+        // byte for byte.
         if ctx.is_empty() {
+            // The empty context is the one this layer signs under, so it signs the vectors
+            // itself rather than going through the wrapper.
+            let keypair = MLDSA65KeyPair::from_bytes(&seed).unwrap();
+            assert_eq!(
+                keypair.sign_with_rnd(&msg, &rnd).as_ref(),
+                &sig[..],
+                "{}: signature bytes diverged",
+                case.name
+            );
+
             let parsed = MLDSA65Signature::from_bytes(&sig).unwrap();
             assert!(
                 public.verify(&msg, &parsed).is_ok(),
@@ -363,6 +364,16 @@ fn matches_typescript_interop_vectors() {
             verify_serialization(&public, Some(public.as_ref()));
             verify_serialization(&parsed, Some(parsed.as_ref()));
         } else {
+            // A non-empty context is only reachable through the wrapper.
+            let (wrapper_key, wrapper_public) =
+                mldsa::SigningKeySeed::from_bytes(&seed).unwrap().expand();
+            assert_eq!(
+                wrapper_key.sign(&msg, &ctx, &rnd).unwrap().as_bytes()[..],
+                sig[..],
+                "{}: signature bytes diverged",
+                case.name
+            );
+
             let parsed = mldsa::Signature::from_bytes(&sig).unwrap();
             assert!(wrapper_public.verify(&msg, &ctx, &parsed).is_ok());
         }
