@@ -177,7 +177,7 @@ impl KeyPair for MLDSA65KeyPair {
         self.private
     }
 
-    // Not cfg-gated on copy_key; this crate always enables fastcrypto/copy_key
+    #[cfg(feature = "copy_key")]
     fn copy(&self) -> Self {
         MLDSA65KeyPair {
             public: self.public.clone(),

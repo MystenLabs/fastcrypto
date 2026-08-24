@@ -10,8 +10,7 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 publish = false
 
 [dependencies]
-# copy_key is not optional here
-fastcrypto = { path = "../fastcrypto", features = ["copy_key"] }
+fastcrypto = { path = "../fastcrypto" }
 fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.4" }
 # The C backend (mldsa-native, pinned as a submodule inside the wrapper)
 mysten-mldsa-native-rs = { git = "https://github.com/MystenLabs/mysten-mldsa-native-rs.git", rev = "ea1a9794c7ad0c68b9410121964b7439540826bc", version = "0.1.0" }
@@ -23,6 +22,11 @@ bincode.workspace = true
 zeroize.workspace = true
 
 [features]
+# Forwards to fastcrypto's copy_key, which gates KeyPair::copy for every scheme. Optional
+# here so that depending on this crate does not turn private key copying on for the rest of
+# the dependency graph through feature unification.
+copy_key = ["fastcrypto/copy_key"]
+
 # Forwards to the wrapper's verified assembly backends: NEON on aarch64, AVX2 on x86_64
 # behind a runtime CPU probe. Identical signatures either way, roughly 2.5x faster.
 native = ["mysten-mldsa-native-rs/native"]
