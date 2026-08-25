@@ -65,6 +65,23 @@ impl RistrettoPoint {
             .fill_bytes(&mut bytes);
         Self::from_uniform_bytes(&bytes)
     }
+
+    /// Build precomputation tables for `points` under `strategy`;
+    /// [PrecomputableMultiScalarMul::precompute] uses `MixedMsmStrategy::default()`.
+    pub fn precompute_with_strategy(
+        points: &[Self],
+        strategy: MixedMsmStrategy,
+    ) -> FastCryptoResult<RistrettoPrecomputation> {
+        let points: Vec<ExternalPoint> = points.iter().map(|p| p.0).collect();
+        let tables = strategy
+            .use_tables(points.len(), 0)
+            .then(|| VartimeRistrettoPrecomputation::new(points.iter()));
+        Ok(RistrettoPrecomputation {
+            tables,
+            points,
+            strategy,
+        })
+    }
 }
 
 impl Doubling for RistrettoPoint {
@@ -86,41 +103,75 @@ impl MultiScalarMul for RistrettoPoint {
     }
 }
 
-/// Straus over the precomputed tables beats a plain MSM (dalek's Pippenger
-/// above 190 points) while the weighted point count
-/// `static + DYNAMIC_POINT_WEIGHT * dynamic` stays within this bound. A
-/// heuristic, measured with dense scalars on an Apple M2 Max
-/// (`benches/mixed_msm.rs`): the crossover lies at about 600 static points
-/// with no dynamic ones, 490 with 32 and 245 with 128, and with 512 dynamic
-/// points the plain MSM wins at every static size. The least-squares fit is
-/// `589 - 2.7 * dynamic`; with the weight rounded to 3 the bound refits to
-/// about 605, rounded down here. The crossover sits far below what
-/// operation counts predict, consistent with the ~7.7 KB per-point tables
-/// falling out of cache.
-pub(crate) const MAX_STRAUS_POINTS: usize = 600;
+/// Rule choosing, per call, between Straus over the precomputed tables and a
+/// plain MSM over all points. Non-exhaustive so that further rules, e.g. a
+/// caller-supplied predicate over the static and dynamic counts, can be added
+/// without breaking callers.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MixedMsmStrategy {
+    /// Straus while
+    /// `num_static + dynamic_point_weight * num_dynamic <= max_weighted_points`;
+    /// tables are only built if the static points alone satisfy the rule.
+    /// `max_weighted_points = 0` never builds tables; `dynamic_point_weight = 0`
+    /// with a large bound always uses them.
+    Weighted {
+        max_weighted_points: usize,
+        dynamic_point_weight: usize,
+    },
+}
 
-/// A dynamic point counts as this many static ones, fitted to how the
-/// measured crossover moves with the dynamic count. In the Straus path a
-/// dynamic point is dearer than a static one: its table is built per call
-/// and its additions are projective rather than affine.
-pub(crate) const DYNAMIC_POINT_WEIGHT: usize = 3;
+impl Default for MixedMsmStrategy {
+    /// `Weighted` with constants measured with dense scalars on an Apple M2
+    /// Max (`benches/mixed_msm.rs`): the crossover lies at about 600 static
+    /// points with no dynamic ones and moves by about three static points per
+    /// dynamic one, since a dynamic point's table is built per call and its
+    /// additions are projective rather than affine. The crossover depends on
+    /// the machine and should be recalibrated with the bench where that matters.
+    fn default() -> Self {
+        Self::Weighted {
+            max_weighted_points: 600,
+            dynamic_point_weight: 3,
+        }
+    }
+}
+
+impl MixedMsmStrategy {
+    fn use_tables(self, num_static: usize, num_dynamic: usize) -> bool {
+        match self {
+            Self::Weighted {
+                max_weighted_points,
+                dynamic_point_weight,
+            } => {
+                dynamic_point_weight
+                    .saturating_mul(num_dynamic)
+                    .saturating_add(num_static)
+                    <= max_weighted_points
+            }
+        }
+    }
+}
 
 /// Precomputed multiplication tables over a fixed set of Ristretto points;
-/// the points themselves are kept for the plain-MSM fallback.
+/// the points themselves are kept for the plain-MSM fallback chosen by the
+/// strategy.
 pub struct RistrettoPrecomputation {
-    tables: VartimeRistrettoPrecomputation,
+    tables: Option<VartimeRistrettoPrecomputation>,
     points: Vec<ExternalPoint>,
+    strategy: MixedMsmStrategy,
+}
+
+impl RistrettoPrecomputation {
+    pub fn strategy(&self) -> MixedMsmStrategy {
+        self.strategy
+    }
 }
 
 impl PrecomputableMultiScalarMul for RistrettoPoint {
     type Precomputation = RistrettoPrecomputation;
 
     fn precompute(points: &[Self]) -> FastCryptoResult<Self::Precomputation> {
-        let points: Vec<ExternalPoint> = points.iter().map(|p| p.0).collect();
-        Ok(RistrettoPrecomputation {
-            tables: VartimeRistrettoPrecomputation::new(points.iter()),
-            points,
-        })
+        Self::precompute_with_strategy(points, MixedMsmStrategy::default())
     }
 }
 
@@ -142,21 +193,25 @@ impl MixedMultiScalarMul for RistrettoPrecomputation {
         {
             return Err(InvalidInput);
         }
-        let weighted = self.points.len() + DYNAMIC_POINT_WEIGHT * dynamic_points.len();
-        Ok(RistrettoPoint(if weighted <= MAX_STRAUS_POINTS {
-            self.tables.vartime_mixed_multiscalar_mul(
-                static_scalars.iter().map(|s| s.0),
-                dynamic_scalars.iter().map(|s| s.0),
-                dynamic_points.iter().map(|p| p.0),
-            )
-        } else {
-            ExternalPoint::vartime_multiscalar_mul(
+        Ok(RistrettoPoint(match &self.tables {
+            Some(tables)
+                if self
+                    .strategy
+                    .use_tables(self.points.len(), dynamic_points.len()) =>
+            {
+                tables.vartime_mixed_multiscalar_mul(
+                    static_scalars.iter().map(|s| s.0),
+                    dynamic_scalars.iter().map(|s| s.0),
+                    dynamic_points.iter().map(|p| p.0),
+                )
+            }
+            _ => ExternalPoint::vartime_multiscalar_mul(
                 static_scalars.iter().chain(dynamic_scalars).map(|s| s.0),
                 self.points
                     .iter()
                     .copied()
                     .chain(dynamic_points.iter().map(|p| p.0)),
-            )
+            ),
         }))
     }
 }

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::encoding::{Encoding, Hex};
+use crate::groups::ristretto255::MixedMsmStrategy;
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::ristretto255::RistrettoScalar;
-use crate::groups::ristretto255::{DYNAMIC_POINT_WEIGHT, MAX_STRAUS_POINTS};
 use crate::groups::{
     GroupElement, HashToGroupElement, MixedMultiScalarMul, MultiScalarMul,
     PrecomputableMultiScalarMul, Scalar,
@@ -311,23 +311,47 @@ fn test_precomputed_multiscalar_mul() {
         .mixed_multi_scalar_mul(&s[..5], &s[..2], &dynamic_points)
         .is_err());
 
-    // Above the weighted point bound the call falls back to a plain MSM, with
-    // the same results and length checks: first by static points alone, then
-    // by dynamic points alone.
+    // Every strategy and side of its bound gives the same results and length
+    // checks. Under the default strategy: over the bound by static points
+    // alone (no tables built), and by dynamic points alone (tables built but
+    // unused). Under weighted strategies: no tables, tables but a call over
+    // the bound, and tables kept above the default bound.
     let rand_points = |n: usize, rng: &mut rand::rngs::ThreadRng| -> Vec<RistrettoPoint> {
         rand_scalars(n, rng)
             .iter()
             .map(|s| RistrettoPoint::generator() * s)
             .collect()
     };
-    let many_static = rand_points(MAX_STRAUS_POINTS + 1, &mut rng);
-    let many_dynamic = rand_points(MAX_STRAUS_POINTS / DYNAMIC_POINT_WEIGHT, &mut rng);
-    for (static_points, dynamic_points) in [
-        (&many_static, &dynamic_points),
-        (&many_static, &Vec::new()),
-        (&static_points, &many_dynamic),
+    let default = MixedMsmStrategy::default();
+    let MixedMsmStrategy::Weighted {
+        max_weighted_points,
+        dynamic_point_weight,
+    } = default;
+    let many_static = rand_points(max_weighted_points + 1, &mut rng);
+    let many_dynamic = rand_points(max_weighted_points / dynamic_point_weight, &mut rng);
+    let never = MixedMsmStrategy::Weighted {
+        max_weighted_points: 0,
+        dynamic_point_weight: 0,
+    };
+    let tight = MixedMsmStrategy::Weighted {
+        max_weighted_points: static_points.len(),
+        dynamic_point_weight: 1,
+    };
+    let always = MixedMsmStrategy::Weighted {
+        max_weighted_points: usize::MAX,
+        dynamic_point_weight: 0,
+    };
+    for (strategy, static_points, dynamic_points) in [
+        (default, &many_static, &dynamic_points),
+        (default, &many_static, &Vec::new()),
+        (default, &static_points, &many_dynamic),
+        (never, &static_points, &dynamic_points),
+        (tight, &static_points, &dynamic_points),
+        (always, &many_static, &dynamic_points),
     ] {
-        let precomputation = RistrettoPoint::precompute(static_points).unwrap();
+        let precomputation =
+            RistrettoPoint::precompute_with_strategy(static_points, strategy).unwrap();
+        assert_eq!(precomputation.strategy(), strategy);
         assert_eq!(precomputation.num_static_points(), static_points.len());
         let static_scalars = rand_scalars(static_points.len(), &mut rng);
         let dynamic_scalars = rand_scalars(dynamic_points.len(), &mut rng);

@@ -138,7 +138,9 @@ pub trait PrecomputableMultiScalarMul: GroupElement {
     /// Precomputed tables for a fixed set of points.
     type Precomputation: MixedMultiScalarMul<Point = Self>;
 
-    /// Build precomputation tables for `points`.
+    /// Build precomputation tables for `points`. When the tables are used is
+    /// implementation-specific; an implementation may offer a constructor
+    /// that configures this.
     fn precompute(points: &[Self]) -> FastCryptoResult<Self::Precomputation>;
 }
 

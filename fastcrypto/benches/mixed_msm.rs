@@ -4,11 +4,11 @@
 //! Micro-benchmark: locate the crossover between dalek's precomputed mixed
 //! MSM (Straus with static tables) and its plain MSM (Straus below 190
 //! points, Pippenger above) over a grid of S static points with dense
-//! scalars plus D dynamic points. It calibrates `MAX_STRAUS_POINTS` and
-//! `DYNAMIC_POINT_WEIGHT` in `groups::ristretto255`: for each D, the
-//! crossover `S_0(D)` is the static size at which `plain` first beats
-//! `precomp_mixed` (interpolated between grid points), and the two constants
-//! are a linear fit `S_0(D) = MAX_STRAUS_POINTS - DYNAMIC_POINT_WEIGHT * D`.
+//! scalars plus D dynamic points. It calibrates the default
+//! `MixedMsmStrategy` in `groups::ristretto255`: for each D, the crossover
+//! `S_0(D)` is the static size at which `plain` first beats `precomp_mixed`
+//! (interpolated between grid points), and the two constants are a linear
+//! fit `S_0(D) = max_weighted_points - dynamic_point_weight * D`.
 //! The dalek primitives are timed directly, since the fastcrypto wrapper
 //! applies that rule itself. The crossover is a property of the two
 //! implementations on the benchmarking machine, not of any caller.
