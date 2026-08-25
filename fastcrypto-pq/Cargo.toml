@@ -15,6 +15,7 @@ fastcrypto = { path = "../fastcrypto", features = ["copy_key"] }
 fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.4" }
 # The C backend (mldsa-native, pinned as a submodule inside the wrapper)
 mysten-mldsa-native-rs = { git = "https://github.com/MystenLabs/mysten-mldsa-native-rs.git", rev = "ea1a9794c7ad0c68b9410121964b7439540826bc", version = "0.1.0" }
+once_cell = "1.17.0"
 rand.workspace = true
 sha2 = "0.10.6"
 digest.workspace = true
