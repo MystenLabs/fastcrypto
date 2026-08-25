@@ -10,6 +10,9 @@
 //! operating system, so two signatures over the same msg differ while both verify. The FIPS
 //! 204 context string is fixed to empty.
 //!
+//! Signatures are therefore neither reproducible nor unique for a given key and msg, so
+//! signature bytes must not be used as an identifier or a replay key.
+//!
 //! msgs can be signed and the signature can be verified again:
 //! ```rust
 //! # use fastcrypto_pq::mldsa65::*;
