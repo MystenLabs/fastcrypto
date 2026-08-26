@@ -82,8 +82,9 @@ To reproduce the BP++ benchmarks run `cargo bench -p fastcrypto --features exper
   batch folds), so each round's messages are one MSM each over the base
   generators.
 - MSMs over the fixed generator set use precomputed tables
-  (`fastcrypto::groups::PrecomputableMultiScalarMul`), with a fallback to a
-  plain MSM above the measured Straus/Pippenger crossover.
+  (`fastcrypto::groups::PrecomputableMultiScalarMul`); the precomputation
+  itself falls back to a plain MSM above the measured Straus/Pippenger
+  crossover.
 - Derived CRSs (hash-to-curve generators plus tables) are cached per size for
   the lifetime of the process.
 - Not constant-time: variable-time MSMs are used throughout, as in the dalek
