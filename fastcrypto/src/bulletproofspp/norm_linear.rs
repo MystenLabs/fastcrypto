@@ -443,23 +443,9 @@ pub(crate) fn verify(
         dynamic_points.push(*r_point);
     }
 
-    // The precomputed path always uses Straus, which loses to Pippenger for
-    // large MSMs; above the measured crossover (~440 static points for this
-    // workload shape, calibrated by `benches/mixed_msm.rs`) fall back to one
-    // plain MSM.
-    let result = if gens.precomp.num_static_points() <= 440 {
+    let result =
         gens.precomp
-            .mixed_multi_scalar_mul(&static_scalars, &dynamic_scalars, &dynamic_points)?
-    } else {
-        let mut scalars = static_scalars;
-        scalars.append(&mut dynamic_scalars);
-        let mut points = Vec::with_capacity(scalars.len());
-        points.push(gens.g);
-        points.extend(&gens.h_vec);
-        points.extend(&gens.g_vec);
-        points.append(&mut dynamic_points);
-        RistrettoPoint::multi_scalar_mul(&scalars, &points)?
-    };
+            .mixed_multi_scalar_mul(&static_scalars, &dynamic_scalars, &dynamic_points)?;
 
     if result == RistrettoPoint::zero() {
         Ok(())
