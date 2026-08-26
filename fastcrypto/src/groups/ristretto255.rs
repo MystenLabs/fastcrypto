@@ -65,6 +65,23 @@ impl RistrettoPoint {
             .fill_bytes(&mut bytes);
         Self::from_uniform_bytes(&bytes)
     }
+
+    /// Build precomputation tables for `points` under `strategy`;
+    /// [PrecomputableMultiScalarMul::precompute] uses `MixedMsmStrategy::default()`.
+    pub fn precompute_with_strategy(
+        points: &[Self],
+        strategy: MixedMsmStrategy,
+    ) -> FastCryptoResult<RistrettoPrecomputation> {
+        let points: Vec<ExternalPoint> = points.iter().map(|p| p.0).collect();
+        let tables = strategy
+            .use_tables(points.len(), 0)
+            .then(|| VartimeRistrettoPrecomputation::new(points.iter()));
+        Ok(RistrettoPrecomputation {
+            tables,
+            points,
+            strategy,
+        })
+    }
 }
 
 impl Doubling for RistrettoPoint {
@@ -86,20 +103,59 @@ impl MultiScalarMul for RistrettoPoint {
     }
 }
 
-/// Precomputed multiplication tables over a fixed set of Ristretto points.
+/// Rule choosing, per call, between Straus over the precomputed tables and a
+/// plain MSM over all points: Straus while
+/// `num_static + dynamic_point_weight * num_dynamic <= max_weighted_points`;
+/// tables are only built if the static points alone satisfy the rule.
+/// `max_weighted_points = 0` never builds tables; `dynamic_point_weight = 0`
+/// with a large bound always uses them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MixedMsmStrategy {
+    pub max_weighted_points: usize,
+    pub dynamic_point_weight: usize,
+}
+
+impl Default for MixedMsmStrategy {
+    /// Constants measured with dense scalars on an Apple M2 Max using
+    /// `benches/mixed_msm.rs`; recalibrate with the bench where the machine
+    /// matters.
+    fn default() -> Self {
+        Self {
+            max_weighted_points: 600,
+            dynamic_point_weight: 3,
+        }
+    }
+}
+
+impl MixedMsmStrategy {
+    fn use_tables(self, num_static: usize, num_dynamic: usize) -> bool {
+        self.dynamic_point_weight
+            .saturating_mul(num_dynamic)
+            .saturating_add(num_static)
+            <= self.max_weighted_points
+    }
+}
+
+/// Precomputed multiplication tables over a fixed set of Ristretto points;
+/// the points themselves are kept for the plain-MSM fallback chosen by the
+/// strategy.
 pub struct RistrettoPrecomputation {
-    tables: VartimeRistrettoPrecomputation,
-    num_points: usize,
+    tables: Option<VartimeRistrettoPrecomputation>,
+    points: Vec<ExternalPoint>,
+    strategy: MixedMsmStrategy,
+}
+
+impl RistrettoPrecomputation {
+    pub fn strategy(&self) -> MixedMsmStrategy {
+        self.strategy
+    }
 }
 
 impl PrecomputableMultiScalarMul for RistrettoPoint {
     type Precomputation = RistrettoPrecomputation;
 
     fn precompute(points: &[Self]) -> FastCryptoResult<Self::Precomputation> {
-        Ok(RistrettoPrecomputation {
-            tables: VartimeRistrettoPrecomputation::new(points.iter().map(|p| p.0)),
-            num_points: points.len(),
-        })
+        Self::precompute_with_strategy(points, MixedMsmStrategy::default())
     }
 }
 
@@ -107,7 +163,7 @@ impl MixedMultiScalarMul for RistrettoPrecomputation {
     type Point = RistrettoPoint;
 
     fn num_static_points(&self) -> usize {
-        self.num_points
+        self.points.len()
     }
 
     fn mixed_multi_scalar_mul(
@@ -116,15 +172,31 @@ impl MixedMultiScalarMul for RistrettoPrecomputation {
         dynamic_scalars: &[RistrettoScalar],
         dynamic_points: &[RistrettoPoint],
     ) -> FastCryptoResult<RistrettoPoint> {
-        if static_scalars.len() != self.num_points || dynamic_scalars.len() != dynamic_points.len()
+        if static_scalars.len() != self.points.len()
+            || dynamic_scalars.len() != dynamic_points.len()
         {
             return Err(InvalidInput);
         }
-        Ok(RistrettoPoint(self.tables.vartime_mixed_multiscalar_mul(
-            static_scalars.iter().map(|s| s.0),
-            dynamic_scalars.iter().map(|s| s.0),
-            dynamic_points.iter().map(|p| p.0),
-        )))
+        Ok(RistrettoPoint(match &self.tables {
+            Some(tables)
+                if self
+                    .strategy
+                    .use_tables(self.points.len(), dynamic_points.len()) =>
+            {
+                tables.vartime_mixed_multiscalar_mul(
+                    static_scalars.iter().map(|s| s.0),
+                    dynamic_scalars.iter().map(|s| s.0),
+                    dynamic_points.iter().map(|p| p.0),
+                )
+            }
+            _ => ExternalPoint::vartime_multiscalar_mul(
+                static_scalars.iter().chain(dynamic_scalars).map(|s| s.0),
+                self.points
+                    .iter()
+                    .copied()
+                    .chain(dynamic_points.iter().map(|p| p.0)),
+            ),
+        }))
     }
 }
 

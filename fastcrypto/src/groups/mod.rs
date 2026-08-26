@@ -138,7 +138,9 @@ pub trait PrecomputableMultiScalarMul: GroupElement {
     /// Precomputed tables for a fixed set of points.
     type Precomputation: MixedMultiScalarMul<Point = Self>;
 
-    /// Build precomputation tables for `points`.
+    /// Build precomputation tables for `points`. When the tables are used is
+    /// implementation-specific; an implementation may offer a constructor
+    /// that configures this.
     fn precompute(points: &[Self]) -> FastCryptoResult<Self::Precomputation>;
 }
 
@@ -161,8 +163,8 @@ pub trait MixedMultiScalarMul {
     /// multiplication `a_i*P_i` is evaluated via the precomputed tables, so
     /// when the `P_i` are reused across many calls this is faster than a regular
     /// MSM over all `n + m` points. This only holds up to a size that depends on the
-    /// implementation; above it a regular MSM is faster and the caller should
-    /// use one instead.
+    /// implementation; above it the implementation falls back to a regular MSM
+    /// itself, so callers need not choose.
     fn mixed_multi_scalar_mul(
         &self,
         static_scalars: &[<Self::Point as GroupElement>::ScalarType],
