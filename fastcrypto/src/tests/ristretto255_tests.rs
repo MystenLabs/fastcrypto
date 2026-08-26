@@ -323,21 +323,20 @@ fn test_precomputed_multiscalar_mul() {
             .collect()
     };
     let default = MixedMsmStrategy::default();
-    let MixedMsmStrategy::Weighted {
-        max_weighted_points,
-        dynamic_point_weight,
-    } = default;
-    let many_static = rand_points(max_weighted_points + 1, &mut rng);
-    let many_dynamic = rand_points(max_weighted_points / dynamic_point_weight, &mut rng);
-    let never = MixedMsmStrategy::Weighted {
+    let many_static = rand_points(default.max_weighted_points + 1, &mut rng);
+    let many_dynamic = rand_points(
+        default.max_weighted_points / default.dynamic_point_weight,
+        &mut rng,
+    );
+    let never = MixedMsmStrategy {
         max_weighted_points: 0,
         dynamic_point_weight: 0,
     };
-    let tight = MixedMsmStrategy::Weighted {
+    let tight = MixedMsmStrategy {
         max_weighted_points: static_points.len(),
         dynamic_point_weight: 1,
     };
-    let always = MixedMsmStrategy::Weighted {
+    let always = MixedMsmStrategy {
         max_weighted_points: usize::MAX,
         dynamic_point_weight: 0,
     };

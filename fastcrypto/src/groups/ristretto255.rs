@@ -104,32 +104,23 @@ impl MultiScalarMul for RistrettoPoint {
 }
 
 /// Rule choosing, per call, between Straus over the precomputed tables and a
-/// plain MSM over all points. Non-exhaustive so that further rules, e.g. a
-/// caller-supplied predicate over the static and dynamic counts, can be added
-/// without breaking callers.
-#[non_exhaustive]
+/// plain MSM over all points: Straus while
+/// `num_static + dynamic_point_weight * num_dynamic <= max_weighted_points`;
+/// tables are only built if the static points alone satisfy the rule.
+/// `max_weighted_points = 0` never builds tables; `dynamic_point_weight = 0`
+/// with a large bound always uses them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MixedMsmStrategy {
-    /// Straus while
-    /// `num_static + dynamic_point_weight * num_dynamic <= max_weighted_points`;
-    /// tables are only built if the static points alone satisfy the rule.
-    /// `max_weighted_points = 0` never builds tables; `dynamic_point_weight = 0`
-    /// with a large bound always uses them.
-    Weighted {
-        max_weighted_points: usize,
-        dynamic_point_weight: usize,
-    },
+pub struct MixedMsmStrategy {
+    pub max_weighted_points: usize,
+    pub dynamic_point_weight: usize,
 }
 
 impl Default for MixedMsmStrategy {
-    /// `Weighted` with constants measured with dense scalars on an Apple M2
-    /// Max (`benches/mixed_msm.rs`): the crossover lies at about 600 static
-    /// points with no dynamic ones and moves by about three static points per
-    /// dynamic one, since a dynamic point's table is built per call and its
-    /// additions are projective rather than affine. The crossover depends on
-    /// the machine and should be recalibrated with the bench where that matters.
+    /// Constants measured with dense scalars on an Apple M2 Max using
+    /// `benches/mixed_msm.rs`; recalibrate with the bench where the machine
+    /// matters.
     fn default() -> Self {
-        Self::Weighted {
+        Self {
             max_weighted_points: 600,
             dynamic_point_weight: 3,
         }
@@ -138,17 +129,10 @@ impl Default for MixedMsmStrategy {
 
 impl MixedMsmStrategy {
     fn use_tables(self, num_static: usize, num_dynamic: usize) -> bool {
-        match self {
-            Self::Weighted {
-                max_weighted_points,
-                dynamic_point_weight,
-            } => {
-                dynamic_point_weight
-                    .saturating_mul(num_dynamic)
-                    .saturating_add(num_static)
-                    <= max_weighted_points
-            }
-        }
+        self.dynamic_point_weight
+            .saturating_mul(num_dynamic)
+            .saturating_add(num_static)
+            <= self.max_weighted_points
     }
 }
 
