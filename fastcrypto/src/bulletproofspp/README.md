@@ -50,14 +50,14 @@ To reproduce the BP++ benchmarks run `cargo bench -p fastcrypto --features exper
 
 | Config | BP | BP++ | speedup |
 | --- | ---: | ---: | ---: |
-| 16-bit x1 | 2.03 | 1.22 | 1.7x |
-| 32-bit x1 | 3.69 | 1.24 | 3.0x |
-| 64-bit x1 | 6.86 | 1.28 | 5.4x |
-| 16-bit x4 | 7.59 | 1.38 | 5.5x |
-| 16-bit x8 | 15.24 | 2.07 | 7.4x |
-| 32-bit x8 | 27.71 | 3.95 | 7.0x |
-| 64-bit x16 | 101.7 | 13.42 | 7.6x |
-| 64-bit x32 | 199.5 | 26.91 | 7.4x |
+| 16-bit x1 | 2.03 | 1.20 | 1.7x |
+| 32-bit x1 | 3.69 | 1.21 | 3.0x |
+| 64-bit x1 | 6.86 | 1.25 | 5.5x |
+| 16-bit x4 | 7.59 | 1.34 | 5.7x |
+| 16-bit x8 | 15.24 | 2.03 | 7.5x |
+| 32-bit x8 | 27.71 | 3.85 | 7.2x |
+| 64-bit x16 | 101.7 | 13.30 | 7.6x |
+| 64-bit x32 | 199.5 | 26.57 | 7.5x |
 
 **Verification (ms):**
 
@@ -67,10 +67,10 @@ To reproduce the BP++ benchmarks run `cargo bench -p fastcrypto --features exper
 | 32-bit x1 | 0.56 | 0.31 | 1.8x |
 | 64-bit x1 | 0.98 | 0.32 | 3.1x |
 | 16-bit x4 | 1.03 | 0.34 | 3.0x |
-| 16-bit x8 | 1.66 | 0.48 | 3.5x |
+| 16-bit x8 | 1.66 | 0.47 | 3.5x |
 | 32-bit x8 | 2.68 | 0.68 | 3.9x |
 | 64-bit x16 | 8.13 | 1.94 | 4.2x |
-| 64-bit x32 | 15.06 | 3.56 | 4.2x |
+| 64-bit x32 | 15.06 | 3.52 | 4.3x |
 
 ## Implementation notes
 
