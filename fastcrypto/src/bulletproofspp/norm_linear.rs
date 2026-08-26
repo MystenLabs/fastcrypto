@@ -335,7 +335,7 @@ pub(crate) fn prove(
 /// The commitment is supplied in decomposed form so it joins the same MSM:
 /// `pn` are public coefficients over `g_vec` and `extra` the remaining
 /// `(scalar, point)` terms, i.e. the commitment equals
-/// `<pn, g_vec> + sum extra` (missing tail entries of `pn` count as zero).
+/// `<pn, g_vec> + sum extra`.
 ///
 /// Instead of folding the generator vectors round by round, each base
 /// generator's final coefficient is computed from the bits of its index:
@@ -347,9 +347,9 @@ pub(crate) fn prove(
 ///   sigma*G + <w_h ⊙ l, H> + <w_g ⊙ n - pn, G_vec>
 ///     - sum extra - sum_r (gamma_r*X_r + (gamma_r^2 - 1)*R_r) == 0.
 ///
-/// `c` must have the length of `gens.h_vec`. Errors with `InvalidProof` on
-/// any mismatch, including a proof whose shape differs from the one implied
-/// by the base lengths.
+/// `c` and `pn` must have the lengths of `gens.h_vec` and `gens.g_vec`.
+/// Errors with `InvalidProof` on any mismatch, including a proof whose shape
+/// differs from the one implied by the base lengths.
 pub(crate) fn verify(
     transcript: &mut BpppTranscript,
     gens: &Generators,
@@ -359,7 +359,7 @@ pub(crate) fn verify(
     rho: RistrettoScalar,
     proof: &NormLinearProof,
 ) -> FastCryptoResult<()> {
-    if c.len() != gens.h_vec.len() || pn.len() > gens.g_vec.len() {
+    if c.len() != gens.h_vec.len() || pn.len() != gens.g_vec.len() {
         return Err(FastCryptoError::InvalidInput);
     }
     // The prover's fold count and final lengths are determined by the base
@@ -425,9 +425,8 @@ pub(crate) fn verify(
     for i in 0..gens.h_vec.len() {
         static_scalars.push(w_h[i & mask] * proof.l_final[i >> k]);
     }
-    for i in 0..gens.g_vec.len() {
-        let pn_i = pn.get(i).copied().unwrap_or_else(RistrettoScalar::zero);
-        static_scalars.push(w_g[i & mask] * proof.n_final[i >> k] - pn_i);
+    for (i, pn_i) in pn.iter().enumerate() {
+        static_scalars.push(w_g[i & mask] * proof.n_final[i >> k] - *pn_i);
     }
 
     let mut dynamic_scalars = Vec::with_capacity(extra.len() + 2 * k);
@@ -521,7 +520,7 @@ mod tests {
             &mut t,
             &inst.gens,
             &inst.c,
-            &[],
+            &vec![RistrettoScalar::zero(); inst.gens.g_vec.len()],
             &[(one(), inst.commitment)],
             inst.rho,
             proof,
