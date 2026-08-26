@@ -138,43 +138,45 @@
 <a href=#138 id=138 data-nosnippet>138</a>    <span class="doccomment">/// Precomputed tables for a fixed set of points.
 <a href=#139 id=139 data-nosnippet>139</a>    </span><span class="kw">type </span>Precomputation: MixedMultiScalarMul&lt;Point = <span class="self">Self</span>&gt;;
 <a href=#140 id=140 data-nosnippet>140</a>
-<a href=#141 id=141 data-nosnippet>141</a>    <span class="doccomment">/// Build precomputation tables for `points`.
-<a href=#142 id=142 data-nosnippet>142</a>    </span><span class="kw">fn </span>precompute(points: <span class="kw-2">&amp;</span>[<span class="self">Self</span>]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>::Precomputation&gt;;
-<a href=#143 id=143 data-nosnippet>143</a>}
-<a href=#144 id=144 data-nosnippet>144</a>
-<a href=#145 id=145 data-nosnippet>145</a><span class="doccomment">/// Trait for the precomputed tables built by [PrecomputableMultiScalarMul::precompute].
-<a href=#146 id=146 data-nosnippet>146</a></span><span class="kw">pub trait </span>MixedMultiScalarMul {
-<a href=#147 id=147 data-nosnippet>147</a>    <span class="doccomment">/// The group whose points the tables were built for.
-<a href=#148 id=148 data-nosnippet>148</a>    </span><span class="kw">type </span>Point: GroupElement;
-<a href=#149 id=149 data-nosnippet>149</a>
-<a href=#150 id=150 data-nosnippet>150</a>    <span class="doccomment">/// The number of points these tables were built for.
-<a href=#151 id=151 data-nosnippet>151</a>    </span><span class="kw">fn </span>num_static_points(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize;
-<a href=#152 id=152 data-nosnippet>152</a>
-<a href=#153 id=153 data-nosnippet>153</a>    <span class="doccomment">/// Compute the mixed multi-scalar multiplication
-<a href=#154 id=154 data-nosnippet>154</a>    ///
-<a href=#155 id=155 data-nosnippet>155</a>    /// `a_1*P_1 + ... + a_n*P_n + b_1*Q_1 + ... + b_m*Q_m`,
+<a href=#141 id=141 data-nosnippet>141</a>    <span class="doccomment">/// Build precomputation tables for `points`. When the tables are used is
+<a href=#142 id=142 data-nosnippet>142</a>    /// implementation-specific; an implementation may offer a constructor
+<a href=#143 id=143 data-nosnippet>143</a>    /// that configures this.
+<a href=#144 id=144 data-nosnippet>144</a>    </span><span class="kw">fn </span>precompute(points: <span class="kw-2">&amp;</span>[<span class="self">Self</span>]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>::Precomputation&gt;;
+<a href=#145 id=145 data-nosnippet>145</a>}
+<a href=#146 id=146 data-nosnippet>146</a>
+<a href=#147 id=147 data-nosnippet>147</a><span class="doccomment">/// Trait for the precomputed tables built by [PrecomputableMultiScalarMul::precompute].
+<a href=#148 id=148 data-nosnippet>148</a></span><span class="kw">pub trait </span>MixedMultiScalarMul {
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="doccomment">/// The group whose points the tables were built for.
+<a href=#150 id=150 data-nosnippet>150</a>    </span><span class="kw">type </span>Point: GroupElement;
+<a href=#151 id=151 data-nosnippet>151</a>
+<a href=#152 id=152 data-nosnippet>152</a>    <span class="doccomment">/// The number of points these tables were built for.
+<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="kw">fn </span>num_static_points(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize;
+<a href=#154 id=154 data-nosnippet>154</a>
+<a href=#155 id=155 data-nosnippet>155</a>    <span class="doccomment">/// Compute the mixed multi-scalar multiplication
 <a href=#156 id=156 data-nosnippet>156</a>    ///
-<a href=#157 id=157 data-nosnippet>157</a>    /// where the `P_i` are the `n` static points these tables were built for,
-<a href=#158 id=158 data-nosnippet>158</a>    /// and the `Q_j` are the `m` dynamic points freshly supplied on every
-<a href=#159 id=159 data-nosnippet>159</a>    /// call. `static_scalars` holds the `a_i` and must have length `n`;
-<a href=#160 id=160 data-nosnippet>160</a>    /// `dynamic_scalars` holds the `b_j` and must have length `m`. The scalar
-<a href=#161 id=161 data-nosnippet>161</a>    /// multiplication `a_i*P_i` is evaluated via the precomputed tables, so
-<a href=#162 id=162 data-nosnippet>162</a>    /// when the `P_i` are reused across many calls this is faster than a regular
-<a href=#163 id=163 data-nosnippet>163</a>    /// MSM over all `n + m` points. This only holds up to a size that depends on the
-<a href=#164 id=164 data-nosnippet>164</a>    /// implementation; above it a regular MSM is faster and the caller should
-<a href=#165 id=165 data-nosnippet>165</a>    /// use one instead.
-<a href=#166 id=166 data-nosnippet>166</a>    </span><span class="kw">fn </span>mixed_multi_scalar_mul(
-<a href=#167 id=167 data-nosnippet>167</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#168 id=168 data-nosnippet>168</a>        static_scalars: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Point <span class="kw">as </span>GroupElement&gt;::ScalarType],
-<a href=#169 id=169 data-nosnippet>169</a>        dynamic_scalars: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Point <span class="kw">as </span>GroupElement&gt;::ScalarType],
-<a href=#170 id=170 data-nosnippet>170</a>        dynamic_points: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Point],
-<a href=#171 id=171 data-nosnippet>171</a>    ) -&gt; FastCryptoResult&lt;<span class="self">Self</span>::Point&gt;;
-<a href=#172 id=172 data-nosnippet>172</a>}
-<a href=#173 id=173 data-nosnippet>173</a>
-<a href=#174 id=174 data-nosnippet>174</a><span class="doccomment">/// Faster deserialization that skips validation of the result: the subgroup membership check for
-<a href=#175 id=175 data-nosnippet>175</a>/// curve points and the canonical range check for scalars. Only safe for trusted input; otherwise
-<a href=#176 id=176 data-nosnippet>176</a>/// use [`crate::serde_helpers::ToFromByteArray::from_byte_array`].
-<a href=#177 id=177 data-nosnippet>177</a></span><span class="kw">pub trait </span>FromTrustedByteArray&lt;<span class="kw">const </span>LENGTH: usize&gt;: Sized {
-<a href=#178 id=178 data-nosnippet>178</a>    <span class="kw">fn </span>from_trusted_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; LENGTH]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt;;
-<a href=#179 id=179 data-nosnippet>179</a>}
+<a href=#157 id=157 data-nosnippet>157</a>    /// `a_1*P_1 + ... + a_n*P_n + b_1*Q_1 + ... + b_m*Q_m`,
+<a href=#158 id=158 data-nosnippet>158</a>    ///
+<a href=#159 id=159 data-nosnippet>159</a>    /// where the `P_i` are the `n` static points these tables were built for,
+<a href=#160 id=160 data-nosnippet>160</a>    /// and the `Q_j` are the `m` dynamic points freshly supplied on every
+<a href=#161 id=161 data-nosnippet>161</a>    /// call. `static_scalars` holds the `a_i` and must have length `n`;
+<a href=#162 id=162 data-nosnippet>162</a>    /// `dynamic_scalars` holds the `b_j` and must have length `m`. The scalar
+<a href=#163 id=163 data-nosnippet>163</a>    /// multiplication `a_i*P_i` is evaluated via the precomputed tables, so
+<a href=#164 id=164 data-nosnippet>164</a>    /// when the `P_i` are reused across many calls this is faster than a regular
+<a href=#165 id=165 data-nosnippet>165</a>    /// MSM over all `n + m` points. This only holds up to a size that depends on the
+<a href=#166 id=166 data-nosnippet>166</a>    /// implementation; above it the implementation falls back to a regular MSM
+<a href=#167 id=167 data-nosnippet>167</a>    /// itself, so callers need not choose.
+<a href=#168 id=168 data-nosnippet>168</a>    </span><span class="kw">fn </span>mixed_multi_scalar_mul(
+<a href=#169 id=169 data-nosnippet>169</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#170 id=170 data-nosnippet>170</a>        static_scalars: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Point <span class="kw">as </span>GroupElement&gt;::ScalarType],
+<a href=#171 id=171 data-nosnippet>171</a>        dynamic_scalars: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Point <span class="kw">as </span>GroupElement&gt;::ScalarType],
+<a href=#172 id=172 data-nosnippet>172</a>        dynamic_points: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Point],
+<a href=#173 id=173 data-nosnippet>173</a>    ) -&gt; FastCryptoResult&lt;<span class="self">Self</span>::Point&gt;;
+<a href=#174 id=174 data-nosnippet>174</a>}
+<a href=#175 id=175 data-nosnippet>175</a>
+<a href=#176 id=176 data-nosnippet>176</a><span class="doccomment">/// Faster deserialization that skips validation of the result: the subgroup membership check for
+<a href=#177 id=177 data-nosnippet>177</a>/// curve points and the canonical range check for scalars. Only safe for trusted input; otherwise
+<a href=#178 id=178 data-nosnippet>178</a>/// use [`crate::serde_helpers::ToFromByteArray::from_byte_array`].
+<a href=#179 id=179 data-nosnippet>179</a></span><span class="kw">pub trait </span>FromTrustedByteArray&lt;<span class="kw">const </span>LENGTH: usize&gt;: Sized {
+<a href=#180 id=180 data-nosnippet>180</a>    <span class="kw">fn </span>from_trusted_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; LENGTH]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt;;
+<a href=#181 id=181 data-nosnippet>181</a>}
 </code></pre></div></section></main></body></html>
