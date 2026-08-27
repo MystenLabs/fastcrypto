@@ -11,7 +11,7 @@
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use crate::groups::{GroupElement, MixedMultiScalarMul, MultiScalarMul, Scalar};
+use crate::groups::{GroupElement, MultiScalarMul, Scalar};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 
@@ -266,17 +266,17 @@ impl Blocks {
 }
 
 /// Norm-linear commitment `C_X = r[0]*G + <r[1..8] || l, H> + <n, G_vec>`.
-/// `H_0..H_6` carry the blinding slots 1..7, `H_7` the linear witness. The
-/// scalar layout matches the precomputed tables `[G, h_vec.., g_vec..]`.
+/// `H_0..H_6` carry the blinding slots 1..7, `H_7` the linear witness.
 fn commit(gens: &Generators, r: &[S], l: S, n: &[S]) -> FastCryptoResult<RistrettoPoint> {
     debug_assert_eq!(r.len(), H_LEN);
     debug_assert_eq!(n.len(), gens.g_vec.len());
-    let mut scalars = Vec::with_capacity(1 + H_LEN + n.len());
-    scalars.push(r[0]);
-    scalars.extend(&r[1..H_LEN]);
-    scalars.push(l);
-    scalars.extend(n);
-    gens.precomp.mixed_multi_scalar_mul(&scalars, &[], &[])
+    gens.msm(
+        r[0],
+        r[1..].iter().copied().chain(std::iter::once(l)),
+        n.iter().copied(),
+        &[],
+        &[],
+    )
 }
 
 /// A blinding vector with the spec's zero pattern: random except at the

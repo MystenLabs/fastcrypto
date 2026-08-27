@@ -4,8 +4,8 @@
 //! Common reference string and statement dimensioning for BP++.
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::ristretto255::{RistrettoPoint, RistrettoPrecomputation};
-use crate::groups::PrecomputableMultiScalarMul;
+use crate::groups::ristretto255::{RistrettoPoint, RistrettoPrecomputation, RistrettoScalar};
+use crate::groups::{MixedMultiScalarMul, PrecomputableMultiScalarMul};
 use crate::pedersen;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -82,7 +82,7 @@ pub(crate) struct Generators {
     pub(crate) h_vec: Vec<RistrettoPoint>,
     pub(crate) g_vec: Vec<RistrettoPoint>,
     /// Precomputed MSM tables over `[g, h_vec.., g_vec..]`.
-    pub(crate) precomp: RistrettoPrecomputation,
+    precomp: RistrettoPrecomputation,
 }
 
 /// Process-wide cache of derived CRSs, keyed by the norm length `nm` — the
@@ -149,6 +149,25 @@ impl Generators {
             g_vec,
             precomp: RistrettoPoint::precompute(&all)?,
         })
+    }
+
+    /// `sigma*G + <l, h_vec> + <n, g_vec> + <dynamic_scalars, dynamic_points>`
+    /// over the precomputed tables; `l` and `n` must yield `h_vec.len()` and
+    /// `g_vec.len()` scalars.
+    pub(crate) fn msm(
+        &self,
+        sigma: RistrettoScalar,
+        l: impl IntoIterator<Item = RistrettoScalar>,
+        n: impl IntoIterator<Item = RistrettoScalar>,
+        dynamic_scalars: &[RistrettoScalar],
+        dynamic_points: &[RistrettoPoint],
+    ) -> FastCryptoResult<RistrettoPoint> {
+        let mut scalars = Vec::with_capacity(1 + self.h_vec.len() + self.g_vec.len());
+        scalars.push(sigma);
+        scalars.extend(l);
+        scalars.extend(n);
+        self.precomp
+            .mixed_multi_scalar_mul(&scalars, dynamic_scalars, dynamic_points)
     }
 }
 
