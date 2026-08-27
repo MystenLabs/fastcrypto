@@ -964,7 +964,7 @@ mod tests {
             r_s[slot] = (fh[(p + 2) as usize] - known[(p + 2) as usize]) * beta_inv;
         }
         let shape_sum = (2..H_LEN).fold(S::zero(), |acc, j| acc + blocks.cl_v[j - 1] * r_s[j]);
-        r_s[0] = -(fh[1] - known[1] - shape_sum - blocks.cl_v[7] * (l_s + l_v_hat));
+        r_s[0] = -(fh[1] - known[1] - shape_sum - blocks.cl_v[7] * l_s);
 
         let c_s = commit(gens, &r_s, l_s, &n_s)?;
         transcript.append_point(b"C_S", &c_s);
