@@ -207,49 +207,23 @@ mod zklogin_benches {
             b.iter(|| input_clone.get_proof().as_arkworks().unwrap())
         });
 
-        // Benchmark `calculate_all_inputs_hash` with a WARM modulus-hash cache.
+        // Benchmark the SHA-256 public-input calculation. V2 does not use the V1 modulus cache.
         let eph_pubkey_clone = eph_pubkey.clone();
         let input_clone = input.clone();
         let modulus_clone = modulus.clone();
-        c.bench_function(
-            "verify_zk_login_v2/calculate_all_inputs_hash/warm",
-            move |b| {
-                b.iter(|| {
-                    input_clone
-                        .calculate_all_inputs_hash(
-                            &eph_pubkey_clone,
-                            &modulus_clone,
-                            max_epoch,
-                            CircuitVersion::V2,
-                        )
-                        .unwrap()
-                });
-            },
-        );
+        c.bench_function("verify_zk_login_v2/calculate_all_inputs_hash", move |b| {
+            b.iter(|| {
+                input_clone
+                    .calculate_all_inputs_hash(
+                        &eph_pubkey_clone,
+                        &modulus_clone,
+                        max_epoch,
+                        CircuitVersion::V2,
+                    )
+                    .unwrap()
+            });
+        });
 
-        // Benchmark `calculate_all_inputs_hash` with a COLD cache (cleared each iteration).
-        let eph_pubkey_clone = eph_pubkey.clone();
-        let input_clone = input.clone();
-        let modulus_clone = modulus.clone();
-        c.bench_function(
-            "verify_zk_login_v2/calculate_all_inputs_hash/cold",
-            move |b| {
-                b.iter_batched(
-                    clear_cache_for_testing,
-                    |_| {
-                        input_clone
-                            .calculate_all_inputs_hash(
-                                &eph_pubkey_clone,
-                                &modulus_clone,
-                                max_epoch,
-                                CircuitVersion::V2,
-                            )
-                            .unwrap()
-                    },
-                    BatchSize::PerIteration,
-                )
-            },
-        );
         let input_hashes = input
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, max_epoch, CircuitVersion::V2)
             .unwrap();
@@ -270,39 +244,18 @@ mod zklogin_benches {
             },
         );
 
-        // Benchmark the entire `verify_zk_login` function (warm: modulus hash cache hit).
-        let input_warm = input.clone();
-        let eph_warm = eph_pubkey.clone();
-        let map_warm = map.clone();
-        c.bench_function("verify_zk_login_v2/warm", move |b| {
+        // Benchmark the entire V2 verification path.
+        c.bench_function("verify_zk_login_v2", move |b| {
             b.iter(|| {
                 fastcrypto_zkp::bn254::zk_login_api::verify_zk_login(
-                    &input_warm,
+                    &input,
                     max_epoch,
-                    &eph_warm,
-                    &map_warm,
+                    &eph_pubkey,
+                    &map,
                     &ZkLoginEnv::Test,
-                    ZkLoginCircuitMode::Both,
+                    ZkLoginCircuitMode::V2Only,
                 )
             })
-        });
-
-        // Benchmark `verify_zk_login` on a cold cache (first call after a JWK refresh).
-        c.bench_function("verify_zk_login_v2/cold", move |b| {
-            b.iter_batched(
-                clear_cache_for_testing,
-                |_| {
-                    fastcrypto_zkp::bn254::zk_login_api::verify_zk_login(
-                        &input,
-                        max_epoch,
-                        &eph_pubkey,
-                        &map,
-                        &ZkLoginEnv::Test,
-                        ZkLoginCircuitMode::Both,
-                    )
-                },
-                BatchSize::PerIteration,
-            )
         });
     }
 

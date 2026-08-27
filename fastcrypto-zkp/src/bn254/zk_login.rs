@@ -5,6 +5,9 @@ use fastcrypto::{error::FastCryptoResult, jwt_utils::JWTHeader};
 use reqwest::Client;
 use serde_json::Value;
 
+use super::sha256_transcripts::{
+    append_fixed_width_be, append_length_prefixed_padded_bytes, sha256_low_253,
+};
 use super::utils::split_to_two_frs;
 use crate::bn254::poseidon::poseidon_merkle_tree;
 use crate::bn254::zk_login_api::CircuitVersion;
@@ -15,7 +18,7 @@ use crate::zk_login_utils::{
 };
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 pub use ark_ff::ToConstraintField;
-use ark_ff::Zero;
+use ark_ff::{PrimeField, Zero};
 use ark_groth16::Proof;
 pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::FastCryptoError;
@@ -36,7 +39,7 @@ use std::sync::RwLock;
 type ModulusHashKey = (Vec<u8>, u16);
 
 /// JWKs rotate occasionally, so caching by (modulus bytes, max_rsa_bits) avoids recomputing
-/// bit-packing + poseidon hash on every verification.
+/// bit-packing + poseidon hash on every verification. For V1 circuit verification only
 static MODULUS_HASH_CACHE: Lazy<RwLock<HashMap<ModulusHashKey, Bn254Fr>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
@@ -81,6 +84,11 @@ mod zk_login_e2e_tests;
 const PACK_WIDTH: u8 = 248;
 const ISS: &str = "iss";
 const BASE64_URL_CHARSET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+const V2_EPH_PK_HIGH_LIMB_WIDTH: usize = 18;
+const V2_EPH_PK_LOW_LIMB_WIDTH: usize = 16;
+const MIN_EXTENDED_EPH_PK_WIDTH: usize = 33;
+const MAX_EXTENDED_EPH_PK_WIDTH: usize = 47;
 
 /// Key to identify a JWK, consists of iss and kid.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -607,7 +615,7 @@ impl ZkLoginInputs {
         &self.address_seed
     }
 
-    /// Calculate the poseidon hash from selected fields from inputs, along with the ephemeral pubkey.
+    /// Calculate the circuit's single public input using the selected circuit version.
     pub fn calculate_all_inputs_hash(
         &self,
         eph_pk_bytes: &[u8],
@@ -620,19 +628,19 @@ impl ZkLoginInputs {
             return Err(FastCryptoError::GeneralError("Header too long".to_string()));
         }
 
-        let addr_seed = (&self.address_seed).into();
-        let (first, second) = split_to_two_frs(eph_pk_bytes)?;
-        let max_epoch_f = (&Bn254FrElement::from_str(&max_epoch.to_string())?).into();
-        let header_f = hash_ascii_str_to_field(&self.header_base64, config.max_header_len_b64)?;
-        let modulus_f = cached_modulus_hash(modulus, config.max_rsa_bits)?;
-
         match version {
             CircuitVersion::V1 => {
+                let (first, second) = split_to_two_frs(eph_pk_bytes)?;
+                let addr_seed = (&self.address_seed).into();
+                let max_epoch_f = (&Bn254FrElement::from_str(&max_epoch.to_string())?).into();
                 let index_mod_4_f =
                     (&Bn254FrElement::from_str(&self.iss_base64_details.index_mod_4.to_string())?)
                         .into();
                 let iss_base64_f =
                     hash_ascii_str_to_field(&self.iss_base64_details.value, config.max_iss_len)?;
+                let header_f =
+                    hash_ascii_str_to_field(&self.header_base64, config.max_header_len_b64)?;
+                let modulus_f = cached_modulus_hash(modulus, config.max_rsa_bits)?;
                 poseidon_zk_login(&[
                     first,
                     second,
@@ -645,32 +653,64 @@ impl ZkLoginInputs {
                 ])
             }
             CircuitVersion::V2 => {
-                let iss_f = self.hash_iss_decoded(config.max_iss_len)?;
-                let rsa_num_bits = BigUint::from_bytes_be(modulus).bits();
-                let rsa_num_bits_f = (&Bn254FrElement::from_str(&rsa_num_bits.to_string())?).into();
-                poseidon_zk_login(&[
-                    first,
-                    second,
-                    addr_seed,
-                    max_epoch_f,
-                    iss_f,
-                    header_f,
-                    modulus_f,
-                    rsa_num_bits_f,
-                ])
+                let transcript =
+                    self.encode_v2_public_inputs_transcript(eph_pk_bytes, modulus, max_epoch)?;
+                Ok(Bn254Fr::from_be_bytes_mod_order(&sha256_low_253(
+                    &transcript,
+                )))
             }
         }
     }
 
-    /// Hash the v2 circuit's `iss_F`: the *decoded* extended iss claim (e.g. `,"iss":"https://...",`),
-    /// obtained by base64-decoding `iss_base64_details` at its `index_mod_4` offset. This differs
-    /// from v1, which hashes the raw base64 value directly.
-    fn hash_iss_decoded(&self, max_len: u16) -> FastCryptoResult<Bn254Fr> {
+    /// Encode the V2 circuit's fixed-width SHA-256 transcript in circuit field order.
+    fn encode_v2_public_inputs_transcript(
+        &self,
+        eph_pk_bytes: &[u8],
+        modulus: &[u8],
+        max_epoch: u64,
+    ) -> FastCryptoResult<Vec<u8>> {
+        let config = CircuitVersion::V2.config();
         let ext_iss = decode_base64_url(
             &self.iss_base64_details.value,
             &self.iss_base64_details.index_mod_4,
         )?;
-        hash_ascii_str_to_field(&ext_iss, max_len)
+        if !config.max_rsa_bits.is_multiple_of(8) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let max_modulus_len = usize::from(config.max_rsa_bits / 8);
+        if modulus.len() > max_modulus_len {
+            return Err(FastCryptoError::InputTooLong(max_modulus_len));
+        }
+
+        if eph_pk_bytes.len() < MIN_EXTENDED_EPH_PK_WIDTH {
+            return Err(FastCryptoError::InputTooShort(MIN_EXTENDED_EPH_PK_WIDTH));
+        }
+        if eph_pk_bytes.len() > MAX_EXTENDED_EPH_PK_WIDTH {
+            return Err(FastCryptoError::InputTooLong(MAX_EXTENDED_EPH_PK_WIDTH));
+        }
+        let high_limb_len = eph_pk_bytes
+            .len()
+            .checked_sub(V2_EPH_PK_LOW_LIMB_WIDTH)
+            .ok_or(FastCryptoError::InvalidInput)?;
+        let (eph_pk_0, eph_pk_1) = eph_pk_bytes.split_at(high_limb_len);
+
+        let mut transcript = Vec::new();
+        append_fixed_width_be(&mut transcript, eph_pk_0, V2_EPH_PK_HIGH_LIMB_WIDTH)?;
+        append_fixed_width_be(&mut transcript, eph_pk_1, V2_EPH_PK_LOW_LIMB_WIDTH)?;
+        transcript.extend_from_slice(self.address_seed.padded());
+        transcript.extend_from_slice(&max_epoch.to_be_bytes());
+        append_length_prefixed_padded_bytes(
+            &mut transcript,
+            ext_iss.as_bytes(),
+            usize::from(config.max_iss_len),
+        )?;
+        append_length_prefixed_padded_bytes(
+            &mut transcript,
+            self.header_base64.as_bytes(),
+            usize::from(config.max_header_len_b64),
+        )?;
+        append_fixed_width_be(&mut transcript, modulus, max_modulus_len)?;
+        Ok(transcript)
     }
 }
 /// The struct for zk login proof.
@@ -746,7 +786,7 @@ fn decode_base64_url(s: &str, i: &u8) -> Result<String, FastCryptoError> {
         }
     }
 
-    let last_char_offset = (i + s.len() as u8 - 1) % 4;
+    let last_char_offset = (usize::from(*i) + s.len() - 1) % 4;
     match last_char_offset {
         3 => {}
         2 => {

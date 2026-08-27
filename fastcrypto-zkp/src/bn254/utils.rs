@@ -1,12 +1,16 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::bn254::sha256_transcripts::{
+    append_fixed_width_be, append_length_prefixed_bytes, sha256_low_253,
+};
 use crate::bn254::zk_login::poseidon_zk_login;
 use crate::bn254::zk_login::{OIDCProvider, ZkLoginInputsReader};
 use crate::bn254::zk_login_api::Bn254Fr;
 use crate::zk_login_utils::Bn254FrElement;
+use ark_ff::{BigInteger, PrimeField};
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::hash::{Blake2b256, HashFunction};
+use fastcrypto::hash::{Blake2b256, HashFunction, Sha256};
 use fastcrypto::rsa::Base64UrlUnpadded;
 use fastcrypto::rsa::Encoding;
 use num_bigint::BigUint;
@@ -21,6 +25,10 @@ const ZK_LOGIN_AUTHENTICATOR_FLAG: u8 = 0x05;
 const MAX_KEY_CLAIM_NAME_LENGTH: u16 = 32;
 const MAX_KEY_CLAIM_VALUE_LENGTH: u16 = 115;
 const MAX_AUD_VALUE_LENGTH: u16 = 145;
+const V2_EPH_PK_WIDTH: usize = 34;
+const V2_JWT_RANDOMNESS_WIDTH: usize = 16;
+const V2_NONCE_OUTPUT_WIDTH: usize = 20;
+const V2_SALT_WIDTH: usize = 32;
 
 /// Calculate the Sui address based on address seed and address params.
 pub fn get_zk_login_address(
@@ -45,6 +53,31 @@ pub fn gen_address_seed(
 ) -> Result<String, FastCryptoError> {
     let salt_hash = poseidon_zk_login(&[(&Bn254FrElement::from_str(salt)?).into()])?;
     gen_address_seed_with_salt_hash(&salt_hash.to_string(), name, value, aud)
+}
+
+/// Calculate the V2 address seed as the low 253 bits of the SHA-256 transcript defined by the
+/// circuit.
+pub fn gen_address_seed_v2(
+    salt: &str,
+    name: &str,
+    value: &str,
+    aud: &str,
+) -> Result<String, FastCryptoError> {
+    let salt = BigUint::from_str(salt).map_err(|_| FastCryptoError::InvalidInput)?;
+    if salt >= BigUint::from_bytes_be(&Bn254Fr::MODULUS.to_bytes_be()) {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    let mut transcript = Vec::new();
+    append_length_prefixed_bytes(&mut transcript, name.as_bytes(), MAX_KEY_CLAIM_NAME_LENGTH)?;
+    append_length_prefixed_bytes(
+        &mut transcript,
+        value.as_bytes(),
+        MAX_KEY_CLAIM_VALUE_LENGTH,
+    )?;
+    append_length_prefixed_bytes(&mut transcript, aud.as_bytes(), MAX_AUD_VALUE_LENGTH)?;
+    append_fixed_width_be(&mut transcript, &salt.to_bytes_be(), V2_SALT_WIDTH)?;
+
+    Ok(BigUint::from_bytes_be(&sha256_low_253(&transcript)).to_string())
 }
 
 /// Same as [`gen_address_seed`] but takes the poseidon hash of the salt as input instead of the salt.
@@ -134,6 +167,28 @@ pub fn get_nonce(
     Ok(Base64UrlUnpadded::encode(truncated, &mut buf)
         .unwrap()
         .to_string())
+}
+
+/// Calculate the V2 nonce from the low 160 bits of the circuit's SHA-256 transcript.
+pub fn get_nonce_v2(
+    eph_pk_bytes: &[u8],
+    max_epoch: u64,
+    jwt_randomness: &str,
+) -> Result<String, FastCryptoError> {
+    if eph_pk_bytes.len() > V2_EPH_PK_WIDTH {
+        return Err(FastCryptoError::InputTooLong(V2_EPH_PK_WIDTH));
+    }
+    let jwt_randomness = BigUint::from_str(jwt_randomness)
+        .map_err(|_| FastCryptoError::InvalidInput)?
+        .to_bytes_be();
+    let mut transcript = Vec::new();
+    append_fixed_width_be(&mut transcript, eph_pk_bytes, V2_EPH_PK_WIDTH)?;
+    transcript.extend_from_slice(&max_epoch.to_be_bytes());
+    append_fixed_width_be(&mut transcript, &jwt_randomness, V2_JWT_RANDOMNESS_WIDTH)?;
+
+    let digest: [u8; 32] = Sha256::digest(transcript).into();
+    let nonce = &digest[digest.len() - V2_NONCE_OUTPUT_WIDTH..];
+    Ok(Base64UrlUnpadded::encode_string(nonce))
 }
 
 /// A response struct for the salt server.
