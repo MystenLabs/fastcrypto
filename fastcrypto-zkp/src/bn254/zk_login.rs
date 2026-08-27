@@ -5,6 +5,9 @@ use fastcrypto::{error::FastCryptoResult, jwt_utils::JWTHeader};
 use reqwest::Client;
 use serde_json::Value;
 
+use super::sha256_transcripts::{
+    append_fixed_width_be, append_length_prefixed_padded_bytes, hash_eph_public_key, sha256_low_253,
+};
 use super::utils::split_to_two_frs;
 use crate::bn254::poseidon::poseidon_merkle_tree;
 use crate::bn254::zk_login_api::CircuitVersion;
@@ -15,7 +18,7 @@ use crate::zk_login_utils::{
 };
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 pub use ark_ff::ToConstraintField;
-use ark_ff::Zero;
+use ark_ff::{PrimeField, Zero};
 use ark_groth16::Proof;
 pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::FastCryptoError;
@@ -36,7 +39,7 @@ use std::sync::RwLock;
 type ModulusHashKey = (Vec<u8>, u16);
 
 /// JWKs rotate occasionally, so caching by (modulus bytes, max_rsa_bits) avoids recomputing
-/// bit-packing + poseidon hash on every verification.
+/// bit-packing + poseidon hash on every verification. For V1 circuit verification only
 static MODULUS_HASH_CACHE: Lazy<RwLock<HashMap<ModulusHashKey, Bn254Fr>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
@@ -524,12 +527,19 @@ pub struct JWTDetails {
 impl JWTDetails {
     /// Read in the Claim and header string. Parse and validate kid, header, iss as JWT details.
     pub fn new(header_base64: &str, claim: &Claim) -> Result<Self, FastCryptoError> {
-        let header = JWTHeader::new(header_base64)?;
         let ext_claim = decode_base64_url(&claim.value, &claim.index_mod_4)?;
+        Self::from_extended_claim(header_base64, &ext_claim)
+    }
+
+    fn from_extended_claim(
+        header_base64: &str,
+        extended_claim: &str,
+    ) -> Result<Self, FastCryptoError> {
+        let header = JWTHeader::new(header_base64)?;
         Ok(JWTDetails {
             kid: header.kid,
             header: header_base64.to_string(),
-            iss: verify_extended_claim(&ext_claim, ISS)?,
+            iss: verify_extended_claim(extended_claim, ISS)?,
         })
     }
 }
@@ -607,72 +617,167 @@ impl ZkLoginInputs {
         &self.address_seed
     }
 
-    /// Calculate the poseidon hash from selected fields from inputs, along with the ephemeral pubkey.
+    /// Calculate the V1 circuit's single public input.
     pub fn calculate_all_inputs_hash(
         &self,
         eph_pk_bytes: &[u8],
         modulus: &[u8],
         max_epoch: u64,
-        version: CircuitVersion,
     ) -> Result<Bn254Fr, FastCryptoError> {
-        let config = version.config();
+        let config = CircuitVersion::V1.config();
         if self.header_base64.len() > config.max_header_len_b64 as usize {
             return Err(FastCryptoError::GeneralError("Header too long".to_string()));
         }
 
-        let addr_seed = (&self.address_seed).into();
         let (first, second) = split_to_two_frs(eph_pk_bytes)?;
+        let addr_seed = (&self.address_seed).into();
         let max_epoch_f = (&Bn254FrElement::from_str(&max_epoch.to_string())?).into();
+        let index_mod_4_f =
+            (&Bn254FrElement::from_str(&self.iss_base64_details.index_mod_4.to_string())?).into();
+        let iss_base64_f =
+            hash_ascii_str_to_field(&self.iss_base64_details.value, config.max_iss_len)?;
         let header_f = hash_ascii_str_to_field(&self.header_base64, config.max_header_len_b64)?;
         let modulus_f = cached_modulus_hash(modulus, config.max_rsa_bits)?;
+        poseidon_zk_login(&[
+            first,
+            second,
+            addr_seed,
+            max_epoch_f,
+            iss_base64_f,
+            index_mod_4_f,
+            header_f,
+            modulus_f,
+        ])
+    }
+}
 
-        match version {
-            CircuitVersion::V1 => {
-                let index_mod_4_f =
-                    (&Bn254FrElement::from_str(&self.iss_base64_details.index_mod_4.to_string())?)
-                        .into();
-                let iss_base64_f =
-                    hash_ascii_str_to_field(&self.iss_base64_details.value, config.max_iss_len)?;
-                poseidon_zk_login(&[
-                    first,
-                    second,
-                    addr_seed,
-                    max_epoch_f,
-                    iss_base64_f,
-                    index_mod_4_f,
-                    header_f,
-                    modulus_f,
-                ])
-            }
-            CircuitVersion::V2 => {
-                let iss_f = self.hash_iss_decoded(config.max_iss_len)?;
-                let rsa_num_bits = BigUint::from_bytes_be(modulus).bits();
-                let rsa_num_bits_f = (&Bn254FrElement::from_str(&rsa_num_bits.to_string())?).into();
-                poseidon_zk_login(&[
-                    first,
-                    second,
-                    addr_seed,
-                    max_epoch_f,
-                    iss_f,
-                    header_f,
-                    modulus_f,
-                    rsa_num_bits_f,
-                ])
-            }
+/// A V2 zkLogin address seed containing the complete SHA-256 digest.
+pub type AddressSeed = [u8; 32];
+
+/// All inputs required for V2 proof verification. V2 carries the exact decoded extended issuer
+/// claim instead of a base64-encoded JWT payload fragment.
+#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ZkLoginInputsV2 {
+    proof_points: ZkLoginProof,
+    ext_iss: String,
+    header_base64: String,
+    address_seed: AddressSeed,
+    #[serde(skip)]
+    jwt_details: JWTDetails,
+}
+
+impl ZkLoginInputsV2 {
+    /// Parse and validate the extended issuer claim and JWT header used to select a JWK.
+    fn init(&mut self) -> Result<Self, FastCryptoError> {
+        self.jwt_details = self.parse_jwt_details()?;
+        Ok(self.clone())
+    }
+
+    pub(super) fn validated_iss_and_kid(&self) -> Result<(String, String), FastCryptoError> {
+        let jwt_details = self.parse_jwt_details()?;
+        Ok((jwt_details.iss, jwt_details.kid))
+    }
+
+    /// Get the proof.
+    pub(super) fn get_proof(&self) -> &ZkLoginProof {
+        &self.proof_points
+    }
+
+    /// Calculate the V2 circuit's single public input.
+    pub(super) fn calculate_all_inputs_hash(
+        &self,
+        eph_pk_bytes: &[u8],
+        modulus: &[u8],
+        max_epoch: u64,
+    ) -> Result<Bn254Fr, FastCryptoError> {
+        let transcript = self.encode_public_inputs_transcript(eph_pk_bytes, modulus, max_epoch)?;
+        Ok(Bn254Fr::from_be_bytes_mod_order(&sha256_low_253(
+            &transcript,
+        )))
+    }
+
+    fn parse_jwt_details(&self) -> Result<JWTDetails, FastCryptoError> {
+        let config = CircuitVersion::V2.config();
+        if self.ext_iss.is_empty()
+            || !self.ext_iss.is_ascii()
+            || self.ext_iss.len() > usize::from(config.max_iss_len)
+        {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        if self.header_base64.len() > usize::from(config.max_header_len_b64) {
+            return Err(FastCryptoError::GeneralError("Header too long".to_string()));
+        }
+        JWTDetails::from_extended_claim(&self.header_base64, &self.ext_iss)
+    }
+
+    fn encode_public_inputs_transcript(
+        &self,
+        eph_pk_bytes: &[u8],
+        modulus: &[u8],
+        max_epoch: u64,
+    ) -> FastCryptoResult<Vec<u8>> {
+        let config = CircuitVersion::V2.config();
+        if self.ext_iss.is_empty() || !self.ext_iss.is_ascii() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        if self.header_base64.len() > usize::from(config.max_header_len_b64) {
+            return Err(FastCryptoError::GeneralError("Header too long".to_string()));
+        }
+        let max_modulus_len = usize::from(config.max_rsa_bits / 8);
+        if modulus.len() > max_modulus_len {
+            return Err(FastCryptoError::InputTooLong(max_modulus_len));
+        }
+
+        let mut transcript = Vec::new();
+        transcript.extend_from_slice(&hash_eph_public_key(eph_pk_bytes));
+        transcript.extend_from_slice(&self.address_seed);
+        transcript.extend_from_slice(&max_epoch.to_be_bytes());
+        append_length_prefixed_padded_bytes(
+            &mut transcript,
+            self.ext_iss.as_bytes(),
+            usize::from(config.max_iss_len),
+        )?;
+        append_length_prefixed_padded_bytes(
+            &mut transcript,
+            self.header_base64.as_bytes(),
+            usize::from(config.max_header_len_b64),
+        )?;
+        append_fixed_width_be(&mut transcript, modulus, max_modulus_len)?;
+        Ok(transcript)
+    }
+}
+
+/// Versioned inputs for the extended zkLogin verifier.
+#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+pub enum VersionedZkLoginInputs {
+    /// Inputs for the V2 circuit.
+    V2(ZkLoginInputsV2),
+}
+
+impl VersionedZkLoginInputs {
+    /// Initialize version-specific derived fields after deserialization.
+    pub fn init(&mut self) -> Result<Self, FastCryptoError> {
+        match self {
+            Self::V2(inputs) => Ok(Self::V2(inputs.init()?)),
         }
     }
 
-    /// Hash the v2 circuit's `iss_F`: the *decoded* extended iss claim (e.g. `,"iss":"https://...",`),
-    /// obtained by base64-decoding `iss_base64_details` at its `index_mod_4` offset. This differs
-    /// from v1, which hashes the raw base64 value directly.
-    fn hash_iss_decoded(&self, max_len: u16) -> FastCryptoResult<Bn254Fr> {
-        let ext_iss = decode_base64_url(
-            &self.iss_base64_details.value,
-            &self.iss_base64_details.index_mod_4,
-        )?;
-        hash_ascii_str_to_field(&ext_iss, max_len)
+    /// Get the parsed issuer.
+    pub fn get_iss(&self) -> &str {
+        match self {
+            Self::V2(inputs) => &inputs.jwt_details.iss,
+        }
+    }
+
+    /// Get the address seed.
+    pub fn get_address_seed(&self) -> &AddressSeed {
+        match self {
+            Self::V2(inputs) => &inputs.address_seed,
+        }
     }
 }
+
 /// The struct for zk login proof.
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct ZkLoginProof {

@@ -6,7 +6,7 @@ use std::str::FromStr;
 use ark_snark::SNARK;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 
-use super::zk_login::{JwkId, ZkLoginInputs, JWK};
+use super::zk_login::{JwkId, VersionedZkLoginInputs, ZkLoginInputs, ZkLoginProof, JWK};
 use crate::bn254::utils::{gen_address_seed_with_salt_hash, get_zk_login_address};
 use crate::zk_login_utils::{
     g1_affine_from_str_projective, g2_affine_from_str_projective, Bn254FqElement, Bn254FrElement,
@@ -35,9 +35,6 @@ static GLOBAL_VERIFYING_KEY: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(globa
 
 /// Corresponding to proofs generated from prover-dev. Used in devnet or other envs.
 static INSECURE_VERIFYING_KEY: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(insecure_pvk);
-
-/// V2 verifying key for production (mainnet/testnet).
-static GLOBAL_VERIFYING_KEY_V2: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(global_pvk_v2);
 
 /// V2 verifying key for test environments.
 static INSECURE_VERIFYING_KEY_V2: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(insecure_pvk_v2);
@@ -320,14 +317,8 @@ fn global_pvk() -> PreparedVerifyingKey<Bn254> {
     PreparedVerifyingKey::from(vk)
 }
 
-/// TODO: Replace with the actual V2 production verifying key from ceremony.
-/// Currently uses the V1 production key as a placeholder so that V2 verification
-/// fails gracefully and falls back to V1 in verify_zk_login.
-fn global_pvk_v2() -> PreparedVerifyingKey<Bn254> {
-    global_pvk()
-}
-
-/// Load a fixed verifying key for V2 (insecure/test). Based on zklogin-circuits v2-main branch artifacts/dev/zkLogin.vkey (finalized v2 circuit).
+/// Load the insecure/test V2 verifying key from:
+/// https://github.com/MystenLabs/zklogin-circuits/blob/5f56d49baf2be3c278cbd7398c38042d9ae04e02/artifacts/dev/zkLogin.vkey
 fn insecure_pvk_v2() -> PreparedVerifyingKey<Bn254> {
     // Convert the Circom G1/G2/GT to arkworks G1/G2/GT
     let vk_alpha_1 = g1_affine_from_str_projective(&vec![
@@ -429,22 +420,22 @@ fn insecure_pvk_v2() -> PreparedVerifyingKey<Bn254> {
     for e in [
         vec![
             Bn254FqElement::from_str(
-                "7494019946711010262111829149650251402606293243816947408234427261113297488209",
+                "3373545770415370903464758013645365931939917232678459242722542394913978794552",
             )
             .unwrap(),
             Bn254FqElement::from_str(
-                "15277037309547978131462479061393755632702482465205499508808087107719455935457",
+                "3739181977773772266520226351914722083053481936777937720236575290712818692886",
             )
             .unwrap(),
             Bn254FqElement::from_str("1").unwrap(),
         ],
         vec![
             Bn254FqElement::from_str(
-                "11337299590256247592846534480065240790944417381563410255189124427241414159992",
+                "9258003708456575667586173076237052356721024850589816519143145719150477800735",
             )
             .unwrap(),
             Bn254FqElement::from_str(
-                "10513214342948426742825684049934611922239382370302051503558098869981509341761",
+                "10678054586461584500464697173624953209516332976991370885906441121713091267247",
             )
             .unwrap(),
             Bn254FqElement::from_str("1").unwrap(),
@@ -466,85 +457,70 @@ fn insecure_pvk_v2() -> PreparedVerifyingKey<Bn254> {
     PreparedVerifyingKey::from(vk)
 }
 
-/// Circuit verify mode.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum ZkLoginCircuitMode {
-    /// Accept proofs against the v1 vk only; v2 proofs are rejected. Currently supported.
-    V1Only,
-    /// Try the v2 circuit first, then fall back to v1. Migration phase.
-    Both,
-    /// Accept proofs against the v2 vk only; v1 proofs are rejected.
-    V2Only,
-}
-
-/// Verify a zkLogin proof against the circuit versions allowed by `mode`.
+/// Verify a zkLogin V1 proof.
 pub fn verify_zk_login(
     input: &ZkLoginInputs,
     max_epoch: u64,
     eph_pubkey_bytes: &[u8],
     all_jwk: &ImHashMap<JwkId, JWK>,
     env: &ZkLoginEnv,
-    mode: ZkLoginCircuitMode,
 ) -> Result<(), FastCryptoError> {
-    // Load the expected JWK based on (iss, kid).
-    let (iss, kid) = (input.get_iss().to_string(), input.get_kid().to_string());
+    verify_zk_login_with_version(
+        input.get_iss(),
+        input.get_kid(),
+        input.get_proof(),
+        all_jwk,
+        env,
+        CircuitVersion::V1,
+        |modulus| input.calculate_all_inputs_hash(eph_pubkey_bytes, modulus, max_epoch),
+    )
+}
+
+/// Verify a versioned extended zkLogin proof.
+pub fn verify_zk_login_extended(
+    inputs: &VersionedZkLoginInputs,
+    max_epoch: u64,
+    eph_pubkey_bytes: &[u8],
+    all_jwk: &ImHashMap<JwkId, JWK>,
+    env: &ZkLoginEnv,
+) -> Result<(), FastCryptoError> {
+    match inputs {
+        VersionedZkLoginInputs::V2(input) => {
+            let (iss, kid) = input.validated_iss_and_kid()?;
+            verify_zk_login_with_version(
+                &iss,
+                &kid,
+                input.get_proof(),
+                all_jwk,
+                env,
+                CircuitVersion::V2,
+                |modulus| input.calculate_all_inputs_hash(eph_pubkey_bytes, modulus, max_epoch),
+            )
+        }
+    }
+}
+
+fn verify_zk_login_with_version(
+    iss: &str,
+    kid: &str,
+    proof: &ZkLoginProof,
+    all_jwk: &ImHashMap<JwkId, JWK>,
+    env: &ZkLoginEnv,
+    version: CircuitVersion,
+    calculate_inputs_hash: impl FnOnce(&[u8]) -> Result<Bn254Fr, FastCryptoError>,
+) -> Result<(), FastCryptoError> {
     let jwk = all_jwk
-        .get(&JwkId::new(iss.clone(), kid.clone()))
+        .get(&JwkId::new(iss.to_string(), kid.to_string()))
         .ok_or_else(|| {
             FastCryptoError::GeneralError(format!("JWK not found ({} - {})", iss, kid))
         })?;
-
-    // Decode modulus to bytes.
     let modulus = Base64UrlUnpadded::decode_vec(&jwk.n).map_err(|_| {
         FastCryptoError::GeneralError("Invalid Base64 encoded jwk modulus".to_string())
     })?;
 
-    let proof = input.get_proof().as_arkworks()?;
-
-    let verify = |version| {
-        verify_with_version(
-            input,
-            max_epoch,
-            eph_pubkey_bytes,
-            &modulus,
-            env,
-            &proof,
-            version,
-        )
-    };
-    match mode {
-        ZkLoginCircuitMode::V1Only => verify(CircuitVersion::V1),
-        ZkLoginCircuitMode::V2Only => verify(CircuitVersion::V2),
-        ZkLoginCircuitMode::Both => verify(CircuitVersion::V2).or_else(|e| {
-            tracing::debug!(
-                "[zkLogin] V2 verify failed (env={:?}, iss={}): {:?}, falling back to V1",
-                env,
-                iss,
-                e
-            );
-            verify(CircuitVersion::V1)
-        }),
-    }
-}
-
-/// Verify a zkLogin proof against a single circuit version's input hash and verifying key.
-fn verify_with_version(
-    input: &ZkLoginInputs,
-    max_epoch: u64,
-    eph_pubkey_bytes: &[u8],
-    modulus: &[u8],
-    env: &ZkLoginEnv,
-    proof: &Proof<Bn254>,
-    version: CircuitVersion,
-) -> Result<(), FastCryptoError> {
-    let all_inputs_hash =
-        input.calculate_all_inputs_hash(eph_pubkey_bytes, modulus, max_epoch, version)?;
-    match verify_zk_login_proof_with_fixed_vk(
-        env,
-        proof,
-        &[all_inputs_hash],
-        version == CircuitVersion::V2,
-    ) {
+    let proof = proof.as_arkworks()?;
+    let all_inputs_hash = calculate_inputs_hash(&modulus)?;
+    match verify_zk_login_proof_with_fixed_vk(env, &proof, &[all_inputs_hash], version) {
         Ok(true) => Ok(()),
         Ok(false) | Err(_) => Err(FastCryptoError::GeneralError(
             "Groth16 proof verify failed".to_string(),
@@ -558,8 +534,11 @@ pub enum CircuitVersion {
     /// V1 circuit: the iss claim is folded in as its *base64* value and `index_mod_4` is folded
     /// into the hash. There is no `rsa_num_bits` field.
     V1,
-    /// V2 circuit: the iss claim is folded in as its *decoded* extended claim, `index_mod_4` is
-    /// dropped, and the actual RSA modulus bit length (`rsa_num_bits`) is folded in instead.
+    /// V2 circuit: SHA-256 hashes a fixed-width transcript containing the hash of the flagged
+    /// ephemeral public key, address seed, max epoch, decoded extended issuer claim,
+    /// base64-encoded header, and padded modulus.
+    /// The low 253 digest bits form the public input. `rsa_num_bits` is not a public input because
+    /// the circuit validates the modulus size internally.
     V2,
 }
 
@@ -602,18 +581,14 @@ pub fn verify_zk_login_proof_with_fixed_vk(
     usage: &ZkLoginEnv,
     proof: &Proof<Bn254>,
     public_inputs: &[Bn254Fr],
-    v2: bool,
+    version: CircuitVersion,
 ) -> Result<bool, FastCryptoError> {
-    let vk = if v2 {
-        match usage {
-            ZkLoginEnv::Prod => &GLOBAL_VERIFYING_KEY_V2,
-            ZkLoginEnv::Test => &INSECURE_VERIFYING_KEY_V2,
-        }
-    } else {
-        match usage {
-            ZkLoginEnv::Prod => &GLOBAL_VERIFYING_KEY,
-            ZkLoginEnv::Test => &INSECURE_VERIFYING_KEY,
-        }
+    let vk = match (usage, version) {
+        (ZkLoginEnv::Prod, CircuitVersion::V1) => &GLOBAL_VERIFYING_KEY,
+        (ZkLoginEnv::Test, CircuitVersion::V1) => &INSECURE_VERIFYING_KEY,
+        // TODO: Add GLOBAL_VERIFYING_KEY_V2.
+        (ZkLoginEnv::Prod, CircuitVersion::V2) => return Ok(false),
+        (ZkLoginEnv::Test, CircuitVersion::V2) => &INSECURE_VERIFYING_KEY_V2,
     };
 
     Groth16::<Bn254>::verify_with_processed_vk(vk, public_inputs, proof)
