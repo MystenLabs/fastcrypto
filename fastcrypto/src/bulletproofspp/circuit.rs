@@ -314,6 +314,97 @@ fn multiplicities(digits: &[u64]) -> Vec<u64> {
     m
 }
 
+/// Blinding vectors of the committed material: per H slot, the coefficients
+/// of `r(T) = T^{-1} r_S + delta r_O + T r_L + T^2 r_R + T^3 r_V` other than
+/// `r_S`, which is solved from them.
+struct Blindings {
+    r_o: Vec<S>,
+    r_l: Vec<S>,
+    r_r: Vec<S>,
+    r_v: Vec<S>,
+}
+
+/// Solve the blinding `r_S` of `C_S` (spec "Choosing r_S") for the error
+/// polynomial `fh`, Laurent coefficients at `T^{-2}..T^6` stored at index
+/// `p+2`.
+fn solve_r_s(
+    blocks: &Blocks,
+    fh: &[S; 9],
+    r: &Blindings,
+    l_s: S,
+    beta: S,
+    delta: S,
+) -> FastCryptoResult<Vec<S>> {
+    // known[p]: T^p coefficient of <c(T), l(T)> - r_0(T) restricted to the
+    // committed material r_O, r_L, r_R, r_V. Slot j's committed component at
+    // T^q meets beta*T^{a_j} at T^{a_j+q}, and the constant shape entry
+    // cl_v[j] at T^q itself. Index p+2; sized for the largest reachable
+    // power a_7 + 3 = 10.
+    let mut known = [S::zero(); 13];
+    for slot in 1..H_LEN {
+        let committed = [
+            (0i32, delta * r.r_o[slot]),
+            (1, r.r_l[slot]),
+            (2, r.r_r[slot]),
+            (3, r.r_v[slot]),
+        ];
+        let a = CR_POWERS[slot - 1];
+        for &(q, coefficient) in &committed {
+            known[(a + q + 2) as usize] += beta * coefficient;
+            known[(q + 2) as usize] += blocks.cl_v[slot - 1] * coefficient;
+        }
+    }
+    known[2] -= delta * r.r_o[0];
+    known[3] -= r.r_l[0];
+    known[4] -= r.r_r[0];
+
+    // Diagonal solve: r_S[j] cancels the error row at T^{a_j - 1}; slot 0
+    // last, with factor -1 (not divided by beta), absorbing the T^{-1}
+    // contributions (row index 1) of the already-solved r_S[2..8] and l_S
+    // through the constant shape entries.
+    let beta_inv = beta.inverse()?;
+    let mut r_s = vec![S::zero(); H_LEN];
+    for slot in 1..H_LEN {
+        let p = CR_POWERS[slot - 1] - 1;
+        r_s[slot] = (fh[(p + 2) as usize] - known[(p + 2) as usize]) * beta_inv;
+    }
+    let shape_sum = (2..H_LEN).fold(S::zero(), |acc, j| acc + blocks.cl_v[j - 1] * r_s[j]);
+    r_s[0] = -(fh[1] - known[1] - shape_sum - blocks.cl_v[7] * l_s);
+    Ok(r_s)
+}
+
+/// The opening `(l(tau), n(tau))` of `C(tau)`: `r(tau)` on the slots 1..7
+/// followed by `tau^{-1} l_S` on `H_7`, and `n_poly` (coefficients at
+/// `T^{-1}..T^3`) evaluated at `tau`.
+fn evaluate_opening(
+    tau: S,
+    tau_inv: S,
+    delta: S,
+    r: &Blindings,
+    r_s: &[S],
+    l_s: S,
+    n_poly: &[Vec<S>; 5],
+) -> (Vec<S>, Vec<S>) {
+    let t2 = tau * tau;
+    let t3 = t2 * tau;
+    let mut l_tau: Vec<S> = (1..H_LEN)
+        .map(|i| {
+            tau_inv * r_s[i] + delta * r.r_o[i] + tau * r.r_l[i] + t2 * r.r_r[i] + t3 * r.r_v[i]
+        })
+        .collect();
+    l_tau.push(tau_inv * l_s);
+    let n_tau = (0..n_poly[0].len())
+        .map(|k| {
+            tau_inv * n_poly[0][k]
+                + n_poly[1][k]
+                + tau * n_poly[2][k]
+                + t2 * n_poly[3][k]
+                + t3 * n_poly[4][k]
+        })
+        .collect();
+    (l_tau, n_tau)
+}
+
 /// Prove that every `values[i]` lies in `[0, 2^n_bits)` under the Pedersen
 /// commitments `V_i = values[i]*G + blindings[i]*H_0`, which are computed
 /// here, absorbed into the transcript, and returned alongside the proof.
@@ -410,6 +501,7 @@ pub(crate) fn prove(
             .iter()
             .enumerate()
             .fold(S::zero(), |acc, (i, s)| acc + blocks.lambdas[i] * s);
+    let r = Blindings { r_o, r_l, r_r, r_v };
 
     // Vector coefficients of n(T) at powers T^{-1}..T^3 (the honest
     // n_hat_V = 0, so T^3 carries only the public block).
@@ -452,42 +544,7 @@ pub(crate) fn prove(
     // at once.
     debug_assert_eq!(fh[3 + 2], S::zero(), "value row not zero");
 
-    // known[p]: T^p coefficient of <c(T), l(T)> - r_0(T) restricted to the
-    // committed material r_O, r_L, r_R, r_V (spec "Choosing r_S"). Slot j's
-    // committed component at T^q meets beta*T^{a_j} at T^{a_j+q}, and the
-    // constant shape entry cl_v[j] at T^q itself. Index p+2; sized for the
-    // largest reachable power a_7 + 3 = 10.
-    let mut known = [S::zero(); 13];
-    for slot in 1..H_LEN {
-        let committed = [
-            (0i32, delta * r_o[slot]),
-            (1, r_l[slot]),
-            (2, r_r[slot]),
-            (3, r_v[slot]),
-        ];
-        let a = CR_POWERS[slot - 1];
-        for &(q, coefficient) in &committed {
-            known[(a + q + 2) as usize] += beta * coefficient;
-            known[(q + 2) as usize] += blocks.cl_v[slot - 1] * coefficient;
-        }
-    }
-    known[2] -= delta * r_o[0];
-    known[3] -= r_l[0];
-    known[4] -= r_r[0];
-
-    // Diagonal solve: r_S[j] cancels the error row at T^{a_j - 1}; slot 0
-    // last, with factor -1 (not divided by beta), absorbing the T^{-1}
-    // contributions (row index 1) of the already-solved r_S[2..8] and l_S
-    // through the constant shape entries.
-    let beta_inv = beta.inverse()?;
-    let mut r_s = vec![S::zero(); H_LEN];
-    for slot in 1..H_LEN {
-        let p = CR_POWERS[slot - 1] - 1;
-        r_s[slot] = (fh[(p + 2) as usize] - known[(p + 2) as usize]) * beta_inv;
-    }
-    let shape_sum = (2..H_LEN).fold(S::zero(), |acc, j| acc + blocks.cl_v[j - 1] * r_s[j]);
-    r_s[0] = -(fh[1] - known[1] - shape_sum - blocks.cl_v[7] * l_s);
-
+    let r_s = solve_r_s(&blocks, &fh, &r, l_s, beta, delta)?;
     let c_s = commit(gens, &r_s, l_s, &n_s)?;
     transcript.append_point(b"C_S", &c_s);
 
@@ -496,22 +553,7 @@ pub(crate) fn prove(
 
     // Step 7: evaluate the opening at tau and run the norm-linear argument.
     let tau_inv = tau.inverse()?;
-    let t2 = tau * tau;
-    let t3 = t2 * tau;
-    let r_tau: Vec<S> = (0..H_LEN)
-        .map(|i| tau_inv * r_s[i] + delta * r_o[i] + tau * r_l[i] + t2 * r_r[i] + t3 * r_v[i])
-        .collect();
-    let mut l_tau = r_tau[1..H_LEN].to_vec();
-    l_tau.push(tau_inv * l_s);
-    let n_tau: Vec<S> = (0..params.nm)
-        .map(|k| {
-            tau_inv * n_poly[0][k]
-                + n_poly[1][k]
-                + tau * n_poly[2][k]
-                + t2 * n_poly[3][k]
-                + t3 * n_poly[4][k]
-        })
-        .collect();
+    let (l_tau, n_tau) = evaluate_opening(tau, tau_inv, delta, &r, &r_s, l_s, &n_poly);
     let c_tau = blocks.c_at(tau, tau_inv, beta);
 
     let nl_proof = norm_linear::prove(transcript, gens, &c_tau, rho, &l_tau, &n_tau)?;
@@ -914,6 +956,7 @@ mod tests {
                 .iter()
                 .enumerate()
                 .fold(S::zero(), |acc, (i, s)| acc + blocks.lambdas[i] * s);
+        let r = Blindings { r_o, r_l, r_r, r_v };
 
         // n(T) with the junk opening at T^3 alongside the public block.
         let n_poly: [Vec<S>; 5] = [
@@ -939,54 +982,15 @@ mod tests {
         // No value-row assertion: for an invalid witness it is nonzero, which
         // is exactly what the verifier must catch.
 
-        let mut known = [S::zero(); 13];
-        for slot in 1..H_LEN {
-            let committed = [
-                (0i32, delta * r_o[slot]),
-                (1, r_l[slot]),
-                (2, r_r[slot]),
-                (3, r_v[slot]),
-            ];
-            let a = CR_POWERS[slot - 1];
-            for &(q, coefficient) in &committed {
-                known[(a + q + 2) as usize] += beta * coefficient;
-                known[(q + 2) as usize] += blocks.cl_v[slot - 1] * coefficient;
-            }
-        }
-        known[2] -= delta * r_o[0];
-        known[3] -= r_l[0];
-        known[4] -= r_r[0];
-
-        let beta_inv = beta.inverse()?;
-        let mut r_s = vec![S::zero(); H_LEN];
-        for slot in 1..H_LEN {
-            let p = CR_POWERS[slot - 1] - 1;
-            r_s[slot] = (fh[(p + 2) as usize] - known[(p + 2) as usize]) * beta_inv;
-        }
-        let shape_sum = (2..H_LEN).fold(S::zero(), |acc, j| acc + blocks.cl_v[j - 1] * r_s[j]);
-        r_s[0] = -(fh[1] - known[1] - shape_sum - blocks.cl_v[7] * l_s);
-
+        let r_s = solve_r_s(&blocks, &fh, &r, l_s, beta, delta)?;
         let c_s = commit(gens, &r_s, l_s, &n_s)?;
         transcript.append_point(b"C_S", &c_s);
         let tau = transcript.challenge_scalar(b"tau");
 
         let tau_inv = tau.inverse()?;
-        let t2 = tau * tau;
-        let t3 = t2 * tau;
-        let r_tau: Vec<S> = (0..H_LEN)
-            .map(|i| tau_inv * r_s[i] + delta * r_o[i] + tau * r_l[i] + t2 * r_r[i] + t3 * r_v[i])
-            .collect();
-        let mut l_tau = r_tau[1..H_LEN].to_vec();
-        l_tau.push(tau_inv * l_s + t3 * l_v_hat);
-        let n_tau: Vec<S> = (0..params.nm)
-            .map(|k| {
-                tau_inv * n_poly[0][k]
-                    + n_poly[1][k]
-                    + tau * n_poly[2][k]
-                    + t2 * n_poly[3][k]
-                    + t3 * n_poly[4][k]
-            })
-            .collect();
+        let (mut l_tau, n_tau) = evaluate_opening(tau, tau_inv, delta, &r, &r_s, l_s, &n_poly);
+        // The junk on H_7 is opened at T^3 alongside the honest l_S.
+        *l_tau.last_mut().unwrap() += tau * tau * tau * l_v_hat;
         let c_tau = blocks.c_at(tau, tau_inv, beta);
 
         let nl_proof = norm_linear::prove(transcript, gens, &c_tau, rho, &l_tau, &n_tau)?;
