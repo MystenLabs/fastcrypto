@@ -184,11 +184,7 @@ mod tests {
     fn test_completeness_all_ranges_and_batch_sizes() {
         let mut rng = rand::thread_rng();
         for range in ALL_RANGES {
-            let max = if range.bits() == 64 {
-                u64::MAX
-            } else {
-                (1u64 << range.bits()) - 1
-            };
+            let max = range.max_value();
             for m in [1usize, 2, 3, 5, 8, 9, 16] {
                 let values: Vec<u64> = (0..m)
                     .map(|i| match i {
@@ -253,7 +249,7 @@ mod tests {
 
         // Nor does a proof widen or narrow its range for the same batch.
         for range in ALL_RANGES {
-            if range.bits() != 16 {
+            if range != Range::Bits16 {
                 assert!(
                     proof16
                         .verify_batch(&commitments16, &range, b"test")

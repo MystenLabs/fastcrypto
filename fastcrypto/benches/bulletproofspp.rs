@@ -34,22 +34,14 @@ const CONFIGS: [(Range, usize); 8] = [
     (Range::Bits64, 32),
 ];
 
-fn bits(range: &Range) -> usize {
-    match range {
-        Range::Bits8 => 8,
-        Range::Bits16 => 16,
-        Range::Bits32 => 32,
-        Range::Bits64 => 64,
-    }
-}
-
 fn values(range: &Range, m: usize, rng: &mut rand::rngs::ThreadRng) -> Vec<u64> {
-    let mask = u64::MAX >> (64 - bits(range));
-    (0..m).map(|_| rng.gen::<u64>() & mask).collect()
+    (0..m)
+        .map(|_| rng.gen::<u64>() & range.max_value())
+        .collect()
 }
 
 fn label(range: &Range, m: usize) -> BenchmarkId {
-    BenchmarkId::new(format!("{}-bit", bits(range)), m)
+    BenchmarkId::new(format!("{}-bit", range.bits()), m)
 }
 
 fn bp_benchmarks(c: &mut Criterion) {
@@ -69,7 +61,7 @@ fn bp_benchmarks(c: &mut Criterion) {
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
     for (range, m) in &CONFIGS {
-        let n = bits(range);
+        let n = range.bits();
         let bp_gens = BulletproofGens::new(n, *m);
         let values = values(range, *m, &mut rng);
         let blindings = blindings(*m, &mut rng);
@@ -94,7 +86,7 @@ fn bp_benchmarks(c: &mut Criterion) {
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
     for (range, m) in &CONFIGS {
-        let n = bits(range);
+        let n = range.bits();
         let bp_gens = BulletproofGens::new(n, *m);
         let values = values(range, *m, &mut rng);
         let blindings = blindings(*m, &mut rng);

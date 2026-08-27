@@ -713,11 +713,7 @@ mod tests {
         ];
         for (range, m, rounds, n_final) in configs {
             let n_bits = range.bits();
-            let max = if n_bits == 64 {
-                u64::MAX
-            } else {
-                (1u64 << n_bits) - 1
-            };
+            let max = range.max_value();
             let values: Vec<u64> = (0..m as u64)
                 .map(|i| match i {
                     0 => 0,

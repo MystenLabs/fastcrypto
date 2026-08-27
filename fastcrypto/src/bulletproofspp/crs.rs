@@ -26,7 +26,7 @@ const DST_H: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_fastcrypto-bppp-gen-h
 const DST_G: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_fastcrypto-bppp-gen-g-01";
 
 /// The provable ranges.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Range {
     /// The range [0, 2^8).
     Bits8,
@@ -39,14 +39,16 @@ pub enum Range {
 }
 
 impl Range {
-    pub fn is_in_range(&self, value: u64) -> bool {
-        match self {
-            Range::Bits64 => true,
-            _ => value >> self.bits() == 0,
-        }
+    /// The largest value in the range, `2^bits - 1`.
+    pub fn max_value(&self) -> u64 {
+        u64::MAX >> (64 - self.bits())
     }
 
-    pub(crate) fn bits(&self) -> usize {
+    pub fn is_in_range(&self, value: u64) -> bool {
+        value <= self.max_value()
+    }
+
+    pub fn bits(&self) -> usize {
         match self {
             Range::Bits8 => 8,
             Range::Bits16 => 16,
