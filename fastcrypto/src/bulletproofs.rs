@@ -25,7 +25,25 @@ use crate::pedersen::{Blinding, PedersenCommitment, GENERATORS};
 use crate::traits::AllowedRng;
 use bulletproofs::{BulletproofGens, RangeProof as ExternalRangeProof};
 use itertools::Itertools;
+use lazy_static::lazy_static;
 use merlin::Transcript;
+use std::borrow::Cow;
+
+/// Batches up to this size are served from [GENS].
+pub const CACHED_BATCH_SIZE: usize = 32;
+
+lazy_static! {
+    static ref GENS: BulletproofGens = BulletproofGens::new(64, CACHED_BATCH_SIZE);
+}
+
+/// Generators for a proof over `m` values of `bits` bits.
+fn generators(bits: usize, m: usize) -> Cow<'static, BulletproofGens> {
+    if m <= CACHED_BATCH_SIZE {
+        Cow::Borrowed(&GENS)
+    } else {
+        Cow::Owned(BulletproofGens::new(bits, m))
+    }
+}
 
 /// Bulletproof Range Proofs
 #[derive(Debug)]
@@ -111,7 +129,7 @@ impl RangeProof {
 
         let bits = range.upper_bound_in_bits() as usize;
         ExternalRangeProof::prove_multiple_with_rng(
-            &BulletproofGens::new(bits, values.len()),
+            &generators(bits, values.len()),
             &GENERATORS,
             &mut transcript(dst),
             values,
@@ -134,7 +152,7 @@ impl RangeProof {
         let bits = range.upper_bound_in_bits() as usize;
         self.0
             .verify_multiple_with_rng(
-                &BulletproofGens::new(bits, commitments.len()),
+                &generators(bits, commitments.len()),
                 &GENERATORS,
                 &mut transcript(dst),
                 &commitments
