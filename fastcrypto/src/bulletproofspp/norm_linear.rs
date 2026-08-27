@@ -11,7 +11,7 @@
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use crate::groups::{GroupElement, MixedMultiScalarMul, MultiScalarMul, Scalar};
+use crate::groups::{GroupElement, MultiScalarMul, Scalar};
 use crate::serde_helpers::ToFromByteArray;
 
 use crate::bulletproofspp::crs::Generators;
@@ -242,58 +242,47 @@ pub(crate) fn prove(
             rg[2 * s + 1] = n1[s];
         }
 
-        // Expand folded-position coefficients onto the base generators, laid
-        // out as [G, base_h.., base_g..]: base index i contributes
-        // w[t] * coeff[j] with j = i >> levels, t = i & (2^levels - 1).
+        // Expand folded-position coefficients onto the base generators: base
+        // index i contributes w[t] * coeff[j] with j = i >> levels,
+        // t = i & (2^levels - 1); absent or zero coefficients stay zero.
         let mask = (1usize << levels) - 1;
-        let g_off = 1 + base_h.len();
-        let mut x_coeffs = vec![RistrettoScalar::zero(); 1 + base_h.len() + base_g.len()];
-        let mut r_coeffs = vec![RistrettoScalar::zero(); x_coeffs.len()];
-        x_coeffs[0] = vx;
-        r_coeffs[0] = vr;
-        for i in 0..base_h.len() {
-            let (j, t) = (i >> levels, i & mask);
-            if j >= xh.len() {
-                continue;
-            }
-            x_coeffs[1 + i] = w_h[t] * xh[j];
-            if rh[j] != RistrettoScalar::zero() {
-                r_coeffs[1 + i] = w_h[t] * rh[j];
-            }
-        }
-        for i in 0..base_g.len() {
-            let (j, t) = (i >> levels, i & mask);
-            if j >= xg.len() {
-                continue;
-            }
-            x_coeffs[g_off + i] = w_g[t] * xg[j];
-            if rg[j] != RistrettoScalar::zero() {
-                r_coeffs[g_off + i] = w_g[t] * rg[j];
-            }
-        }
+        let expand = |w: &[RistrettoScalar], coeffs: &[RistrettoScalar], base_len: usize| {
+            (0..base_len)
+                .map(|i| {
+                    let (j, t) = (i >> levels, i & mask);
+                    match coeffs.get(j) {
+                        Some(c) if *c != RistrettoScalar::zero() => w[t] * c,
+                        _ => RistrettoScalar::zero(),
+                    }
+                })
+                .collect::<Vec<_>>()
+        };
+        let xh_base = expand(&w_h, &xh, base_h.len());
+        let rh_base = expand(&w_h, &rh, base_h.len());
+        let xg_base = expand(&w_g, &xg, base_g.len());
+        let rg_base = expand(&w_g, &rg, base_g.len());
 
         // One MSM per commitment: over the precomputed tables while the base
-        // is the original CRS (the coefficient layout matches them exactly),
-        // afterwards a dynamic MSM over the shrunken base, skipping zero
-        // coefficients (R's even positions, padding).
-        let msm = |coeffs: &[RistrettoScalar]| -> FastCryptoResult<RistrettoPoint> {
+        // is the original CRS, afterwards a dynamic MSM over the shrunken
+        // base, skipping zero coefficients (R's even positions, padding).
+        let msm = |v: RistrettoScalar,
+                   h: &[RistrettoScalar],
+                   g: &[RistrettoScalar]|
+         -> FastCryptoResult<RistrettoPoint> {
             if original_base {
-                return gens.precomp.mixed_multi_scalar_mul(coeffs, &[], &[]);
+                return gens.msm(v, h.iter().copied(), g.iter().copied(), &[], &[]);
             }
-            let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) = coeffs
-                .iter()
-                .zip(
-                    std::iter::once(&gens.g)
-                        .chain(base_h.iter())
-                        .chain(base_g.iter()),
-                )
-                .filter(|(s, _)| **s != RistrettoScalar::zero())
-                .map(|(s, p)| (*s, *p))
-                .unzip();
+            let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) =
+                std::iter::once((&v, &gens.g))
+                    .chain(h.iter().zip(&base_h))
+                    .chain(g.iter().zip(&base_g))
+                    .filter(|(s, _)| **s != RistrettoScalar::zero())
+                    .map(|(s, p)| (*s, *p))
+                    .unzip();
             RistrettoPoint::multi_scalar_mul(&sc, &pts)
         };
-        let x_point = msm(&x_coeffs)?;
-        let r_point = msm(&r_coeffs)?;
+        let x_point = msm(vx, &xh_base, &xg_base)?;
+        let r_point = msm(vr, &rh_base, &rg_base)?;
 
         transcript.append_point(b"X", &x_point);
         transcript.append_point(b"R", &r_point);
@@ -418,16 +407,11 @@ pub(crate) fn verify(
     }
     let mask = (1usize << k) - 1;
 
-    // Static scalars, laid out to match the precomputed tables
-    // `[G, h_vec.., g_vec..]`.
-    let mut static_scalars = Vec::with_capacity(1 + gens.h_vec.len() + gens.g_vec.len());
-    static_scalars.push(sigma);
-    for i in 0..gens.h_vec.len() {
-        static_scalars.push(w_h[i & mask] * proof.l_final[i >> k]);
-    }
-    for (i, pn_i) in pn.iter().enumerate() {
-        static_scalars.push(w_g[i & mask] * proof.n_final[i >> k] - *pn_i);
-    }
+    let l = (0..gens.h_vec.len()).map(|i| w_h[i & mask] * proof.l_final[i >> k]);
+    let n = pn
+        .iter()
+        .enumerate()
+        .map(|(i, pn_i)| w_g[i & mask] * proof.n_final[i >> k] - *pn_i);
 
     let mut dynamic_scalars = Vec::with_capacity(extra.len() + 2 * k);
     let mut dynamic_points = Vec::with_capacity(extra.len() + 2 * k);
@@ -442,9 +426,7 @@ pub(crate) fn verify(
         dynamic_points.push(*r_point);
     }
 
-    let result =
-        gens.precomp
-            .mixed_multi_scalar_mul(&static_scalars, &dynamic_scalars, &dynamic_points)?;
+    let result = gens.msm(sigma, l, n, &dynamic_scalars, &dynamic_points)?;
 
     if result == RistrettoPoint::zero() {
         Ok(())
