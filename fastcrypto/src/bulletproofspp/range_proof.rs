@@ -12,7 +12,7 @@ use crate::bulletproofspp::circuit::{self, CircuitParams, CircuitProof};
 use crate::bulletproofspp::crs::Generators;
 use crate::bulletproofspp::transcript::BpppTranscript;
 
-pub use crate::bulletproofspp::crs::Range;
+pub use crate::pedersen::Range;
 
 /// A BP++ range proof that one or more Pedersen commitments (as in
 /// [`crate::pedersen`]) open to values in a given [`Range`].

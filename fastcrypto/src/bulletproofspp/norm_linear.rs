@@ -17,6 +17,7 @@ use crate::serde_helpers::ToFromByteArray;
 use crate::bulletproofspp::crs::Generators;
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
+use std::borrow::Cow;
 
 /// Fold until fewer than this many scalars remain; the remaining opening is
 /// sent in the clear. 6 balances rounds (2 points each) against final scalars.
@@ -179,9 +180,8 @@ pub(crate) fn prove(
     let mut l = l.to_vec();
     let mut n = n.to_vec();
     let mut c = c.to_vec();
-    let mut base_h = gens.h_vec.clone();
-    let mut base_g = gens.g_vec.clone();
-    let mut original_base = true;
+    let mut base_h = Cow::Borrowed(gens.h_vec.as_slice());
+    let mut base_g = Cow::Borrowed(gens.g_vec.as_slice());
     let mut w_h: Vec<RistrettoScalar> = vec![one()];
     let mut w_g: Vec<RistrettoScalar> = vec![one()];
     let mut levels: u32 = 0;
@@ -193,12 +193,11 @@ pub(crate) fn prove(
 
     while l.len() + n.len() >= FOLD_THRESHOLD {
         if levels == FOLD_BATCH_ROUNDS {
-            base_h = batch_fold(&base_h, &w_h)?;
-            base_g = batch_fold(&base_g, &w_g)?;
+            base_h = Cow::Owned(batch_fold(&base_h, &w_h)?);
+            base_g = Cow::Owned(batch_fold(&base_g, &w_g)?);
             w_h = vec![one()];
             w_g = vec![one()];
             levels = 0;
-            original_base = false;
         }
 
         pad_even_scalar(&mut l);
@@ -269,13 +268,13 @@ pub(crate) fn prove(
                    h: &[RistrettoScalar],
                    g: &[RistrettoScalar]|
          -> FastCryptoResult<RistrettoPoint> {
-            if original_base {
+            if h.len() == gens.h_vec.len() && g.len() == gens.g_vec.len() {
                 return gens.msm(v, h.iter().copied(), g.iter().copied(), &[], &[]);
             }
             let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) =
                 std::iter::once((&v, &gens.g))
-                    .chain(h.iter().zip(&base_h))
-                    .chain(g.iter().zip(&base_g))
+                    .chain(h.iter().zip(base_h.iter()))
+                    .chain(g.iter().zip(base_g.iter()))
                     .filter(|(s, _)| **s != RistrettoScalar::zero())
                     .map(|(s, p)| (*s, *p))
                     .unzip();
@@ -305,12 +304,8 @@ pub(crate) fn prove(
         mu = mu2;
     }
 
-    for s in &l {
-        transcript.append_scalar(b"l_final", s);
-    }
-    for s in &n {
-        transcript.append_scalar(b"n_final", s);
-    }
+    transcript.append_scalars(b"l_final", &l);
+    transcript.append_scalars(b"n_final", &n);
 
     Ok(NormLinearProof {
         rounds,
@@ -322,9 +317,9 @@ pub(crate) fn prove(
 /// Verify a norm-linear proof in a single multi-scalar multiplication.
 ///
 /// The commitment is supplied in decomposed form so it joins the same MSM:
-/// `pn` are public coefficients over `g_vec` and `extra` the remaining
-/// `(scalar, point)` terms, i.e. the commitment equals
-/// `<pn, g_vec> + sum extra`.
+/// `ps` is its public coefficient on `G`, `pn` its public coefficients over
+/// `g_vec` and `extra` the remaining `(scalar, point)` terms, i.e. the
+/// commitment equals `ps*G + <pn, g_vec> + sum extra`.
 ///
 /// Instead of folding the generator vectors round by round, each base
 /// generator's final coefficient is computed from the bits of its index:
@@ -333,16 +328,18 @@ pub(crate) fn prove(
 /// `rho_r = rho^{2^r}` on the `g_vec` side and `1` on the `h_vec` side.
 /// The per-round identity padding never hosts a base generator, so the
 /// per-bit product is exact, and the base-case check becomes
-///   sigma*G + <w_h ⊙ l, H> + <w_g ⊙ n - pn, G_vec>
+///   (sigma - ps)*G + <w_h ⊙ l, H> + <w_g ⊙ n - pn, G_vec>
 ///     - sum extra - sum_r (gamma_r*X_r + (gamma_r^2 - 1)*R_r) == 0.
 ///
 /// `c` and `pn` must have the lengths of `gens.h_vec` and `gens.g_vec`.
 /// Errors with `InvalidProof` on any mismatch, including a proof whose shape
 /// differs from the one implied by the base lengths.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn verify(
     transcript: &mut BpppTranscript,
     gens: &Generators,
     c: &[RistrettoScalar],
+    ps: RistrettoScalar,
     pn: &[RistrettoScalar],
     extra: &[(RistrettoScalar, RistrettoPoint)],
     rho: RistrettoScalar,
@@ -364,7 +361,12 @@ pub(crate) fn verify(
     let mut rho = rho;
     let mut mu = rho * rho;
     let mut gammas = Vec::with_capacity(k);
-    let mut rhos = Vec::with_capacity(k);
+    // Challenge-product weights via tensor tables (all 2^k products in
+    // 2^{k+1} muls), grown round by round exactly as the prover's:
+    // w_h[t] = prod_r (gamma_r if bit_r(t) else 1),
+    // w_g[t] = prod_r (gamma_r if bit_r(t) else rho_r).
+    let mut w_h = vec![one()];
+    let mut w_g = vec![one()];
 
     transcript.domain_sep(b"norm_linear");
 
@@ -372,8 +374,9 @@ pub(crate) fn verify(
         transcript.append_point(b"X", x_point);
         transcript.append_point(b"R", r_point);
         let gamma = transcript.challenge_scalar(b"gamma");
-        rhos.push(rho);
         gammas.push(gamma);
+        w_h = tensor_grow(&w_h, one(), gamma);
+        w_g = tensor_grow(&w_g, rho, gamma);
 
         // Fold only the (cheap) scalar constraint vector.
         pad_even_scalar(&mut c);
@@ -386,25 +389,11 @@ pub(crate) fn verify(
         mu = mu * mu;
     }
 
-    for s in &proof.l_final {
-        transcript.append_scalar(b"l_final", s);
-    }
-    for s in &proof.n_final {
-        transcript.append_scalar(b"n_final", s);
-    }
+    transcript.append_scalars(b"l_final", &proof.l_final);
+    transcript.append_scalars(b"n_final", &proof.n_final);
 
     let sigma = inner_product(&c, &proof.l_final) + weighted_norm(&proof.n_final, mu);
 
-    // Challenge-product weights via tensor tables (all 2^k products in
-    // 2^{k+1} muls), grown round by round exactly as the prover's:
-    // w_h[t] = prod_r (gamma_r if bit_r(t) else 1),
-    // w_g[t] = prod_r (gamma_r if bit_r(t) else rho_r).
-    let mut w_h = vec![one()];
-    let mut w_g = vec![one()];
-    for (gamma, rho_r) in gammas.iter().zip(&rhos) {
-        w_h = tensor_grow(&w_h, one(), *gamma);
-        w_g = tensor_grow(&w_g, *rho_r, *gamma);
-    }
     let mask = (1usize << k) - 1;
 
     let l = (0..gens.h_vec.len()).map(|i| w_h[i & mask] * proof.l_final[i >> k]);
@@ -426,7 +415,7 @@ pub(crate) fn verify(
         dynamic_points.push(*r_point);
     }
 
-    let result = gens.msm(sigma, l, n, &dynamic_scalars, &dynamic_points)?;
+    let result = gens.msm(sigma - ps, l, n, &dynamic_scalars, &dynamic_points)?;
 
     if result == RistrettoPoint::zero() {
         Ok(())
@@ -454,7 +443,7 @@ mod tests {
 
     fn random_instance(l_len: usize, n_len: usize) -> Instance {
         let mut rng = rand::thread_rng();
-        let full = Generators::new(crate::bulletproofspp::crs::Range::Bits64, 4).unwrap();
+        let full = Generators::new(crate::pedersen::Range::Bits64, 4).unwrap();
         let gens = Arc::new(
             Generators::from_parts(
                 full.g,
@@ -502,6 +491,7 @@ mod tests {
             &mut t,
             &inst.gens,
             &inst.c,
+            RistrettoScalar::zero(),
             &vec![RistrettoScalar::zero(); inst.gens.g_vec.len()],
             &[(one(), inst.commitment)],
             inst.rho,

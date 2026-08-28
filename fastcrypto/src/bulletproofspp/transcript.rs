@@ -35,9 +35,23 @@ impl BpppTranscript {
         self.inner.append_message(label, &point.to_byte_array());
     }
 
+    /// Append each point under the same label, in order.
+    pub(crate) fn append_points(&mut self, label: &'static [u8], points: &[RistrettoPoint]) {
+        for point in points {
+            self.append_point(label, point);
+        }
+    }
+
     /// Append a scalar in its canonical 32-byte little-endian encoding.
     pub(crate) fn append_scalar(&mut self, label: &'static [u8], scalar: &RistrettoScalar) {
         self.inner.append_message(label, &scalar.to_byte_array());
+    }
+
+    /// Append each scalar under the same label, in order.
+    pub(crate) fn append_scalars(&mut self, label: &'static [u8], scalars: &[RistrettoScalar]) {
+        for scalar in scalars {
+            self.append_scalar(label, scalar);
+        }
     }
 
     /// Append a u64 in little-endian encoding.

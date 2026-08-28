@@ -6,7 +6,7 @@
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoPrecomputation, RistrettoScalar};
 use crate::groups::{MixedMultiScalarMul, PrecomputableMultiScalarMul};
-use crate::pedersen;
+use crate::pedersen::{self, Range};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::{Arc, PoisonError, RwLock};
@@ -24,39 +24,6 @@ pub(crate) const H_LEN: usize = 8;
 // TODO: discuss DST strings.
 const DST_H: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_fastcrypto-bppp-gen-h-01";
 const DST_G: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_fastcrypto-bppp-gen-g-01";
-
-/// The provable ranges.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Range {
-    /// The range [0, 2^8).
-    Bits8,
-    /// The range [0, 2^16).
-    Bits16,
-    /// The range [0, 2^32).
-    Bits32,
-    /// The range [0, 2^64).
-    Bits64,
-}
-
-impl Range {
-    /// The largest value in the range, `2^bits - 1`.
-    pub fn max_value(&self) -> u64 {
-        u64::MAX >> (64 - self.bits())
-    }
-
-    pub fn is_in_range(&self, value: u64) -> bool {
-        value <= self.max_value()
-    }
-
-    pub fn bits(&self) -> usize {
-        match self {
-            Range::Bits8 => 8,
-            Range::Bits16 => 16,
-            Range::Bits32 => 32,
-            Range::Bits64 => 64,
-        }
-    }
-}
 
 /// Digit-count dimensions for a batch of `k` values in `range`: `d` digits
 /// per value, `n_d = k*d` digits overall, and the norm-vector length

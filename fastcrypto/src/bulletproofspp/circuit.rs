@@ -12,10 +12,12 @@
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
+use crate::pedersen::Range;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
+use std::array::from_fn;
 
-use crate::bulletproofspp::crs::{dims, Generators, Range, BASE, H_LEN};
+use crate::bulletproofspp::crs::{dims, Generators, BASE, H_LEN};
 use crate::bulletproofspp::norm_linear::{self, NormLinearProof};
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
@@ -24,7 +26,7 @@ type S = RistrettoScalar;
 
 /// tau-powers of the blinding constraint entries `hat_c_r`,
 /// slots 1..7. The gap at 4 keeps `C_S` out of the value row.
-const CR_POWERS: [i32; 7] = [-1, 1, 2, 3, 5, 6, 7];
+const CR_POWERS: [i32; H_LEN - 1] = [-1, 1, 2, 3, 5, 6, 7];
 
 /// Largest `log2(nm)` a decoded proof may claim; bounds the shape search in
 /// [CircuitProof::from_bytes] far above any practical statement (2^32 norm
@@ -152,9 +154,9 @@ fn compute_blocks(params: &CircuitParams, alpha: S, mu: S, lambda: S) -> FastCry
     // families directly: `shape[j-1] = lambda^{M*j+1}`, stepping by lambda^M.
     let lambdas = power_vector(lambda, m + 1);
     let lam_m = lambdas[m];
-    let mut shape = Vec::with_capacity(nm + 7);
+    let mut shape = Vec::with_capacity(nm + H_LEN - 1);
     let mut shape_pow = lambda;
-    for _ in 0..nm + 7 {
+    for _ in 0..nm + H_LEN - 1 {
         shape_pow *= lam_m;
         shape.push(shape_pow);
     }
@@ -260,7 +262,7 @@ impl Blocks {
                 beta * tau_pow + shape
             })
             .collect();
-        c.push(self.cl_v[7]);
+        c.push(self.cl_v[H_LEN - 1]);
         c
     }
 }
@@ -279,9 +281,13 @@ fn commit(gens: &Generators, r: &[S], l: S, n: &[S]) -> FastCryptoResult<Ristret
     )
 }
 
-/// A blinding vector with the spec's zero pattern: random except at the
-/// given positions, which keep blinding out of the value row and bound the
-/// T-support of the error terms.
+/// A blinding vector of length `H_LEN` with zeros at specific positions and
+/// random values otherwise. Slot `p` of a commitment entering `C(T)` at
+/// `T^e` reaches the error polynomial at row `e + CR_POWERS[p-1]`, so the
+/// slots hitting the value row `T^3`, or rows above `T^6` that no `r_S` slot
+/// cancels, must be zero. Hence, with entry powers 0, 1, 2 for `C_O`, `C_L`,
+/// `C_R`: `r_O` zeros slots `[4, 7]` (rows 3, 7), `r_L` slots `[3, 6, 7]`
+/// (rows 3, 7, 8) and `r_R` slots `[2, 5, 6, 7]` (rows 3, 7, 8, 9).
 fn blinding_vector(rng: &mut impl AllowedRng, zeros: &[usize]) -> Vec<S> {
     (0..H_LEN)
         .map(|i| {
@@ -369,7 +375,7 @@ fn solve_r_s(
         r_s[slot] = (fh[(p + 2) as usize] - known[(p + 2) as usize]) * beta_inv;
     }
     let shape_sum = (2..H_LEN).fold(S::zero(), |acc, j| acc + blocks.cl_v[j - 1] * r_s[j]);
-    r_s[0] = -(fh[1] - known[1] - shape_sum - blocks.cl_v[7] * l_s);
+    r_s[0] = -(fh[1] - known[1] - shape_sum - blocks.cl_v[H_LEN - 1] * l_s);
     Ok(r_s)
 }
 
@@ -434,9 +440,7 @@ pub(crate) fn prove(
         .collect::<FastCryptoResult<_>>()?;
 
     transcript.domain_sep(b"bppp_circuit");
-    for v in &v_commitments {
-        transcript.append_point(b"V", v);
-    }
+    transcript.append_points(b"V", &v_commitments);
 
     // Step 1: commit digits (C_L) and shared multiplicities (C_O). Slot
     // d*(i-1)+t holds digit t of value i; slots beyond n_d are zero.
@@ -503,41 +507,29 @@ pub(crate) fn prove(
             .fold(S::zero(), |acc, (i, s)| acc + blocks.lambdas[i] * s);
     let r = Blindings { r_o, r_l, r_r, r_v };
 
-    // Vector coefficients of n(T) at powers T^{-1}..T^3 (the honest
+    // Vector coefficients of n(T) = w(T) + p_n(T) at powers T^{-1}..T^3,
+    // split into the witness part w and the public part p_n (the honest
     // n_hat_V = 0, so T^3 carries only the public block).
-    let n_poly: [Vec<S>; 5] = [
-        n_s.clone(),
-        vec_add(&vec_scalar_mul(delta, &n_o), &blocks.cn_v),
-        vec_add(&n_l, &blocks.cn_r),
-        vec_add(&n_r, &blocks.cn_l),
-        vec_scalar_mul(delta_inv, &blocks.cn_o),
-    ];
+    let delta_n_o = vec_scalar_mul(delta, &n_o);
+    let pn_3 = vec_scalar_mul(delta_inv, &blocks.cn_o);
+    let zero = vec![S::zero(); params.nm];
+    let w = [&n_s, &delta_n_o, &n_l, &n_r, &zero];
+    let pn = [&zero, &blocks.cn_v, &blocks.cn_r, &blocks.cn_l, &pn_3];
+    let n_poly: [Vec<S>; 5] = from_fn(|i| vec_add(w[i], pn[i]));
 
     // Error polynomial hat_f(T) = p_s(T) + hat_v*T^3 - |n(T)|^2_mu, Laurent
     // coefficients at T^{-2}..T^6 stored at index p+2. The public square
     // |p_n(T)|^2 inside p_s cancels against |n(T)|^2, leaving
     //   hat_f = (hat_v + 2*(lambda_al + mu_am))*T^3 - <w(T), n(T) + p_n(T)>_mu
-    // with w = n - p_n the witness part (n_s, delta*n_o, n_l, n_r at
-    // T^{-1}..T^2), so only the 4x5 witness-side products are computed.
-    let w_weighted: [Vec<S>; 4] = [
-        hadamard(&n_s, &blocks.bar_mu),
-        hadamard(&vec_scalar_mul(delta, &n_o), &blocks.bar_mu),
-        hadamard(&n_l, &blocks.bar_mu),
-        hadamard(&n_r, &blocks.bar_mu),
-    ];
-    let n_plus_pn: [Vec<S>; 5] = [
-        n_poly[0].clone(),
-        vec_add(&n_poly[1], &blocks.cn_v),
-        vec_add(&n_poly[2], &blocks.cn_r),
-        vec_add(&n_poly[3], &blocks.cn_l),
-        vec_scalar_mul(two, &n_poly[4]),
-    ];
+    // so only the 4x5 witness-side products are computed.
+    let w_weighted: [Vec<S>; 4] = from_fn(|i| hadamard(w[i], &blocks.bar_mu));
+    let n_plus_pn: [Vec<S>; 5] = from_fn(|i| vec_add(&n_poly[i], pn[i]));
     let mut fh = [S::zero(); 9];
     fh[3 + 2] = v_hat + two * (blocks.lambda_al + blocks.mu_am);
-    for (i, w) in w_weighted.iter().enumerate() {
-        for (j, s) in n_plus_pn.iter().enumerate() {
+    for (i, w_i) in w_weighted.iter().enumerate() {
+        for (j, s_j) in n_plus_pn.iter().enumerate() {
             // powers: p_i = i - 1, p_j = j - 1, index (p_i + p_j) + 2 = i + j.
-            fh[i + j] -= inner_product(w, s);
+            fh[i + j] -= inner_product(w_i, s_j);
         }
     }
     // Value row: zero for a valid witness. This checks every block formula
@@ -582,9 +574,7 @@ pub(crate) fn verify(
         return Err(FastCryptoError::InvalidInput);
     }
     transcript.domain_sep(b"bppp_circuit");
-    for v in v_commitments {
-        transcript.append_point(b"V", v);
-    }
+    transcript.append_points(b"V", v_commitments);
     transcript.append_point(b"C_L", &proof.c_l);
     transcript.append_point(b"C_O", &proof.c_o);
     let alpha = transcript.challenge_scalar(b"alpha");
@@ -616,20 +606,20 @@ pub(crate) fn verify(
     // with hat_V = 2*sum_i lambda^{i-1} V_i.
     let two_t3 = S::from(2u64) * t3;
     let mut extra = vec![
-        (ps_tau, gens.g),
         (tau_inv, proof.c_s),
         (delta, proof.c_o),
         (tau, proof.c_l),
         (t2, proof.c_r),
     ];
-    for (i, v) in v_commitments.iter().enumerate() {
-        extra.push((two_t3 * blocks.lambdas[i], *v));
+    for (i, v_i) in v_commitments.iter().enumerate() {
+        extra.push((two_t3 * blocks.lambdas[i], *v_i));
     }
 
     norm_linear::verify(
         transcript,
         gens,
         &c_tau,
+        ps_tau,
         &pn_tau,
         &extra,
         rho,
@@ -768,7 +758,7 @@ mod tests {
 
         // Wrong commitment: to another value, or shifted off the
         // (G, H_0)-plane.
-        for shift in [gens.g, gens.g_vec[15], gens.h_vec[7]] {
+        for shift in [gens.g, gens.g_vec[15], gens.h_vec[H_LEN - 1]] {
             let bad = vec![v_commitments[0] + shift];
             assert!(verify_batch(&gens, &params, &proof, &bad).is_err());
         }
@@ -887,16 +877,14 @@ mod tests {
                 n_v_hat[slot] = two;
             }
             Some(Junk::Linear) => {
-                v_commitments[0] += gens.h_vec[7];
+                v_commitments[0] += gens.h_vec[H_LEN - 1];
                 l_v_hat = two;
             }
             None => {}
         }
 
         transcript.domain_sep(b"bppp_circuit");
-        for v in &v_commitments {
-            transcript.append_point(b"V", v);
-        }
+        transcript.append_points(b"V", &v_commitments);
 
         let (n_l, n_o) = (cheat.n_l.clone(), cheat.n_o.clone());
         let r_o = blinding_vector(rng, &[4, 7]);

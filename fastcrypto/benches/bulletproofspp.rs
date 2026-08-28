@@ -8,7 +8,7 @@
 use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use fastcrypto::bulletproofs::{Range as BpRange, RangeProof as BpRangeProof};
+use fastcrypto::bulletproofs::RangeProof as BpRangeProof;
 use fastcrypto::bulletproofspp::{Range, RangeProof};
 use fastcrypto::pedersen::{Blinding, PedersenCommitment};
 use rand::Rng;
@@ -48,15 +48,6 @@ fn label(range: &Range, m: usize) -> BenchmarkId {
     BenchmarkId::new(format!("{}-bit", range.bits()), m)
 }
 
-fn bp_range(range: &Range) -> BpRange {
-    match range {
-        Range::Bits8 => BpRange::Bits8,
-        Range::Bits16 => BpRange::Bits16,
-        Range::Bits32 => BpRange::Bits32,
-        Range::Bits64 => BpRange::Bits64,
-    }
-}
-
 fn bp_benchmarks(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
 
@@ -64,13 +55,10 @@ fn bp_benchmarks(c: &mut Criterion) {
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
     for (range, m) in &CONFIGS {
-        let bp_range = bp_range(range);
         let values = values(range, *m, &mut rng);
         let (_, blindings) = commit(&values, &mut rng);
         grp.bench_function(label(range, *m), |b| {
-            b.iter(|| {
-                BpRangeProof::prove_batch(&values, &blindings, &bp_range, DST, &mut rng).unwrap()
-            })
+            b.iter(|| BpRangeProof::prove_batch(&values, &blindings, range, DST, &mut rng).unwrap())
         });
     }
     grp.finish();
@@ -79,15 +67,13 @@ fn bp_benchmarks(c: &mut Criterion) {
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
     for (range, m) in &CONFIGS {
-        let bp_range = bp_range(range);
         let values = values(range, *m, &mut rng);
         let (commitments, blindings) = commit(&values, &mut rng);
-        let proof =
-            BpRangeProof::prove_batch(&values, &blindings, &bp_range, DST, &mut rng).unwrap();
+        let proof = BpRangeProof::prove_batch(&values, &blindings, range, DST, &mut rng).unwrap();
         grp.bench_function(label(range, *m), |b| {
             b.iter(|| {
                 proof
-                    .verify_batch(&commitments, &bp_range, DST, &mut rng)
+                    .verify_batch(&commitments, range, DST, &mut rng)
                     .unwrap()
             })
         });
