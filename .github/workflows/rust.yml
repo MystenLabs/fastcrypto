@@ -58,8 +58,6 @@ jobs:
       # make sure benches don't bit-rot
       - name: build benches
         run: cargo build --benches --features experimental,copy_key,unsecure_schemes
-      # nextest runs each test binary in parallel (cargo test runs them one after
-      # another), which is where most of this step's wall-clock time went.
       # Skip zklogin e2e tests (run separately in non-required workflow)
       - name: cargo nextest
         run: cargo nextest run --all-features -E 'not test(zk_login_e2e)'
