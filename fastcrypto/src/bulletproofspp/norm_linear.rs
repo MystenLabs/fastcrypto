@@ -17,6 +17,7 @@ use crate::serde_helpers::ToFromByteArray;
 use crate::bulletproofspp::crs::Generators;
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
+use std::borrow::Cow;
 
 /// Fold until fewer than this many scalars remain; the remaining opening is
 /// sent in the clear. 6 balances rounds (2 points each) against final scalars.
@@ -179,9 +180,8 @@ pub(crate) fn prove(
     let mut l = l.to_vec();
     let mut n = n.to_vec();
     let mut c = c.to_vec();
-    let mut base_h = gens.h_vec.clone();
-    let mut base_g = gens.g_vec.clone();
-    let mut original_base = true;
+    let mut base_h = Cow::Borrowed(gens.h_vec.as_slice());
+    let mut base_g = Cow::Borrowed(gens.g_vec.as_slice());
     let mut w_h: Vec<RistrettoScalar> = vec![one()];
     let mut w_g: Vec<RistrettoScalar> = vec![one()];
     let mut levels: u32 = 0;
@@ -193,12 +193,11 @@ pub(crate) fn prove(
 
     while l.len() + n.len() >= FOLD_THRESHOLD {
         if levels == FOLD_BATCH_ROUNDS {
-            base_h = batch_fold(&base_h, &w_h)?;
-            base_g = batch_fold(&base_g, &w_g)?;
+            base_h = Cow::Owned(batch_fold(&base_h, &w_h)?);
+            base_g = Cow::Owned(batch_fold(&base_g, &w_g)?);
             w_h = vec![one()];
             w_g = vec![one()];
             levels = 0;
-            original_base = false;
         }
 
         pad_even_scalar(&mut l);
@@ -269,13 +268,13 @@ pub(crate) fn prove(
                    h: &[RistrettoScalar],
                    g: &[RistrettoScalar]|
          -> FastCryptoResult<RistrettoPoint> {
-            if original_base {
+            if h.len() == gens.h_vec.len() && g.len() == gens.g_vec.len() {
                 return gens.msm(v, h.iter().copied(), g.iter().copied(), &[], &[]);
             }
             let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) =
                 std::iter::once((&v, &gens.g))
-                    .chain(h.iter().zip(&base_h))
-                    .chain(g.iter().zip(&base_g))
+                    .chain(h.iter().zip(base_h.iter()))
+                    .chain(g.iter().zip(base_g.iter()))
                     .filter(|(s, _)| **s != RistrettoScalar::zero())
                     .map(|(s, p)| (*s, *p))
                     .unzip();
