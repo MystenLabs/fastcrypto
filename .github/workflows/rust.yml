@@ -58,13 +58,14 @@ jobs:
       # make sure benches don't bit-rot
       - name: build benches
         run: cargo build --benches --features experimental,copy_key,unsecure_schemes
-      - name: cargo test
-      # TODO: `cargo nextest run` doesn't work on windows, so we use `cargo test` instead
       # Skip zklogin e2e tests (run separately in non-required workflow)
-        run: cargo test --all-features -- --skip zk_login_e2e
+      - name: cargo nextest
+        run: cargo nextest run --all-features -E 'not test(zk_login_e2e)'
+      # nextest does not run doctests, and the step above used to run them
+      # implicitly under --all-features, so run them here under the same features.
       - name: Doctests
         run: |
-          cargo test --doc --features experimental,copy_key,unsecure_schemes
+          cargo test --doc --all-features
       # Ensure there are no uncommitted changes in the repo after running tests
       - run: scripts/changed-files.sh
 
