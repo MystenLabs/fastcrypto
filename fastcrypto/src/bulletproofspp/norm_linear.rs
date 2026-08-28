@@ -363,7 +363,8 @@ pub(crate) fn verify(
     let mut rho = rho;
     let mut mu = rho * rho;
     let mut gammas = Vec::with_capacity(k);
-    let mut rhos = Vec::with_capacity(k);
+    let mut w_h = vec![one()];
+    let mut w_g = vec![one()];
 
     transcript.domain_sep(b"norm_linear");
 
@@ -371,8 +372,9 @@ pub(crate) fn verify(
         transcript.append_point(b"X", x_point);
         transcript.append_point(b"R", r_point);
         let gamma = transcript.challenge_scalar(b"gamma");
-        rhos.push(rho);
         gammas.push(gamma);
+        w_h = tensor_grow(&w_h, one(), gamma);
+        w_g = tensor_grow(&w_g, rho, gamma);
 
         // Fold only the (cheap) scalar constraint vector.
         pad_even_scalar(&mut c);
@@ -394,16 +396,6 @@ pub(crate) fn verify(
 
     let sigma = inner_product(&c, &proof.l_final) + weighted_norm(&proof.n_final, mu);
 
-    // Challenge-product weights via tensor tables (all 2^k products in
-    // 2^{k+1} muls), grown round by round exactly as the prover's:
-    // w_h[t] = prod_r (gamma_r if bit_r(t) else 1),
-    // w_g[t] = prod_r (gamma_r if bit_r(t) else rho_r).
-    let mut w_h = vec![one()];
-    let mut w_g = vec![one()];
-    for (gamma, rho_r) in gammas.iter().zip(&rhos) {
-        w_h = tensor_grow(&w_h, one(), *gamma);
-        w_g = tensor_grow(&w_g, *rho_r, *gamma);
-    }
     let mask = (1usize << k) - 1;
 
     let l = (0..gens.h_vec.len()).map(|i| w_h[i & mask] * proof.l_final[i >> k]);
