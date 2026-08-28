@@ -1062,14 +1062,6 @@ impl SharesForNode {
         expected_indices: &[ShareIndex],
         expected_batch_size: usize,
     ) -> FastCryptoResult<()> {
-        let actual_batch_size = self.try_uniform_batch_size()?;
-        if actual_batch_size != expected_batch_size {
-            warn!(
-                "batch_avss SharesForNode::verify: batch_size {} does not match expected {}",
-                actual_batch_size, expected_batch_size,
-            );
-            return Err(InvalidMessage);
-        }
         if self.shares.len() != expected_indices.len() {
             warn!(
                 "batch_avss SharesForNode::verify: share count {} does not match expected weight {}",
@@ -1077,6 +1069,16 @@ impl SharesForNode {
                 expected_indices.len(),
             );
             return Err(InvalidMessage);
+        }
+        if !self.shares.is_empty() {
+            let actual_batch_size = self.try_uniform_batch_size()?;
+            if actual_batch_size != expected_batch_size {
+                warn!(
+                    "batch_avss SharesForNode::verify: batch_size {} does not match expected {}",
+                    actual_batch_size, expected_batch_size,
+                );
+                return Err(InvalidMessage);
+            }
         }
         for (shares, &index) in self.shares.iter().zip(expected_indices) {
             shares
@@ -1234,6 +1236,85 @@ mod tests {
         fn verify(&self) -> FastCryptoResult<()> {
             Ok(())
         }
+    }
+
+    #[test]
+    fn test_avss_phase_with_zero_weight_node() {
+        let t = 3;
+        let f = 1;
+        let weights: Vec<u16> = vec![1, 0, 3, 4];
+        let batch_size_per_weight = 3;
+
+        let mut rng = rand::thread_rng();
+        let sks = weights
+            .iter()
+            .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
+            .collect::<Vec<_>>();
+        let nodes = Nodes::new(
+            weights
+                .iter()
+                .enumerate()
+                .map(|(i, &weight)| Node {
+                    id: i as u16,
+                    pk: PublicKey::from_private_key(&sks[i]),
+                    weight,
+                })
+                .collect_vec(),
+        )
+        .unwrap();
+
+        let sid = b"zero weight test".to_vec();
+        let dealer_id = 0;
+        let params = Parameters { t, f };
+        let dealer = Dealer::new(
+            nodes.clone(),
+            dealer_id,
+            params,
+            sid.clone(),
+            batch_size_per_weight,
+        )
+        .unwrap();
+
+        let receivers = sks
+            .into_iter()
+            .enumerate()
+            .map(|(id, sk)| {
+                Receiver::new(
+                    nodes.clone(),
+                    id as u16,
+                    dealer_id,
+                    params,
+                    sid.clone(),
+                    sk,
+                    batch_size_per_weight,
+                )
+                .unwrap()
+            })
+            .collect_vec();
+
+        let state = dealer.create_avss_messages(&mut rng).unwrap();
+        let mut common = None;
+        for receiver in &receivers {
+            let (output, _, verified_common) = receiver
+                .process_avss_message(&state.message_for(receiver.id).unwrap())
+                .unwrap();
+            assert_eq!(
+                output.my_shares.weight(),
+                nodes.weight_of(receiver.id).unwrap()
+            );
+            common = Some(verified_common);
+        }
+
+        let common = common.unwrap();
+        let weight_bearing = 3u16;
+        assert!(nodes.weight_of(weight_bearing).unwrap() > 0);
+        assert!(super::SharesForNode { shares: vec![] }
+            .verify(
+                &common,
+                &nodes.share_ids_of(weight_bearing).unwrap(),
+                dealer.batch_size,
+            )
+            .is_err());
     }
 
     #[test]
