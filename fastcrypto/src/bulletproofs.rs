@@ -30,10 +30,15 @@ use merlin::Transcript;
 use std::borrow::Cow;
 
 /// Batches up to this size are served from [GENS].
-pub const CACHED_BATCH_SIZE: usize = 32;
+pub const CACHED_BATCH_SIZE: usize = 128;
 
 lazy_static! {
     static ref GENS: BulletproofGens = BulletproofGens::new(64, CACHED_BATCH_SIZE);
+}
+
+/// Build [GENS] eagerly, instead of inside the first proof or verification in the process.
+pub fn initialize_generators() {
+    lazy_static::initialize(&GENS);
 }
 
 /// Generators for a proof over `m` values of `bits` bits.
@@ -171,6 +176,14 @@ impl RangeProof {
         self.0.to_bytes()
     }
 
+    /// The size in bytes of a serialized proof over `total_bits` bits, where `total_bits` is the
+    /// number of committed values times the bit length of the range. See also [Self::to_bytes].
+    pub const fn serialized_size(total_bits: usize) -> usize {
+        // Four points and three scalars, plus an inner product proof of 2 * log2(total_bits) + 2
+        // points and scalars.
+        32 * (2 * total_bits.next_power_of_two().ilog2() as usize + 9)
+    }
+
     /// Deserialize a range proof. See also [Self::to_bytes].
     pub fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
         ExternalRangeProof::from_bytes(bytes)
@@ -244,6 +257,7 @@ fn test_to_from_bytes() {
         .unzip::<_, _, Vec<_>, Vec<_>>();
     let proof = RangeProof::prove_batch(&values, &blindings, &range, b"test", &mut rng).unwrap();
     let proof_bytes = proof.to_bytes();
+    assert_eq!(proof_bytes.len(), RangeProof::serialized_size(8 * 32));
     let reconstructed_proof = RangeProof::from_bytes(&proof_bytes).unwrap();
     assert!(reconstructed_proof
         .verify_batch(&commitments, &range, b"test", &mut rng)
