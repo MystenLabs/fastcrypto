@@ -114,6 +114,9 @@ impl CircuitParams {
 /// `lambda^{M(k+1)+1+(i-1)}`, and for H-coordinate `m` of `V_i` at
 /// `lambda^{M(nm+m)+1+(i-1)}` — one band of M consecutive powers per
 /// coordinate, one power per input.
+///
+/// Each `cn_X` constrains `n_X` but rides at the complementary `T`-power, so
+/// the two meet in the `T^3` value row; hence [prove] pairs `n_l` with `cn_r`.
 struct Blocks {
     /// Norm weights `(mu, mu^2, ..., mu^nm)`.
     bar_mu: Vec<S>,
@@ -341,15 +344,17 @@ fn solve_r_s(
     // cl_v[j] at T^q itself. Index p+2; sized for the largest reachable
     // power a_7 + 3 = 10.
     let mut known = [S::zero(); 13];
+    // The same table on the blinding side; r_S is the unknown solved for below.
+    let committed: [(i32, S, &[S]); 4] = [
+        (0, delta, &r.r_o),
+        (1, one(), &r.r_l),
+        (2, one(), &r.r_r),
+        (3, one(), &r.r_v),
+    ];
     for slot in 1..H_LEN {
-        let committed = [
-            (0i32, delta * r.r_o[slot]),
-            (1, r.r_l[slot]),
-            (2, r.r_r[slot]),
-            (3, r.r_v[slot]),
-        ];
         let a = CR_POWERS[slot - 1];
-        for &(q, coefficient) in &committed {
+        for &(q, scale, vector) in &committed {
+            let coefficient = scale * vector[slot];
             known[(a + q + 2) as usize] += beta * coefficient;
             known[(q + 2) as usize] += blocks.cl_v[slot - 1] * coefficient;
         }
@@ -503,15 +508,16 @@ pub(crate) fn prove(
             .fold(S::zero(), |acc, (i, s)| acc + blocks.lambdas[i] * s);
     let r = Blindings { r_o, r_l, r_r, r_v };
 
-    // Vector coefficients of n(T) at powers T^{-1}..T^3 (the honest
-    // n_hat_V = 0, so T^3 carries only the public block).
-    let n_poly: [Vec<S>; 5] = [
-        n_s.clone(),
-        vec_add(&vec_scalar_mul(delta, &n_o), &blocks.cn_v),
-        vec_add(&n_l, &blocks.cn_r),
-        vec_add(&n_r, &blocks.cn_l),
-        vec_scalar_mul(delta_inv, &blocks.cn_o),
-    ];
+    // The five committed vectors at T^{-1}..T^3: C_S, C_O, C_L, C_R, hat_V.
+    // `w` is the norm witness (C_O's pre-scaled by delta), `p` the public block
+    // at that power, n(T) = w + p. `w[4]` and `p[0]` are empty: an honest hat_V
+    // has no norm part, and C_S carries no block.
+    let delta_n_o = vec_scalar_mul(delta, &n_o);
+    let pn_o = vec_scalar_mul(delta_inv, &blocks.cn_o);
+    let empty = vec![S::zero(); params.nm];
+    let w: [&[S]; 5] = [&n_s, &delta_n_o, &n_l, &n_r, &empty];
+    let p: [&[S]; 5] = [&empty, &blocks.cn_v, &blocks.cn_r, &blocks.cn_l, &pn_o];
+    let n_poly: [Vec<S>; 5] = std::array::from_fn(|i| vec_add(w[i], p[i]));
 
     // Error polynomial hat_f(T) = p_s(T) + hat_v*T^3 - |n(T)|^2_mu, Laurent
     // coefficients at T^{-2}..T^6 stored at index p+2. The public square
@@ -519,25 +525,14 @@ pub(crate) fn prove(
     //   hat_f = (hat_v + 2*(lambda_al + mu_am))*T^3 - <w(T), n(T) + p_n(T)>_mu
     // with w = n - p_n the witness part (n_s, delta*n_o, n_l, n_r at
     // T^{-1}..T^2), so only the 4x5 witness-side products are computed.
-    let w_weighted: [Vec<S>; 4] = [
-        hadamard(&n_s, &blocks.bar_mu),
-        hadamard(&vec_scalar_mul(delta, &n_o), &blocks.bar_mu),
-        hadamard(&n_l, &blocks.bar_mu),
-        hadamard(&n_r, &blocks.bar_mu),
-    ];
-    let n_plus_pn: [Vec<S>; 5] = [
-        n_poly[0].clone(),
-        vec_add(&n_poly[1], &blocks.cn_v),
-        vec_add(&n_poly[2], &blocks.cn_r),
-        vec_add(&n_poly[3], &blocks.cn_l),
-        vec_scalar_mul(two, &n_poly[4]),
-    ];
+    let w_weighted: [Vec<S>; 4] = std::array::from_fn(|i| hadamard(w[i], &blocks.bar_mu));
+    let n_plus_pn: [Vec<S>; 5] = std::array::from_fn(|i| vec_add(&n_poly[i], p[i]));
     let mut fh = [S::zero(); 9];
     fh[3 + 2] = v_hat + two * (blocks.lambda_al + blocks.mu_am);
-    for (i, w) in w_weighted.iter().enumerate() {
-        for (j, s) in n_plus_pn.iter().enumerate() {
+    for (i, w_i) in w_weighted.iter().enumerate() {
+        for (j, n_j) in n_plus_pn.iter().enumerate() {
             // powers: p_i = i - 1, p_j = j - 1, index (p_i + p_j) + 2 = i + j.
-            fh[i + j] -= inner_product(w, s);
+            fh[i + j] -= inner_product(w_i, n_j);
         }
     }
     // Value row: zero for a valid witness. This checks every block formula
