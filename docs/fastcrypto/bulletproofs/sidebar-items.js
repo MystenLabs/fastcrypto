@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["CACHED_BATCH_SIZE"],"enum":["Range"],"struct":["RangeProof"]};
+window.SIDEBAR_ITEMS = {"constant":["CACHED_BATCH_SIZE"],"enum":["Range"],"fn":["initialize_generators"],"struct":["RangeProof"]};
