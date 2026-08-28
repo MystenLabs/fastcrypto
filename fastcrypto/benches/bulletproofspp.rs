@@ -4,20 +4,14 @@
 //! Bulletproofs++ prover and verifier against the Bulletproofs baseline on
 //! the same configurations. Source of the tables in
 //! `src/bulletproofspp/README.md`.
-//!
-//! The baseline drives the dalek `bulletproofs` crate directly with its
-//! generators built once per configuration; `fastcrypto::bulletproofs`
-//! rebuilds them on every call, which would dominate its timings.
 
 use std::time::Duration;
 
-use bulletproofs::{BulletproofGens, PedersenGens, RangeProof as BpRangeProof};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use curve25519_dalek::scalar::Scalar;
+use fastcrypto::bulletproofs::{Range as BpRange, RangeProof as BpRangeProof};
 use fastcrypto::bulletproofspp::{Range, RangeProof};
 use fastcrypto::pedersen::{Blinding, PedersenCommitment};
-use merlin::Transcript;
-use rand::{Rng, RngCore};
+use rand::Rng;
 
 const DST: &[u8] = b"bench";
 
@@ -40,43 +34,42 @@ fn values(range: &Range, m: usize, rng: &mut rand::rngs::ThreadRng) -> Vec<u64> 
         .collect()
 }
 
+fn commit(
+    values: &[u64],
+    rng: &mut rand::rngs::ThreadRng,
+) -> (Vec<PedersenCommitment>, Vec<Blinding>) {
+    values
+        .iter()
+        .map(|&v| PedersenCommitment::commit_u64(v, rng))
+        .unzip()
+}
+
 fn label(range: &Range, m: usize) -> BenchmarkId {
     BenchmarkId::new(format!("{}-bit", range.bits()), m)
 }
 
+fn bp_range(range: &Range) -> BpRange {
+    match range {
+        Range::Bits8 => BpRange::Bits8,
+        Range::Bits16 => BpRange::Bits16,
+        Range::Bits32 => BpRange::Bits32,
+        Range::Bits64 => BpRange::Bits64,
+    }
+}
+
 fn bp_benchmarks(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
-    let pc_gens = PedersenGens::default();
-    let blindings = |m: usize, rng: &mut rand::rngs::ThreadRng| -> Vec<Scalar> {
-        (0..m)
-            .map(|_| {
-                let mut bytes = [0u8; 64];
-                rng.fill_bytes(&mut bytes);
-                Scalar::from_bytes_mod_order_wide(&bytes)
-            })
-            .collect()
-    };
 
     let mut grp = c.benchmark_group("BP prove");
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
     for (range, m) in &CONFIGS {
-        let n = range.bits();
-        let bp_gens = BulletproofGens::new(n, *m);
+        let bp_range = bp_range(range);
         let values = values(range, *m, &mut rng);
-        let blindings = blindings(*m, &mut rng);
+        let (_, blindings) = commit(&values, &mut rng);
         grp.bench_function(label(range, *m), |b| {
             b.iter(|| {
-                BpRangeProof::prove_multiple_with_rng(
-                    &bp_gens,
-                    &pc_gens,
-                    &mut Transcript::new(DST),
-                    &values,
-                    &blindings,
-                    n,
-                    &mut rng,
-                )
-                .unwrap()
+                BpRangeProof::prove_batch(&values, &blindings, &bp_range, DST, &mut rng).unwrap()
             })
         });
     }
@@ -86,31 +79,15 @@ fn bp_benchmarks(c: &mut Criterion) {
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
     for (range, m) in &CONFIGS {
-        let n = range.bits();
-        let bp_gens = BulletproofGens::new(n, *m);
+        let bp_range = bp_range(range);
         let values = values(range, *m, &mut rng);
-        let blindings = blindings(*m, &mut rng);
-        let (proof, commitments) = BpRangeProof::prove_multiple_with_rng(
-            &bp_gens,
-            &pc_gens,
-            &mut Transcript::new(DST),
-            &values,
-            &blindings,
-            n,
-            &mut rng,
-        )
-        .unwrap();
+        let (commitments, blindings) = commit(&values, &mut rng);
+        let proof =
+            BpRangeProof::prove_batch(&values, &blindings, &bp_range, DST, &mut rng).unwrap();
         grp.bench_function(label(range, *m), |b| {
             b.iter(|| {
                 proof
-                    .verify_multiple_with_rng(
-                        &bp_gens,
-                        &pc_gens,
-                        &mut Transcript::new(DST),
-                        &commitments,
-                        n,
-                        &mut rng,
-                    )
+                    .verify_batch(&commitments, &bp_range, DST, &mut rng)
                     .unwrap()
             })
         });
@@ -120,14 +97,6 @@ fn bp_benchmarks(c: &mut Criterion) {
 
 fn bppp_benchmarks(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
-    let commit = |values: &[u64],
-                  rng: &mut rand::rngs::ThreadRng|
-     -> (Vec<PedersenCommitment>, Vec<Blinding>) {
-        values
-            .iter()
-            .map(|&v| PedersenCommitment::commit_u64(v, rng))
-            .unzip()
-    };
 
     let mut grp = c.benchmark_group("BPPP prove");
     grp.warm_up_time(Duration::from_secs(1));

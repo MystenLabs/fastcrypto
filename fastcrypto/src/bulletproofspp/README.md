@@ -43,34 +43,34 @@ The table below compares BulletProofs (BP) and BulletProofs++ proof sizes for di
 
 The two tables below compare BP and BP++ prover and verifier performance for different (aggregate) range proof configurations.
 All benchmarks were done on an Apple M2 Max MacBook Pro with 96 GB RAM.
-The BP baseline is the dalek `bulletproofs` crate v5 with its generators built once per configuration.
+The BP baseline is `fastcrypto::bulletproofs` (the dalek `bulletproofs` crate v5 with cached generators).
 To reproduce both tables run `cargo bench -p fastcrypto --features experimental --bench bulletproofspp`.
 
 **Proving (ms):**
 
 | Config | BP | BP++ | speedup |
 | --- | ---: | ---: | ---: |
-| 16-bit x1 | 2.05 | 1.18 | 1.7x |
-| 32-bit x1 | 3.75 | 1.20 | 3.1x |
-| 64-bit x1 | 7.05 | 1.26 | 5.6x |
-| 16-bit x4 | 7.68 | 1.33 | 5.8x |
-| 16-bit x8 | 14.76 | 2.01 | 7.4x |
-| 32-bit x8 | 27.49 | 3.83 | 7.2x |
-| 64-bit x16 | 102.6 | 13.09 | 7.8x |
-| 64-bit x32 | 200.1 | 26.10 | 7.7x |
+| 16-bit x1 | 2.07 | 1.21 | 1.7x |
+| 32-bit x1 | 3.76 | 1.24 | 3.0x |
+| 64-bit x1 | 7.11 | 1.28 | 5.5x |
+| 16-bit x4 | 7.59 | 1.36 | 5.6x |
+| 16-bit x8 | 14.97 | 2.07 | 7.2x |
+| 32-bit x8 | 27.90 | 3.90 | 7.2x |
+| 64-bit x16 | 103.4 | 13.43 | 7.7x |
+| 64-bit x32 | 204.2 | 26.72 | 7.6x |
 
 **Verification (ms):**
 
 | Config | BP | BP++ | speedup |
 | --- | ---: | ---: | ---: |
-| 16-bit x1 | 0.35 | 0.31 | 1.1x |
+| 16-bit x1 | 0.36 | 0.31 | 1.2x |
 | 32-bit x1 | 0.56 | 0.31 | 1.8x |
-| 64-bit x1 | 0.97 | 0.31 | 3.1x |
-| 16-bit x4 | 1.00 | 0.34 | 2.9x |
-| 16-bit x8 | 1.66 | 0.47 | 3.6x |
-| 32-bit x8 | 2.70 | 0.68 | 4.0x |
-| 64-bit x16 | 8.22 | 1.89 | 4.3x |
-| 64-bit x32 | 15.26 | 3.48 | 4.4x |
+| 64-bit x1 | 0.99 | 0.32 | 3.1x |
+| 16-bit x4 | 1.03 | 0.34 | 3.0x |
+| 16-bit x8 | 1.70 | 0.47 | 3.6x |
+| 32-bit x8 | 2.77 | 0.68 | 4.1x |
+| 64-bit x16 | 8.43 | 1.91 | 4.4x |
+| 64-bit x32 | 15.59 | 3.52 | 4.4x |
 
 ## Implementation notes
 
