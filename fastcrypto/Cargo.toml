@@ -121,7 +121,8 @@ name = "mixed_msm"
 harness = false
 
 [features]
-default = []
+default = ["std"]
+no_std = []
 
 # Allow copying keys
 copy_key = []
