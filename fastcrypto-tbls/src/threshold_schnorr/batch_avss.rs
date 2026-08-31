@@ -334,7 +334,8 @@ impl Receiver {
     /// * `enc_secret_key` is this Receivers' secret key for the distribution of nonces. The corresponding public key is defined in `nodes`.
     /// * `batch_size_per_weight` is the number of secrets a dealer should deal per weight it has.
     ///
-    /// Returns an `InvalidInput` error if the `id` or `dealer_id` is invalid.
+    /// Returns an `InvalidInput` error if the `id` or `dealer_id` is invalid, or if the dealer has
+    /// no nonces to deal because either its weight or `batch_size_per_weight` is zero.
     pub fn new(
         nodes: Nodes<EG>,
         id: PartyId,
@@ -349,6 +350,9 @@ impl Receiver {
 
         // The dealer is expected to deal a number of nonces proportional to it's weight
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
+        if batch_size == 0 {
+            return Err(InvalidInput);
+        }
 
         Ok(Self {
             id,
@@ -1050,6 +1054,48 @@ mod tests {
                 response_polynomial,
             })
         }
+    }
+
+    #[test]
+    fn test_zero_weight_dealer_deals_nothing() {
+        let t = 4;
+        let weights: Vec<u16> = vec![1, 0, 3, 4];
+        let batch_size_per_weight = 3;
+        let dealer_id = 1u16;
+
+        let mut rng = rand::thread_rng();
+        let sks = weights
+            .iter()
+            .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
+            .collect::<Vec<_>>();
+        let nodes = Nodes::new(
+            weights
+                .iter()
+                .enumerate()
+                .map(|(i, &weight)| Node {
+                    id: i as u16,
+                    pk: PublicKey::from_private_key(&sks[i]),
+                    weight,
+                })
+                .collect_vec(),
+        )
+        .unwrap();
+        assert_eq!(nodes.weight_of(dealer_id).unwrap(), 0);
+
+        let sid = b"zero weight dealer".to_vec();
+
+        let dealer: Dealer = Dealer::new(
+            nodes.clone(),
+            dealer_id,
+            t,
+            sid.clone(),
+            batch_size_per_weight,
+        )
+        .unwrap();
+        assert_eq!(dealer.batch_size, 0);
+
+        let message = dealer.create_message(&mut rng).unwrap();
+        assert!(message.full_public_keys.is_empty());
     }
 
     fn assert_valid(processed_message: ProcessedMessage) -> ReceiverOutput {
