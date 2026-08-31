@@ -1192,6 +1192,7 @@ mod tests {
     use crate::polynomial::{Eval, Poly};
     use crate::threshold_schnorr::{avid, batch_avss_avid as batch_avss, Certificate, EG};
     use crate::types::ShareIndex;
+    use fastcrypto::error::FastCryptoError::InvalidMessage;
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
@@ -1308,13 +1309,14 @@ mod tests {
         let common = common.unwrap();
         let weight_bearing = 3u16;
         assert!(nodes.weight_of(weight_bearing).unwrap() > 0);
-        assert!(super::SharesForNode { shares: vec![] }
-            .verify(
+        assert_eq!(
+            super::SharesForNode { shares: vec![] }.verify(
                 &common,
                 &nodes.share_ids_of(weight_bearing).unwrap(),
                 dealer.batch_size,
-            )
-            .is_err());
+            ),
+            Err(InvalidMessage)
+        );
     }
 
     #[test]
