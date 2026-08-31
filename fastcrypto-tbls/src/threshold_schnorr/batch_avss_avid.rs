@@ -1293,8 +1293,14 @@ mod tests {
             })
             .collect_vec();
 
+        let weight_bearing = 3u16;
+        let zero_weight = 1u16;
+        assert!(nodes.weight_of(weight_bearing).unwrap() > 0);
+        assert_eq!(nodes.weight_of(zero_weight).unwrap(), 0);
+
         let state = dealer.create_avss_messages(&mut rng).unwrap();
         let mut common = None;
+        let mut weight_bearing_shares = None;
         for receiver in &receivers {
             let (output, _, verified_common) = receiver
                 .process_avss_message(&state.message_for(receiver.id).unwrap())
@@ -1303,16 +1309,25 @@ mod tests {
                 output.my_shares.weight(),
                 nodes.weight_of(receiver.id).unwrap()
             );
+            if receiver.id == weight_bearing {
+                weight_bearing_shares = Some(output.my_shares);
+            }
             common = Some(verified_common);
         }
 
         let common = common.unwrap();
-        let weight_bearing = 3u16;
-        assert!(nodes.weight_of(weight_bearing).unwrap() > 0);
         assert_eq!(
             super::SharesForNode { shares: vec![] }.verify(
                 &common,
                 &nodes.share_ids_of(weight_bearing).unwrap(),
+                dealer.batch_size,
+            ),
+            Err(InvalidMessage)
+        );
+        assert_eq!(
+            weight_bearing_shares.unwrap().verify(
+                &common,
+                &nodes.share_ids_of(zero_weight).unwrap(),
                 dealer.batch_size,
             ),
             Err(InvalidMessage)
