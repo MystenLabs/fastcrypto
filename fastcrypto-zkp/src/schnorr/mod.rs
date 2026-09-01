@@ -4,9 +4,7 @@
 //! Generic Schnorr-style (Σ-protocol) proofs of knowledge for a system of `m` linear constraints
 //! `Y_i = sum_j x_j * B_ij` over `n` shared witnesses, made non-interactive with Fiat-Shamir (see
 //! [Maurer](https://crypto-test.ethz.ch/publications/files/Maurer09.pdf)). Each base `B_ij` is an
-//! [Option], so a witness need not occur in every constraint, and the single challenge shared by all
-//! constraints forces the same witness across them: `m = 2, n = 1` is exactly the DDH proof of
-//! [fastcrypto::nizk] and `m = 1, n = 2` a Pedersen opening. A proof is `m` points and `n` scalars.
+//! [Option], so a witness need not occur in every constraint.
 //!
 //! # Example
 //!
