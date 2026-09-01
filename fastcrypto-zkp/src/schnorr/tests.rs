@@ -23,8 +23,8 @@ where
     T::ScalarType: FiatShamirChallenge,
 {
     let proof = statement.prove(witnesses, &mut thread_rng()).unwrap();
-    assert_eq!(proof.commitments().len(), statement.num_constraints());
-    assert_eq!(proof.responses().len(), statement.num_witnesses());
+    assert_eq!(proof.commitments.len(), statement.num_constraints());
+    assert_eq!(proof.responses.len(), statement.num_witnesses());
     assert!(statement.verify(&proof).is_ok());
     assert!(statement.verify_batched(&proof, &mut thread_rng()).is_ok());
 
@@ -57,7 +57,7 @@ fn test_instantiations() {
         .add_constraint(&(h * x), [Some(h)])
         .unwrap();
     let proof = prove_and_verify(&builder.build().unwrap(), &[x]);
-    assert_eq!((proof.commitments().len(), proof.responses().len()), (2, 1));
+    assert_eq!((proof.commitments.len(), proof.responses.len()), (2, 1));
     assert!(
         DdhTupleNizk::create(&x, &g, &h, &(g * x), &(h * x), DST, &mut thread_rng())
             .verify(&g, &h, &(g * x), &(h * x), DST)
@@ -153,18 +153,18 @@ fn test_invalid_proofs() {
 
     // ...a proof of the wrong shape...
     let short = Proof {
-        commitments: proof.commitments().to_vec(),
-        responses: proof.responses()[..1].to_vec(),
+        commitments: proof.commitments.to_vec(),
+        responses: proof.responses[..1].to_vec(),
     };
     assert!(rejected(build(DST, &c, [Some(g), Some(h)]), &short));
 
     // ...and a proof where any single commitment has been tampered with.
     for i in 0..statement.num_constraints() {
-        let mut commitments = proof.commitments().to_vec();
+        let mut commitments = proof.commitments.to_vec();
         commitments[i] += G::generator();
         let tampered = Proof {
             commitments,
-            responses: proof.responses().to_vec(),
+            responses: proof.responses.to_vec(),
         };
         assert!(rejected(build(DST, &c, [Some(g), Some(h)]), &tampered));
     }

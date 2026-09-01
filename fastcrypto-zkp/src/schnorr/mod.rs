@@ -272,15 +272,3 @@ pub struct Proof<G: GroupElement> {
     commitments: Vec<G>,
     responses: Vec<G::ScalarType>,
 }
-
-impl<G: GroupElement> Proof<G> {
-    /// The commitments `A_i`, one per constraint.
-    pub fn commitments(&self) -> &[G] {
-        &self.commitments
-    }
-
-    /// The responses `z_j`, one per witness.
-    pub fn responses(&self) -> &[G::ScalarType] {
-        &self.responses
-    }
-}
