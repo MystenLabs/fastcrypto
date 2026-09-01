@@ -120,10 +120,13 @@ where
         if witnesses.len() != self.witnesses {
             return Err(InvalidInput);
         }
-        for constraint in &self.constraints {
-            if constraint.evaluate(witnesses)? != constraint.lhs {
-                return Err(InvalidInput);
-            }
+        if self.constraints.iter().any(|constraint| {
+            constraint
+                .evaluate(witnesses)
+                .ok()
+                .is_none_or(|lhs| lhs != constraint.lhs)
+        }) {
+            return Err(InvalidInput);
         }
 
         // A_i = sum_j r_j * B_ij for a fresh nonce r_j per witness.
