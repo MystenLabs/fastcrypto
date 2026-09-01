@@ -1454,7 +1454,6 @@ dependencies = [
  "secp256k1 0.27.0",
  "secp256k1 0.31.1",
  "serde",
- "serde-big-array",
  "serde-reflection",
  "serde_json",
  "serde_with",
@@ -1465,7 +1464,6 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
- "twox-hash",
  "typenum",
  "wycheproof",
  "x509-parser",
@@ -3532,15 +3530,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde-big-array"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11fc7cc2c76d73e0f27ee52abbd64eec84d46f370c88371120433196934e4b7f"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "serde-reflection"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4127,17 +4116,6 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
-
-[[package]]
-name = "twox-hash"
-version = "1.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
-dependencies = [
- "cfg-if 1.0.4",
- "rand 0.8.5",
- "static_assertions",
-]
 
 [[package]]
 name = "typenum"

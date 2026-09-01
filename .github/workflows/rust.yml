@@ -57,7 +57,7 @@ jobs:
       - uses: taiki-e/install-action@d30f7ecb94d4d882276efb3967be14b8ef34d289 # pin@nextest
       # make sure benches don't bit-rot
       - name: build benches
-        run: cargo build --benches --features experimental,copy_key,unsecure_schemes
+        run: cargo build --benches --features experimental,copy_key
       # Skip zklogin e2e tests (run separately in non-required workflow)
       - name: cargo nextest
         run: cargo nextest run --all-features -E 'not test(zk_login_e2e)'
