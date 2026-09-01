@@ -473,7 +473,8 @@ impl Receiver {
     ///   corresponding public key is defined in `nodes`.
     /// * `batch_size_per_weight` is the number of secrets a dealer should deal per weight it has.
     ///
-    /// Returns an `InvalidInput` error if the `id` or `dealer_id` is invalid.
+    /// Returns an `InvalidInput` error if the `id` or `dealer_id` is invalid, or if the dealer has
+    /// no nonces to deal because either its weight or `batch_size_per_weight` is zero.
     pub fn new(
         nodes: Nodes<EG>,
         id: PartyId,
@@ -487,6 +488,9 @@ impl Receiver {
 
         // The dealer is expected to deal a number of nonces proportional to its weight
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
+        if batch_size == 0 {
+            return Err(InvalidInput);
+        }
 
         let total_weight = nodes.total_weight();
         params.validate(total_weight)?;
@@ -1741,6 +1745,51 @@ mod tests {
                 .collect_vec();
             Poly::recover_c0(t, shares.into_iter()).unwrap();
         }
+    }
+
+    #[test]
+    fn test_zero_weight_dealer_deals_nothing() {
+        let params = Parameters { t: 3, f: 1 };
+        let weights: Vec<u16> = vec![1, 0, 3, 4];
+        let batch_size_per_weight = 3;
+        let dealer_id = 1u16;
+
+        let mut rng = rand::thread_rng();
+        let sks = weights
+            .iter()
+            .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
+            .collect::<Vec<_>>();
+        let nodes = Nodes::new(
+            weights
+                .iter()
+                .enumerate()
+                .map(|(i, &weight)| Node {
+                    id: i as u16,
+                    pk: PublicKey::from_private_key(&sks[i]),
+                    weight,
+                })
+                .collect_vec(),
+        )
+        .unwrap();
+        assert_eq!(nodes.weight_of(dealer_id).unwrap(), 0);
+
+        let sid = b"zero weight dealer".to_vec();
+
+        let dealer = Dealer::new(
+            nodes.clone(),
+            dealer_id,
+            params,
+            sid.clone(),
+            batch_size_per_weight,
+        )
+        .unwrap();
+        assert_eq!(dealer.batch_size, 0);
+
+        let state = dealer.create_avss_messages(&mut rng).unwrap();
+        assert!(state.common.full_public_keys.is_empty());
+        assert!(nodes
+            .node_ids_iter()
+            .all(|id| state.message_for(id).is_some()));
     }
 
     /// Build a uniform-weight Dealer and matching set of Receivers for tests.
