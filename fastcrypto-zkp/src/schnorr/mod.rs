@@ -42,6 +42,7 @@ use fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul, Scal
 use fastcrypto::hash::{HashFunction, Sha512};
 use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
+use std::iter::repeat_with;
 use std::ops::Neg;
 
 #[cfg(test)]
@@ -57,13 +58,19 @@ struct Constraint<G: GroupElement> {
 }
 
 impl<G: MultiScalarMul> Constraint<G> {
-    fn evaluate(&self, scalars: &[G::ScalarType]) -> FastCryptoResult<G> {
-        let (scalars, points): (Vec<_>, Vec<_>) = self
-            .bases
+    /// The `(scalar, base)` pairs of this constraint, skipping the witnesses absent from it.
+    fn terms<'a>(
+        &'a self,
+        scalars: &'a [G::ScalarType],
+    ) -> impl Iterator<Item = (G::ScalarType, G)> + 'a {
+        self.bases
             .iter()
             .zip(scalars)
             .filter_map(|(base, scalar)| base.map(|base| (*scalar, base)))
-            .unzip();
+    }
+
+    fn evaluate(&self, scalars: &[G::ScalarType]) -> FastCryptoResult<G> {
+        let (scalars, points): (Vec<_>, Vec<_>) = self.terms(scalars).unzip();
         G::multi_scalar_mul(&scalars, &points)
     }
 }
@@ -120,8 +127,8 @@ where
         }
 
         // A_i = sum_j r_j * B_ij for a fresh nonce r_j per witness.
-        let nonces: Vec<_> = (0..self.witnesses)
-            .map(|_| G::ScalarType::rand(rng))
+        let nonces: Vec<_> = repeat_with(|| G::ScalarType::rand(rng))
+            .take(self.witnesses)
             .collect();
         let commitments = self
             .constraints
@@ -132,9 +139,9 @@ where
         // z_j = r_j + c * x_j for the single challenge c shared by all constraints.
         let challenge = self.challenge(&commitments);
         let responses = nonces
-            .iter()
+            .into_iter()
             .zip(witnesses)
-            .map(|(r, x)| *r + challenge * x)
+            .map(|(r, x)| r + challenge * x)
             .collect();
 
         Ok(Proof {
@@ -149,12 +156,8 @@ where
 
         // Check that sum_j z_j * B_ij - c * Y_i == A_i for all i.
         for (constraint, commitment) in self.constraints.iter().zip(&proof.commitments) {
-            let (mut scalars, mut points): (Vec<_>, Vec<_>) = constraint
-                .bases
-                .iter()
-                .zip(&proof.responses)
-                .filter_map(|(base, z)| base.map(|base| (*z, base)))
-                .unzip();
+            let (mut scalars, mut points): (Vec<_>, Vec<_>) =
+                constraint.terms(&proof.responses).unzip();
             scalars.push(challenge.neg());
             points.push(constraint.lhs);
             if G::multi_scalar_mul(&scalars, &points)? != *commitment {
@@ -178,11 +181,9 @@ where
         let mut points = Vec::with_capacity(capacity);
         for (constraint, commitment) in self.constraints.iter().zip(&proof.commitments) {
             let rho = G::ScalarType::rand(rng);
-            for (base, z) in constraint.bases.iter().zip(&proof.responses) {
-                if let Some(base) = base {
-                    scalars.push(rho * z);
-                    points.push(*base);
-                }
+            for (z, base) in constraint.terms(&proof.responses) {
+                scalars.push(rho * z);
+                points.push(base);
             }
             scalars.push(rho.neg());
             points.push(*commitment);
