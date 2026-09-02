@@ -54,37 +54,7 @@ fn generators(bits: usize, m: usize) -> Cow<'static, BulletproofGens> {
 #[derive(Debug)]
 pub struct RangeProof(ExternalRangeProof);
 
-pub enum Range {
-    /// The range [0,...,2^8).
-    Bits8,
-
-    /// The range [0,...,2^16).
-    Bits16,
-
-    /// The range [0,...,2^32).
-    Bits32,
-
-    /// The range [0,...,2^64).
-    Bits64,
-}
-
-impl Range {
-    pub fn is_in_range(&self, value: u64) -> bool {
-        if value == 0 {
-            return true;
-        }
-        value.ilog2() < self.upper_bound_in_bits()
-    }
-
-    fn upper_bound_in_bits(&self) -> u32 {
-        match self {
-            Range::Bits8 => 8,
-            Range::Bits16 => 16,
-            Range::Bits32 => 32,
-            Range::Bits64 => 64,
-        }
-    }
-}
+pub use crate::pedersen::Range;
 
 impl RangeProof {
     /// Prove that the `value` is in the given range using the given commitment blinding.
@@ -132,7 +102,7 @@ impl RangeProof {
             return Err(InvalidInput);
         }
 
-        let bits = range.upper_bound_in_bits() as usize;
+        let bits = range.bits();
         ExternalRangeProof::prove_multiple_with_rng(
             &generators(bits, values.len()),
             &GENERATORS,
@@ -154,7 +124,7 @@ impl RangeProof {
         dst: &[u8],
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<()> {
-        let bits = range.upper_bound_in_bits() as usize;
+        let bits = range.bits();
         self.0
             .verify_multiple_with_rng(
                 &generators(bits, commitments.len()),
@@ -197,21 +167,6 @@ fn transcript(dst: &[u8]) -> Transcript {
     let mut transcript = Transcript::new(&[]);
     transcript.append_message(b"DST", dst);
     transcript
-}
-
-#[test]
-fn test_is_in_range() {
-    assert!(Range::Bits8.is_in_range(0));
-    assert!(Range::Bits8.is_in_range(u8::MAX as u64));
-    assert!(!Range::Bits8.is_in_range(1 << 8));
-    assert!(Range::Bits16.is_in_range(0));
-    assert!(Range::Bits16.is_in_range(u16::MAX as u64));
-    assert!(!Range::Bits16.is_in_range(1 << 16));
-    assert!(Range::Bits32.is_in_range(0));
-    assert!(Range::Bits32.is_in_range(u32::MAX as u64));
-    assert!(!Range::Bits32.is_in_range(1 << 32));
-    assert!(Range::Bits64.is_in_range(0));
-    assert!(Range::Bits64.is_in_range(u64::MAX));
 }
 
 #[test]

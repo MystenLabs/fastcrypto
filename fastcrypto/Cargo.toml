@@ -113,6 +113,11 @@ harness = false
 required-features = ["experimental"]
 
 [[bench]]
+name = "bulletproofspp"
+harness = false
+required-features = ["experimental"]
+
+[[bench]]
 name = "mixed_msm"
 harness = false
 

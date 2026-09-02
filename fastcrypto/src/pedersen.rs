@@ -73,6 +73,54 @@ impl Blinding {
     }
 }
 
+/// The ranges a committed value can be proven to lie in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Range {
+    /// The range [0, 2^8).
+    Bits8,
+    /// The range [0, 2^16).
+    Bits16,
+    /// The range [0, 2^32).
+    Bits32,
+    /// The range [0, 2^64).
+    Bits64,
+}
+
+impl Range {
+    /// The largest value in the range, `2^bits - 1`.
+    pub fn max_value(&self) -> u64 {
+        u64::MAX >> (64 - self.bits())
+    }
+
+    pub fn is_in_range(&self, value: u64) -> bool {
+        value <= self.max_value()
+    }
+
+    pub fn bits(&self) -> usize {
+        match self {
+            Range::Bits8 => 8,
+            Range::Bits16 => 16,
+            Range::Bits32 => 32,
+            Range::Bits64 => 64,
+        }
+    }
+}
+
+#[test]
+fn test_is_in_range() {
+    assert!(Range::Bits8.is_in_range(0));
+    assert!(Range::Bits8.is_in_range(u8::MAX as u64));
+    assert!(!Range::Bits8.is_in_range(1 << 8));
+    assert!(Range::Bits16.is_in_range(0));
+    assert!(Range::Bits16.is_in_range(u16::MAX as u64));
+    assert!(!Range::Bits16.is_in_range(1 << 16));
+    assert!(Range::Bits32.is_in_range(0));
+    assert!(Range::Bits32.is_in_range(u32::MAX as u64));
+    assert!(!Range::Bits32.is_in_range(1 << 32));
+    assert!(Range::Bits64.is_in_range(0));
+    assert!(Range::Bits64.is_in_range(u64::MAX));
+}
+
 #[test]
 fn test_commitment() {
     use crate::groups::GroupElement;
