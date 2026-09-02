@@ -67,7 +67,7 @@ fn test_get_path_out_of_bounds() {
 #[test]
 fn test_merkle_path_verify() {
     for i in 0..TEST_INPUT.len() {
-        let mt: MerkleTree = MerkleTree::build_from_serialized(&TEST_INPUT[..i]);
+        let mt: MerkleTree = MerkleTree::build_from_serialized_slice(&TEST_INPUT[..i]);
         for (index, leaf_data) in TEST_INPUT[..i].iter().enumerate() {
             let proof = mt.get_proof(index).unwrap();
             assert!(proof.verify_proof(&mt.root(), leaf_data, index).is_ok());
