@@ -53,6 +53,22 @@ mod point_tests {
     }
 
     #[test]
+    fn test_dl_interactive_sigma_protocol<G: GroupElement>() {
+        let x = G::ScalarType::rand(&mut thread_rng());
+        let x_g = G::generator() * x;
+        let nonce = G::ScalarType::rand(&mut thread_rng());
+        let challenge = G::ScalarType::rand(&mut thread_rng());
+
+        let commitment = DLNizk::<G>::commitment(&nonce);
+        let response = DLNizk::<G>::respond(&x, &nonce, &challenge);
+        let proof = DLNizk::create_with_challenge(&x, &nonce, &challenge);
+
+        assert_eq!(commitment, G::generator() * nonce);
+        assert_eq!(response, challenge * x + nonce);
+        assert!(proof.verify_with_challenge(&x_g, &challenge).is_ok());
+    }
+
+    #[test]
     fn test_ddh_nizk<G: GroupElement + Serialize + DeserializeOwned>()
     where
         G::ScalarType: FiatShamirChallenge + DeserializeOwned,
