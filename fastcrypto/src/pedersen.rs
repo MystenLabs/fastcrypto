@@ -73,8 +73,7 @@ impl Blinding {
     }
 }
 
-/// The ranges a committed value can be proven to lie in, shared by
-/// [`crate::bulletproofs`] and `crate::bulletproofspp`.
+/// The ranges a committed value can be proven to lie in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Range {
     /// The range [0, 2^8).

@@ -253,7 +253,8 @@ impl Blocks {
     /// beta-weighted tau-monomials plus the constant H-side shape block
     /// (slot 8 carries only the shape entry).
     fn c_at(&self, tau: S, tau_inv: S, beta: S) -> Vec<S> {
-        let tau_pows = power_vector(tau, 8);
+        let max_power = CR_POWERS.iter().fold(0, |m, &a| m.max(a)) as usize;
+        let tau_pows = power_vector(tau, max_power + 1);
         let mut c: Vec<S> = CR_POWERS
             .iter()
             .zip(&self.cl_v)
