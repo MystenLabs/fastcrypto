@@ -18,7 +18,7 @@ mod zklogin_benches {
     use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
     use fastcrypto_zkp::bn254::zk_login::JWK;
     use fastcrypto_zkp::bn254::zk_login::{JwkId, OIDCProvider};
-    use fastcrypto_zkp::bn254::zk_login_api::{CircuitVersion, ZkLoginCircuitMode, ZkLoginEnv};
+    use fastcrypto_zkp::bn254::zk_login_api::{CircuitVersion, ZkLoginEnv};
     use imbl::hashmap::HashMap as ImHashMap;
 
     /// Benchmark the `fastcrypto_zkp::bn254::zk_login_api::verify_zk_login` function and it's main
@@ -122,7 +122,7 @@ mod zklogin_benches {
                         &ZkLoginEnv::Test,
                         &proof,
                         &[input_hashes],
-                        false,
+                        CircuitVersion::V1,
                     )
                 })
             },
@@ -140,7 +140,7 @@ mod zklogin_benches {
                     &eph_warm,
                     &map_warm,
                     &ZkLoginEnv::Test,
-                    ZkLoginCircuitMode::V1Only,
+                    CircuitVersion::V1,
                 )
             })
         });
@@ -156,7 +156,7 @@ mod zklogin_benches {
                         &eph_pubkey,
                         &map,
                         &ZkLoginEnv::Test,
-                        ZkLoginCircuitMode::V1Only,
+                        CircuitVersion::V1,
                     )
                 },
                 BatchSize::PerIteration,
@@ -238,7 +238,7 @@ mod zklogin_benches {
                         &ZkLoginEnv::Test,
                         &proof,
                         &[input_hashes],
-                        true,
+                        CircuitVersion::V2,
                     )
                 })
             },
@@ -253,7 +253,7 @@ mod zklogin_benches {
                     &eph_pubkey,
                     &map,
                     &ZkLoginEnv::Test,
-                    ZkLoginCircuitMode::V2Only,
+                    CircuitVersion::V2,
                 )
             })
         });

@@ -5,18 +5,17 @@ use std::str::FromStr;
 
 use crate::bn254::utils::{
     gen_address_seed, gen_address_seed_v2, gen_address_seed_with_salt_hash, get_nonce,
-    get_nonce_v2, get_proof, get_zk_login_address,
+    get_nonce_v2, get_zk_login_address,
 };
 use crate::bn254::zk_login::big_int_array_to_bits;
 use crate::bn254::zk_login::bitarray_to_bytearray;
 use crate::bn254::zk_login::poseidon_zk_login;
 use crate::bn254::zk_login::{
-    base64_to_bitarray, convert_base, decode_base64_url, fetch_jwks, hash_ascii_str_to_field,
-    hash_to_field, parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId, OIDCProvider,
+    base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
+    parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId, OIDCProvider,
 };
 use crate::bn254::zk_login_api::{
-    verify_zk_login_id, verify_zk_login_iss, Bn254Fr, CircuitVersion, ZkLoginCircuitMode,
-    ZkLoginEnv,
+    verify_zk_login_id, verify_zk_login_iss, Bn254Fr, CircuitVersion, ZkLoginEnv,
 };
 use crate::bn254::{
     zk_login::{ZkLoginInputs, JWK},
@@ -29,7 +28,7 @@ use ark_std::rand::SeedableRng;
 use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::jwt_utils::{parse_and_validate_jwt, JWTHeader};
+use fastcrypto::jwt_utils::JWTHeader;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding as Base64Encoding};
 use fastcrypto::traits::KeyPair;
 use imbl::hashmap::HashMap as ImHashMap;
@@ -199,24 +198,22 @@ async fn test_verify_zk_login_google() {
         ),
         content,
     );
-    for mode in [ZkLoginCircuitMode::V1Only, ZkLoginCircuitMode::Both] {
-        assert!(verify_zk_login(
-            &zk_login_inputs,
-            10,
-            &eph_pubkey,
-            &map,
-            &ZkLoginEnv::Prod,
-            mode,
-        )
-        .is_ok());
-    }
     assert!(verify_zk_login(
         &zk_login_inputs,
         10,
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
-        ZkLoginCircuitMode::V2Only,
+        CircuitVersion::V1,
+    )
+    .is_ok());
+    assert!(verify_zk_login(
+        &zk_login_inputs,
+        10,
+        &eph_pubkey,
+        &map,
+        &ZkLoginEnv::Prod,
+        CircuitVersion::V2,
     )
     .is_err());
 }
@@ -838,7 +835,7 @@ fn test_v2_public_inputs_canonical_padding() {
 }
 
 #[test]
-fn test_verify_zk_login_circuit_modes() {
+fn test_verify_zk_login_circuit_versions() {
     let input = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"7566241567720780416751598994698310678767195459947224622023785587667176814058\",\"18104499930818305143361187733659014043953751050617136254447624192327280445771\",\"1\"],\"b\":[[\"11369230593957954942221175389182778816136534144714579815927653075736806430994\",\"11928003240637992017698644299021052465098754853899210401706726930513411198353\"],[\"2597127058046351054449743605218058440565462021354202666955356076272028963802\",\"3385145993275542896693643488618289924488296318344621918448585222369718288892\"],[\"1\",\"0\"]],\"c\":[\"395141536511114303768253959602639884294254888080713473665269769443249414257\",\"21430657725804540809568084344756144327539843580919730138594118365564728808275\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ\"}", "4959624758616676340947699768172740454110375485415332267384397278368360470616").unwrap();
     let invalid_proof_input = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"1\",\"18104499930818305143361187733659014043953751050617136254447624192327280445771\",\"1\"],\"b\":[[\"1\",\"11928003240637992017698644299021052465098754853899210401706726930513411198353\"],[\"2597127058046351054449743605218058440565462021354202666955356076272028963802\",\"3385145993275542896693643488618289924488296318344621918448585222369718288892\"],[\"1\",\"0\"]],\"c\":[\"395141536511114303768253959602639884294254888080713473665269769443249414257\",\"21430657725804540809568084344756144327539843580919730138594118365564728808275\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ\"}", "4959624758616676340947699768172740454110375485415332267384397278368360470616").unwrap();
     let _ = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"18104499930818305143361187733659014043953751050617136254447624192327280445771\",\"1\"],\"b\":[[\"11369230593957954942221175389182778816136534144714579815927653075736806430994\",\"11928003240637992017698644299021052465098754853899210401706726930513411198353\"],[\"2597127058046351054449743605218058440565462021354202666955356076272028963802\",\"3385145993275542896693643488618289924488296318344621918448585222369718288892\"],[\"1\",\"0\"]],\"c\":[\"395141536511114303768253959602639884294254888080713473665269769443249414257\",\"21430657725804540809568084344756144327539843580919730138594118365564728808275\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ\"}", "4959624758616676340947699768172740454110375485415332267384397278368360470616").is_err();
@@ -865,28 +862,24 @@ fn test_verify_zk_login_circuit_modes() {
             alg: "RS256".to_string(),},
     );
 
-    // v1 proof verifies in v1-only mode and rollout mode.
-    for mode in [ZkLoginCircuitMode::V1Only, ZkLoginCircuitMode::Both] {
-        let res = verify_zk_login(
-            &input,
-            10000,
-            &eph_pubkey_bytes,
-            &all_jwk,
-            &ZkLoginEnv::Test,
-            mode,
-        );
-        assert!(res.is_ok());
-    }
-    // v1 proof fails in v2 only mode.
-    let res_v2_only = verify_zk_login(
+    assert!(verify_zk_login(
         &input,
         10000,
         &eph_pubkey_bytes,
         &all_jwk,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V2Only,
-    );
-    assert!(res_v2_only.is_err());
+        CircuitVersion::V1,
+    )
+    .is_ok());
+    assert!(verify_zk_login(
+        &input,
+        10000,
+        &eph_pubkey_bytes,
+        &all_jwk,
+        &ZkLoginEnv::Test,
+        CircuitVersion::V2,
+    )
+    .is_err());
 
     let invalid_res = verify_zk_login(
         &invalid_proof_input,
@@ -894,116 +887,9 @@ fn test_verify_zk_login_circuit_modes() {
         &eph_pubkey_bytes,
         &all_jwk,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
+        CircuitVersion::V1,
     );
     assert!(invalid_res.is_err());
-}
-
-#[tokio::test]
-async fn test_verify_zk_login_v2_with_dev_prover() {
-    let max_epoch = 10;
-    let jwt_randomness = "100681567828351849884072155819400689117";
-    let user_salt = "129390038577185583942388216820280642146";
-
-    // Generate an ephemeral key pair
-    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
-    let mut eph_pubkey = vec![0x00];
-    eph_pubkey.extend(kp.public().as_ref());
-    let kp_bigint = BigUint::from_bytes_be(&eph_pubkey).to_string();
-
-    // Get nonce
-    let nonce = get_nonce_v2(&eph_pubkey, max_epoch, jwt_randomness).unwrap();
-
-    // Get JWT from 8192-bit key endpoint
-    let client = reqwest::Client::new();
-    let iss = OIDCProvider::TestIssuerKey8192.get_config().iss;
-    let response = client
-        .post(format!(
-            "https://jwt-tester.mystenlabs.com/8192/jwt?nonce={}&iss={}&sub={}",
-            nonce, iss, "test"
-        ))
-        .header("Content-Type", "application/json")
-        .header("Content-Length", "0")
-        .send()
-        .await
-        .unwrap();
-    let jwt_response: serde_json::Value = response.json().await.unwrap();
-    let parsed_token = jwt_response["jwt"].as_str().unwrap().to_string();
-
-    // Get a proof from the V2 endpoint
-    let reader = get_proof(
-        &parsed_token,
-        max_epoch,
-        jwt_randomness,
-        &kp_bigint,
-        user_salt,
-        "https://prover-dev-v2.mystenlabs.com/v1",
-    )
-    .await
-    .expect("get_proof failed");
-
-    // Get sub and aud
-    let (sub, aud, _) =
-        parse_and_validate_jwt(&parsed_token).expect("parse_and_validate_jwt failed");
-
-    // Get the address seed
-    let address_seed =
-        gen_address_seed_v2(user_salt, "sub", &sub, &aud).expect("gen_address_seed_v2 failed");
-
-    let zk_login_inputs =
-        ZkLoginInputs::from_reader(reader, &address_seed).expect("from_reader failed");
-
-    // Fetch the 8192-bit RSA JWK
-    let jwks_vec = fetch_jwks(&OIDCProvider::TestIssuerKey8192, &client, false)
-        .await
-        .unwrap();
-
-    let mut all_jwk = ImHashMap::new();
-    for (jwk_id, jwk) in jwks_vec {
-        all_jwk.insert(jwk_id, jwk);
-    }
-
-    // v2 proof should verify in rollout mode and v2 only mode.
-    for mode in [ZkLoginCircuitMode::Both, ZkLoginCircuitMode::V2Only] {
-        let res_v2 = verify_zk_login(
-            &zk_login_inputs,
-            max_epoch,
-            &eph_pubkey,
-            &all_jwk,
-            &ZkLoginEnv::Test,
-            mode,
-        );
-        assert!(res_v2.is_ok());
-    }
-
-    // v2 proof fails to verify in v1-only mode.
-    let res_v1_only = verify_zk_login(
-        &zk_login_inputs,
-        max_epoch,
-        &eph_pubkey,
-        &all_jwk,
-        &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
-    );
-    assert!(res_v1_only.is_err());
-
-    // The Prod v2 VK is still the v1 placeholder (see `global_pvk_v2`), so a v2 proof must not
-    // verify in the Prod env under any mode. Revisit when the ceremony VK lands.
-    for mode in [
-        ZkLoginCircuitMode::V1Only,
-        ZkLoginCircuitMode::Both,
-        ZkLoginCircuitMode::V2Only,
-    ] {
-        let res_prod = verify_zk_login(
-            &zk_login_inputs,
-            max_epoch,
-            &eph_pubkey,
-            &all_jwk,
-            &ZkLoginEnv::Prod,
-            mode,
-        );
-        assert!(res_prod.is_err());
-    }
 }
 
 #[test]
