@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::nizk::{DLNizk, DdhTupleNizk};
+use crate::nizk::{dl_sigma, DLNizk, DdhTupleNizk};
 use crate::random_oracle::RandomOracle;
 use fastcrypto::groups::bls12381::{G1Element, G2Element};
 use fastcrypto::groups::ristretto255::RistrettoPoint;
@@ -59,13 +59,12 @@ mod point_tests {
         let nonce = G::ScalarType::rand(&mut thread_rng());
         let challenge = G::ScalarType::rand(&mut thread_rng());
 
-        let commitment = DLNizk::<G>::commitment(&nonce);
-        let response = DLNizk::<G>::respond(&x, &nonce, &challenge);
-        let proof = DLNizk::create_with_challenge(&x, &nonce, &challenge);
+        let commitment = dl_sigma::commit::<G>(&nonce);
+        let response = dl_sigma::respond::<G>(&x, &nonce, &challenge);
 
         assert_eq!(commitment, G::generator() * nonce);
         assert_eq!(response, challenge * x + nonce);
-        assert!(proof.verify_with_challenge(&x_g, &challenge).is_ok());
+        assert!(dl_sigma::verify(&x_g, &commitment, &challenge, &response));
     }
 
     #[test]

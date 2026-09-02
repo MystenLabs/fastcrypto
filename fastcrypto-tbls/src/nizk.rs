@@ -104,23 +104,18 @@ where
     }
 }
 
-///   NIZKPoK for the DL [G, xG].
-/// - Prover selects a random r and sends A=rG.
-/// - Prover computes challenge c and sends z=r+c*x.
-/// - Verifier checks that zG=A+c(xG).
-///
-/// The NIZK is (A, z) where c is implicitly computed using a random oracle.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct DLNizk<G: GroupElement>(G, G::ScalarType);
+/// The deterministic, interactive core of the discrete-log Sigma protocol.
+pub mod dl_sigma {
+    use super::is_valid_relation;
+    use fastcrypto::groups::GroupElement;
 
-impl<G: GroupElement> DLNizk<G> {
-    /// Compute the first interactive-protocol message A = rG from a prover nonce r.
-    pub fn commitment(nonce: &G::ScalarType) -> G {
+    /// Compute the prover commitment A = rG from a nonce r.
+    pub fn commit<G: GroupElement>(nonce: &G::ScalarType) -> G {
         G::generator() * nonce
     }
 
-    /// Compute the prover response z = r + cx for a witness x, nonce r, and challenge c.
-    pub fn respond(
+    /// Compute the prover response z = r + cx.
+    pub fn respond<G: GroupElement>(
         witness: &G::ScalarType,
         nonce: &G::ScalarType,
         challenge: &G::ScalarType,
@@ -128,38 +123,25 @@ impl<G: GroupElement> DLNizk<G> {
         *challenge * witness + *nonce
     }
 
-    /// Create a proof using an explicitly supplied challenge.
-    ///
-    /// This is the deterministic Sigma-protocol core used by both interactive callers and the
-    /// Fiat-Shamir wrapper in [`Self::create`].
-    pub fn create_with_challenge(
-        witness: &G::ScalarType,
-        nonce: &G::ScalarType,
+    /// Check the verifier equation zG = A + cX.
+    pub fn verify<G: GroupElement>(
+        public_key: &G,
+        commitment: &G,
         challenge: &G::ScalarType,
-    ) -> Self {
-        DLNizk(
-            Self::commitment(nonce),
-            Self::respond(witness, nonce, challenge),
-        )
-    }
-
-    /// Verify this proof against an explicitly supplied challenge.
-    pub fn verify_with_challenge(
-        &self,
-        x_g: &G,
-        challenge: &G::ScalarType,
-    ) -> FastCryptoResult<()> {
-        if *x_g == G::zero() {
-            // we should never see this, but just in case
-            return Err(FastCryptoError::InvalidProof);
-        }
-        if !is_valid_relation(&self.0, x_g, &G::generator(), &self.1, challenge) {
-            Err(FastCryptoError::InvalidProof)
-        } else {
-            Ok(())
-        }
+        response: &G::ScalarType,
+    ) -> bool {
+        is_valid_relation(commitment, public_key, &G::generator(), response, challenge)
     }
 }
+
+/// NIZKPoK for the DL [G, xG].
+/// - Prover selects a random r and sends A=rG.
+/// - Prover computes challenge c and sends z=r+c*x.
+/// - Verifier checks that zG=A+c(xG).
+///
+/// The NIZK is (A, z) where c is implicitly computed using a random oracle.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DLNizk<G: GroupElement>(G, G::ScalarType);
 
 impl<G: GroupElement> DLNizk<G>
 where
@@ -174,10 +156,11 @@ where
         rng: &mut R,
     ) -> Self {
         let r = G::ScalarType::rand(rng);
-        let a = Self::commitment(&r);
+        let a = dl_sigma::commit::<G>(&r);
         let challenge = Self::fiat_shamir_challenge(x_g, &a, random_oracle);
+        let z = dl_sigma::respond::<G>(x, &r, &challenge);
         debug!("NIZK: Creating a proof for {x_g:?} with challenge {challenge:?}");
-        Self::create_with_challenge(x, &r, &challenge)
+        DLNizk(a, z)
     }
 
     pub fn verify(&self, x_g: &G, random_oracle: &RandomOracle) -> FastCryptoResult<()> {
@@ -187,7 +170,11 @@ where
         }
         let challenge = Self::fiat_shamir_challenge(x_g, &self.0, random_oracle);
         debug!("NIZK: Verifying a proof of {x_g:?} with challenge {challenge:?}");
-        self.verify_with_challenge(x_g, &challenge)
+        if !dl_sigma::verify(x_g, &self.0, &challenge, &self.1) {
+            Err(FastCryptoError::InvalidProof)
+        } else {
+            Ok(())
+        }
     }
 
     /// Returns the challenge for Fiat-Shamir.
