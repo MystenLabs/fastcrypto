@@ -56,7 +56,7 @@ smart-contract vaults rather than the native transaction path.
 
 ```bash
 # everything, both schemes
-cargo test -p fastcrypto-pq --features native
+cargo test -p fastcrypto-pq --all-features
 
 # only the SLH-DSA building blocks
 cargo test -p fastcrypto-pq sphincs

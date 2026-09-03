@@ -180,7 +180,7 @@ fn serialize_deserialize() {
     verify_serialization(&signature, Some(signature.as_ref()));
 
     // The secret side serializes as the 32-byte seed
-    let private = keypair.copy().private();
+    let private = MLDSA65PrivateKey::from_bytes(keypair.as_ref()).unwrap();
     verify_serialization(&private, Some(private.as_ref()));
     let kp_bytes = bincode::serialize(&keypair).unwrap();
     assert_eq!(kp_bytes, keypair.as_ref());
@@ -241,6 +241,7 @@ fn keypair_from_str_roundtrip() {
 }
 
 #[test]
+#[cfg(feature = "copy_key")]
 fn copy_key_pair_preserves_identity() {
     let keypair = keys().pop().unwrap();
     let copied = keypair.copy();
@@ -290,7 +291,7 @@ fn debug_output_is_redacted_for_secrets() {
     let keypair = keys().pop().unwrap();
 
     // Secret material must never appear in formatted output.
-    let private = keypair.copy().private();
+    let private = MLDSA65PrivateKey::from_bytes(keypair.as_ref()).unwrap();
     assert!(!format!("{private:?}").contains(&Base64::encode(keypair.as_ref())));
 
     // Public types print their base64 form, which assertion failures rely on.
