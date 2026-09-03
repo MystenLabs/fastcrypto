@@ -9,7 +9,7 @@ use crate::bn254::zk_login::fetch_jwks;
 use crate::bn254::{
     utils::{gen_address_seed, get_proof},
     zk_login::{JwkId, OIDCProvider, ZkLoginInputs, JWK},
-    zk_login_api::{verify_zk_login, ZkLoginCircuitMode, ZkLoginEnv},
+    zk_login_api::{verify_zk_login, CircuitVersion, ZkLoginEnv},
 };
 use ark_std::rand::{rngs::StdRng, SeedableRng};
 use fastcrypto::jwt_utils::parse_and_validate_jwt;
@@ -21,6 +21,7 @@ use test_strategy::proptest;
 use test_strategy::Arbitrary;
 
 const PROVER_DEV_SERVER_URL: &str = "https://prover-dev.mystenlabs.com/v1";
+const PROVER_DEV_V2_SERVER_URL: &str = "https://prover-dev-v2.mystenlabs.com/v1";
 
 #[tokio::test]
 async fn test_end_to_end_twitch() {
@@ -46,9 +47,20 @@ async fn test_end_to_end_twitch() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
+        CircuitVersion::V1,
     );
     assert!(res.is_ok());
+
+    // A V1 prover proof must not verify as V2.
+    assert!(verify_zk_login(
+        &zk_login_inputs,
+        max_epoch,
+        &eph_pubkey,
+        &map,
+        &ZkLoginEnv::Test,
+        CircuitVersion::V2,
+    )
+    .is_err());
 
     // Verify it against prod vk fails.
     let res_prod = verify_zk_login(
@@ -57,9 +69,78 @@ async fn test_end_to_end_twitch() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
-        ZkLoginCircuitMode::V1Only,
+        CircuitVersion::V1,
     );
     assert!(res_prod.is_err());
+}
+
+#[tokio::test]
+async fn test_end_to_end_v2_prover() {
+    let max_epoch = 10;
+    let jwt_randomness = "100681567828351849884072155819400689117";
+    let user_salt = "129390038577185583942388216820280642146";
+
+    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
+    let mut eph_pubkey = vec![0x00];
+    eph_pubkey.extend(kp.public().as_ref());
+    let kp_bigint = BigUint::from_bytes_be(&eph_pubkey).to_string();
+    let nonce = get_nonce(&eph_pubkey, max_epoch, jwt_randomness, CircuitVersion::V2).unwrap();
+
+    let client = reqwest::Client::new();
+    let iss = OIDCProvider::TestIssuerKey8192.get_config().iss;
+    let response = client
+        .post(format!(
+            "https://jwt-tester.mystenlabs.com/8192/jwt?nonce={nonce}&iss={iss}&sub=test"
+        ))
+        .header("Content-Type", "application/json")
+        .header("Content-Length", "0")
+        .send()
+        .await
+        .unwrap();
+    let jwt_response: serde_json::Value = response.json().await.unwrap();
+    let parsed_token = jwt_response["jwt"].as_str().unwrap();
+
+    let reader = get_proof(
+        parsed_token,
+        max_epoch,
+        jwt_randomness,
+        &kp_bigint,
+        user_salt,
+        PROVER_DEV_V2_SERVER_URL,
+    )
+    .await
+    .expect("get_proof failed");
+    let (sub, aud, _) = parse_and_validate_jwt(parsed_token).unwrap();
+    let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud, CircuitVersion::V2).unwrap();
+    let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
+
+    let mut all_jwk = ImHashMap::new();
+    for (jwk_id, jwk) in fetch_jwks(&OIDCProvider::TestIssuerKey8192, &client, false)
+        .await
+        .unwrap()
+    {
+        all_jwk.insert(jwk_id, jwk);
+    }
+
+    // A V2 prover proof verifies as V2 and must not verify as V1.
+    assert!(verify_zk_login(
+        &zk_login_inputs,
+        max_epoch,
+        &eph_pubkey,
+        &all_jwk,
+        &ZkLoginEnv::Test,
+        CircuitVersion::V2,
+    )
+    .is_ok());
+    assert!(verify_zk_login(
+        &zk_login_inputs,
+        max_epoch,
+        &eph_pubkey,
+        &all_jwk,
+        &ZkLoginEnv::Test,
+        CircuitVersion::V1,
+    )
+    .is_err());
 }
 
 #[tokio::test]
@@ -90,7 +171,7 @@ async fn test_end_to_end_kakao() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
+        CircuitVersion::V1,
     );
     assert!(res.is_ok());
 
@@ -101,7 +182,7 @@ async fn test_end_to_end_kakao() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
-        ZkLoginCircuitMode::V1Only,
+        CircuitVersion::V1,
     );
     assert!(res_prod.is_err());
 }
@@ -133,7 +214,7 @@ async fn test_end_to_end_apple() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
+        CircuitVersion::V1,
     );
     assert!(res.is_ok());
 
@@ -144,7 +225,7 @@ async fn test_end_to_end_apple() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
-        ZkLoginCircuitMode::V1Only,
+        CircuitVersion::V1,
     );
     assert!(res_prod.is_err());
 }
@@ -176,7 +257,7 @@ async fn test_end_to_end_slack() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
+        CircuitVersion::V1,
     );
     assert!(res.is_ok());
 
@@ -187,7 +268,7 @@ async fn test_end_to_end_slack() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
-        ZkLoginCircuitMode::V1Only,
+        CircuitVersion::V1,
     );
     assert!(res_prod.is_err());
 }
@@ -237,7 +318,7 @@ async fn test_end_to_end_all_providers() {
             &eph_pubkey,
             &map,
             &ZkLoginEnv::Test,
-            ZkLoginCircuitMode::V1Only,
+            CircuitVersion::V1,
         );
         assert!(res.is_ok());
 
@@ -248,7 +329,7 @@ async fn test_end_to_end_all_providers() {
             &eph_pubkey,
             &map,
             &ZkLoginEnv::Prod,
-            ZkLoginCircuitMode::V1Only,
+            CircuitVersion::V1,
         );
         assert!(res_prod.is_err());
     }
@@ -281,7 +362,7 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
     .unwrap();
     let (sub, aud, _) = parse_and_validate_jwt(parsed_token).unwrap();
     // Get the address seed.
-    let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud).unwrap();
+    let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud, CircuitVersion::V1).unwrap();
     let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
     (max_epoch, eph_pubkey, zk_login_inputs)
 }
@@ -321,7 +402,13 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
         let client = reqwest::Client::new();
 
         // Get JWT from test issuer with nonce.
-        let nonce = get_nonce(&eph_pk_bytes, max_epoch, &jwt_randomness).unwrap();
+        let nonce = get_nonce(
+            &eph_pk_bytes,
+            max_epoch,
+            &jwt_randomness,
+            CircuitVersion::V1,
+        )
+        .unwrap();
         println!("jwt_randomness: {:?}", jwt_randomness);
         println!("user_salt: {:?}", user_salt);
         println!("sub: {:?}", sub);
@@ -353,7 +440,8 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
         .unwrap();
         let (sub, aud, _) = parse_and_validate_jwt(&parsed_token).unwrap();
         // Get the address seed.
-        let address_seed = gen_address_seed(&user_salt, "sub", &sub, &aud).unwrap();
+        let address_seed =
+            gen_address_seed(&user_salt, "sub", &sub, &aud, CircuitVersion::V1).unwrap();
         let zk_login_inputs =
             ZkLoginInputs::from_reader(reader, &address_seed.to_string()).unwrap();
 
@@ -373,7 +461,7 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
             &eph_pk_bytes,
             &map,
             &ZkLoginEnv::Test,
-            ZkLoginCircuitMode::V1Only,
+            CircuitVersion::V1,
         );
         assert!(res.is_ok());
     }

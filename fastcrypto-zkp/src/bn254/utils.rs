@@ -1,12 +1,16 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::bn254::sha256_transcripts::{
+    append_fixed_width_be, append_length_prefixed_bytes, sha256_low_253,
+};
 use crate::bn254::zk_login::poseidon_zk_login;
 use crate::bn254::zk_login::{OIDCProvider, ZkLoginInputsReader};
-use crate::bn254::zk_login_api::Bn254Fr;
+use crate::bn254::zk_login_api::{Bn254Fr, CircuitVersion};
 use crate::zk_login_utils::Bn254FrElement;
+use ark_ff::{BigInteger, PrimeField};
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::hash::{Blake2b256, HashFunction};
+use fastcrypto::hash::{Blake2b256, HashFunction, Sha256};
 use fastcrypto::rsa::Base64UrlUnpadded;
 use fastcrypto::rsa::Encoding;
 use num_bigint::BigUint;
@@ -21,6 +25,10 @@ const ZK_LOGIN_AUTHENTICATOR_FLAG: u8 = 0x05;
 const MAX_KEY_CLAIM_NAME_LENGTH: u16 = 32;
 const MAX_KEY_CLAIM_VALUE_LENGTH: u16 = 115;
 const MAX_AUD_VALUE_LENGTH: u16 = 145;
+const V2_EPH_PK_WIDTH: usize = 34;
+const V2_JWT_RANDOMNESS_WIDTH: usize = 16;
+const NONCE_OUTPUT_WIDTH: usize = 20;
+const V2_SALT_WIDTH: usize = 32;
 
 /// Calculate the Sui address based on address seed and address params.
 pub fn get_zk_login_address(
@@ -42,9 +50,35 @@ pub fn gen_address_seed(
     name: &str,  // i.e. "sub"
     value: &str, // i.e. the sub value
     aud: &str,   // i.e. the client ID
+    version: CircuitVersion,
 ) -> Result<String, FastCryptoError> {
-    let salt_hash = poseidon_zk_login(&[(&Bn254FrElement::from_str(salt)?).into()])?;
-    gen_address_seed_with_salt_hash(&salt_hash.to_string(), name, value, aud)
+    match version {
+        CircuitVersion::V1 => {
+            let salt_hash = poseidon_zk_login(&[(&Bn254FrElement::from_str(salt)?).into()])?;
+            gen_address_seed_with_salt_hash(&salt_hash.to_string(), name, value, aud)
+        }
+        CircuitVersion::V2 => {
+            let salt = BigUint::from_str(salt).map_err(|_| FastCryptoError::InvalidInput)?;
+            if salt >= BigUint::from_bytes_be(&Bn254Fr::MODULUS.to_bytes_be()) {
+                return Err(FastCryptoError::InvalidInput);
+            }
+            let mut transcript = Vec::new();
+            append_length_prefixed_bytes(
+                &mut transcript,
+                name.as_bytes(),
+                MAX_KEY_CLAIM_NAME_LENGTH,
+            )?;
+            append_length_prefixed_bytes(
+                &mut transcript,
+                value.as_bytes(),
+                MAX_KEY_CLAIM_VALUE_LENGTH,
+            )?;
+            append_length_prefixed_bytes(&mut transcript, aud.as_bytes(), MAX_AUD_VALUE_LENGTH)?;
+            append_fixed_width_be(&mut transcript, &salt.to_bytes_be(), V2_SALT_WIDTH)?;
+
+            Ok(BigUint::from_bytes_be(&sha256_low_253(&transcript)).to_string())
+        }
+    }
 }
 
 /// Same as [`gen_address_seed`] but takes the poseidon hash of the salt as input instead of the salt.
@@ -71,8 +105,9 @@ pub fn get_oidc_url(
     client_id: &str,
     redirect_url: &str,
     jwt_randomness: &str,
+    version: CircuitVersion,
 ) -> Result<String, FastCryptoError> {
-    let nonce = get_nonce(eph_pk_bytes, max_epoch, jwt_randomness)?;
+    let nonce = get_nonce(eph_pk_bytes, max_epoch, jwt_randomness, version)?;
     Ok(match provider {
             OIDCProvider::Google => format!("https://accounts.google.com/o/oauth2/v2/auth?client_id={}&response_type=id_token&redirect_uri={}&scope=openid&nonce={}", client_id, redirect_url, nonce),
             OIDCProvider::Twitch => format!("https://id.twitch.tv/oauth2/authorize?client_id={}&force_verify=true&lang=en&login_type=login&redirect_uri={}&response_type=id_token&scope=openid&nonce={}", client_id, redirect_url, nonce),
@@ -108,32 +143,51 @@ pub fn get_token_exchange_url(
     }
 }
 
-/// Calculate the nonce for the given parameters. Nonce is defined as the Base64Url encoded of the poseidon hash of 4 inputs:
-/// first half of eph_pk_bytes in BigInt, second half of eph_pk_bytes in BigInt, max_epoch and jwt_randomness.
+/// Calculate the nonce for the given circuit version.
 pub fn get_nonce(
     eph_pk_bytes: &[u8],
     max_epoch: u64,
     jwt_randomness: &str,
+    version: CircuitVersion,
 ) -> Result<String, FastCryptoError> {
-    let (first, second) = split_to_two_frs(eph_pk_bytes)?;
+    match version {
+        CircuitVersion::V1 => {
+            let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
-    let max_epoch = Bn254Fr::from_str(&max_epoch.to_string())
-        .expect("max_epoch.to_string is always non empty string without trailing zeros");
-    let jwt_randomness =
-        Bn254Fr::from_str(jwt_randomness).map_err(|_| FastCryptoError::InvalidInput)?;
+            let max_epoch = Bn254Fr::from_str(&max_epoch.to_string())
+                .expect("max_epoch.to_string is always non empty string without trailing zeros");
+            let jwt_randomness =
+                Bn254Fr::from_str(jwt_randomness).map_err(|_| FastCryptoError::InvalidInput)?;
 
-    let hash = poseidon_zk_login(&[first, second, max_epoch, jwt_randomness])
-        .expect("inputs is not too long");
-    let data = BigUint::from(hash).to_bytes_be();
-    // NOTE: `data.len() - 20` would underflow if `BigUint::to_bytes_be` returns fewer than 20
-    // bytes, which happens iff the hash is `< 2^159`. Poseidon outputs are pseudo-random Fr
-    // elements (`< 2^254`), so the probability is ~2^-95 and this case is unreachable in
-    // practice. A future fix could left-zero-pad `data` to a canonical 32-byte representation.
-    let truncated = &data[data.len() - 20..];
-    let mut buf = vec![0; Base64UrlUnpadded::encoded_len(truncated)];
-    Ok(Base64UrlUnpadded::encode(truncated, &mut buf)
-        .unwrap()
-        .to_string())
+            let hash = poseidon_zk_login(&[first, second, max_epoch, jwt_randomness])
+                .expect("inputs is not too long");
+            let data = BigUint::from(hash).to_bytes_be();
+            if data.len() < NONCE_OUTPUT_WIDTH {
+                return Err(FastCryptoError::InvalidInput);
+            }
+            let truncated = &data[data.len() - NONCE_OUTPUT_WIDTH..];
+            let mut buf = vec![0; Base64UrlUnpadded::encoded_len(truncated)];
+            Ok(Base64UrlUnpadded::encode(truncated, &mut buf)
+                .unwrap()
+                .to_string())
+        }
+        CircuitVersion::V2 => {
+            if eph_pk_bytes.len() > V2_EPH_PK_WIDTH {
+                return Err(FastCryptoError::InputTooLong(V2_EPH_PK_WIDTH));
+            }
+            let jwt_randomness = BigUint::from_str(jwt_randomness)
+                .map_err(|_| FastCryptoError::InvalidInput)?
+                .to_bytes_be();
+            let mut transcript = Vec::new();
+            append_fixed_width_be(&mut transcript, eph_pk_bytes, V2_EPH_PK_WIDTH)?;
+            transcript.extend_from_slice(&max_epoch.to_be_bytes());
+            append_fixed_width_be(&mut transcript, &jwt_randomness, V2_JWT_RANDOMNESS_WIDTH)?;
+
+            let digest: [u8; 32] = Sha256::digest(transcript).into();
+            let nonce = &digest[digest.len() - NONCE_OUTPUT_WIDTH..];
+            Ok(Base64UrlUnpadded::encode_string(nonce))
+        }
+    }
 }
 
 /// A response struct for the salt server.

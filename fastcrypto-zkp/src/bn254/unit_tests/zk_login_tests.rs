@@ -4,33 +4,64 @@
 use std::str::FromStr;
 
 use crate::bn254::utils::{
-    gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_proof, get_zk_login_address,
+    gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_zk_login_address,
 };
 use crate::bn254::zk_login::big_int_array_to_bits;
 use crate::bn254::zk_login::bitarray_to_bytearray;
 use crate::bn254::zk_login::poseidon_zk_login;
 use crate::bn254::zk_login::{
-    base64_to_bitarray, convert_base, decode_base64_url, fetch_jwks, hash_ascii_str_to_field,
-    hash_to_field, parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId, OIDCProvider,
+    base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
+    parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId, OIDCProvider,
 };
 use crate::bn254::zk_login_api::{
-    verify_zk_login_id, verify_zk_login_iss, Bn254Fr, ZkLoginCircuitMode, ZkLoginEnv,
+    verify_zk_login_id, verify_zk_login_iss, Bn254Fr, CircuitVersion, ZkLoginEnv,
 };
 use crate::bn254::{
     zk_login::{ZkLoginInputs, JWK},
     zk_login_api::verify_zk_login,
 };
 use crate::zk_login_utils::Bn254FrElement;
-use ark_bn254::Fr;
+use ark_ff::{BigInteger, PrimeField};
 use ark_std::rand::rngs::StdRng;
 use ark_std::rand::SeedableRng;
 use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::jwt_utils::{parse_and_validate_jwt, JWTHeader};
+use fastcrypto::jwt_utils::JWTHeader;
+use fastcrypto::rsa::{Base64UrlUnpadded, Encoding as Base64Encoding};
 use fastcrypto::traits::KeyPair;
 use imbl::hashmap::HashMap as ImHashMap;
 use num_bigint::BigUint;
+
+fn v2_public_inputs_fixture() -> (ZkLoginInputs, Vec<u8>, Vec<u8>, u64) {
+    let input = ZkLoginInputs {
+        proof_points: super::ZkLoginProof {
+            a: vec![],
+            b: vec![],
+            c: vec![],
+        },
+        iss_base64_details: Claim {
+            value: "ImlzcyI6Imh0dHBzOi8vaXNzdWVyLmV4YW1wbGUiLA".to_string(),
+            index_mod_4: 0,
+        },
+        header_base64: "eyJhbGciOiJSUzI1NiIsImtpZCI6ImJlbmNobWFyay1rZXkiLCJ0eXAiOiJKV1QifQ"
+            .to_string(),
+        address_seed: Bn254FrElement::from_str(
+            "3126014319490974450129965316015711267316183122570120925828443711834702627706",
+        )
+        .unwrap(),
+        jwt_details: JWTDetails::default(),
+    };
+    let eph_pubkey = BigUint::parse_bytes(
+        b"1234123456789abcdef00112233445566778899aabbccddeeff00fedcba987654321",
+        16,
+    )
+    .unwrap()
+    .to_bytes_be();
+    let modulus =
+        ((BigUint::from(1u8) << 2047usize) + BigUint::from(0x123456789abcdefu64)).to_bytes_be();
+    (input, eph_pubkey, modulus, 0x1020304050607080)
+}
 
 const GOOGLE_JWK_BYTES: &[u8] = r#"{
     "keys": [
@@ -125,6 +156,7 @@ async fn test_verify_zk_login_google() {
         "sub",
         "106294049240999307923",
         "25769832374-famecqrhe2gkebt5fvqms2263046lj96.apps.googleusercontent.com",
+        CircuitVersion::V1,
     )
     .unwrap();
 
@@ -166,15 +198,24 @@ async fn test_verify_zk_login_google() {
         ),
         content,
     );
-    let res = verify_zk_login(
+    assert!(verify_zk_login(
         &zk_login_inputs,
         10,
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
-        ZkLoginCircuitMode::V1Only,
-    );
-    assert!(res.is_ok());
+        CircuitVersion::V1,
+    )
+    .is_ok());
+    assert!(verify_zk_login(
+        &zk_login_inputs,
+        10,
+        &eph_pubkey,
+        &map,
+        &ZkLoginEnv::Prod,
+        CircuitVersion::V2,
+    )
+    .is_err());
 }
 
 #[test]
@@ -219,6 +260,23 @@ fn test_parse_jwt_details() {
 
 #[test]
 fn test_decode_base64() {
+    // https://github.com/MystenLabs/zklogin-circuits/blob/08488826ebae68cba16570410434be2b873f1477/test/unit/utils.test.js#L138-L211
+    for (encoded, offset, expected) in [
+        ("SA", 0, "H"),
+        ("GU", 1, "e"),
+        ("Vs", 2, "l"),
+        ("SGVsbG8sIHdvcmxkIQ", 0, "Hello, world!"),
+        ("GVsbG8sIHdvcmxk", 1, "ello, world"),
+        ("VsbG8sIHdvcmxk", 2, "llo, world"),
+        ("LGFiYy8_fQ", 0, ",abc/?}"),
+    ] {
+        assert_eq!(decode_base64_url(encoded, &offset).unwrap(), expected);
+    }
+    let long_value = "a".repeat(200);
+    let encoded = Base64UrlUnpadded::encode_string(long_value.as_bytes());
+    assert!(encoded.len() > usize::from(u8::MAX));
+    assert_eq!(decode_base64_url(&encoded, &0).unwrap(), long_value);
+
     assert_eq!(
         decode_base64_url("aa", &1).unwrap_err(),
         FastCryptoError::GeneralError("Invalid UTF8 string".to_string())
@@ -466,8 +524,66 @@ fn test_get_nonce() {
     let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
     let mut eph_pk_bytes = vec![0x00];
     eph_pk_bytes.extend(kp.public().as_ref());
-    let nonce = get_nonce(&eph_pk_bytes, 10, "100681567828351849884072155819400689117").unwrap();
+    let nonce = get_nonce(
+        &eph_pk_bytes,
+        10,
+        "100681567828351849884072155819400689117",
+        CircuitVersion::V1,
+    )
+    .unwrap();
     assert_eq!(nonce, "hTPpgF7XAKbW37rEUS6pEVZqmoI");
+}
+
+#[test]
+fn test_get_nonce_v2_matches_circuit_fixture() {
+    // https://github.com/MystenLabs/zklogin-circuits/blob/08488826ebae68cba16570410434be2b873f1477/test/circuits/sha256-transcripts.circom.test.js#L40-L70
+    let eph_pk_bytes = BigUint::parse_bytes(
+        b"1234123456789abcdef00112233445566778899aabbccddeeff00fedcba987654321",
+        16,
+    )
+    .unwrap()
+    .to_bytes_be();
+    let jwt_randomness = BigUint::parse_bytes(b"ffeeddccbbaa99887766554433221100", 16)
+        .unwrap()
+        .to_string();
+    let nonce = get_nonce(
+        &eph_pk_bytes,
+        0x1020304050607080,
+        &jwt_randomness,
+        CircuitVersion::V2,
+    )
+    .unwrap();
+
+    // https://github.com/MystenLabs/zklogin-circuits/blob/08488826ebae68cba16570410434be2b873f1477/test/circuits/jwtchecks.circom.test.js#L553-L567
+    assert_eq!(nonce.len(), 27);
+    assert_eq!(
+        BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec(&nonce).unwrap()).to_string(),
+        "143230850029866019074296937827301637452923192396"
+    );
+}
+
+#[test]
+fn test_get_nonce_v2_size_boundaries() {
+    // https://github.com/MystenLabs/zklogin-circuits/blob/08488826ebae68cba16570410434be2b873f1477/src/lib/sha256Transcripts.ts#L49-L71
+    let max_randomness = ((BigUint::from(1u8) << 128usize) - BigUint::from(1u8)).to_string();
+    assert!(get_nonce(&[0xff; 34], u64::MAX, &max_randomness, CircuitVersion::V2).is_ok());
+    assert_eq!(
+        get_nonce(&[0; 35], 0, "0", CircuitVersion::V2),
+        Err(FastCryptoError::InputTooLong(34))
+    );
+    assert_eq!(
+        get_nonce(
+            &[0; 34],
+            0,
+            &(BigUint::from(1u8) << 128usize).to_string(),
+            CircuitVersion::V2,
+        ),
+        Err(FastCryptoError::InvalidInput)
+    );
+    assert_eq!(
+        get_nonce(&[0; 34], 0, "-1", CircuitVersion::V2),
+        Err(FastCryptoError::InvalidInput)
+    );
 }
 
 #[test]
@@ -507,11 +623,87 @@ fn test_gen_seed() {
         "sub",
         "904448692",
         "rs1bh065i9ya4ydvifixl4kss0uhpt",
+        CircuitVersion::V1,
     )
     .unwrap();
     assert_eq!(
         address_seed.to_string(),
         "16657007263003735230240998439420301694514420923267872433517882233836276100450".to_string()
+    );
+}
+
+#[test]
+fn test_gen_address_seed_v2_matches_circuit_fixture() {
+    // https://github.com/MystenLabs/zklogin-circuits/blob/08488826ebae68cba16570410434be2b873f1477/test/circuits/sha256-transcripts.circom.test.js#L73-L165
+    let address_seed = gen_address_seed(
+        &BigUint::parse_bytes(b"123456789abcdef", 16)
+            .unwrap()
+            .to_string(),
+        "sub",
+        "user-12345",
+        "https://example.com/zklogin",
+        CircuitVersion::V2,
+    )
+    .unwrap();
+
+    assert_eq!(
+        address_seed,
+        "9362447861562799071380906390541455334036258739187901482667068623820840235994"
+    );
+}
+
+#[test]
+fn test_gen_address_seed_v2_size_boundaries() {
+    // https://github.com/MystenLabs/zklogin-circuits/blob/08488826ebae68cba16570410434be2b873f1477/src/lib/sha256Transcripts.ts#L10-L94
+    assert!(gen_address_seed(
+        "0",
+        &"n".repeat(32),
+        &"v".repeat(115),
+        &"a".repeat(145),
+        CircuitVersion::V2,
+    )
+    .is_ok());
+    let field_modulus = BigUint::from_bytes_be(&Bn254Fr::MODULUS.to_bytes_be());
+    assert!(gen_address_seed(
+        &(field_modulus.clone() - BigUint::from(1u8)).to_string(),
+        "n",
+        "v",
+        "a",
+        CircuitVersion::V2,
+    )
+    .is_ok());
+    assert!(gen_address_seed("0", &"é".repeat(16), "v", "a", CircuitVersion::V2).is_ok());
+    assert_eq!(
+        gen_address_seed("0", &"é".repeat(17), "v", "a", CircuitVersion::V2),
+        Err(FastCryptoError::InvalidInput)
+    );
+
+    for (name, value, aud) in [
+        ("", "v", "a"),
+        ("n", "", "a"),
+        ("n", "v", ""),
+        (&"n".repeat(33), "v", "a"),
+        ("n", &"v".repeat(116), "a"),
+        ("n", "v", &"a".repeat(146)),
+    ] {
+        assert_eq!(
+            gen_address_seed("0", name, value, aud, CircuitVersion::V2),
+            Err(FastCryptoError::InvalidInput)
+        );
+    }
+    assert_eq!(
+        gen_address_seed(
+            &field_modulus.to_string(),
+            "n",
+            "v",
+            "a",
+            CircuitVersion::V2,
+        ),
+        Err(FastCryptoError::InvalidInput)
+    );
+    assert_eq!(
+        gen_address_seed("-1", "n", "v", "a", CircuitVersion::V2),
+        Err(FastCryptoError::InvalidInput)
     );
 }
 
@@ -571,51 +763,119 @@ fn test_verify_zk_login_id_and_iss() {
 }
 
 #[test]
-fn test_all_inputs_hash() {
-    let jwt_sha2_hash_0 = Fr::from_str("248987002057371616691124650904415756047").unwrap();
-    let jwt_sha2_hash_1 = Fr::from_str("113498781424543581252500776698433499823").unwrap();
-    let masked_content_hash = Fr::from_str(
-        "14900420995580824499222150327925943524564997104405553289134597516335134742309",
-    )
-    .unwrap();
-    let payload_start_index = Fr::from_str("103").unwrap();
-    let payload_len = Fr::from_str("564").unwrap();
-    let eph_public_key_0 = Fr::from_str("17932473587154777519561053972421347139").unwrap();
-    let eph_public_key_1 = Fr::from_str("134696963602902907403122104327765350261").unwrap();
-    let max_epoch = Fr::from_str("10000").unwrap();
-    let num_sha2_blocks = Fr::from_str("11").unwrap();
-    let key_claim_name_f = Fr::from_str(
-        "18523124550523841778801820019979000409432455608728354507022210389496924497355",
-    )
-    .unwrap();
-    let addr_seed = Fr::from_str(
-        "15604334753912523265015800787270404628529489918817818174033741053550755333691",
-    )
-    .unwrap();
+fn test_v2_public_inputs_hash_matches_circuit_fixture() {
+    // Inputs mirror zklogin-circuits' `PublicInputsHash` transcript test:
+    // https://github.com/MystenLabs/zklogin-circuits/blob/08488826ebae68cba16570410434be2b873f1477/test/circuits/sha256-transcripts.circom.test.js#L222-L300
+    let (input, eph_pubkey, modulus, max_epoch) = v2_public_inputs_fixture();
+    assert_eq!(
+        gen_address_seed(
+            "12345",
+            "sub",
+            "user-12345",
+            "example-aud",
+            CircuitVersion::V2,
+        )
+        .unwrap(),
+        input.address_seed.to_string()
+    );
+    let transcript = input
+        .encode_v2_public_inputs_transcript(&eph_pubkey, &modulus, max_epoch)
+        .unwrap();
+    assert_eq!(transcript.len(), 1567);
 
-    let hash = poseidon_zk_login(&[
-        jwt_sha2_hash_0,
-        jwt_sha2_hash_1,
-        masked_content_hash,
-        payload_start_index,
-        payload_len,
-        eph_public_key_0,
-        eph_public_key_1,
-        max_epoch,
-        num_sha2_blocks,
-        key_claim_name_f,
-        addr_seed,
-    ])
-    .unwrap();
+    let hash = input
+        .calculate_all_inputs_hash(&eph_pubkey, &modulus, max_epoch, CircuitVersion::V2)
+        .unwrap();
+
     assert_eq!(
         hash.to_string(),
-        "2487117669597822357956926047501254969190518860900347921480370492048882803688".to_string()
+        "7466864082827045467337205048187624220823834147457792412728629191659569032462"
     );
 }
 
-#[tokio::test]
-#[ignore]
-async fn test_verify_zk_login() {
+#[test]
+fn test_v2_public_inputs_size_boundaries() {
+    let (mut input, eph_pubkey, _, max_epoch) = v2_public_inputs_fixture();
+    let config = CircuitVersion::V2.config();
+    let max_issuer_len = usize::from(config.max_iss_len);
+    let max_header_len = usize::from(config.max_header_len_b64);
+    let max_modulus_len = usize::from(config.max_rsa_bits / 8);
+    let max_issuer = "é".repeat(max_issuer_len / "é".len());
+    assert_eq!(max_issuer.len(), max_issuer_len);
+    input.iss_base64_details.value = Base64UrlUnpadded::encode_string(max_issuer.as_bytes());
+    input.header_base64 = "h".repeat(max_header_len);
+    let max_modulus = vec![0xff; max_modulus_len];
+    input
+        .encode_v2_public_inputs_transcript(&eph_pubkey, &max_modulus, max_epoch)
+        .unwrap();
+
+    let oversized_issuer = format!("{max_issuer}é");
+    input.iss_base64_details.value = Base64UrlUnpadded::encode_string(oversized_issuer.as_bytes());
+    assert_eq!(
+        input.calculate_all_inputs_hash(&eph_pubkey, &max_modulus, max_epoch, CircuitVersion::V2,),
+        Err(FastCryptoError::InvalidInput)
+    );
+    input.iss_base64_details.value = Base64UrlUnpadded::encode_string(max_issuer.as_bytes());
+    input.header_base64 = "h".repeat(max_header_len + 1);
+    assert_eq!(
+        input.calculate_all_inputs_hash(&eph_pubkey, &max_modulus, max_epoch, CircuitVersion::V2,),
+        Err(FastCryptoError::GeneralError("Header too long".to_string()))
+    );
+    input.header_base64 = "h".repeat(max_header_len);
+    assert_eq!(
+        input.calculate_all_inputs_hash(
+            &eph_pubkey,
+            &vec![0; max_modulus_len + 1],
+            max_epoch,
+            CircuitVersion::V2,
+        ),
+        Err(FastCryptoError::InputTooLong(max_modulus_len))
+    );
+}
+
+#[test]
+fn test_v2_public_inputs_canonical_padding() {
+    let (input, _, _, max_epoch) = v2_public_inputs_fixture();
+    let config = CircuitVersion::V2.config();
+    let eph_pubkey = vec![1; 33];
+    let transcript = input
+        .encode_v2_public_inputs_transcript(&eph_pubkey, &[1, 2, 3], max_epoch)
+        .unwrap();
+    let eph_pubkey_field = &transcript[..eph_pubkey.len() + 1];
+    assert_eq!(eph_pubkey_field[0], 0);
+    assert_eq!(&eph_pubkey_field[1..], eph_pubkey);
+    let modulus_width = usize::from(config.max_rsa_bits / 8);
+    let modulus_field = &transcript[transcript.len() - modulus_width..];
+    assert!(modulus_field[..modulus_field.len() - 3]
+        .iter()
+        .all(|byte| *byte == 0));
+    assert_eq!(&modulus_field[modulus_field.len() - 3..], &[1, 2, 3]);
+    assert_eq!(
+        transcript,
+        input
+            .encode_v2_public_inputs_transcript(&eph_pubkey, &[0, 0, 1, 2, 3], max_epoch)
+            .unwrap()
+    );
+    assert!(input
+        .encode_v2_public_inputs_transcript(&[0; 47], &[1], max_epoch)
+        .is_ok());
+
+    assert_eq!(
+        input.encode_v2_public_inputs_transcript(&[1; 35], &[1], max_epoch),
+        Err(FastCryptoError::InvalidInput)
+    );
+    assert_eq!(
+        input.encode_v2_public_inputs_transcript(&[1; 32], &[1], max_epoch),
+        Err(FastCryptoError::InputTooShort(33))
+    );
+    assert_eq!(
+        input.encode_v2_public_inputs_transcript(&[0; 48], &[1], max_epoch),
+        Err(FastCryptoError::InputTooLong(47))
+    );
+}
+
+#[test]
+fn test_verify_zk_login_circuit_versions() {
     let input = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"7566241567720780416751598994698310678767195459947224622023785587667176814058\",\"18104499930818305143361187733659014043953751050617136254447624192327280445771\",\"1\"],\"b\":[[\"11369230593957954942221175389182778816136534144714579815927653075736806430994\",\"11928003240637992017698644299021052465098754853899210401706726930513411198353\"],[\"2597127058046351054449743605218058440565462021354202666955356076272028963802\",\"3385145993275542896693643488618289924488296318344621918448585222369718288892\"],[\"1\",\"0\"]],\"c\":[\"395141536511114303768253959602639884294254888080713473665269769443249414257\",\"21430657725804540809568084344756144327539843580919730138594118365564728808275\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ\"}", "4959624758616676340947699768172740454110375485415332267384397278368360470616").unwrap();
     let invalid_proof_input = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"1\",\"18104499930818305143361187733659014043953751050617136254447624192327280445771\",\"1\"],\"b\":[[\"1\",\"11928003240637992017698644299021052465098754853899210401706726930513411198353\"],[\"2597127058046351054449743605218058440565462021354202666955356076272028963802\",\"3385145993275542896693643488618289924488296318344621918448585222369718288892\"],[\"1\",\"0\"]],\"c\":[\"395141536511114303768253959602639884294254888080713473665269769443249414257\",\"21430657725804540809568084344756144327539843580919730138594118365564728808275\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ\"}", "4959624758616676340947699768172740454110375485415332267384397278368360470616").unwrap();
     let _ = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"18104499930818305143361187733659014043953751050617136254447624192327280445771\",\"1\"],\"b\":[[\"11369230593957954942221175389182778816136534144714579815927653075736806430994\",\"11928003240637992017698644299021052465098754853899210401706726930513411198353\"],[\"2597127058046351054449743605218058440565462021354202666955356076272028963802\",\"3385145993275542896693643488618289924488296318344621918448585222369718288892\"],[\"1\",\"0\"]],\"c\":[\"395141536511114303768253959602639884294254888080713473665269769443249414257\",\"21430657725804540809568084344756144327539843580919730138594118365564728808275\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ\"}", "4959624758616676340947699768172740454110375485415332267384397278368360470616").is_err();
@@ -642,28 +902,24 @@ async fn test_verify_zk_login() {
             alg: "RS256".to_string(),},
     );
 
-    // v1 proof verifies in v1-only mode and rollout mode.
-    for mode in [ZkLoginCircuitMode::V1Only, ZkLoginCircuitMode::Both] {
-        let res = verify_zk_login(
-            &input,
-            10000,
-            &eph_pubkey_bytes,
-            &all_jwk,
-            &ZkLoginEnv::Test,
-            mode,
-        );
-        assert!(res.is_ok());
-    }
-    // v1 proof fails in v2 only mode.
-    let res_v2_only = verify_zk_login(
+    assert!(verify_zk_login(
         &input,
         10000,
         &eph_pubkey_bytes,
         &all_jwk,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V2Only,
-    );
-    assert!(res_v2_only.is_err());
+        CircuitVersion::V1,
+    )
+    .is_ok());
+    assert!(verify_zk_login(
+        &input,
+        10000,
+        &eph_pubkey_bytes,
+        &all_jwk,
+        &ZkLoginEnv::Test,
+        CircuitVersion::V2,
+    )
+    .is_err());
 
     let invalid_res = verify_zk_login(
         &invalid_proof_input,
@@ -671,114 +927,9 @@ async fn test_verify_zk_login() {
         &eph_pubkey_bytes,
         &all_jwk,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
+        CircuitVersion::V1,
     );
     assert!(invalid_res.is_err());
-
-    // --- v2 circuit: generate a fresh proof from the dev v2 prover. ---
-    let max_epoch = 10;
-    let jwt_randomness = "100681567828351849884072155819400689117";
-    let user_salt = "129390038577185583942388216820280642146";
-
-    // Generate an ephemeral key pair
-    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
-    let mut eph_pubkey = vec![0x00];
-    eph_pubkey.extend(kp.public().as_ref());
-    let kp_bigint = BigUint::from_bytes_be(&eph_pubkey).to_string();
-
-    // Get nonce
-    let nonce = get_nonce(&eph_pubkey, max_epoch, jwt_randomness).unwrap();
-
-    // Get JWT from 8192-bit key endpoint
-    let client = reqwest::Client::new();
-    let iss = OIDCProvider::TestIssuerKey8192.get_config().iss;
-    let response = client
-        .post(format!(
-            "https://jwt-tester.mystenlabs.com/8192/jwt?nonce={}&iss={}&sub={}",
-            nonce, iss, "test"
-        ))
-        .header("Content-Type", "application/json")
-        .header("Content-Length", "0")
-        .send()
-        .await
-        .unwrap();
-    let jwt_response: serde_json::Value = response.json().await.unwrap();
-    let parsed_token = jwt_response["jwt"].as_str().unwrap().to_string();
-
-    // Get a proof from the V2 endpoint
-    let reader = get_proof(
-        &parsed_token,
-        max_epoch,
-        jwt_randomness,
-        &kp_bigint,
-        user_salt,
-        "https://prover-dev-v2.mystenlabs.com/v1",
-    )
-    .await
-    .expect("get_proof failed");
-
-    // Get sub and aud
-    let (sub, aud, _) =
-        parse_and_validate_jwt(&parsed_token).expect("parse_and_validate_jwt failed");
-
-    // Get the address seed
-    let address_seed =
-        gen_address_seed(user_salt, "sub", &sub, &aud).expect("gen_address_seed failed");
-
-    let zk_login_inputs =
-        ZkLoginInputs::from_reader(reader, &address_seed).expect("from_reader failed");
-
-    // Fetch the 8192-bit RSA JWK
-    let jwks_vec = fetch_jwks(&OIDCProvider::TestIssuerKey8192, &client, false)
-        .await
-        .unwrap();
-
-    let mut all_jwk = ImHashMap::new();
-    for (jwk_id, jwk) in jwks_vec {
-        all_jwk.insert(jwk_id, jwk);
-    }
-
-    // v2 proof should verify in rollout mode and v2 only mode.
-    for mode in [ZkLoginCircuitMode::Both, ZkLoginCircuitMode::V2Only] {
-        let res_v2 = verify_zk_login(
-            &zk_login_inputs,
-            max_epoch,
-            &eph_pubkey,
-            &all_jwk,
-            &ZkLoginEnv::Test,
-            mode,
-        );
-        assert!(res_v2.is_ok());
-    }
-
-    // v2 proof fails to verify in v1-only mode.
-    let res_v1_only = verify_zk_login(
-        &zk_login_inputs,
-        max_epoch,
-        &eph_pubkey,
-        &all_jwk,
-        &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
-    );
-    assert!(res_v1_only.is_err());
-
-    // The Prod v2 VK is still the v1 placeholder (see `global_pvk_v2`), so a v2 proof must not
-    // verify in the Prod env under any mode. Revisit when the ceremony VK lands.
-    for mode in [
-        ZkLoginCircuitMode::V1Only,
-        ZkLoginCircuitMode::Both,
-        ZkLoginCircuitMode::V2Only,
-    ] {
-        let res_prod = verify_zk_login(
-            &zk_login_inputs,
-            max_epoch,
-            &eph_pubkey,
-            &all_jwk,
-            &ZkLoginEnv::Prod,
-            mode,
-        );
-        assert!(res_prod.is_err());
-    }
 }
 
 #[test]
