@@ -3,8 +3,8 @@
 
 use std::env;
 
+use crate::bn254::utils::get_nonce;
 use crate::bn254::utils::get_test_issuer_jwt_token;
-use crate::bn254::utils::{gen_address_seed_v2, get_nonce, get_nonce_v2};
 use crate::bn254::zk_login::fetch_jwks;
 use crate::bn254::{
     utils::{gen_address_seed, get_proof},
@@ -84,7 +84,7 @@ async fn test_end_to_end_v2_prover() {
     let mut eph_pubkey = vec![0x00];
     eph_pubkey.extend(kp.public().as_ref());
     let kp_bigint = BigUint::from_bytes_be(&eph_pubkey).to_string();
-    let nonce = get_nonce_v2(&eph_pubkey, max_epoch, jwt_randomness).unwrap();
+    let nonce = get_nonce(&eph_pubkey, max_epoch, jwt_randomness, CircuitVersion::V2).unwrap();
 
     let client = reqwest::Client::new();
     let iss = OIDCProvider::TestIssuerKey8192.get_config().iss;
@@ -111,7 +111,7 @@ async fn test_end_to_end_v2_prover() {
     .await
     .expect("get_proof failed");
     let (sub, aud, _) = parse_and_validate_jwt(parsed_token).unwrap();
-    let address_seed = gen_address_seed_v2(user_salt, "sub", &sub, &aud).unwrap();
+    let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud, CircuitVersion::V2).unwrap();
     let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
 
     let mut all_jwk = ImHashMap::new();
@@ -362,7 +362,7 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
     .unwrap();
     let (sub, aud, _) = parse_and_validate_jwt(parsed_token).unwrap();
     // Get the address seed.
-    let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud).unwrap();
+    let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud, CircuitVersion::V1).unwrap();
     let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
     (max_epoch, eph_pubkey, zk_login_inputs)
 }
@@ -402,7 +402,13 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
         let client = reqwest::Client::new();
 
         // Get JWT from test issuer with nonce.
-        let nonce = get_nonce(&eph_pk_bytes, max_epoch, &jwt_randomness).unwrap();
+        let nonce = get_nonce(
+            &eph_pk_bytes,
+            max_epoch,
+            &jwt_randomness,
+            CircuitVersion::V1,
+        )
+        .unwrap();
         println!("jwt_randomness: {:?}", jwt_randomness);
         println!("user_salt: {:?}", user_salt);
         println!("sub: {:?}", sub);
@@ -434,7 +440,8 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
         .unwrap();
         let (sub, aud, _) = parse_and_validate_jwt(&parsed_token).unwrap();
         // Get the address seed.
-        let address_seed = gen_address_seed(&user_salt, "sub", &sub, &aud).unwrap();
+        let address_seed =
+            gen_address_seed(&user_salt, "sub", &sub, &aud, CircuitVersion::V1).unwrap();
         let zk_login_inputs =
             ZkLoginInputs::from_reader(reader, &address_seed.to_string()).unwrap();
 

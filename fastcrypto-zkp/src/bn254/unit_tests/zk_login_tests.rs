@@ -4,8 +4,7 @@
 use std::str::FromStr;
 
 use crate::bn254::utils::{
-    gen_address_seed, gen_address_seed_v2, gen_address_seed_with_salt_hash, get_nonce,
-    get_nonce_v2, get_zk_login_address,
+    gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_zk_login_address,
 };
 use crate::bn254::zk_login::big_int_array_to_bits;
 use crate::bn254::zk_login::bitarray_to_bytearray;
@@ -157,6 +156,7 @@ async fn test_verify_zk_login_google() {
         "sub",
         "106294049240999307923",
         "25769832374-famecqrhe2gkebt5fvqms2263046lj96.apps.googleusercontent.com",
+        CircuitVersion::V1,
     )
     .unwrap();
 
@@ -524,7 +524,13 @@ fn test_get_nonce() {
     let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
     let mut eph_pk_bytes = vec![0x00];
     eph_pk_bytes.extend(kp.public().as_ref());
-    let nonce = get_nonce(&eph_pk_bytes, 10, "100681567828351849884072155819400689117").unwrap();
+    let nonce = get_nonce(
+        &eph_pk_bytes,
+        10,
+        "100681567828351849884072155819400689117",
+        CircuitVersion::V1,
+    )
+    .unwrap();
     assert_eq!(nonce, "hTPpgF7XAKbW37rEUS6pEVZqmoI");
 }
 
@@ -540,7 +546,13 @@ fn test_get_nonce_v2_matches_circuit_fixture() {
     let jwt_randomness = BigUint::parse_bytes(b"ffeeddccbbaa99887766554433221100", 16)
         .unwrap()
         .to_string();
-    let nonce = get_nonce_v2(&eph_pk_bytes, 0x1020304050607080, &jwt_randomness).unwrap();
+    let nonce = get_nonce(
+        &eph_pk_bytes,
+        0x1020304050607080,
+        &jwt_randomness,
+        CircuitVersion::V2,
+    )
+    .unwrap();
 
     // https://github.com/MystenLabs/zklogin-circuits/blob/08488826ebae68cba16570410434be2b873f1477/test/circuits/jwtchecks.circom.test.js#L553-L567
     assert_eq!(nonce.len(), 27);
@@ -554,17 +566,22 @@ fn test_get_nonce_v2_matches_circuit_fixture() {
 fn test_get_nonce_v2_size_boundaries() {
     // https://github.com/MystenLabs/zklogin-circuits/blob/08488826ebae68cba16570410434be2b873f1477/src/lib/sha256Transcripts.ts#L49-L71
     let max_randomness = ((BigUint::from(1u8) << 128usize) - BigUint::from(1u8)).to_string();
-    assert!(get_nonce_v2(&[0xff; 34], u64::MAX, &max_randomness).is_ok());
+    assert!(get_nonce(&[0xff; 34], u64::MAX, &max_randomness, CircuitVersion::V2).is_ok());
     assert_eq!(
-        get_nonce_v2(&[0; 35], 0, "0"),
+        get_nonce(&[0; 35], 0, "0", CircuitVersion::V2),
         Err(FastCryptoError::InputTooLong(34))
     );
     assert_eq!(
-        get_nonce_v2(&[0; 34], 0, &(BigUint::from(1u8) << 128usize).to_string()),
+        get_nonce(
+            &[0; 34],
+            0,
+            &(BigUint::from(1u8) << 128usize).to_string(),
+            CircuitVersion::V2,
+        ),
         Err(FastCryptoError::InvalidInput)
     );
     assert_eq!(
-        get_nonce_v2(&[0; 34], 0, "-1"),
+        get_nonce(&[0; 34], 0, "-1", CircuitVersion::V2),
         Err(FastCryptoError::InvalidInput)
     );
 }
@@ -606,6 +623,7 @@ fn test_gen_seed() {
         "sub",
         "904448692",
         "rs1bh065i9ya4ydvifixl4kss0uhpt",
+        CircuitVersion::V1,
     )
     .unwrap();
     assert_eq!(
@@ -617,13 +635,14 @@ fn test_gen_seed() {
 #[test]
 fn test_gen_address_seed_v2_matches_circuit_fixture() {
     // https://github.com/MystenLabs/zklogin-circuits/blob/08488826ebae68cba16570410434be2b873f1477/test/circuits/sha256-transcripts.circom.test.js#L73-L165
-    let address_seed = gen_address_seed_v2(
+    let address_seed = gen_address_seed(
         &BigUint::parse_bytes(b"123456789abcdef", 16)
             .unwrap()
             .to_string(),
         "sub",
         "user-12345",
         "https://example.com/zklogin",
+        CircuitVersion::V2,
     )
     .unwrap();
 
@@ -636,18 +655,26 @@ fn test_gen_address_seed_v2_matches_circuit_fixture() {
 #[test]
 fn test_gen_address_seed_v2_size_boundaries() {
     // https://github.com/MystenLabs/zklogin-circuits/blob/08488826ebae68cba16570410434be2b873f1477/src/lib/sha256Transcripts.ts#L10-L94
-    assert!(gen_address_seed_v2("0", &"n".repeat(32), &"v".repeat(115), &"a".repeat(145)).is_ok());
+    assert!(gen_address_seed(
+        "0",
+        &"n".repeat(32),
+        &"v".repeat(115),
+        &"a".repeat(145),
+        CircuitVersion::V2,
+    )
+    .is_ok());
     let field_modulus = BigUint::from_bytes_be(&Bn254Fr::MODULUS.to_bytes_be());
-    assert!(gen_address_seed_v2(
+    assert!(gen_address_seed(
         &(field_modulus.clone() - BigUint::from(1u8)).to_string(),
         "n",
         "v",
         "a",
+        CircuitVersion::V2,
     )
     .is_ok());
-    assert!(gen_address_seed_v2("0", &"é".repeat(16), "v", "a").is_ok());
+    assert!(gen_address_seed("0", &"é".repeat(16), "v", "a", CircuitVersion::V2).is_ok());
     assert_eq!(
-        gen_address_seed_v2("0", &"é".repeat(17), "v", "a"),
+        gen_address_seed("0", &"é".repeat(17), "v", "a", CircuitVersion::V2),
         Err(FastCryptoError::InvalidInput)
     );
 
@@ -660,16 +687,22 @@ fn test_gen_address_seed_v2_size_boundaries() {
         ("n", "v", &"a".repeat(146)),
     ] {
         assert_eq!(
-            gen_address_seed_v2("0", name, value, aud),
+            gen_address_seed("0", name, value, aud, CircuitVersion::V2),
             Err(FastCryptoError::InvalidInput)
         );
     }
     assert_eq!(
-        gen_address_seed_v2(&field_modulus.to_string(), "n", "v", "a"),
+        gen_address_seed(
+            &field_modulus.to_string(),
+            "n",
+            "v",
+            "a",
+            CircuitVersion::V2,
+        ),
         Err(FastCryptoError::InvalidInput)
     );
     assert_eq!(
-        gen_address_seed_v2("-1", "n", "v", "a"),
+        gen_address_seed("-1", "n", "v", "a", CircuitVersion::V2),
         Err(FastCryptoError::InvalidInput)
     );
 }
@@ -735,7 +768,14 @@ fn test_v2_public_inputs_hash_matches_circuit_fixture() {
     // https://github.com/MystenLabs/zklogin-circuits/blob/08488826ebae68cba16570410434be2b873f1477/test/circuits/sha256-transcripts.circom.test.js#L222-L300
     let (input, eph_pubkey, modulus, max_epoch) = v2_public_inputs_fixture();
     assert_eq!(
-        gen_address_seed_v2("12345", "sub", "user-12345", "example-aud").unwrap(),
+        gen_address_seed(
+            "12345",
+            "sub",
+            "user-12345",
+            "example-aud",
+            CircuitVersion::V2,
+        )
+        .unwrap(),
         input.address_seed.to_string()
     );
     let transcript = input
