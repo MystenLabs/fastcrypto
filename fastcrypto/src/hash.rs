@@ -216,6 +216,9 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
     /// Add all the elements of another hash function into this hash function.
     fn union(&mut self, other: &Self);
 
+    /// Remove all the elements of another hash function from this hash function.
+    fn subtract(&mut self, other: &Self);
+
     // Note that the "remove" operation is safe even if an item has been removed
     // more times than it has been inserted. To see why, consider the following
     // example: Suppose an adversary has performed two sets of "insert(x)" and
@@ -282,6 +285,10 @@ impl MultisetHash<32> for EllipticCurveMultisetHash {
 
     fn union(&mut self, other: &Self) {
         self.accumulator += other.accumulator;
+    }
+
+    fn subtract(&mut self, other: &Self) {
+        self.accumulator -= other.accumulator;
     }
 
     fn remove<Data: AsRef<[u8]>>(&mut self, item: Data) {
