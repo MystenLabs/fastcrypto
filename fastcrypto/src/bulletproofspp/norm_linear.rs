@@ -30,22 +30,24 @@ const MAX_LOG_N_LEN: u32 = 32;
 
 /// Norm-linear proof: one `(X, R)` pair per fold round, then the final
 /// opening `(l, n)` in the clear (`sigma` is implied by the relation).
+/// Folding runs until `l` is a single scalar, so only `rounds` and
+/// `n_final` are variable-length.
 #[derive(Clone, Debug)]
 pub(crate) struct NormLinearProof {
     pub(crate) rounds: Vec<(RistrettoPoint, RistrettoPoint)>,
-    pub(crate) l_final: Vec<RistrettoScalar>,
+    pub(crate) l_final: RistrettoScalar,
     pub(crate) n_final: Vec<RistrettoScalar>,
 }
 
 impl NormLinearProof {
     /// Serialized size of a proof for initial vector lengths `(l_len, n_len)`.
     fn serialized_len_for(l_len: usize, n_len: usize) -> usize {
-        let (rounds, l_len, n_len) = proof_shape(l_len, n_len);
-        32 * (2 * rounds + l_len + n_len)
+        let (rounds, n_len) = proof_shape(l_len, n_len);
+        32 * (2 * rounds + 1 + n_len)
     }
 
     /// The shape of a proof with this serialized size: `l_len = H_LEN`, `n_len` a power of two `>= BASE`.
-    fn proof_shape_for_serialized_len(len: usize) -> FastCryptoResult<(usize, usize, usize)> {
+    fn proof_shape_for_serialized_len(len: usize) -> FastCryptoResult<(usize, usize)> {
         (BASE.ilog2()..=MAX_LOG_N_LEN)
             .map(|k| 1usize << k)
             .find(|&n_len| Self::serialized_len_for(H_LEN, n_len) == len)
@@ -54,7 +56,7 @@ impl NormLinearProof {
     }
 
     pub(crate) fn serialized_len(&self) -> usize {
-        32 * (2 * self.rounds.len() + self.l_final.len() + self.n_final.len())
+        32 * (2 * self.rounds.len() + 1 + self.n_final.len())
     }
 
     /// Serialize: the per-round `(X, R)` pairs, then `l_final`, then
@@ -65,7 +67,8 @@ impl NormLinearProof {
             bytes.extend(x.to_byte_array());
             bytes.extend(r.to_byte_array());
         }
-        for scalar in self.l_final.iter().chain(&self.n_final) {
+        bytes.extend(self.l_final.to_byte_array());
+        for scalar in &self.n_final {
             bytes.extend(scalar.to_byte_array());
         }
         bytes
@@ -75,14 +78,12 @@ impl NormLinearProof {
     /// [Self::proof_shape_for_serialized_len]; consistency with the statement
     /// is checked at verification.
     pub(crate) fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
-        let (rounds, l_len, n_len) = Self::proof_shape_for_serialized_len(bytes.len())?;
+        let (rounds, n_len) = Self::proof_shape_for_serialized_len(bytes.len())?;
         let mut chunks = bytes.chunks_exact(32);
         let rounds = (0..rounds)
             .map(|_| Ok((decode_next(&mut chunks)?, decode_next(&mut chunks)?)))
             .collect::<FastCryptoResult<Vec<_>>>()?;
-        let l_final = (0..l_len)
-            .map(|_| decode_next(&mut chunks))
-            .collect::<FastCryptoResult<Vec<_>>>()?;
+        let l_final = decode_next(&mut chunks)?;
         let n_final = (0..n_len)
             .map(|_| decode_next(&mut chunks))
             .collect::<FastCryptoResult<Vec<_>>>()?;
@@ -94,17 +95,18 @@ impl NormLinearProof {
     }
 }
 
-/// The vector lengths of a proof for initial sizes `(l_len, n_len)`:
-/// number of rounds and final `l`/`n` lengths. Each round pads to even
-/// length and halves.
-fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize, usize) {
+/// The shape of a proof for initial sizes `(l_len, n_len)`: the number of
+/// rounds and the final `n` length. Each round pads to even length and
+/// halves, and folding continues until `l` is a single scalar, so the final
+/// `l` length is always 1 and is not reported.
+fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     let mut rounds = 0;
-    while l_len + n_len >= FOLD_THRESHOLD {
+    while l_len > 1 || l_len + n_len >= FOLD_THRESHOLD {
         l_len = l_len.div_ceil(2);
         n_len = n_len.div_ceil(2);
         rounds += 1;
     }
-    (rounds, l_len, n_len)
+    (rounds, n_len)
 }
 
 /// Grow a fold tensor by one level, the new round in the top bit:
@@ -203,7 +205,7 @@ pub(crate) fn prove(
 
     transcript.domain_sep(b"norm_linear");
 
-    while l.len() + n.len() >= FOLD_THRESHOLD {
+    while l.len() > 1 || l.len() + n.len() >= FOLD_THRESHOLD {
         if levels == FOLD_BATCH_ROUNDS {
             base_h = Cow::Owned(batch_fold(&base_h, &w_h)?);
             base_g = Cow::Owned(batch_fold(&base_g, &w_g)?);
@@ -319,9 +321,10 @@ pub(crate) fn prove(
     transcript.append_scalars(b"l_final", &l);
     transcript.append_scalars(b"n_final", &n);
 
+    debug_assert_eq!(l.len(), 1);
     Ok(NormLinearProof {
         rounds,
-        l_final: l,
+        l_final: l[0],
         n_final: n,
     })
 }
@@ -362,9 +365,8 @@ pub(crate) fn verify(
     }
     // The prover's fold count and final lengths are determined by the base
     // lengths; reject any other shape.
-    let (rounds, l_len, n_len) = proof_shape(gens.h_vec.len(), gens.g_vec.len());
-    if proof.rounds.len() != rounds || proof.l_final.len() != l_len || proof.n_final.len() != n_len
-    {
+    let (rounds, n_len) = proof_shape(gens.h_vec.len(), gens.g_vec.len());
+    if proof.rounds.len() != rounds || proof.n_final.len() != n_len {
         return Err(FastCryptoError::InvalidProof);
     }
 
@@ -401,14 +403,16 @@ pub(crate) fn verify(
         mu = mu * mu;
     }
 
-    transcript.append_scalars(b"l_final", &proof.l_final);
+    transcript.append_scalars(b"l_final", std::slice::from_ref(&proof.l_final));
     transcript.append_scalars(b"n_final", &proof.n_final);
 
-    let sigma = inner_product(&c, &proof.l_final) + weighted_norm(&proof.n_final, mu);
+    // `c` folds exactly as `l` did, so it is a single scalar here too.
+    debug_assert_eq!(c.len(), 1);
+    let sigma = c[0] * proof.l_final + weighted_norm(&proof.n_final, mu);
 
     let mask = (1usize << k) - 1;
 
-    let l = (0..gens.h_vec.len()).map(|i| w_h[i & mask] * proof.l_final[i >> k]);
+    let l = (0..gens.h_vec.len()).map(|i| w_h[i & mask] * proof.l_final);
     let n = pn
         .iter()
         .enumerate()
@@ -513,16 +517,16 @@ mod tests {
 
     #[test]
     fn test_roundtrip_sizes() {
-        // (8, 16) is the 64-bit range-proof shape: 3 rounds + 1 + 2 scalars.
-        // (8, 15) is the 16/32-bit shape, (8, 64) the aggregated 32-bit x 8
-        // shape (4 rounds, finals (1, 4)). Small and odd sizes exercise
-        // padding and the no-round base case.
+        // (8, 16) is the 64-bit range-proof shape: 3 rounds, l plus 2
+        // scalars. (8, 15) is the 16/32-bit shape, (8, 64) the aggregated
+        // 32-bit x 8 shape (4 rounds, 4 final n). Small and odd sizes
+        // exercise padding and the shortest fold.
         for (l_len, n_len) in [(8, 16), (8, 15), (8, 64), (1, 2), (2, 4), (3, 5), (4, 1)] {
             let inst = random_instance(l_len, n_len);
             let proof = prove_instance(&inst);
-            let (rounds, fl, fn_) = proof_shape(l_len, n_len);
+            let (rounds, fn_) = proof_shape(l_len, n_len);
             assert_eq!(proof.rounds.len(), rounds);
-            assert_eq!((proof.l_final.len(), proof.n_final.len()), (fl, fn_));
+            assert_eq!(proof.n_final.len(), fn_);
             assert!(
                 verify_instance(&inst, &proof).is_ok(),
                 "roundtrip failed for ({l_len}, {n_len})"
@@ -542,7 +546,7 @@ mod tests {
         assert!(verify_instance(&inst, &bad).is_err());
 
         let mut bad = proof.clone();
-        bad.l_final[0] += RistrettoScalar::generator();
+        bad.l_final += RistrettoScalar::generator();
         assert!(verify_instance(&inst, &bad).is_err());
 
         let mut bad = proof.clone();
@@ -599,14 +603,12 @@ mod tests {
             let proof = prove_instance(&inst);
             assert!(verify_instance(&inst, &proof).is_ok());
 
-            for i in 0..proof.l_final.len() {
-                let mut bad = proof.clone();
-                bad.l_final[i] += RistrettoScalar::generator();
-                assert!(
-                    verify_instance(&inst, &bad).is_err(),
-                    "l_final[{i}] unbound for ({l_len}, {n_len})"
-                );
-            }
+            let mut bad = proof.clone();
+            bad.l_final += RistrettoScalar::generator();
+            assert!(
+                verify_instance(&inst, &bad).is_err(),
+                "l_final unbound for ({l_len}, {n_len})"
+            );
             for i in 0..proof.n_final.len() {
                 let mut bad = proof.clone();
                 bad.n_final[i] += RistrettoScalar::generator();

@@ -674,8 +674,8 @@ mod tests {
     }
 
     /// The spec's batched configurations, with their expected norm-linear
-    /// proof shapes (rounds, final l, final n), plus the widths not
-    /// instantiated there (8-bit, 64-bit x M).
+    /// proof shapes (rounds, final n), plus the widths not instantiated
+    /// there (8-bit, 64-bit x M).
     #[test]
     fn test_roundtrip_batched_configs() {
         let mut rng = rand::thread_rng();
@@ -701,12 +701,8 @@ mod tests {
                 .collect();
             let (gens, params, proof, v_commitments) = prove_batch(range, &values);
             assert_eq!(
-                (
-                    proof.nl_proof.rounds.len(),
-                    proof.nl_proof.l_final.len(),
-                    proof.nl_proof.n_final.len()
-                ),
-                (rounds, 1, n_final),
+                (proof.nl_proof.rounds.len(), proof.nl_proof.n_final.len()),
+                (rounds, n_final),
                 "unexpected shape for {n_bits}x{m}"
             );
             assert!(
