@@ -12,11 +12,11 @@
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
-use crate::serde_helpers::ToFromByteArray;
 
 use crate::bulletproofspp::crs::Generators;
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
 /// Fold until fewer than this many scalars remain; the remaining opening is
@@ -25,61 +25,13 @@ const FOLD_THRESHOLD: usize = 6;
 
 /// Norm-linear proof: one `(X, R)` pair per fold round, then the final
 /// opening `(l, n)` in the clear (`sigma` is implied by the relation).
-#[derive(Clone, Debug)]
+/// The three vector lengths are a function of the base lengths via
+/// [proof_shape]; [verify] rejects any other shape.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct NormLinearProof {
     pub(crate) rounds: Vec<(RistrettoPoint, RistrettoPoint)>,
     pub(crate) l_final: Vec<RistrettoScalar>,
     pub(crate) n_final: Vec<RistrettoScalar>,
-}
-
-impl NormLinearProof {
-    /// Serialized size of a proof for initial vector lengths `(l_len, n_len)`.
-    pub(crate) fn serialized_len_for(l_len: usize, n_len: usize) -> usize {
-        let (rounds, l_len, n_len) = proof_shape(l_len, n_len);
-        32 * (2 * rounds + l_len + n_len)
-    }
-
-    pub(crate) fn serialized_len(&self) -> usize {
-        32 * (2 * self.rounds.len() + self.l_final.len() + self.n_final.len())
-    }
-
-    /// Serialize: the per-round `(X, R)` pairs, then `l_final`, then
-    /// `n_final`, 32 bytes each.
-    pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(self.serialized_len());
-        for (x, r) in &self.rounds {
-            bytes.extend(x.to_byte_array());
-            bytes.extend(r.to_byte_array());
-        }
-        for scalar in self.l_final.iter().chain(&self.n_final) {
-            bytes.extend(scalar.to_byte_array());
-        }
-        bytes
-    }
-
-    /// Deserialize a proof for initial vector lengths `(l_len, n_len)`. The
-    /// byte length must match the implied shape exactly.
-    pub(crate) fn from_bytes(bytes: &[u8], l_len: usize, n_len: usize) -> FastCryptoResult<Self> {
-        if bytes.len() != Self::serialized_len_for(l_len, n_len) {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        let (rounds, l_len, n_len) = proof_shape(l_len, n_len);
-        let mut chunks = bytes.chunks_exact(32);
-        let rounds = (0..rounds)
-            .map(|_| Ok((decode_next(&mut chunks)?, decode_next(&mut chunks)?)))
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        let l_final = (0..l_len)
-            .map(|_| decode_next(&mut chunks))
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        let n_final = (0..n_len)
-            .map(|_| decode_next(&mut chunks))
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        Ok(NormLinearProof {
-            rounds,
-            l_final,
-            n_final,
-        })
-    }
 }
 
 /// The vector lengths of a proof for initial sizes `(l_len, n_len)`:
@@ -659,20 +611,24 @@ mod tests {
     }
 
     #[test]
-    fn test_to_from_bytes() {
+    fn test_serde_roundtrip() {
         for (l_len, n_len) in [(8, 16), (8, 15), (8, 64), (3, 5), (4, 1)] {
             let inst = random_instance(l_len, n_len);
             let proof = prove_instance(&inst);
-            let bytes = proof.to_bytes();
-            assert_eq!(
-                bytes.len(),
-                NormLinearProof::serialized_len_for(l_len, n_len)
-            );
-            let recovered = NormLinearProof::from_bytes(&bytes, l_len, n_len).unwrap();
+            let bytes = bcs::to_bytes(&proof).unwrap();
+            // 32 bytes per group element and scalar, plus one length prefix
+            // per vector.
+            let (rounds, l, n) = proof_shape(l_len, n_len);
+            assert_eq!(bytes.len(), 32 * (2 * rounds + l + n) + 3);
+
+            let recovered: NormLinearProof = bcs::from_bytes(&bytes).unwrap();
             assert!(verify_instance(&inst, &recovered).is_ok());
-            assert!(NormLinearProof::from_bytes(&bytes[..bytes.len() - 32], l_len, n_len).is_err());
-            // The shape is fixed by the declared lengths, not by the bytes.
-            assert!(NormLinearProof::from_bytes(&bytes, l_len, 2 * n_len).is_err());
+
+            // Truncated and trailing-byte encodings are rejected.
+            assert!(bcs::from_bytes::<NormLinearProof>(&bytes[..bytes.len() - 32]).is_err());
+            let mut extended = bytes.clone();
+            extended.push(0);
+            assert!(bcs::from_bytes::<NormLinearProof>(&extended).is_err());
         }
     }
 
