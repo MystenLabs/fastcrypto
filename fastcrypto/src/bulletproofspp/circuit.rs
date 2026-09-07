@@ -29,7 +29,7 @@ type S = RistrettoScalar;
 const CR_POWERS: [i32; H_LEN - 1] = [-1, 1, 2, 3, 5, 6, 7];
 
 /// Circuit proof: the four commitments plus the norm-linear proof.
-/// For 1x64: 4 + 6 group elements + 3 scalars + 3 bcs length prefixes = 419
+/// For 1x64: 4 + 6 group elements + 3 scalars + 2 bcs length prefixes = 418
 /// bytes. The vector lengths in `nl_proof` are declared on the wire; the
 /// verifier rejects any shape other than the one the statement implies.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -649,16 +649,16 @@ mod tests {
     }
 
     /// The spec's batched configurations, with their expected norm-linear
-    /// proof shapes (rounds, final l, final n), plus the widths not
-    /// instantiated there (8-bit, 64-bit x M).
+    /// proof shapes (rounds, final n), plus the widths not instantiated
+    /// there (8-bit, 64-bit x M).
     #[test]
     fn test_roundtrip_batched_configs() {
         let mut rng = rand::thread_rng();
         let configs: [(Range, usize, usize, usize); 8] = [
-            (Range::Bits16, 2, 3, 2), // 416 bytes
-            (Range::Bits16, 4, 3, 2), // 416 bytes
-            (Range::Bits16, 8, 3, 4), // 480 bytes
-            (Range::Bits32, 8, 4, 4), // 544 bytes
+            (Range::Bits16, 2, 3, 2), // 418 bytes
+            (Range::Bits16, 4, 3, 2), // 418 bytes
+            (Range::Bits16, 8, 3, 4), // 482 bytes
+            (Range::Bits32, 8, 4, 4), // 546 bytes
             (Range::Bits8, 1, 3, 2),
             (Range::Bits8, 4, 3, 2),
             (Range::Bits16, 5, 3, 4), // non-power-of-two digit count
@@ -676,12 +676,8 @@ mod tests {
                 .collect();
             let (gens, params, proof, v_commitments) = prove_batch(range, &values);
             assert_eq!(
-                (
-                    proof.nl_proof.rounds.len(),
-                    proof.nl_proof.l_final.len(),
-                    proof.nl_proof.n_final.len()
-                ),
-                (rounds, 1, n_final),
+                (proof.nl_proof.rounds.len(), proof.nl_proof.n_final.len()),
+                (rounds, n_final),
                 "unexpected shape for {n_bits}x{m}"
             );
             assert!(
