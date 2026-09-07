@@ -14,11 +14,15 @@ use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
 use crate::pedersen::Range;
 use crate::traits::AllowedRng;
-use serde::{Deserialize, Serialize};
+use serde::de::{self, DeserializeSeed, SeqAccess, Visitor};
+use serde::{Deserializer, Serialize};
 use std::array::from_fn;
+use std::fmt;
 
 use crate::bulletproofspp::crs::{dims, Generators, BASE, H_LEN};
-use crate::bulletproofspp::norm_linear::{self, NormLinearProof};
+use crate::bulletproofspp::norm_linear::{
+    self, next_element, NormLinearProof, NormLinearProofSeed,
+};
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
 
@@ -28,17 +32,74 @@ type S = RistrettoScalar;
 /// slots 1..7. The gap at 4 keeps `C_S` out of the value row.
 const CR_POWERS: [i32; H_LEN - 1] = [-1, 1, 2, 3, 5, 6, 7];
 
+/// Largest `log2(nm)` a decoded proof may claim; bounds the shape search in
+/// [CircuitProof::from_bytes] far above any practical statement (2^32 norm
+/// slots is 2^28 values of 64 bits).
+const MAX_LOG_NM: u32 = 32;
+
 /// Circuit proof: the four commitments plus the norm-linear proof.
-/// For 1x64: 4 + 6 group elements + 3 scalars + 2 bcs length prefixes = 418
-/// bytes. The vector lengths in `nl_proof` are declared on the wire; the
-/// verifier rejects any shape other than the one the statement implies.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// For 1x64: 4 + 6 group elements + 3 scalars = 416 bytes, with no length
+/// prefixes: the norm-linear vector lengths are recovered from the total
+/// byte length rather than declared on the wire.
+#[derive(Clone, Debug, Serialize)]
 pub(crate) struct CircuitProof {
     pub(crate) c_l: RistrettoPoint,
     pub(crate) c_o: RistrettoPoint,
     pub(crate) c_r: RistrettoPoint,
     pub(crate) c_s: RistrettoPoint,
     pub(crate) nl_proof: NormLinearProof,
+}
+
+impl CircuitProof {
+    /// Deserialize. The byte length selects the norm length `nm` (a power of
+    /// two from `BASE` to `2^MAX_LOG_NM`), which fixes the proof shape;
+    /// consistency with the statement is checked at verification.
+    pub(crate) fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
+        let nm = (BASE.ilog2()..=MAX_LOG_NM)
+            .map(|k| 1usize << k)
+            .find(|&nm| 4 * 32 + norm_linear::serialized_len(H_LEN, nm) == bytes.len())
+            .ok_or(FastCryptoError::InvalidInput)?;
+        bcs::from_bytes_seed(CircuitProofSeed { nm }, bytes)
+            .map_err(|_| FastCryptoError::InvalidInput)
+    }
+}
+
+/// The shape a [CircuitProof] is decoded at, fixed by the norm length `nm`.
+struct CircuitProofSeed {
+    nm: usize,
+}
+
+impl<'de> DeserializeSeed<'de> for CircuitProofSeed {
+    type Value = CircuitProof;
+
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
+        deserializer.deserialize_tuple(5, self)
+    }
+}
+
+impl<'de> Visitor<'de> for CircuitProofSeed {
+    type Value = CircuitProof;
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "a circuit proof for norm length {}", self.nm)
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<CircuitProof, A::Error> {
+        let c_l = next_element(&mut seq, 0, &self)?;
+        let c_o = next_element(&mut seq, 1, &self)?;
+        let c_r = next_element(&mut seq, 2, &self)?;
+        let c_s = next_element(&mut seq, 3, &self)?;
+        let nl_proof = seq
+            .next_element_seed(NormLinearProofSeed::new(H_LEN, self.nm))?
+            .ok_or_else(|| de::Error::invalid_length(4, &self))?;
+        Ok(CircuitProof {
+            c_l,
+            c_o,
+            c_r,
+            c_s,
+            nl_proof,
+        })
+    }
 }
 
 /// Dimensions of a batched instance: `m` values in `range`, `d = bits/4`
@@ -655,10 +716,10 @@ mod tests {
     fn test_roundtrip_batched_configs() {
         let mut rng = rand::thread_rng();
         let configs: [(Range, usize, usize, usize); 8] = [
-            (Range::Bits16, 2, 3, 2), // 418 bytes
-            (Range::Bits16, 4, 3, 2), // 418 bytes
-            (Range::Bits16, 8, 3, 4), // 482 bytes
-            (Range::Bits32, 8, 4, 4), // 546 bytes
+            (Range::Bits16, 2, 3, 2), // 416 bytes
+            (Range::Bits16, 4, 3, 2), // 416 bytes
+            (Range::Bits16, 8, 3, 4), // 480 bytes
+            (Range::Bits32, 8, 4, 4), // 544 bytes
             (Range::Bits8, 1, 3, 2),
             (Range::Bits8, 4, 3, 2),
             (Range::Bits16, 5, 3, 4), // non-power-of-two digit count

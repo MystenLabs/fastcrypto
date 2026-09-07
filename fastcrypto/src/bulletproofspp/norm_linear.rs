@@ -16,8 +16,11 @@ use crate::groups::{GroupElement, MultiScalarMul, Scalar};
 use crate::bulletproofspp::crs::Generators;
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
-use serde::{Deserialize, Serialize};
+use serde::de::{self, DeserializeSeed, SeqAccess, Visitor};
+use serde::ser::SerializeTuple;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
+use std::fmt;
 
 /// Fold until fewer than this many scalars remain; the remaining opening is
 /// sent in the clear. 6 balances rounds (2 points each) against final scalars.
@@ -28,11 +31,105 @@ const FOLD_THRESHOLD: usize = 6;
 /// Folding runs until `l` is a single scalar, so only `rounds` and
 /// `n_final` are variable-length; both are a function of the base lengths
 /// via [proof_shape], and [verify] rejects any other shape.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+///
+/// Serialized as a flat tuple of 32-byte elements with no length prefixes:
+/// the lengths are not on the wire, so decoding needs the shape supplied by
+/// the caller through [NormLinearProofSeed].
+#[derive(Clone, Debug)]
 pub(crate) struct NormLinearProof {
     pub(crate) rounds: Vec<(RistrettoPoint, RistrettoPoint)>,
     pub(crate) l_final: RistrettoScalar,
     pub(crate) n_final: Vec<RistrettoScalar>,
+}
+
+/// Serialized size of a proof for initial vector lengths `(l_len, n_len)`.
+pub(crate) fn serialized_len(l_len: usize, n_len: usize) -> usize {
+    let (rounds, n_len) = proof_shape(l_len, n_len);
+    32 * (2 * rounds + 1 + n_len)
+}
+
+impl Serialize for NormLinearProof {
+    /// The per-round `(X, R)` pairs, then `l_final`, then `n_final`. A tuple
+    /// rather than a sequence, so no length is written.
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let len = 2 * self.rounds.len() + 1 + self.n_final.len();
+        let mut tuple = serializer.serialize_tuple(len)?;
+        for (x, r) in &self.rounds {
+            tuple.serialize_element(x)?;
+            tuple.serialize_element(r)?;
+        }
+        tuple.serialize_element(&self.l_final)?;
+        for scalar in &self.n_final {
+            tuple.serialize_element(scalar)?;
+        }
+        tuple.end()
+    }
+}
+
+/// The next element of a prefix-free sequence, reported as a length error
+/// when the input ends early.
+pub(crate) fn next_element<'de, A: SeqAccess<'de>, T: Deserialize<'de>>(
+    seq: &mut A,
+    index: usize,
+    expected: &dyn de::Expected,
+) -> Result<T, A::Error> {
+    seq.next_element()?
+        .ok_or_else(|| de::Error::invalid_length(index, expected))
+}
+
+/// The shape a [NormLinearProof] is decoded at, from [proof_shape] for the
+/// statement's base lengths. Nothing on the wire can change it.
+pub(crate) struct NormLinearProofSeed {
+    rounds: usize,
+    n_len: usize,
+}
+
+impl NormLinearProofSeed {
+    /// The shape implied by the statement's base lengths.
+    pub(crate) fn new(l_len: usize, n_len: usize) -> Self {
+        let (rounds, n_len) = proof_shape(l_len, n_len);
+        NormLinearProofSeed { rounds, n_len }
+    }
+}
+
+impl<'de> DeserializeSeed<'de> for NormLinearProofSeed {
+    type Value = NormLinearProof;
+
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
+        let len = 2 * self.rounds + 1 + self.n_len;
+        deserializer.deserialize_tuple(len, self)
+    }
+}
+
+impl<'de> Visitor<'de> for NormLinearProofSeed {
+    type Value = NormLinearProof;
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "a norm-linear proof of {} rounds with {} final n scalars",
+            self.rounds, self.n_len
+        )
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<NormLinearProof, A::Error> {
+        let mut rounds = Vec::with_capacity(self.rounds);
+        for i in 0..self.rounds {
+            let x = next_element(&mut seq, 2 * i, &self)?;
+            let r = next_element(&mut seq, 2 * i + 1, &self)?;
+            rounds.push((x, r));
+        }
+        let l_final = next_element(&mut seq, 2 * self.rounds, &self)?;
+        let mut n_final = Vec::with_capacity(self.n_len);
+        for i in 0..self.n_len {
+            n_final.push(next_element(&mut seq, 2 * self.rounds + 1 + i, &self)?);
+        }
+        Ok(NormLinearProof {
+            rounds,
+            l_final,
+            n_final,
+        })
+    }
 }
 
 /// The shape of a proof for initial sizes `(l_len, n_len)`: the number of
@@ -620,19 +717,26 @@ mod tests {
             let inst = random_instance(l_len, n_len);
             let proof = prove_instance(&inst);
             let bytes = bcs::to_bytes(&proof).unwrap();
-            // 32 bytes per group element and scalar, plus one length prefix
-            // for each of the two variable-length vectors.
-            let (rounds, n) = proof_shape(l_len, n_len);
-            assert_eq!(bytes.len(), 32 * (2 * rounds + 1 + n) + 2);
+            // 32 bytes per group element and scalar, and nothing else.
+            assert_eq!(bytes.len(), serialized_len(l_len, n_len));
 
-            let recovered: NormLinearProof = bcs::from_bytes(&bytes).unwrap();
+            let seed = || NormLinearProofSeed::new(l_len, n_len);
+            let recovered = bcs::from_bytes_seed(seed(), &bytes).unwrap();
             assert!(verify_instance(&inst, &recovered).is_ok());
 
             // Truncated and trailing-byte encodings are rejected.
-            assert!(bcs::from_bytes::<NormLinearProof>(&bytes[..bytes.len() - 32]).is_err());
+            assert!(bcs::from_bytes_seed(seed(), &bytes[..bytes.len() - 32]).is_err());
             let mut extended = bytes.clone();
             extended.push(0);
-            assert!(bcs::from_bytes::<NormLinearProof>(&extended).is_err());
+            assert!(bcs::from_bytes_seed(seed(), &extended).is_err());
+
+            // The shape is fixed by the seed, not by the bytes. (Doubling
+            // n_len alone can land on the same shape, so pick a base length
+            // whose encoded size really differs.)
+            let other = 4 * n_len + 8;
+            assert_ne!(serialized_len(l_len, other), serialized_len(l_len, n_len));
+            let wrong = NormLinearProofSeed::new(l_len, other);
+            assert!(bcs::from_bytes_seed(wrong, &bytes).is_err());
         }
     }
 

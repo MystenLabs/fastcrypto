@@ -24,22 +24,22 @@ base to `pedersen::H` and the blinding base to `pedersen::G`, so existing
 
 ## Proof sizes
 
-Proofs are serialized with `bcs`: every group element and scalar in its canonical
-32-byte encoding, and one length prefix for each of the norm-linear proof's two
-variable-length vectors (its final `l` is a single scalar). That gives a size of
-`64*log2(nm) + 162` bytes, where `nm = max(M*b/4, 16)` rounded up to a power of two.
+Proofs are serialized with `bcs` as a flat sequence of canonical 32-byte group
+elements and scalars, with no length prefixes: the shape is recovered from the
+total byte length at decoding. That gives a size of `64*log2(nm) + 160` bytes,
+where `nm = max(M*b/4, 16)` rounded up to a power of two.
 The table below compares BulletProofs (BP) and BulletProofs++ proof sizes for different (aggregate) range proof configurations.
 
 | Config | BP (bytes) | BP++ (bytes) | smaller |
 | --- | ---: | ---: | ---: |
-| 16-bit x1 | 544 | 418 | 23% |
-| 32-bit x1 | 608 | 418 | 31% |
-| 64-bit x1 | 672 | 418 | 38% |
-| 16-bit x4 | 672 | 418 | 38% |
-| 16-bit x8 | 736 | 482 | 34% |
-| 32-bit x8 | 800 | 546 | 32% |
-| 64-bit x16 | 928 | 674 | 27% |
-| 64-bit x32 | 992 | 738 | 26% |
+| 16-bit x1 | 544 | 416 | 24% |
+| 32-bit x1 | 608 | 416 | 32% |
+| 64-bit x1 | 672 | 416 | 38% |
+| 16-bit x4 | 672 | 416 | 38% |
+| 16-bit x8 | 736 | 480 | 35% |
+| 32-bit x8 | 800 | 544 | 32% |
+| 64-bit x16 | 928 | 672 | 28% |
+| 64-bit x32 | 992 | 736 | 26% |
 
 ## Benchmarks
 

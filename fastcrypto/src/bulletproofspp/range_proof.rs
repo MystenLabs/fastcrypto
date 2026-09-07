@@ -7,7 +7,7 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::pedersen::{Blinding, PedersenCommitment};
 use crate::traits::AllowedRng;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::bulletproofspp::circuit::{self, CircuitParams, CircuitProof};
 use crate::bulletproofspp::crs::Generators;
@@ -21,7 +21,7 @@ pub use crate::pedersen::Range;
 /// Unlike `fastcrypto::bulletproofs`, batches of any size `>= 1` are
 /// supported; amortization per value is best when the total digit count
 /// `m * bits/4` fills a power of two.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct RangeProof {
     proof: CircuitProof,
 }
@@ -127,19 +127,18 @@ impl RangeProof {
 
     /// Serialize with [bcs]: the four circuit commitments, then the
     /// norm-linear proof's per-round `(X, R)` pairs and final scalars, each
-    /// group element and scalar in its canonical 32-byte encoding, with a
-    /// length prefix on each of the two variable-length vectors.
+    /// group element and scalar in its canonical 32-byte encoding, with no
+    /// length prefixes.
     pub fn to_bytes(&self) -> Vec<u8> {
         bcs::to_bytes(&self.proof).expect("serializing a proof cannot fail")
     }
 
-    /// Deserialize. Points and scalars are checked for canonical encoding,
-    /// and trailing bytes are rejected; consistency of the proof shape with
-    /// the statement is checked at verification.
+    /// Deserialize. The byte length determines the proof shape; points and
+    /// scalars are checked for canonical encoding, and trailing bytes are
+    /// rejected. Consistency of the shape with the statement is checked at
+    /// verification.
     pub fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
-        bcs::from_bytes(bytes)
-            .map(|proof| RangeProof { proof })
-            .map_err(|_| FastCryptoError::InvalidInput)
+        CircuitProof::from_bytes(bytes).map(|proof| RangeProof { proof })
     }
 }
 
@@ -150,13 +149,13 @@ mod tests {
     use crate::serde_helpers::ToFromByteArray;
 
     /// Frozen proof for values [0, u32::MAX, 12345, 1 << 31] in Bits32 with
-    /// dst "test", 482 bytes (15 group elements and scalars plus the two
-    /// bcs length prefixes). Breaks if the transcript layout, challenge
-    /// derivation, generator derivation, or serialization change.
+    /// dst "test", 480 bytes (15 group elements and scalars, no framing).
+    /// Breaks if the transcript layout, challenge derivation, generator
+    /// derivation, or serialization change.
     // TODO: regenerate when the DST strings and transcript labels are frozen.
     #[test]
     fn regression_test() {
-        let proof = RangeProof::from_bytes(&hex::decode("00d5d5d1529f01cf6420ec103dace15476ca510f5b92ae6762bc25f4bd1249021219fad1752e829b54c9726bdb9253128ba6e82ca16fd8ea2595e26a536b4406621a5bbe5a65f5d917da8906719361ad8dcb5c9618861e1ccaee288bd7db8d5e9e5b0e4cb21110d789b367d90e778ec30faeda08c405e7b40a64c9f55e35510503dad137e8eb12facf2017dd0887338d6d1416718a9ab599e36a5fc26844b2ce5f44c9c0a0e79d43c07257498c7d755a0fb1e36d620fb312db78f230c11795af452ec6fd20bdddcd078dd121fd667b1226e14f79027b1502b770e804c776ce2e617c2e34ae010e418b31f72222ae7e76d5107747b507355aaa17b89d113ff8ee16963d2647afb472778c27d1983e8e0741be8e3252ce46faa2973ce1f6e352f670484baa1173bae5e99c5f3f0ff65ee368d191f8519986017a8faf1e08d6310d0f0bdf52df2d0b75fdbbdd56eacce0a932270b24b242ec9efb49a062b1d8dd4a000432d10c7962108d26a9239e1103806279e12396a064585f6b878050a84bbe41058a3416edfe76b21e7ec4945454970e53fe7cfb47d49e87373ae22f5ae499b50238eb4f534c997a1e88772fdc181885e7089147978798c99c43867803f5d554015048dbb1bbaa9976da6a08d9457c049a4521e733a28994bb3060f17119940509").unwrap()).unwrap();
+        let proof = RangeProof::from_bytes(&hex::decode("00d5d5d1529f01cf6420ec103dace15476ca510f5b92ae6762bc25f4bd1249021219fad1752e829b54c9726bdb9253128ba6e82ca16fd8ea2595e26a536b4406621a5bbe5a65f5d917da8906719361ad8dcb5c9618861e1ccaee288bd7db8d5e9e5b0e4cb21110d789b367d90e778ec30faeda08c405e7b40a64c9f55e355105dad137e8eb12facf2017dd0887338d6d1416718a9ab599e36a5fc26844b2ce5f44c9c0a0e79d43c07257498c7d755a0fb1e36d620fb312db78f230c11795af452ec6fd20bdddcd078dd121fd667b1226e14f79027b1502b770e804c776ce2e617c2e34ae010e418b31f72222ae7e76d5107747b507355aaa17b89d113ff8ee16963d2647afb472778c27d1983e8e0741be8e3252ce46faa2973ce1f6e352f670484baa1173bae5e99c5f3f0ff65ee368d191f8519986017a8faf1e08d6310d0f0bdf52df2d0b75fdbbdd56eacce0a932270b24b242ec9efb49a062b1d8dd4a0032d10c7962108d26a9239e1103806279e12396a064585f6b878050a84bbe41058a3416edfe76b21e7ec4945454970e53fe7cfb47d49e87373ae22f5ae499b50238eb4f534c997a1e88772fdc181885e7089147978798c99c43867803f5d554015048dbb1bbaa9976da6a08d9457c049a4521e733a28994bb3060f17119940509").unwrap()).unwrap();
         let commitments: Vec<PedersenCommitment> = [
             "442e20bdd70d96394130625763bb90729481036a4c0643972d0febc382919279",
             "464bbfe7ad1f58a942a57736d2627fe6d514609f0caeeb855eb6cacfe665c773",
@@ -315,7 +314,7 @@ mod tests {
         // Lengths that cannot be a valid encoding: too short for the four
         // commitments and three length prefixes, or with bytes left over.
         assert!(RangeProof::from_bytes(&[]).is_err());
-        for len in [1usize, 31, 32, 33, 128, 129, 415, 417, 419, 480] {
+        for len in [1usize, 31, 32, 33, 128, 415, 417, 448, 512] {
             assert!(
                 RangeProof::from_bytes(&vec![0u8; len]).is_err(),
                 "length {len} accepted"
@@ -323,7 +322,7 @@ mod tests {
         }
 
         // Random bytes at plausible lengths: never panic, never verify.
-        for len in [418usize, 482, 546, 610] {
+        for len in [416usize, 480, 544, 608] {
             for _ in 0..32 {
                 let mut buf = vec![0u8; len];
                 rand::RngCore::fill_bytes(&mut rng, &mut buf);
@@ -482,9 +481,8 @@ mod tests {
             RangeProof::prove_batch(&values, &blindings, &range, b"test", &mut rng).unwrap();
 
         let bytes = proof.to_bytes();
-        // 16x2 has the 64-bit shape: 10 group elements + 3 scalars, plus one
-        // length prefix for each of `rounds` and `n_final`.
-        assert_eq!(bytes.len(), 13 * 32 + 2);
+        // 16x2 has the 64-bit shape: 10 group elements + 3 scalars.
+        assert_eq!(bytes.len(), 13 * 32);
         let recovered = RangeProof::from_bytes(&bytes).unwrap();
         assert!(recovered
             .verify_batch(&commitments, &range, b"test")
