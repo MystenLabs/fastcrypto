@@ -12,26 +12,27 @@
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
-use crate::serde_helpers::ToFromByteArray;
 
-use crate::bulletproofspp::crs::{Generators, BASE, H_LEN};
+use crate::bulletproofspp::crs::Generators;
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
+use serde::de::{self, DeserializeSeed, SeqAccess, Visitor};
+use serde::ser::SerializeTuple;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
+use std::fmt;
 
 /// Fold until fewer than this many scalars remain; the remaining opening is
 /// sent in the clear. 6 balances rounds (2 points each) against final scalars.
 const FOLD_THRESHOLD: usize = 6;
 
-/// Largest `log2(n_len)` a decoded proof may claim; bounds the shape search
-/// in [NormLinearProof::proof_shape_for_serialized_len] far above any
-/// practical statement (2^32 norm slots is 2^28 values of 64 bits).
-const MAX_LOG_N_LEN: u32 = 32;
-
 /// Norm-linear proof: one `(X, R)` pair per fold round, then the final
 /// opening `(l, n)` in the clear (`sigma` is implied by the relation).
 /// Folding runs until `l` is a single scalar, so only `rounds` and
 /// `n_final` are variable-length.
+///
+/// Serialized as a flat tuple of 32-byte elements with no length prefixes,
+/// so decoding takes the shape from a [NormLinearProofSeed].
 #[derive(Clone, Debug)]
 pub(crate) struct NormLinearProof {
     pub(crate) rounds: Vec<(RistrettoPoint, RistrettoPoint)>,
@@ -39,54 +40,110 @@ pub(crate) struct NormLinearProof {
     pub(crate) n_final: Vec<RistrettoScalar>,
 }
 
-impl NormLinearProof {
-    /// Serialized size of a proof for initial vector lengths `(l_len, n_len)`.
-    fn serialized_len_for(l_len: usize, n_len: usize) -> usize {
+/// Largest `log2(n_len)` a decoded proof may claim, bounding the search in
+/// [NormLinearProofSeed::for_serialized_len].
+const MAX_LOG_N_LEN: u32 = 32;
+
+/// Serialized size of a proof for base vector lengths `(l_len, n_len)`.
+fn serialized_len(l_len: usize, n_len: usize) -> usize {
+    let (rounds, n_len) = proof_shape(l_len, n_len);
+    32 * (2 * rounds + 1 + n_len)
+}
+
+impl Serialize for NormLinearProof {
+    /// The per-round `(X, R)` pairs, then `l_final`, then `n_final`. A tuple
+    /// rather than a sequence, so no length is written.
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let len = 2 * self.rounds.len() + 1 + self.n_final.len();
+        let mut tuple = serializer.serialize_tuple(len)?;
+        for (x, r) in &self.rounds {
+            tuple.serialize_element(x)?;
+            tuple.serialize_element(r)?;
+        }
+        tuple.serialize_element(&self.l_final)?;
+        for scalar in &self.n_final {
+            tuple.serialize_element(scalar)?;
+        }
+        tuple.end()
+    }
+}
+
+/// The next element of a prefix-free sequence, reported as a length error
+/// when the input ends early.
+fn next_element<'de, A: SeqAccess<'de>, T: Deserialize<'de>>(
+    seq: &mut A,
+    index: usize,
+    expected: &dyn de::Expected,
+) -> Result<T, A::Error> {
+    seq.next_element()?
+        .ok_or_else(|| de::Error::invalid_length(index, expected))
+}
+
+/// The shape a [NormLinearProof] is decoded at. Built only from base vector
+/// lengths, so the shape it asks for is always one [proof_shape] gives, and
+/// nothing in the input can change it.
+pub(crate) struct NormLinearProofSeed {
+    rounds: usize,
+    n_len: usize,
+}
+
+impl NormLinearProofSeed {
+    pub(crate) fn new(l_len: usize, n_len: usize) -> Self {
         let (rounds, n_len) = proof_shape(l_len, n_len);
-        32 * (2 * rounds + 1 + n_len)
+        NormLinearProofSeed { rounds, n_len }
     }
 
-    /// The shape of a proof with this serialized size: `l_len = H_LEN`, `n_len` a power of two `>= BASE`.
-    fn proof_shape_for_serialized_len(len: usize) -> FastCryptoResult<(usize, usize)> {
-        (BASE.ilog2()..=MAX_LOG_N_LEN)
+    /// The seed for a proof serializing to exactly `len` bytes, with base
+    /// lengths `l_len` and a power of two at least `min_n_len`. Each
+    /// reachable shape has its own size, so `len` names at most one;
+    /// `InvalidInput` if it names none. The caller's `min_n_len` is what
+    /// keeps a shorter shape from matching a truncated input.
+    pub(crate) fn for_serialized_len(
+        l_len: usize,
+        min_n_len: usize,
+        len: usize,
+    ) -> FastCryptoResult<Self> {
+        (0..=MAX_LOG_N_LEN)
             .map(|k| 1usize << k)
-            .find(|&n_len| Self::serialized_len_for(H_LEN, n_len) == len)
-            .map(|n_len| proof_shape(H_LEN, n_len))
+            .filter(|&n_len| n_len >= min_n_len)
+            .find(|&n_len| serialized_len(l_len, n_len) == len)
+            .map(|n_len| Self::new(l_len, n_len))
             .ok_or(FastCryptoError::InvalidInput)
     }
+}
 
-    pub(crate) fn serialized_len(&self) -> usize {
-        32 * (2 * self.rounds.len() + 1 + self.n_final.len())
+impl<'de> DeserializeSeed<'de> for NormLinearProofSeed {
+    type Value = NormLinearProof;
+
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
+        let len = 2 * self.rounds + 1 + self.n_len;
+        deserializer.deserialize_tuple(len, self)
+    }
+}
+
+impl<'de> Visitor<'de> for NormLinearProofSeed {
+    type Value = NormLinearProof;
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "a norm-linear proof of {} rounds with {} final n scalars",
+            self.rounds, self.n_len
+        )
     }
 
-    /// Serialize: the per-round `(X, R)` pairs, then `l_final`, then
-    /// `n_final`, 32 bytes each.
-    pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(self.serialized_len());
-        for (x, r) in &self.rounds {
-            bytes.extend(x.to_byte_array());
-            bytes.extend(r.to_byte_array());
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<NormLinearProof, A::Error> {
+        let mut rounds = Vec::with_capacity(self.rounds);
+        for i in 0..self.rounds {
+            let x = next_element(&mut seq, 2 * i, &self)?;
+            let r = next_element(&mut seq, 2 * i + 1, &self)?;
+            rounds.push((x, r));
         }
-        bytes.extend(self.l_final.to_byte_array());
-        for scalar in &self.n_final {
-            bytes.extend(scalar.to_byte_array());
+        let l_final = next_element(&mut seq, 2 * self.rounds, &self)?;
+        let mut n_final = Vec::with_capacity(self.n_len);
+        for i in 0..self.n_len {
+            n_final.push(next_element(&mut seq, 2 * self.rounds + 1 + i, &self)?);
         }
-        bytes
-    }
-
-    /// Deserialize. The byte length alone selects the proof shape, see
-    /// [Self::proof_shape_for_serialized_len]; consistency with the statement
-    /// is checked at verification.
-    pub(crate) fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
-        let (rounds, n_len) = Self::proof_shape_for_serialized_len(bytes.len())?;
-        let mut chunks = bytes.chunks_exact(32);
-        let rounds = (0..rounds)
-            .map(|_| Ok((decode_next(&mut chunks)?, decode_next(&mut chunks)?)))
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        let l_final = decode_next(&mut chunks)?;
-        let n_final = (0..n_len)
-            .map(|_| decode_next(&mut chunks))
-            .collect::<FastCryptoResult<Vec<_>>>()?;
         Ok(NormLinearProof {
             rounds,
             l_final,
@@ -412,6 +469,8 @@ pub(crate) fn verify(
 
     let mask = (1usize << k) - 1;
 
+    // Folding ran until a single scalar remained, so `l_len <= 2^k` and
+    // every coordinate reads that one scalar.
     let l = (0..gens.h_vec.len()).map(|i| w_h[i & mask] * proof.l_final);
     let n = pn
         .iter()
@@ -673,18 +732,30 @@ mod tests {
     }
 
     #[test]
-    fn test_to_from_bytes() {
-        for (l_len, n_len) in [(H_LEN, 16), (H_LEN, 32), (H_LEN, 64)] {
+    fn test_serde_roundtrip() {
+        for (l_len, n_len) in [(8, 16), (8, 15), (8, 64), (3, 5), (4, 1)] {
             let inst = random_instance(l_len, n_len);
             let proof = prove_instance(&inst);
-            let bytes = proof.to_bytes();
-            assert_eq!(
-                bytes.len(),
-                NormLinearProof::serialized_len_for(l_len, n_len)
-            );
-            let recovered = NormLinearProof::from_bytes(&bytes).unwrap();
+            let bytes = bcs::to_bytes(&proof).unwrap();
+            // 32 bytes per group element and scalar, and nothing else.
+            assert_eq!(bytes.len(), serialized_len(l_len, n_len));
+
+            let seed = || NormLinearProofSeed::new(l_len, n_len);
+            let recovered = bcs::from_bytes_seed(seed(), &bytes).unwrap();
             assert!(verify_instance(&inst, &recovered).is_ok());
-            assert!(NormLinearProof::from_bytes(&bytes[..bytes.len() - 32]).is_err());
+
+            // Truncated and trailing-byte encodings are rejected.
+            assert!(bcs::from_bytes_seed(seed(), &bytes[..bytes.len() - 32]).is_err());
+            let mut extended = bytes.clone();
+            extended.push(0);
+            assert!(bcs::from_bytes_seed(seed(), &extended).is_err());
+
+            // The shape is fixed by the seed, not by the bytes. (Doubling
+            // n_len alone can fold to the same shape, so pick a base length
+            // whose serialized size really differs.)
+            let other = 4 * n_len + 8;
+            assert_ne!(serialized_len(l_len, other), serialized_len(l_len, n_len));
+            assert!(bcs::from_bytes_seed(NormLinearProofSeed::new(l_len, other), &bytes).is_err());
         }
     }
 

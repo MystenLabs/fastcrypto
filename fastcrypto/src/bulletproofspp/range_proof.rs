@@ -7,6 +7,7 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::pedersen::{Blinding, PedersenCommitment};
 use crate::traits::AllowedRng;
+use serde::Serialize;
 
 use crate::bulletproofspp::circuit::{self, CircuitParams, CircuitProof};
 use crate::bulletproofspp::crs::Generators;
@@ -20,7 +21,7 @@ pub use crate::pedersen::Range;
 /// Unlike `fastcrypto::bulletproofs`, batches of any size `>= 1` are
 /// supported; amortization per value is best when the total digit count
 /// `m * bits/4` fills a power of two.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct RangeProof {
     proof: CircuitProof,
 }
@@ -124,15 +125,17 @@ impl RangeProof {
         .map_err(|_| FastCryptoError::InvalidProof)
     }
 
-    /// Serialize: the four circuit commitments, the per-round `(X, R)`
-    /// pairs, and the final scalars, 32 bytes each.
+    /// Serialize with [bcs]: the four circuit commitments, then the
+    /// norm-linear proof's per-round `(X, R)` pairs and final scalars, each
+    /// group element and scalar in its canonical 32-byte encoding, with no
+    /// length prefixes.
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.proof.to_bytes()
+        bcs::to_bytes(&self.proof).expect("serializing a proof cannot fail")
     }
 
-    /// Deserialize. The byte length determines the proof shape (13 elements
-    /// for norm length 16, 2*rounds + 9 otherwise). Points and scalars are
-    /// validated; consistency with the statement is checked at verification.
+    /// Deserialize. The byte length determines the proof shape; point and
+    /// scalar encodings are checked and trailing bytes are rejected.
+    /// Agreement with the statement is checked at verification.
     pub fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
         CircuitProof::from_bytes(bytes).map(|proof| RangeProof { proof })
     }
@@ -145,8 +148,9 @@ mod tests {
     use crate::serde_helpers::ToFromByteArray;
 
     /// Frozen proof for values [0, u32::MAX, 12345, 1 << 31] in Bits32 with
-    /// dst "test". Breaks if the transcript layout, challenge derivation,
-    /// generator derivation, or serialization change.
+    /// dst "test", 480 bytes: 15 group elements and scalars, no framing.
+    /// Breaks if the transcript layout, challenge derivation, generator
+    /// derivation, or serialization change.
     // TODO: regenerate when the DST strings and transcript labels are frozen.
     #[test]
     fn regression_test() {
@@ -306,23 +310,20 @@ mod tests {
         let proof = RangeProof::prove(9, &blinding, &Range::Bits16, b"test", &mut rng).unwrap();
         let bytes = proof.to_bytes();
 
-        // Lengths that are not a valid element count.
+        // Lengths that cannot be a valid encoding: too short for the four
+        // commitments and the prefixes, or with bytes left over.
         assert!(RangeProof::from_bytes(&[]).is_err());
-        for elems in [1usize, 2, 4, 12, 14, 16, 74, 100] {
+        for len in [1usize, 31, 32, 33, 128, 415, 417, 448, 512] {
             assert!(
-                RangeProof::from_bytes(&vec![0u8; 32 * elems]).is_err(),
-                "{elems} elements accepted"
+                RangeProof::from_bytes(&vec![0u8; len]).is_err(),
+                "length {len} accepted"
             );
         }
-        // Non-multiples of 32.
-        for len in [1usize, 31, 33, 415] {
-            assert!(RangeProof::from_bytes(&vec![0u8; len]).is_err());
-        }
 
-        // Random bytes at valid lengths: never panic, never verify.
-        for elems in [13usize, 15, 17, 19] {
+        // Random bytes at plausible lengths: never panic, never verify.
+        for len in [416usize, 480, 544, 608] {
             for _ in 0..32 {
-                let mut buf = vec![0u8; 32 * elems];
+                let mut buf = vec![0u8; len];
                 rand::RngCore::fill_bytes(&mut rng, &mut buf);
                 if let Ok(p) = RangeProof::from_bytes(&buf) {
                     assert!(p.verify(&commitment, &Range::Bits16, b"test").is_err());
@@ -480,15 +481,18 @@ mod tests {
 
         let bytes = proof.to_bytes();
         // 16x2 has the 64-bit shape: 10 group elements + 3 scalars.
-        assert_eq!(bytes.len(), 416);
+        assert_eq!(bytes.len(), 13 * 32);
         let recovered = RangeProof::from_bytes(&bytes).unwrap();
         assert!(recovered
             .verify_batch(&commitments, &range, b"test")
             .is_ok());
 
-        // Length and encoding validation.
-        assert!(RangeProof::from_bytes(&bytes[..415]).is_err());
-        assert!(RangeProof::from_bytes(&bytes[..384]).is_err()); // 12 elements
+        // Length and encoding validation: truncation and trailing bytes.
+        assert!(RangeProof::from_bytes(&bytes[..bytes.len() - 1]).is_err());
+        assert!(RangeProof::from_bytes(&bytes[..bytes.len() - 32]).is_err());
+        let mut extended = bytes.clone();
+        extended.push(0);
+        assert!(RangeProof::from_bytes(&extended).is_err());
         let mut corrupted = bytes.clone();
         corrupted[0] ^= 1;
         // Either an invalid point encoding or a proof that fails to verify.

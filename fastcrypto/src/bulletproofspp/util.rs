@@ -3,28 +3,14 @@
 
 //! Scalar-vector helpers shared by the BP++ modules.
 
-use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::RistrettoScalar;
 use crate::groups::{GroupElement, Scalar};
-use crate::serde_helpers::ToFromByteArray;
-use std::slice::ChunksExact;
 
 /// The scalar 1. `GroupElement::generator` is the multiplicative identity
 /// for fastcrypto's scalar types; this name says what it means here.
 pub(crate) fn one() -> RistrettoScalar {
     RistrettoScalar::generator()
-}
-
-/// The next 32-byte chunk of `chunks` decoded as `T`; `InvalidInput` if the
-/// chunk is missing or not a valid encoding.
-pub(crate) fn decode_next<T: ToFromByteArray<32>>(
-    chunks: &mut ChunksExact<'_, u8>,
-) -> FastCryptoResult<T> {
-    let chunk: &[u8; 32] = chunks
-        .next()
-        .and_then(|c| c.try_into().ok())
-        .ok_or(FastCryptoError::InvalidInput)?;
-    T::from_byte_array(chunk).map_err(|_| FastCryptoError::InvalidInput)
 }
 
 /// Inner product `<a, b> = sum_i a_i * b_i`.

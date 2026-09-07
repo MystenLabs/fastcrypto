@@ -13,12 +13,12 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
 use crate::pedersen::Range;
-use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
+use serde::Serialize;
 use std::array::from_fn;
 
 use crate::bulletproofspp::crs::{dims, Generators, BASE, H_LEN};
-use crate::bulletproofspp::norm_linear::{self, NormLinearProof};
+use crate::bulletproofspp::norm_linear::{self, NormLinearProof, NormLinearProofSeed};
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
 
@@ -29,8 +29,9 @@ type S = RistrettoScalar;
 const CR_POWERS: [i32; H_LEN - 1] = [-1, 1, 2, 3, 5, 6, 7];
 
 /// Circuit proof: the four commitments plus the norm-linear proof.
-/// For 1x64: 4 + 6 group elements + 3 scalars = 416 bytes.
-#[derive(Clone, Debug)]
+/// For 1x64: 4 + 6 group elements + 3 scalars = 416 bytes, with no length
+/// prefixes.
+#[derive(Clone, Debug, Serialize)]
 pub(crate) struct CircuitProof {
     pub(crate) c_l: RistrettoPoint,
     pub(crate) c_o: RistrettoPoint,
@@ -40,28 +41,27 @@ pub(crate) struct CircuitProof {
 }
 
 impl CircuitProof {
-    /// Serialize: `C_L, C_O, C_R, C_S`, then the norm-linear proof.
-    pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(4 * 32 + self.nl_proof.serialized_len());
-        for point in [&self.c_l, &self.c_o, &self.c_r, &self.c_s] {
-            bytes.extend(point.to_byte_array());
-        }
-        bytes.extend(self.nl_proof.to_bytes());
-        bytes
-    }
-
+    /// Deserialize. The four commitments are a fixed-size head; the shape of
+    /// the norm-linear tail follows from its own length, given this circuit's
+    /// base lengths (`H_LEN`, and a norm length of at least `BASE`).
+    /// Consistency with the statement is checked at verification.
     pub(crate) fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
-        if bytes.len() < 4 * 32 {
+        let head_len = 4 * 32;
+        if bytes.len() < head_len {
             return Err(FastCryptoError::InvalidInput);
         }
-        let (head, tail) = bytes.split_at(4 * 32);
-        let mut chunks = head.chunks_exact(32);
+        let (head, tail) = bytes.split_at(head_len);
+        let seed = NormLinearProofSeed::for_serialized_len(H_LEN, BASE as usize, tail.len())?;
+
+        let invalid = |_| FastCryptoError::InvalidInput;
+        let [c_l, c_o, c_r, c_s] = bcs::from_bytes::<[RistrettoPoint; 4]>(head).map_err(invalid)?;
+        let nl_proof = bcs::from_bytes_seed(seed, tail).map_err(invalid)?;
         Ok(CircuitProof {
-            c_l: decode_next(&mut chunks)?,
-            c_o: decode_next(&mut chunks)?,
-            c_r: decode_next(&mut chunks)?,
-            c_s: decode_next(&mut chunks)?,
-            nl_proof: NormLinearProof::from_bytes(tail)?,
+            c_l,
+            c_o,
+            c_r,
+            c_s,
+            nl_proof,
         })
     }
 }
