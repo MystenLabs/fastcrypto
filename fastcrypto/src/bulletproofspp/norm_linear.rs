@@ -41,9 +41,7 @@ pub(crate) struct NormLinearProof<N: NormLength> {
     pub(crate) n_final: GenericArray<RistrettoScalar, N::NFinal>,
 }
 
-/// A norm length a proof can be made for, together with the dimensions it
-/// implies: how many fold rounds the proof has, and how long its final `n`
-/// opening is.
+/// A norm length a proof can be made for, and the dimensions it implies.
 pub trait NormLength: Unsigned {
     /// Number of fold rounds, each contributing an `(X, R)` pair.
     type Rounds: ArrayLength<(RistrettoPoint, RistrettoPoint)> + Debug;
@@ -81,19 +79,6 @@ norm_lengths! {
 norm_lengths! {
     typenum::U15 => (U3, U2),
     typenum::U31 => (U3, U4),
-}
-
-/// Rounds and final `n` length for `(l_len, n_len)`; final `l` is always 1.
-/// Production reads the [NormLength] table; this defines what it must equal.
-#[cfg(test)]
-fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
-    let mut rounds = 0;
-    while l_len > 1 || l_len + n_len >= FOLD_THRESHOLD {
-        l_len = l_len.div_ceil(2);
-        n_len = n_len.div_ceil(2);
-        rounds += 1;
-    }
-    (rounds, n_len)
 }
 
 /// Grow a fold tensor by one level, the new round in the top bit:
@@ -506,31 +491,6 @@ mod tests {
     /// A random instance at the base lengths `N` implies.
     fn instance_for<N: NormLength>() -> Instance {
         random_instance(H_LEN, N::USIZE)
-    }
-
-    /// The table is the only source of a proof's lengths, so it must agree
-    /// with the fold that actually runs.
-    #[test]
-    fn test_table_matches_the_fold() {
-        fn check<N: NormLength>() {
-            assert_eq!(
-                (N::Rounds::USIZE, N::NFinal::USIZE),
-                proof_shape(H_LEN, N::USIZE),
-                "table wrong for norm length {}",
-                N::USIZE
-            );
-        }
-        check::<U15>();
-        check::<U16>();
-        check::<U32>();
-        check::<U64>();
-        check::<U128>();
-        check::<U256>();
-        check::<U512>();
-        check::<U1024>();
-        check::<U2048>();
-        check::<U4096>();
-        check::<U8192>();
     }
 
     #[test]

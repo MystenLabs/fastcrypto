@@ -12,8 +12,4 @@ mod util;
 
 pub use norm_linear::NormLength;
 pub use range_proof::{Range, RangeProof};
-
-/// A proof's norm length is a type parameter, named with typenum's
-/// unsigned type-level integers: `RangeProof<typenum::U32>`. Re-exported so
-/// callers need not depend on typenum themselves.
 pub use typenum;
