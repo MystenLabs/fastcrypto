@@ -35,11 +35,8 @@ pub(crate) struct NormLinearProof {
     pub(crate) n_final: Vec<RistrettoScalar>,
 }
 
-/// The shape of a proof for initial sizes `(l_len, n_len)`: the number of
-/// rounds and the final `n` length. Each round pads to even length and
-/// halves, and folding continues until `l` is a single scalar, so the final
-/// `l` length is always 1 and is not reported.
-fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
+/// Rounds and final `n` length for `(l_len, n_len)`; final `l` is always 1.
+pub(crate) fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     let mut rounds = 0;
     while l_len > 1 || l_len + n_len >= FOLD_THRESHOLD {
         l_len = l_len.div_ceil(2);

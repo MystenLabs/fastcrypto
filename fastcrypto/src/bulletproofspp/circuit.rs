@@ -14,7 +14,7 @@ use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
 use crate::pedersen::Range;
 use crate::traits::AllowedRng;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use std::array::from_fn;
 
 use crate::bulletproofspp::crs::{dims, Generators, BASE, H_LEN};
@@ -28,6 +28,24 @@ type S = RistrettoScalar;
 /// slots 1..7. The gap at 4 keeps `C_S` out of the value row.
 const CR_POWERS: [i32; H_LEN - 1] = [-1, 1, 2, 3, 5, 6, 7];
 
+/// Largest `log2(nm)` a decoded proof may claim; bounds the shape check in
+/// [deserialize_nl_proof] far above any practical statement (2^32 norm slots
+/// is 2^28 values of 64 bits).
+const MAX_LOG_NM: u32 = 32;
+
+/// Deserialize a norm-linear proof, rejecting shapes no norm length gives.
+fn deserialize_nl_proof<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<NormLinearProof, D::Error> {
+    let proof = NormLinearProof::deserialize(deserializer)?;
+    let shape = (proof.rounds.len(), proof.n_final.len());
+    (BASE.ilog2()..=MAX_LOG_NM)
+        .map(|k| norm_linear::proof_shape(H_LEN, 1usize << k))
+        .any(|valid| valid == shape)
+        .then_some(proof)
+        .ok_or_else(|| de::Error::custom("no norm length gives this proof shape"))
+}
+
 /// Circuit proof: the four commitments plus the norm-linear proof.
 /// For 1x64: 4 + 6 group elements + 3 scalars + 2 bcs length prefixes = 418
 /// bytes. The vector lengths in `nl_proof` are declared on the wire; the
@@ -38,6 +56,7 @@ pub(crate) struct CircuitProof {
     pub(crate) c_o: RistrettoPoint,
     pub(crate) c_r: RistrettoPoint,
     pub(crate) c_s: RistrettoPoint,
+    #[serde(deserialize_with = "deserialize_nl_proof")]
     pub(crate) nl_proof: NormLinearProof,
 }
 
@@ -646,6 +665,38 @@ mod tests {
                 "roundtrip failed for {value}"
             );
         }
+    }
+
+    /// A decoded proof must carry a shape that some norm length produces.
+    /// Whether it is *this* statement's shape stays verification's job.
+    #[test]
+    fn test_impossible_shape_rejected_at_decoding() {
+        let (gens, params, proof, v_commitments) = prove_batch(Range::Bits16, &[7, 9]);
+        assert!(verify_batch(&gens, &params, &proof, &v_commitments).is_ok());
+        let shape = |p: &CircuitProof| (p.nl_proof.rounds.len(), p.nl_proof.n_final.len());
+        assert_eq!(shape(&proof), (3, 2));
+
+        // Shapes no norm length gives are rejected at decoding.
+        let mut short_round = proof.clone();
+        short_round.nl_proof.rounds.pop();
+        let mut odd_finals = proof.clone();
+        odd_finals.nl_proof.n_final.push(S::zero());
+        for bad in [short_round, odd_finals] {
+            let bytes = bcs::to_bytes(&bad).unwrap();
+            assert!(
+                bcs::from_bytes::<CircuitProof>(&bytes).is_err(),
+                "shape {:?} accepted",
+                shape(&bad)
+            );
+        }
+
+        // A shape another norm length does produce decodes, and fails at
+        // verification against this statement instead.
+        let mut other_nm = proof.clone();
+        other_nm.nl_proof.n_final.extend([S::zero(), S::zero()]);
+        assert_eq!(shape(&other_nm), (3, 4)); // the nm = 32 shape
+        let decoded: CircuitProof = bcs::from_bytes(&bcs::to_bytes(&other_nm).unwrap()).unwrap();
+        assert!(verify_batch(&gens, &params, &decoded, &v_commitments).is_err());
     }
 
     /// The spec's batched configurations, with their expected norm-linear
