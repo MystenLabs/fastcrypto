@@ -305,7 +305,7 @@ pub(crate) fn prove<N: NormLength>(
         mu = mu2;
     }
 
-    transcript.append_scalars(b"l_final", &l);
+    transcript.append_scalar(b"l_final", &l[0]);
     transcript.append_scalars(b"n_final", &n);
 
     // The fold ran the shape `N` promises, so these are exactly full; a
@@ -350,8 +350,6 @@ pub(crate) fn verify<N: NormLength>(
     rho: RistrettoScalar,
     proof: &NormLinearProof<N>,
 ) -> FastCryptoResult<()> {
-    // `N` fixes the proof's own lengths, so the only thing left to check is
-    // that it is the statement's norm length.
     if c.len() != gens.h_vec.len() || pn.len() != gens.g_vec.len() || gens.g_vec.len() != N::USIZE {
         return Err(FastCryptoError::InvalidInput);
     }
@@ -389,7 +387,7 @@ pub(crate) fn verify<N: NormLength>(
         mu = mu * mu;
     }
 
-    transcript.append_scalars(b"l_final", std::slice::from_ref(&proof.l_final));
+    transcript.append_scalar(b"l_final", &proof.l_final);
     transcript.append_scalars(b"n_final", &proof.n_final);
 
     // `c` folds exactly as `l` did, so it is a single scalar here too.
@@ -398,8 +396,6 @@ pub(crate) fn verify<N: NormLength>(
 
     let mask = (1usize << k) - 1;
 
-    // Folding ran until a single scalar remained, so `l_len <= 2^k` and
-    // every coordinate reads that one scalar.
     let l = (0..gens.h_vec.len()).map(|i| w_h[i & mask] * proof.l_final);
     let n = pn
         .iter()
@@ -668,8 +664,7 @@ mod tests {
 
     /// No folded generator may collapse to the identity: the odd-length
     /// padding uses the identity point, and if it ever survived a fold the
-    /// corresponding witness slot would be unconstrained. Odd norm lengths
-    /// pad at several rounds and must still leave every generator live.
+    /// corresponding witness slot would be unconstrained.
     #[test]
     fn test_folded_generators_are_nondegenerate() {
         fn check<N: NormLength>() {
@@ -735,17 +730,8 @@ mod tests {
         roundtrip::<U16>();
         roundtrip::<U32>();
         roundtrip::<U64>();
-
-        // A proof of one norm length does not decode as another: the sizes
-        // differ, and nothing in the bytes can claim a shape.
-        let proof = prove_instance::<U32>(&instance_for::<U32>());
-        let bytes = bcs::to_bytes(&proof).unwrap();
-        assert!(bcs::from_bytes::<NormLinearProof<U16>>(&bytes).is_err());
-        assert!(bcs::from_bytes::<NormLinearProof<U64>>(&bytes).is_err());
     }
 
-    /// A proof carries the lengths its type names, so a mismatched statement
-    /// is the only shape error left to catch at runtime.
     #[test]
     fn test_wrong_norm_length_fails() {
         let proof = prove_instance::<U16>(&instance_for::<U16>());

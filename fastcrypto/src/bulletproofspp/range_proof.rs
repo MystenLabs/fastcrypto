@@ -177,8 +177,7 @@ mod tests {
     }
 
     /// Completeness across every range, batch sizes spanning the padding and
-    /// fold boundaries, and the extremes of each range. The norm length is
-    /// the type parameter, so each `(range, m)` names its own.
+    /// fold boundaries, and the extremes of each range.
     #[test]
     fn test_completeness_all_ranges_and_batch_sizes() {
         fn check<N: NormLength>(range: Range, m: usize) {
