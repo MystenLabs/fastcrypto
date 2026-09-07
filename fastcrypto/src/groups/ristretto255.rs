@@ -264,8 +264,11 @@ impl FromTrustedByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
 
 serialize_deserialize_with_to_from_byte_array!(RistrettoPoint);
 
-/// Represents a scalar.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Mul, Neg, GroupOpsExtend, Zeroize)]
+/// Represents a scalar. `Default` is the additive identity, matching
+/// `RistrettoPoint`.
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, From, Add, Sub, Mul, Neg, GroupOpsExtend, Zeroize,
+)]
 #[mul(forward)]
 #[from(forward)]
 pub struct RistrettoScalar(pub(crate) ExternalScalar);

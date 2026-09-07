@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use fastcrypto::bulletproofs::RangeProof as BpRangeProof;
+use fastcrypto::bulletproofspp::typenum::{U16, U256, U32, U512, U64};
 use fastcrypto::bulletproofspp::{Range, RangeProof};
 use fastcrypto::pedersen::{Blinding, PedersenCommitment};
 use rand::Rng;
@@ -84,29 +85,56 @@ fn bp_benchmarks(c: &mut Criterion) {
 fn bppp_benchmarks(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
 
+    // The norm length is a type parameter, so each configuration names its
+    // own: nm = max(m * bits/4, 16) rounded up to a power of two.
+    macro_rules! cases {
+        ($body:ident) => {
+            $body!(U16, Range::Bits16, 1);
+            $body!(U16, Range::Bits32, 1);
+            $body!(U16, Range::Bits64, 1);
+            $body!(U16, Range::Bits16, 4);
+            $body!(U32, Range::Bits16, 8);
+            $body!(U64, Range::Bits32, 8);
+            $body!(U256, Range::Bits64, 16);
+            $body!(U512, Range::Bits64, 32);
+        };
+    }
+
     let mut grp = c.benchmark_group("BPPP prove");
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
-    for (range, m) in &CONFIGS {
-        let values = values(range, *m, &mut rng);
-        let (_, blindings) = commit(&values, &mut rng);
-        grp.bench_function(label(range, *m), |b| {
-            b.iter(|| RangeProof::prove_batch(&values, &blindings, range, DST, &mut rng).unwrap())
-        });
+    macro_rules! prove_case {
+        ($n:ty, $range:expr, $m:expr) => {{
+            let (range, m) = ($range, $m);
+            let values = values(&range, m, &mut rng);
+            let (_, blindings) = commit(&values, &mut rng);
+            grp.bench_function(label(&range, m), |b| {
+                b.iter(|| {
+                    RangeProof::<$n>::prove_batch(&values, &blindings, &range, DST, &mut rng)
+                        .unwrap()
+                })
+            });
+        }};
     }
+    cases!(prove_case);
     grp.finish();
 
     let mut grp = c.benchmark_group("BPPP verify");
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
-    for (range, m) in &CONFIGS {
-        let values = values(range, *m, &mut rng);
-        let (commitments, blindings) = commit(&values, &mut rng);
-        let proof = RangeProof::prove_batch(&values, &blindings, range, DST, &mut rng).unwrap();
-        grp.bench_function(label(range, *m), |b| {
-            b.iter(|| proof.verify_batch(&commitments, range, DST).unwrap())
-        });
+    macro_rules! verify_case {
+        ($n:ty, $range:expr, $m:expr) => {{
+            let (range, m) = ($range, $m);
+            let values = values(&range, m, &mut rng);
+            let (commitments, blindings) = commit(&values, &mut rng);
+            let proof =
+                RangeProof::<$n>::prove_batch(&values, &blindings, &range, DST, &mut rng).unwrap();
+            grp.bench_function(label(&range, m), |b| {
+                b.iter(|| proof.verify_batch(&commitments, &range, DST).unwrap())
+            });
+        }};
     }
+    cases!(verify_case);
     grp.finish();
 }
 

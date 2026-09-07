@@ -24,11 +24,8 @@ base to `pedersen::H` and the blinding base to `pedersen::G`, so existing
 
 ## Proof sizes
 
-Proofs are serialized with `bcs` as a flat sequence of canonical 32-byte group
-elements and scalars, with no length prefixes: the shape is recovered from the
-byte length at decoding. That gives a size of `64*log2(nm) + 160` bytes, where
-`nm = max(M*b/4, 16)` rounded up to a power of two.
-
+Proofs have a size of `64*log2(nm) + 160` bytes, where `nm = max(M*b/4, 16)` rounded up
+to a power of two. 
 The table below compares BulletProofs (BP) and BulletProofs++ proof sizes for different (aggregate) range proof configurations.
 
 | Config | BP (bytes) | BP++ (bytes) | smaller |
