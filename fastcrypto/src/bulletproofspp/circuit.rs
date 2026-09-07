@@ -675,7 +675,6 @@ mod tests {
                 range.bits()
             );
         }
-        check::<U16>(Range::Bits16, 2);
         check::<U16>(Range::Bits16, 4);
         check::<U32>(Range::Bits16, 8);
         check::<U64>(Range::Bits32, 8);

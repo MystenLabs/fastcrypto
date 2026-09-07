@@ -33,8 +33,6 @@ const FOLD_THRESHOLD: usize = 6;
 
 /// Norm-linear proof: one `(X, R)` pair per fold round, then the final
 /// opening `(l, n)` in the clear (`sigma` is implied by the relation).
-/// [NormLength] fixes every length from the norm length `N`, so the encoding
-/// needs no length prefixes.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub(crate) struct NormLinearProof<N: NormLength> {
