@@ -53,12 +53,16 @@ pub(crate) struct CircuitParams {
 }
 
 impl CircuitParams {
-    /// `m` must be `>= 1`.
-    pub(crate) fn new(range: Range, m: usize) -> FastCryptoResult<Self> {
+    /// `m` must be `>= 1`, and `N` must be the norm length `(range, m)`
+    /// implies; both are caller input, so both give `InvalidInput`.
+    pub(crate) fn new<N: NormLength>(range: Range, m: usize) -> FastCryptoResult<Self> {
         if m == 0 {
             return Err(FastCryptoError::InvalidInput);
         }
         let (d, n_d, nm) = dims(range, m);
+        if nm != N::USIZE {
+            return Err(FastCryptoError::InvalidInput);
+        }
         Ok(CircuitParams {
             range,
             m,
@@ -593,7 +597,7 @@ pub(crate) fn verify<N: NormLength>(
 mod tests {
     use super::*;
     use std::sync::Arc;
-    use typenum::{Unsigned, U16, U32, U64};
+    use typenum::{U16, U32, U64};
 
     fn prove_batch<N: NormLength>(
         range: Range,
@@ -606,7 +610,7 @@ mod tests {
     ) {
         let mut rng = rand::thread_rng();
         let gens = Generators::new(range, values.len()).unwrap();
-        let params = CircuitParams::new(range, values.len()).unwrap();
+        let params = CircuitParams::new::<N>(range, values.len()).unwrap();
         let blindings: Vec<S> = (0..values.len()).map(|_| S::rand(&mut rng)).collect();
         let mut t = BpppTranscript::new(b"test");
         let (proof, v_commitments) =
@@ -664,11 +668,6 @@ mod tests {
                 })
                 .collect();
             let (gens, params, proof, v_commitments) = prove_batch::<N>(range, &values);
-            assert_eq!(params.nm, N::USIZE);
-            assert_eq!(
-                (proof.nl_proof.rounds.len(), proof.nl_proof.n_final.len()),
-                (N::Rounds::USIZE, N::NFinal::USIZE),
-            );
             assert!(
                 verify_batch(&gens, &params, &proof, &v_commitments).is_ok(),
                 "roundtrip failed for {}x{m}",
@@ -697,7 +696,7 @@ mod tests {
     fn test_out_of_range_rejected() {
         let mut rng = rand::thread_rng();
         let gens = Generators::new(Range::Bits16, 2).unwrap();
-        let params = CircuitParams::new(Range::Bits16, 2).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits16, 2).unwrap();
         let blindings = vec![S::rand(&mut rng), S::rand(&mut rng)];
         let mut t = BpppTranscript::new(b"test");
         assert_eq!(
@@ -951,7 +950,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         let m = cheat.values.len();
         let gens = Generators::new(range, m).unwrap();
-        let params = CircuitParams::new(range, m).unwrap();
+        let params = CircuitParams::new::<N>(range, m).unwrap();
         let blindings: Vec<S> = (0..m).map(|_| S::rand(&mut rng)).collect();
         let mut t = BpppTranscript::new(b"test");
         let (proof, v_commitments) =
@@ -965,8 +964,7 @@ mod tests {
     #[test]
     fn test_cheating_prover_control() {
         fn control<N: NormLength>(range: Range, values: &[u64]) {
-            let params = CircuitParams::new(range, values.len()).unwrap();
-            assert_eq!(params.nm, N::USIZE);
+            let params = CircuitParams::new::<N>(range, values.len()).unwrap();
             assert!(
                 run_cheat::<N>(range, &honest_witness(&params, values)).is_ok(),
                 "control failed for {}x{}",
@@ -987,7 +985,7 @@ mod tests {
     /// membership argument must catch.
     #[test]
     fn test_out_of_range_value_cannot_be_proven() {
-        let params = CircuitParams::new(Range::Bits16, 1).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits16, 1).unwrap();
         let s = |x: u64| S::from(x);
 
         // The value link `sum_t d_t*16^t = v` holds for each of these; only
@@ -1024,7 +1022,7 @@ mod tests {
     /// negative digit, which the set membership argument must reject.
     #[test]
     fn test_negative_field_value_cannot_be_proven() {
-        let params = CircuitParams::new(Range::Bits64, 1).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits64, 1).unwrap();
 
         let mut negative = honest_witness(&params, &[0]);
         negative.values = vec![S::zero() - one()];
@@ -1045,7 +1043,7 @@ mod tests {
     /// blinding vector that breaks the spec's zero pattern.
     #[test]
     fn test_malformed_witness_rejected() {
-        let params = CircuitParams::new(Range::Bits16, 1).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits16, 1).unwrap();
 
         // Digits of a different (in-range) value than the one committed.
         let mut wrong_digits = honest_witness(&params, &[100]);
@@ -1092,7 +1090,7 @@ mod tests {
     #[test]
     fn test_out_of_range_value_in_batch_rejected() {
         let m = 4;
-        let params = CircuitParams::new(Range::Bits16, m).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits16, m).unwrap();
         for bad in 0..m {
             let mut cheat = honest_witness(&params, &[1, 2, 3, 4]);
             cheat.values[bad] = S::from(1u64 << 16);
@@ -1114,7 +1112,7 @@ mod tests {
     /// unnoticed.
     #[test]
     fn test_unused_slots_are_unconstrained() {
-        let params = CircuitParams::new(Range::Bits16, 1).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits16, 1).unwrap();
         let mut rng = rand::thread_rng();
 
         // Junk digits in the padding slots, with the matching reciprocal
@@ -1141,7 +1139,7 @@ mod tests {
     /// only to slots where one half of the pair is zero.
     #[test]
     fn test_padding_pair_reaches_the_value_row() {
-        let params = CircuitParams::new(Range::Bits16, 1).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits16, 1).unwrap();
         let mut rng = rand::thread_rng();
         for _ in 0..8 {
             // Padding pairs cannot rescue an out-of-range value.
@@ -1186,7 +1184,7 @@ mod tests {
     /// The junk-free control is `test_cheating_prover_control`.
     #[test]
     fn test_forged_commitment_rejected() {
-        let params = CircuitParams::new(Range::Bits64, 1).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits64, 1).unwrap();
         let forged = |junk| Cheat {
             junk: Some(junk),
             ..honest_witness(&params, &[42])

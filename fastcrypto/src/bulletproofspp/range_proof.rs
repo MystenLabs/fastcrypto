@@ -65,9 +65,9 @@ impl<N: NormLength> RangeProof<N> {
 
     /// Prove that all `values` are in `range` under the commitments given by
     /// `values` and `blindings`, as one aggregated proof. Fails with
-    /// `InvalidInput` if any value is out of range, the lengths differ, or
-    /// `values` is empty, and with `GeneralOpaqueError` if proving itself
-    /// fails.
+    /// `InvalidInput` if any value is out of range, the lengths differ,
+    /// `values` is empty, or `N` is not the norm length `(range, m)` implies,
+    /// and with `GeneralOpaqueError` if proving itself fails.
     pub fn prove_batch(
         values: &[u64],
         blindings: &[Blinding],
@@ -83,16 +83,15 @@ impl<N: NormLength> RangeProof<N> {
         }
         let (n_bits, m) = (range.bits(), values.len());
 
-        // Past the input checks, proving can only fail on the dimension checks
-        // (unreachable for a `Range` and a non-empty batch) or on a challenge
-        // that degenerates a scalar inversion. The latter has negligible
-        // probability but depends on the witness, so report both opaquely.
+        // Checked before Generators::new, which populates the process-wide
+        // CRS cache.
+        let params = CircuitParams::new::<N>(*range, m)?;
+
+        // Past the input checks, proving can only fail on a challenge that
+        // degenerates a scalar inversion. That has negligible probability but
+        // depends on the witness, so report it opaquely.
         let opaque = |_| FastCryptoError::GeneralOpaqueError;
         let gens = Generators::new(*range, m).map_err(opaque)?;
-        let params = CircuitParams::new(*range, m).map_err(opaque)?;
-        if params.nm != N::USIZE {
-            return Err(FastCryptoError::InvalidInput);
-        }
         let blinding_scalars: Vec<RistrettoScalar> = blindings.iter().map(|b| b.0).collect();
         let (proof, _) = circuit::prove(
             &mut transcript(dst, n_bits, m),
@@ -117,11 +116,8 @@ impl<N: NormLength> RangeProof<N> {
             return Err(FastCryptoError::InvalidInput);
         }
         let (n_bits, m) = (range.bits(), commitments.len());
+        let params = CircuitParams::new::<N>(*range, m)?;
         let gens = Generators::new(*range, m)?;
-        let params = CircuitParams::new(*range, m)?;
-        if params.nm != N::USIZE {
-            return Err(FastCryptoError::InvalidInput);
-        }
         let points: Vec<RistrettoPoint> = commitments.iter().map(|c| c.0).collect();
         circuit::verify(
             &mut transcript(dst, n_bits, m),
@@ -334,24 +330,22 @@ mod tests {
             RangeProof::<U16>::prove(9, &blinding, &Range::Bits16, b"test", &mut rng).unwrap();
         let bytes = bcs::to_bytes(&proof).unwrap();
 
-        // Lengths that cannot be a valid encoding: too short for the four
-        // commitments and the prefixes, or with bytes left over.
-        assert!(bcs::from_bytes::<RangeProof<U16>>(&[]).is_err());
-        for len in [1usize, 31, 32, 33, 128, 415, 417, 448, 512] {
+        // `N` fixes the encoding's length, so anything else is rejected on
+        // the way in.
+        assert_eq!(bytes.len(), 416);
+        for len in [0usize, 415, 417] {
             assert!(
                 bcs::from_bytes::<RangeProof<U16>>(&vec![0u8; len]).is_err(),
                 "length {len} accepted"
             );
         }
 
-        // Random bytes at plausible lengths: never panic, never verify.
-        for len in [416usize, 480, 544, 608] {
-            for _ in 0..32 {
-                let mut buf = vec![0u8; len];
-                rand::RngCore::fill_bytes(&mut rng, &mut buf);
-                if let Ok(p) = bcs::from_bytes::<RangeProof<U16>>(&buf) {
-                    assert!(p.verify(&commitment, &Range::Bits16, b"test").is_err());
-                }
+        // Random bytes at that length: never panic, never verify.
+        for _ in 0..128 {
+            let mut buf = vec![0u8; bytes.len()];
+            rand::RngCore::fill_bytes(&mut rng, &mut buf);
+            if let Ok(p) = bcs::from_bytes::<RangeProof<U16>>(&buf) {
+                assert!(p.verify(&commitment, &Range::Bits16, b"test").is_err());
             }
         }
 
@@ -523,18 +517,6 @@ mod tests {
         assert!(recovered
             .verify_batch(&commitments, &range, b"test")
             .is_ok());
-
-        // Length and encoding validation: truncation and trailing bytes.
-        assert!(bcs::from_bytes::<RangeProof<U16>>(&bytes[..bytes.len() - 1]).is_err());
-        assert!(bcs::from_bytes::<RangeProof<U16>>(&bytes[..bytes.len() - 32]).is_err());
-        let mut extended = bytes.clone();
-        extended.push(0);
-        assert!(bcs::from_bytes::<RangeProof<U16>>(&extended).is_err());
-        let mut corrupted = bytes.clone();
-        corrupted[0] ^= 1;
-        // Either an invalid point encoding or a proof that fails to verify.
-        assert!(!bcs::from_bytes::<RangeProof<U16>>(&corrupted)
-            .is_ok_and(|p| p.verify_batch(&commitments, &range, b"test").is_ok()));
 
         // A valid-shaped proof for the wrong statement dimensions fails at
         // verification (shape gate).

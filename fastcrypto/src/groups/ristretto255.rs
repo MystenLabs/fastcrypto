@@ -265,7 +265,7 @@ impl FromTrustedByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
 serialize_deserialize_with_to_from_byte_array!(RistrettoPoint);
 
 /// Represents a scalar. `Default` is the additive identity, matching
-/// `RistrettoPoint`.
+/// `RistrettoPoint`; `GenericArray`'s `Deserialize` requires it.
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, From, Add, Sub, Mul, Neg, GroupOpsExtend, Zeroize,
 )]

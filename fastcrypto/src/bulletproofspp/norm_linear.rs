@@ -6,16 +6,15 @@
 //! Proves knowledge of an opening `(sigma, l, n)` of
 //! `C = sigma*G + <l, H> + <n, G_vec>` satisfying
 //! `sigma = <c, l> + |n|^2_mu` with `mu = rho^2`, for public `c` and `rho`.
-//! Each round halves `l` and `n` by a symmetric even/odd fold until fewer
-//! than 6 scalars remain, which are then sent in the clear.
+//! Each round halves `l` and `n` by a symmetric even/odd fold until `l` is
+//! a single scalar and fewer than 6 remain in all, which are then sent in
+//! the clear.
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
 
-use crate::bulletproofspp::crs::Generators;
-#[cfg(test)]
-use crate::bulletproofspp::crs::H_LEN;
+use crate::bulletproofspp::crs::{Generators, H_LEN};
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
 use generic_array::{ArrayLength, GenericArray};
@@ -27,8 +26,9 @@ use typenum::{
     U7, U8, U8192, U9,
 };
 
-/// Fold until fewer than this many scalars remain; the remaining opening is
-/// sent in the clear. 6 balances rounds (2 points each) against final scalars.
+/// Fold until fewer than this many scalars remain, and in any case until `l`
+/// is a single scalar; the remaining opening is sent in the clear. 6 balances
+/// rounds (2 points each) against final scalars.
 const FOLD_THRESHOLD: usize = 6;
 
 /// Norm-linear proof: one `(X, R)` pair per fold round, then the final
@@ -42,20 +42,50 @@ pub(crate) struct NormLinearProof<N: NormLength> {
 }
 
 /// A norm length a proof can be made for, and the dimensions it implies.
-pub trait NormLength: Unsigned {
+/// Sealed: the dimensions are dictated by [fold_shape], and an impl that
+/// disagreed with it would size a proof's arrays wrong.
+pub trait NormLength: Unsigned + sealed::Sealed {
     /// Number of fold rounds, each contributing an `(X, R)` pair.
     type Rounds: ArrayLength<(RistrettoPoint, RistrettoPoint)> + Debug;
     /// Length of the final `n` opening.
     type NFinal: ArrayLength<RistrettoScalar> + Debug;
 }
 
-/// One row of the table: norm length, rounds, final `n` length.
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// Rounds and final `n` length for base lengths `(l_len, n_len)`; the final
+/// `l` length is always 1. This is the fold [prove] runs, and every row of
+/// the table below is checked against it at compile time.
+const fn fold_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
+    let mut rounds = 0;
+    while l_len > 1 || l_len + n_len >= FOLD_THRESHOLD {
+        l_len = l_len.div_ceil(2);
+        n_len = n_len.div_ceil(2);
+        rounds += 1;
+    }
+    (rounds, n_len)
+}
+
+/// One row of the table: norm length, rounds, final `n` length. Each row is
+/// checked against [fold_shape], so a wrong one fails to compile rather than
+/// sizing `n_final` short and panicking in [verify].
 macro_rules! norm_lengths {
     ($($n:ty => ($rounds:ty, $n_final:ty)),* $(,)?) => {
-        $(impl NormLength for $n {
-            type Rounds = $rounds;
-            type NFinal = $n_final;
-        })*
+        $(
+            impl sealed::Sealed for $n {}
+
+            impl NormLength for $n {
+                type Rounds = $rounds;
+                type NFinal = $n_final;
+            }
+
+            const _: () = {
+                let (rounds, n_final) = fold_shape(H_LEN, <$n>::USIZE);
+                assert!(rounds == <$rounds>::USIZE && n_final == <$n_final>::USIZE);
+            };
+        )*
     };
 }
 
@@ -501,8 +531,6 @@ mod tests {
         fn roundtrip<N: NormLength>() {
             let inst = instance_for::<N>();
             let proof = prove_instance::<N>(&inst);
-            assert_eq!(proof.rounds.len(), N::Rounds::USIZE);
-            assert_eq!(proof.n_final.len(), N::NFinal::USIZE);
             assert!(
                 verify_instance(&inst, &proof).is_ok(),
                 "roundtrip failed for norm length {}",

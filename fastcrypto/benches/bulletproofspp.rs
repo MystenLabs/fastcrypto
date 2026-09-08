@@ -16,18 +16,23 @@ use rand::Rng;
 
 const DST: &[u8] = b"bench";
 
-/// (range, batch size) configurations; batch sizes are powers of two so the
-/// Bulletproofs aggregation applies to all of them.
-const CONFIGS: [(Range, usize); 8] = [
-    (Range::Bits16, 1),
-    (Range::Bits32, 1),
-    (Range::Bits64, 1),
-    (Range::Bits16, 4),
-    (Range::Bits16, 8),
-    (Range::Bits32, 8),
-    (Range::Bits64, 16),
-    (Range::Bits64, 32),
-];
+/// (norm length, range, batch size) configurations; batch sizes are powers of
+/// two so the Bulletproofs aggregation applies to all of them. The norm length
+/// is `nm = max(m * bits/4, 16)` rounded up to a power of two, and only the
+/// BP++ side uses it. Expanded by both benchmark groups so they always run the
+/// same configurations.
+macro_rules! configs {
+    ($case:ident) => {
+        $case!(U16, Range::Bits16, 1);
+        $case!(U16, Range::Bits32, 1);
+        $case!(U16, Range::Bits64, 1);
+        $case!(U16, Range::Bits16, 4);
+        $case!(U32, Range::Bits16, 8);
+        $case!(U64, Range::Bits32, 8);
+        $case!(U256, Range::Bits64, 16);
+        $case!(U512, Range::Bits64, 32);
+    };
+}
 
 fn values(range: &Range, m: usize, rng: &mut rand::rngs::ThreadRng) -> Vec<u64> {
     (0..m)
@@ -55,50 +60,46 @@ fn bp_benchmarks(c: &mut Criterion) {
     let mut grp = c.benchmark_group("BP prove");
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
-    for (range, m) in &CONFIGS {
-        let values = values(range, *m, &mut rng);
-        let (_, blindings) = commit(&values, &mut rng);
-        grp.bench_function(label(range, *m), |b| {
-            b.iter(|| BpRangeProof::prove_batch(&values, &blindings, range, DST, &mut rng).unwrap())
-        });
+    macro_rules! prove_case {
+        ($n:ty, $range:expr, $m:expr) => {{
+            let (range, m) = ($range, $m);
+            let values = values(&range, m, &mut rng);
+            let (_, blindings) = commit(&values, &mut rng);
+            grp.bench_function(label(&range, m), |b| {
+                b.iter(|| {
+                    BpRangeProof::prove_batch(&values, &blindings, &range, DST, &mut rng).unwrap()
+                })
+            });
+        }};
     }
+    configs!(prove_case);
     grp.finish();
 
     let mut grp = c.benchmark_group("BP verify");
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
-    for (range, m) in &CONFIGS {
-        let values = values(range, *m, &mut rng);
-        let (commitments, blindings) = commit(&values, &mut rng);
-        let proof = BpRangeProof::prove_batch(&values, &blindings, range, DST, &mut rng).unwrap();
-        grp.bench_function(label(range, *m), |b| {
-            b.iter(|| {
-                proof
-                    .verify_batch(&commitments, range, DST, &mut rng)
-                    .unwrap()
-            })
-        });
+    macro_rules! verify_case {
+        ($n:ty, $range:expr, $m:expr) => {{
+            let (range, m) = ($range, $m);
+            let values = values(&range, m, &mut rng);
+            let (commitments, blindings) = commit(&values, &mut rng);
+            let proof =
+                BpRangeProof::prove_batch(&values, &blindings, &range, DST, &mut rng).unwrap();
+            grp.bench_function(label(&range, m), |b| {
+                b.iter(|| {
+                    proof
+                        .verify_batch(&commitments, &range, DST, &mut rng)
+                        .unwrap()
+                })
+            });
+        }};
     }
+    configs!(verify_case);
     grp.finish();
 }
 
 fn bppp_benchmarks(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
-
-    // The norm length is a type parameter, so each configuration names its
-    // own: nm = max(m * bits/4, 16) rounded up to a power of two.
-    macro_rules! cases {
-        ($body:ident) => {
-            $body!(U16, Range::Bits16, 1);
-            $body!(U16, Range::Bits32, 1);
-            $body!(U16, Range::Bits64, 1);
-            $body!(U16, Range::Bits16, 4);
-            $body!(U32, Range::Bits16, 8);
-            $body!(U64, Range::Bits32, 8);
-            $body!(U256, Range::Bits64, 16);
-            $body!(U512, Range::Bits64, 32);
-        };
-    }
 
     let mut grp = c.benchmark_group("BPPP prove");
     grp.warm_up_time(Duration::from_secs(1));
@@ -116,7 +117,7 @@ fn bppp_benchmarks(c: &mut Criterion) {
             });
         }};
     }
-    cases!(prove_case);
+    configs!(prove_case);
     grp.finish();
 
     let mut grp = c.benchmark_group("BPPP verify");
@@ -134,7 +135,7 @@ fn bppp_benchmarks(c: &mut Criterion) {
             });
         }};
     }
-    cases!(verify_case);
+    configs!(verify_case);
     grp.finish();
 }
 
