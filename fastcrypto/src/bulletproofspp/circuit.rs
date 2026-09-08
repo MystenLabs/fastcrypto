@@ -28,11 +28,6 @@ type S = RistrettoScalar;
 /// slots 1..7. The gap at 4 keeps `C_S` out of the value row.
 const CR_POWERS: [i32; H_LEN - 1] = [-1, 1, 2, 3, 5, 6, 7];
 
-/// Largest `log2(nm)` a decoded proof may claim; bounds the shape search in
-/// [CircuitProof::from_bytes] far above any practical statement (2^32 norm
-/// slots is 2^28 values of 64 bits).
-const MAX_LOG_NM: u32 = 32;
-
 /// Circuit proof: the four commitments plus the norm-linear proof.
 /// For 1x64: 4 + 6 group elements + 3 scalars = 416 bytes.
 #[derive(Clone, Debug)]
@@ -55,26 +50,18 @@ impl CircuitProof {
         bytes
     }
 
-    /// Deserialize. The length of the norm-linear part selects the norm
-    /// length `nm` (a power of two from `BASE` to `2^MAX_LOG_NM`), which
-    /// fixes the proof shape; consistency with the statement is checked at
-    /// verification.
     pub(crate) fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
         if bytes.len() < 4 * 32 {
             return Err(FastCryptoError::InvalidInput);
         }
         let (head, tail) = bytes.split_at(4 * 32);
-        let nm = (BASE.ilog2()..=MAX_LOG_NM)
-            .map(|k| 1usize << k)
-            .find(|&nm| NormLinearProof::serialized_len_for(H_LEN, nm) == tail.len())
-            .ok_or(FastCryptoError::InvalidInput)?;
         let mut chunks = head.chunks_exact(32);
         Ok(CircuitProof {
             c_l: decode_next(&mut chunks)?,
             c_o: decode_next(&mut chunks)?,
             c_r: decode_next(&mut chunks)?,
             c_s: decode_next(&mut chunks)?,
-            nl_proof: NormLinearProof::from_bytes(tail, H_LEN, nm)?,
+            nl_proof: NormLinearProof::from_bytes(tail)?,
         })
     }
 }

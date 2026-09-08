@@ -14,7 +14,7 @@ use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
 use crate::serde_helpers::ToFromByteArray;
 
-use crate::bulletproofspp::crs::Generators;
+use crate::bulletproofspp::crs::{Generators, BASE, H_LEN};
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
 use std::borrow::Cow;
@@ -22,6 +22,11 @@ use std::borrow::Cow;
 /// Fold until fewer than this many scalars remain; the remaining opening is
 /// sent in the clear. 6 balances rounds (2 points each) against final scalars.
 const FOLD_THRESHOLD: usize = 6;
+
+/// Largest `log2(n_len)` a decoded proof may claim; bounds the shape search
+/// in [NormLinearProof::proof_shape_for_serialized_len] far above any
+/// practical statement (2^32 norm slots is 2^28 values of 64 bits).
+const MAX_LOG_N_LEN: u32 = 32;
 
 /// Norm-linear proof: one `(X, R)` pair per fold round, then the final
 /// opening `(l, n)` in the clear (`sigma` is implied by the relation).
@@ -34,9 +39,18 @@ pub(crate) struct NormLinearProof {
 
 impl NormLinearProof {
     /// Serialized size of a proof for initial vector lengths `(l_len, n_len)`.
-    pub(crate) fn serialized_len_for(l_len: usize, n_len: usize) -> usize {
+    fn serialized_len_for(l_len: usize, n_len: usize) -> usize {
         let (rounds, l_len, n_len) = proof_shape(l_len, n_len);
         32 * (2 * rounds + l_len + n_len)
+    }
+
+    /// The shape of a proof with this serialized size: `l_len = H_LEN`, `n_len` a power of two `>= BASE`.
+    fn proof_shape_for_serialized_len(len: usize) -> FastCryptoResult<(usize, usize, usize)> {
+        (BASE.ilog2()..=MAX_LOG_N_LEN)
+            .map(|k| 1usize << k)
+            .find(|&n_len| Self::serialized_len_for(H_LEN, n_len) == len)
+            .map(|n_len| proof_shape(H_LEN, n_len))
+            .ok_or(FastCryptoError::InvalidInput)
     }
 
     pub(crate) fn serialized_len(&self) -> usize {
@@ -57,13 +71,11 @@ impl NormLinearProof {
         bytes
     }
 
-    /// Deserialize a proof for initial vector lengths `(l_len, n_len)`. The
-    /// byte length must match the implied shape exactly.
-    pub(crate) fn from_bytes(bytes: &[u8], l_len: usize, n_len: usize) -> FastCryptoResult<Self> {
-        if bytes.len() != Self::serialized_len_for(l_len, n_len) {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        let (rounds, l_len, n_len) = proof_shape(l_len, n_len);
+    /// Deserialize. The byte length alone selects the proof shape, see
+    /// [Self::proof_shape_for_serialized_len]; consistency with the statement
+    /// is checked at verification.
+    pub(crate) fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
+        let (rounds, l_len, n_len) = Self::proof_shape_for_serialized_len(bytes.len())?;
         let mut chunks = bytes.chunks_exact(32);
         let rounds = (0..rounds)
             .map(|_| Ok((decode_next(&mut chunks)?, decode_next(&mut chunks)?)))
@@ -660,7 +672,7 @@ mod tests {
 
     #[test]
     fn test_to_from_bytes() {
-        for (l_len, n_len) in [(8, 16), (8, 15), (8, 64), (3, 5), (4, 1)] {
+        for (l_len, n_len) in [(H_LEN, 16), (H_LEN, 32), (H_LEN, 64)] {
             let inst = random_instance(l_len, n_len);
             let proof = prove_instance(&inst);
             let bytes = proof.to_bytes();
@@ -668,11 +680,9 @@ mod tests {
                 bytes.len(),
                 NormLinearProof::serialized_len_for(l_len, n_len)
             );
-            let recovered = NormLinearProof::from_bytes(&bytes, l_len, n_len).unwrap();
+            let recovered = NormLinearProof::from_bytes(&bytes).unwrap();
             assert!(verify_instance(&inst, &recovered).is_ok());
-            assert!(NormLinearProof::from_bytes(&bytes[..bytes.len() - 32], l_len, n_len).is_err());
-            // The shape is fixed by the declared lengths, not by the bytes.
-            assert!(NormLinearProof::from_bytes(&bytes, l_len, 2 * n_len).is_err());
+            assert!(NormLinearProof::from_bytes(&bytes[..bytes.len() - 32]).is_err());
         }
     }
 
