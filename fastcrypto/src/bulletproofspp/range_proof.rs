@@ -180,53 +180,53 @@ mod tests {
     /// fold boundaries, and the extremes of each range.
     #[test]
     fn test_completeness_all_ranges_and_batch_sizes() {
-        fn check<N: NormLength>(range: Range, m: usize) {
+        fn check<N: NormLength>(range: Range, batch_sizes: &[usize]) {
             let mut rng = rand::thread_rng();
             let max = range.max_value();
-            let values: Vec<u64> = (0..m)
-                .map(|i| match i {
-                    0 => 0,
-                    1 => max,
-                    2 => 1,
-                    _ => rand::Rng::gen::<u64>(&mut rng) & max,
-                })
-                .collect();
-            let (commitments, blindings) = commit_all(&values);
-            let proof =
-                RangeProof::<N>::prove_batch(&values, &blindings, &range, b"test", &mut rng)
-                    .unwrap();
-            assert!(
-                proof.verify_batch(&commitments, &range, b"test").is_ok(),
-                "completeness failed for {}x{m}",
-                range.bits()
-            );
-            // Serialization round-trips at every shape.
-            assert!(
-                bcs::from_bytes::<RangeProof<N>>(&bcs::to_bytes(&proof).unwrap())
-                    .unwrap()
-                    .verify_batch(&commitments, &range, b"test")
-                    .is_ok()
-            );
+            for &m in batch_sizes {
+                let values: Vec<u64> = (0..m)
+                    .map(|i| match i {
+                        0 => 0,
+                        1 => max,
+                        2 => 1,
+                        _ => rand::Rng::gen::<u64>(&mut rng) & max,
+                    })
+                    .collect();
+                let (commitments, blindings) = commit_all(&values);
+                let proof =
+                    RangeProof::<N>::prove_batch(&values, &blindings, &range, b"test", &mut rng)
+                        .unwrap();
+                assert!(
+                    proof.verify_batch(&commitments, &range, b"test").is_ok(),
+                    "completeness failed for {}x{m}",
+                    range.bits()
+                );
+                // Serialization round-trips at every shape.
+                assert!(
+                    bcs::from_bytes::<RangeProof<N>>(&bcs::to_bytes(&proof).unwrap())
+                        .unwrap()
+                        .verify_batch(&commitments, &range, b"test")
+                        .is_ok()
+                );
+            }
         }
 
-        // nm = max(m * bits/4, 16) rounded up to a power of two.
-        macro_rules! cases {
-            ($($n:ty => $range:expr, $m:expr;)*) => { $(check::<$n>($range, $m);)* };
-        }
-        cases! {
-            U16 => Range::Bits8, 1;   U16 => Range::Bits8, 2;   U16 => Range::Bits8, 3;
-            U16 => Range::Bits8, 5;   U16 => Range::Bits8, 8;   U32 => Range::Bits8, 9;
-            U32 => Range::Bits8, 16;
-            U16 => Range::Bits16, 1;  U16 => Range::Bits16, 2;  U16 => Range::Bits16, 3;
-            U32 => Range::Bits16, 5;  U32 => Range::Bits16, 8;  U64 => Range::Bits16, 9;
-            U64 => Range::Bits16, 16;
-            U16 => Range::Bits32, 1;  U16 => Range::Bits32, 2;  U32 => Range::Bits32, 3;
-            U64 => Range::Bits32, 5;  U64 => Range::Bits32, 8;  U128 => Range::Bits32, 9;
-            U128 => Range::Bits32, 16;
-            U16 => Range::Bits64, 1;  U32 => Range::Bits64, 2;  U64 => Range::Bits64, 3;
-            U128 => Range::Bits64, 5; U128 => Range::Bits64, 8; U256 => Range::Bits64, 9;
-            U256 => Range::Bits64, 16;
-        }
+        // Grouped where nm = max(m * bits/4, 16), rounded up to a power of
+        // two, crosses a boundary.
+        check::<U16>(Range::Bits8, &[1, 2, 3, 5, 8]);
+        check::<U32>(Range::Bits8, &[9, 16]);
+        check::<U16>(Range::Bits16, &[1, 2, 3]);
+        check::<U32>(Range::Bits16, &[5, 8]);
+        check::<U64>(Range::Bits16, &[9, 16]);
+        check::<U16>(Range::Bits32, &[1, 2]);
+        check::<U32>(Range::Bits32, &[3]);
+        check::<U64>(Range::Bits32, &[5, 8]);
+        check::<U128>(Range::Bits32, &[9, 16]);
+        check::<U16>(Range::Bits64, &[1]);
+        check::<U32>(Range::Bits64, &[2]);
+        check::<U64>(Range::Bits64, &[3]);
+        check::<U128>(Range::Bits64, &[5, 8]);
+        check::<U256>(Range::Bits64, &[9, 16]);
     }
 
     /// A proof is valid only for the exact `(bits, batch size)` it was made
