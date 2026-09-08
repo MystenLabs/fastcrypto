@@ -84,6 +84,11 @@ macro_rules! norm_lengths {
             const _: () = {
                 let (rounds, n_final) = fold_shape(H_LEN, <$n>::USIZE);
                 assert!(rounds == <$rounds>::USIZE && n_final == <$n_final>::USIZE);
+                // `verify` reads `w_h[i & (2^rounds - 1)]` for `i < H_LEN`
+                // and `n_final[i >> rounds]` for `i < N`, so both indices
+                // must stay in bounds for this row.
+                assert!(1usize << rounds >= H_LEN);
+                assert!((<$n>::USIZE - 1) >> rounds < n_final);
             };
         )*
     };
