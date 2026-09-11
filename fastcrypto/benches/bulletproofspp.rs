@@ -9,28 +9,25 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use fastcrypto::bulletproofs::RangeProof as BpRangeProof;
-use fastcrypto::bulletproofspp::typenum::{U16, U256, U32, U512, U64};
 use fastcrypto::bulletproofspp::{Range, RangeProof};
 use fastcrypto::pedersen::{Blinding, PedersenCommitment};
 use rand::Rng;
 
 const DST: &[u8] = b"bench";
 
-/// (norm length, range, batch size) configurations; batch sizes are powers of
-/// two so the Bulletproofs aggregation applies to all of them. The norm length
-/// is `nm = max(m * bits/4, 16)` rounded up to a power of two, and only the
-/// BP++ side uses it. Expanded by both benchmark groups so they always run the
-/// same configurations.
+/// (range, batch size) configurations; batch sizes are powers of two so the
+/// Bulletproofs aggregation applies to all of them. Expanded by both benchmark
+/// groups so they always run the same configurations.
 macro_rules! configs {
     ($case:ident) => {
-        $case!(U16, Range::Bits16, 1);
-        $case!(U16, Range::Bits32, 1);
-        $case!(U16, Range::Bits64, 1);
-        $case!(U16, Range::Bits16, 4);
-        $case!(U32, Range::Bits16, 8);
-        $case!(U64, Range::Bits32, 8);
-        $case!(U256, Range::Bits64, 16);
-        $case!(U512, Range::Bits64, 32);
+        $case!(Range::Bits16, 1);
+        $case!(Range::Bits32, 1);
+        $case!(Range::Bits64, 1);
+        $case!(Range::Bits16, 4);
+        $case!(Range::Bits16, 8);
+        $case!(Range::Bits32, 8);
+        $case!(Range::Bits64, 16);
+        $case!(Range::Bits64, 32);
     };
 }
 
@@ -61,7 +58,7 @@ fn bp_benchmarks(c: &mut Criterion) {
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
     macro_rules! prove_case {
-        ($n:ty, $range:expr, $m:expr) => {{
+        ($range:expr, $m:expr) => {{
             let (range, m) = ($range, $m);
             let values = values(&range, m, &mut rng);
             let (_, blindings) = commit(&values, &mut rng);
@@ -79,7 +76,7 @@ fn bp_benchmarks(c: &mut Criterion) {
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
     macro_rules! verify_case {
-        ($n:ty, $range:expr, $m:expr) => {{
+        ($range:expr, $m:expr) => {{
             let (range, m) = ($range, $m);
             let values = values(&range, m, &mut rng);
             let (commitments, blindings) = commit(&values, &mut rng);
@@ -105,14 +102,13 @@ fn bppp_benchmarks(c: &mut Criterion) {
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
     macro_rules! prove_case {
-        ($n:ty, $range:expr, $m:expr) => {{
+        ($range:expr, $m:expr) => {{
             let (range, m) = ($range, $m);
             let values = values(&range, m, &mut rng);
             let (_, blindings) = commit(&values, &mut rng);
             grp.bench_function(label(&range, m), |b| {
                 b.iter(|| {
-                    RangeProof::<$n>::prove_batch(&values, &blindings, &range, DST, &mut rng)
-                        .unwrap()
+                    RangeProof::prove_batch(&values, &blindings, &range, DST, &mut rng).unwrap()
                 })
             });
         }};
@@ -124,12 +120,12 @@ fn bppp_benchmarks(c: &mut Criterion) {
     grp.warm_up_time(Duration::from_secs(1));
     grp.measurement_time(Duration::from_secs(3));
     macro_rules! verify_case {
-        ($n:ty, $range:expr, $m:expr) => {{
+        ($range:expr, $m:expr) => {{
             let (range, m) = ($range, $m);
             let values = values(&range, m, &mut rng);
             let (commitments, blindings) = commit(&values, &mut rng);
             let proof =
-                RangeProof::<$n>::prove_batch(&values, &blindings, &range, DST, &mut rng).unwrap();
+                RangeProof::prove_batch(&values, &blindings, &range, DST, &mut rng).unwrap();
             grp.bench_function(label(&range, m), |b| {
                 b.iter(|| proof.verify_batch(&commitments, &range, DST).unwrap())
             });

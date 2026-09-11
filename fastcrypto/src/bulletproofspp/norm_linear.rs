@@ -41,15 +41,11 @@ pub(crate) struct NormLinearProof<N: NormLength> {
 }
 
 /// A norm length a proof can be made for, and the dimensions it implies.
-pub trait NormLength: Unsigned + sealed::Sealed {
+pub(crate) trait NormLength: Unsigned {
     /// Number of fold rounds, each contributing an `(X, R)` pair.
     type Rounds: ArrayLength<(RistrettoPoint, RistrettoPoint)> + Debug;
     /// Length of the final `n` opening.
     type NFinal: ArrayLength<RistrettoScalar> + Debug;
-}
-
-mod sealed {
-    pub trait Sealed {}
 }
 
 /// Rounds and final `n` length for base lengths `(l_len, n_len)`; the final
@@ -68,8 +64,6 @@ const fn fold_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
 macro_rules! norm_lengths {
     ($($n:ty => ($rounds:ty, $n_final:ty)),* $(,)?) => {
         $(
-            impl sealed::Sealed for $n {}
-
             impl NormLength for $n {
                 type Rounds = $rounds;
                 type NFinal = $n_final;

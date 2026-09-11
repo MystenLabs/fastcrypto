@@ -10,6 +10,4 @@ mod norm_linear;
 mod transcript;
 mod util;
 
-pub use norm_linear::NormLength;
 pub use range_proof::{Range, RangeProof};
-pub use typenum;

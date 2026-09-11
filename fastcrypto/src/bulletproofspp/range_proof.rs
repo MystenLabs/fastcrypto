@@ -7,10 +7,10 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::pedersen::{Blinding, PedersenCommitment};
 use crate::traits::AllowedRng;
-use serde::{Deserialize, Serialize};
+use typenum::{Unsigned, U1024, U128, U16, U2048, U256, U32, U4096, U512, U64, U8192};
 
 use crate::bulletproofspp::circuit::{self, CircuitParams, CircuitProof};
-use crate::bulletproofspp::crs::Generators;
+use crate::bulletproofspp::crs::{dims, Generators};
 use crate::bulletproofspp::norm_linear::NormLength;
 use crate::bulletproofspp::transcript::BpppTranscript;
 
@@ -22,10 +22,103 @@ pub use crate::pedersen::Range;
 /// Unlike `fastcrypto::bulletproofs`, batches of any size `>= 1` are
 /// supported; amortization per value is best when the total digit count
 /// `m * bits/4` fills a power of two.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(bound = "")]
-pub struct RangeProof<N: NormLength> {
-    proof: CircuitProof<N>,
+#[derive(Clone, Debug)]
+pub struct RangeProof {
+    proof: Proof,
+}
+
+/// Serialized size of a proof at norm length `N`: the four circuit
+/// commitments, one `(X, R)` pair per fold round, and the final scalars, 32
+/// bytes each with no framing.
+fn serialized_len<N: NormLength>() -> usize {
+    32 * (4 + 2 * N::Rounds::USIZE + 1 + N::NFinal::USIZE)
+}
+
+/// The proof at each norm length a statement can have, and the dispatch on
+/// it. Proving takes the norm length from the statement, and decoding takes
+/// it from the byte length, which is distinct for every variant.
+macro_rules! norm_lengths {
+    ($($variant:ident => $n:ty),* $(,)?) => {
+        /// Boxed: a decompressed proof is a few kilobytes at the largest
+        /// norm length, and the enum is otherwise that size at every length.
+        #[derive(Clone, Debug)]
+        enum Proof {
+            $($variant(Box<CircuitProof<$n>>),)*
+        }
+
+        impl Proof {
+            /// Whether a proof can be made at norm length `nm`.
+            fn supports(nm: usize) -> bool {
+                [$(<$n>::USIZE),*].contains(&nm)
+            }
+
+            fn prove(
+                nm: usize,
+                transcript: &mut BpppTranscript,
+                gens: &Generators,
+                range: Range,
+                rng: &mut impl AllowedRng,
+                values: &[u64],
+                blindings: &[RistrettoScalar],
+            ) -> FastCryptoResult<Self> {
+                $(if nm == <$n>::USIZE {
+                    let params = CircuitParams::new::<$n>(range, values.len())?;
+                    let (proof, _) =
+                        circuit::prove(transcript, gens, &params, rng, values, blindings)?;
+                    return Ok(Proof::$variant(Box::new(proof)));
+                })*
+                Err(FastCryptoError::InvalidInput)
+            }
+
+            /// Verify against `commitments`. The norm length is this proof's
+            /// own, so [CircuitParams::new] rejects one the statement does
+            /// not imply.
+            fn verify(
+                &self,
+                transcript: &mut BpppTranscript,
+                gens: &Generators,
+                range: Range,
+                commitments: &[RistrettoPoint],
+            ) -> FastCryptoResult<()> {
+                match self {
+                    $(Proof::$variant(proof) => {
+                        let params = CircuitParams::new::<$n>(range, commitments.len())?;
+                        circuit::verify(transcript, gens, &params, proof, commitments)
+                    })*
+                }
+            }
+
+            fn to_bytes(&self) -> Vec<u8> {
+                match self {
+                    $(Proof::$variant(proof) => bcs::to_bytes(proof),)*
+                }
+                .expect("a proof is always serializable")
+            }
+
+            fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
+                let invalid = |_| FastCryptoError::InvalidInput;
+                $(if bytes.len() == serialized_len::<$n>() {
+                    return Ok(Proof::$variant(Box::new(
+                        bcs::from_bytes(bytes).map_err(invalid)?,
+                    )));
+                })*
+                Err(FastCryptoError::InvalidInput)
+            }
+        }
+    };
+}
+
+norm_lengths! {
+    Nm16 => U16,
+    Nm32 => U32,
+    Nm64 => U64,
+    Nm128 => U128,
+    Nm256 => U256,
+    Nm512 => U512,
+    Nm1024 => U1024,
+    Nm2048 => U2048,
+    Nm4096 => U4096,
+    Nm8192 => U8192,
 }
 
 /// The Fiat-Shamir transcript, binding the caller's domain separation tag
@@ -38,7 +131,7 @@ fn transcript(dst: &[u8], n_bits: usize, m: usize) -> BpppTranscript {
     t
 }
 
-impl<N: NormLength> RangeProof<N> {
+impl RangeProof {
     /// Prove that `value` is in `range` under the commitment
     /// `PedersenCommitment::new(&value.into(), blinding)`. This enables
     /// creating proofs for an existing commitment. Returns an `InvalidInput`
@@ -82,10 +175,13 @@ impl<N: NormLength> RangeProof<N> {
             return Err(FastCryptoError::InvalidInput);
         }
         let (n_bits, m) = (range.bits(), values.len());
+        let (_, _, nm) = dims(*range, m);
 
         // Checked before Generators::new, which populates the process-wide
         // CRS cache.
-        let params = CircuitParams::new::<N>(*range, m)?;
+        if !Proof::supports(nm) {
+            return Err(FastCryptoError::InvalidInput);
+        }
 
         // Past the input checks, proving can only fail on a challenge that
         // degenerates a scalar inversion. That has negligible probability but
@@ -93,10 +189,11 @@ impl<N: NormLength> RangeProof<N> {
         let opaque = |_| FastCryptoError::GeneralOpaqueError;
         let gens = Generators::new(*range, m).map_err(opaque)?;
         let blinding_scalars: Vec<RistrettoScalar> = blindings.iter().map(|b| b.0).collect();
-        let (proof, _) = circuit::prove(
+        let proof = Proof::prove(
+            nm,
             &mut transcript(dst, n_bits, m),
             &gens,
-            &params,
+            *range,
             rng,
             values,
             &blinding_scalars,
@@ -116,17 +213,32 @@ impl<N: NormLength> RangeProof<N> {
             return Err(FastCryptoError::InvalidInput);
         }
         let (n_bits, m) = (range.bits(), commitments.len());
-        let params = CircuitParams::new::<N>(*range, m)?;
+        let (_, _, nm) = dims(*range, m);
+
+        // Checked before Generators::new, which populates the process-wide
+        // CRS cache.
+        if !Proof::supports(nm) {
+            return Err(FastCryptoError::InvalidInput);
+        }
         let gens = Generators::new(*range, m)?;
         let points: Vec<RistrettoPoint> = commitments.iter().map(|c| c.0).collect();
-        circuit::verify(
-            &mut transcript(dst, n_bits, m),
-            &gens,
-            &params,
-            &self.proof,
-            &points,
-        )
-        .map_err(|_| FastCryptoError::InvalidProof)
+        self.proof
+            .verify(&mut transcript(dst, n_bits, m), &gens, *range, &points)
+            .map_err(|_| FastCryptoError::InvalidProof)
+    }
+
+    /// Serialize: the four circuit commitments, the per-round `(X, R)` pairs
+    /// and the final scalars, 32 bytes each with no framing.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.proof.to_bytes()
+    }
+
+    /// Deserialize. The byte length selects the norm length, and so the proof
+    /// shape; consistency with the statement is checked at verification.
+    pub fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
+        Ok(RangeProof {
+            proof: Proof::from_bytes(bytes)?,
+        })
     }
 }
 
@@ -135,7 +247,6 @@ mod tests {
     use super::*;
     use crate::groups::GroupElement;
     use crate::serde_helpers::ToFromByteArray;
-    use typenum::{U128, U16, U256, U32, U64};
 
     /// Frozen proof for values [0, u32::MAX, 12345, 1 << 31] in Bits32 with
     /// dst "test", 480 bytes: 15 group elements and scalars, no framing.
@@ -144,7 +255,7 @@ mod tests {
     // TODO: regenerate when the DST strings and transcript labels are frozen.
     #[test]
     fn regression_test() {
-        let proof = bcs::from_bytes::<RangeProof<U32>>(&hex::decode("00d5d5d1529f01cf6420ec103dace15476ca510f5b92ae6762bc25f4bd1249021219fad1752e829b54c9726bdb9253128ba6e82ca16fd8ea2595e26a536b4406621a5bbe5a65f5d917da8906719361ad8dcb5c9618861e1ccaee288bd7db8d5e9e5b0e4cb21110d789b367d90e778ec30faeda08c405e7b40a64c9f55e355105dad137e8eb12facf2017dd0887338d6d1416718a9ab599e36a5fc26844b2ce5f44c9c0a0e79d43c07257498c7d755a0fb1e36d620fb312db78f230c11795af452ec6fd20bdddcd078dd121fd667b1226e14f79027b1502b770e804c776ce2e617c2e34ae010e418b31f72222ae7e76d5107747b507355aaa17b89d113ff8ee16963d2647afb472778c27d1983e8e0741be8e3252ce46faa2973ce1f6e352f670484baa1173bae5e99c5f3f0ff65ee368d191f8519986017a8faf1e08d6310d0f0bdf52df2d0b75fdbbdd56eacce0a932270b24b242ec9efb49a062b1d8dd4a0032d10c7962108d26a9239e1103806279e12396a064585f6b878050a84bbe41058a3416edfe76b21e7ec4945454970e53fe7cfb47d49e87373ae22f5ae499b50238eb4f534c997a1e88772fdc181885e7089147978798c99c43867803f5d554015048dbb1bbaa9976da6a08d9457c049a4521e733a28994bb3060f17119940509").unwrap()).unwrap();
+        let proof = RangeProof::from_bytes(&hex::decode("00d5d5d1529f01cf6420ec103dace15476ca510f5b92ae6762bc25f4bd1249021219fad1752e829b54c9726bdb9253128ba6e82ca16fd8ea2595e26a536b4406621a5bbe5a65f5d917da8906719361ad8dcb5c9618861e1ccaee288bd7db8d5e9e5b0e4cb21110d789b367d90e778ec30faeda08c405e7b40a64c9f55e355105dad137e8eb12facf2017dd0887338d6d1416718a9ab599e36a5fc26844b2ce5f44c9c0a0e79d43c07257498c7d755a0fb1e36d620fb312db78f230c11795af452ec6fd20bdddcd078dd121fd667b1226e14f79027b1502b770e804c776ce2e617c2e34ae010e418b31f72222ae7e76d5107747b507355aaa17b89d113ff8ee16963d2647afb472778c27d1983e8e0741be8e3252ce46faa2973ce1f6e352f670484baa1173bae5e99c5f3f0ff65ee368d191f8519986017a8faf1e08d6310d0f0bdf52df2d0b75fdbbdd56eacce0a932270b24b242ec9efb49a062b1d8dd4a0032d10c7962108d26a9239e1103806279e12396a064585f6b878050a84bbe41058a3416edfe76b21e7ec4945454970e53fe7cfb47d49e87373ae22f5ae499b50238eb4f534c997a1e88772fdc181885e7089147978798c99c43867803f5d554015048dbb1bbaa9976da6a08d9457c049a4521e733a28994bb3060f17119940509").unwrap()).unwrap();
         let commitments: Vec<PedersenCommitment> = [
             "442e20bdd70d96394130625763bb90729481036a4c0643972d0febc382919279",
             "464bbfe7ad1f58a942a57736d2627fe6d514609f0caeeb855eb6cacfe665c773",
@@ -176,7 +287,7 @@ mod tests {
     /// fold boundaries, and the extremes of each range.
     #[test]
     fn test_completeness_all_ranges_and_batch_sizes() {
-        fn check<N: NormLength>(range: Range, batch_sizes: &[usize]) {
+        fn check(range: Range, batch_sizes: &[usize]) {
             let mut rng = rand::thread_rng();
             let max = range.max_value();
             for &m in batch_sizes {
@@ -189,40 +300,24 @@ mod tests {
                     })
                     .collect();
                 let (commitments, blindings) = commit_all(&values);
-                let proof =
-                    RangeProof::<N>::prove_batch(&values, &blindings, &range, b"test", &mut rng)
-                        .unwrap();
+                let proof = RangeProof::prove_batch(&values, &blindings, &range, b"test", &mut rng)
+                    .unwrap();
                 assert!(
                     proof.verify_batch(&commitments, &range, b"test").is_ok(),
                     "completeness failed for {}x{m}",
                     range.bits()
                 );
                 // Serialization round-trips at every shape.
-                assert!(
-                    bcs::from_bytes::<RangeProof<N>>(&bcs::to_bytes(&proof).unwrap())
-                        .unwrap()
-                        .verify_batch(&commitments, &range, b"test")
-                        .is_ok()
-                );
+                assert!(RangeProof::from_bytes(&proof.to_bytes())
+                    .unwrap()
+                    .verify_batch(&commitments, &range, b"test")
+                    .is_ok());
             }
         }
 
-        // Grouped where nm = max(m * bits/4, 16), rounded up to a power of
-        // two, crosses a boundary.
-        check::<U16>(Range::Bits8, &[1, 2, 3, 5, 8]);
-        check::<U32>(Range::Bits8, &[9, 16]);
-        check::<U16>(Range::Bits16, &[1, 2, 3]);
-        check::<U32>(Range::Bits16, &[5, 8]);
-        check::<U64>(Range::Bits16, &[9, 16]);
-        check::<U16>(Range::Bits32, &[1, 2]);
-        check::<U32>(Range::Bits32, &[3]);
-        check::<U64>(Range::Bits32, &[5, 8]);
-        check::<U128>(Range::Bits32, &[9, 16]);
-        check::<U16>(Range::Bits64, &[1]);
-        check::<U32>(Range::Bits64, &[2]);
-        check::<U64>(Range::Bits64, &[3]);
-        check::<U128>(Range::Bits64, &[5, 8]);
-        check::<U256>(Range::Bits64, &[9, 16]);
+        for range in ALL_RANGES {
+            check(range, &[1, 2, 3, 5, 8, 9, 16]);
+        }
     }
 
     /// A proof is valid only for the exact `(bits, batch size)` it was made
@@ -234,20 +329,15 @@ mod tests {
         let mut rng = rand::thread_rng();
         let values = [1u64, 2, 3, 4, 5, 6, 7, 8];
         let (commitments16, blindings16) = commit_all(&values);
-        let proof16 = RangeProof::<U32>::prove_batch(
-            &values,
-            &blindings16,
-            &Range::Bits16,
-            b"test",
-            &mut rng,
-        )
-        .unwrap();
+        let proof16 =
+            RangeProof::prove_batch(&values, &blindings16, &Range::Bits16, b"test", &mut rng)
+                .unwrap();
         assert!(proof16
             .verify_batch(&commitments16, &Range::Bits16, b"test")
             .is_ok());
 
         let (commitments32, blindings32) = commit_all(&values[..4]);
-        let proof32 = RangeProof::<U32>::prove_batch(
+        let proof32 = RangeProof::prove_batch(
             &values[..4],
             &blindings32,
             &Range::Bits32,
@@ -256,10 +346,7 @@ mod tests {
         )
         .unwrap();
         // Same byte length: the two shapes are indistinguishable on the wire.
-        assert_eq!(
-            bcs::to_bytes(&proof16).unwrap().len(),
-            bcs::to_bytes(&proof32).unwrap().len()
-        );
+        assert_eq!(proof16.to_bytes().len(), proof32.to_bytes().len());
 
         // Neither proof verifies as the other configuration.
         assert!(proof16
@@ -290,8 +377,7 @@ mod tests {
     fn test_dst_binding() {
         let mut rng = rand::thread_rng();
         let (commitment, blinding) = PedersenCommitment::commit_u64(7, &mut rng);
-        let proof =
-            RangeProof::<U16>::prove(7, &blinding, &Range::Bits8, b"dst", &mut rng).unwrap();
+        let proof = RangeProof::prove(7, &blinding, &Range::Bits8, b"dst", &mut rng).unwrap();
         for other in [b"".as_slice(), b"ds", b"dstx", b"DST", b"dst\0"] {
             assert!(
                 proof.verify(&commitment, &Range::Bits8, other).is_err(),
@@ -301,7 +387,7 @@ mod tests {
         assert!(proof.verify(&commitment, &Range::Bits8, b"dst").is_ok());
 
         // The empty dst is itself usable, and binds.
-        let empty = RangeProof::<U16>::prove(7, &blinding, &Range::Bits8, b"", &mut rng).unwrap();
+        let empty = RangeProof::prove(7, &blinding, &Range::Bits8, b"", &mut rng).unwrap();
         assert!(empty.verify(&commitment, &Range::Bits8, b"").is_ok());
         assert!(empty.verify(&commitment, &Range::Bits8, b"dst").is_err());
     }
@@ -312,9 +398,9 @@ mod tests {
     fn test_proofs_are_randomized() {
         let mut rng = rand::thread_rng();
         let (commitment, blinding) = PedersenCommitment::commit_u64(42, &mut rng);
-        let a = RangeProof::<U16>::prove(42, &blinding, &Range::Bits32, b"test", &mut rng).unwrap();
-        let b = RangeProof::<U16>::prove(42, &blinding, &Range::Bits32, b"test", &mut rng).unwrap();
-        assert_ne!(bcs::to_bytes(&a).unwrap(), bcs::to_bytes(&b).unwrap());
+        let a = RangeProof::prove(42, &blinding, &Range::Bits32, b"test", &mut rng).unwrap();
+        let b = RangeProof::prove(42, &blinding, &Range::Bits32, b"test", &mut rng).unwrap();
+        assert_ne!(a.to_bytes(), b.to_bytes());
         assert!(a.verify(&commitment, &Range::Bits32, b"test").is_ok());
         assert!(b.verify(&commitment, &Range::Bits32, b"test").is_ok());
     }
@@ -326,26 +412,26 @@ mod tests {
     fn test_from_bytes_robustness() {
         let mut rng = rand::thread_rng();
         let (commitment, blinding) = PedersenCommitment::commit_u64(9, &mut rng);
-        let proof =
-            RangeProof::<U16>::prove(9, &blinding, &Range::Bits16, b"test", &mut rng).unwrap();
-        let bytes = bcs::to_bytes(&proof).unwrap();
+        let proof = RangeProof::prove(9, &blinding, &Range::Bits16, b"test", &mut rng).unwrap();
+        let bytes = proof.to_bytes();
 
-        // `N` fixes the encoding's length, so anything else is rejected on
-        // the way in.
+        // Only the lengths a shape produces are accepted.
         assert_eq!(bytes.len(), 416);
-        for len in [0usize, 415, 417] {
+        for len in [0usize, 1, 415, 417, 448, 1024] {
             assert!(
-                bcs::from_bytes::<RangeProof<U16>>(&vec![0u8; len]).is_err(),
+                RangeProof::from_bytes(&vec![0u8; len]).is_err(),
                 "length {len} accepted"
             );
         }
 
-        // Random bytes at that length: never panic, never verify.
-        for _ in 0..128 {
-            let mut buf = vec![0u8; bytes.len()];
-            rand::RngCore::fill_bytes(&mut rng, &mut buf);
-            if let Ok(p) = bcs::from_bytes::<RangeProof<U16>>(&buf) {
-                assert!(p.verify(&commitment, &Range::Bits16, b"test").is_err());
+        // Random bytes at accepted lengths: never panic, never verify.
+        for len in [416usize, 480, 544] {
+            for _ in 0..64 {
+                let mut buf = vec![0u8; len];
+                rand::RngCore::fill_bytes(&mut rng, &mut buf);
+                if let Ok(p) = RangeProof::from_bytes(&buf) {
+                    assert!(p.verify(&commitment, &Range::Bits16, b"test").is_err());
+                }
             }
         }
 
@@ -353,7 +439,7 @@ mod tests {
         for i in (0..bytes.len()).step_by(7) {
             let mut corrupted = bytes.clone();
             corrupted[i] ^= 0x80;
-            let accepted = bcs::from_bytes::<RangeProof<U16>>(&corrupted)
+            let accepted = RangeProof::from_bytes(&corrupted)
                 .is_ok_and(|p| p.verify(&commitment, &Range::Bits16, b"test").is_ok());
             assert!(!accepted, "corruption at byte {i} accepted");
         }
@@ -366,25 +452,16 @@ mod tests {
         let (commitments, blindings) = commit_all(&[1, 2]);
 
         // Empty batches, on both sides.
-        assert!(RangeProof::<U16>::prove_batch(&[], &[], &Range::Bits8, b"t", &mut rng).is_err());
+        assert!(RangeProof::prove_batch(&[], &[], &Range::Bits8, b"t", &mut rng).is_err());
         let proof =
-            RangeProof::<U16>::prove_batch(&[1, 2], &blindings, &Range::Bits8, b"t", &mut rng)
-                .unwrap();
+            RangeProof::prove_batch(&[1, 2], &blindings, &Range::Bits8, b"t", &mut rng).unwrap();
         assert!(proof.verify_batch(&[], &Range::Bits8, b"t").is_err());
 
         // Mismatched values/blindings lengths.
+        assert!(RangeProof::prove_batch(&[1], &blindings, &Range::Bits8, b"t", &mut rng).is_err());
         assert!(
-            RangeProof::<U16>::prove_batch(&[1], &blindings, &Range::Bits8, b"t", &mut rng)
-                .is_err()
+            RangeProof::prove_batch(&[1, 2, 3], &blindings, &Range::Bits8, b"t", &mut rng).is_err()
         );
-        assert!(RangeProof::<U16>::prove_batch(
-            &[1, 2, 3],
-            &blindings,
-            &Range::Bits8,
-            b"t",
-            &mut rng
-        )
-        .is_err());
 
         // A longer batch than the proof was made for.
         let extended = [
@@ -402,14 +479,12 @@ mod tests {
         let mut rng = rand::thread_rng();
         let blinding = Blinding(RistrettoScalar::zero());
         let commitment = PedersenCommitment::new(&RistrettoScalar::from(1000u64), &blinding);
-        let proof =
-            RangeProof::<U16>::prove(1000, &blinding, &Range::Bits16, b"test", &mut rng).unwrap();
+        let proof = RangeProof::prove(1000, &blinding, &Range::Bits16, b"test", &mut rng).unwrap();
         assert!(proof.verify(&commitment, &Range::Bits16, b"test").is_ok());
 
         // Zero value with zero blinding: the commitment is the identity.
         let zero = PedersenCommitment::new(&RistrettoScalar::zero(), &blinding);
-        let proof =
-            RangeProof::<U16>::prove(0, &blinding, &Range::Bits8, b"test", &mut rng).unwrap();
+        let proof = RangeProof::prove(0, &blinding, &Range::Bits8, b"test", &mut rng).unwrap();
         assert!(proof.verify(&zero, &Range::Bits8, b"test").is_ok());
     }
 
@@ -427,8 +502,7 @@ mod tests {
             .map(|&v| PedersenCommitment::new(&RistrettoScalar::from(v), &blinding))
             .collect();
         let proof =
-            RangeProof::<U16>::prove_batch(&values, &blindings, &Range::Bits8, b"test", &mut rng)
-                .unwrap();
+            RangeProof::prove_batch(&values, &blindings, &Range::Bits8, b"test", &mut rng).unwrap();
         assert!(proof
             .verify_batch(&commitments, &Range::Bits8, b"test")
             .is_ok());
@@ -454,10 +528,8 @@ mod tests {
         let (commitment, blinding) = PedersenCommitment::commit_u64(value, &mut rng);
 
         let range = Range::Bits16;
-        let proof = RangeProof::<U16>::prove(value, &blinding, &range, b"test", &mut rng).unwrap();
-        assert!(
-            RangeProof::<U16>::prove(value, &blinding, &Range::Bits8, b"test", &mut rng).is_err()
-        );
+        let proof = RangeProof::prove(value, &blinding, &range, b"test", &mut rng).unwrap();
+        assert!(RangeProof::prove(value, &blinding, &Range::Bits8, b"test", &mut rng).is_err());
 
         assert!(proof.verify(&commitment, &range, b"test").is_ok());
         assert!(proof.verify(&commitment, &range, b"other").is_err());
@@ -476,7 +548,7 @@ mod tests {
             .unzip();
         let range = Range::Bits32;
         let proof =
-            RangeProof::<U64>::prove_batch(&values, &blindings, &range, b"test", &mut rng).unwrap();
+            RangeProof::prove_batch(&values, &blindings, &range, b"test", &mut rng).unwrap();
         assert!(proof.verify_batch(&commitments, &range, b"test").is_ok());
 
         // Swapped commitments must fail; so must a shorter batch.
@@ -488,7 +560,7 @@ mod tests {
             .is_err());
 
         // An out-of-range value anywhere in the batch fails at proving.
-        assert!(RangeProof::<U64>::prove_batch(
+        assert!(RangeProof::prove_batch(
             &[1, 1 << 32, 2, 3, 4],
             &blindings,
             &range,
@@ -499,7 +571,7 @@ mod tests {
     }
 
     #[test]
-    fn test_serde_roundtrip() {
+    fn test_to_from_bytes() {
         let mut rng = rand::thread_rng();
         let values = [7u64, 1 << 15];
         let (commitments, blindings): (Vec<_>, Vec<_>) = values
@@ -508,12 +580,12 @@ mod tests {
             .unzip();
         let range = Range::Bits16;
         let proof =
-            RangeProof::<U16>::prove_batch(&values, &blindings, &range, b"test", &mut rng).unwrap();
+            RangeProof::prove_batch(&values, &blindings, &range, b"test", &mut rng).unwrap();
 
-        let bytes = bcs::to_bytes(&proof).unwrap();
+        let bytes = proof.to_bytes();
         // 16x2 has the 64-bit shape: 10 group elements + 3 scalars.
         assert_eq!(bytes.len(), 13 * 32);
-        let recovered = bcs::from_bytes::<RangeProof<U16>>(&bytes).unwrap();
+        let recovered = RangeProof::from_bytes(&bytes).unwrap();
         assert!(recovered
             .verify_batch(&commitments, &range, b"test")
             .is_ok());
@@ -521,9 +593,8 @@ mod tests {
         // A valid-shaped proof for the wrong statement dimensions fails at
         // verification (shape gate).
         let (c64, b64) = PedersenCommitment::commit_u64(5, &mut rng);
-        let proof64 = RangeProof::<U16>::prove(5, &b64, &Range::Bits64, b"test", &mut rng).unwrap();
-        let recovered64 =
-            bcs::from_bytes::<RangeProof<U16>>(&bcs::to_bytes(&proof64).unwrap()).unwrap();
+        let proof64 = RangeProof::prove(5, &b64, &Range::Bits64, b"test", &mut rng).unwrap();
+        let recovered64 = RangeProof::from_bytes(&proof64.to_bytes()).unwrap();
         assert!(recovered64.verify(&c64, &Range::Bits64, b"test").is_ok());
         assert!(recovered64
             .verify_batch(&[c64.clone(), c64], &Range::Bits64, b"test")
