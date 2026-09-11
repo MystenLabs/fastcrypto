@@ -5,5 +5,5 @@ A crate that implements threshold BLS (tBLS) and distributed key generation (DKG
 Currently, it only provides a fake object for creating the outputs of the DKG protocol.
 
 ## License
-This software is licensed as [Apache 2.0](LICENSE). A copy of the license is available in the root
+This software is licensed as [Apache 2.0](../LICENSE). A copy of the license is available in the root
 repository of this source tree.
