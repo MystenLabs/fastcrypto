@@ -26,9 +26,8 @@ use typenum::{
     U7, U8, U8192, U9,
 };
 
-/// Fold until fewer than this many scalars remain, and in any case until `l`
-/// is a single scalar; the remaining opening is sent in the clear. 6 balances
-/// rounds (2 points each) against final scalars.
+/// Fold until fewer than this many scalars remain; the remaining opening is
+/// sent in the clear. 6 balances rounds (2 points each) against final scalars.
 const FOLD_THRESHOLD: usize = 6;
 
 /// Norm-linear proof: one `(X, R)` pair per fold round, then the final
@@ -42,8 +41,6 @@ pub(crate) struct NormLinearProof<N: NormLength> {
 }
 
 /// A norm length a proof can be made for, and the dimensions it implies.
-/// Sealed: the dimensions are dictated by [fold_shape], and an impl that
-/// disagreed with it would size a proof's arrays wrong.
 pub trait NormLength: Unsigned + sealed::Sealed {
     /// Number of fold rounds, each contributing an `(X, R)` pair.
     type Rounds: ArrayLength<(RistrettoPoint, RistrettoPoint)> + Debug;
@@ -68,9 +65,6 @@ const fn fold_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     (rounds, n_len)
 }
 
-/// One row of the table: norm length, rounds, final `n` length. Each row is
-/// checked against [fold_shape], so a wrong one fails to compile rather than
-/// sizing `n_final` short and panicking in [verify].
 macro_rules! norm_lengths {
     ($($n:ty => ($rounds:ty, $n_final:ty)),* $(,)?) => {
         $(
@@ -108,8 +102,6 @@ norm_lengths! {
     U8192 => (U11, U4),
 }
 
-// An odd norm length, so the tests can still exercise the padding path. No
-// statement produces one, since `nm` is rounded to a power of two.
 #[cfg(test)]
 norm_lengths! {
     typenum::U15 => (U3, U2),
@@ -328,9 +320,6 @@ pub(crate) fn prove<N: NormLength>(
     transcript.append_scalar(b"l_final", &l[0]);
     transcript.append_scalars(b"n_final", &n);
 
-    // The fold ran the shape `N` promises, so these are exactly full; a
-    // caller that named the wrong `N` is caught here rather than silently
-    // producing a proof of another shape.
     debug_assert_eq!(l.len(), 1);
     Ok(NormLinearProof::<N> {
         rounds: GenericArray::from_exact_iter(rounds).ok_or(FastCryptoError::InvalidInput)?,
