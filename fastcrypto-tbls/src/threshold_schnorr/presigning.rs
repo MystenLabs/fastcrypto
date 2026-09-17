@@ -43,7 +43,8 @@ impl Presignatures {
     /// generator.
     ///
     /// All parties must use the same outputs in the same order, and the output from a dealer with
-    /// weight `w` should be equal to `batch_size_per_weight * w`.
+    /// weight `w` should be equal to `batch_size_per_weight * w`. The outputs must come from
+    /// distinct dealers, with at most one output per dealer.
     ///
     /// More parties contributing outputs gives more presignatures, so include as many as possible
     /// but at least `params.t` (by weight).
