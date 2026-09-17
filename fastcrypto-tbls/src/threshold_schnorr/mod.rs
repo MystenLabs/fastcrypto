@@ -357,17 +357,30 @@ mod tests {
 
         let message = b"Hello, world!";
 
-        // Mock a value from the random beacon
-        let beacon_value = S::rand(&mut rng);
+        // Each signature consumes two presigning tuples
+        let presig_pairs = nodes
+            .iter()
+            .map(|node| {
+                let presigs = presigs.get_mut(&node.id).unwrap();
+                (presigs.next().unwrap(), presigs.next().unwrap())
+            })
+            .collect_vec();
+
+        // The public parts should all be the same
+        let public_presig_0 =
+            get_uniform_value(presig_pairs.iter().map(|(presig, _)| presig.1)).unwrap();
+        let public_presig_1 =
+            get_uniform_value(presig_pairs.iter().map(|(_, presig)| presig.1)).unwrap();
 
         // Each party generates their partial signatures
         let partial_signatures = nodes
             .iter()
-            .map(|node| {
+            .zip(presig_pairs)
+            .map(|(node, (presig_0, presig_1))| {
                 generate_partial_signatures(
                     message,
-                    presigs.get_mut(&node.id).unwrap().next().unwrap(),
-                    &beacon_value,
+                    presig_0,
+                    presig_1,
                     &merged_shares.get(&node.id).unwrap().my_shares,
                     &vk,
                     None,
@@ -376,19 +389,11 @@ mod tests {
             })
             .collect_vec();
 
-        // The public parts should all be the same
-        let public_presig = get_uniform_value(
-            partial_signatures
-                .iter()
-                .map(|partial_signature| partial_signature.0),
-        )
-        .unwrap();
-
         // Aggregate partial signatures
         let signature = aggregate_signatures(
             message,
-            &public_presig,
-            &beacon_value,
+            &public_presig_0,
+            &public_presig_1,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, s)| s.clone())
@@ -536,17 +541,30 @@ mod tests {
 
         let message_2 = b"Hello again, world!";
 
-        // Mock a value from the random beacon
-        let beacon_value = S::rand(&mut rng);
+        // Each signature consumes two presigning tuples
+        let presig_pairs = nodes
+            .iter()
+            .map(|node| {
+                let presigs = presigs.get_mut(&node.id).unwrap();
+                (presigs.next().unwrap(), presigs.next().unwrap())
+            })
+            .collect_vec();
+
+        // The public parts should all be the same
+        let public_presig_0 =
+            get_uniform_value(presig_pairs.iter().map(|(presig, _)| presig.1)).unwrap();
+        let public_presig_1 =
+            get_uniform_value(presig_pairs.iter().map(|(_, presig)| presig.1)).unwrap();
 
         // Each party generates their partial signatures
         let partial_signatures = nodes
             .iter()
-            .map(|node| {
+            .zip(presig_pairs)
+            .map(|(node, (presig_0, presig_1))| {
                 generate_partial_signatures(
                     message_2,
-                    presigs.get_mut(&node.id).unwrap().next().unwrap(),
-                    &beacon_value,
+                    presig_0,
+                    presig_1,
                     &merged_shares.get(&node.id).unwrap().my_shares,
                     &vk,
                     None,
@@ -555,19 +573,11 @@ mod tests {
             })
             .collect_vec();
 
-        // The public parts should all be the same
-        let public_presig = get_uniform_value(
-            partial_signatures
-                .iter()
-                .map(|partial_signature| partial_signature.0),
-        )
-        .unwrap();
-
         // Aggregate partial signatures
         let signature_2 = aggregate_signatures(
             message_2,
-            &public_presig,
-            &beacon_value,
+            &public_presig_0,
+            &public_presig_1,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, s)| s.clone())
@@ -690,19 +700,28 @@ mod tests {
 
         let message = b"Hello, world!";
 
-        let beacon_value = S::rand(&mut rng);
-
-        let partial_signatures = presigning
+        // Each signature consumes two presigning tuples
+        let presig_pairs = presigning
             .iter_mut()
+            .map(|presigning| (presigning.next().unwrap(), presigning.next().unwrap()))
+            .collect_vec();
+
+        let public_presig_0 =
+            get_uniform_value(presig_pairs.iter().map(|(presig, _)| presig.1)).unwrap();
+        let public_presig_1 =
+            get_uniform_value(presig_pairs.iter().map(|(_, presig)| presig.1)).unwrap();
+
+        let partial_signatures = presig_pairs
+            .into_iter()
             .enumerate()
-            .map(|(i, presigning)| {
+            .map(|(i, (presig_0, presig_1))| {
                 let my_shares = avss::SharesForNode {
                     shares: vec![sk_shares[i].clone()],
                 };
                 generate_partial_signatures(
                     message,
-                    presigning.next().unwrap(),
-                    &beacon_value,
+                    presig_0,
+                    presig_1,
                     &my_shares,
                     &vk_element,
                     None,
@@ -711,17 +730,10 @@ mod tests {
             })
             .collect_vec();
 
-        let public = get_uniform_value(
-            partial_signatures
-                .iter()
-                .map(|partial_signature| partial_signature.0),
-        )
-        .unwrap();
-
         let signature = aggregate_signatures(
             message,
-            &public,
-            &beacon_value,
+            &public_presig_0,
+            &public_presig_1,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())
@@ -827,19 +839,29 @@ mod tests {
 
         let message = b"Hello, world!";
 
-        let beacon_value = S::rand(&mut rng);
         let address = [7u8; 32];
-        let partial_signatures = presigning
+        // Each signature consumes two presigning tuples
+        let presig_pairs = presigning
             .iter_mut()
+            .map(|presigning| (presigning.next().unwrap(), presigning.next().unwrap()))
+            .collect_vec();
+
+        let public_presig_0 =
+            get_uniform_value(presig_pairs.iter().map(|(presig, _)| presig.1)).unwrap();
+        let public_presig_1 =
+            get_uniform_value(presig_pairs.iter().map(|(_, presig)| presig.1)).unwrap();
+
+        let partial_signatures = presig_pairs
+            .into_iter()
             .enumerate()
-            .map(|(i, presigning)| {
+            .map(|(i, (presig_0, presig_1))| {
                 let my_shares = avss::SharesForNode {
                     shares: vec![sk_shares[i].clone()],
                 };
                 generate_partial_signatures(
                     message,
-                    presigning.next().unwrap(),
-                    &beacon_value,
+                    presig_0,
+                    presig_1,
                     &my_shares,
                     &vk_element,
                     Some(&address),
@@ -848,17 +870,10 @@ mod tests {
             })
             .collect_vec();
 
-        let public = get_uniform_value(
-            partial_signatures
-                .iter()
-                .map(|partial_signature| partial_signature.0),
-        )
-        .unwrap();
-
         let signature = aggregate_signatures(
             message,
-            &public,
-            &beacon_value,
+            &public_presig_0,
+            &public_presig_1,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())
