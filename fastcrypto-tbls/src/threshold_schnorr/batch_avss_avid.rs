@@ -603,7 +603,6 @@ impl Receiver {
 
     /// 7a. Validate an [AvssCommonMessage] based on the cert, and return
     ///     [VerifiedAvssCommonMessage].
-    ///
     ///     Returns [NotEnoughWeight] if the signers of `avid_cert` have less than `W − f` weight.
     pub fn verify_common_message<C: Certificate<Payload = AvidVote>>(
         &self,
@@ -628,7 +627,6 @@ impl Receiver {
     }
 
     /// 7b. Validate an [Echo] addressed to this receiver.
-    ///
     ///     Returns [NotEnoughWeight] if the signers of `avid_cert` have less than `W − f` weight.
     pub fn verify_avid_echo_message<C: Certificate<Payload = AvidVote>>(
         &self,
@@ -765,7 +763,6 @@ impl Receiver {
 
     /// 8b. Validate a [AvidComplaint] and respond with this party's own shares.
     ///     This is called only by a receiver that sent a vote for the common message.
-    ///
     ///     Returns [NotEnoughWeight] if the signers of `avid_cert` have less than `W − f` weight.
     pub fn handle_avid_complaint<C: Certificate<Payload = AvidVote>>(
         &self,
