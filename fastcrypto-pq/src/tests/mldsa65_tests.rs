@@ -379,3 +379,80 @@ fn lengths_match_the_scheme() {
     assert_eq!(keypair.public().as_ref().len(), MLDSA65_PUBLIC_KEY_LENGTH);
     assert_eq!(keypair.sign(MSG).as_ref().len(), MLDSA65_SIGNATURE_LENGTH);
 }
+
+/// The ML-DSA-65 vectors from satoshilabs/slips#1968: chain codes pin the
+/// HMAC walk, and the public-key digests pin FIPS 204 key expansion.
+#[test]
+fn slip10_slips1968_vectors() {
+    use crate::slip10::MLDSA65_MASTER_KEY;
+    use fastcrypto::encoding::{Encoding, Hex};
+    use fastcrypto::hash::{HashFunction, Sha256};
+    use fastcrypto::slip10::derive_hardened;
+
+    const SEED_1: &str = "000102030405060708090a0b0c0d0e0f";
+    const SEED_2: &str = concat!(
+        "fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a2",
+        "9f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542"
+    );
+    #[rustfmt::skip]
+    const VECTORS: &[(&str, &[u32], &str, &str)] = &[
+        (SEED_1, &[],
+         "7e74b6275f92cc4fb2cbdac0c63cb5e7ac2bce1ded2b7dbc7bf2232f772578d5",
+         "f41b8366cd9b720dbab9dfcefde673e4c19798192d7543f30f277e57e77ba457"),
+        (SEED_1, &[0],
+         "d8b27c87ec212d6501629199262a9d0d66ec26deab313c26a474bc4ddd5dce7c",
+         "1d9d7fce0a1560acef9b117f3e3022cb0bdd46f30a3134db33165baf66b53e7e"),
+        (SEED_1, &[0, 1],
+         "60219beef857bd0bc7870424c4f60464decb097a18ae37b035df22ebaa7515b9",
+         "0fdc416cbe544a493b59ae8112a907d5acf09ed4583eb8e12d6c769bcf394943"),
+        (SEED_1, &[0, 1, 2],
+         "dc7b0e1379b3f1acd02d1e25f13d8bb16830ca68c73b00d900b9030a41d6a658",
+         "6db4146987c59099709622700d66bcb07b8d49e1007ea6570e15fc3f6dac1c53"),
+        (SEED_1, &[0, 1, 2, 2],
+         "565cb34027c3b54773f7f48e329bc86db7ffc6f618b112af6d59a3f82501e17a",
+         "d487dcf16e74ddd731fafe780d0e5e8b8d338d4f7a3b7e209f8b4c519419764d"),
+        (SEED_1, &[0, 1, 2, 2, 1000000000],
+         "dc65d6cf4fa993c2f04fae2b41d70d8c5ba4c9d2042ea5720bf42a2315a6b7db",
+         "9591ff122a7eff9cd64100f2123e678db9c257815ec5570b0b6acd8847e62f24"),
+        (SEED_2, &[],
+         "0e696f43f0e71c1c9febf61f43f10903385b78cee5871915472027b25ba755cc",
+         "36233a01384e7081becf4da903d10fe7d357da9061cbed1983819fe0a0ced509"),
+        (SEED_2, &[0],
+         "d977be3c8525364e155764ef76b985126d8f6be41b55e6e50a9915ae29f27a56",
+         "577dc77b0987d6cc587a88605590b183f3a7580577dab08cac1ede0a9636b882"),
+        (SEED_2, &[0, 2147483647],
+         "45406bac7fc36390d89ac938bff6ca1ebf9fc6da2057d1580b26a8f2e25a0d2f",
+         "a0155112060496906db18bd46cdd7e18dd35e6e14621083300a0027fd6a421a2"),
+        (SEED_2, &[0, 2147483647, 1],
+         "10ffddec3c4acf719afe528b1ced03e0f7d8555999c11b69376bd5ff4e04dbea",
+         "41357d47d1269fe94f9fc66396d7dc768e5bcaae700a0b877471a06ef2e12d27"),
+        (SEED_2, &[0, 2147483647, 1, 2147483646],
+         "3580d842e9d8d6a072b77d95e08b0a87648edfaec9bc25cee6c9127d1aa4a679",
+         "e947963f404e03be513bdccf23c5a3cb9bd4455f306276fcd9acd4b0d3e16e75"),
+        (SEED_2, &[0, 2147483647, 1, 2147483646, 2],
+         "55a202d3f7803dd79e31c454e65eb7da49dee824b467bfed5204df980e71571d",
+         "4b6c9f1dd1a811fe704c1355e32c43b63007317868ed6c3fce385f11c1b5da39"),
+    ];
+    for (seed_hex, indexes, want_cc, want_pk_digest) in VECTORS {
+        let seed = Hex::decode(seed_hex).unwrap();
+        let node = derive_hardened(MLDSA65_MASTER_KEY, &seed, indexes);
+        assert_eq!(
+            Hex::encode(node.chain_code),
+            *want_cc,
+            "chain code, path {indexes:?}"
+        );
+
+        let kp = MLDSA65KeyPair::derive_slip10(&seed, indexes).unwrap();
+        let digest = Sha256::digest(kp.public().as_ref());
+        assert_eq!(
+            kp.private().as_ref(),
+            node.secret,
+            "keypair uses the node secret"
+        );
+        assert_eq!(
+            Hex::encode(digest),
+            *want_pk_digest,
+            "pk digest, path {indexes:?}"
+        );
+    }
+}
