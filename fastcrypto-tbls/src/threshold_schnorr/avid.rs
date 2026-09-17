@@ -132,7 +132,10 @@ impl Avid {
         if f == 0 {
             return Err(InvalidInput);
         }
-        let k = total_weight.checked_sub(2 * f).ok_or(InvalidInput)?;
+        let k = f
+            .checked_mul(2)
+            .and_then(|two_f| total_weight.checked_sub(two_f))
+            .ok_or(InvalidInput)?;
         let coder = ErasureCoder::new(total_weight as usize, k as usize)?;
         Ok(Self { nodes, coder, f })
     }
