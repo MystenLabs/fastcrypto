@@ -27,3 +27,5 @@ pub mod dummy_circuits;
 pub mod zk_login_utils;
 
 pub mod groth16;
+
+pub mod schnorr;
