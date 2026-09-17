@@ -43,7 +43,8 @@ impl Presignatures {
     /// generator.
     ///
     /// All parties must use the same outputs in the same order, and the output from a dealer with
-    /// weight `w` should be equal to `batch_size_per_weight * w`.
+    /// weight `w` should be equal to `batch_size_per_weight * w`. The outputs must come from
+    /// distinct dealers, with at most one output per dealer.
     ///
     /// More parties contributing outputs gives more presignatures, so include as many as possible
     /// but at least `params.t` (by weight).
@@ -59,6 +60,7 @@ impl Presignatures {
     /// * `params.t` is zero,
     /// * The total weight of the dealers for the outputs is not at least `params.t`,
     /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
+    /// * The same output is given more than once,
     /// * or if batch_size_per_weight is zero.
     pub fn new(
         outputs: Vec<ReceiverOutput>,
@@ -70,6 +72,17 @@ impl Presignatures {
             return Err(InvalidInput);
         }
         let batch_size_per_weight = batch_size_per_weight as usize;
+
+        // Reject duplicate outputs. Outputs from different dealings have different public keys with
+        // overwhelming probability. Outputs without public keys add no weight and are ignored.
+        if outputs
+            .iter()
+            .filter(|o| !o.public_keys.is_empty())
+            .tuple_combinations()
+            .any(|(a, b)| a.public_keys == b.public_keys)
+        {
+            return Err(InvalidInput);
+        }
 
         // Recover each dealer's weight from its public key count, which works even for a
         // zero-weight party.
@@ -168,9 +181,9 @@ mod tests {
 
         // Two weight-1 dealers: each output has batch_size_per_weight public keys, no shares.
         let outputs = (0..2)
-            .map(|_| ReceiverOutput {
+            .map(|i| ReceiverOutput {
                 my_shares: SharesForNode { shares: vec![] },
-                public_keys: vec![G::generator(); batch_size_per_weight as usize],
+                public_keys: vec![G::generator() * S::from(i + 1); batch_size_per_weight as usize],
             })
             .collect::<Vec<_>>();
 
@@ -198,9 +211,9 @@ mod tests {
 
         // Four weight-1 dealers -> total weight 4. Zero-weight receiver perspective (empty shares).
         let outputs = (0..4)
-            .map(|_| ReceiverOutput {
+            .map(|i| ReceiverOutput {
                 my_shares: SharesForNode { shares: vec![] },
-                public_keys: vec![G::generator(); batch_size_per_weight as usize],
+                public_keys: vec![G::generator() * S::from(i + 1); batch_size_per_weight as usize],
             })
             .collect::<Vec<_>>();
 
@@ -231,7 +244,7 @@ mod tests {
         let params = Parameters { t: 2, f: 1 }; // total weight is 2; requires t > f
 
         let outputs = (0..2)
-            .map(|_| ReceiverOutput {
+            .map(|i| ReceiverOutput {
                 my_shares: SharesForNode {
                     shares: vec![ShareBatch {
                         index: ShareIndex::new(1).unwrap(),
@@ -239,7 +252,7 @@ mod tests {
                         blinding_share: S::generator(),
                     }],
                 },
-                public_keys: vec![G::generator(); batch_size_per_weight as usize],
+                public_keys: vec![G::generator() * S::from(i + 1); batch_size_per_weight as usize],
             })
             .collect::<Vec<_>>();
 
