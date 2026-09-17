@@ -948,15 +948,17 @@ impl AvssCommonMessage {
     ) -> FastCryptoResult<VerifiedAvssCommonMessage> {
         if t == 0
             || self.full_public_keys.len() != batch_size
-            || self.response_polynomial.degree() + 1 != t as usize
+            || self.response_polynomial.degree_bound() + 1 != t as usize
+            || self.response_polynomial.degree() != self.response_polynomial.degree_bound()
             || self.ciphertext_hashes.len() != num_nodes
         {
             warn!(
-                "batch_avss AvssCommonMessage::verify: invalid sizes (t = {}, full_public_keys.len() = {}, expected {}; response_polynomial.degree() = {}, expected {}; ciphertext_hashes.len() = {}, expected {})",
+                "batch_avss AvssCommonMessage::verify: invalid sizes (t = {}, full_public_keys.len() = {}, expected {}; response_polynomial.degree() = {}, degree_bound() = {}, expected {}; ciphertext_hashes.len() = {}, expected {})",
                 t,
                 self.full_public_keys.len(),
                 batch_size,
                 self.response_polynomial.degree(),
+                self.response_polynomial.degree_bound(),
                 t as usize - 1,
                 self.ciphertext_hashes.len(),
                 num_nodes,
@@ -1194,10 +1196,11 @@ mod tests {
     use crate::ecies_v1::PublicKey;
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::{Eval, Poly};
-    use crate::threshold_schnorr::{avid, batch_avss_avid as batch_avss, Certificate, EG};
+    use crate::threshold_schnorr::{avid, batch_avss_avid as batch_avss, Certificate, EG, S};
     use crate::types::ShareIndex;
     use fastcrypto::error::FastCryptoError::InvalidMessage;
     use fastcrypto::error::FastCryptoResult;
+    use fastcrypto::groups::GroupElement;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use serde::{Deserialize, Serialize};
@@ -1790,6 +1793,25 @@ mod tests {
         assert!(nodes
             .node_ids_iter()
             .all(|id| state.message_for(id).is_some()));
+    }
+
+    #[test]
+    fn test_padded_response_polynomial_is_rejected() {
+        let (dealer, receivers) = uniform_session(4, 2, 1, 2);
+        let mut rng = rand::thread_rng();
+        let state = dealer.create_avss_messages(&mut rng).unwrap();
+        let receiver = &receivers[0];
+        let message = state.message_for(receiver.id).unwrap();
+        assert!(receiver.process_avss_message(&message).is_ok());
+
+        let mut padded = message;
+        let mut coefficients = padded.common.response_polynomial.clone().to_vec();
+        coefficients.push(S::zero());
+        padded.common.response_polynomial = Poly::from(coefficients);
+        assert_eq!(
+            receiver.process_avss_message(&padded).err(),
+            Some(InvalidMessage)
+        );
     }
 
     /// Build a uniform-weight Dealer and matching set of Receivers for tests.

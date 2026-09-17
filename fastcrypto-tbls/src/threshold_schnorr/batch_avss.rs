@@ -383,13 +383,15 @@ impl Receiver {
         } = message;
 
         if full_public_keys.len() != self.batch_size
-            || response_polynomial.degree() != self.t as usize - 1
+            || response_polynomial.degree_bound() != self.t as usize - 1
+            || response_polynomial.degree() != response_polynomial.degree_bound()
         {
             warn!(
-                "batch_avss process_message: invalid sizes (full_public_keys.len() = {}, expected batch_size {}; response_polynomial.degree() = {}, expected {})",
+                "batch_avss process_message: invalid sizes (full_public_keys.len() = {}, expected batch_size {}; response_polynomial.degree() = {}, degree_bound() = {}, expected {})",
                 full_public_keys.len(),
                 self.batch_size,
                 response_polynomial.degree(),
+                response_polynomial.degree_bound(),
                 self.t as usize - 1,
             );
             return Err(InvalidMessage);

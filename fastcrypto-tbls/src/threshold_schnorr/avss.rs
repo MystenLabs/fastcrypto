@@ -334,10 +334,15 @@ impl Receiver {
     /// call [`Self::create_complaint`] to build a broadcastable complaint. `Err`
     /// ([InvalidMessage]): the message is malformed and should be ignored.
     pub fn verify_message(&self, message: &Message) -> FastCryptoResult<Option<AvssOutput>> {
-        if message.feldman_commitment.degree() + 1 != self.params.t as usize {
+        // Require exactly t coefficients with a non-zero leading coefficient, so padded
+        // commitments are rejected.
+        if message.feldman_commitment.degree_bound() + 1 != self.params.t as usize
+            || message.feldman_commitment.degree() != message.feldman_commitment.degree_bound()
+        {
             warn!(
-                "AVSS verify_message: invalid feldman commitment degree {} (expected {})",
+                "AVSS verify_message: invalid feldman commitment (degree {}, degree bound {}, expected {})",
                 message.feldman_commitment.degree(),
+                message.feldman_commitment.degree_bound(),
                 self.params.t as usize - 1,
             );
             return Err(InvalidMessage);
@@ -692,6 +697,7 @@ mod tests {
     use crate::threshold_schnorr::Extensions::Encryption;
     use crate::threshold_schnorr::{Parameters, EG, G};
     use crate::types::{IndexedValue, ShareIndex};
+    use fastcrypto::error::FastCryptoError::InvalidMessage;
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
@@ -806,6 +812,16 @@ mod tests {
         let recovered = Poly::recover_c0(t, shares.iter().take(t as usize)).unwrap();
 
         assert_eq!(secret, recovered);
+
+        // A commitment padded with a zero coefficient is rejected.
+        let mut padded = message.clone();
+        let mut coefficients = padded.feldman_commitment.clone().to_vec();
+        coefficients.push(G::zero());
+        padded.feldman_commitment = Poly::from(coefficients);
+        assert_eq!(
+            receivers[0].verify_message(&padded).err(),
+            Some(InvalidMessage)
+        );
     }
 
     #[test]
