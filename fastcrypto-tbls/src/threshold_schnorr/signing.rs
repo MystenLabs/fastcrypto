@@ -23,6 +23,7 @@ const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_b
 /// key, so it does not matter whether the presignatures are generated before or after the message
 /// is known.
 /// The presigning tuples must be taken from a [Presignatures] iterator, the other parties should use the same tuples in the same order and one tuple may only be used once.
+/// Signing two different messages with the same pair of tuples leaks the signing key.
 /// Returns also the public nonce R.
 ///
 /// The signatures produced follow the BIP-0340 standard (<https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki>).
@@ -32,8 +33,9 @@ const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_b
 /// The signature will be valid for the derived verifying key.
 ///
 /// `GeneralOpaqueError` is returned if the generated nonce R is the identity element (should happen only with negligible probability).
-/// `InvalidInput` is returned if the verifying key is the identity element, if the two presigning
-/// tuples are equal or if they have a different number of shares.
+/// `InvalidInput` is returned if the verifying key or one of the public presignatures is the
+/// identity element, if the two presigning tuples are equal or if they have a different number of
+/// shares.
 pub fn generate_partial_signatures(
     message: &[u8],
     presig_0: (Vec<S>, G),
@@ -114,8 +116,8 @@ pub fn generate_partial_signatures(
 /// Returns an `InputTooShort` error if not enough partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
 /// `InvalidSignature` is returned if the aggregated signature does not verify.
-/// `InvalidInput` is returned if the provided verifying key is the identity element or if the two
-/// public presignatures are equal.
+/// `InvalidInput` is returned if the verifying key or one of the public presignatures is the
+/// identity element or if the two public presignatures are equal.
 pub fn aggregate_signatures(
     message: &[u8],
     public_presig_0: &G,
@@ -161,8 +163,8 @@ pub fn aggregate_signatures(
 ///
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
 /// `InvalidSignature` is returned if the aggregated signature does not verify.
-/// `InvalidInput` is returned if the provided verifying key is the identity element or if the two
-/// public presignatures are equal.
+/// `InvalidInput` is returned if the verifying key or one of the public presignatures is the
+/// identity element or if the two public presignatures are equal.
 pub fn finalize_schnorr_signature(
     message: &[u8],
     public_presig_0: &G,
@@ -275,7 +277,13 @@ fn binding_factor(
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<S> {
-    if public_presig_0 == public_presig_1 || *verifying_key == G::zero() {
+    // As in FROST, the public presignatures must be non-identity group elements, and they must be
+    // distinct so that the binding factor actually binds the second nonce to the message.
+    if *public_presig_0 == G::zero()
+        || *public_presig_1 == G::zero()
+        || public_presig_0 == public_presig_1
+        || *verifying_key == G::zero()
+    {
         return Err(FastCryptoError::InvalidInput);
     }
     let verifying_key = if let Some(address) = derivation_address {
