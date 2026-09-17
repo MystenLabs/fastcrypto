@@ -109,6 +109,9 @@ enum Extensions {
 /// This represents a certificate over a payload that a subset of the parties have signed.
 /// Here, the implementation is abstract, and it is up to the caller to implement the actual
 /// verification functionality.
+///
+/// The payloads only identify a message by its hash, so the signed data must also bind the session
+/// the certificate is for (e.g., the protocol, epoch and dealer).
 pub trait Certificate {
     type Payload;
 
