@@ -603,11 +603,14 @@ impl Receiver {
 
     /// 7a. Validate an [AvssCommonMessage] based on the cert, and return
     ///     [VerifiedAvssCommonMessage].
+    ///
+    ///     Returns [NotEnoughWeight] if the signers of `avid_cert` have less than `W − f` weight.
     pub fn verify_common_message<C: Certificate<Payload = AvidVote>>(
         &self,
         avid_cert: &VerifiedCertificate<C>,
         common_message: AvssCommonMessage,
     ) -> FastCryptoResult<VerifiedAvssCommonMessage> {
+        self.check_avid_cert_weight(avid_cert)?;
         let hash = common_message.hash();
         if hash != avid_cert.payload().common_message_hash {
             warn!(
@@ -625,12 +628,15 @@ impl Receiver {
     }
 
     /// 7b. Validate an [Echo] addressed to this receiver.
+    ///
+    ///     Returns [NotEnoughWeight] if the signers of `avid_cert` have less than `W − f` weight.
     pub fn verify_avid_echo_message<C: Certificate<Payload = AvidVote>>(
         &self,
         echo: Echo,
         sender: PartyId,
         avid_cert: &VerifiedCertificate<C>,
     ) -> FastCryptoResult<VerifiedEcho> {
+        self.check_avid_cert_weight(avid_cert)?;
         self.avid
             .verify_echo(echo, sender, &avid_cert.payload().vote, self.id)
     }
@@ -759,6 +765,8 @@ impl Receiver {
 
     /// 8b. Validate a [AvidComplaint] and respond with this party's own shares.
     ///     This is called only by a receiver that sent a vote for the common message.
+    ///
+    ///     Returns [NotEnoughWeight] if the signers of `avid_cert` have less than `W − f` weight.
     pub fn handle_avid_complaint<C: Certificate<Payload = AvidVote>>(
         &self,
         blame: &AvidComplaint,
@@ -772,6 +780,7 @@ impl Receiver {
             warn!("batch_avss handle_avid_complaint: accuser_id is not valid: {accuser_id}");
             return Err(InvalidInput);
         }
+        self.check_avid_cert_weight(avid_cert)?;
         self.avid
             .verify_complaint(blame, accuser_id, &avid_cert.payload().vote, |payload| {
                 check_ciphertext_hash(payload, accuser_id, verified_common).is_ok()
@@ -893,6 +902,25 @@ impl Receiver {
 
     pub fn my_indices(&self) -> Vec<ShareIndex> {
         self.nodes.share_ids_of(self.id).unwrap()
+    }
+
+    /// Check that the signers of an AVID certificate have at least `W − f` weight, so at least
+    /// `W − 2f` honest weight endorsed the certified dispersal and common message.
+    fn check_avid_cert_weight<C: Certificate<Payload = AvidVote>>(
+        &self,
+        avid_cert: &VerifiedCertificate<C>,
+    ) -> FastCryptoResult<()> {
+        // `validate` ensures f <= t < W, so this cannot underflow.
+        let required_weight = self.nodes.total_weight() - self.params.f;
+        if self
+            .nodes
+            .total_weight_of(avid_cert.certificate().signers().iter())?
+            < required_weight
+        {
+            warn!("batch_avss check_avid_cert_weight: not enough signers");
+            return Err(NotEnoughWeight(required_weight as usize));
+        }
+        Ok(())
     }
 
     fn random_oracle(&self) -> RandomOracle {
@@ -1196,7 +1224,7 @@ mod tests {
     use crate::polynomial::{Eval, Poly};
     use crate::threshold_schnorr::{avid, batch_avss_avid as batch_avss, Certificate, EG};
     use crate::types::ShareIndex;
-    use fastcrypto::error::FastCryptoError::InvalidMessage;
+    use fastcrypto::error::FastCryptoError::{InvalidMessage, NotEnoughWeight};
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
@@ -1478,6 +1506,44 @@ mod tests {
                 .unwrap();
             assert_valid(outcome);
         }
+
+        // A certificate whose signers have less than W - f weight is rejected everywhere.
+        let weak_cert = AvidCert {
+            signers: voters.iter().skip(1).copied().collect(),
+            vote: avid_votes[&voters[0]].clone(),
+        }
+        .to_verified()
+        .unwrap();
+        let required_weight = NotEnoughWeight((n - f) as usize);
+        let i = *pending.first().unwrap();
+        let r = &receivers[i as usize];
+        assert_eq!(
+            r.verify_common_message(&weak_cert, state.common.clone())
+                .err(),
+            Some(required_weight.clone())
+        );
+        let (&sender, em) = echo_sets.iter().next().unwrap();
+        assert_eq!(
+            r.verify_avid_echo_message(em[&i].clone(), sender, &weak_cert)
+                .err(),
+            Some(required_weight.clone())
+        );
+        let voter = &receivers[voters[0] as usize];
+        assert_eq!(
+            voter
+                .handle_avid_complaint(
+                    &super::AvidComplaint {
+                        shards: BTreeMap::new(),
+                    },
+                    i,
+                    &voter_commons[&voters[0]],
+                    &weak_cert,
+                    state.ciphertexts[voters[0] as usize].clone(),
+                    &mut rng,
+                )
+                .err(),
+            Some(required_weight)
+        );
     }
 
     #[test]
