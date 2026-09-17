@@ -23,6 +23,9 @@
 //! encryption key pair (ECIES) and these public keys are known to all parties. These can be
 //! reused for all instances of the protocols.
 //!
+//! It is also assumed that all messages between parties are sent over authenticated channels, so
+//! that the receiver of a message knows who sent it and that it was not modified.
+//!
 //! The thresholds are defined as follows:
 //! * <i>W</i> = total weight of all parties
 //! * <i>f</i> = maximum Byzantine weight
