@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::polynomial::{Eval, Poly};
+use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::key_derivation::{compute_tweak, derive_verifying_key_internal};
 use crate::threshold_schnorr::{avss, Address, G, S};
 use fastcrypto::error::FastCryptoError::InputTooShort;
@@ -13,6 +14,96 @@ use fastcrypto::groups::GroupElement;
 use itertools::Itertools;
 use tap::TapFallible;
 use tracing::warn;
+
+/// Domain separation prefix for the random oracle used to compute presignature binding factors.
+const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_binding";
+
+/// Combine two presigning tuples into a single presigning tuple bound to the message and the
+/// verifying key: `(t, p) = (t_0 + b * t_1, p_0 + b * p_1)` with `b = H(p_0, p_1, vk, message)`.
+///
+/// Since the resulting nonce depends on the message, the security of the signature does not depend
+/// on the presignatures being generated before the message is fixed (or vice versa), and the
+/// output can be used with a zero beacon value in [generate_partial_signatures] and
+/// [aggregate_signatures].
+///
+/// Both tuples must be taken from a [Presignatures] iterator, the other parties should use the
+/// same tuples in the same order, and each tuple may only be used once. The verifying key and
+/// derivation address must be the same as those used when signing.
+///
+/// `InvalidInput` is returned if the two tuples are equal or have a different number of shares,
+/// or if the verifying key is the identity element.
+pub fn bind_presignatures(
+    message: &[u8],
+    (secret_presigs_0, public_presig_0): (Vec<S>, G),
+    (secret_presigs_1, public_presig_1): (Vec<S>, G),
+    verifying_key: &G,
+    derivation_address: Option<&Address>,
+) -> FastCryptoResult<(Vec<S>, G)> {
+    if secret_presigs_0.len() != secret_presigs_1.len() {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    let b = binding_factor(
+        message,
+        &public_presig_0,
+        &public_presig_1,
+        verifying_key,
+        derivation_address,
+    )?;
+    Ok((
+        secret_presigs_0
+            .into_iter()
+            .zip(secret_presigs_1)
+            .map(|(t_0, t_1)| t_0 + b * t_1)
+            .collect(),
+        public_presig_0 + public_presig_1 * b,
+    ))
+}
+
+/// Compute the public part of [bind_presignatures]. This is used by parties who do not hold
+/// secret presignatures, e.g. to aggregate signatures.
+pub fn bind_public_presignatures(
+    message: &[u8],
+    public_presig_0: &G,
+    public_presig_1: &G,
+    verifying_key: &G,
+    derivation_address: Option<&Address>,
+) -> FastCryptoResult<G> {
+    let b = binding_factor(
+        message,
+        public_presig_0,
+        public_presig_1,
+        verifying_key,
+        derivation_address,
+    )?;
+    Ok(*public_presig_0 + *public_presig_1 * b)
+}
+
+/// Compute the binding factor `b = H(p_0, p_1, vk, message)`, where `vk` is the derived verifying
+/// key if a derivation address is given.
+fn binding_factor(
+    message: &[u8],
+    public_presig_0: &G,
+    public_presig_1: &G,
+    verifying_key: &G,
+    derivation_address: Option<&Address>,
+) -> FastCryptoResult<S> {
+    if public_presig_0 == public_presig_1 || *verifying_key == G::zero() {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    let verifying_key = if let Some(address) = derivation_address {
+        derive_verifying_key_internal(verifying_key, address)?
+    } else {
+        *verifying_key
+    };
+    Ok(
+        RandomOracle::new(BINDING_FACTOR_DOMAIN).evaluate_to_group_element(&(
+            public_presig_0,
+            public_presig_1,
+            verifying_key,
+            message,
+        )),
+    )
+}
 
 /// Generate partial threshold Schnorr signatures for a given message using a presigning tuple.
 /// The presigning tuple must be taken from a [Presignatures] iterator, the other parties should use the same tuple and one tuple may only be used once.
@@ -204,4 +295,137 @@ fn bip0340_hash(r_g: &G, vk: &G, message: &[u8]) -> FastCryptoResult<S> {
         Tag::Challenge,
         [&r_g.x_as_be_bytes()?, &vk.x_as_be_bytes()?, message],
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::threshold_schnorr::key_derivation::derive_verifying_key;
+    use crate::types::ShareIndex;
+    use fastcrypto::groups::Scalar;
+    use rand::thread_rng;
+
+    const T: u16 = 3;
+    const N: u16 = 5;
+
+    /// Secret share a random nonce and return the shares of each party and the public presig.
+    fn presig_tuples(rng: &mut impl fastcrypto::traits::AllowedRng) -> (Vec<Vec<S>>, G) {
+        let poly = Poly::<S>::rand(T - 1, rng);
+        let secret = (1..=N)
+            .map(|i| vec![poly.eval(ShareIndex::new(i).unwrap()).value])
+            .collect();
+        (secret, G::generator() * poly.c0())
+    }
+
+    fn sign(
+        message: &[u8],
+        derivation_address: Option<&Address>,
+    ) -> FastCryptoResult<SchnorrSignature> {
+        let mut rng = thread_rng();
+        let sk = Poly::<S>::rand(T - 1, &mut rng);
+        let vk = G::generator() * sk.c0();
+        let (secret_0, public_0) = presig_tuples(&mut rng);
+        let (secret_1, public_1) = presig_tuples(&mut rng);
+
+        let partial_signatures = (1..=N)
+            .map(|i| {
+                let presig = bind_presignatures(
+                    message,
+                    (secret_0[i as usize - 1].clone(), public_0),
+                    (secret_1[i as usize - 1].clone(), public_1),
+                    &vk,
+                    derivation_address,
+                )
+                .unwrap();
+                let shares = avss::SharesForNode {
+                    shares: vec![sk.eval(ShareIndex::new(i).unwrap())],
+                };
+                generate_partial_signatures(
+                    message,
+                    presig,
+                    &S::zero(),
+                    &shares,
+                    &vk,
+                    derivation_address,
+                )
+                .unwrap()
+            })
+            .collect_vec();
+
+        let public_presig =
+            bind_public_presignatures(message, &public_0, &public_1, &vk, derivation_address)?;
+        assert!(partial_signatures.iter().all(|(p, _)| *p == public_presig));
+
+        let signature = aggregate_signatures(
+            message,
+            &public_presig,
+            &S::zero(),
+            &partial_signatures
+                .into_iter()
+                .flat_map(|(_, s)| s)
+                .collect_vec(),
+            T,
+            &vk,
+            derivation_address,
+        )?;
+        let pk = match derivation_address {
+            Some(address) => derive_verifying_key(&vk, address)?,
+            None => SchnorrPublicKey::try_from(&vk)?,
+        };
+        pk.verify(message, &signature)?;
+        Ok(signature)
+    }
+
+    #[test]
+    fn test_signing_with_bound_presignatures() {
+        // Run a few times to hit both parities of the nonce and verifying key.
+        for _ in 0..10 {
+            sign(b"Hello, world!", None).unwrap();
+            sign(b"Hello, world!", Some(&[7u8; 32])).unwrap();
+        }
+    }
+
+    #[test]
+    fn test_binding_factor_depends_on_inputs() {
+        let mut rng = thread_rng();
+        let vk = G::generator() * S::rand(&mut rng);
+        let other_vk = G::generator() * S::rand(&mut rng);
+        let p_0 = G::generator() * S::rand(&mut rng);
+        let p_1 = G::generator() * S::rand(&mut rng);
+        let address = [1u8; 32];
+
+        let r = bind_public_presignatures(b"a", &p_0, &p_1, &vk, None).unwrap();
+        assert_ne!(
+            r,
+            bind_public_presignatures(b"b", &p_0, &p_1, &vk, None).unwrap()
+        );
+        assert_ne!(
+            r,
+            bind_public_presignatures(b"a", &p_1, &p_0, &vk, None).unwrap()
+        );
+        assert_ne!(
+            r,
+            bind_public_presignatures(b"a", &p_0, &p_1, &other_vk, None).unwrap()
+        );
+        assert_ne!(
+            r,
+            bind_public_presignatures(b"a", &p_0, &p_1, &vk, Some(&address)).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_bind_presignatures_rejects_invalid_input() {
+        let mut rng = thread_rng();
+        let vk = G::generator() * S::rand(&mut rng);
+        let p = G::generator() * S::rand(&mut rng);
+        let q = G::generator() * S::rand(&mut rng);
+        let t = S::rand(&mut rng);
+
+        // Same tuple twice
+        assert!(bind_presignatures(b"m", (vec![t], p), (vec![t], p), &vk, None).is_err());
+        // Different number of shares
+        assert!(bind_presignatures(b"m", (vec![t], p), (vec![], q), &vk, None).is_err());
+        // Identity verifying key
+        assert!(bind_public_presignatures(b"m", &p, &q, &G::zero(), None).is_err());
+    }
 }
