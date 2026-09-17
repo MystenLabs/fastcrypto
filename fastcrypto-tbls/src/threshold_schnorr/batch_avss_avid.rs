@@ -409,7 +409,8 @@ impl Dealer {
     // Step 6 happens at the caller level:
     //   6. Once `W-f` weight of [AvidVote]s has been collected, the dealer can form and
     //      publish a certificate over those votes on the TOB. This is done by the caller and
-    //      completes the dealer's role in the protocol.
+    //      completes the dealer's role in the protocol. Parties must only accept the first
+    //      certificate from each dealer per session and ignore later ones.
 
     /// Test-only variant of [Self::create_avid_messages] that runs `mutate_shards` over the
     /// per-recipient, per-disperser shards before they are committed, to simulate a cheating
@@ -520,7 +521,8 @@ impl Receiver {
     ///    On any failure the receiver silently ignores the message and falls through to the second
     ///    phase.
     ///
-    ///    A voter should persist the returned outputs before sending its [AvssVote].
+    ///    A voter should persist the returned outputs before sending its [AvssVote], and must vote
+    ///    for at most one common message per dealer per session.
     pub fn process_avss_message(
         &self,
         message: &AvssMessage,
@@ -557,7 +559,8 @@ impl Receiver {
     ///    wait for a published [Certificate] over [AvidVote]s, and then get the [AvssCommonMessage]
     ///    and [Echo]es from the signers (see below).
     ///
-    ///    The caller should persist the outputs before sending its [AvidVote].
+    ///    The caller should persist the outputs before sending its [AvidVote], and must vote for
+    ///    at most one dispersal per dealer per session.
     pub fn process_avid_message<C: Certificate<Payload = AvssVote>>(
         &self,
         verified_avss_common_message: &VerifiedAvssCommonMessage,
