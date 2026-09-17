@@ -25,6 +25,15 @@ pub struct RSDecoder {
 
 impl RSDecoder {
     /// Create a new Gao decoder with the given evaluation points `a` and message length `k`.
+    /// Returns an [InvalidInput] error if `k` is not smaller than the number of evaluation points.
+    pub fn try_new(a: Vec<ShareIndex>, k: usize) -> FastCryptoResult<Self> {
+        if k >= a.len() {
+            return Err(InvalidInput);
+        }
+        Ok(Self::new(a, k))
+    }
+
+    /// Create a new Gao decoder with the given evaluation points `a` and message length `k`.
     pub fn new(a: Vec<ShareIndex>, k: usize) -> Self {
         assert!(k < a.len(), "Message length must be less than block length");
         let mut g0 = Poly::one();
