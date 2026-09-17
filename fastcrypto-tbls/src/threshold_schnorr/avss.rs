@@ -281,7 +281,10 @@ impl Receiver {
     /// * `id`: The unique identifier of this receiver. Should match one of the party ids in `nodes`.
     /// * `params`: The threshold parameters.
     /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
-    /// * `commitment`: An optional commitment to the secret being shared (used for key rotation).
+    /// * `commitment`: An optional commitment to the secret being shared. It must be given for key
+    ///   rotation, where it is the commitment to the dealer's share from the previous round, and
+    ///   all receivers must use the same commitment for a given dealer. A node that was not part of
+    ///   the previous round has no output to read it from and must be given it out of band.
     /// * `enc_secret_key`: The private key used to decrypt the shares sent to this receiver.
     ///
     /// Returns an error if the parameters are invalid.
@@ -313,8 +316,13 @@ impl Receiver {
     ///
     /// If this works, the receiver can store the shares and contribute a signature on the message to a certificate.
     ///
-    /// Returns an [InvalidMessage] error if the ciphertext cannot be verified, if the commitments are invalid or do not match the commitments from a previous round.
-    /// All honest receivers will reject such a message with the same error, and such a message should be ignored.
+    /// Returns an [InvalidMessage] error if the message is malformed, e.g., if the ciphertext
+    /// cannot be verified or the commitment has the wrong degree. All honest receivers reject such
+    /// a message with the same error, and it should be ignored.
+    ///
+    /// Returns an [InvalidInput] error if the dealing does not match the `commitment` this receiver
+    /// was created with. This compares against local state, so receivers that were given different
+    /// commitments disagree.
     ///
     /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
     pub fn process_message<R: AllowedRng>(
@@ -332,7 +340,8 @@ impl Receiver {
     ///
     /// `Ok(Some)`: valid shares. `Ok(None)`: shares are invalid for this receiver;
     /// call [`Self::create_complaint`] to build a broadcastable complaint. `Err`
-    /// ([InvalidMessage]): the message is malformed and should be ignored.
+    /// ([InvalidMessage]): the message is malformed and should be ignored. `Err` ([InvalidInput]):
+    /// the dealing does not match the `commitment` this receiver was created with.
     pub fn verify_message(&self, message: &Message) -> FastCryptoResult<Option<AvssOutput>> {
         if message.feldman_commitment.degree() + 1 != self.params.t as usize
             || !message.feldman_commitment.is_reduced()
@@ -351,7 +360,7 @@ impl Receiver {
                 warn!(
                     "AVSS verify_message: feldman commitment c0 does not match the expected commitment from a previous round"
                 );
-                return Err(InvalidMessage);
+                return Err(InvalidInput);
             }
         }
 
