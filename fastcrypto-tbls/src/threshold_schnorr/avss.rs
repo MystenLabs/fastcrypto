@@ -334,15 +334,12 @@ impl Receiver {
     /// call [`Self::create_complaint`] to build a broadcastable complaint. `Err`
     /// ([InvalidMessage]): the message is malformed and should be ignored.
     pub fn verify_message(&self, message: &Message) -> FastCryptoResult<Option<AvssOutput>> {
-        // Require exactly t coefficients with a non-zero leading coefficient, so padded
-        // commitments are rejected.
-        if message.feldman_commitment.degree_bound() + 1 != self.params.t as usize
-            || message.feldman_commitment.degree() != message.feldman_commitment.degree_bound()
+        if message.feldman_commitment.degree() + 1 != self.params.t as usize
+            || !message.feldman_commitment.is_reduced()
         {
             warn!(
-                "AVSS verify_message: invalid feldman commitment (degree {}, degree bound {}, expected {})",
+                "AVSS verify_message: invalid feldman commitment degree {} (expected {}) or zero-padded",
                 message.feldman_commitment.degree(),
-                message.feldman_commitment.degree_bound(),
                 self.params.t as usize - 1,
             );
             return Err(InvalidMessage);

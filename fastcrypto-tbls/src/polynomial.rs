@@ -46,6 +46,12 @@ impl<C: GroupElement> Poly<C> {
         self.0.iter().rposition(|&c| c != C::zero()).unwrap_or(0)
     }
 
+    /// Returns true if the polynomial has no leading zero coefficients, e.g., if the coefficient
+    /// vector is not padded with zeros.
+    pub fn is_reduced(&self) -> bool {
+        self.degree() == self.degree_bound()
+    }
+
     /// Removes leading zero coefficients.
     pub(crate) fn into_reduced(mut self) -> Self {
         self.0.truncate(self.degree() + 1);

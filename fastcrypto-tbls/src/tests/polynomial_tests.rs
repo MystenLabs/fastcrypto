@@ -228,9 +228,11 @@ mod scalar_tests {
         let a = crate::polynomial::Poly::from(coefficients);
         assert_eq!(a.degree(), 2);
         assert_eq!(a.degree_bound(), 4);
+        assert!(!a.is_reduced());
         let a = a.into_reduced();
         assert_eq!(a.degree(), 2);
         assert_eq!(a.degree_bound(), 2);
+        assert!(a.is_reduced());
     }
 
     #[test]
