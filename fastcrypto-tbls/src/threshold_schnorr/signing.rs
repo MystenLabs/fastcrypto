@@ -3,8 +3,10 @@
 
 use crate::polynomial::{Eval, Poly};
 use crate::threshold_schnorr::key_derivation::{compute_tweak, derive_verifying_key_internal};
+use crate::threshold_schnorr::reed_solomon::RSDecoder;
 use crate::threshold_schnorr::{avss, Address, G, S};
-use fastcrypto::error::FastCryptoError::InputTooShort;
+use crate::types::ShareIndex;
+use fastcrypto::error::FastCryptoError::{InputTooShort, InvalidSignature};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::secp256k1::schnorr::{
     bip0340_hash_to_scalar, SchnorrPublicKey, SchnorrSignature, Tag,
@@ -94,9 +96,23 @@ pub fn generate_partial_signatures(
 /// [derive_verifying_key]), and the signature is adjusted accordingly.
 /// The signature will be valid for the derived verifying key.
 ///
+/// Returns the signature along with the share indices of the partial signatures that were faulty,
+/// which is empty unless error correction was needed.
+///
+/// The first `threshold` partial signatures are interpolated, and if the resulting signature does
+/// not verify, all the given partial signatures are decoded as a Reed-Solomon code word to correct
+/// the faulty ones. Correcting `e` faults requires `threshold + 2e` partial signatures, so the
+/// caller should provide as many as possible.
+///
+/// The partial signatures must be received over an authenticated channel, and the caller must
+/// reject any whose share index the sender does not hold.
+///
 /// Returns an `InputTooShort` error if not enough partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
-/// `InvalidSignature` is returned if the aggregated signature does not verify.
+/// `InvalidSignature` is returned if the aggregated signature does not verify and there are too
+/// many faulty partial signatures to correct. The caller should then retry with more partial
+/// signatures for the same presigning tuple, message and beacon value. Signing twice with the same
+/// tuple discloses the signing key.
 /// `InvalidInput` is returned if the provided verifying key is the identity element.
 pub fn aggregate_signatures(
     message: &[u8],
@@ -106,7 +122,7 @@ pub fn aggregate_signatures(
     threshold: u16,
     verifying_key: &G,
     derivation_address: Option<&Address>,
-) -> FastCryptoResult<SchnorrSignature> {
+) -> FastCryptoResult<(SchnorrSignature, Vec<ShareIndex>)> {
     if partial_signatures.len() < threshold as usize {
         return Err(InputTooShort(threshold as usize));
     }
@@ -120,14 +136,63 @@ pub fn aggregate_signatures(
         partial_signatures.iter().take(threshold as usize),
     )?;
 
-    finalize_schnorr_signature(
+    match finalize_schnorr_signature(
         message,
         public_presig,
         beacon_value,
         s,
         verifying_key,
         derivation_address,
+    ) {
+        Ok(signature) => Ok((signature, vec![])),
+        Err(InvalidSignature) => correct_and_aggregate_signatures(
+            message,
+            public_presig,
+            beacon_value,
+            partial_signatures,
+            threshold,
+            verifying_key,
+            derivation_address,
+        ),
+        Err(e) => Err(e),
+    }
+}
+
+/// Decode the partial signatures as a Reed-Solomon code word, recovering the signature and the
+/// share indices of the faulty partial signatures.
+fn correct_and_aggregate_signatures(
+    message: &[u8],
+    public_presig: &G,
+    beacon_value: &S,
+    partial_signatures: &[Eval<S>],
+    threshold: u16,
+    verifying_key: &G,
+    derivation_address: Option<&Address>,
+) -> FastCryptoResult<(SchnorrSignature, Vec<ShareIndex>)> {
+    let decoder = RSDecoder::try_new(
+        partial_signatures.iter().map(|s| s.index).collect(),
+        threshold as usize,
     )
+    .map_err(|_| InvalidSignature)?;
+    let polynomial = decoder
+        .compute_message_polynomial(&partial_signatures.iter().map(|s| s.value).collect_vec())
+        .map_err(|_| InvalidSignature)?;
+
+    let signature = finalize_schnorr_signature(
+        message,
+        public_presig,
+        beacon_value,
+        polynomial.c0(),
+        verifying_key,
+        derivation_address,
+    )?;
+
+    let faulty = partial_signatures
+        .iter()
+        .filter(|s| polynomial.eval(s.index).value != s.value)
+        .map(|s| s.index)
+        .collect();
+    Ok((signature, faulty))
 }
 
 /// Wrap an already-recovered signing scalar `s = f(0)` into a BIP-0340 Schnorr signature.
