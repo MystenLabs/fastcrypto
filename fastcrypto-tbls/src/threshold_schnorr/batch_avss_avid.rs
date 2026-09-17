@@ -559,7 +559,8 @@ impl Receiver {
     ///    wait for a published [Certificate] over [AvidVote]s, and then get the [AvssCommonMessage]
     ///    and [Echo]es from the signers (see below).
     ///
-    ///    The caller should persist the outputs before sending its [AvidVote].
+    ///    The caller should persist the outputs before sending its [AvidVote], and must vote for
+    ///    at most one dispersal per dealer per session.
     pub fn process_avid_message<C: Certificate<Payload = AvssVote>>(
         &self,
         verified_avss_common_message: &VerifiedAvssCommonMessage,
