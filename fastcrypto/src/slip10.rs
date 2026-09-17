@@ -47,8 +47,7 @@ pub fn derive_hardened(master_key: &[u8], seed: &[u8], indexes: &[u32]) -> Slip1
 }
 
 fn hmac_sha512(key: &[u8], data: &[u8]) -> [u8; 64] {
-    let mut mac = Hmac::<Sha512>::new_from_slice(key)
-      .expect("HMAC accepts any key length");
+    let mut mac = Hmac::<Sha512>::new_from_slice(key).expect("HMAC accepts any key length");
     mac.update(data);
     mac.finalize().into_bytes().into()
 }
