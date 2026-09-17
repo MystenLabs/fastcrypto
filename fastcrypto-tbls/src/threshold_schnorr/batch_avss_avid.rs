@@ -952,15 +952,17 @@ impl AvssCommonMessage {
         if t == 0
             || self.full_public_keys.len() != batch_size
             || self.response_polynomial.degree() + 1 != t as usize
+            || !self.response_polynomial.is_reduced()
             || self.ciphertext_hashes.len() != num_nodes
         {
             warn!(
-                "batch_avss AvssCommonMessage::verify: invalid sizes (t = {}, full_public_keys.len() = {}, expected {}; response_polynomial.degree() = {}, expected {}; ciphertext_hashes.len() = {}, expected {})",
+                "batch_avss AvssCommonMessage::verify: invalid sizes (t = {}, full_public_keys.len() = {}, expected {}; response_polynomial.degree() = {}, expected {}, is_reduced() = {}; ciphertext_hashes.len() = {}, expected {})",
                 t,
                 self.full_public_keys.len(),
                 batch_size,
                 self.response_polynomial.degree(),
                 t as usize - 1,
+                self.response_polynomial.is_reduced(),
                 self.ciphertext_hashes.len(),
                 num_nodes,
             );
