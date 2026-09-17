@@ -49,7 +49,6 @@ pub fn generate_partial_signatures(
         verifying_key,
         derivation_address,
     )?;
-    check_nonce(&r_g)?;
 
     // In BIP-340, the nonce R must have an even Y coordinate.
     // If it doesn't, we negate the secret nonce to get a new nonce R' = -R with an even Y.
@@ -180,7 +179,6 @@ pub fn finalize_schnorr_signature(
         verifying_key,
         derivation_address,
     )?;
-    check_nonce(&r_g)?;
 
     // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
     let verifying_key = if let Some(address) = derivation_address {
@@ -231,11 +229,11 @@ fn bind_presignatures(
             .zip(secret_presigs_1)
             .map(|(t_0, t_1)| t_0 + b * t_1)
             .collect(),
-        public_presig_0 + public_presig_1 * b,
+        combine_public_presignatures(&public_presig_0, &public_presig_1, &b)?,
     ))
 }
 
-/// Compute the public part of [bind_presignatures].
+/// Compute the public part of [bind_presignatures], `p_0 + b * p_1`.
 fn bind_public_presignatures(
     message: &[u8],
     public_presig_0: &G,
@@ -250,7 +248,22 @@ fn bind_public_presignatures(
         verifying_key,
         derivation_address,
     )?;
-    Ok(*public_presig_0 + *public_presig_1 * b)
+    combine_public_presignatures(public_presig_0, public_presig_1, &b)
+}
+
+/// Compute the nonce `p_0 + b * p_1` for a signature. Since the presignatures are random, the
+/// identity element occurs only with negligible probability and is rejected with
+/// [`FastCryptoError::GeneralOpaqueError`].
+fn combine_public_presignatures(
+    public_presig_0: &G,
+    public_presig_1: &G,
+    b: &S,
+) -> FastCryptoResult<G> {
+    let r_g = *public_presig_0 + *public_presig_1 * b;
+    if r_g == G::zero() {
+        return Err(FastCryptoError::GeneralOpaqueError);
+    }
+    Ok(r_g)
 }
 
 /// Compute the binding factor `b = H(p_0, p_1, vk, message)`, where `vk` is the derived verifying
@@ -278,15 +291,6 @@ fn binding_factor(
             message,
         )),
     )
-}
-
-/// Reject the identity element as a nonce. Since the presignatures are random, this occurs only
-/// with negligible probability and is rejected with [`FastCryptoError::GeneralOpaqueError`].
-fn check_nonce(r_g: &G) -> FastCryptoResult<()> {
-    if *r_g == G::zero() {
-        return Err(FastCryptoError::GeneralOpaqueError);
-    }
-    Ok(())
 }
 
 fn bip0340_hash(r_g: &G, vk: &G, message: &[u8]) -> FastCryptoResult<S> {
