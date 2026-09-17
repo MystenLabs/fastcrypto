@@ -767,6 +767,7 @@ impl Receiver {
     /// 8b. Validate a [AvidComplaint] and respond with this party's own shares.
     ///     This is called only by a receiver that sent a vote for the common message.
     ///     Returns [NotEnoughWeight] if the signers of `avid_cert` have less than `W − f` weight.
+    ///     `avid_cert` must certify the same common message as `verified_common`.
     pub fn handle_avid_complaint<C: Certificate<Payload = AvidVote>>(
         &self,
         blame: &AvidComplaint,
@@ -781,6 +782,10 @@ impl Receiver {
             return Err(InvalidInput);
         }
         self.check_avid_cert_weight(avid_cert)?;
+        if avid_cert.payload().common_message_hash != verified_common.hash {
+            warn!("batch_avss handle_avid_complaint: AVID cert binds a different common message");
+            return Err(InvalidMessage);
+        }
         self.avid
             .verify_complaint(blame, accuser_id, &avid_cert.payload().vote, |payload| {
                 check_ciphertext_hash(payload, accuser_id, verified_common).is_ok()
