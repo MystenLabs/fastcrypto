@@ -781,6 +781,10 @@ impl Receiver {
             return Err(InvalidInput);
         }
         self.check_avid_cert_weight(avid_cert)?;
+        if avid_cert.payload().common_message_hash != verified_common.hash {
+            warn!("batch_avss handle_avid_complaint: AVID cert binds a different common message");
+            return Err(InvalidMessage);
+        }
         self.avid
             .verify_complaint(blame, accuser_id, &avid_cert.payload().vote, |payload| {
                 check_ciphertext_hash(payload, accuser_id, verified_common).is_ok()
