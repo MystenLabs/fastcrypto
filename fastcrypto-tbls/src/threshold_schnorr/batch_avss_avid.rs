@@ -76,11 +76,9 @@ pub struct Receiver {
 }
 
 /// An upper bound on the BCS-serialized size of an [AvssMessage] for this module. Nothing in this
-/// crate checks it: a caller that wants a wire-size limit must apply it itself when deserializing
-/// untrusted messages. The size of a message grows with the receiver's own weight and with the
-/// dealer's weight through the batch size, so the limit must be sized for the heaviest receiver
-/// and the largest batch size. A smaller limit excludes the heaviest parties, and since a starved
-/// receiver never sees a message, it has nothing to complain about.
+/// crate checks it: a caller enforcing it when deserializing untrusted messages must size it for
+/// the heaviest receiver at the largest batch size, since a starved receiver sees no message and
+/// so cannot complain.
 pub const AVSS_MESSAGE_MAX_SIZE: usize = 500_000; // 500 KB.
 
 /// The dealer's per-recipient first phase message.
