@@ -520,6 +520,10 @@ impl DkOutput {
     /// Called by the app level with AVSS outputs that represent at least t of the weight. The set of outputs is determined based on the order of the messages on the TOB channel.
     /// Panics if the given `DkOutput`s are not compatible (same weight, same indices, same number of commitments)
     /// Returns the combined output, including the joint verifying key
+    ///
+    /// The outputs are not verified again, so they must come from [Receiver::process_message] or
+    /// [Receiver::recover], with at most one per dealer. Returns an [InvalidInput] error if the same
+    /// output is given more than once.
     pub fn complete_dkg(
         t: u16,
         nodes: &Nodes<EG>,
@@ -533,6 +537,16 @@ impl DkOutput {
 
         // Sanity check: Outputs cannot be empty and all outputs must have the same weight.
         if outputs.is_empty() || !outputs.iter().map(|output| output.weight()).all_equal() {
+            return Err(InvalidInput);
+        }
+
+        // Reject duplicate outputs. Different dealings have different commitments with
+        // overwhelming probability.
+        if outputs
+            .iter()
+            .tuple_combinations()
+            .any(|(a, b)| a.feldman_commitment == b.feldman_commitment)
+        {
             return Err(InvalidInput);
         }
 
