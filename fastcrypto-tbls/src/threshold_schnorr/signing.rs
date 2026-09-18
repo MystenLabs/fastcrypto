@@ -46,17 +46,22 @@ pub fn generate_partial_signatures(
     }
 
     // If a derivation index is provided, derive a new verifying key (and implicitly also signing key) for this index.
-    let verifying_key = if let Some(address) = derivation_address {
-        derive_verifying_key_internal(verifying_key, address)?
+    // The derivation starts from the even-Y form of the verifying key, whose signing key is the
+    // negation of ours if the verifying key has odd Y.
+    let (verifying_key, negate_signing_key) = if let Some(address) = derivation_address {
+        (
+            derive_verifying_key_internal(verifying_key, address)?,
+            !verifying_key.has_even_y()?,
+        )
     } else {
-        *verifying_key
+        (*verifying_key, false)
     };
 
     // The verifying key must also have an even Y coordinate.
     // If this is not the case, we must negate the verifying key (and hence also the signing key).
     // Since the signing key shares are multiplied with the challenge, we just change the sign of the challenge instead.
     let mut h = bip0340_hash(&r_g, &verifying_key, message)?;
-    if !verifying_key.has_even_y()? {
+    if verifying_key.has_even_y()? == negate_signing_key {
         h = -h;
     }
 

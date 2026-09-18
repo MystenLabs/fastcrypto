@@ -8,6 +8,9 @@ use fastcrypto::groups::GroupElement;
 use fastcrypto::hmac::{hkdf_sha3_256, HkdfIkm};
 use fastcrypto::traits::ToFromBytes;
 
+/// Domain separation for the tweak computed by [compute_tweak].
+const DERIVATION_CONTEXT: &[u8] = b"threshold_schnorr_key_derivation";
+
 /// Compute a tweak from a verifying key and a derivation path.
 /// Returns an error if `vk` is the identity point, which has no x-coordinate.
 pub(crate) fn compute_tweak(vk: &G, address: &Address) -> FastCryptoResult<S> {
@@ -16,13 +19,19 @@ pub(crate) fn compute_tweak(vk: &G, address: &Address) -> FastCryptoResult<S> {
 
     // Derive 64 uniform bytes to reduce bias from modular reduction to the 32 byte scalar field.
     // This is conservative since the secp256k1 scalar field size is very close to 2^256.
-    // TODO: Consider adding a context string to the HKDF.
-    let bytes = hkdf_sha3_256(&HkdfIkm::from_bytes(&ikm).unwrap(), &[], &[], 64).unwrap();
+    let bytes = hkdf_sha3_256(
+        &HkdfIkm::from_bytes(&ikm).unwrap(),
+        &[],
+        DERIVATION_CONTEXT,
+        64,
+    )
+    .unwrap();
     Ok(S::from_bytes_mod_order(&bytes))
 }
 
 /// Derive a new verifying key from an existing one and a Sui address.
-/// This is computed as vk + [compute_tweak](vk, address) * G.
+/// This is computed as P + [compute_tweak](vk, address) * G, where P is `vk` or `-vk`, whichever
+/// has an even Y coordinate, so the result only depends on the BIP-0340 (x-only) form of `vk`.
 ///
 /// The derived key can have odd Y coordinate and hence not be a valid BIP-0340 Schnorr public key.
 /// However, the signing protocol ensures that the signature will be valid for the derived key
@@ -30,7 +39,8 @@ pub(crate) fn compute_tweak(vk: &G, address: &Address) -> FastCryptoResult<S> {
 ///
 /// Returns an error if `vk` is the identity point.
 pub(crate) fn derive_verifying_key_internal(vk: &G, address: &Address) -> FastCryptoResult<G> {
-    Ok(vk + G::generator() * compute_tweak(vk, address)?)
+    let even_vk = if vk.has_even_y()? { *vk } else { -*vk };
+    Ok(even_vk + G::generator() * compute_tweak(vk, address)?)
 }
 
 /// Derive a new verifying key from an existing one and a Sui address.
@@ -42,4 +52,24 @@ pub fn derive_verifying_key(vk: &G, address: &Address) -> FastCryptoResult<Schno
         SchnorrPublicKey::try_from(&derive_verifying_key_internal(vk, address)?)
             .expect("is never zero"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::derive_verifying_key;
+    use crate::threshold_schnorr::{G, S};
+    use fastcrypto::groups::{GroupElement, Scalar};
+    use fastcrypto::serde_helpers::ToFromByteArray;
+
+    #[test]
+    fn test_derivation_only_depends_on_x_coordinate() {
+        let vk = G::generator() * S::rand(&mut rand::thread_rng());
+        let address = [7u8; 32];
+        assert_eq!(
+            derive_verifying_key(&vk, &address).unwrap().to_byte_array(),
+            derive_verifying_key(&-vk, &address)
+                .unwrap()
+                .to_byte_array()
+        );
+    }
 }
