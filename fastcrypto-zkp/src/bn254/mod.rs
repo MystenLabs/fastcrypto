@@ -19,6 +19,8 @@ pub mod verifier;
 /// Poseidon hash function over BN254
 pub mod poseidon;
 
+mod sha256_transcripts;
+
 /// Zk login structs and utilities
 pub mod zk_login;
 
