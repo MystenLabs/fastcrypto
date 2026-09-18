@@ -456,7 +456,8 @@ impl Receiver {
     /// 5. Upon receiving enough verified responses to a complaint, the accuser can recover its shares.
     ///
     ///    Returns an error if the responses do not come from distinct parties or if their combined weight is
-    ///    below the threshold `t`.
+    ///    below the threshold `t`. The caller must only pass responses that were verified against
+    ///    `message`.
     pub fn recover(
         &self,
         message: &Message,
@@ -476,13 +477,14 @@ impl Receiver {
         let valid_shares = responses.into_iter().map(|r| r.shares).collect_vec();
         let my_shares = SharesForNode::recover(self.my_indices(), self.params.t, &valid_shares)?;
 
-        // The recovered shares are interpolated from already-verified shares, so this should never
-        // fail; if it does, something is seriously wrong.
+        // Interpolating shares that were verified against this message yields valid shares, so
+        // this final verification is defense-in-depth. A failure means the responses were not all
+        // verified against this message.
         my_shares
             .verify(message, &self.my_indices(), self.id)
             .tap_err(|e| {
                 warn!(
-                    "AVSS recover: recovered shares failed verification, this should never happen: {e:?}"
+                    "AVSS recover: recovered shares failed verification, so the responses were not all verified against this message: {e:?}"
                 );
             })?;
 

@@ -854,7 +854,8 @@ impl Receiver {
         })
     }
 
-    /// 9b. Recover the accuser's own shares from a quorum of [VerifiedComplaintResponse]s.
+    /// 9b. Recover the accuser's own shares from a quorum of [VerifiedComplaintResponse]s. The
+    ///     caller must only pass responses that were verified against `verified_common`.
     pub fn recover(
         &self,
         verified_common: &VerifiedAvssCommonMessage,
@@ -888,14 +889,15 @@ impl Receiver {
 
         let my_shares = SharesForNode::recover(self, &response_shares)?;
 
-        // Each response was already checked by verify_complaint_response, and interpolating valid
-        // shares yields valid shares, so this final verification is defense-in-depth and should be
-        // unreachable as a failure. Warn loudly if it ever does fail, since that signals a logic
-        // error rather than a malicious input.
+        // Each response's ciphertext is pinned by hash in the common message, so its shares are the
+        // dealer's and cannot be altered by the responder. Interpolating shares that were verified
+        // against this common message yields valid shares, so this final verification is
+        // defense-in-depth. A failure means the responses were not all verified against this
+        // common message.
         my_shares
             .verify(verified_common, &self.my_indices(), self.batch_size)
             .tap_err(|e| {
-                warn!("batch_avss recover: recovered shares failed final verification, which should be unreachable with verified responses: {e:?}")
+                warn!("batch_avss recover: recovered shares failed final verification, so the responses were not all verified against this common message: {e:?}")
             })?;
 
         Ok(ReceiverOutput {
