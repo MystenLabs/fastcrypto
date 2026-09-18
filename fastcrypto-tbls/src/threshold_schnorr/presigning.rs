@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::threshold_schnorr::batch_avss::ReceiverOutput;
+use crate::threshold_schnorr::batch_avss_avid::ReceiverOutput;
 use crate::threshold_schnorr::pascal_matrix::LazyPascalMatrixMultiplier;
 use crate::threshold_schnorr::{Parameters, G, S};
 use crate::types::get_uniform_value;
@@ -74,7 +74,6 @@ impl Presignatures {
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,
         params: Parameters,
-        use_legacy: bool,
     ) -> FastCryptoResult<Self> {
         if batch_size_per_weight == 0 {
             return Err(InvalidInput);
@@ -108,12 +107,7 @@ impl Presignatures {
             return Err(InvalidInput);
         }
 
-        // TODO: remove legacy mode once the old protocol is deprecated.
-        let height = if use_legacy {
-            total_weight_of_outputs - params.f as usize
-        } else {
-            total_weight_of_outputs - (params.t as usize - 1)
-        };
+        let height = total_weight_of_outputs - (params.t as usize - 1);
 
         // This party's weight, aka its number of shares
         let my_weight =
@@ -176,9 +170,8 @@ impl Presignatures {
 #[cfg(test)]
 mod tests {
     use super::Presignatures;
-    use crate::threshold_schnorr::batch_avss::{ReceiverOutput, ShareBatch, SharesForNode};
+    use crate::threshold_schnorr::batch_avss_avid::{ReceiverOutput, ShareBatch, SharesForNode};
     use crate::threshold_schnorr::{Parameters, G, S};
-    use crate::types::ShareIndex;
     use fastcrypto::groups::GroupElement;
 
     #[test]
@@ -195,8 +188,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let presignatures =
-            Presignatures::new(outputs, batch_size_per_weight, params, false).unwrap();
+        let presignatures = Presignatures::new(outputs, batch_size_per_weight, params).unwrap();
 
         let total_weight_of_outputs = 2;
         let expected_len =
@@ -210,10 +202,9 @@ mod tests {
 
     #[test]
     fn test_presig_count_uses_privacy_threshold_not_f() {
-        // Regression test for the SI-matrix height: in the default (non-legacy) mode it must be
-        // `total_weight - (t - 1)`, the privacy threshold of the degree-`(t-1)` nonce sharings,
-        // NOT `total_weight - f`. The two differ exactly when `t > f + 1`, so pick such a case:
-        // t = 3, f = 1 (t - 1 = 2 != f = 1). The legacy mode still uses `total_weight - f`.
+        // Regression test for the SI-matrix height: it must be `total_weight - (t - 1)`, the
+        // privacy threshold of the degree-`(t-1)` nonce sharings, NOT `total_weight - f`. The two
+        // differ exactly when `t > f + 1`, so pick such a case: t = 3, f = 1 (t - 1 = 2 != f = 1).
         let batch_size_per_weight: u16 = 2;
         let params = Parameters { t: 3, f: 1 };
 
@@ -225,22 +216,13 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        // Default mode (privacy threshold t-1): (4 - (3 - 1)) * 2 = 4.
-        let new =
-            Presignatures::new(outputs.clone(), batch_size_per_weight, params, false).unwrap();
+        // Privacy threshold t-1: (4 - (3 - 1)) * 2 = 4.
+        let presignatures = Presignatures::new(outputs, batch_size_per_weight, params).unwrap();
         assert_eq!(
-            new.len(),
+            presignatures.len(),
             (4 - (params.t as usize - 1)) * batch_size_per_weight as usize
         );
-        assert_eq!(new.len(), 4);
-
-        // Legacy mode (total_weight - f): (4 - 1) * 2 = 6.
-        let legacy = Presignatures::new(outputs, batch_size_per_weight, params, true).unwrap();
-        assert_eq!(
-            legacy.len(),
-            (4 - params.f as usize) * batch_size_per_weight as usize
-        );
-        assert_eq!(legacy.len(), 6);
+        assert_eq!(presignatures.len(), 4);
     }
 
     #[test]
@@ -255,7 +237,6 @@ mod tests {
             .map(|i| ReceiverOutput {
                 my_shares: SharesForNode {
                     shares: vec![ShareBatch {
-                        index: ShareIndex::new(1).unwrap(),
                         batch: vec![S::generator()], // length 1 < expected 2
                         blinding_share: S::generator(),
                     }],
@@ -264,6 +245,6 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert!(Presignatures::new(outputs, batch_size_per_weight, params, false).is_err());
+        assert!(Presignatures::new(outputs, batch_size_per_weight, params).is_err());
     }
 }
