@@ -42,6 +42,10 @@ impl Presignatures {
     /// Based on the output of a batched AVSS from multiple dealers, create a presignature
     /// generator.
     ///
+    /// The generator always starts at the first tuple and stores no position, so the caller must
+    /// keep track of which tuples have been used in state that survives restarts, and resume with
+    /// e.g. `nth`.
+    ///
     /// All parties must use the same outputs in the same order, and the output from a dealer with
     /// weight `w` should be equal to `batch_size_per_weight * w`. The outputs must come from
     /// distinct dealers, with at most one output per dealer.
