@@ -75,8 +75,12 @@ pub struct Receiver {
     avid: avid::Avid,
 }
 
-/// An upper bound on the BCS-serialized size of an [AvssMessage], to be enforced when
-/// deserializing untrusted messages.
+/// An upper bound on the BCS-serialized size of an [AvssMessage] for this module. Nothing in this
+/// crate checks it: a caller that wants a wire-size limit must apply it itself when deserializing
+/// untrusted messages. The size of a message grows with the receiver's own weight and with the
+/// dealer's weight through the batch size, so the limit must be sized for the heaviest receiver
+/// and the largest batch size. A smaller limit excludes the heaviest parties, and since a starved
+/// receiver never sees a message, it has nothing to complain about.
 pub const AVSS_MESSAGE_MAX_SIZE: usize = 500_000; // 500 KB.
 
 /// The dealer's per-recipient first phase message.
@@ -129,8 +133,8 @@ pub struct AvidMessageBuilder<C: Certificate<Payload = AvssVote>> {
     avss_cert: C,
 }
 
-/// An upper bound on the BCS-serialized size of an [AvidMessage] (excluding the cert `C`), to be
-/// enforced when deserializing untrusted messages.
+/// An upper bound on the BCS-serialized size of an [AvidMessage] for this module (excluding the
+/// cert `C`), with the same caveats as [AVSS_MESSAGE_MAX_SIZE].
 pub const AVID_MESSAGE_MAX_SIZE: usize = 500_000; // 500 KB, plus the cert.
 
 /// The dealer's per-receiver second phase message.
