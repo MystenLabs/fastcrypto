@@ -24,6 +24,7 @@ use fastcrypto::error::FastCryptoError::{
 };
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::serde_helpers::ToFromByteArray;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -542,10 +543,10 @@ impl DkOutput {
 
         // Reject duplicate outputs. Different dealings have different commitments with
         // overwhelming probability.
-        if outputs
+        if !outputs
             .iter()
-            .tuple_combinations()
-            .any(|(a, b)| a.feldman_commitment == b.feldman_commitment)
+            .map(|o| o.feldman_commitment.c0().to_byte_array())
+            .all_unique()
         {
             return Err(InvalidInput);
         }
