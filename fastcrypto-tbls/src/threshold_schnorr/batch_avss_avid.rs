@@ -10,7 +10,8 @@
 //! Nothing here bounds the size of a message, so a caller should reject an untrusted message that
 //! is larger than its own deployment admits before deserializing it. A message grows with the
 //! receiver's own weight and with the batch size, and a receiver whose message is rejected sees no
-//! message and so cannot complain.
+//! message and so cannot complain. Note that a deserialized message can take up to about 30 times
+//! its serialized size in memory.
 //!
 //! In the first phase, the dealer sends an [AvssMessage] to each recipient. Receivers decrypt the
 //! ciphertext, verify the shares and vote on the message.
