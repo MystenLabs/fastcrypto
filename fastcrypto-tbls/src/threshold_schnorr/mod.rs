@@ -175,9 +175,7 @@ mod tests {
     use itertools::Itertools;
     use std::collections::HashMap;
     use std::hash::Hash;
-    /// A happy-path smoke test of all the protocols, not a reference for integrating them: the
-    /// obligations on the caller are documented on the functions themselves. The presignatures are
-    /// reused after the key rotation only because the committee is unchanged.
+    /// A happy-path smoke test, not a reference for integrating the protocols.
     #[test]
     fn test_e2e() {
         // No complaints, all honest
