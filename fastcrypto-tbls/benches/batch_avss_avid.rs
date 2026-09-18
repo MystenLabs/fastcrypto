@@ -5,7 +5,6 @@ use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::ristretto255;
 use fastcrypto_tbls::ecies_v1;
 use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
-use fastcrypto_tbls::threshold_schnorr::batch_avss as batch_avss_orig;
 use fastcrypto_tbls::threshold_schnorr::batch_avss_avid as batch_avss;
 use fastcrypto_tbls::threshold_schnorr::Parameters;
 use itertools::iproduct;
@@ -435,20 +434,15 @@ mod batch_avss_benches {
                                     .unwrap()
                             })
                             .collect();
-                        let output = match receivers[1]
+                        match receivers[1]
                             .decode_and_decrypt(&echoes_for_party_1, &vcm1, &mut thread_rng())
                             .unwrap()
                         {
                             batch_avss::DecodeAndDecryptOutcome::Valid(output) => output,
                             _ => panic!("expected Valid outcome"),
-                        };
-                        // presigning consumes the legacy `batch_avss` output types; convert here
-                        // while `receivers[1]` is still in scope to derive the share indices.
-                        output.into_legacy(&receivers[1].my_indices())
+                        }
                     })
                     .collect_vec();
-
-                let outputs: Vec<batch_avss_orig::ReceiverOutput> = outputs;
 
                 complete.bench_function(
                     format!("create/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
@@ -458,7 +452,6 @@ mod batch_avss_benches {
                                 outputs.clone(),
                                 batch_size_per_weight,
                                 Parameters { t, f },
-                                false,
                             )
                             .unwrap()
                         })
@@ -472,7 +465,6 @@ mod batch_avss_benches {
                             outputs.clone(),
                             batch_size_per_weight,
                             Parameters { t, f },
-                            false,
                         )
                         .unwrap()
                     })

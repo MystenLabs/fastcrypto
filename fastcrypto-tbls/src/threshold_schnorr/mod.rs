@@ -9,9 +9,8 @@
 //! 1. A Distributed Key Generation (DKG) protocol to generate a shared signing key without a
 //!    trusted dealer. The protocol also allows resharing of a share from a previous DKG, allowing
 //!    for key rotation. This is implemented in the [avss] module.
-//! 2. A protocol to generate a batch of secret shared nonces for signing. The AVID-based
-//!    implementation used by the rest of this module lives in [batch_avss_avid]; the original
-//!    (pre-AVID) implementation is kept in [batch_avss].
+//! 2. A protocol to generate a batch of secret shared nonces for signing. This is implemented in
+//!    the [batch_avss_avid] module.
 //! 3. A presigning protocol to create presigning tuples from the secret shared nonces. This is
 //!    implemented in the [presigning] module. The presigning tuples can be created in advance of
 //!    knowing the message to be signed, and one tuple is consumed for each signature.
@@ -49,10 +48,8 @@ use std::fmt::{Display, Formatter};
 
 mod avid;
 pub mod avss;
-pub mod batch_avss;
 pub mod batch_avss_avid;
 mod bcs;
-pub mod complaint;
 pub mod key_derivation;
 mod merkle;
 mod pascal_matrix;
@@ -167,7 +164,7 @@ mod tests {
     use crate::threshold_schnorr::key_derivation::derive_verifying_key;
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
-    use crate::threshold_schnorr::{avss, batch_avss_avid as batch_avss, Parameters, EG, G, S};
+    use crate::threshold_schnorr::{avss, batch_avss_avid, Parameters, EG, G, S};
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
@@ -288,7 +285,8 @@ mod tests {
         //
 
         // Generate a batch of nonces for each party's share
-        let mut presigning_outputs = HashMap::<PartyId, Vec<batch_avss::ReceiverOutput>>::new();
+        let mut presigning_outputs =
+            HashMap::<PartyId, Vec<batch_avss_avid::ReceiverOutput>>::new();
         nodes.node_ids_iter().for_each(|id| {
             presigning_outputs.insert(id, Vec::new());
         });
@@ -297,7 +295,7 @@ mod tests {
         for dealer_id in nodes.node_ids_iter() {
             let sid = format!("presig-test-session-{}", dealer_id).into_bytes();
             let params = Parameters { t, f };
-            let dealer: batch_avss::Dealer = batch_avss::Dealer::new(
+            let dealer: batch_avss_avid::Dealer = batch_avss_avid::Dealer::new(
                 nodes.clone(),
                 dealer_id,
                 params,
@@ -309,7 +307,7 @@ mod tests {
                 .iter()
                 .enumerate()
                 .map(|(id, enc_secret_key)| {
-                    batch_avss::Receiver::new(
+                    batch_avss_avid::Receiver::new(
                         nodes.clone(),
                         id as u16,
                         dealer_id,
@@ -336,21 +334,10 @@ mod tests {
         let mut presigs = presigning_outputs
             .into_iter()
             .map(|(id, outputs)| {
-                // Convert the AVID-based outputs into the original batch_avss types that
-                // presigning consumes; stamp each share with its share index from `share_ids_of`.
-                let indices = nodes.share_ids_of(id).unwrap();
                 (
                     id,
-                    Presignatures::new(
-                        outputs
-                            .into_iter()
-                            .map(|o| o.into_legacy(&indices))
-                            .collect(),
-                        batch_size_per_weight,
-                        Parameters { t, f },
-                        false,
-                    )
-                    .unwrap(),
+                    Presignatures::new(outputs, batch_size_per_weight, Parameters { t, f })
+                        .unwrap(),
                 )
             })
             .collect::<HashMap<_, _>>();
@@ -657,7 +644,7 @@ mod tests {
             .map(|i| {
                 (0..n)
                     .map(|j| {
-                        batch_avss::ReceiverOutput {
+                        batch_avss_avid::ReceiverOutput {
                             my_shares: SharesForNode {
                                 shares: vec![ShareBatch {
                                     batch: (0..batch_size_per_weight as usize)
@@ -675,19 +662,8 @@ mod tests {
 
         let mut presigning = outputs
             .into_iter()
-            .enumerate()
-            .map(|(i, output)| {
-                let indices = [ShareIndex::new(i as u16 + 1).unwrap()];
-                Presignatures::new(
-                    output
-                        .into_iter()
-                        .map(|o| o.into_legacy(&indices))
-                        .collect(),
-                    batch_size_per_weight,
-                    Parameters { t, f },
-                    false,
-                )
-                .unwrap()
+            .map(|output| {
+                Presignatures::new(output, batch_size_per_weight, Parameters { t, f }).unwrap()
             })
             .collect_vec();
 
@@ -794,7 +770,7 @@ mod tests {
             .map(|i| {
                 (0..n as usize)
                     .map(|j| {
-                        batch_avss::ReceiverOutput {
+                        batch_avss_avid::ReceiverOutput {
                             my_shares: SharesForNode {
                                 shares: vec![ShareBatch {
                                     batch: (0..batch_size_per_weight as usize)
@@ -812,19 +788,8 @@ mod tests {
 
         let mut presigning = outputs
             .into_iter()
-            .enumerate()
-            .map(|(i, output)| {
-                let indices = [ShareIndex::new(i as u16 + 1).unwrap()];
-                Presignatures::new(
-                    output
-                        .into_iter()
-                        .map(|o| o.into_legacy(&indices))
-                        .collect(),
-                    batch_size_per_weight,
-                    Parameters { t, f },
-                    false,
-                )
-                .unwrap()
+            .map(|output| {
+                Presignatures::new(output, batch_size_per_weight, Parameters { t, f }).unwrap()
             })
             .collect_vec();
 
