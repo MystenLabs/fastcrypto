@@ -164,10 +164,14 @@ mod tests {
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::{Eval, Poly};
     use crate::threshold_schnorr::batch_avss_avid::{ShareBatch, SharesForNode};
-    use crate::threshold_schnorr::key_derivation::derive_verifying_key;
+    use crate::threshold_schnorr::key_derivation::{
+        derive_verifying_key, derive_verifying_key_internal,
+    };
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
-    use crate::threshold_schnorr::{avss, batch_avss_avid as batch_avss, Parameters, EG, G, S};
+    use crate::threshold_schnorr::{
+        avss, batch_avss_avid as batch_avss, Address, Parameters, EG, G, S,
+    };
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
@@ -745,6 +749,84 @@ mod tests {
             .unwrap()
             .verify(message, &signature)
             .unwrap();
+    }
+
+    /// Sign with every combination of the Y parities of the verifying key, the nonce R and the
+    /// derived verifying key, since each selects a different branch in the BIP-0340 adjustments.
+    #[test]
+    fn test_signing_all_parities() {
+        let (t, n) = (3u16, 5u16);
+        let message = b"parity";
+        let mut rng = rand::thread_rng();
+        let has_even_y = |p: &G| p.has_even_y().unwrap();
+
+        for vk_even in [true, false] {
+            let sk = loop {
+                let sk = S::rand(&mut rng);
+                if has_even_y(&(G::generator() * sk)) == vk_even {
+                    break sk;
+                }
+            };
+            let vk = G::generator() * sk;
+            let sk_shares = mock_shares(&mut rng, sk, t, n);
+
+            // No derivation, and addresses whose derived verifying keys have even and odd Y.
+            let address_with = |derived_even: bool| -> Address {
+                (0u8..=255)
+                    .map(|i| [i; 32])
+                    .find(|a| {
+                        has_even_y(&derive_verifying_key_internal(&vk, a).unwrap()) == derived_even
+                    })
+                    .unwrap()
+            };
+            for address in [None, Some(address_with(true)), Some(address_with(false))] {
+                for nonce_even in [true, false] {
+                    let presig = S::rand(&mut rng);
+                    let public_presig = G::generator() * presig;
+                    let presig_shares = mock_shares(&mut rng, presig, t, n);
+                    let beacon = loop {
+                        let beacon = S::rand(&mut rng);
+                        if has_even_y(&(public_presig + G::generator() * beacon)) == nonce_even {
+                            break beacon;
+                        }
+                    };
+
+                    let partial_signatures = (0..n as usize)
+                        .flat_map(|i| {
+                            generate_partial_signatures(
+                                message,
+                                (vec![presig_shares[i].value], public_presig),
+                                &beacon,
+                                &avss::SharesForNode {
+                                    shares: vec![sk_shares[i].clone()],
+                                },
+                                &vk,
+                                address.as_ref(),
+                            )
+                            .unwrap()
+                            .1
+                        })
+                        .collect_vec();
+                    let signature = aggregate_signatures(
+                        message,
+                        &public_presig,
+                        &beacon,
+                        &partial_signatures,
+                        t,
+                        &vk,
+                        address.as_ref(),
+                    )
+                    .unwrap();
+
+                    match address {
+                        Some(address) => derive_verifying_key(&vk, &address).unwrap(),
+                        None => SchnorrPublicKey::try_from(&vk).unwrap(),
+                    }
+                    .verify(message, &signature)
+                    .unwrap();
+                }
+            }
+        }
     }
 
     fn mock_shares(rng: &mut impl AllowedRng, secret: S, t: u16, n: u16) -> Vec<Eval<S>> {
