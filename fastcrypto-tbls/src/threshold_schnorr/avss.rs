@@ -49,7 +49,7 @@ pub struct Receiver {
 
 /// An upper bound on the BCS-serialized size of a [Message] for this module. Nothing in this crate
 /// checks it: a caller enforcing it when deserializing untrusted messages must size it for the
-/// heaviest party, whose message is the largest.
+/// total weight of the committee, which is what a message's size grows with.
 pub const AVSS_MESSAGE_MAX_SIZE: usize = 250_000; // 250 KB. A total weight of 2500 measures ~170 KB.
 
 /// The message broadcast by the dealer, containing the encrypted shares and the public keys of the nonces.
