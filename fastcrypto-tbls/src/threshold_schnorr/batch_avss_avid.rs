@@ -394,7 +394,9 @@ impl Dealer {
     ///    This phase is only needed if any receiver failed to confirm in the first phase.
     ///    If every receiver confirmed, the second phase can be skipped entirely.
     ///
-    ///    The caller should persist the returned [AvidMessageBuilder] before sending any messages.
+    ///    The [AvidMessageBuilder] cannot be persisted, so to survive a crash the caller should
+    ///    persist the AVSS certificate and rebuild the builder from it and the persisted
+    ///    [AvssMessageBuilder].
     pub fn create_avid_messages<C: Certificate<Payload = AvssVote>>(
         &self,
         avss_message_builder: &AvssMessageBuilder,
@@ -521,8 +523,9 @@ impl Receiver {
     ///    On any failure the receiver silently ignores the message and falls through to the second
     ///    phase.
     ///
-    ///    A voter should persist the returned outputs before sending its [AvssVote], and must vote
-    ///    for at most one common message per dealer per session.
+    ///    The returned outputs cannot be persisted, so a voter should persist the [AvssMessage]
+    ///    before sending its [AvssVote] and process it again after a crash. It must vote for at
+    ///    most one common message per dealer per session.
     pub fn process_avss_message(
         &self,
         message: &AvssMessage,
@@ -559,8 +562,9 @@ impl Receiver {
     ///    wait for a published [Certificate] over [AvidVote]s, and then get the [AvssCommonMessage]
     ///    and [Echo]es from the signers (see below).
     ///
-    ///    The caller should persist the outputs before sending its [AvidVote], and must vote for
-    ///    at most one dispersal per dealer per session.
+    ///    The returned outputs cannot be persisted, so the caller should persist the [AvidMessage]
+    ///    before sending its [AvidVote] and process it again after a crash. It must vote for at
+    ///    most one dispersal per dealer per session.
     pub fn process_avid_message<C: Certificate<Payload = AvssVote>>(
         &self,
         verified_avss_common_message: &VerifiedAvssCommonMessage,
