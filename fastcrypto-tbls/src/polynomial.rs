@@ -213,7 +213,7 @@ impl<C: GroupElement> Poly<C> {
 
     /// Expects exactly t unique indices.
     /// Returns an error if x is one of the indices.
-    fn get_lagrange_coefficients_for(
+    pub(crate) fn get_lagrange_coefficients_for(
         x: u128,
         t: u16,
         indices: impl Iterator<Item = impl Borrow<ShareIndex>>,

@@ -1130,57 +1130,61 @@ impl SharesForNode {
         Ok(())
     }
 
-    /// Recover the shares for this node. Fails if `other_shares` is empty.
+    /// Recover the shares for this node from the shares of other nodes. Fails if they hold fewer
+    /// than `t` shares.
     fn recover(
         receiver: &Receiver,
         other_shares: &[(PartyId, SharesForNode)],
     ) -> FastCryptoResult<Self> {
-        if other_shares.is_empty() {
+        let t = receiver.params.t;
+
+        // The first t shares across the responders, paired with their share indices. The same
+        // points are used for every secret in the batch and for the blinding share.
+        let points: Vec<(ShareIndex, &ShareBatch)> = other_shares
+            .iter()
+            .map(|(id, s)| {
+                Ok(receiver
+                    .nodes
+                    .share_ids_of(*id)?
+                    .into_iter()
+                    .zip_eq(&s.shares))
+            })
+            .collect::<FastCryptoResult<Vec<_>>>()?
+            .into_iter()
+            .flatten()
+            .take(t as usize)
+            .collect();
+        if points.len() != t as usize
+            || points
+                .iter()
+                .any(|(_, b)| b.batch.len() != receiver.batch_size)
+        {
             return Err(InvalidInput);
         }
-
-        // Pre-compute each responder's share indices once.
-        let responders: Vec<(Vec<ShareIndex>, &SharesForNode)> = other_shares
-            .iter()
-            .map(|(id, s)| Ok((receiver.nodes.share_ids_of(*id)?, s)))
-            .collect::<FastCryptoResult<_>>()?;
 
         let shares = receiver
             .my_indices()
             .into_iter()
             .map(|index| {
-                let batch = (0..receiver.batch_size)
-                    .map(|i| {
-                        let evaluations = responders
+                // The points are other nodes' shares, so they never include this node's own index.
+                let (numerator, coefficients) = Poly::<S>::get_lagrange_coefficients_for(
+                    index.get() as u128,
+                    t,
+                    points.iter().map(|(i, _)| *i),
+                )?;
+                let interpolate = |value: &dyn Fn(&ShareBatch) -> S| {
+                    S::sum(
+                        coefficients
                             .iter()
-                            .map(|(ids, s)| s.shares_for_secret(ids, i))
-                            .collect::<FastCryptoResult<Vec<_>>>()?
-                            .into_iter()
-                            .flatten()
-                            .take(receiver.params.t as usize)
-                            .collect_vec();
-                        Ok(Poly::recover_at(receiver.params.t, index, &evaluations)?.value)
-                    })
-                    .collect::<FastCryptoResult<Vec<_>>>()?;
-
-                let blinding_share = Poly::recover_at(
-                    receiver.params.t,
-                    index,
-                    &responders
-                        .iter()
-                        .flat_map(|(ids, s)| ids.iter().copied().zip(s.shares.iter()))
-                        .map(|(index, share)| Eval {
-                            index,
-                            value: share.blinding_share,
-                        })
-                        .take(receiver.params.t as usize)
-                        .collect_vec(),
-                )?
-                .value;
-
+                            .zip(&points)
+                            .map(|(c, (_, b))| value(b) * c),
+                    ) * numerator
+                };
                 Ok(ShareBatch {
-                    batch,
-                    blinding_share,
+                    batch: (0..receiver.batch_size)
+                        .map(|i| interpolate(&|b| b.batch[i]))
+                        .collect(),
+                    blinding_share: interpolate(&|b| b.blinding_share),
                 })
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
