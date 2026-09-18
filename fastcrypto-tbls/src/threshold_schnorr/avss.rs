@@ -47,11 +47,6 @@ pub struct Receiver {
     commitment: Option<G>, // Commitment to the secret being shared if any (used for key rotation).
 }
 
-/// An upper bound on the BCS-serialized size of a [Message] for this module. Nothing in this crate
-/// checks it, so the caller should check that an untrusted message is not larger than this before
-/// deserializing it.
-pub const AVSS_MESSAGE_MAX_SIZE: usize = 250_000; // 250 KB. A total weight of 2500 measures ~170 KB.
-
 /// The message broadcast by the dealer, containing the encrypted shares and the public keys of the nonces.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
@@ -736,10 +731,11 @@ mod tests {
             Dealer::new(None, nodes, params, b"size-limit-test".to_vec(), &mut rng).unwrap();
         let message = dealer.create_message(&mut rng);
         let size = bcs::to_bytes(&message).unwrap().len();
+        // A total weight of 2500 measures ~170 KB.
+        const MAX_SIZE: usize = 250_000;
         assert!(
-            size <= super::AVSS_MESSAGE_MAX_SIZE,
-            "AVSS message size {size} exceeds limit {}",
-            super::AVSS_MESSAGE_MAX_SIZE
+            size <= MAX_SIZE,
+            "AVSS message size {size} exceeds limit {MAX_SIZE}"
         );
     }
 

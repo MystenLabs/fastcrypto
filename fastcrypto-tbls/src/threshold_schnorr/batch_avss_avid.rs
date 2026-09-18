@@ -7,6 +7,11 @@
 //! weight `W` under a threshold `t`. The numbered steps below, starting at
 //! [Dealer::create_avss_messages], walk through the protocol.
 //!
+//! Nothing here bounds the size of a message, so a caller should reject an untrusted message that
+//! is larger than its own deployment admits before deserializing it. A message grows with the
+//! receiver's own weight and with the batch size, and a receiver whose message is rejected sees no
+//! message and so cannot complain.
+//!
 //! In the first phase, the dealer sends an [AvssMessage] to each recipient. Receivers decrypt the
 //! ciphertext, verify the shares and vote on the message.
 //! The dealer collects the votes and forms a certificate.
@@ -75,12 +80,6 @@ pub struct Receiver {
     avid: avid::Avid,
 }
 
-/// An upper bound on the BCS-serialized size of an [AvssMessage] for this module. Nothing in this
-/// crate checks it, so the caller should check that an untrusted message is not larger than this
-/// before deserializing it. Note that the size of a message grows with the receiver's own weight
-/// and with the batch size, and that a receiver whose message is rejected cannot complain.
-pub const AVSS_MESSAGE_MAX_SIZE: usize = 500_000; // 500 KB.
-
 /// The dealer's per-recipient first phase message.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AvssMessage {
@@ -130,10 +129,6 @@ pub struct AvidMessageBuilder<C: Certificate<Payload = AvssVote>> {
     inner: avid::DispersalBuilder,
     avss_cert: C,
 }
-
-/// An upper bound on the BCS-serialized size of an [AvidMessage] for this module (excluding the
-/// cert `C`), with the same caveats as [AVSS_MESSAGE_MAX_SIZE].
-pub const AVID_MESSAGE_MAX_SIZE: usize = 500_000; // 500 KB, plus the cert.
 
 /// The dealer's per-receiver second phase message.
 #[derive(Clone, Debug, Serialize, Deserialize)]
