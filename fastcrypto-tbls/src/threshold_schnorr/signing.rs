@@ -96,23 +96,18 @@ pub fn generate_partial_signatures(
 /// [derive_verifying_key]), and the signature is adjusted accordingly.
 /// The signature will be valid for the derived verifying key.
 ///
-/// Returns the signature along with the share indices of the partial signatures that were faulty,
-/// which is empty unless error correction was needed.
-///
-/// The first `threshold` partial signatures are interpolated, and if the resulting signature does
-/// not verify, all the given partial signatures are decoded as a Reed-Solomon code word to correct
-/// the faulty ones. Correcting `e` faults requires `threshold + 2e` partial signatures, so the
-/// caller should provide as many as possible.
+/// If the signature does not verify, the partial signatures are decoded as a Reed-Solomon code word
+/// to correct the faulty ones, whose share indices are returned along with the signature.
+/// Correcting `e` faults requires `threshold + 2e` partial signatures.
 ///
 /// The partial signatures must be received over an authenticated channel, and the caller must
 /// reject any whose share index the sender does not hold.
 ///
 /// Returns an `InputTooShort` error if not enough partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
-/// `InvalidSignature` is returned if the aggregated signature does not verify and there are too
-/// many faulty partial signatures to correct. The caller should then retry with more partial
-/// signatures for the same presigning tuple, message and beacon value. Signing twice with the same
-/// tuple discloses the signing key.
+/// `InvalidSignature` is returned if there are too many faulty partial signatures to correct. The
+/// caller should then retry with more partial signatures for the same presigning tuple, message and
+/// beacon value, since signing twice with the same tuple discloses the signing key.
 /// `InvalidInput` is returned if the provided verifying key is the identity element.
 pub fn aggregate_signatures(
     message: &[u8],
@@ -169,7 +164,7 @@ fn correct_and_aggregate_signatures(
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(SchnorrSignature, Vec<ShareIndex>)> {
-    let decoder = RSDecoder::try_new(
+    let decoder = RSDecoder::new(
         partial_signatures.iter().map(|s| s.index).collect(),
         threshold as usize,
     )
