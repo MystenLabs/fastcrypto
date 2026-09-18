@@ -392,7 +392,8 @@ impl Dealer {
     ///    complement of `avss_cert.signers()` within the node set.
     ///
     ///    This phase is only needed if any receiver failed to confirm in the first phase.
-    ///    If every receiver confirmed, the second phase can be skipped entirely.
+    ///    If every receiver confirmed, the second phase should be skipped entirely, and this returns
+    ///    an [InvalidInput] error.
     ///
     ///    The caller should persist the returned [AvidMessageBuilder] before sending any messages.
     pub fn create_avid_messages<C: Certificate<Payload = AvssVote>>(
@@ -430,8 +431,8 @@ impl Dealer {
 
     /// Validate the AVSS certificate against the builder's common message, derive the pending
     /// recipients (non-signers, capped at `f` weight), and collect their ciphertexts as the AVID
-    /// payloads. Returns [InvalidInput] if the cert binds a different common message or the pending
-    /// weight exceeds `f`.
+    /// payloads. Returns [InvalidInput] if the cert binds a different common message, or if there
+    /// are no pending recipients or their weight exceeds `f`.
     fn prepare_avid_payloads<C: Certificate<Payload = AvssVote>>(
         &self,
         avss_message_builder: &AvssMessageBuilder,
@@ -446,6 +447,10 @@ impl Dealer {
             .node_ids_iter()
             .filter(|id| !avss_cert.signers().contains(id))
             .collect();
+        if pending_recipients.is_empty() {
+            warn!("batch_avss prepare_avid_payloads: no pending recipients");
+            return Err(InvalidInput);
+        }
         if self.nodes.total_weight_of(pending_recipients.iter())? > self.params.f {
             warn!("batch_avss prepare_avid_payloads: too many pending recipients");
             return Err(InvalidInput);
