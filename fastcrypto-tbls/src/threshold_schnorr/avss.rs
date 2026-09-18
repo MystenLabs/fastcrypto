@@ -92,7 +92,6 @@ pub struct ComplaintResponse {
 pub struct VerifiedComplaintResponse {
     responder_id: PartyId,
     shares: SharesForNode,
-    feldman_commitment: Poly<G>,
 }
 
 /// The output of a receiver after a single instance of AVSS: The shares for each nonce + commitments for the next round.
@@ -451,28 +450,20 @@ impl Receiver {
         Ok(VerifiedComplaintResponse {
             responder_id,
             shares: response.shares,
-            feldman_commitment: message.feldman_commitment.clone(),
         })
     }
 
     /// 5. Upon receiving enough verified responses to a complaint, the accuser can recover its shares.
     ///
     ///    Returns an error if the responses do not come from distinct parties or if their combined weight is
-    ///    below the threshold `t`.
+    ///    below the threshold `t`. The caller must only pass responses that were verified against
+    ///    `message`.
     pub fn recover(
         &self,
         message: &Message,
         responses: Vec<VerifiedComplaintResponse>,
     ) -> FastCryptoResult<AvssOutput> {
         if !responses.iter().map(|r| r.responder_id).all_unique() {
-            return Err(InvalidInput);
-        }
-
-        // All responses must have been verified against the given dealing.
-        if responses
-            .iter()
-            .any(|r| r.feldman_commitment != message.feldman_commitment)
-        {
             return Err(InvalidInput);
         }
 
@@ -486,13 +477,14 @@ impl Receiver {
         let valid_shares = responses.into_iter().map(|r| r.shares).collect_vec();
         let my_shares = SharesForNode::recover(self.my_indices(), self.params.t, &valid_shares)?;
 
-        // The recovered shares are interpolated from shares already verified against this message,
-        // so this should never fail; if it does, something is seriously wrong.
+        // Interpolating shares that were verified against this message yields valid shares, so
+        // this final verification is defense-in-depth. A failure means the responses were not all
+        // verified against this message.
         my_shares
             .verify(message, &self.my_indices(), self.id)
             .tap_err(|e| {
                 warn!(
-                    "AVSS recover: recovered shares failed verification, this should never happen: {e:?}"
+                    "AVSS recover: recovered shares failed verification, so the responses were not all verified against this message: {e:?}"
                 );
             })?;
 
