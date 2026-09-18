@@ -23,7 +23,7 @@ mod polynomial_benches {
             let a = (1..=n)
                 .map(|i| ShareIndex::new(i as u16).unwrap())
                 .collect_vec();
-            let decoder = RSDecoder::new(a.clone(), k);
+            let decoder = RSDecoder::new(a.clone(), k).unwrap();
 
             let message: Vec<S> = (0..k).map(|i| S::from((i * 10) as u128)).collect();
             let code_word = decoder.encode(message.clone()).unwrap();

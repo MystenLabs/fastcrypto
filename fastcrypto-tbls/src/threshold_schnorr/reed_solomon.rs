@@ -26,21 +26,15 @@ pub struct RSDecoder {
 impl RSDecoder {
     /// Create a new Gao decoder with the given evaluation points `a` and message length `k`.
     /// Returns an [InvalidInput] error if `k` is not smaller than the number of evaluation points.
-    pub fn try_new(a: Vec<ShareIndex>, k: usize) -> FastCryptoResult<Self> {
+    pub fn new(a: Vec<ShareIndex>, k: usize) -> FastCryptoResult<Self> {
         if k >= a.len() {
             return Err(InvalidInput);
         }
-        Ok(Self::new(a, k))
-    }
-
-    /// Create a new Gao decoder with the given evaluation points `a` and message length `k`.
-    pub fn new(a: Vec<ShareIndex>, k: usize) -> Self {
-        assert!(k < a.len(), "Message length must be less than block length");
         let mut g0 = Poly::one();
         for ai in &a {
             g0 *= MonicLinear(-to_scalar::<S>(ai));
         }
-        Self { g0, a, k }
+        Ok(Self { g0, a, k })
     }
 
     /// The length of the code words.
@@ -269,7 +263,7 @@ mod tests {
     fn test_gao_decoder() {
         let a = (1..=7).map(|i| ShareIndex::new(i).unwrap()).collect_vec();
         let k = 3;
-        let decoder = RSDecoder::new(a.clone(), k);
+        let decoder = RSDecoder::new(a.clone(), k).unwrap();
 
         let message = vec![S::from(11u128), S::from(22u128), S::from(33u128)];
         let code_word = decoder.encode(message.clone()).unwrap();
