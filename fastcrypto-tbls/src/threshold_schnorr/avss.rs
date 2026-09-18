@@ -387,9 +387,9 @@ impl Receiver {
         }
     }
 
-    /// Build a complaint proving this receiver got invalid shares. Only meaningful
-    /// when [`Self::verify_message`] returned `Ok(None)`. This reveals this receiver's decryption
-    /// key for the message.
+    /// Build a complaint proving this receiver got invalid shares. This reveals this receiver's
+    /// decryption key for the message, so it must only be called after [`Self::verify_message`]
+    /// returned `Ok(None)`.
     fn create_complaint<R: AllowedRng>(&self, message: &Message, rng: &mut R) -> Complaint {
         Complaint {
             proof: RecoveryProof::create(
