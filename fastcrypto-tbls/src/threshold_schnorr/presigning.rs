@@ -48,8 +48,7 @@ impl Presignatures {
     ///
     /// More parties contributing outputs gives more presignatures, so include as many as possible
     /// but at least `params.t` (by weight). The set of outputs and their order must be agreed on
-    /// before calling this, e.g., by the order of the dealers' certificates on the TOB channel. A
-    /// local timeout cannot achieve this.
+    /// before calling this, e.g., by the order of the dealers' certificates on the TOB channel.
     ///
     /// `params.t` is the reconstruction threshold. The nonce polynomials are shared at degree
     /// `params.t - 1`, so this produces `total_weight - (params.t - 1)` presignatures per nonce
