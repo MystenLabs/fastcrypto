@@ -889,9 +889,11 @@ impl Receiver {
 
         let my_shares = SharesForNode::recover(self, &response_shares)?;
 
-        // Interpolating shares that were verified against this common message yields valid shares,
-        // so this final verification is defense-in-depth. A failure means the responses were not
-        // all verified against this common message.
+        // Each response's ciphertext is pinned by hash in the common message, so its shares are the
+        // dealer's and cannot be altered by the responder. Interpolating shares that were verified
+        // against this common message yields valid shares, so this final verification is
+        // defense-in-depth. A failure means the responses were not all verified against this
+        // common message.
         my_shares
             .verify(verified_common, &self.my_indices(), self.batch_size)
             .tap_err(|e| {
