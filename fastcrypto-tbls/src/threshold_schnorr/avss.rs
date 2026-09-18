@@ -331,7 +331,7 @@ impl Receiver {
     /// Verify and decrypt this receiver's shares.
     ///
     /// `Ok(Some)`: valid shares. `Ok(None)`: shares are invalid for this receiver;
-    /// call [`Self::create_complaint`] to build a broadcastable complaint. `Err`
+    /// use [`Self::process_message`] to build a broadcastable complaint. `Err`
     /// ([InvalidMessage]): the message is malformed and should be ignored.
     pub fn verify_message(&self, message: &Message) -> FastCryptoResult<Option<AvssOutput>> {
         if message.feldman_commitment.degree() + 1 != self.params.t as usize
@@ -387,9 +387,10 @@ impl Receiver {
         }
     }
 
-    /// Build a complaint proving this receiver got invalid shares. Only meaningful
-    /// when [`Self::verify_message`] returned `Ok(None)`.
-    pub fn create_complaint<R: AllowedRng>(&self, message: &Message, rng: &mut R) -> Complaint {
+    /// Build a complaint proving this receiver got invalid shares. This reveals this receiver's
+    /// decryption key for the message, so it must only be called after [`Self::verify_message`]
+    /// returned `Ok(None)`.
+    fn create_complaint<R: AllowedRng>(&self, message: &Message, rng: &mut R) -> Complaint {
         Complaint {
             proof: RecoveryProof::create(
                 self.id,
