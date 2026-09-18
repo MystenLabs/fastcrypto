@@ -239,7 +239,9 @@ impl Dealer {
     /// * `params` carries the reconstruction thresholds.
     /// * `sid` is a session identifier that should be unique for each invocation of a dealer, but
     ///   the same for all parties in the same session.
-    /// * `batch_size_per_weight` is the number of secrets a dealer should deal per weight it has.
+    /// * `batch_size_per_weight` is the number of secrets a dealer must deal per weight it has.
+    ///
+    /// All arguments must be the same for the dealer and all receivers.
     pub fn new(
         nodes: Nodes<EG>,
         dealer_id: PartyId,
@@ -472,7 +474,10 @@ impl Receiver {
     ///   for all parties.
     /// * `enc_secret_key` is this Receivers' secret key for the distribution of nonces. The
     ///   corresponding public key is defined in `nodes`.
-    /// * `batch_size_per_weight` is the number of secrets a dealer should deal per weight it has.
+    /// * `batch_size_per_weight` is the number of secrets a dealer must deal per weight it has.
+    ///
+    /// All arguments except `id` and `enc_secret_key` must be the same for the dealer and all
+    /// receivers.
     ///
     /// Returns an `InvalidInput` error if the `id` or `dealer_id` is invalid, or if the dealer has
     /// no nonces to deal because either its weight or `batch_size_per_weight` is zero.
