@@ -767,8 +767,7 @@ impl Receiver {
     /// 8b. Validate a [AvidComplaint] and respond with this party's own shares.
     ///     This is called only by a receiver that sent a vote for the common message.
     ///     Returns [NotEnoughWeight] if the signers of `avid_cert` have less than `W − f` weight.
-    ///     Verifying a complaint decodes and re-encodes the accuser's payload, so the caller should
-    ///     handle at most one complaint per accuser per dealing, including rejected ones.
+    ///     This is expensive, so handle at most one complaint per accuser per dealing.
     pub fn handle_avid_complaint<C: Certificate<Payload = AvidVote>>(
         &self,
         blame: &AvidComplaint,
