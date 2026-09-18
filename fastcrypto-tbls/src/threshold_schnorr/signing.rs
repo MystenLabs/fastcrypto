@@ -17,7 +17,7 @@ use tracing::warn;
 /// Generate partial threshold Schnorr signatures for a given message using a presigning tuple.
 /// The presigning tuple must be taken from a [Presignatures] iterator, the other parties should use the same tuple and one tuple may only be used once.
 /// Signing twice with the same tuple discloses the signing key, whatever the beacon value.
-/// Returns also the public nonce R.
+/// Returns also the public presignature, which all parties must agree on.
 ///
 /// The signatures produced follow the BIP-0340 standard (<https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki>).
 ///
