@@ -16,8 +16,6 @@ use std::fmt::Debug;
 ///
 /// The caller must make sure to:
 /// - Choose distinct prefix & extension strings without "-" in them (asserted in debug mode).
-///   Otherwise, two distinct oracles may coincide, e.g., "a-b" extended by "c" and "a" extended by
-///   "b-c".
 /// - Ensure that the length of prefix & extension is small enough to fit in u32.
 ///   Violating this constraint will cause a panic.
 
