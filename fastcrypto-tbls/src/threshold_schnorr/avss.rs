@@ -24,12 +24,15 @@ use fastcrypto::error::FastCryptoError::{
 };
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::hash::{Blake2b256, HashFunction};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tap::TapFallible;
 use tracing::warn;
+
+type Digest = fastcrypto::hash::Digest<{ Blake2b256::OUTPUT_SIZE }>;
 
 pub struct Dealer {
     nodes: Nodes<EG>,
@@ -56,6 +59,12 @@ pub const AVSS_MESSAGE_MAX_SIZE: usize = 250_000; // 250 KB. A total weight of 2
 pub struct Message {
     feldman_commitment: Poly<G>,
     ciphertext: MultiRecipientEncryption<EG>,
+}
+
+impl Message {
+    fn hash(&self) -> Digest {
+        Blake2b256::digest(bcs::to_bytes(self).expect("serialize should never fail"))
+    }
 }
 
 /// The result of a [Receiver] processing a [Message]: Either valid shares or a complaint.
@@ -92,6 +101,7 @@ pub struct ComplaintResponse {
 pub struct VerifiedComplaintResponse {
     responder_id: PartyId,
     shares: SharesForNode,
+    message_hash: Digest,
 }
 
 /// The output of a receiver after a single instance of AVSS: The shares for each nonce + commitments for the next round.
@@ -450,6 +460,7 @@ impl Receiver {
         Ok(VerifiedComplaintResponse {
             responder_id,
             shares: response.shares,
+            message_hash: message.hash(),
         })
     }
 
@@ -466,6 +477,12 @@ impl Receiver {
             return Err(InvalidInput);
         }
 
+        // All responses must have been verified against the given message.
+        let message_hash = message.hash();
+        if responses.iter().any(|r| r.message_hash != message_hash) {
+            return Err(InvalidInput);
+        }
+
         let total_response_weight = self
             .nodes
             .total_weight_of(responses.iter().map(|r| &r.responder_id))?;
@@ -476,8 +493,8 @@ impl Receiver {
         let valid_shares = responses.into_iter().map(|r| r.shares).collect_vec();
         let my_shares = SharesForNode::recover(self.my_indices(), self.params.t, &valid_shares)?;
 
-        // The recovered shares are interpolated from already-verified shares, so this should never
-        // fail; if it does, something is seriously wrong.
+        // The recovered shares are interpolated from shares already verified against this message,
+        // so this should never fail; if it does, something is seriously wrong.
         my_shares
             .verify(message, &self.my_indices(), self.id)
             .tap_err(|e| {

@@ -178,6 +178,7 @@ pub struct ComplaintResponse {
 pub struct VerifiedComplaintResponse {
     responder_id: PartyId,
     shares: SharesForNode,
+    common_message_hash: Digest,
 }
 
 /// The output of a receiver which is a batch of shares and public keys for all nonces.
@@ -851,6 +852,7 @@ impl Receiver {
         Ok(VerifiedComplaintResponse {
             responder_id,
             shares,
+            common_message_hash: verified_common.hash,
         })
     }
 
@@ -861,6 +863,14 @@ impl Receiver {
         responses: Vec<VerifiedComplaintResponse>,
     ) -> FastCryptoResult<ReceiverOutput> {
         if !responses.iter().map(|r| r.responder_id).all_unique() {
+            return Err(InvalidInput);
+        }
+
+        // All responses must have been verified against the given common message.
+        if responses
+            .iter()
+            .any(|r| r.common_message_hash != verified_common.hash)
+        {
             return Err(InvalidInput);
         }
 
@@ -888,10 +898,10 @@ impl Receiver {
 
         let my_shares = SharesForNode::recover(self, &response_shares)?;
 
-        // Each response was already checked by verify_complaint_response, and interpolating valid
-        // shares yields valid shares, so this final verification is defense-in-depth and should be
-        // unreachable as a failure. Warn loudly if it ever does fail, since that signals a logic
-        // error rather than a malicious input.
+        // Each response was already checked by verify_complaint_response against this common
+        // message, and interpolating valid shares yields valid shares, so this final verification
+        // is defense-in-depth and should be unreachable as a failure. Warn loudly if it ever does
+        // fail, since that signals a logic error rather than a malicious input.
         my_shares
             .verify(verified_common, &self.my_indices(), self.batch_size)
             .tap_err(|e| {
