@@ -16,7 +16,7 @@ pub(crate) fn compute_tweak(vk: &G, address: &Address) -> FastCryptoResult<S> {
 
     // Derive 64 uniform bytes to reduce bias from modular reduction to the 32 byte scalar field.
     // This is conservative since the secp256k1 scalar field size is very close to 2^256.
-    // Changing the HKDF inputs, e.g. to add a context string, would change all derived keys.
+    // TODO: Consider adding a context string to the HKDF.
     let bytes = hkdf_sha3_256(&HkdfIkm::from_bytes(&ikm).unwrap(), &[], &[], 64).unwrap();
     Ok(S::from_bytes_mod_order(&bytes))
 }
