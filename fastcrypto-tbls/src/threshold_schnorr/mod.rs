@@ -55,7 +55,7 @@ mod merkle;
 mod pascal_matrix;
 pub mod presigning;
 pub mod recovery_proof;
-pub mod reed_solomon;
+pub(crate) mod reed_solomon;
 pub mod signing;
 
 /// The group to use for the signing
@@ -807,7 +807,7 @@ mod tests {
                             .1
                         })
                         .collect_vec();
-                    let signature = aggregate_signatures(
+                    let (signature, faulty) = aggregate_signatures(
                         message,
                         &public_presig,
                         &beacon,
@@ -817,6 +817,7 @@ mod tests {
                         address.as_ref(),
                     )
                     .unwrap();
+                    assert!(faulty.is_empty());
 
                     match address {
                         Some(address) => derive_verifying_key(&vk, &address).unwrap(),

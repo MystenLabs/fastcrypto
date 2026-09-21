@@ -88,6 +88,7 @@ impl RSDecoder {
 
     /// Encode the message using the Reed-Solomon code defined by the evaluation points `a`.
     /// Returns an error if the message length is wrong.
+    #[cfg(test)]
     pub fn encode(&self, message: Vec<S>) -> FastCryptoResult<Vec<S>> {
         if message.len() != self.message_length() {
             return Err(InputLengthWrong(self.message_length()));
@@ -98,6 +99,7 @@ impl RSDecoder {
 
     /// Try to correct the input and return the decoded message.
     /// Returns an error if the input length is wrong or if there are too many errors to correct.
+    #[cfg(test)]
     pub fn decode(&self, input: &[S]) -> FastCryptoResult<Vec<S>> {
         let mut f1 = self.compute_message_polynomial(input)?.to_vec();
         f1.truncate(self.k);

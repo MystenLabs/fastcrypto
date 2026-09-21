@@ -96,12 +96,9 @@ pub fn generate_partial_signatures(
 /// The partial signatures must be received over an authenticated channel, and the caller must
 /// reject any whose share index the sender does not hold.
 ///
-/// This interpolates the first `threshold` partial signatures, so a single faulty one makes the
-/// aggregation fail without indicating which. A caller that needs to identify the faulty parties
-/// can instead decode the partial signatures with an [RSDecoder](crate::threshold_schnorr::reed_solomon::RSDecoder)
-/// and pass the recovered scalar to [finalize_schnorr_signature]. Either way, a failed aggregation
-/// must be retried with another subset of partial signatures for the same presigning tuple,
-/// message and beacon value. Signing twice with the same tuple discloses the signing key.
+/// A failed aggregation must be retried with another subset of partial signatures for the same
+/// presigning tuple, message and beacon value. Signing twice with the same tuple discloses the
+/// signing key.
 ///
 /// If a derivation index is provided, a new verifying key is derived for this index (see
 /// [derive_verifying_key]), and the signature is adjusted accordingly.
