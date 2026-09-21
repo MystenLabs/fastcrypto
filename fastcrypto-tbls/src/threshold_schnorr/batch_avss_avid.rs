@@ -240,6 +240,9 @@ impl Dealer {
     /// * `batch_size_per_weight` is the number of secrets a dealer must deal per weight it has.
     ///
     /// All arguments must be the same for the dealer and all receivers.
+    ///
+    /// Returns an `InvalidInput` error if the dealer has no nonces to deal because either its
+    /// weight or `batch_size_per_weight` is zero.
     pub fn new(
         nodes: Nodes<EG>,
         dealer_id: PartyId,
@@ -252,6 +255,9 @@ impl Dealer {
         let nodes = Arc::new(nodes);
         let avid = avid::Avid::new(Arc::clone(&nodes), params.f)?;
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
+        if batch_size == 0 {
+            return Err(InvalidInput);
+        }
         Ok(Self {
             params,
             nodes,
@@ -1837,7 +1843,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_weight_dealer_deals_nothing() {
+    fn test_zero_weight_dealer_is_rejected() {
         let params = Parameters { t: 3, f: 1 };
         let weights: Vec<u16> = vec![1, 0, 3, 4];
         let batch_size_per_weight = 3;
@@ -1864,21 +1870,7 @@ mod tests {
 
         let sid = b"zero weight dealer".to_vec();
 
-        let dealer = Dealer::new(
-            nodes.clone(),
-            dealer_id,
-            params,
-            sid.clone(),
-            batch_size_per_weight,
-        )
-        .unwrap();
-        assert_eq!(dealer.batch_size, 0);
-
-        let state = dealer.create_avss_messages(&mut rng).unwrap();
-        assert!(state.common.full_public_keys.is_empty());
-        assert!(nodes
-            .node_ids_iter()
-            .all(|id| state.message_for(id).is_some()));
+        assert!(Dealer::new(nodes, dealer_id, params, sid, batch_size_per_weight).is_err());
     }
 
     /// Build a uniform-weight Dealer and matching set of Receivers for tests.
