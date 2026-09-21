@@ -561,14 +561,14 @@ impl Receiver {
     /// 5. Verify a second-phase [AvidMessage] and emit an [EchoBuilder] which can build
     ///    [Echo]es. Returns also an [AvidVote] to be signed and returned to the dealer.
     ///
-    ///    Only receivers that verified their shares and sent an [AvssVote] for this round should
-    ///    process [AvidMessage]s and sign [AvidVote]s. The caller must pass the
-    ///    [VerifiedAvssCommonMessage] it voted on.
+    ///    Only receivers that verified a common message for this round should process
+    ///    [AvidMessage]s and sign [AvidVote]s, whether or not their [AvssVote] reached the dealer
+    ///    in time. The caller must pass the [VerifiedAvssCommonMessage] it verified.
     ///
-    ///    Receivers who did not receive their shares through an [AvssMessage] (or voted on a
-    ///    different common message) are pending recipients: they should ignore [AvidMessage]s,
-    ///    wait for a published [Certificate] over [AvidVote]s, and then get the [AvssCommonMessage]
-    ///    and [Echo]es from the signers (see below).
+    ///    Receivers who did not receive their shares through an [AvssMessage] (or verified a
+    ///    different common message) are pending recipients: they wait for a published
+    ///    [Certificate] over [AvidVote]s, and then get the [AvssCommonMessage] and [Echo]es from
+    ///    the signers (see below).
     ///
     ///    The returned outputs cannot be persisted, so the caller should persist the [AvidMessage]
     ///    before sending its [AvidVote] and process it again after a crash. It must vote for at
