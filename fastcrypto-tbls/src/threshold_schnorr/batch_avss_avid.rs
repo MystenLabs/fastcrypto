@@ -625,20 +625,18 @@ impl Receiver {
         common_message: AvssCommonMessage,
     ) -> FastCryptoResult<VerifiedAvssCommonMessage> {
         self.check_avid_cert_weight(avid_cert)?;
-        let hash = common_message.hash();
-        if hash != avid_cert.payload().common_message_hash {
+        if common_message.hash() != avid_cert.payload().common_message_hash {
             warn!(
                 "batch_avss verify_common_message: common message does not match the certified hash"
             );
             return Err(InvalidMessage);
         }
-        let challenge =
-            compute_challenge_from_common_message(&self.random_oracle(), &common_message);
-        Ok(VerifiedAvssCommonMessage {
-            message: common_message,
-            challenge,
-            hash,
-        })
+        common_message.verify(
+            self.params.t,
+            self.batch_size,
+            self.nodes.num_nodes(),
+            &self.random_oracle(),
+        )
     }
 
     /// 7b. Validate an [Echo] addressed to this receiver.
@@ -952,8 +950,11 @@ fn check_ciphertext_hash(
     party_id: PartyId,
     verified_common: &VerifiedAvssCommonMessage,
 ) -> FastCryptoResult<()> {
-    if Blake2b256::digest(ciphertext)
-        != verified_common.message.ciphertext_hashes[party_id as usize]
+    if verified_common
+        .message
+        .ciphertext_hashes
+        .get(party_id as usize)
+        .is_none_or(|hash| *hash != Blake2b256::digest(ciphertext))
     {
         return Err(GeneralOpaqueError);
     }
