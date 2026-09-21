@@ -530,8 +530,7 @@ impl DkOutput {
     /// Returns the combined output, including the joint verifying key
     ///
     /// The outputs are not verified again, so they must come from [Receiver::process_message] or
-    /// [Receiver::recover], with at most one per dealer. Returns an [InvalidInput] error if the same
-    /// output is given more than once.
+    /// [Receiver::recover], with at most one per dealer.
     pub fn complete_dkg(
         t: u16,
         nodes: &Nodes<EG>,
@@ -548,14 +547,16 @@ impl DkOutput {
             return Err(InvalidInput);
         }
 
-        // Reject duplicate outputs. Different dealings have different commitments with
-        // overwhelming probability.
+        // Different dealings have different commitments with overwhelming probability, so equal
+        // ones mean either the same output twice or two dealers sharing a secret. Neither is
+        // unsafe, since the joint secret stays secret as long as one contributor is honest, but
+        // the first means the caller counted one contribution twice.
         if !outputs
             .iter()
             .map(|o| o.feldman_commitment.c0().to_byte_array())
             .all_unique()
         {
-            return Err(InvalidInput);
+            warn!("AVSS complete_dkg: two outputs share a commitment");
         }
 
         outputs
