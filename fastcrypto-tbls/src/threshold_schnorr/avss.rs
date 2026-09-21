@@ -549,6 +549,8 @@ impl DkOutput {
     /// This is used after key rotation where each party shares their shares from the previous round as the new secret.
     /// After collecting t such shares from different parties, new shares for the given indices can be created using this function.
     /// Called by the app level with at least t AVSS outputs. The set of outputs is determined based on the order of the messages on the TOB channel.
+    /// All parties must use the same outputs. Note that a matching verifying key does not show this,
+    /// since any t valid outputs give the same key.
     ///
     /// The `outputs` parameter is a list of `IndexedValue`, where each `value` is the output of an
     /// AVSS instance and the corresponding `index` indicates which share from the previous round
