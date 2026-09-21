@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["AVSS_MESSAGE_MAX_SIZE"],"enum":["ProcessedMessage"],"struct":["AvssOutput","Complaint","ComplaintResponse","Dealer","DkOutput","Message","Receiver","SharesForNode","VerifiedComplaintResponse"],"type":["Share"]};
+window.SIDEBAR_ITEMS = {"enum":["ProcessedMessage"],"struct":["AvssOutput","Complaint","ComplaintResponse","Dealer","DkOutput","Message","Receiver","SharesForNode","VerifiedComplaintResponse"],"type":["Share"]};
