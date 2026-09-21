@@ -8,6 +8,7 @@ use crate::types::get_uniform_value;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
+use tracing::warn;
 
 /// An iterator that yields presigning tuples (t_i, p_i).
 ///
@@ -68,7 +69,6 @@ impl Presignatures {
     /// * `params.t` is zero,
     /// * The total weight of the dealers for the outputs is not at least `params.t`,
     /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
-    /// * The same output is given more than once,
     /// * or if batch_size_per_weight is zero.
     pub fn new(
         outputs: Vec<ReceiverOutput>,
@@ -81,15 +81,18 @@ impl Presignatures {
         }
         let batch_size_per_weight = batch_size_per_weight as usize;
 
-        // Reject duplicate outputs. Outputs from different dealings have different public keys with
-        // overwhelming probability. Outputs without public keys add no weight and are ignored.
+        // Outputs from different dealings have different public keys with overwhelming
+        // probability, so equal ones mean either the same output twice or two dealers dealing the
+        // same nonces. Neither is unsafe, but the first means the caller counted one contribution
+        // twice, which extracts more presignatures than the honest entropy justifies. Outputs
+        // without public keys add no weight and are ignored.
         if outputs
             .iter()
             .filter(|o| !o.public_keys.is_empty())
             .tuple_combinations()
             .any(|(a, b)| a.public_keys == b.public_keys)
         {
-            return Err(InvalidInput);
+            warn!("presigning: two outputs share their public keys");
         }
 
         // Recover each dealer's weight from its public key count, which works even for a
