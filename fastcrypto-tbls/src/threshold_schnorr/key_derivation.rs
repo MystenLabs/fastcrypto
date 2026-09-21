@@ -40,6 +40,9 @@ pub(crate) fn derive_verifying_key_internal(vk: &G, address: &Address) -> FastCr
 /// Lifting the x-only BIP-0340 form of `vk` to even y gives a different result for about half of
 /// all keys.
 ///
+/// The derivation is non-hardened: the derived signing key is the original one plus a public
+/// tweak, so revealing a derived signing key reveals the original one.
+///
 /// Returns an error if `vk` is the identity point.
 pub fn derive_verifying_key(vk: &G, address: &Address) -> FastCryptoResult<SchnorrPublicKey> {
     Ok(
