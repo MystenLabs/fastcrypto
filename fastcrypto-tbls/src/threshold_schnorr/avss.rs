@@ -47,11 +47,10 @@ pub struct Receiver {
     commitment: Option<G>, // Commitment to the secret being shared if any (used for key rotation).
 }
 
-/// An upper bound on the BCS-serialized size of a [Message], to be enforced when deserializing
-/// untrusted messages.
-pub const AVSS_MESSAGE_MAX_SIZE: usize = 250_000; // 250 KB. A total weight of 2500 measures ~170 KB.
-
 /// The message broadcast by the dealer, containing the encrypted shares and the public keys of the nonces.
+///
+/// The size of a message grows with the total weight and the threshold: at a total weight of 2500
+/// over 1000 nodes, it measures ~170 KB.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
     feldman_commitment: Poly<G>,
@@ -701,48 +700,6 @@ mod tests {
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use std::collections::HashMap;
-
-    #[test]
-    fn test_size_limits() {
-        // Worst case for total weight <= 2500: the maximum number of nodes (Nodes::MAX_NODES = 1000,
-        // which maximizes the per-recipient encryption overhead) summing to the maximum total weight
-        // 2500, with t as large as the parameters allow (which maximizes the feldman commitment of t
-        // group elements). We pick `t` as large as `t + 2f <= total_weight` allows.
-        let num_nodes = 1000usize;
-        let total_weight = 2500u16;
-        let params = Parameters {
-            t: total_weight - 2,
-            f: 1,
-        };
-
-        let mut rng = rand::thread_rng();
-        let sks = (0..num_nodes)
-            .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
-            .collect::<Vec<_>>();
-        // 500 nodes of weight 3 and 500 of weight 2 sum to 2500.
-        let nodes = Nodes::new(
-            sks.iter()
-                .enumerate()
-                .map(|(i, sk)| Node {
-                    id: i as u16,
-                    pk: PublicKey::from_private_key(sk),
-                    weight: if i < 500 { 3 } else { 2 },
-                })
-                .collect::<Vec<_>>(),
-        )
-        .unwrap();
-        assert_eq!(nodes.total_weight(), total_weight);
-
-        let dealer =
-            Dealer::new(None, nodes, params, b"size-limit-test".to_vec(), &mut rng).unwrap();
-        let message = dealer.create_message(&mut rng);
-        let size = bcs::to_bytes(&message).unwrap().len();
-        assert!(
-            size <= super::AVSS_MESSAGE_MAX_SIZE,
-            "AVSS message size {size} exceeds limit {}",
-            super::AVSS_MESSAGE_MAX_SIZE
-        );
-    }
 
     #[test]
     fn test_sharing() {
