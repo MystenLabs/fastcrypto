@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::threshold_schnorr::{Address, G, S};
+use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
 use fastcrypto::groups::GroupElement;
@@ -15,8 +16,14 @@ const DERIVATION_CONTEXT: &[u8] = b"threshold_schnorr_key_derivation";
 /// Compute a tweak from a verifying key and a derivation path.
 ///
 /// The tweak commits to the compressed encoding of `vk`, which includes its Y parity, so the full
-/// verifying key is needed to compute it and not just the x-only form used by BIP-0340.
-pub(crate) fn compute_tweak(vk: &G, address: &Address) -> S {
+/// verifying key is needed to compute it and not just its x-coordinate.
+///
+/// Returns an error if `vk` is the identity point.
+pub(crate) fn compute_tweak(vk: &G, address: &Address) -> FastCryptoResult<S> {
+    if vk.is_zero() {
+        return Err(InvalidInput);
+    }
+
     let mut ikm: Vec<u8> = vk.to_byte_array().to_vec(); // 33 bytes
     ikm.extend_from_slice(address);
 
@@ -29,7 +36,7 @@ pub(crate) fn compute_tweak(vk: &G, address: &Address) -> S {
         64,
     )
     .unwrap();
-    S::from_bytes_mod_order(&bytes)
+    Ok(S::from_bytes_mod_order(&bytes))
 }
 
 /// Derive a new verifying key from an existing one and a Sui address.
@@ -42,7 +49,7 @@ pub(crate) fn compute_tweak(vk: &G, address: &Address) -> S {
 ///
 /// Returns an error if `vk` is the identity point.
 pub(crate) fn derive_verifying_key_internal(vk: &G, address: &Address) -> FastCryptoResult<G> {
-    Ok(vk + G::generator() * compute_tweak(vk, address))
+    Ok(vk + G::generator() * compute_tweak(vk, address)?)
 }
 
 /// Derive a new verifying key from an existing one and a Sui address.

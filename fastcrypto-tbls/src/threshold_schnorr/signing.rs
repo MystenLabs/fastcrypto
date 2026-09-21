@@ -177,7 +177,7 @@ pub fn finalize_schnorr_signature(
 
     // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
     let verifying_key = if let Some(address) = derivation_address {
-        let tweak = compute_tweak(verifying_key, address);
+        let tweak = compute_tweak(verifying_key, address)?;
         let derived_vk = derive_verifying_key_internal(verifying_key, address)?;
         let h = tweak * bip0340_hash(&r_g, &derived_vk, message)?;
         if derived_vk.has_even_y()? {
