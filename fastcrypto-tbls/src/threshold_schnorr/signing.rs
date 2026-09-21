@@ -47,22 +47,17 @@ pub fn generate_partial_signatures(
     }
 
     // If a derivation index is provided, derive a new verifying key (and implicitly also signing key) for this index.
-    // The derivation starts from the even-Y form of the verifying key, whose signing key is the
-    // negation of this party's shares if the verifying key has odd Y.
-    let (verifying_key, negate_signing_key) = if let Some(address) = derivation_address {
-        (
-            derive_verifying_key_internal(verifying_key, address)?,
-            !verifying_key.has_even_y()?,
-        )
+    let verifying_key = if let Some(address) = derivation_address {
+        derive_verifying_key_internal(verifying_key, address)?
     } else {
-        (*verifying_key, false)
+        *verifying_key
     };
 
     // The verifying key must also have an even Y coordinate.
     // If this is not the case, we must negate the verifying key (and hence also the signing key).
     // Since the signing key shares are multiplied with the challenge, we just change the sign of the challenge instead.
     let mut h = bip0340_hash(&r_g, &verifying_key, message)?;
-    if verifying_key.has_even_y()? == negate_signing_key {
+    if !verifying_key.has_even_y()? {
         h = -h;
     }
 
@@ -182,7 +177,7 @@ pub fn finalize_schnorr_signature(
 
     // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
     let verifying_key = if let Some(address) = derivation_address {
-        let tweak = compute_tweak(verifying_key, address)?;
+        let tweak = compute_tweak(verifying_key, address);
         let derived_vk = derive_verifying_key_internal(verifying_key, address)?;
         let h = tweak * bip0340_hash(&r_g, &derived_vk, message)?;
         if derived_vk.has_even_y()? {
