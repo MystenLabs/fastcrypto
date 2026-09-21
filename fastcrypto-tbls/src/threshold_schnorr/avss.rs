@@ -461,14 +461,23 @@ impl Receiver {
 
     /// 5. Upon receiving enough verified responses to a complaint, the accuser can recover its shares.
     ///
-    ///    Returns an error if the responses do not come from distinct parties or if their combined weight is
-    ///    below the threshold `t`. The caller must only pass responses that were verified against
-    ///    `message`.
+    ///    Returns an error if the responses do not come from distinct parties, if their combined weight is
+    ///    below the threshold `t`, or if the dealing does not match this receiver's `commitment`. The
+    ///    caller must only pass responses that were verified against `message`.
     pub fn recover(
         &self,
         message: &Message,
         responses: Vec<VerifiedComplaintResponse>,
     ) -> FastCryptoResult<AvssOutput> {
+        if let Some(c) = &self.commitment {
+            if message.feldman_commitment.c0() != *c {
+                warn!(
+                    "AVSS recover: feldman commitment c0 does not match the expected commitment from a previous round"
+                );
+                return Err(InvalidInput);
+            }
+        }
+
         if !responses.iter().map(|r| r.responder_id).all_unique() {
             return Err(InvalidInput);
         }
