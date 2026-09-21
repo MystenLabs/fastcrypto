@@ -1090,20 +1090,21 @@ impl SharesForNode {
     }
 
     /// Get all shares this node has for the i-th secret/nonce in the batch, paired with the
-    /// given share indices. Returns an [InvalidInput] error if `i` is larger than or equal to
-    /// the batch size of any of the shares.
+    /// given share indices. Returns an [InvalidInput] error if the number of indices does not match
+    /// the number of shares, or if `i` is larger than or equal to the batch size of any of the
+    /// shares.
     pub fn shares_for_secret<'a>(
         &'a self,
         indices: &'a [ShareIndex],
         i: usize,
     ) -> FastCryptoResult<impl Iterator<Item = Eval<S>> + 'a> {
-        if self.shares.iter().any(|s| i >= s.batch.len()) {
+        if indices.len() != self.shares.len() || self.shares.iter().any(|s| i >= s.batch.len()) {
             return Err(InvalidInput);
         }
         Ok(self
             .shares
             .iter()
-            .zip(indices)
+            .zip_eq(indices)
             .map(move |(s, &index)| Eval {
                 index,
                 value: s.batch[i],
