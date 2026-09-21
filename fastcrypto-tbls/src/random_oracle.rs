@@ -15,8 +15,7 @@ use std::fmt::Debug;
 ///   "-". E.g., RandomOracle::new("abc").extend("def") = RandomOracle::new("abc-def").
 ///
 /// The caller must make sure to:
-/// - Choose distinct prefix & extension strings, preferably without "-" in them (asserted in debug
-///   mode).
+/// - Choose distinct prefix & extension strings without "-" in them (asserted in debug mode).
 /// - Ensure that the length of prefix & extension is small enough to fit in u32.
 ///   Violating this constraint will cause a panic.
 
