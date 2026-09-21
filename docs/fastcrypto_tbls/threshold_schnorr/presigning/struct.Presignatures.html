@@ -2,19 +2,22 @@
 <p>The tuples are tied to the committee and weights they were created for, since share indices
 follow the cumulative weights. They must be discarded and regenerated when the committee
 changes.</p>
-</div></details><h2 id="implementations" class="section-header">Implementations<a href="#implementations" class="anchor">§</a></h2><div id="implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-Presignatures" class="impl"><a class="src rightside" href="../../../src/fastcrypto_tbls/threshold_schnorr/presigning.rs.html#45-170">Source</a><a href="#impl-Presignatures" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.Presignatures.html" title="struct fastcrypto_tbls::threshold_schnorr::presigning::Presignatures">Presignatures</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.new" class="method"><a class="src rightside" href="../../../src/fastcrypto_tbls/threshold_schnorr/presigning.rs.html#69-169">Source</a><h4 class="code-header">pub fn <a href="#method.new" class="fn">new</a>(
+</div></details><h2 id="implementations" class="section-header">Implementations<a href="#implementations" class="anchor">§</a></h2><div id="implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-Presignatures" class="impl"><a class="src rightside" href="../../../src/fastcrypto_tbls/threshold_schnorr/presigning.rs.html#45-174">Source</a><a href="#impl-Presignatures" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.Presignatures.html" title="struct fastcrypto_tbls::threshold_schnorr::presigning::Presignatures">Presignatures</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.new" class="method"><a class="src rightside" href="../../../src/fastcrypto_tbls/threshold_schnorr/presigning.rs.html#73-173">Source</a><h4 class="code-header">pub fn <a href="#method.new" class="fn">new</a>(
     outputs: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="../batch_avss/struct.ReceiverOutput.html" title="struct fastcrypto_tbls::threshold_schnorr::batch_avss::ReceiverOutput">ReceiverOutput</a>&gt;,
     batch_size_per_weight: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u16.html">u16</a>,
     params: <a class="struct" href="../struct.Parameters.html" title="struct fastcrypto_tbls::threshold_schnorr::Parameters">Parameters</a>,
     use_legacy: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>,
 ) -&gt; FastCryptoResult&lt;Self&gt;</h4></section></summary><div class="docblock"><p>Based on the output of a batched AVSS from multiple dealers, create a presignature
 generator.</p>
+<p>The generator always starts at the first tuple and stores no position, so the caller must
+keep track of which tuples have been used in state that survives restarts, and resume with
+e.g. <code>nth</code>.</p>
 <p>All parties must use the same outputs in the same order, and the output from a dealer with
 weight <code>w</code> should be equal to <code>batch_size_per_weight * w</code>. The outputs must come from
 distinct dealers, with at most one output per dealer.</p>
 <p>More parties contributing outputs gives more presignatures, so include as many as possible
-but at least <code>params.t</code> (by weight).
-Caller should wait for at least <code>params.t</code> outputs, plus some \delta time to collect more.</p>
+but at least <code>params.t</code> (by weight). The set of outputs and their order must be agreed on
+before calling this, e.g., by the order of the dealers’ certificates on the TOB channel.</p>
 <p><code>params.t</code> is the reconstruction threshold. The nonce polynomials are shared at degree
 <code>params.t - 1</code>, so this produces <code>total_weight - (params.t - 1)</code> presignatures per nonce
 position: the privacy threshold of the sharings is <code>t - 1</code>, meaning a sub-<code>t</code> coalition can
