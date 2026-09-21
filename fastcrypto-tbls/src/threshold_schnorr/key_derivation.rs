@@ -8,6 +8,9 @@ use fastcrypto::groups::GroupElement;
 use fastcrypto::hmac::{hkdf_sha3_256, HkdfIkm};
 use fastcrypto::traits::ToFromBytes;
 
+/// Domain separation for the tweak computed by [compute_tweak].
+const DERIVATION_CONTEXT: &[u8] = b"threshold_schnorr_key_derivation";
+
 /// Compute a tweak from a verifying key and a derivation path.
 /// Returns an error if `vk` is the identity point, which has no x-coordinate.
 pub(crate) fn compute_tweak(vk: &G, address: &Address) -> FastCryptoResult<S> {
@@ -16,8 +19,13 @@ pub(crate) fn compute_tweak(vk: &G, address: &Address) -> FastCryptoResult<S> {
 
     // Derive 64 uniform bytes to reduce bias from modular reduction to the 32 byte scalar field.
     // This is conservative since the secp256k1 scalar field size is very close to 2^256.
-    // TODO: Consider adding a context string to the HKDF.
-    let bytes = hkdf_sha3_256(&HkdfIkm::from_bytes(&ikm).unwrap(), &[], &[], 64).unwrap();
+    let bytes = hkdf_sha3_256(
+        &HkdfIkm::from_bytes(&ikm).unwrap(),
+        &[],
+        DERIVATION_CONTEXT,
+        64,
+    )
+    .unwrap();
     Ok(S::from_bytes_mod_order(&bytes))
 }
 
