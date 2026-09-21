@@ -10,6 +10,10 @@ use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
 
 /// An iterator that yields presigning tuples (t_i, p_i).
+///
+/// The tuples are tied to the committee and weights they were created for, since share indices
+/// follow the cumulative weights. They must be discarded and regenerated when the committee
+/// changes.
 pub struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
