@@ -175,6 +175,7 @@ mod tests {
     use itertools::Itertools;
     use std::collections::HashMap;
     use std::hash::Hash;
+    /// A happy-path smoke test, not a reference for integrating the protocols.
     #[test]
     fn test_e2e() {
         // No complaints, all honest
