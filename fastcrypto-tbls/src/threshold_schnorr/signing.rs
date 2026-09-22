@@ -104,14 +104,14 @@ pub fn generate_partial_signatures(
 /// [derive_verifying_key]), and the signature is adjusted accordingly.
 /// The signature will be valid for the derived verifying key.
 ///
-/// If the signature does not verify, the partial signatures are decoded as a Reed-Solomon code word
-/// to correct the invalid ones, whose share indices are returned along with the signature as the
-/// excluded indices.
+/// If the signature does not verify, the partial signatures are decoded as a Reed-Solomon code word,
+/// and the share indices excluded by the decoding are returned along with the signature. They are
+/// not an attribution: an honest party's index can be excluded.
 /// Correcting `e` faults requires `threshold + 2e` partial signatures.
 ///
 /// Returns an `InputTooShort` error if not enough partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
-/// `InvalidSignature` is returned if there are too many invalid partial signatures to correct. The
+/// `InvalidSignature` is returned if there are too many corrupted partial signatures to correct. The
 /// caller should then retry with more partial signatures for the same presigning tuple, message and
 /// beacon value, since signing twice with the same tuple discloses the signing key.
 /// `InvalidInput` is returned if the provided verifying key is the identity element.
@@ -160,8 +160,9 @@ pub fn aggregate_signatures(
 }
 
 /// Decode the partial signatures as a Reed-Solomon code word, recovering the signature and the
-/// excluded indices: the share indices whose partial signatures were incorrect. The signature is
-/// verified before they are computed, so the polynomial they are compared against is the right one.
+/// share indices the decoding excluded. Verification pins only the recovered polynomial's constant
+/// term, so a sufficiently corrupted input can decode to another polynomial sharing that term,
+/// which excludes honest indices while still yielding a valid signature.
 fn correct_and_aggregate_signatures(
     message: &[u8],
     public_presig: &G,
