@@ -238,7 +238,9 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        // (4 - (2 - 1)) * 2 = 6, where `total_weight - f` would give (4 - 2) * 2 = 4.
+        // Total weight 4 and `t - 1 = 1` give a height of 3, and each row yields one presignature
+        // per nonce position, so (4 - (2 - 1)) * 2 = 6. Using `f = 2` as the threshold would leave
+        // a height of 2 and so (4 - 2) * 2 = 4.
         let presignatures = Presignatures::new(outputs, batch_size_per_weight, params).unwrap();
         assert_eq!(
             presignatures.len(),
