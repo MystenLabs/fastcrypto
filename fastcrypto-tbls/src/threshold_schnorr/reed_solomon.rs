@@ -55,7 +55,7 @@ impl RSDecoder {
 
     /// Decode the code word.
     /// Returns an error if the input length is wrong or if there are too many errors to correct.
-    pub fn decode(&self, code_word: &[S]) -> FastCryptoResult<Decoded> {
+    pub fn decode(&self, code_word: &[S]) -> FastCryptoResult<Decoding> {
         // The implementation follows Algorithm 1 in Gao's paper.
 
         if code_word.len() != self.block_length() {
@@ -84,20 +84,20 @@ impl RSDecoder {
         if !r.is_zero() || f1.degree() >= self.k {
             return Err(TooManyErrors((self.distance() - 1) / 2));
         }
-        Ok(Decoded {
+        Ok(Decoding {
             message: f1,
             error_locator: v,
         })
     }
 }
 
-/// A successfully decoded code word.
-pub struct Decoded {
+/// The result of decoding a code word.
+pub struct Decoding {
     message: Poly<S>,
     error_locator: Poly<S>,
 }
 
-impl Decoded {
+impl Decoding {
     /// The constant term of the message polynomial the code word decoded to, which is the first
     /// symbol of the decoded message.
     pub fn constant_term(&self) -> S {
