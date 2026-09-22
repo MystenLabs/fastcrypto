@@ -106,11 +106,11 @@ impl Decoding {
 
     /// Whether the code word differed from the message polynomial at this evaluation point.
     ///
-    /// The proof of Theorem 3.3 in Gao's paper applies Lemma 3.2 to get the error locator as a
-    /// scalar times the product of `(x - a_i)` over the positions where the two differ, so its
-    /// roots among the evaluation points are exactly those positions. It has degree equal to their
-    /// number rather than the message length, so this is cheaper than evaluating the message
-    /// polynomial and comparing.
+    /// Gao remarks after Algorithm 1 that `v(x)` "is in fact the error locator polynomial", the
+    /// product of `(x - a_i)` over the positions where the code word differs, so its roots among
+    /// the evaluation points are exactly those positions. It has degree equal to their number
+    /// rather than the message length, so this is cheaper than evaluating the message polynomial
+    /// and comparing.
     pub fn is_error(&self, index: ShareIndex) -> bool {
         self.error_locator.eval(index).value == S::zero()
     }
