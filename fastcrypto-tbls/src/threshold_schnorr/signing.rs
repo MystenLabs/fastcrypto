@@ -105,16 +105,14 @@ pub fn generate_partial_signatures(
 /// The signature will be valid for the derived verifying key.
 ///
 /// If the signature does not verify, the partial signatures are decoded as a Reed-Solomon code word,
-/// and the share indices excluded by the decoding are returned along with the signature. Correcting
-/// `e` faults requires `threshold + 2e` partial signatures.
+/// and the share indices the decoding excluded are returned along with the signature. Correcting
+/// `e` faults requires `params.t + 2e` partial signatures.
 ///
-/// Verification pins only the constant term, so a decoding without margin can settle on a different
-/// polynomial sharing it and exclude honest indices. Use [can_blame_excluded_indices] to tell the
-/// two apart: it holds when enough of the points the decoding kept must be honest to fix the
-/// polynomial as the true one, and only then does an excluded index prove that its owner submitted
-/// a wrong partial signature.
+/// A returned index is certainly corrupted: its owner submitted a wrong partial signature. Where
+/// the decoding had too little margin to establish that, no indices are returned and the aggregation
+/// logs instead, so an empty set does not mean every partial signature was good.
 ///
-/// Returns an `InputTooShort` error if not enough partial signatures are provided.
+/// Returns an `InputTooShort` error if fewer than `params.t` partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
 /// `InvalidSignature` is returned if there are too many corrupted partial signatures to correct. The
 /// caller should then retry with more partial signatures for the same presigning tuple, message and
@@ -125,22 +123,19 @@ pub fn aggregate_signatures(
     public_presig: &G,
     beacon_value: &S,
     partial_signatures: &[Eval<S>],
-    threshold: u16,
+    params: Parameters,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(SchnorrSignature, Vec<ShareIndex>)> {
-    if partial_signatures.len() < threshold as usize {
-        return Err(InputTooShort(threshold as usize));
+    if partial_signatures.len() < params.t as usize {
+        return Err(InputTooShort(params.t as usize));
     }
 
     if !partial_signatures.iter().map(|s| s.index).all_unique() {
         return Err(FastCryptoError::InvalidInput);
     }
 
-    let s = Poly::recover_c0(
-        threshold,
-        partial_signatures.iter().take(threshold as usize),
-    )?;
+    let s = Poly::recover_c0(params.t, partial_signatures.iter().take(params.t as usize))?;
 
     match finalize_schnorr_signature(
         message,
@@ -156,7 +151,7 @@ pub fn aggregate_signatures(
             public_presig,
             beacon_value,
             partial_signatures,
-            threshold,
+            params,
             verifying_key,
             derivation_address,
         ),
@@ -165,21 +160,20 @@ pub fn aggregate_signatures(
 }
 
 /// Decode the partial signatures as a Reed-Solomon code word, recovering the signature and the
-/// share indices the decoding excluded. See [aggregate_signatures] for when an excluded index
-/// proves anything: the decoding can settle on a different polynomial with the same constant term,
-/// and only the honest points it kept rule that out.
+/// share indices the decoding excluded. Only returns those indices when they are certainly
+/// corrupted, see [can_blame_excluded_indices].
 fn correct_and_aggregate_signatures(
     message: &[u8],
     public_presig: &G,
     beacon_value: &S,
     partial_signatures: &[Eval<S>],
-    threshold: u16,
+    params: Parameters,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(SchnorrSignature, Vec<ShareIndex>)> {
     let decoder = RSDecoder::new(
         partial_signatures.iter().map(|s| s.index).collect(),
-        threshold as usize,
+        params.t as usize,
     )
     .map_err(|_| InvalidSignature)?;
     let polynomial = decoder
@@ -195,17 +189,26 @@ fn correct_and_aggregate_signatures(
         derivation_address,
     )?;
 
-    let excluded = partial_signatures
+    let excluded: Vec<ShareIndex> = partial_signatures
         .iter()
         .filter(|s| polynomial.eval(s.index).value != s.value)
         .map(|s| s.index)
         .collect();
+
+    if !can_blame_excluded_indices(partial_signatures.len(), excluded.len(), params) {
+        warn!(
+            "signing: the decoding excluded {} of {} partial signatures, too few kept to tell which are corrupted",
+            excluded.len(),
+            partial_signatures.len(),
+        );
+        return Ok((signature, vec![]));
+    }
     Ok((signature, excluded))
 }
 
-/// Whether [aggregate_signatures] excluding `excluded` of the `given` partial signatures proves
-/// that those indices' owners submitted a wrong one. When this is false, do not act on them.
-pub fn can_blame_excluded_indices(given: usize, excluded: usize, params: Parameters) -> bool {
+/// Whether excluding `excluded` of the `given` partial signatures proves that those indices'
+/// owners submitted a wrong one.
+fn can_blame_excluded_indices(given: usize, excluded: usize, params: Parameters) -> bool {
     // Of the points the decoding kept, at most `f` are faulty, so `given - excluded - f` of them
     // are honest. Once that reaches `t` they determine the degree-`(t - 1)` polynomial, so the
     // decoding found the true one and everything it excluded really does lie off it.

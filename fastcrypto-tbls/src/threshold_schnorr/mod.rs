@@ -391,7 +391,7 @@ mod tests {
                 .iter()
                 .flat_map(|(_, s)| s.clone())
                 .collect_vec(),
-            t,
+            Parameters { t, f },
             &vk,
             None,
         )
@@ -571,7 +571,7 @@ mod tests {
                 .iter()
                 .flat_map(|(_, s)| s.clone())
                 .collect_vec(),
-            t,
+            Parameters { t, f },
             &vk,
             None,
         )
@@ -715,7 +715,7 @@ mod tests {
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())
                 .collect_vec(),
-            t,
+            Parameters { t, f },
             &vk_element,
             None,
         )
@@ -739,7 +739,7 @@ mod tests {
             &public,
             &beacon_value,
             &corrupted,
-            t,
+            Parameters { t, f },
             &vk_element,
             None,
         )
@@ -755,7 +755,7 @@ mod tests {
     /// derived verifying key, since each selects a different branch in the BIP-0340 adjustments.
     #[test]
     fn test_signing_all_parities() {
-        let (t, n) = (3u16, 5u16);
+        let (t, f, n) = (3u16, 2u16, 5u16);
         let message = b"parity";
         let mut rng = rand::thread_rng();
         let has_even_y = |p: &G| p.has_even_y().unwrap();
@@ -812,7 +812,7 @@ mod tests {
                         &public_presig,
                         &beacon,
                         &partial_signatures,
-                        t,
+                        Parameters { t, f },
                         &vk,
                         address.as_ref(),
                     )
@@ -943,7 +943,7 @@ mod tests {
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())
                 .collect_vec(),
-            t,
+            Parameters { t, f },
             &vk_element,
             Some(&address),
         )
