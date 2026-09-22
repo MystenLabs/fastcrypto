@@ -4,7 +4,7 @@
 use crate::polynomial::{Eval, Poly};
 use crate::threshold_schnorr::key_derivation::{compute_tweak, derive_verifying_key_internal};
 use crate::threshold_schnorr::reed_solomon::RSDecoder;
-use crate::threshold_schnorr::{avss, Address, G, S};
+use crate::threshold_schnorr::{avss, Address, Parameters, G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InputTooShort, InvalidSignature};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
@@ -201,6 +201,18 @@ fn correct_and_aggregate_signatures(
         .map(|s| s.index)
         .collect();
     Ok((signature, excluded))
+}
+
+/// Whether the indices [aggregate_signatures] excluded prove that their owners submitted a wrong
+/// partial signature, namely whether `n - m >= t + f` for `n` partial signatures given and `m`
+/// excluded. A share index carries one unit of weight, so the number of excluded indices is the
+/// weight they account for and no node set is needed to weigh them.
+pub fn excluded_indices_are_conclusive(
+    partial_signatures: &[Eval<S>],
+    excluded: &[ShareIndex],
+    params: Parameters,
+) -> bool {
+    partial_signatures.len().saturating_sub(excluded.len()) >= params.t as usize + params.f as usize
 }
 
 /// Wrap an already-recovered signing scalar `s = f(0)` into a BIP-0340 Schnorr signature.
