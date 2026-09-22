@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ProcessedMessage"],"struct":["Dealer","Message","Receiver","ReceiverOutput","ShareBatch","SharesForNode"]};
