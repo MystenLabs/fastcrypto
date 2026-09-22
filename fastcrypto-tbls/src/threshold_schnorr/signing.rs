@@ -203,8 +203,8 @@ fn correct_and_aggregate_signatures(
     Ok((signature, excluded))
 }
 
-/// Whether the indices [aggregate_signatures] excluded prove that their owners submitted a wrong
-/// partial signature. When this is false, do not act on them.
+/// Whether [aggregate_signatures] excluding `excluded` of the `given` partial signatures proves
+/// that those indices' owners submitted a wrong one. When this is false, do not act on them.
 pub fn can_blame_excluded_indices(given: usize, excluded: usize, params: Parameters) -> bool {
     // Of the points the decoding kept, at most `f` are faulty, so `given - excluded - f` of them
     // are honest. Once that reaches `t` they determine the degree-`(t - 1)` polynomial, so the
