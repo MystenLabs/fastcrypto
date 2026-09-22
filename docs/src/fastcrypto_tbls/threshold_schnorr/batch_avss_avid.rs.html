@@ -567,14 +567,14 @@
 <a href=#567 id=567 data-nosnippet>567</a>    <span class="doccomment">/// 5. Verify a second-phase [AvidMessage] and emit an [EchoBuilder] which can build
 <a href=#568 id=568 data-nosnippet>568</a>    ///    [Echo]es. Returns also an [AvidVote] to be signed and returned to the dealer.
 <a href=#569 id=569 data-nosnippet>569</a>    ///
-<a href=#570 id=570 data-nosnippet>570</a>    ///    Only receivers that verified their shares and sent an [AvssVote] for this round should
-<a href=#571 id=571 data-nosnippet>571</a>    ///    process [AvidMessage]s and sign [AvidVote]s. The caller must pass the
-<a href=#572 id=572 data-nosnippet>572</a>    ///    [VerifiedAvssCommonMessage] it voted on.
+<a href=#570 id=570 data-nosnippet>570</a>    ///    Only receivers that verified a common message for this round should process
+<a href=#571 id=571 data-nosnippet>571</a>    ///    [AvidMessage]s and sign [AvidVote]s, whether or not their [AvssVote] reached the dealer
+<a href=#572 id=572 data-nosnippet>572</a>    ///    in time. The caller must pass the [VerifiedAvssCommonMessage] it verified.
 <a href=#573 id=573 data-nosnippet>573</a>    ///
-<a href=#574 id=574 data-nosnippet>574</a>    ///    Receivers who did not receive their shares through an [AvssMessage] (or voted on a
-<a href=#575 id=575 data-nosnippet>575</a>    ///    different common message) are pending recipients: they should ignore [AvidMessage]s,
-<a href=#576 id=576 data-nosnippet>576</a>    ///    wait for a published [Certificate] over [AvidVote]s, and then get the [AvssCommonMessage]
-<a href=#577 id=577 data-nosnippet>577</a>    ///    and [Echo]es from the signers (see below).
+<a href=#574 id=574 data-nosnippet>574</a>    ///    Receivers who did not receive their shares through an [AvssMessage] (or verified a
+<a href=#575 id=575 data-nosnippet>575</a>    ///    different common message) are pending recipients: they wait for a published
+<a href=#576 id=576 data-nosnippet>576</a>    ///    [Certificate] over [AvidVote]s, and then get the [AvssCommonMessage] and [Echo]es from
+<a href=#577 id=577 data-nosnippet>577</a>    ///    the signers (see below).
 <a href=#578 id=578 data-nosnippet>578</a>    ///
 <a href=#579 id=579 data-nosnippet>579</a>    ///    The returned outputs cannot be persisted, so the caller should persist the [AvidMessage]
 <a href=#580 id=580 data-nosnippet>580</a>    ///    before sending its [AvidVote] and process it again after a crash. It must vote for at
