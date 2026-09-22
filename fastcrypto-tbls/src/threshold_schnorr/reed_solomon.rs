@@ -98,12 +98,13 @@ pub struct Decoded {
 }
 
 impl Decoded {
-    /// The message polynomial the code word decoded to.
-    pub fn message(&self) -> &Poly<S> {
-        &self.message
+    /// The constant term of the message polynomial the code word decoded to, which is the first
+    /// symbol of the decoded message.
+    pub fn constant_term(&self) -> S {
+        self.message.c0()
     }
 
-    /// Whether the code word differed from [Self::message] at this evaluation point.
+    /// Whether the code word differed from the message polynomial at this evaluation point.
     ///
     /// By Theorem 3.3 in Gao's paper the error locator's roots among the evaluation points are
     /// exactly those positions, and it has degree equal to their number rather than the message
@@ -282,7 +283,9 @@ mod tests {
         received[2] = S::from(200u128); // Error at position 2
 
         let decoded = decoder.decode(&received).unwrap();
-        assert_eq!(decoded.message(), &message);
+        assert_eq!(decoded.constant_term(), message.c0());
+        let errors = a.iter().filter(|&&i| decoded.is_error(i)).collect_vec();
+        assert_eq!(errors, vec![&a[2], &a[4]]);
 
         // Test with too many errors
         let mut received = code_word.clone();

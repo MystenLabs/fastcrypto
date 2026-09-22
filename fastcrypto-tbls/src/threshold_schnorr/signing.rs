@@ -184,15 +184,14 @@ fn correct_and_aggregate_signatures(
         message,
         public_presig,
         beacon_value,
-        decoded.message().c0(),
+        decoded.constant_term(),
         verifying_key,
         derivation_address,
     )?;
 
     let excluded: Vec<ShareIndex> = partial_signatures
         .iter()
-        .map(|s| s.index)
-        .filter(|&index| decoded.is_error(index))
+        .filter_map(|s| decoded.is_error(s.index).then_some(s.index))
         .collect();
 
     if !can_blame_excluded_indices(partial_signatures.len(), excluded.len(), params) {
