@@ -52,9 +52,12 @@ impl RSDecoder {
         self.block_length() - self.message_length() + 1
     }
 
-    /// Compute the message polynomial.
+    /// Decode the code word, returning the message polynomial and the error locator polynomial.
+    /// By Theorem 3.3 in Gao's paper, the roots of the latter among the evaluation points are
+    /// exactly the positions where the code word differs from the former, so a caller that needs
+    /// those positions can read them off instead of re-evaluating the message polynomial.
     /// Returns an error if the input length is wrong or if there are too many errors to correct.
-    pub fn compute_message_polynomial(&self, code_word: &[S]) -> FastCryptoResult<Poly<S>> {
+    pub fn decode(&self, code_word: &[S]) -> FastCryptoResult<(Poly<S>, Poly<S>)> {
         // The implementation follows Algorithm 1 in Gao's paper.
 
         if code_word.len() != self.block_length() {
@@ -83,7 +86,7 @@ impl RSDecoder {
         if !r.is_zero() || f1.degree() >= self.k {
             return Err(TooManyErrors((self.distance() - 1) / 2));
         }
-        Ok(f1)
+        Ok((f1, v))
     }
 }
 
@@ -255,7 +258,7 @@ mod tests {
         received[4] = S::from(20u128); // Error at position 4
         received[2] = S::from(200u128); // Error at position 2
 
-        let decoded = decoder.compute_message_polynomial(&received).unwrap();
+        let (decoded, _) = decoder.decode(&received).unwrap();
         assert_eq!(decoded, message);
 
         // Test with too many errors
@@ -263,7 +266,7 @@ mod tests {
         received[4] = S::from(20u128); // Error at position 4
         received[3] = S::from(2000u128); // Error at position 3
         received[2] = S::from(200u128); // Error at position 2
-        assert!(decoder.compute_message_polynomial(&received).is_err());
+        assert!(decoder.decode(&received).is_err());
     }
 
     #[test]

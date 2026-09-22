@@ -176,8 +176,8 @@ fn correct_and_aggregate_signatures(
         params.t as usize,
     )
     .map_err(|_| InvalidSignature)?;
-    let polynomial = decoder
-        .compute_message_polynomial(&partial_signatures.iter().map(|s| s.value).collect_vec())
+    let (polynomial, error_locator) = decoder
+        .decode(&partial_signatures.iter().map(|s| s.value).collect_vec())
         .map_err(|_| InvalidSignature)?;
 
     let signature = finalize_schnorr_signature(
@@ -189,9 +189,11 @@ fn correct_and_aggregate_signatures(
         derivation_address,
     )?;
 
+    // The error locator's roots are exactly the indices the decoding excluded, and it has degree
+    // equal to their number rather than `params.t`, so it is the cheaper of the two to evaluate.
     let excluded: Vec<ShareIndex> = partial_signatures
         .iter()
-        .filter(|s| polynomial.eval(s.index).value != s.value)
+        .filter(|s| error_locator.eval(s.index).value == S::zero())
         .map(|s| s.index)
         .collect();
 
