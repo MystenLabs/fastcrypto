@@ -104,13 +104,11 @@ impl Decoding {
         self.message.c0()
     }
 
-    /// Whether the code word differed from the message polynomial at this evaluation point.
+    /// Whether the code word had an error here.
     ///
-    /// Gao remarks after Algorithm 1 that `v(x)` "is in fact the error locator polynomial", the
-    /// product of `(x - a_i)` over the positions where the code word differs, so its roots among
-    /// the evaluation points are exactly those positions. It has degree equal to their number
-    /// rather than the message length, so this is cheaper than evaluating the message polynomial
-    /// and comparing.
+    /// Gao remarks after Algorithm 1 that `v(x)` "is in fact the error locator polynomial", so its
+    /// roots are exactly the error positions. It has lower degree than the message polynomial, so
+    /// this is the cheaper check.
     pub fn is_error(&self, index: ShareIndex) -> bool {
         self.error_locator.eval(index).value == S::zero()
     }
