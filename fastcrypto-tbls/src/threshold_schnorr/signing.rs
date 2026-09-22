@@ -208,8 +208,7 @@ fn correct_and_aggregate_signatures(
 pub fn can_blame_excluded_indices(given: usize, excluded: usize, params: Parameters) -> bool {
     // Of the points the decoding kept, at most `f` are faulty, so `given - excluded - f` of them
     // are honest. Once that reaches `t` they determine the degree-`(t - 1)` polynomial, so the
-    // decoding found the true one and everything it excluded really does lie off it. A share index
-    // carries one unit of weight, so these counts are already the weights they account for.
+    // decoding found the true one and everything it excluded really does lie off it.
     given.saturating_sub(excluded) >= params.t as usize + params.f as usize
 }
 
