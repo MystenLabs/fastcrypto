@@ -197,9 +197,9 @@ fn correct_and_aggregate_signatures(
 
     if !can_blame_excluded_indices(partial_signatures.len(), excluded.len(), params) {
         warn!(
-            "signing: the decoding excluded {} of {} partial signatures, too few kept to tell which are corrupted",
-            excluded.len(),
-            partial_signatures.len(),
+            "signing: the decoding excluded {:?} of {:?}, too few kept to tell which are corrupted",
+            excluded,
+            partial_signatures.iter().map(|s| s.index).collect_vec(),
         );
         return Ok((signature, vec![]));
     }
