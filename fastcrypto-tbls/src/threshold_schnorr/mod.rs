@@ -383,7 +383,7 @@ mod tests {
         .unwrap();
 
         // Aggregate partial signatures
-        let (signature, faulty) = aggregate_signatures(
+        let (signature, excluded) = aggregate_signatures(
             message,
             &public_presig,
             &beacon_value,
@@ -396,7 +396,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(faulty.is_empty());
+        assert!(excluded.is_empty());
 
         // Check that this produced a valid signature
         SchnorrPublicKey::try_from(&vk)
@@ -563,7 +563,7 @@ mod tests {
         .unwrap();
 
         // Aggregate partial signatures
-        let (signature_2, faulty) = aggregate_signatures(
+        let (signature_2, excluded) = aggregate_signatures(
             message_2,
             &public_presig,
             &beacon_value,
@@ -576,7 +576,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(faulty.is_empty());
+        assert!(excluded.is_empty());
 
         // Check that this produced a valid signature
         SchnorrPublicKey::try_from(&vk)
@@ -707,7 +707,7 @@ mod tests {
         )
         .unwrap();
 
-        let (signature, faulty) = aggregate_signatures(
+        let (signature, excluded) = aggregate_signatures(
             message,
             &public,
             &beacon_value,
@@ -720,7 +720,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(faulty.is_empty());
+        assert!(excluded.is_empty());
 
         // Check that this produced a valid signature
         SchnorrPublicKey::try_from(&vk_element)
@@ -728,13 +728,13 @@ mod tests {
             .verify(message, &signature)
             .unwrap();
 
-        // A single faulty partial signature is corrected and reported.
+        // A single invalid partial signature is corrected and its index reported.
         let mut corrupted = partial_signatures
             .iter()
             .flat_map(|(_, sigs)| sigs.clone())
             .collect_vec();
         corrupted[0].value = S::rand(&mut rng);
-        let (corrected, faulty) = aggregate_signatures(
+        let (corrected, excluded) = aggregate_signatures(
             message,
             &public,
             &beacon_value,
@@ -744,7 +744,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(faulty, vec![corrupted[0].index]);
+        assert_eq!(excluded, vec![corrupted[0].index]);
         SchnorrPublicKey::try_from(&vk_element)
             .unwrap()
             .verify(message, &corrected)
@@ -807,7 +807,7 @@ mod tests {
                             .1
                         })
                         .collect_vec();
-                    let (signature, faulty) = aggregate_signatures(
+                    let (signature, excluded) = aggregate_signatures(
                         message,
                         &public_presig,
                         &beacon,
@@ -817,7 +817,7 @@ mod tests {
                         address.as_ref(),
                     )
                     .unwrap();
-                    assert!(faulty.is_empty());
+                    assert!(excluded.is_empty());
 
                     match address {
                         Some(address) => derive_verifying_key(&vk, &address).unwrap(),
@@ -935,7 +935,7 @@ mod tests {
         )
         .unwrap();
 
-        let (signature, faulty) = aggregate_signatures(
+        let (signature, excluded) = aggregate_signatures(
             message,
             &public,
             &beacon_value,
@@ -948,7 +948,7 @@ mod tests {
             Some(&address),
         )
         .unwrap();
-        assert!(faulty.is_empty());
+        assert!(excluded.is_empty());
 
         // Check that this produced a valid signature
         derive_verifying_key(&vk_element, &address)
