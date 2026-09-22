@@ -176,7 +176,7 @@ fn correct_and_aggregate_signatures(
         params.t as usize,
     )
     .map_err(|_| InvalidSignature)?;
-    let (polynomial, error_locator) = decoder
+    let decoded = decoder
         .decode(&partial_signatures.iter().map(|s| s.value).collect_vec())
         .map_err(|_| InvalidSignature)?;
 
@@ -184,17 +184,15 @@ fn correct_and_aggregate_signatures(
         message,
         public_presig,
         beacon_value,
-        polynomial.c0(),
+        decoded.message().c0(),
         verifying_key,
         derivation_address,
     )?;
 
-    // The error locator's roots are exactly the indices the decoding excluded, and it has degree
-    // equal to their number rather than `params.t`, so it is the cheaper of the two to evaluate.
     let excluded: Vec<ShareIndex> = partial_signatures
         .iter()
-        .filter(|s| error_locator.eval(s.index).value == S::zero())
         .map(|s| s.index)
+        .filter(|&index| decoded.is_error(index))
         .collect();
 
     if !can_blame_excluded_indices(partial_signatures.len(), excluded.len(), params) {

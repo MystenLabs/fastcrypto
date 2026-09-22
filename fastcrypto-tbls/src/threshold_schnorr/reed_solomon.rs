@@ -6,6 +6,7 @@ use crate::threshold_schnorr::S;
 use crate::types::{get_uniform_value, to_scalar, ShareIndex};
 use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, TooManyErrors};
 use fastcrypto::error::FastCryptoResult;
+use fastcrypto::groups::GroupElement;
 use itertools::Itertools;
 use reed_solomon_erasure::galois_16::ReedSolomon;
 use serde::{Deserialize, Serialize};
@@ -52,12 +53,9 @@ impl RSDecoder {
         self.block_length() - self.message_length() + 1
     }
 
-    /// Decode the code word, returning the message polynomial and the error locator polynomial.
-    /// By Theorem 3.3 in Gao's paper, the roots of the latter among the evaluation points are
-    /// exactly the positions where the code word differs from the former, so a caller that needs
-    /// those positions can read them off instead of re-evaluating the message polynomial.
+    /// Decode the code word.
     /// Returns an error if the input length is wrong or if there are too many errors to correct.
-    pub fn decode(&self, code_word: &[S]) -> FastCryptoResult<(Poly<S>, Poly<S>)> {
+    pub fn decode(&self, code_word: &[S]) -> FastCryptoResult<Decoded> {
         // The implementation follows Algorithm 1 in Gao's paper.
 
         if code_word.len() != self.block_length() {
@@ -86,7 +84,32 @@ impl RSDecoder {
         if !r.is_zero() || f1.degree() >= self.k {
             return Err(TooManyErrors((self.distance() - 1) / 2));
         }
-        Ok((f1, v))
+        Ok(Decoded {
+            message: f1,
+            error_locator: v,
+        })
+    }
+}
+
+/// A successfully decoded code word.
+pub struct Decoded {
+    message: Poly<S>,
+    error_locator: Poly<S>,
+}
+
+impl Decoded {
+    /// The message polynomial the code word decoded to.
+    pub fn message(&self) -> &Poly<S> {
+        &self.message
+    }
+
+    /// Whether the code word differed from [Self::message] at this evaluation point.
+    ///
+    /// By Theorem 3.3 in Gao's paper the error locator's roots among the evaluation points are
+    /// exactly those positions, and it has degree equal to their number rather than the message
+    /// length, so this is cheaper than evaluating the message polynomial and comparing.
+    pub fn is_error(&self, index: ShareIndex) -> bool {
+        self.error_locator.eval(index).value == S::zero()
     }
 }
 
@@ -258,8 +281,8 @@ mod tests {
         received[4] = S::from(20u128); // Error at position 4
         received[2] = S::from(200u128); // Error at position 2
 
-        let (decoded, _) = decoder.decode(&received).unwrap();
-        assert_eq!(decoded, message);
+        let decoded = decoder.decode(&received).unwrap();
+        assert_eq!(decoded.message(), &message);
 
         // Test with too many errors
         let mut received = code_word.clone();
