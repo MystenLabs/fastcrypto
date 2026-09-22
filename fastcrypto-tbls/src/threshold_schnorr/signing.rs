@@ -105,9 +105,14 @@ pub fn generate_partial_signatures(
 /// The signature will be valid for the derived verifying key.
 ///
 /// If the signature does not verify, the partial signatures are decoded as a Reed-Solomon code word,
-/// and the share indices excluded by the decoding are returned along with the signature. They are
-/// not an attribution: an honest party's index can be excluded.
-/// Correcting `e` faults requires `threshold + 2e` partial signatures.
+/// and the share indices excluded by the decoding are returned along with the signature. Correcting
+/// `e` faults requires `threshold + 2e` partial signatures.
+///
+/// Verification pins only the constant term, so a decoding without margin can settle on a different
+/// polynomial sharing it and exclude honest indices. The excluded indices are sound only when
+/// `n - m >= threshold + f`, for `n` partial signatures given, `m` excluded and a faulty weight
+/// bound `f`: at least `threshold` of the points the decoding kept are then honest, which fixes the
+/// polynomial as the true one.
 ///
 /// Returns an `InputTooShort` error if not enough partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
@@ -160,9 +165,9 @@ pub fn aggregate_signatures(
 }
 
 /// Decode the partial signatures as a Reed-Solomon code word, recovering the signature and the
-/// share indices the decoding excluded. Verification pins only the recovered polynomial's constant
-/// term, so a sufficiently corrupted input can decode to another polynomial sharing that term,
-/// which excludes honest indices while still yielding a valid signature.
+/// share indices the decoding excluded. See [aggregate_signatures] for when those indices are
+/// sound: the decoding can settle on a different polynomial with the same constant term, and only
+/// the honest points it kept rule that out.
 fn correct_and_aggregate_signatures(
     message: &[u8],
     public_presig: &G,
