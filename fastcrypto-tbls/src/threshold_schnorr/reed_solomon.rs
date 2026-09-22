@@ -294,6 +294,50 @@ mod tests {
     }
 
     #[test]
+    fn test_decoding_can_exclude_an_honest_index() {
+        // Corrupt parties evaluate `g`, which shares its constant term with the honest `f`. The
+        // two agree only at zero, so every honest point is an error relative to `g`.
+        let f = Poly::from(vec![S::from(10u128), S::from(3u128)]);
+        let g = Poly::from(vec![S::from(10u128), S::from(5u128)]);
+        let corrupt = [1u16, 2, 3];
+        let point = |i: u16| ShareIndex::new(i).unwrap();
+        let word = |points: &[ShareIndex]| -> Vec<S> {
+            points
+                .iter()
+                .map(|&i| {
+                    if corrupt.contains(&i.get()) {
+                        g.eval(i).value
+                    } else {
+                        f.eval(i).value
+                    }
+                })
+                .collect_vec()
+        };
+
+        // Four points: the three corrupt ones outnumber the honest one, so the decoding settles on
+        // `g`. The constant term still comes out right, but the honest index is named as the error.
+        let few = (1..=4).map(point).collect_vec();
+        let decoding = RSDecoder::new(few.clone(), 2)
+            .unwrap()
+            .decode(&word(&few))
+            .unwrap();
+        assert_eq!(decoding.constant_term(), f.c0());
+        assert!(decoding.is_error(point(4)));
+        assert!(corrupt.iter().all(|&i| !decoding.is_error(point(i))));
+
+        // Eight points: the same three are within the correction radius, so the decoding finds `f`
+        // and the locator names them instead.
+        let many = (1..=8).map(point).collect_vec();
+        let decoding = RSDecoder::new(many.clone(), 2)
+            .unwrap()
+            .decode(&word(&many))
+            .unwrap();
+        assert_eq!(decoding.constant_term(), f.c0());
+        assert!(corrupt.iter().all(|&i| decoding.is_error(point(i))));
+        assert!(!decoding.is_error(point(4)));
+    }
+
+    #[test]
     fn test_erasure_coder_new_rejects_invalid_parameters() {
         assert!(matches!(ErasureCoder::new(10, 0), Err(InvalidInput)));
         assert!(matches!(ErasureCoder::new(10, 10), Err(InvalidInput)));
