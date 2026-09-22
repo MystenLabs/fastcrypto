@@ -160,7 +160,8 @@ pub fn aggregate_signatures(
 }
 
 /// Decode the partial signatures as a Reed-Solomon code word, recovering the signature and the
-/// excluded indices: the share indices whose partial signatures the decoding did not agree with.
+/// excluded indices: the share indices whose partial signatures were incorrect. The signature is
+/// verified before they are computed, so the polynomial they are compared against is the right one.
 fn correct_and_aggregate_signatures(
     message: &[u8],
     public_presig: &G,
