@@ -228,8 +228,8 @@ mod tests {
         );
         assert_eq!(presignatures.len(), 4);
 
-        // `validate` admits `t == f`, where the privacy threshold gives one position more than
-        // `total_weight - f`, not fewer.
+        // `t == f` is allowed (`validate` rejects only `t < f`), and is the direction where
+        // `total_weight - f` under-produces instead of over-producing.
         let params = Parameters { t: 2, f: 2 };
         let outputs = (0..4)
             .map(|i| ReceiverOutput {
