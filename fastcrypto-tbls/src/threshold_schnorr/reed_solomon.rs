@@ -106,9 +106,11 @@ impl Decoded {
 
     /// Whether the code word differed from the message polynomial at this evaluation point.
     ///
-    /// By Theorem 3.3 in Gao's paper the error locator's roots among the evaluation points are
-    /// exactly those positions, and it has degree equal to their number rather than the message
-    /// length, so this is cheaper than evaluating the message polynomial and comparing.
+    /// The proof of Theorem 3.3 in Gao's paper applies Lemma 3.2 to get the error locator as a
+    /// scalar times the product of `(x - a_i)` over the positions where the two differ, so its
+    /// roots among the evaluation points are exactly those positions. It has degree equal to their
+    /// number rather than the message length, so this is cheaper than evaluating the message
+    /// polynomial and comparing.
     pub fn is_error(&self, index: ShareIndex) -> bool {
         self.error_locator.eval(index).value == S::zero()
     }
@@ -282,9 +284,9 @@ mod tests {
         received[4] = S::from(20u128); // Error at position 4
         received[2] = S::from(200u128); // Error at position 2
 
-        let decoded = decoder.decode(&received).unwrap();
-        assert_eq!(decoded.constant_term(), message.c0());
-        let errors = a.iter().filter(|&&i| decoded.is_error(i)).collect_vec();
+        let decoding = decoder.decode(&received).unwrap();
+        assert_eq!(decoding.constant_term(), message.c0());
+        let errors = a.iter().filter(|&&i| decoding.is_error(i)).collect_vec();
         assert_eq!(errors, vec![&a[2], &a[4]]);
 
         // Test with too many errors

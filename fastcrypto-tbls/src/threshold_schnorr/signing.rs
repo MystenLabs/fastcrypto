@@ -176,7 +176,7 @@ fn correct_and_aggregate_signatures(
         params.t as usize,
     )
     .map_err(|_| InvalidSignature)?;
-    let decoded = decoder
+    let decoding = decoder
         .decode(&partial_signatures.iter().map(|s| s.value).collect_vec())
         .map_err(|_| InvalidSignature)?;
 
@@ -184,14 +184,14 @@ fn correct_and_aggregate_signatures(
         message,
         public_presig,
         beacon_value,
-        decoded.constant_term(),
+        decoding.constant_term(),
         verifying_key,
         derivation_address,
     )?;
 
     let excluded: Vec<ShareIndex> = partial_signatures
         .iter()
-        .filter_map(|s| decoded.is_error(s.index).then_some(s.index))
+        .filter_map(|s| decoding.is_error(s.index).then_some(s.index))
         .collect();
 
     if !can_blame_excluded_indices(partial_signatures.len(), excluded.len(), params) {
