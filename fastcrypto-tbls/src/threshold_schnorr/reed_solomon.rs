@@ -297,9 +297,9 @@ mod tests {
     fn test_decoding_can_exclude_an_honest_index() {
         // Corrupt parties evaluate `g`, which shares its constant term with the honest `f`. The
         // two agree only at zero, so every honest point is an error relative to `g`.
-        let f = Poly::from(vec![S::from(10u128), S::from(3u128)]);
-        let g = Poly::from(vec![S::from(10u128), S::from(5u128)]);
-        let corrupt = [1u16, 2, 3];
+        let f = Poly::from(vec![S::from(10u128), S::from(3u128), S::from(2u128)]);
+        let g = Poly::from(vec![S::from(10u128), S::from(5u128), S::from(7u128)]);
+        let corrupt = [1u16, 2, 3, 4];
         let point = |i: u16| ShareIndex::new(i).unwrap();
         let word = |points: &[ShareIndex]| -> Vec<S> {
             points
@@ -314,27 +314,35 @@ mod tests {
                 .collect_vec()
         };
 
-        // Four points: the three corrupt ones outnumber the honest one, so the decoding settles on
+        // Five points: the four corrupt ones outnumber the honest one, so the decoding settles on
         // `g`. The constant term still comes out right, but the honest index is named as the error.
-        let few = (1..=4).map(point).collect_vec();
-        let decoding = RSDecoder::new(few.clone(), 2)
+        let few = (1..=5).map(point).collect_vec();
+        let decoding = RSDecoder::new(few.clone(), 3)
             .unwrap()
             .decode(&word(&few))
             .unwrap();
         assert_eq!(decoding.constant_term(), f.c0());
-        assert!(decoding.is_error(point(4)));
+        assert!(decoding.is_error(point(5)));
         assert!(corrupt.iter().all(|&i| !decoding.is_error(point(i))));
 
-        // Eight points: the same three are within the correction radius, so the decoding finds `f`
+        // In between it decodes to neither: with `c` corrupt and message length `k` it settles on
+        // `g` up to `n = 2c - k`, finds `f` from `n = 2c + k`, and fails over the `2k` in between.
+        let between = (1..=8).map(point).collect_vec();
+        assert!(RSDecoder::new(between.clone(), 3)
+            .unwrap()
+            .decode(&word(&between))
+            .is_err());
+
+        // Eleven points: the same four are within the correction radius, so the decoding finds `f`
         // and the locator names them instead.
-        let many = (1..=8).map(point).collect_vec();
-        let decoding = RSDecoder::new(many.clone(), 2)
+        let many = (1..=11).map(point).collect_vec();
+        let decoding = RSDecoder::new(many.clone(), 3)
             .unwrap()
             .decode(&word(&many))
             .unwrap();
         assert_eq!(decoding.constant_term(), f.c0());
         assert!(corrupt.iter().all(|&i| decoding.is_error(point(i))));
-        assert!(!decoding.is_error(point(4)));
+        assert!(!decoding.is_error(point(5)));
     }
 
     #[test]
