@@ -535,11 +535,16 @@ impl DkOutput {
 
     /// Combine multiple AVSS outputs from different dealers into a single output by summing.
     /// Called by the app level with AVSS outputs that represent at least t of the weight. The set of outputs is determined based on the order of the messages on the TOB channel.
-    /// Panics if the given `DkOutput`s are not compatible (same weight, same indices, same number of commitments)
     /// Returns the combined output, including the joint verifying key
     ///
     /// The outputs are not verified again, so they must come from [Receiver::process_message] or
     /// [Receiver::recover], with at most one per dealer.
+    ///
+    /// Returns a [NotEnoughWeight] error if the outputs hold less than `t` of the weight, and an
+    /// [InvalidInput] error if they are empty or do not all hold the same share indices. Outputs
+    /// committing to polynomials of different degrees are not rejected: the sum extends to the
+    /// longer one. Every output of [Receiver::process_message] has degree `t - 1`, which is checked
+    /// there.
     pub fn complete_dkg(
         t: u16,
         nodes: &Nodes<EG>,
@@ -586,6 +591,10 @@ impl DkOutput {
     /// The `outputs` parameter is a list of `IndexedValue`, where each `value` is the output of an
     /// AVSS instance and the corresponding `index` indicates which share from the previous round
     /// the AVSS instance was sharing.
+    ///
+    /// Returns an [InputLengthWrong] error if the number of outputs is not exactly `t`, and an
+    /// [InvalidInput] error if they repeat a share index or do not all hold a share for every index
+    /// `my_id` owns.
     pub fn complete_key_rotation(
         t: u16,
         my_id: PartyId,
