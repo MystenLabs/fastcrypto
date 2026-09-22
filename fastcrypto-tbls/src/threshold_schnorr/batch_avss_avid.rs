@@ -202,33 +202,6 @@ pub struct ShareBatch {
     pub blinding_share: S,
 }
 
-// TODO: This can be removed when batch_avss is removed.
-impl ReceiverOutput {
-    /// Convert to the legacy [`crate::threshold_schnorr::batch_avss::ReceiverOutput`].
-    pub fn into_legacy(
-        self,
-        indices: &[ShareIndex],
-    ) -> crate::threshold_schnorr::batch_avss::ReceiverOutput {
-        use crate::threshold_schnorr::batch_avss as legacy;
-        legacy::ReceiverOutput {
-            my_shares: legacy::SharesForNode {
-                shares: self
-                    .my_shares
-                    .shares
-                    .into_iter()
-                    .zip(indices)
-                    .map(|(s, &index)| legacy::ShareBatch {
-                        index,
-                        batch: s.batch,
-                        blinding_share: s.blinding_share,
-                    })
-                    .collect(),
-            },
-            public_keys: self.public_keys,
-        }
-    }
-}
-
 impl Dealer {
     /// Create a new dealer.
     ///
