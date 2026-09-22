@@ -214,10 +214,8 @@ pub fn can_blame_excluded_indices(given: usize, excluded: usize, params: Paramet
 
 /// Wrap an already-recovered signing scalar `s = f(0)` into a BIP-0340 Schnorr signature.
 ///
-/// This is the second half of [aggregate_signatures], split out so callers that recover `s`
-/// through a different path (e.g. Reed–Solomon decoding, which yields `s` as the constant
-/// coefficient of the message polynomial) can reuse the BIP-0340 finalization without
-/// re-running Lagrange interpolation.
+/// This is the second half of [aggregate_signatures], shared with the Reed-Solomon path, which
+/// recovers `s` as the constant coefficient of the message polynomial instead of by interpolation.
 ///
 /// If a derivation index is provided, a new verifying key is derived for this index (see
 /// [derive_verifying_key]), and the signature is adjusted accordingly. The signature will
@@ -226,7 +224,7 @@ pub fn can_blame_excluded_indices(given: usize, excluded: usize, params: Paramet
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
 /// `InvalidSignature` is returned if the aggregated signature does not verify.
 /// `InvalidInput` is returned if the provided verifying key is the identity element.
-pub fn finalize_schnorr_signature(
+fn finalize_schnorr_signature(
     message: &[u8],
     public_presig: &G,
     beacon_value: &S,
