@@ -204,15 +204,11 @@ fn correct_and_aggregate_signatures(
 }
 
 /// Whether the indices [aggregate_signatures] excluded can be blamed, i.e. whether they prove that
-/// their owners submitted a wrong partial signature: `n - m >= t + f`, for `n` partial signatures
-/// given and `m` excluded. A share index carries one unit of weight, so the number of excluded
-/// indices is the weight they account for and no node set is needed to weigh them.
-pub fn can_blame_excluded_indices(
-    partial_signatures: &[Eval<S>],
-    excluded: &[ShareIndex],
-    params: Parameters,
-) -> bool {
-    partial_signatures.len().saturating_sub(excluded.len()) >= params.t as usize + params.f as usize
+/// their owners submitted a wrong partial signature: `given - excluded >= t + f`. A share index
+/// carries one unit of weight, so the number of excluded indices is the weight they account for
+/// and no node set is needed to weigh them.
+pub fn can_blame_excluded_indices(given: usize, excluded: usize, params: Parameters) -> bool {
+    given.saturating_sub(excluded) >= params.t as usize + params.f as usize
 }
 
 /// Wrap an already-recovered signing scalar `s = f(0)` into a BIP-0340 Schnorr signature.
