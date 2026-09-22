@@ -109,10 +109,10 @@ pub fn generate_partial_signatures(
 /// `e` faults requires `threshold + 2e` partial signatures.
 ///
 /// Verification pins only the constant term, so a decoding without margin can settle on a different
-/// polynomial sharing it and exclude honest indices. An excluded index proves that party submitted
-/// a wrong partial signature only when `n - m >= threshold + f`, for `n` partial signatures given,
-/// `m` excluded and a faulty weight bound `f`: at least `threshold` of the points the decoding kept
-/// are then honest, which fixes the polynomial as the true one.
+/// polynomial sharing it and exclude honest indices. Use [can_blame_excluded_indices] to tell the
+/// two apart: it holds when enough of the points the decoding kept must be honest to fix the
+/// polynomial as the true one, and only then does an excluded index prove that its owner submitted
+/// a wrong partial signature.
 ///
 /// Returns an `InputTooShort` error if not enough partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
@@ -203,11 +203,11 @@ fn correct_and_aggregate_signatures(
     Ok((signature, excluded))
 }
 
-/// Whether the indices [aggregate_signatures] excluded prove that their owners submitted a wrong
-/// partial signature, namely whether `n - m >= t + f` for `n` partial signatures given and `m`
-/// excluded. A share index carries one unit of weight, so the number of excluded indices is the
-/// weight they account for and no node set is needed to weigh them.
-pub fn excluded_indices_are_conclusive(
+/// Whether the indices [aggregate_signatures] excluded can be blamed, i.e. whether they prove that
+/// their owners submitted a wrong partial signature: `n - m >= t + f`, for `n` partial signatures
+/// given and `m` excluded. A share index carries one unit of weight, so the number of excluded
+/// indices is the weight they account for and no node set is needed to weigh them.
+pub fn can_blame_excluded_indices(
     partial_signatures: &[Eval<S>],
     excluded: &[ShareIndex],
     params: Parameters,
