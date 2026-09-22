@@ -105,11 +105,10 @@ impl Decoding {
     }
 
     /// Whether the code word had an error here.
-    ///
-    /// Gao remarks after Algorithm 1 that `v(x)` "is in fact the error locator polynomial", so its
-    /// roots are exactly the error positions. It has lower degree than the message polynomial, so
-    /// this is the cheaper check.
     pub fn is_error(&self, index: ShareIndex) -> bool {
+        // Gao remarks after Algorithm 1 that `v(x)` "is in fact the error locator polynomial", so
+        // its roots are exactly the error positions. It has lower degree than the message
+        // polynomial, so this is the cheaper check.
         self.error_locator.eval(index).value == S::zero()
     }
 }
