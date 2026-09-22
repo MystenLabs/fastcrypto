@@ -85,26 +85,6 @@ impl RSDecoder {
         }
         Ok(f1)
     }
-
-    /// Encode the message using the Reed-Solomon code defined by the evaluation points `a`.
-    /// Returns an error if the message length is wrong.
-    #[cfg(test)]
-    pub fn encode(&self, message: Vec<S>) -> FastCryptoResult<Vec<S>> {
-        if message.len() != self.message_length() {
-            return Err(InputLengthWrong(self.message_length()));
-        }
-        let f = Poly::from(message);
-        Ok(self.a.iter().map(|&ai| f.eval(ai).value).collect_vec())
-    }
-
-    /// Try to correct the input and return the decoded message.
-    /// Returns an error if the input length is wrong or if there are too many errors to correct.
-    #[cfg(test)]
-    pub fn decode(&self, input: &[S]) -> FastCryptoResult<Vec<S>> {
-        let mut f1 = self.compute_message_polynomial(input)?.to_vec();
-        f1.truncate(self.k);
-        Ok(f1)
-    }
 }
 
 /// A wrapper struct for the Reed-Solomon erasure coding library.
@@ -143,7 +123,7 @@ impl ErasureCoder {
             .map(Self)
     }
 
-    pub fn check_parameters(n: usize, k: usize) -> FastCryptoResult<()> {
+    fn check_parameters(n: usize, k: usize) -> FastCryptoResult<()> {
         if k == 0 || n <= k || n > 65536 {
             return Err(InvalidInput);
         }
@@ -267,23 +247,23 @@ mod tests {
         let k = 3;
         let decoder = RSDecoder::new(a.clone(), k).unwrap();
 
-        let message = vec![S::from(11u128), S::from(22u128), S::from(33u128)];
-        let code_word = decoder.encode(message.clone()).unwrap();
+        let message = Poly::from(vec![S::from(11u128), S::from(22u128), S::from(33u128)]);
+        let code_word = a.iter().map(|&i| message.eval(i).value).collect_vec();
 
         // Introduce errors
         let mut received = code_word.clone();
         received[4] = S::from(20u128); // Error at position 4
         received[2] = S::from(200u128); // Error at position 2
 
-        let decoded_message = decoder.decode(&received).unwrap();
-        assert_eq!(decoded_message, message);
+        let decoded = decoder.compute_message_polynomial(&received).unwrap();
+        assert_eq!(decoded, message);
 
         // Test with too many errors
         let mut received = code_word.clone();
         received[4] = S::from(20u128); // Error at position 4
         received[3] = S::from(2000u128); // Error at position 3
         received[2] = S::from(200u128); // Error at position 2
-        assert!(decoder.decode(&received).is_err());
+        assert!(decoder.compute_message_polynomial(&received).is_err());
     }
 
     #[test]
