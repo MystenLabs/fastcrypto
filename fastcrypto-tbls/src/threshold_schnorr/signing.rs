@@ -203,11 +203,13 @@ fn correct_and_aggregate_signatures(
     Ok((signature, excluded))
 }
 
-/// Whether the indices [aggregate_signatures] excluded can be blamed, i.e. whether they prove that
-/// their owners submitted a wrong partial signature: `given - excluded >= t + f`. A share index
-/// carries one unit of weight, so the number of excluded indices is the weight they account for
-/// and no node set is needed to weigh them.
+/// Whether the indices [aggregate_signatures] excluded prove that their owners submitted a wrong
+/// partial signature. When this is false, do not act on them.
 pub fn can_blame_excluded_indices(given: usize, excluded: usize, params: Parameters) -> bool {
+    // Of the points the decoding kept, at most `f` are faulty, so `given - excluded - f` of them
+    // are honest. Once that reaches `t` they determine the degree-`(t - 1)` polynomial, so the
+    // decoding found the true one and everything it excluded really does lie off it. A share index
+    // carries one unit of weight, so these counts are already the weights they account for.
     given.saturating_sub(excluded) >= params.t as usize + params.f as usize
 }
 
