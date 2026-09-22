@@ -98,8 +98,7 @@ pub struct Decoding {
 }
 
 impl Decoding {
-    /// The constant term of the message polynomial the code word decoded to, which is the first
-    /// symbol of the decoded message.
+    /// The constant term of the message polynomial.
     pub fn constant_term(&self) -> S {
         self.message.c0()
     }
