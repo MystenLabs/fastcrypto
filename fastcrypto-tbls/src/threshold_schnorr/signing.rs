@@ -109,9 +109,9 @@ pub fn generate_partial_signatures(
 /// and the share indices the decoding excluded are returned along with the signature. Correcting
 /// `e` faults requires `params.t + 2e` partial signatures.
 ///
-/// A returned index is certainly corrupted: its owner submitted a wrong partial signature. Where
-/// the decoding had too little margin to establish that, no indices are returned and the aggregation
-/// logs instead, so an empty set does not mean every partial signature was good.
+/// The returned flag says whether the indices are certain: when set, each one's owner submitted a
+/// wrong partial signature, and when clear the decoding had too little margin to establish that and
+/// they are a best-effort result, which may name an honest party.
 ///
 /// Returns an `InputTooShort` error if fewer than `params.t` partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
@@ -130,7 +130,7 @@ pub fn aggregate_signatures(
     params: Parameters,
     verifying_key: &G,
     derivation_address: Option<&Address>,
-) -> FastCryptoResult<(SchnorrSignature, Vec<ShareIndex>)> {
+) -> FastCryptoResult<(SchnorrSignature, Vec<ShareIndex>, bool)> {
     if partial_signatures.len() < params.t as usize {
         return Err(InputTooShort(params.t as usize));
     }
@@ -149,7 +149,7 @@ pub fn aggregate_signatures(
         verifying_key,
         derivation_address,
     ) {
-        Ok(signature) => Ok((signature, vec![])),
+        Ok(signature) => Ok((signature, vec![], true)),
         Err(InvalidSignature) => correct_and_aggregate_signatures(
             message,
             public_presig,
@@ -163,10 +163,9 @@ pub fn aggregate_signatures(
     }
 }
 
-/// Decode the partial signatures as a Reed-Solomon code word, recovering the signature and the
-/// share indices the decoding excluded. Only returns those indices when they are certainly
-/// corrupted, and reports [InconsistentInputs] rather than a bad signature when they are ruled
-/// out as the cause, see [can_blame_excluded_indices].
+/// Decode the partial signatures as a Reed-Solomon code word, recovering the signature, the share
+/// indices the decoding excluded and whether they can be blamed, see [can_blame_excluded_indices].
+/// Reports [InconsistentInputs] rather than a bad signature when they are ruled out as the cause.
 fn correct_and_aggregate_signatures(
     message: &[u8],
     public_presig: &G,
@@ -175,7 +174,7 @@ fn correct_and_aggregate_signatures(
     params: Parameters,
     verifying_key: &G,
     derivation_address: Option<&Address>,
-) -> FastCryptoResult<(SchnorrSignature, Vec<ShareIndex>)> {
+) -> FastCryptoResult<(SchnorrSignature, Vec<ShareIndex>, bool)> {
     let decoder = RSDecoder::new(
         partial_signatures.iter().map(|s| s.index).collect(),
         params.t as usize,
@@ -206,15 +205,7 @@ fn correct_and_aggregate_signatures(
         Err(e) => return Err(e),
     };
 
-    if !can_blame {
-        warn!(
-            "signing: the decoding excluded {:?} of {:?}, too few kept to tell which are corrupted",
-            excluded,
-            partial_signatures.iter().map(|s| s.index).collect_vec(),
-        );
-        return Ok((signature, vec![]));
-    }
-    Ok((signature, excluded))
+    Ok((signature, excluded, can_blame))
 }
 
 /// Whether excluding `excluded` of the `given` partial signatures proves that those indices'

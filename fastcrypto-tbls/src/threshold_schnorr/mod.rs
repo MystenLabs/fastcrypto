@@ -383,7 +383,7 @@ mod tests {
         .unwrap();
 
         // Aggregate partial signatures
-        let (signature, excluded) = aggregate_signatures(
+        let (signature, excluded, _) = aggregate_signatures(
             message,
             &public_presig,
             &beacon_value,
@@ -563,7 +563,7 @@ mod tests {
         .unwrap();
 
         // Aggregate partial signatures
-        let (signature_2, excluded) = aggregate_signatures(
+        let (signature_2, excluded, _) = aggregate_signatures(
             message_2,
             &public_presig,
             &beacon_value,
@@ -707,7 +707,7 @@ mod tests {
         )
         .unwrap();
 
-        let (signature, excluded) = aggregate_signatures(
+        let (signature, excluded, _) = aggregate_signatures(
             message,
             &public,
             &beacon_value,
@@ -734,7 +734,7 @@ mod tests {
             .flat_map(|(_, sigs)| sigs.clone())
             .collect_vec();
         corrupted[0].value = S::rand(&mut rng);
-        let (corrected, excluded) = aggregate_signatures(
+        let (corrected, excluded, can_blame) = aggregate_signatures(
             message,
             &public,
             &beacon_value,
@@ -744,6 +744,7 @@ mod tests {
             None,
         )
         .unwrap();
+        assert!(can_blame);
         assert_eq!(excluded, vec![corrupted[0].index]);
         SchnorrPublicKey::try_from(&vk_element)
             .unwrap()
@@ -771,7 +772,7 @@ mod tests {
 
         // The same fault is still corrected from five partial signatures, but excluding it leaves
         // four, short of the `t + f` the aggregation wants before it will name an index.
-        let (corrected, excluded) = aggregate_signatures(
+        let (corrected, excluded, can_blame) = aggregate_signatures(
             message,
             &public,
             &beacon_value,
@@ -781,7 +782,8 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(excluded.is_empty());
+        assert!(!can_blame);
+        assert_eq!(excluded, vec![corrupted[0].index]);
         SchnorrPublicKey::try_from(&vk_element)
             .unwrap()
             .verify(message, &corrected)
@@ -844,7 +846,7 @@ mod tests {
                             .1
                         })
                         .collect_vec();
-                    let (signature, excluded) = aggregate_signatures(
+                    let (signature, excluded, _) = aggregate_signatures(
                         message,
                         &public_presig,
                         &beacon,
@@ -972,7 +974,7 @@ mod tests {
         )
         .unwrap();
 
-        let (signature, excluded) = aggregate_signatures(
+        let (signature, excluded, _) = aggregate_signatures(
             message,
             &public,
             &beacon_value,
