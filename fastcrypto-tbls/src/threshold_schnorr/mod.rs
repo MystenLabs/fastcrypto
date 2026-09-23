@@ -165,7 +165,9 @@ mod tests {
         derive_verifying_key, derive_verifying_key_internal,
     };
     use crate::threshold_schnorr::presigning::Presignatures;
-    use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
+    use crate::threshold_schnorr::signing::{
+        aggregate_signatures, generate_partial_signatures, Excluded,
+    };
     use crate::threshold_schnorr::{avss, batch_avss_avid, Address, Parameters, EG, G, S};
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
@@ -383,7 +385,7 @@ mod tests {
         .unwrap();
 
         // Aggregate partial signatures
-        let (signature, excluded, _) = aggregate_signatures(
+        let (signature, excluded) = aggregate_signatures(
             message,
             &public_presig,
             &beacon_value,
@@ -396,7 +398,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(excluded.is_empty());
+        assert_eq!(excluded, Excluded::NoCorrection);
 
         // Check that this produced a valid signature
         SchnorrPublicKey::try_from(&vk)
@@ -563,7 +565,7 @@ mod tests {
         .unwrap();
 
         // Aggregate partial signatures
-        let (signature_2, excluded, _) = aggregate_signatures(
+        let (signature_2, excluded) = aggregate_signatures(
             message_2,
             &public_presig,
             &beacon_value,
@@ -576,7 +578,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(excluded.is_empty());
+        assert_eq!(excluded, Excluded::NoCorrection);
 
         // Check that this produced a valid signature
         SchnorrPublicKey::try_from(&vk)
@@ -707,7 +709,7 @@ mod tests {
         )
         .unwrap();
 
-        let (signature, excluded, _) = aggregate_signatures(
+        let (signature, excluded) = aggregate_signatures(
             message,
             &public,
             &beacon_value,
@@ -720,7 +722,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(excluded.is_empty());
+        assert_eq!(excluded, Excluded::NoCorrection);
 
         // Check that this produced a valid signature
         SchnorrPublicKey::try_from(&vk_element)
@@ -734,7 +736,7 @@ mod tests {
             .flat_map(|(_, sigs)| sigs.clone())
             .collect_vec();
         corrupted[0].value = S::rand(&mut rng);
-        let (corrected, excluded, can_blame) = aggregate_signatures(
+        let (corrected, excluded) = aggregate_signatures(
             message,
             &public,
             &beacon_value,
@@ -744,8 +746,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(can_blame);
-        assert_eq!(excluded, vec![corrupted[0].index]);
+        assert_eq!(excluded, Excluded::Blamable(vec![corrupted[0].index]));
         SchnorrPublicKey::try_from(&vk_element)
             .unwrap()
             .verify(message, &corrected)
@@ -772,7 +773,7 @@ mod tests {
 
         // The same fault is still corrected from five partial signatures, but excluding it leaves
         // four, short of the `t + f` the aggregation wants before it will name an index.
-        let (corrected, excluded, can_blame) = aggregate_signatures(
+        let (corrected, excluded) = aggregate_signatures(
             message,
             &public,
             &beacon_value,
@@ -782,8 +783,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(!can_blame);
-        assert_eq!(excluded, vec![corrupted[0].index]);
+        assert_eq!(excluded, Excluded::Unattributed(vec![corrupted[0].index]));
         SchnorrPublicKey::try_from(&vk_element)
             .unwrap()
             .verify(message, &corrected)
@@ -846,7 +846,7 @@ mod tests {
                             .1
                         })
                         .collect_vec();
-                    let (signature, excluded, _) = aggregate_signatures(
+                    let (signature, excluded) = aggregate_signatures(
                         message,
                         &public_presig,
                         &beacon,
@@ -856,7 +856,7 @@ mod tests {
                         address.as_ref(),
                     )
                     .unwrap();
-                    assert!(excluded.is_empty());
+                    assert_eq!(excluded, Excluded::NoCorrection);
 
                     match address {
                         Some(address) => derive_verifying_key(&vk, &address).unwrap(),
@@ -974,7 +974,7 @@ mod tests {
         )
         .unwrap();
 
-        let (signature, excluded, _) = aggregate_signatures(
+        let (signature, excluded) = aggregate_signatures(
             message,
             &public,
             &beacon_value,
@@ -987,7 +987,7 @@ mod tests {
             Some(&address),
         )
         .unwrap();
-        assert!(excluded.is_empty());
+        assert_eq!(excluded, Excluded::NoCorrection);
 
         // Check that this produced a valid signature
         derive_verifying_key(&vk_element, &address)
