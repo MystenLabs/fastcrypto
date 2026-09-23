@@ -108,7 +108,7 @@ pub fn generate_partial_signatures(
 ///
 /// A failed aggregation, reported as an `InvalidSignature` error, must be retried with another
 /// subset of partial signatures for the same presigning tuple, message and beacon value. Signing
-/// twice with the same tuple discloses the signing key.
+/// anything else with that tuple discloses the signing key, whatever the beacon value.
 ///
 /// The returned flag says whether the excluded indices can be blamed. When set, each one's owner
 /// submitted a wrong partial signature. When clear, the decoding had too little margin to show
@@ -116,9 +116,8 @@ pub fn generate_partial_signatures(
 ///
 /// Returns an `InputTooShort` error if fewer than `params.t` partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
-/// `InvalidSignature` is returned if there are too many corrupted partial signatures to correct. The
-/// caller should then retry with more partial signatures for the same presigning tuple, message and
-/// beacon value, since signing twice with the same tuple discloses the signing key.
+/// `InvalidSignature` is returned if there are too many corrupted partial signatures to correct,
+/// which the caller should retry as above, with more of them.
 /// `InconsistentInputs` is returned if enough partial signatures were good to rule them out as the
 /// cause, which leaves the presigning tuple, beacon value, message or verifying key given here
 /// disagreeing with the ones the signers used. Retrying does not help.
