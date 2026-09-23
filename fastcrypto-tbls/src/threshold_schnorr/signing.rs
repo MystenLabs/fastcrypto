@@ -106,9 +106,10 @@ pub fn generate_partial_signatures(
 /// excluded are returned along with the signature. Correcting `e` faults requires `params.t + 2e`
 /// partial signatures.
 ///
-/// A failed aggregation, reported as an `InvalidSignature` error, must be retried with another
-/// subset of partial signatures for the same presigning tuple, message and beacon value. Signing
-/// anything else with that tuple discloses the signing key, whatever the beacon value.
+/// A failed aggregation, reported as an `InvalidSignature` error, may be retried with any set of
+/// partial signatures, more of them or without the ones already excluded, as long as the presigning
+/// tuple, message and beacon value stay the same. Reusing the presigning tuple for a different
+/// message or beacon value discloses the signing key.
 ///
 /// The returned flag says whether the excluded indices can be blamed. When set, each one's owner
 /// submitted a wrong partial signature. When clear, the decoding had too little margin to show
