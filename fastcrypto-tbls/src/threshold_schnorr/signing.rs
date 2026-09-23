@@ -110,9 +110,9 @@ pub fn generate_partial_signatures(
 /// partial signatures as long as the presigning tuple, message and beacon value stay the same.
 /// Reusing the presigning tuple for a different message or beacon value discloses the signing key.
 ///
-/// The returned flag says whether the excluded indices can be blamed. If it is true, each one's
-/// owner submitted a wrong partial signature. If it is false, the decoding had too little margin to
-/// show that, and an honest party may be among them.
+/// The returned flag says whether the excluded indices can be blamed. If it is true, each one
+/// corresponds to an invalid partial signature. If it is false, the decoding had too little margin
+/// to show that, and an honest party may be among them.
 ///
 /// Returns an `InputTooShort` error if fewer than `params.t` partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
