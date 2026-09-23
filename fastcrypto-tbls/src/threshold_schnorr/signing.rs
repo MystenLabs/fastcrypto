@@ -94,7 +94,8 @@ pub fn generate_partial_signatures(
 /// The signature produced follows the BIP-0340 standard.
 ///
 /// The partial signatures must be received over an authenticated channel, and the caller must
-/// reject any whose share index the sender does not hold.
+/// reject any whose share index the sender does not hold. `params` must be the parameters
+/// validated for this committee, see [Parameters::validate].
 ///
 /// A failed aggregation must be retried with another subset of partial signatures for the same
 /// presigning tuple, message and beacon value. Signing twice with the same tuple discloses the
