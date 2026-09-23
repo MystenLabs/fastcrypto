@@ -749,6 +749,24 @@ mod tests {
             .unwrap()
             .verify(message, &corrected)
             .unwrap();
+
+        // The same fault is still corrected from five partial signatures, but excluding it leaves
+        // four, short of the `t + f` the aggregation wants before it will name an index.
+        let (corrected, excluded) = aggregate_signatures(
+            message,
+            &public,
+            &beacon_value,
+            &corrupted[..5],
+            Parameters { t, f },
+            &vk_element,
+            None,
+        )
+        .unwrap();
+        assert!(excluded.is_empty());
+        SchnorrPublicKey::try_from(&vk_element)
+            .unwrap()
+            .verify(message, &corrected)
+            .unwrap();
     }
 
     /// Sign with every combination of the Y parities of the verifying key, the nonce R and the
