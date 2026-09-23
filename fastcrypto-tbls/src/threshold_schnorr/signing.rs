@@ -101,9 +101,10 @@ pub fn generate_partial_signatures(
 /// [derive_verifying_key]), and the signature is adjusted accordingly.
 /// The signature will be valid for the derived verifying key.
 ///
-/// If the signature does not verify, the partial signatures are decoded as a Reed-Solomon code word,
-/// and the share indices the decoding excluded are returned along with the signature. Correcting
-/// `e` faults requires `params.t + 2e` partial signatures.
+/// Only the first `params.t` partial signatures are interpolated, so if any of those is wrong, all
+/// of them are decoded as a Reed-Solomon code word instead and the share indices the decoding
+/// excluded are returned along with the signature. Correcting `e` faults requires `params.t + 2e`
+/// partial signatures.
 ///
 /// A failed aggregation, reported as an `InvalidSignature` error, must be retried with another
 /// subset of partial signatures for the same presigning tuple, message and beacon value. Signing
