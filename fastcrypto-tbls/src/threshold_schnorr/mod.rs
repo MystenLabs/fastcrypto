@@ -166,7 +166,7 @@ mod tests {
     };
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::signing::{
-        aggregate_signatures, generate_partial_signatures, Excluded,
+        aggregate_signatures, generate_partial_signatures, Blame,
     };
     use crate::threshold_schnorr::{avss, batch_avss_avid, Address, Parameters, EG, G, S};
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
@@ -398,7 +398,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(excluded, Excluded::NoCorrection);
+        assert_eq!(excluded, Blame::Nobody);
 
         // Check that this produced a valid signature
         SchnorrPublicKey::try_from(&vk)
@@ -578,7 +578,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(excluded, Excluded::NoCorrection);
+        assert_eq!(excluded, Blame::Nobody);
 
         // Check that this produced a valid signature
         SchnorrPublicKey::try_from(&vk)
@@ -722,7 +722,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(excluded, Excluded::NoCorrection);
+        assert_eq!(excluded, Blame::Nobody);
 
         // Check that this produced a valid signature
         SchnorrPublicKey::try_from(&vk_element)
@@ -746,7 +746,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(excluded, Excluded::Blamable(vec![corrupted[0].index]));
+        assert_eq!(excluded, Blame::Certain(vec![corrupted[0].index]));
         SchnorrPublicKey::try_from(&vk_element)
             .unwrap()
             .verify(message, &corrected)
@@ -783,7 +783,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(excluded, Excluded::Inconclusive(vec![corrupted[0].index]));
+        assert_eq!(excluded, Blame::Inconclusive(vec![corrupted[0].index]));
         SchnorrPublicKey::try_from(&vk_element)
             .unwrap()
             .verify(message, &corrected)
@@ -856,7 +856,7 @@ mod tests {
                         address.as_ref(),
                     )
                     .unwrap();
-                    assert_eq!(excluded, Excluded::NoCorrection);
+                    assert_eq!(excluded, Blame::Nobody);
 
                     match address {
                         Some(address) => derive_verifying_key(&vk, &address).unwrap(),
@@ -987,7 +987,7 @@ mod tests {
             Some(&address),
         )
         .unwrap();
-        assert_eq!(excluded, Excluded::NoCorrection);
+        assert_eq!(excluded, Blame::Nobody);
 
         // Check that this produced a valid signature
         derive_verifying_key(&vk_element, &address)

@@ -90,14 +90,15 @@ pub fn generate_partial_signatures(
     ))
 }
 
-/// The share indices a Reed-Solomon decoding left out of the signature it recovered.
+/// Who, if anyone, the aggregation can blame for a partial signature inconsistent with the
+/// signature it recovered.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Excluded {
-    /// Every partial signature given lay on the recovered polynomial, so none was corrected.
-    NoCorrection,
-    /// The contributors at these indices did not follow the protocol.
-    Blamable(Vec<ShareIndex>),
-    /// The decoding excluded these indices without the margin to blame them, so some of their
+pub enum Blame {
+    /// Every partial signature given was consistent with the recovered signature.
+    Nobody,
+    /// The contributors at these share indices did not follow the protocol.
+    Certain(Vec<ShareIndex>),
+    /// These share indices were excluded without the margin to blame them, so some of their
     /// contributors may have followed the protocol.
     Inconclusive(Vec<ShareIndex>),
 }
@@ -122,9 +123,9 @@ pub enum Excluded {
 /// partial signatures as long as the presigning tuple, message and beacon value stay the same.
 /// Reusing the presigning tuple for a different message or beacon value discloses the signing key.
 ///
-/// The excluded indices come back as [Excluded::Blamable] when their contributors did not follow
-/// the protocol, and as [Excluded::Inconclusive] when the decoding had too little margin to show
-/// that. Nothing excluded is [Excluded::NoCorrection].
+/// The excluded indices come back as [Blame::Certain] when their contributors did not follow the
+/// protocol, and as [Blame::Inconclusive] when the decoding had too little margin to show that.
+/// Nothing excluded is [Blame::Nobody].
 ///
 /// Returns an `InputTooShort` error if fewer than `params.t` partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
@@ -142,7 +143,7 @@ pub fn aggregate_signatures(
     params: Parameters,
     verifying_key: &G,
     derivation_address: Option<&Address>,
-) -> FastCryptoResult<(SchnorrSignature, Excluded)> {
+) -> FastCryptoResult<(SchnorrSignature, Blame)> {
     if partial_signatures.len() < params.t as usize {
         return Err(InputTooShort(params.t as usize));
     }
@@ -161,7 +162,7 @@ pub fn aggregate_signatures(
         verifying_key,
         derivation_address,
     ) {
-        Ok(signature) => Ok((signature, Excluded::NoCorrection)),
+        Ok(signature) => Ok((signature, Blame::Nobody)),
         Err(InvalidSignature) => correct_and_aggregate_signatures(
             message,
             public_presig,
@@ -185,7 +186,7 @@ fn correct_and_aggregate_signatures(
     params: Parameters,
     verifying_key: &G,
     derivation_address: Option<&Address>,
-) -> FastCryptoResult<(SchnorrSignature, Excluded)> {
+) -> FastCryptoResult<(SchnorrSignature, Blame)> {
     let decoder = RSDecoder::new(
         partial_signatures.iter().map(|s| s.index).collect(),
         params.t as usize,
@@ -218,9 +219,9 @@ fn correct_and_aggregate_signatures(
     };
 
     let excluded = match (excluded.is_empty(), can_blame) {
-        (true, _) => Excluded::NoCorrection,
-        (false, true) => Excluded::Blamable(excluded),
-        (false, false) => Excluded::Inconclusive(excluded),
+        (true, _) => Blame::Nobody,
+        (false, true) => Blame::Certain(excluded),
+        (false, false) => Blame::Inconclusive(excluded),
     };
     Ok((signature, excluded))
 }
