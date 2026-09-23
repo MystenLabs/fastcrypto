@@ -197,8 +197,8 @@ fn correct_and_aggregate_signatures(
 
     let excluded: Vec<ShareIndex> = partial_signatures
         .iter()
-        .filter(|s| decoding.is_error(s.index))
         .map(|s| s.index)
+        .filter(|&index| decoding.is_error(index))
         .collect();
     let can_blame = can_blame_excluded_indices(partial_signatures.len(), excluded.len(), params);
 
