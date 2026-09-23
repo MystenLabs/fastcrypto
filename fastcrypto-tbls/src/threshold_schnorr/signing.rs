@@ -165,7 +165,6 @@ pub fn aggregate_signatures(
 
 /// Decode the partial signatures as a Reed-Solomon code word, recovering the signature, the share
 /// indices the decoding excluded and whether they can be blamed, see [can_blame_excluded_indices].
-/// Reports [InconsistentInputs] rather than a bad signature when they are ruled out as the cause.
 fn correct_and_aggregate_signatures(
     message: &[u8],
     public_presig: &G,
