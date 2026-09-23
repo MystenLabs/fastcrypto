@@ -106,8 +106,8 @@ impl Decoding {
     /// Whether the code word had an error here.
     pub fn is_error(&self, index: ShareIndex) -> bool {
         // Gao remarks after Algorithm 1 that `v(x)` "is in fact the error locator polynomial",
-        // which the paper defines as the product over exactly the differing positions. It has
-        // lower degree than the message polynomial, so this is the cheaper check.
+        // which the paper defines as the product over exactly the error positions. It has lower
+        // degree than the message polynomial, so this is the cheaper check.
         self.error_locator.eval(index).value == S::zero()
     }
 }
