@@ -99,7 +99,7 @@ pub enum Excluded {
     Blamable(Vec<ShareIndex>),
     /// The decoding excluded these indices without the margin to blame them, so some of their
     /// contributors may have followed the protocol.
-    Unattributed(Vec<ShareIndex>),
+    Inconclusive(Vec<ShareIndex>),
 }
 
 /// Given enough partial signatures, aggregate them into a full signature and verify it.
@@ -123,7 +123,7 @@ pub enum Excluded {
 /// Reusing the presigning tuple for a different message or beacon value discloses the signing key.
 ///
 /// The excluded indices come back as [Excluded::Blamable] when their contributors did not follow
-/// the protocol, and as [Excluded::Unattributed] when the decoding had too little margin to show
+/// the protocol, and as [Excluded::Inconclusive] when the decoding had too little margin to show
 /// that. Nothing excluded is [Excluded::NoCorrection].
 ///
 /// Returns an `InputTooShort` error if fewer than `params.t` partial signatures are provided.
@@ -219,7 +219,7 @@ fn correct_and_aggregate_signatures(
     let excluded = match (excluded.is_empty(), can_blame) {
         (true, _) => Excluded::NoCorrection,
         (false, true) => Excluded::Blamable(excluded),
-        (false, false) => Excluded::Unattributed(excluded),
+        (false, false) => Excluded::Inconclusive(excluded),
     };
     Ok((signature, excluded))
 }

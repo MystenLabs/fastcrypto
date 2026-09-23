@@ -783,7 +783,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(excluded, Excluded::Unattributed(vec![corrupted[0].index]));
+        assert_eq!(excluded, Excluded::Inconclusive(vec![corrupted[0].index]));
         SchnorrPublicKey::try_from(&vk_element)
             .unwrap()
             .verify(message, &corrected)
