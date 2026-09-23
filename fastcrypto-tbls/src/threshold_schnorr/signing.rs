@@ -6,7 +6,7 @@ use crate::threshold_schnorr::key_derivation::{compute_tweak, derive_verifying_k
 use crate::threshold_schnorr::reed_solomon::RSDecoder;
 use crate::threshold_schnorr::{avss, Address, Parameters, G, S};
 use crate::types::ShareIndex;
-use fastcrypto::error::FastCryptoError::{InputTooShort, InvalidSignature};
+use fastcrypto::error::FastCryptoError::{InconsistentInputs, InputTooShort, InvalidSignature};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::secp256k1::schnorr::{
     bip0340_hash_to_scalar, SchnorrPublicKey, SchnorrSignature, Tag,
@@ -118,6 +118,9 @@ pub fn generate_partial_signatures(
 /// `InvalidSignature` is returned if there are too many corrupted partial signatures to correct. The
 /// caller should then retry with more partial signatures for the same presigning tuple, message and
 /// beacon value, since signing twice with the same tuple discloses the signing key.
+/// `InconsistentInputs` is returned if enough partial signatures were good to rule them out as the
+/// cause, which leaves the presigning tuple, beacon value, message or verifying key given here
+/// disagreeing with the ones the signers used. Retrying does not help.
 /// `InvalidInput` is returned if the provided verifying key is the identity element.
 pub fn aggregate_signatures(
     message: &[u8],
@@ -162,7 +165,8 @@ pub fn aggregate_signatures(
 
 /// Decode the partial signatures as a Reed-Solomon code word, recovering the signature and the
 /// share indices the decoding excluded. Only returns those indices when they are certainly
-/// corrupted, see [can_blame_excluded_indices].
+/// corrupted, and reports [InconsistentInputs] rather than a bad signature when they are ruled
+/// out as the cause, see [can_blame_excluded_indices].
 fn correct_and_aggregate_signatures(
     message: &[u8],
     public_presig: &G,
@@ -181,21 +185,28 @@ fn correct_and_aggregate_signatures(
         .decode(&partial_signatures.iter().map(|s| s.value).collect_vec())
         .map_err(|_| InvalidSignature)?;
 
-    let signature = finalize_schnorr_signature(
+    let excluded: Vec<ShareIndex> = partial_signatures
+        .iter()
+        .filter_map(|s| decoding.is_error(s.index).then_some(s.index))
+        .collect();
+    let can_blame = can_blame_excluded_indices(partial_signatures.len(), excluded.len(), params);
+
+    let signature = match finalize_schnorr_signature(
         message,
         public_presig,
         beacon_value,
         decoding.constant_term(),
         verifying_key,
         derivation_address,
-    )?;
+    ) {
+        Ok(signature) => signature,
+        // Enough of the points the decoding kept are honest to pin the polynomial, so the scalar
+        // it recovered is the one the signers produced and the mismatch is in the inputs here.
+        Err(InvalidSignature) if can_blame => return Err(InconsistentInputs),
+        Err(e) => return Err(e),
+    };
 
-    let excluded: Vec<ShareIndex> = partial_signatures
-        .iter()
-        .filter_map(|s| decoding.is_error(s.index).then_some(s.index))
-        .collect();
-
-    if !can_blame_excluded_indices(partial_signatures.len(), excluded.len(), params) {
+    if !can_blame {
         warn!(
             "signing: the decoding excluded {:?} of {:?}, too few kept to tell which are corrupted",
             excluded,

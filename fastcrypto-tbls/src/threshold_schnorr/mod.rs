@@ -750,6 +750,25 @@ mod tests {
             .verify(message, &corrected)
             .unwrap();
 
+        // Honest partial signatures with the wrong beacon here: the decoding rules them out as the
+        // cause, so this is reported as the inputs disagreeing rather than as a bad signature.
+        let honest = partial_signatures
+            .iter()
+            .flat_map(|(_, sigs)| sigs.clone())
+            .collect_vec();
+        assert!(matches!(
+            aggregate_signatures(
+                message,
+                &public,
+                &(beacon_value + S::generator()),
+                &honest,
+                Parameters { t, f },
+                &vk_element,
+                None,
+            ),
+            Err(fastcrypto::error::FastCryptoError::InconsistentInputs)
+        ));
+
         // The same fault is still corrected from five partial signatures, but excluding it leaves
         // four, short of the `t + f` the aggregation wants before it will name an index.
         let (corrected, excluded) = aggregate_signatures(
