@@ -97,10 +97,6 @@ pub fn generate_partial_signatures(
 /// reject any whose share index the sender does not hold. `params` must be the parameters
 /// validated for this committee, see [Parameters::validate].
 ///
-/// A failed aggregation, reported as an `InvalidSignature` error, must be retried with another
-/// subset of partial signatures for the same presigning tuple, message and beacon value. Signing
-/// twice with the same tuple discloses the signing key.
-///
 /// If a derivation index is provided, a new verifying key is derived for this index (see
 /// [derive_verifying_key]), and the signature is adjusted accordingly.
 /// The signature will be valid for the derived verifying key.
@@ -108,6 +104,10 @@ pub fn generate_partial_signatures(
 /// If the signature does not verify, the partial signatures are decoded as a Reed-Solomon code word,
 /// and the share indices the decoding excluded are returned along with the signature. Correcting
 /// `e` faults requires `params.t + 2e` partial signatures.
+///
+/// A failed aggregation, reported as an `InvalidSignature` error, must be retried with another
+/// subset of partial signatures for the same presigning tuple, message and beacon value. Signing
+/// twice with the same tuple discloses the signing key.
 ///
 /// The returned flag says whether the excluded indices can be blamed. When set, each one's owner
 /// submitted a wrong partial signature. When clear, the decoding had too little margin to show
