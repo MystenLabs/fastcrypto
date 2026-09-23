@@ -109,9 +109,9 @@ pub fn generate_partial_signatures(
 /// and the share indices the decoding excluded are returned along with the signature. Correcting
 /// `e` faults requires `params.t + 2e` partial signatures.
 ///
-/// The returned flag says whether the indices are certain: when set, each one's owner submitted a
-/// wrong partial signature, and when clear the decoding had too little margin to establish that and
-/// they are a best-effort result, which may name an honest party.
+/// The returned flag says whether the excluded indices can be blamed. When set, each one's owner
+/// submitted a wrong partial signature. When clear, the decoding had too little margin to show
+/// that, and an honest party may be among them.
 ///
 /// Returns an `InputTooShort` error if fewer than `params.t` partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
