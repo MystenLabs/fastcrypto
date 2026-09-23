@@ -97,9 +97,9 @@ pub fn generate_partial_signatures(
 /// reject any whose share index the sender does not hold. `params` must be the parameters
 /// validated for this committee, see [Parameters::validate].
 ///
-/// A failed aggregation must be retried with another subset of partial signatures for the same
-/// presigning tuple, message and beacon value. Signing twice with the same tuple discloses the
-/// signing key.
+/// A failed aggregation, reported as an `InvalidSignature` error, must be retried with another
+/// subset of partial signatures for the same presigning tuple, message and beacon value. Signing
+/// twice with the same tuple discloses the signing key.
 ///
 /// If a derivation index is provided, a new verifying key is derived for this index (see
 /// [derive_verifying_key]), and the signature is adjusted accordingly.
