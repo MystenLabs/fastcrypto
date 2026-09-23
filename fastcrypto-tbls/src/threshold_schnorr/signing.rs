@@ -112,7 +112,7 @@ pub fn generate_partial_signatures(
 ///
 /// The returned flag says whether the excluded indices can be blamed. If it is true, each one
 /// corresponds to an invalid partial signature. If it is false, the decoding had too little margin
-/// to show that, and an honest party may be among them.
+/// to show that, and some of them may correspond to valid ones.
 ///
 /// Returns an `InputTooShort` error if fewer than `params.t` partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
