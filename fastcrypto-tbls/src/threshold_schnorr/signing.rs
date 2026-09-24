@@ -94,7 +94,9 @@ pub fn generate_partial_signatures(
 /// signature it recovered.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Blame {
-    /// Every partial signature given was consistent with the recovered signature.
+    /// Nothing was excluded: either the first `params.t` partial signatures interpolated to a
+    /// valid signature, leaving the rest unexamined, or the decoding found all of them on one
+    /// polynomial.
     Nobody,
     /// The contributors at these share indices did not follow the protocol.
     Certain(Vec<ShareIndex>),
