@@ -128,7 +128,9 @@ pub enum Blame {
 ///
 /// The excluded indices come back as [Blame::Certain] when their contributors did not follow the
 /// protocol, and as [Blame::Inconclusive] when the decoding had too little margin to show that.
-/// Nothing excluded is [Blame::Nobody].
+/// Nothing excluded is [Blame::Nobody]. The margin needs `params.t + 2 * params.f` partial
+/// signatures at the very least, since the decoding excludes at most half of what it is given
+/// beyond `params.t`.
 ///
 /// Returns an `InputTooShort` error if fewer than `params.t` partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
@@ -221,12 +223,12 @@ fn correct_and_aggregate_signatures(
         Err(e) => return Err(e),
     };
 
-    let excluded = match (excluded.is_empty(), can_blame) {
+    let blame = match (excluded.is_empty(), can_blame) {
         (true, _) => Blame::Nobody,
         (false, true) => Blame::Certain(excluded),
         (false, false) => Blame::Inconclusive(excluded),
     };
-    Ok((signature, excluded))
+    Ok((signature, blame))
 }
 
 /// Whether excluding `excluded` of the `given` partial signatures proves that those indices'
