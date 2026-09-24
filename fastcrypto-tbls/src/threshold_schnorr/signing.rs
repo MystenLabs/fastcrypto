@@ -122,8 +122,9 @@ pub enum Blame {
 /// partial signatures.
 ///
 /// A failed aggregation, reported as an `InvalidSignature` error, may be retried with a new set of
-/// partial signatures as long as the presigning tuple, message and beacon value stay the same.
-/// Reusing the presigning tuple for a different message or beacon value discloses the signing key.
+/// partial signatures as long as the presigning tuple, message, beacon value and derivation
+/// address stay the same. Any second use of the presigning tuple with a different message, beacon
+/// value or derivation address discloses the signing key.
 ///
 /// The excluded indices come back as [Blame::Certain] when their contributors did not follow the
 /// protocol, and as [Blame::Inconclusive] when the decoding had too little margin to show that.
@@ -134,8 +135,8 @@ pub enum Blame {
 /// `InvalidSignature` is returned if there are too many corrupted partial signatures to correct,
 /// which the caller should retry as above, with more of them.
 /// `InconsistentInputs` is returned if enough partial signatures were good to rule them out as the
-/// cause, which leaves the presigning tuple, beacon value, message or verifying key given here
-/// disagreeing with the ones the signers used. Retrying does not help.
+/// cause, which leaves the presigning tuple, beacon value, message, verifying key or derivation
+/// address given here disagreeing with the ones the signers used. Retrying does not help.
 /// `InvalidInput` is returned if the provided verifying key is the identity element.
 pub fn aggregate_signatures(
     message: &[u8],
