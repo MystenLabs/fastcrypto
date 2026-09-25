@@ -208,7 +208,7 @@ impl Dealer {
     /// * `nodes` defines the set of receivers and their weights.
     /// * `dealer_id` is the id of this dealer as a node.
     /// * `params` carries the reconstruction thresholds.
-    /// * `sid` is a session identifier that should be unique for each invocation of a dealer, but
+    /// * `sid` is a session identifier that must be unique for each invocation of a dealer, but
     ///   the same for all parties in the same session.
     /// * `batch_size_per_weight` is the number of secrets a dealer must deal per weight it has.
     ///
@@ -454,8 +454,8 @@ impl Receiver {
     /// * `id` is the id of this receiver.
     /// * `dealer_id` is the id of the dealer.
     /// * `params` carries the reconstruction threshold `t` and Byzantine bound `f`.
-    /// * `sid` is a session identifier that should be unique for each invocation, but the same
-    ///   for all parties.
+    /// * `sid` is a session identifier that must be unique for each invocation of a dealer, but the
+    ///   same for all parties in the same session.
     /// * `enc_secret_key` is this Receivers' secret key for the distribution of nonces. The
     ///   corresponding public key is defined in `nodes`.
     /// * `batch_size_per_weight` is the number of secrets a dealer must deal per weight it has.
