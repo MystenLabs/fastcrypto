@@ -94,9 +94,8 @@ pub fn generate_partial_signatures(
 /// signature it recovered.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Blame {
-    /// Nothing was excluded: either the first `params.t` partial signatures interpolated to a
-    /// valid signature, leaving the rest unexamined, or the decoding found all of them on one
-    /// polynomial.
+    /// Nothing was corrected: the first `params.t` partial signatures interpolated to a valid
+    /// signature, so the rest were never examined.
     Nobody,
     /// The contributors at these share indices did not follow the protocol.
     Certain(Vec<ShareIndex>),
@@ -222,6 +221,8 @@ fn correct_and_aggregate_signatures(
     };
 
     let blame = match (excluded.is_empty(), can_blame) {
+        // Unreachable: a code word with no errors interpolates to the scalar the first `params.t`
+        // already gave, so the call above fails again instead of arriving here.
         (true, _) => Blame::Nobody,
         (false, true) => Blame::Certain(excluded),
         (false, false) => Blame::Inconclusive(excluded),
