@@ -16,8 +16,8 @@
 <li><code>id</code> is the id of this receiver.</li>
 <li><code>dealer_id</code> is the id of the dealer.</li>
 <li><code>params</code> carries the reconstruction threshold <code>t</code> and Byzantine bound <code>f</code>.</li>
-<li><code>sid</code> is a session identifier that should be unique for each invocation, but the same
-for all parties.</li>
+<li><code>sid</code> is a session identifier that must be unique for each invocation of a dealer, but the
+same for all parties in the same session.</li>
 <li><code>enc_secret_key</code> is this Receivers’ secret key for the distribution of nonces. The
 corresponding public key is defined in <code>nodes</code>.</li>
 <li><code>batch_size_per_weight</code> is the number of secrets a dealer must deal per weight it has.</li>

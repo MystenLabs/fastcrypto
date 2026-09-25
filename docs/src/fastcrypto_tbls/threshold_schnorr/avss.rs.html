@@ -212,7 +212,7 @@
 <a href=#212 id=212 data-nosnippet>212</a>    ///   For key rotation, this should be set to the previous round's secret.
 <a href=#213 id=213 data-nosnippet>213</a>    /// * `nodes`: The set of nodes (parties) participating in the protocol.
 <a href=#214 id=214 data-nosnippet>214</a>    /// * `params`: The threshold parameters.
-<a href=#215 id=215 data-nosnippet>215</a>    /// * `sid`: A session identifier that should be unique for each invocation of the protocol, including for each dealer.
+<a href=#215 id=215 data-nosnippet>215</a>    /// * `sid`: A session identifier that must be unique for each invocation of the protocol, including for each dealer.
 <a href=#216 id=216 data-nosnippet>216</a>    ///
 <a href=#217 id=217 data-nosnippet>217</a>    /// Returns an error if the parameters are invalid.
 <a href=#218 id=218 data-nosnippet>218</a>    </span><span class="kw">pub fn </span>new&lt;R: AllowedRng&gt;(
@@ -280,7 +280,7 @@
 <a href=#280 id=280 data-nosnippet>280</a>    /// * `nodes`: The set of nodes (parties) participating in the protocol.
 <a href=#281 id=281 data-nosnippet>281</a>    /// * `id`: The unique identifier of this receiver. Should match one of the party ids in `nodes`.
 <a href=#282 id=282 data-nosnippet>282</a>    /// * `params`: The threshold parameters.
-<a href=#283 id=283 data-nosnippet>283</a>    /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
+<a href=#283 id=283 data-nosnippet>283</a>    /// * `sid`: A session identifier that must be unique for each invocation of the protocol, including for each dealer, but the same for all parties in a single invocation.
 <a href=#284 id=284 data-nosnippet>284</a>    /// * `commitment`: A commitment to the secret being shared. Required for key rotation, where
 <a href=#285 id=285 data-nosnippet>285</a>    ///   all receivers must use the same commitment for a given dealer.
 <a href=#286 id=286 data-nosnippet>286</a>    /// * `enc_secret_key`: The private key used to decrypt the shares sent to this receiver.

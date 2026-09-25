@@ -10,7 +10,7 @@
 For key rotation, this should be set to the previous round’s secret.</li>
 <li><code>nodes</code>: The set of nodes (parties) participating in the protocol.</li>
 <li><code>params</code>: The threshold parameters.</li>
-<li><code>sid</code>: A session identifier that should be unique for each invocation of the protocol, including for each dealer.</li>
+<li><code>sid</code>: A session identifier that must be unique for each invocation of the protocol, including for each dealer.</li>
 </ul>
 <p>Returns an error if the parameters are invalid.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.create_message" class="method"><a class="src rightside" href="../../../src/fastcrypto_tbls/threshold_schnorr/avss.rs.html#238-270">Source</a><h4 class="code-header">pub fn <a href="#method.create_message" class="fn">create_message</a>&lt;Rng: AllowedRng&gt;(&amp;self, rng: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.reference.html">&amp;mut Rng</a>) -&gt; <a class="struct" href="struct.Message.html" title="struct fastcrypto_tbls::threshold_schnorr::avss::Message">Message</a></h4></section></summary><div class="docblock"><ol>

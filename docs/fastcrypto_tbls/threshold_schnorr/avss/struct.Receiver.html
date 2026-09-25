@@ -10,7 +10,7 @@
 <li><code>nodes</code>: The set of nodes (parties) participating in the protocol.</li>
 <li><code>id</code>: The unique identifier of this receiver. Should match one of the party ids in <code>nodes</code>.</li>
 <li><code>params</code>: The threshold parameters.</li>
-<li><code>sid</code>: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.</li>
+<li><code>sid</code>: A session identifier that must be unique for each invocation of the protocol, including for each dealer, but the same for all parties in a single invocation.</li>
 <li><code>commitment</code>: A commitment to the secret being shared. Required for key rotation, where
 all receivers must use the same commitment for a given dealer.</li>
 <li><code>enc_secret_key</code>: The private key used to decrypt the shares sent to this receiver.</li>
