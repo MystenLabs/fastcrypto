@@ -126,38 +126,38 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
             let (sk, pk) = match SignatureScheme::from_str(&arg.scheme) {
                 Ok(SignatureScheme::Ed25519) => {
                     let kp = Ed25519KeyPair::generate(rng);
-                    (
-                        Hex::encode(kp.copy().private().as_ref()),
-                        Hex::encode(kp.public().as_ref()),
-                    )
+                    {
+                        let pk = Hex::encode(kp.public().as_ref());
+                        (Hex::encode(kp.private().as_ref()), pk)
+                    }
                 }
                 Ok(SignatureScheme::Secp256k1) | Ok(SignatureScheme::Secp256k1Recoverable) => {
                     let kp = Secp256k1KeyPair::generate(rng);
-                    (
-                        Hex::encode(kp.copy().private().as_ref()),
-                        Hex::encode(kp.public().as_ref()),
-                    )
+                    {
+                        let pk = Hex::encode(kp.public().as_ref());
+                        (Hex::encode(kp.private().as_ref()), pk)
+                    }
                 }
                 Ok(SignatureScheme::Secp256r1) | Ok(SignatureScheme::Secp256r1Recoverable) => {
                     let kp = Secp256r1KeyPair::generate(rng);
-                    (
-                        Hex::encode(kp.copy().private().as_ref()),
-                        Hex::encode(kp.public().as_ref()),
-                    )
+                    {
+                        let pk = Hex::encode(kp.public().as_ref());
+                        (Hex::encode(kp.private().as_ref()), pk)
+                    }
                 }
                 Ok(SignatureScheme::BLS12381MinSig) => {
                     let kp = fastcrypto::bls12381::min_sig::BLS12381KeyPair::generate(rng);
-                    (
-                        Hex::encode(kp.copy().private().as_ref()),
-                        Hex::encode(kp.public().as_ref()),
-                    )
+                    {
+                        let pk = Hex::encode(kp.public().as_ref());
+                        (Hex::encode(kp.private().as_ref()), pk)
+                    }
                 }
                 Ok(SignatureScheme::BLS12381MinPk) => {
                     let kp = fastcrypto::bls12381::min_pk::BLS12381KeyPair::generate(rng);
-                    (
-                        Hex::encode(kp.copy().private().as_ref()),
-                        Hex::encode(kp.public().as_ref()),
-                    )
+                    {
+                        let pk = Hex::encode(kp.public().as_ref());
+                        (Hex::encode(kp.private().as_ref()), pk)
+                    }
                 }
                 Err(_) => return Err(FastCryptoError::InvalidInput),
             };
