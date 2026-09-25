@@ -164,49 +164,51 @@ pub fn aggregate_signatures(
         verifying_key,
         derivation_address,
     ) {
-        Ok(signature) => return Ok((signature, Blame::Nobody)),
-        // Fall through and decode the partial signatures as a Reed-Solomon code word instead.
-        Err(InvalidSignature) => {}
-        Err(e) => return Err(e),
+        Ok(signature) => Ok((signature, Blame::Nobody)),
+        // Decode the partial signatures as a Reed-Solomon code word instead.
+        Err(InvalidSignature) => {
+            let decoder = RSDecoder::new(
+                partial_signatures.iter().map(|s| s.index).collect(),
+                params.t as usize,
+            )
+            .map_err(|_| InvalidSignature)?;
+            let decoding = decoder
+                .decode(&partial_signatures.iter().map(|s| s.value).collect_vec())
+                .map_err(|_| InvalidSignature)?;
+
+            let excluded: Vec<ShareIndex> = partial_signatures
+                .iter()
+                .map(|s| s.index)
+                .filter(|&index| decoding.is_error(index))
+                .collect();
+            let can_blame =
+                can_blame_excluded_indices(partial_signatures.len(), excluded.len(), params);
+
+            let signature = match finalize_schnorr_signature(
+                message,
+                public_presig,
+                beacon_value,
+                decoding.constant_term(),
+                verifying_key,
+                derivation_address,
+            ) {
+                Ok(signature) => signature,
+                // Enough of the points the decoding kept are honest to pin the polynomial,
+                // so the scalar it recovered is the one the signers produced and the
+                // mismatch is in the inputs here.
+                Err(InvalidSignature) if can_blame => return Err(InconsistentInputs),
+                Err(e) => return Err(e),
+            };
+
+            let blame = if can_blame {
+                Blame::Certain(excluded)
+            } else {
+                Blame::Inconclusive(excluded)
+            };
+            Ok((signature, blame))
+        }
+        Err(e) => Err(e),
     }
-
-    let decoder = RSDecoder::new(
-        partial_signatures.iter().map(|s| s.index).collect(),
-        params.t as usize,
-    )
-    .map_err(|_| InvalidSignature)?;
-    let decoding = decoder
-        .decode(&partial_signatures.iter().map(|s| s.value).collect_vec())
-        .map_err(|_| InvalidSignature)?;
-
-    let excluded: Vec<ShareIndex> = partial_signatures
-        .iter()
-        .map(|s| s.index)
-        .filter(|&index| decoding.is_error(index))
-        .collect();
-    let can_blame = can_blame_excluded_indices(partial_signatures.len(), excluded.len(), params);
-
-    let signature = match finalize_schnorr_signature(
-        message,
-        public_presig,
-        beacon_value,
-        decoding.constant_term(),
-        verifying_key,
-        derivation_address,
-    ) {
-        Ok(signature) => signature,
-        // Enough of the points the decoding kept are honest to pin the polynomial, so the scalar
-        // it recovered is the one the signers produced and the mismatch is in the inputs here.
-        Err(InvalidSignature) if can_blame => return Err(InconsistentInputs),
-        Err(e) => return Err(e),
-    };
-
-    let blame = if can_blame {
-        Blame::Certain(excluded)
-    } else {
-        Blame::Inconclusive(excluded)
-    };
-    Ok((signature, blame))
 }
 
 /// Whether excluding `excluded` of the `given` partial signatures proves that those indices'
