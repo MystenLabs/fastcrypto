@@ -164,31 +164,12 @@ pub fn aggregate_signatures(
         verifying_key,
         derivation_address,
     ) {
-        Ok(signature) => Ok((signature, Blame::Nobody)),
-        Err(InvalidSignature) => correct_and_aggregate_signatures(
-            message,
-            public_presig,
-            beacon_value,
-            partial_signatures,
-            params,
-            verifying_key,
-            derivation_address,
-        ),
-        Err(e) => Err(e),
+        Ok(signature) => return Ok((signature, Blame::Nobody)),
+        // Fall through and decode the partial signatures as a Reed-Solomon code word instead.
+        Err(InvalidSignature) => {}
+        Err(e) => return Err(e),
     }
-}
 
-/// Decode the partial signatures as a Reed-Solomon code word, recovering the signature and the
-/// share indices the decoding excluded, see [can_blame_excluded_indices].
-fn correct_and_aggregate_signatures(
-    message: &[u8],
-    public_presig: &G,
-    beacon_value: &S,
-    partial_signatures: &[Eval<S>],
-    params: Parameters,
-    verifying_key: &G,
-    derivation_address: Option<&Address>,
-) -> FastCryptoResult<(SchnorrSignature, Blame)> {
     let decoder = RSDecoder::new(
         partial_signatures.iter().map(|s| s.index).collect(),
         params.t as usize,
@@ -220,12 +201,12 @@ fn correct_and_aggregate_signatures(
         Err(e) => return Err(e),
     };
 
-    let blame = match (excluded.is_empty(), can_blame) {
-        // Unreachable: a code word with no errors interpolates to the scalar the first `params.t`
-        // already gave, so the call above fails again instead of arriving here.
-        (true, _) => Blame::Nobody,
-        (false, true) => Blame::Certain(excluded),
-        (false, false) => Blame::Inconclusive(excluded),
+    // Nothing excluded would mean the decoding found the scalar the first `params.t` already
+    // gave, which failed above, so there is always something to report here.
+    let blame = if can_blame {
+        Blame::Certain(excluded)
+    } else {
+        Blame::Inconclusive(excluded)
     };
     Ok((signature, blame))
 }
