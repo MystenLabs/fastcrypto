@@ -201,8 +201,6 @@ pub fn aggregate_signatures(
         Err(e) => return Err(e),
     };
 
-    // Nothing excluded would mean the decoding found the scalar the first `params.t` already
-    // gave, which failed above, so there is always something to report here.
     let blame = if can_blame {
         Blame::Certain(excluded)
     } else {
