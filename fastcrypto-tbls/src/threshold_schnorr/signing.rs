@@ -127,7 +127,7 @@ pub enum Blame {
 ///
 /// The excluded indices come back as [Blame::Certain] when their contributors did not follow the
 /// protocol, and as [Blame::Inconclusive] when the decoding had too little margin to show that.
-/// Nothing excluded is [Blame::Nobody].
+/// [Blame::Nobody] means the decoding never ran.
 ///
 /// Returns an `InputTooShort` error if fewer than `params.t` partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
@@ -136,7 +136,8 @@ pub enum Blame {
 /// `InconsistentInputs` is returned if enough partial signatures were good to rule them out as the
 /// cause, which leaves the presigning tuple, beacon value, message, verifying key or derivation
 /// address given here disagreeing with the ones the signers used. Retrying does not help.
-/// `InvalidInput` is returned if the provided verifying key is the identity element.
+/// `InvalidInput` is returned if two partial signatures share a share index, or if the provided
+/// verifying key is the identity element.
 pub fn aggregate_signatures(
     message: &[u8],
     public_presig: &G,
