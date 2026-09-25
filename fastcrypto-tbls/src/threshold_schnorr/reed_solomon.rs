@@ -6,6 +6,7 @@ use crate::threshold_schnorr::S;
 use crate::types::{get_uniform_value, to_scalar, ShareIndex};
 use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, TooManyErrors};
 use fastcrypto::error::FastCryptoResult;
+use fastcrypto::groups::GroupElement;
 use itertools::Itertools;
 use reed_solomon_erasure::galois_16::ReedSolomon;
 use serde::{Deserialize, Serialize};
@@ -25,13 +26,16 @@ pub struct RSDecoder {
 
 impl RSDecoder {
     /// Create a new Gao decoder with the given evaluation points `a` and message length `k`.
-    pub fn new(a: Vec<ShareIndex>, k: usize) -> Self {
-        assert!(k < a.len(), "Message length must be less than block length");
+    /// Returns an [InvalidInput] error if `k` is not smaller than the number of evaluation points.
+    pub fn new(a: Vec<ShareIndex>, k: usize) -> FastCryptoResult<Self> {
+        if k >= a.len() {
+            return Err(InvalidInput);
+        }
         let mut g0 = Poly::one();
         for ai in &a {
             g0 *= MonicLinear(-to_scalar::<S>(ai));
         }
-        Self { g0, a, k }
+        Ok(Self { g0, a, k })
     }
 
     /// The length of the code words.
@@ -49,9 +53,9 @@ impl RSDecoder {
         self.block_length() - self.message_length() + 1
     }
 
-    /// Compute the message polynomial.
+    /// Decode the code word.
     /// Returns an error if the input length is wrong or if there are too many errors to correct.
-    pub fn compute_message_polynomial(&self, code_word: &[S]) -> FastCryptoResult<Poly<S>> {
+    pub fn decode(&self, code_word: &[S]) -> FastCryptoResult<Decoding> {
         // The implementation follows Algorithm 1 in Gao's paper.
 
         if code_word.len() != self.block_length() {
@@ -80,25 +84,31 @@ impl RSDecoder {
         if !r.is_zero() || f1.degree() >= self.k {
             return Err(TooManyErrors((self.distance() - 1) / 2));
         }
-        Ok(f1)
+        Ok(Decoding {
+            message: f1,
+            error_locator: v,
+        })
+    }
+}
+
+/// The result of decoding a code word.
+pub struct Decoding {
+    message: Poly<S>,
+    error_locator: Poly<S>,
+}
+
+impl Decoding {
+    /// The constant term of the message polynomial.
+    pub fn constant_term(&self) -> S {
+        self.message.c0()
     }
 
-    /// Encode the message using the Reed-Solomon code defined by the evaluation points `a`.
-    /// Returns an error if the message length is wrong.
-    pub fn encode(&self, message: Vec<S>) -> FastCryptoResult<Vec<S>> {
-        if message.len() != self.message_length() {
-            return Err(InputLengthWrong(self.message_length()));
-        }
-        let f = Poly::from(message);
-        Ok(self.a.iter().map(|&ai| f.eval(ai).value).collect_vec())
-    }
-
-    /// Try to correct the input and return the decoded message.
-    /// Returns an error if the input length is wrong or if there are too many errors to correct.
-    pub fn decode(&self, input: &[S]) -> FastCryptoResult<Vec<S>> {
-        let mut f1 = self.compute_message_polynomial(input)?.to_vec();
-        f1.truncate(self.k);
-        Ok(f1)
+    /// Whether the code word had an error here.
+    pub fn is_error(&self, index: ShareIndex) -> bool {
+        // Gao remarks after Algorithm 1 that `v(x)` is the error locator polynomial, which the
+        // paper defines as the product over exactly the error positions. It has lower degree than
+        // the message polynomial, so this is the cheaper check.
+        self.error_locator.eval(index).value == S::zero()
     }
 }
 
@@ -138,7 +148,7 @@ impl ErasureCoder {
             .map(Self)
     }
 
-    pub fn check_parameters(n: usize, k: usize) -> FastCryptoResult<()> {
+    fn check_parameters(n: usize, k: usize) -> FastCryptoResult<()> {
         if k == 0 || n <= k || n > 65536 {
             return Err(InvalidInput);
         }
@@ -260,18 +270,20 @@ mod tests {
     fn test_gao_decoder() {
         let a = (1..=7).map(|i| ShareIndex::new(i).unwrap()).collect_vec();
         let k = 3;
-        let decoder = RSDecoder::new(a.clone(), k);
+        let decoder = RSDecoder::new(a.clone(), k).unwrap();
 
-        let message = vec![S::from(11u128), S::from(22u128), S::from(33u128)];
-        let code_word = decoder.encode(message.clone()).unwrap();
+        let message = Poly::from(vec![S::from(11u128), S::from(22u128), S::from(33u128)]);
+        let code_word = a.iter().map(|&i| message.eval(i).value).collect_vec();
 
         // Introduce errors
         let mut received = code_word.clone();
         received[4] = S::from(20u128); // Error at position 4
         received[2] = S::from(200u128); // Error at position 2
 
-        let decoded_message = decoder.decode(&received).unwrap();
-        assert_eq!(decoded_message, message);
+        let decoding = decoder.decode(&received).unwrap();
+        assert_eq!(decoding.constant_term(), message.c0());
+        let errors = a.iter().filter(|&&i| decoding.is_error(i)).collect_vec();
+        assert_eq!(errors, vec![&a[2], &a[4]]);
 
         // Test with too many errors
         let mut received = code_word.clone();
@@ -279,6 +291,58 @@ mod tests {
         received[3] = S::from(2000u128); // Error at position 3
         received[2] = S::from(200u128); // Error at position 2
         assert!(decoder.decode(&received).is_err());
+    }
+
+    #[test]
+    fn test_decoding_can_exclude_an_honest_index() {
+        // Corrupt parties evaluate `g`, which shares its constant term with the honest `f`. The
+        // two agree only at zero, so every honest point is an error relative to `g`.
+        let f = Poly::from(vec![S::from(10u128), S::from(3u128), S::from(2u128)]);
+        let g = Poly::from(vec![S::from(10u128), S::from(5u128), S::from(7u128)]);
+        let corrupt = [1u16, 2, 3, 4];
+        let point = |i: u16| ShareIndex::new(i).unwrap();
+        let word = |points: &[ShareIndex]| -> Vec<S> {
+            points
+                .iter()
+                .map(|&i| {
+                    if corrupt.contains(&i.get()) {
+                        g.eval(i).value
+                    } else {
+                        f.eval(i).value
+                    }
+                })
+                .collect_vec()
+        };
+
+        // Five points: the four corrupt ones outnumber the honest one, so the decoding settles on
+        // `g`. The constant term still comes out right, but the honest index is named as the error.
+        let few = (1..=5).map(point).collect_vec();
+        let decoding = RSDecoder::new(few.clone(), 3)
+            .unwrap()
+            .decode(&word(&few))
+            .unwrap();
+        assert_eq!(decoding.constant_term(), f.c0());
+        assert!(decoding.is_error(point(5)));
+        assert!(corrupt.iter().all(|&i| !decoding.is_error(point(i))));
+
+        // In between it decodes to neither: with `c` corrupt and message length `k` it settles on
+        // `g` up to `n = 2c - k`, finds `f` from `n = 2c + k`, and fails over the `2k` in between.
+        let between = (1..=8).map(point).collect_vec();
+        assert!(RSDecoder::new(between.clone(), 3)
+            .unwrap()
+            .decode(&word(&between))
+            .is_err());
+
+        // Eleven points: the same four are within the correction radius, so the decoding finds `f`
+        // and the locator names them instead.
+        let many = (1..=11).map(point).collect_vec();
+        let decoding = RSDecoder::new(many.clone(), 3)
+            .unwrap()
+            .decode(&word(&many))
+            .unwrap();
+        assert_eq!(decoding.constant_term(), f.c0());
+        assert!(corrupt.iter().all(|&i| decoding.is_error(point(i))));
+        assert!(!decoding.is_error(point(5)));
     }
 
     #[test]
