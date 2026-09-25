@@ -212,7 +212,7 @@ impl Dealer {
     ///   For key rotation, this should be set to the previous round's secret.
     /// * `nodes`: The set of nodes (parties) participating in the protocol.
     /// * `params`: The threshold parameters.
-    /// * `sid`: A session identifier that should be unique for each invocation of the protocol, including for each dealer.
+    /// * `sid`: A session identifier that must be unique for each invocation of the protocol, including for each dealer.
     ///
     /// Returns an error if the parameters are invalid.
     pub fn new<R: AllowedRng>(
@@ -280,7 +280,7 @@ impl Receiver {
     /// * `nodes`: The set of nodes (parties) participating in the protocol.
     /// * `id`: The unique identifier of this receiver. Should match one of the party ids in `nodes`.
     /// * `params`: The threshold parameters.
-    /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
+    /// * `sid`: A session identifier that must be unique for each invocation of the protocol, including for each dealer, but the same for all parties in a single invocation.
     /// * `commitment`: A commitment to the secret being shared. Required for key rotation, where
     ///   all receivers must use the same commitment for a given dealer.
     /// * `enc_secret_key`: The private key used to decrypt the shares sent to this receiver.
