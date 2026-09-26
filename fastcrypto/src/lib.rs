@@ -45,6 +45,10 @@ pub mod hash_tests;
 pub mod hmac_tests;
 
 #[cfg(test)]
+#[path = "tests/slip10_tests.rs"]
+pub mod slip10_tests;
+
+#[cfg(test)]
 #[path = "tests/encoding_tests.rs"]
 pub mod encoding_tests;
 
@@ -111,6 +115,7 @@ pub mod secp256k1;
 pub mod secp256r1;
 pub mod serde_helpers;
 pub mod signature_service;
+pub mod slip10;
 pub mod twisted_elgamal;
 pub mod utils;
 pub mod vrf;

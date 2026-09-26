@@ -20,6 +20,7 @@
 // Each scheme is a self-contained module directory; a new scheme is a sibling directory plus
 // one line here, and its tests in src/tests/<scheme>_tests.rs.
 pub mod mldsa65;
+pub mod slip10;
 pub mod sphincs;
 
 #[cfg(test)]
