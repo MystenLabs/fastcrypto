@@ -1224,10 +1224,11 @@ mod tests {
     use crate::ecies_v1::PublicKey;
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::{Eval, Poly};
-    use crate::threshold_schnorr::{avid, batch_avss_avid as batch_avss, Certificate, EG};
+    use crate::threshold_schnorr::{avid, batch_avss_avid as batch_avss, Certificate, EG, S};
     use crate::types::ShareIndex;
     use fastcrypto::error::FastCryptoError::{InvalidMessage, NotEnoughWeight};
     use fastcrypto::error::FastCryptoResult;
+    use fastcrypto::groups::GroupElement;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use serde::{Deserialize, Serialize};
@@ -1456,6 +1457,26 @@ mod tests {
         // Pessimistic phase: dispersal for the complement of voters (I = {7, 8, 9}). The dealer
         // bundles each dispersal with the cert into an [AvidMessage].
         let messages = dealer.create_avid_messages(&state, cert.clone()).unwrap();
+
+        // A response polynomial padded with a zero coefficient is rejected.
+        let mut padded = state.message_for(0).unwrap();
+        let mut coefficients = padded.common.response_polynomial.to_vec();
+        coefficients.push(S::zero());
+        padded.common.response_polynomial = Poly::from(coefficients);
+        assert_eq!(
+            receivers[0].process_avss_message(&padded).err(),
+            Some(InvalidMessage)
+        );
+
+        // An AVSS certificate with less than t + f weight is rejected.
+        let mut weak = messages.message_for(voters[0]).unwrap();
+        weak.avss_cert.voters = BTreeSet::from([voters[0]]);
+        assert_eq!(
+            receivers[voters[0] as usize]
+                .process_avid_message(&voter_commons[&voters[0]], weak)
+                .err(),
+            Some(NotEnoughWeight((t + f) as usize))
+        );
 
         // The voters (who verified their shares in the optimistic phase) process the
         // AvidMessages using the VerifiedAvssCommonMessage they retained, emit their echoes for

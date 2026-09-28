@@ -737,6 +737,7 @@ mod tests {
     use crate::threshold_schnorr::Extensions::Encryption;
     use crate::threshold_schnorr::{Parameters, EG, G};
     use crate::types::{IndexedValue, ShareIndex};
+    use fastcrypto::error::FastCryptoError::InvalidMessage;
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
@@ -809,6 +810,16 @@ mod tests {
         let recovered = Poly::recover_c0(t, shares.iter().take(t as usize)).unwrap();
 
         assert_eq!(secret, recovered);
+
+        // A commitment padded with a zero coefficient is rejected.
+        let mut padded = message.clone();
+        let mut coefficients = padded.feldman_commitment.to_vec();
+        coefficients.push(G::zero());
+        padded.feldman_commitment = Poly::from(coefficients);
+        assert_eq!(
+            receivers[0].verify_message(&padded).err(),
+            Some(InvalidMessage)
+        );
     }
 
     #[test]

@@ -170,12 +170,21 @@ mod tests {
     };
     use crate::threshold_schnorr::{avss, batch_avss_avid, Address, Parameters, EG, G, S};
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
+    use fastcrypto::error::FastCryptoError::{InputTooShort, InvalidInput};
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use std::collections::HashMap;
     use std::hash::Hash;
+
+    #[test]
+    fn test_parameters_validate() {
+        assert!(Parameters { t: 3, f: 2 }.validate(5).is_ok());
+        // t + f > W, and it overflows u16.
+        assert!(Parameters { t: 40000, f: 40000 }.validate(65535).is_err());
+    }
+
     /// A happy-path smoke test, not a reference for integrating the protocols.
     #[test]
     fn test_e2e() {
@@ -770,6 +779,28 @@ mod tests {
             ),
             Err(fastcrypto::error::FastCryptoError::InconsistentInputs)
         ));
+
+        // Fewer than t partial signatures, or a repeated index, are rejected.
+        let aggregate = |partials: &[Eval<S>]| {
+            aggregate_signatures(
+                message,
+                &public,
+                &beacon_value,
+                partials,
+                Parameters { t, f },
+                &vk_element,
+                None,
+            )
+            .err()
+        };
+        assert_eq!(
+            aggregate(&honest[..t as usize - 1]),
+            Some(InputTooShort(t as usize))
+        );
+        assert_eq!(
+            aggregate(&[&honest[..], &honest[..1]].concat()),
+            Some(InvalidInput)
+        );
 
         // The same fault is still corrected from five partial signatures, but excluding it leaves
         // four, short of the `t + f` the aggregation wants before it will name an index.
