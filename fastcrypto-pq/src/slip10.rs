@@ -1,14 +1,18 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! SLIP-0010 master keys for the post-quantum schemes.
-//!
-//! One string per parameter set, byte for byte as proposed in
-//! [satoshilabs/slips#1968](https://github.com/satoshilabs/slips/pull/1968)
+//! SLIP-0010 key derivation for the post-quantum schemes.
 
-/// ML-DSA-44 (FIPS 204, NIST security level 2).
-pub const MLDSA44_MASTER_KEY: &[u8] = b"ML-DSA-44 seed";
-/// ML-DSA-65 (FIPS 204, NIST security level 3).
-pub const MLDSA65_MASTER_KEY: &[u8] = b"ML-DSA-65 seed";
-/// ML-DSA-87 (FIPS 204, NIST security level 5).
-pub const MLDSA87_MASTER_KEY: &[u8] = b"ML-DSA-87 seed";
+use fastcrypto::error::FastCryptoResult;
+use fastcrypto::slip10::{derive_hardened, Slip10MasterKey};
+use fastcrypto::traits::ToFromBytes;
+
+use crate::mldsa65::MLDSA65KeyPair;
+
+/// Derive an ML-DSA-65 keypair from a BIP-39 seed along a hardened SLIP-0010
+/// path, per [satoshilabs/slips#1968](https://github.com/satoshilabs/slips/pull/1968):
+/// the node secret is the FIPS 204 keygen seed.
+pub fn derive_mldsa65_keypair(seed: &[u8], indexes: &[u32]) -> FastCryptoResult<MLDSA65KeyPair> {
+    let node = derive_hardened(Slip10MasterKey::MlDsa65, seed, indexes)?;
+    MLDSA65KeyPair::from_bytes(&node.secret)
+}

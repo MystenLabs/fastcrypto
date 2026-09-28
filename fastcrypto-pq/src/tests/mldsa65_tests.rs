@@ -384,10 +384,10 @@ fn lengths_match_the_scheme() {
 /// HMAC walk, and the public-key digests pin FIPS 204 key expansion.
 #[test]
 fn slip10_slips1968_vectors() {
-    use crate::slip10::MLDSA65_MASTER_KEY;
+    use crate::slip10::derive_mldsa65_keypair;
     use fastcrypto::encoding::{Encoding, Hex};
     use fastcrypto::hash::{HashFunction, Sha256};
-    use fastcrypto::slip10::derive_hardened;
+    use fastcrypto::slip10::{derive_hardened, Slip10MasterKey};
 
     const SEED_1: &str = "000102030405060708090a0b0c0d0e0f";
     const SEED_2: &str = concat!(
@@ -435,14 +435,14 @@ fn slip10_slips1968_vectors() {
     ];
     for (seed_hex, indexes, want_cc, want_pk_digest) in VECTORS {
         let seed = Hex::decode(seed_hex).unwrap();
-        let node = derive_hardened(MLDSA65_MASTER_KEY, &seed, indexes);
+        let node = derive_hardened(Slip10MasterKey::MlDsa65, &seed, indexes).unwrap();
         assert_eq!(
             Hex::encode(node.chain_code),
             *want_cc,
             "chain code, path {indexes:?}"
         );
 
-        let kp = MLDSA65KeyPair::derive_slip10(&seed, indexes).unwrap();
+        let kp = derive_mldsa65_keypair(&seed, indexes).unwrap();
         let digest = Sha256::digest(kp.public().as_ref());
         assert_eq!(
             kp.private().as_ref(),
