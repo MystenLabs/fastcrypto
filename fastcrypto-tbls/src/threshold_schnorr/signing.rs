@@ -297,7 +297,7 @@ fn compute_nonce_shares(
             .into_iter()
             .map(|(t, t_prime)| t + delta * t_prime)
             .collect(),
-        combine_public_presignatures(&public, &delta)?,
+        compute_nonce_from_delta(&public, &delta)?,
     ))
 }
 
@@ -314,13 +314,13 @@ fn compute_nonce(
         verifying_key,
         derivation_address,
     )?;
-    combine_public_presignatures(public_presig_pair, &delta)
+    compute_nonce_from_delta(public_presig_pair, &delta)
 }
 
 /// Compute the nonce `D + delta * D'` for a signature. Since the presignatures are random, the
 /// identity element occurs only with negligible probability and is rejected with
 /// [`FastCryptoError::GeneralOpaqueError`].
-fn combine_public_presignatures(
+fn compute_nonce_from_delta(
     public_presig_pair: &PublicPresignaturePair,
     delta: &S,
 ) -> FastCryptoResult<G> {
