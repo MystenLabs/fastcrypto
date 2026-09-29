@@ -128,8 +128,8 @@ impl BatchId {
 /// Domain separation prefix for the random oracle identifying a presigning instance.
 const PRESIGNING_ID_DOMAIN: &str = "fastcrypto_threshold_schnorr_presigning_session";
 
-/// Identifier of a presigning instance: a nonce batch together with the dealers whose dealings it
-/// combines, `pid = (bid, J)` in the protocol description.
+/// Identifier of a presigning instance: the hash of a nonce batch together with the dealers whose
+/// dealings it combines, `pid = (bid, J)` in the protocol description.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PresigningId([u8; 32]);
 
