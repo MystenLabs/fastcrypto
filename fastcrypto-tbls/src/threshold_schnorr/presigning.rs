@@ -9,7 +9,6 @@ use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 /// An iterator that yields presigning tuples `(T, D)`.
@@ -25,7 +24,7 @@ pub(crate) struct Presignatures {
 
 /// The public part of a [PresignaturePair]: the presigning instance it came from, the index of
 /// the pair within that instance and the two public presignatures.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PublicPresignaturePair {
     presigning_id: PresigningId,
     index: u32,
@@ -46,12 +45,12 @@ impl PublicPresignaturePair {
     }
 
     /// The public part of the first presigning tuple, `D` in the protocol description.
-    pub(crate) fn first(&self) -> &G {
+    pub fn first(&self) -> &G {
         &self.first
     }
 
     /// The public part of the second presigning tuple, `D'` in the protocol description.
-    pub(crate) fn second(&self) -> &G {
+    pub fn second(&self) -> &G {
         &self.second
     }
 
@@ -275,7 +274,7 @@ impl Presignatures {
         Ok(Self {
             secret,
             public,
-            presigning_id: PresigningId::new(&batch_id, &dealers),
+            presigning_id: batch_id.presigning_id(&dealers),
         })
     }
 
