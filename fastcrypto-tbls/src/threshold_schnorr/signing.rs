@@ -362,9 +362,9 @@ fn combine_public_presignatures(
     Ok(r_g)
 }
 
-/// Compute the binding factor `b = H(vk, session_id, slot, p_0, p_1, message)`, where `vk` is the
-/// derived verifying key if a derivation address is given. The session id and the slot tie the
-/// factor to the presigning instance and to the position in it that the pair came from.
+/// Compute the binding factor `b = H(vk, session_id, index, p_0, p_1, message)`, where `vk` is the
+/// derived verifying key if a derivation address is given. The session id and the pair index tie
+/// the factor to the presigning instance and to the position in it that the pair came from.
 fn binding_factor(
     message: &[u8],
     presig_pair: &PublicPresignaturePair,
@@ -390,7 +390,7 @@ fn binding_factor(
         RandomOracle::new(BINDING_FACTOR_DOMAIN).evaluate_to_group_element(&(
             verifying_key,
             session_id,
-            presig_pair.slot,
+            presig_pair.index,
             presig_pair.first,
             presig_pair.second,
             message,
@@ -426,14 +426,13 @@ pub(crate) fn bind_public_presignatures_for_testing(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::threshold_schnorr::presigning::PresignatureSlot;
     use fastcrypto::encoding::{Encoding, Hex};
     use fastcrypto::serde_helpers::ToFromByteArray;
 
     #[test]
     fn test_bind_public_presignatures_vector() {
         let presig_pair = PublicPresignaturePair {
-            slot: PresignatureSlot { row: 1, column: 2 },
+            index: 1,
             first: G::generator() * S::from(3u128),
             second: G::generator() * S::from(4u128),
         };
@@ -444,7 +443,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             Hex::encode(r.to_byte_array()),
-            "f3e7503f880452161efdcb272b365316534b35c59377b1ba133e3fcbf8a046f280"
+            "9bfda9230664839990cea4bb93eeafacb48d79184c435321782bdb3bfed9bdff00"
         );
 
         let r = bind_public_presignatures(
@@ -457,7 +456,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             Hex::encode(r.to_byte_array()),
-            "18b57620204ca6daf490920390efb9e37ce794388a24e4797be8b0345cc349a900"
+            "bdbfdfda828a550a3d0c4258a9be27c27be6ce808ac63b09c0c5fcd4f5e61df200"
         );
     }
 }

@@ -168,7 +168,7 @@ mod tests {
         derive_verifying_key, derive_verifying_key_internal,
     };
     use crate::threshold_schnorr::presigning::{
-        PresignaturePair, PresignatureSlot, Presignatures, PublicPresignaturePair,
+        PresignaturePair, Presignatures, PublicPresignaturePair,
     };
     use crate::threshold_schnorr::signing::{
         aggregate_signatures, bind_public_presignatures_for_testing, generate_partial_signatures,
@@ -869,7 +869,7 @@ mod tests {
                     let (presig_1, presig_pair) = loop {
                         let presig_1 = S::rand(&mut rng);
                         let presig_pair = PublicPresignaturePair {
-                            slot: PresignatureSlot { row: 0, column: 0 },
+                            index: 0,
                             first: G::generator() * presig_0,
                             second: G::generator() * presig_1,
                         };

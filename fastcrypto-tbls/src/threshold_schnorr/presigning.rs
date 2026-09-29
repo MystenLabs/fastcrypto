@@ -19,32 +19,22 @@ use tracing::warn;
 pub struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
-    /// Number of rows of the presigning matrix, `M` in the protocol description.
-    rows: u32,
-    /// Number of tuples yielded so far, which gives the coordinate of the next one.
+    /// Number of tuples yielded so far, which gives the index of the next pair.
     yielded: u32,
 }
 
-/// The coordinate of a presigning tuple in the presigning matrix, `(t, l)` in the protocol
-/// description. Tuples are yielded column by column, starting with the last column, so the
-/// `n`-th tuple sits at row `n % M` of column `L - 1 - n / M`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PresignatureSlot {
-    pub row: u32,
-    pub column: u32,
-}
-
-/// The public part of a [PresignaturePair]: the slot the pair starts at and the two public
-/// presignatures. This is what the parties must agree on, and what aggregation needs.
+/// The public part of a [PresignaturePair]: the index of the pair within its presigning instance
+/// and the two public presignatures. This is what the parties must agree on, and what aggregation
+/// needs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicPresignaturePair {
-    pub slot: PresignatureSlot,
+    pub index: u32,
     pub first: G,
     pub second: G,
 }
 
-/// Two presigning tuples to be used for a single signature, along with the slot the first of them
-/// occupies. Yielded by [PresignaturePairs].
+/// Two presigning tuples to be used for a single signature, along with the index of the pair
+/// within its presigning instance. Yielded by [PresignaturePairs].
 #[derive(Clone, Debug)]
 pub struct PresignaturePair {
     pub public: PublicPresignaturePair,
@@ -60,12 +50,12 @@ impl Iterator for PresignaturePairs {
     type Item = PresignaturePair;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let slot = self.0.next_slot();
+        let index = self.0.next_pair_index();
         let (first_shares, first) = self.0.next()?;
         let (second_shares, second) = self.0.next()?;
         Some(PresignaturePair {
             public: PublicPresignaturePair {
-                slot,
+                index,
                 first,
                 second,
             },
@@ -232,7 +222,6 @@ impl Presignatures {
         Ok(Self {
             secret,
             public,
-            rows: height as u32,
             yielded: 0,
         })
     }
@@ -242,19 +231,15 @@ impl Presignatures {
         PresignaturePairs(self)
     }
 
-    /// The slot the next tuple will come from.
-    fn next_slot(&self) -> PresignatureSlot {
-        let columns_done = self.yielded / self.rows;
-        PresignatureSlot {
-            row: self.yielded % self.rows,
-            column: (self.public.len() as u32 + self.yielded) / self.rows - 1 - columns_done,
-        }
+    /// The index the next pair will have, counted from the start of this presigning instance.
+    fn next_pair_index(&self) -> u32 {
+        self.yielded / 2
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{PresignatureSlot, Presignatures};
+    use super::Presignatures;
     use crate::threshold_schnorr::batch_avss_avid::{ReceiverOutput, ShareBatch, SharesForNode};
     use crate::threshold_schnorr::{Parameters, G, S};
     use fastcrypto::groups::GroupElement;
@@ -355,9 +340,9 @@ mod tests {
     }
 
     #[test]
-    fn test_pair_slots() {
-        // Four weight-1 dealers with three nonces each: a 3 x 3 matrix, yielded column by column
-        // starting with the last one, which pairs up into four pairs.
+    fn test_pair_indices() {
+        // Four weight-1 dealers with three nonces each: nine tuples, which pair up into four
+        // pairs, leaving the last tuple unpaired.
         let batch_size_per_weight: u16 = 3;
         let params = Parameters { t: 2, f: 1 };
         let outputs = (0..4)
@@ -372,13 +357,8 @@ mod tests {
             .pairs();
         assert_eq!(pairs.len(), 4);
         assert_eq!(
-            pairs.map(|pair| pair.public.slot).collect::<Vec<_>>(),
-            vec![
-                PresignatureSlot { row: 0, column: 2 },
-                PresignatureSlot { row: 2, column: 2 },
-                PresignatureSlot { row: 1, column: 1 },
-                PresignatureSlot { row: 0, column: 0 },
-            ]
+            pairs.map(|pair| pair.public.index).collect::<Vec<_>>(),
+            vec![0, 1, 2, 3]
         );
     }
 }
