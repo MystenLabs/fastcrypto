@@ -449,7 +449,7 @@ mod batch_avss_benches {
                     format!("create/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            Presignatures::new(
+                            Presignatures::pairs(
                                 outputs.clone(),
                                 batch_size_per_weight,
                                 Parameters { t, f },
@@ -459,19 +459,19 @@ mod batch_avss_benches {
                     },
                 );
 
-                // Ensure that we have enough presignatures.
-                let presignatures = (0..1000)
+                // Ensure that we have enough presignature pairs.
+                let mut presigs = (0..1000)
                     .map(|_| {
-                        Presignatures::new(
+                        Presignatures::pairs(
                             outputs.clone(),
                             batch_size_per_weight,
                             Parameters { t, f },
                         )
                         .unwrap()
                     })
-                    .collect_vec();
-
-                let mut presigs = presignatures.into_iter().flatten();
+                    .collect_vec()
+                    .into_iter()
+                    .flatten();
 
                 complete
                     .bench_function(

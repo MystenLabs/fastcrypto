@@ -162,19 +162,20 @@ impl Presignatures {
     /// know or bias up to `t - 1` of the input nonces, so only `total_weight - (t - 1)` combined
     /// nonces per position remain uniformly random and safe to output.
     ///
-    /// The outputs must all come from the same nonce batch, and are used in ascending dealer order
-    /// whatever order they are given in. That batch and those dealers identify this presigning
+    /// The outputs must all come from the same nonce batch, from distinct dealers, and be given in
+    /// ascending dealer order. That batch and those dealers identify this presigning
     /// instance, `pid = (bid, J)` in the protocol description, and are hashed into the binding
     /// factor of every pair from this generator, so pairs from different batches, or from
     /// different dealer sets of the same batch, can never be bound the same way.
     ///
     /// An InvalidInput error will be returned if:
-    /// * the outputs are empty, come from more than one batch, or two come from the same dealer,
+    /// * the outputs are empty, come from more than one batch, are not in ascending dealer order,
+    ///   or two come from the same dealer,
     /// * `params.t` is zero,
     /// * The total weight of the dealers for the outputs is not at least `params.t`,
     /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
     /// * or if batch_size_per_weight is zero.
-    pub fn new(
+    pub(crate) fn new(
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,
         params: Parameters,
@@ -183,14 +184,12 @@ impl Presignatures {
             return Err(InvalidInput);
         }
 
-        // The dealer order fixes the layout of the presigning matrix, so it is canonicalised here
-        // rather than left to the caller: every party combines the same dealings the same way.
-        let mut outputs = outputs;
-        outputs.sort_by_key(|output| output.dealer);
+        // The dealer order fixes the layout of the presigning matrix, so the caller must present
+        // the dealings in a canonical order: every party then combines them the same way.
         let dealers = outputs.iter().map(|output| output.dealer).collect_vec();
         let batch_id = outputs[0].batch_id.clone();
-        // Sorting leaves outputs from the same dealer adjacent.
-        if dealers.windows(2).any(|pair| pair[0] == pair[1])
+        if !dealers.iter().all_unique()
+            || !dealers.is_sorted()
             || outputs.iter().any(|output| output.batch_id != batch_id)
         {
             return Err(InvalidInput);
@@ -296,13 +295,22 @@ impl Presignatures {
         })
     }
 
-    /// Pair up the tuples, two per signature, dropping a trailing tuple with nothing to pair it
-    /// with. Pairs are indexed from the start of the returned iterator, so it must be created
-    /// from a fresh generator and resumed with e.g. `nth`, not by advancing the tuples first.
+    /// The presigning tuples of one instance, paired up two per signature, dropping a trailing
+    /// tuple with nothing to pair it with. This is the only way to get a [PresignaturePair]:
+    /// overlapping pairs such as `(0, 1)`, `(1, 2)`, `(2, 3)` would use every tuple in the middle
+    /// twice and still produce valid signatures.
     ///
-    /// This is the only way to build a pair, since overlapping ones such as `(0, 1)`, `(1, 2)`,
-    /// `(2, 3)` would use every tuple in the middle twice and still produce valid signatures.
-    pub fn pairs(self) -> impl Iterator<Item = PresignaturePair> {
+    /// Pairs are indexed from the start of the returned iterator, so a caller resuming where it
+    /// left off must do so with e.g. `nth` on this iterator.
+    pub fn pairs(
+        outputs: Vec<ReceiverOutput>,
+        batch_size_per_weight: u16,
+        params: Parameters,
+    ) -> FastCryptoResult<impl Iterator<Item = PresignaturePair>> {
+        Ok(Self::new(outputs, batch_size_per_weight, params)?.into_pairs())
+    }
+
+    fn into_pairs(self) -> impl Iterator<Item = PresignaturePair> {
         let session_id = self.session_id;
         self.tuples().enumerate().map(
             move |(index, ((first_shares, first), (second_shares, second)))| PresignaturePair {
@@ -444,11 +452,15 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let presignatures = Presignatures::new(outputs, batch_size_per_weight, params).unwrap();
-        assert_eq!(presignatures.len(), 9);
         assert_eq!(
-            presignatures
-                .pairs()
+            Presignatures::new(outputs.clone(), batch_size_per_weight, params)
+                .unwrap()
+                .len(),
+            9
+        );
+        assert_eq!(
+            Presignatures::pairs(outputs, batch_size_per_weight, params)
+                .unwrap()
                 .map(|pair| pair.public().index())
                 .collect::<Vec<_>>(),
             vec![0, 1, 2, 3]
@@ -484,8 +496,8 @@ mod tests {
         };
 
         assert!(new(mock_outputs(&[0, 1], &batch_id, batch_size_per_weight)).is_ok());
-        // The dealer order is canonicalised rather than rejected
-        assert!(new(mock_outputs(&[1, 0], &batch_id, batch_size_per_weight)).is_ok());
+        // Out of order
+        assert!(new(mock_outputs(&[1, 0], &batch_id, batch_size_per_weight)).is_err());
         // No outputs at all, and two outputs from one dealer
         assert!(new(vec![]).is_err());
         assert!(new(mock_outputs(&[0, 0], &batch_id, batch_size_per_weight)).is_err());
@@ -501,13 +513,12 @@ mod tests {
         let params = Parameters { t: 2, f: 1 };
         let session_id = |dealers: &[PartyId], batch_id: &[u8]| {
             let batch_id = BatchId::new(batch_id.to_vec());
-            *Presignatures::new(
+            *Presignatures::pairs(
                 mock_outputs(dealers, &batch_id, batch_size_per_weight),
                 batch_size_per_weight,
                 params,
             )
             .unwrap()
-            .pairs()
             .next()
             .unwrap()
             .public()
@@ -517,7 +528,5 @@ mod tests {
         let id = session_id(&[0, 1], b"batch");
         assert_ne!(id, session_id(&[0, 1], b"other batch"));
         assert_ne!(id, session_id(&[0, 2], b"batch"));
-        // The dealer order is canonicalised, so it does not change the instance
-        assert_eq!(id, session_id(&[1, 0], b"batch"));
     }
 }

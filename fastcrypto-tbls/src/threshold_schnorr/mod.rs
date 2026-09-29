@@ -389,15 +389,10 @@ mod tests {
         let mut presigs = presigning_outputs
             .into_iter()
             .map(|(id, outputs)| {
-                let presignatures =
-                    Presignatures::new(outputs, batch_size_per_weight, Parameters { t, f })
+                let pairs =
+                    Presignatures::pairs(outputs, batch_size_per_weight, Parameters { t, f })
                         .unwrap();
-                assert_eq!(
-                    presignatures.len(),
-                    batch_size_per_weight as usize
-                        * (weights.iter().sum::<u16>() as usize - f as usize)
-                );
-                (id, presignatures.pairs())
+                (id, pairs)
             })
             .collect::<HashMap<_, _>>();
 
@@ -718,13 +713,7 @@ mod tests {
         let mut presigning = outputs
             .into_iter()
             .map(|output| {
-                let presignatures =
-                    Presignatures::new(output, batch_size_per_weight, Parameters { t, f }).unwrap();
-                assert_eq!(
-                    presignatures.len(),
-                    batch_size_per_weight as usize * (n - f) as usize
-                );
-                presignatures.pairs()
+                Presignatures::pairs(output, batch_size_per_weight, Parameters { t, f }).unwrap()
             })
             .collect_vec();
 
@@ -1017,13 +1006,7 @@ mod tests {
         let mut presigning = outputs
             .into_iter()
             .map(|output| {
-                let presignatures =
-                    Presignatures::new(output, batch_size_per_weight, Parameters { t, f }).unwrap();
-                assert_eq!(
-                    presignatures.len(),
-                    batch_size_per_weight as usize * (n - f) as usize
-                );
-                presignatures.pairs()
+                Presignatures::pairs(output, batch_size_per_weight, Parameters { t, f }).unwrap()
             })
             .collect_vec();
 
