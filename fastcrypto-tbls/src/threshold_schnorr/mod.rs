@@ -706,12 +706,13 @@ mod tests {
             })
             .collect_vec();
 
+        let batch_id = BatchId::new(BATCH_ID.to_vec());
         let outputs = (0..n)
             .map(|i| {
                 (0..n)
                     .map(|j| {
                         batch_avss_avid::ReceiverOutput {
-                            batch_id: BatchId::new(BATCH_ID.to_vec()),
+                            batch_id: batch_id.clone(),
                             dealer: j as PartyId,
                             my_shares: SharesForNode {
                                 shares: vec![ShareBatch {
@@ -1003,12 +1004,13 @@ mod tests {
             })
             .collect_vec();
 
+        let batch_id = BatchId::new(BATCH_ID.to_vec());
         let outputs = (0..n)
             .map(|i| {
                 (0..n as usize)
                     .map(|j| {
                         batch_avss_avid::ReceiverOutput {
-                            batch_id: BatchId::new(BATCH_ID.to_vec()),
+                            batch_id: batch_id.clone(),
                             dealer: j as PartyId,
                             my_shares: SharesForNode {
                                 shares: vec![ShareBatch {
