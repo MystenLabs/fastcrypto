@@ -47,8 +47,8 @@ impl PublicPresignaturePair {
         &self.presignatures
     }
 
-    /// Build a pair directly, bypassing [PresignaturePair::from_dealings], which is the only
-    /// source of pairs that are guaranteed not to overlap. For tests only.
+    /// Build the public part of a pair directly, bypassing [PresignaturePair::from_dealings],
+    /// which is the only source of pairs that are guaranteed not to overlap. For tests only.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn new_for_testing(presigning_id: PresigningId, index: u32, presignatures: (G, G)) -> Self {
         Self {

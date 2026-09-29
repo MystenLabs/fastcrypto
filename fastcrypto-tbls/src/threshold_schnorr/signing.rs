@@ -317,9 +317,9 @@ fn compute_nonce(
     compute_nonce_from_delta(public_presig_pair, &delta)
 }
 
-/// Compute the nonce `D + delta * D'` for a signature. Since the presignatures are random, the
-/// identity element occurs only with negligible probability and is rejected with
-/// [`FastCryptoError::GeneralOpaqueError`].
+/// Compute the nonce `R = D + delta * D'` from a binding factor already computed. Since the
+/// presignatures are random, the identity element occurs only with negligible probability and is
+/// rejected with [`FastCryptoError::GeneralOpaqueError`].
 fn compute_nonce_from_delta(
     public_presig_pair: &PublicPresignaturePair,
     delta: &S,
