@@ -219,8 +219,7 @@ mod tests {
     };
     use crate::threshold_schnorr::presigning::{PresignaturePair, PublicPresignaturePair};
     use crate::threshold_schnorr::signing::{
-        aggregate_signatures, bind_public_presignatures_for_testing, generate_partial_signatures,
-        Blame,
+        aggregate_signatures, compute_nonce_for_testing, generate_partial_signatures, Blame,
     };
     use crate::threshold_schnorr::{
         avss, batch_avss_avid, Address, BatchId, Parameters, PresigningId, EG, G, S,
@@ -904,13 +903,9 @@ mod tests {
                             0,
                             (G::generator() * presig_0, G::generator() * presig_1),
                         );
-                        let nonce = bind_public_presignatures_for_testing(
-                            message,
-                            &presig_pair,
-                            &vk,
-                            address.as_ref(),
-                        )
-                        .unwrap();
+                        let nonce =
+                            compute_nonce_for_testing(message, &presig_pair, &vk, address.as_ref())
+                                .unwrap();
                         if has_even_y(&nonce) == nonce_even {
                             break (presig_1, presig_pair);
                         }

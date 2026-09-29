@@ -249,7 +249,7 @@ fn finalize_schnorr_signature(
 ) -> FastCryptoResult<SchnorrSignature> {
     // Compute the nonce R for the signature. The signers negate their secret nonces when R has an
     // odd Y coordinate, which covers the whole nonce here, so `s` needs no adjustment.
-    let r_g = bind_public_presignatures(message, presig_pair, verifying_key, derivation_address)?;
+    let r_g = compute_nonce(message, presig_pair, verifying_key, derivation_address)?;
     let mut s = s;
 
     // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
@@ -299,8 +299,8 @@ fn bind_presignatures(
     ))
 }
 
-/// Compute the public part of [bind_presignatures], `D + delta * D'`.
-fn bind_public_presignatures(
+/// Compute the nonce `R = D + delta * D'` a signature is made with.
+fn compute_nonce(
     message: &[u8],
     presig_pair: &PublicPresignaturePair,
     verifying_key: &G,
@@ -365,13 +365,13 @@ fn bip0340_hash(r_g: &G, vk: &G, message: &[u8]) -> FastCryptoResult<S> {
 
 /// Expose the nonce computation to the tests in the parent module.
 #[cfg(test)]
-pub(crate) fn bind_public_presignatures_for_testing(
+pub(crate) fn compute_nonce_for_testing(
     message: &[u8],
     presig_pair: &PublicPresignaturePair,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<G> {
-    bind_public_presignatures(message, presig_pair, verifying_key, derivation_address)
+    compute_nonce(message, presig_pair, verifying_key, derivation_address)
 }
 
 #[cfg(test)]
@@ -393,19 +393,18 @@ mod tests {
     }
 
     #[test]
-    fn test_bind_public_presignatures_vector() {
+    fn test_compute_nonce_vector() {
         let presig_pair = presig_pair();
         let vk = G::generator() * S::from(5u128);
         let address = [6u8; 32];
 
-        let r = bind_public_presignatures(b"Hello, world!", &presig_pair, &vk, None).unwrap();
+        let r = compute_nonce(b"Hello, world!", &presig_pair, &vk, None).unwrap();
         assert_eq!(
             Hex::encode(r.to_byte_array()),
             "045bfc64e26e284db3dcc72e2be4e99cfdea05879a2e250c56e66175d2bd701e00"
         );
 
-        let r =
-            bind_public_presignatures(b"Hello, world!", &presig_pair, &vk, Some(&address)).unwrap();
+        let r = compute_nonce(b"Hello, world!", &presig_pair, &vk, Some(&address)).unwrap();
         assert_eq!(
             Hex::encode(r.to_byte_array()),
             "0d72c476a432ce93f844e665d9cb6a973f00e26046075a6ca7817c98a0e2036680"
@@ -420,7 +419,7 @@ mod tests {
         let vk = G::generator() * S::from(5u128);
         let address = [6u8; 32];
         let nonce = |message, pair: &PublicPresignaturePair, vk: &G, address| {
-            bind_public_presignatures(message, pair, vk, address).unwrap()
+            compute_nonce(message, pair, vk, address).unwrap()
         };
 
         let r = nonce(b"Hello, world!", &pair, &vk, None);
