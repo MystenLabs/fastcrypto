@@ -361,9 +361,6 @@ mod tests {
             presigning_outputs.insert(id, Vec::new());
         });
 
-        // The dealers share a batch id, and each dealer's own session id extends it with its
-        // identity. The batch id and the dealers whose outputs are used identify the presigning
-        // instance, `pid = (bid, J)` in the protocol description.
         let presig_batch_id = BatchId::new(b"presig-test-batch".to_vec());
 
         // Each dealer generates a batch of presigs per share they control.
