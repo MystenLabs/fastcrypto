@@ -43,12 +43,7 @@ impl std::fmt::Debug for Presignatures {
 }
 
 /// The public part of a [PresignaturePair]: the presigning instance it came from, the index of
-/// the pair within that instance and the two public presignatures. This is what the parties must
-/// agree on, and what aggregation needs.
-///
-/// The fields are private so that pairs can only come from [Presignatures::pairs], which hands
-/// out disjoint pairs. Overlapping pairs such as `(0, 1)`, `(1, 2)`, `(2, 3)` would use every
-/// tuple in the middle twice and still produce valid signatures.
+/// the pair within that instance and the two public presignatures.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicPresignaturePair {
     session_id: [u8; 32],
@@ -306,6 +301,9 @@ impl Presignatures {
     /// Pair up the tuples, two per signature, dropping a trailing tuple with nothing to pair it
     /// with. Pairs are indexed from the start of the returned iterator, so it must be created
     /// from a fresh generator and resumed with e.g. `nth`, not by advancing the tuples first.
+    ///
+    /// This is the only way to build a pair, since overlapping ones such as `(0, 1)`, `(1, 2)`,
+    /// `(2, 3)` would use every tuple in the middle twice and still produce valid signatures.
     pub fn pairs(self) -> impl Iterator<Item = PresignaturePair> {
         let session_id = self.session_id;
         self.tuples().enumerate().map(
