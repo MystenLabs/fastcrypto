@@ -75,6 +75,7 @@ impl PresignaturePair {
     ///
     /// The caller must:
     /// * pass the outputs of one nonce batch, from distinct dealers, in ascending dealer order,
+    ///   where a dealer of weight `w` dealt `batch_size_per_weight * w` nonces,
     /// * agree that set with the other parties beforehand, e.g. by the dealers' certificates on
     ///   the TOB channel,
     /// * build at most one instance from a batch's dealings,
@@ -83,8 +84,13 @@ impl PresignaturePair {
     /// * resume where it left off with e.g. `nth` on the returned iterator, whose pairs are
     ///   indexed from its start.
     ///
+    /// More dealers give more presignatures, so include as many outputs as possible, but at
+    /// least `params.t` by weight.
+    ///
     /// `InvalidInput` is returned if the outputs are empty, come from more than one batch, are
-    /// not in ascending dealer order, or two come from the same dealer.
+    /// not in ascending dealer order, two come from the same dealer, their total weight is below
+    /// `params.t`, a dealer's batch size is not a multiple of `batch_size_per_weight`, or either
+    /// `params.t` or `batch_size_per_weight` is zero.
     pub fn from_dealings(
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,
@@ -135,29 +141,13 @@ impl ExactSizeIterator for Presignatures {}
 
 impl Presignatures {
     /// Based on the output of a batched AVSS from multiple dealers, create a presignature
-    /// generator.
-    ///
-    /// All parties must use the same outputs, which must all come from the same nonce batch, from
-    /// distinct dealers, and be given in ascending dealer order. The output from a dealer with
-    /// weight `w` should be equal to `batch_size_per_weight * w`.
-    ///
-    /// More parties contributing outputs gives more presignatures, so include as many as possible
-    /// but at least `params.t` (by weight). The set of outputs must be agreed on before calling
-    /// this, e.g., by the dealers' certificates on the TOB channel.
+    /// generator. See [PresignaturePair::from_dealings] for what the outputs must satisfy.
     ///
     /// `params.t` is the reconstruction threshold. The nonce polynomials are shared at degree
     /// `params.t - 1`, so this produces `total_weight - (params.t - 1)` presignatures per nonce
     /// position: the privacy threshold of the sharings is `t - 1`, meaning a sub-`t` coalition can
     /// know or bias up to `t - 1` of the input nonces, so only `total_weight - (t - 1)` combined
     /// nonces per position remain uniformly random and safe to output.
-    ///
-    /// An InvalidInput error will be returned if:
-    /// * the outputs are empty, come from more than one batch, are not in ascending dealer order,
-    ///   or two come from the same dealer,
-    /// * `params.t` is zero,
-    /// * The total weight of the dealers for the outputs is not at least `params.t`,
-    /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
-    /// * or if batch_size_per_weight is zero.
     fn new(
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,
