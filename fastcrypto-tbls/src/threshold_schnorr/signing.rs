@@ -348,8 +348,8 @@ fn compute_delta(
     if *d == G::zero() || *d_prime == G::zero() || d == d_prime || *verifying_key == G::zero() {
         return Err(FastCryptoError::InvalidInput);
     }
-    // The derived key, not the base one, goes into the hash: one pair signing one message under
-    // two derivation addresses must still get two different nonces.
+    // The derived key is used in the hash to ensure that using one pair to sign a message for
+    // different derivation addresses gets a different nonce.
     let verifying_key = if let Some(address) = derivation_address {
         derive_verifying_key_internal(verifying_key, address)?
     } else {
