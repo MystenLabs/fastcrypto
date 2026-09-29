@@ -48,13 +48,10 @@ impl PublicPresignaturePair {
         (&self.first, &self.second)
     }
 
-    #[cfg(test)]
-    pub(crate) fn new_for_testing(
-        presigning_id: PresigningId,
-        index: u32,
-        first: G,
-        second: G,
-    ) -> Self {
+    /// Build a pair directly, bypassing [PresignaturePair::from_dealings], which is the only
+    /// source of pairs that are guaranteed not to overlap. For tests only.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn new_for_testing(presigning_id: PresigningId, index: u32, first: G, second: G) -> Self {
         Self {
             presigning_id,
             index,
@@ -96,8 +93,10 @@ impl PresignaturePair {
         (self.public, self.first_shares, self.second_shares)
     }
 
-    #[cfg(test)]
-    pub(crate) fn new_for_testing(
+    /// Build a pair directly, bypassing [PresignaturePair::from_dealings], which is the only
+    /// source of pairs that are guaranteed not to overlap. For tests only.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn new_for_testing(
         public: PublicPresignaturePair,
         first_shares: Vec<S>,
         second_shares: Vec<S>,
