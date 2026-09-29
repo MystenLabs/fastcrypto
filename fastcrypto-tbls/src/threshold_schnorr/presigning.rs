@@ -73,8 +73,18 @@ impl PresignaturePair {
     /// tuple with nothing to pair it with. An even `batch_size_per_weight` makes the count even
     /// whatever the committee's weights are, so nothing is dropped.
     ///
-    /// Pairs are indexed from the start of the returned iterator, so a caller resuming where it
-    /// left off must do so with e.g. `nth` on this iterator.
+    /// The caller must:
+    /// * pass the outputs of one nonce batch, from distinct dealers, in ascending dealer order,
+    /// * agree that set with the other parties beforehand, e.g. by the dealers' certificates on
+    ///   the TOB channel,
+    /// * build at most one instance from a batch's dealings,
+    /// * discard the pairs when the committee or its weights change, since share indices follow
+    ///   the cumulative weights,
+    /// * resume where it left off with e.g. `nth` on the returned iterator, whose pairs are
+    ///   indexed from its start.
+    ///
+    /// `InvalidInput` is returned if the outputs are empty, come from more than one batch, are
+    /// not in ascending dealer order, or two come from the same dealer.
     pub fn from_dealings(
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,

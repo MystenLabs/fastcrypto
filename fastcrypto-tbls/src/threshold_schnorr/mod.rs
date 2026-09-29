@@ -103,7 +103,7 @@ impl Parameters {
 const DEALER_SESSION_DOMAIN: &[u8] = b"fastcrypto_threshold_schnorr_dealer_session";
 
 /// Identifier of one round of nonce dealing, shared by every dealer in it, `bid` in the protocol
-/// description.
+/// description. Each round of dealing gets its own id.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BatchId(Vec<u8>);
 
