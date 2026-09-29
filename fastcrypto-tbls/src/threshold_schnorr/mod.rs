@@ -198,9 +198,7 @@ mod tests {
     use crate::threshold_schnorr::key_derivation::{
         derive_verifying_key, derive_verifying_key_internal,
     };
-    use crate::threshold_schnorr::presigning::{
-        PresignaturePair, Presignatures, PublicPresignaturePair,
-    };
+    use crate::threshold_schnorr::presigning::{PresignaturePair, PublicPresignaturePair};
     use crate::threshold_schnorr::signing::{
         aggregate_signatures, bind_public_presignatures_for_testing, generate_partial_signatures,
         Blame,
@@ -389,9 +387,12 @@ mod tests {
         let mut presigs = presigning_outputs
             .into_iter()
             .map(|(id, outputs)| {
-                let pairs =
-                    Presignatures::pairs(outputs, batch_size_per_weight, Parameters { t, f })
-                        .unwrap();
+                let pairs = PresignaturePair::from_dealings(
+                    outputs,
+                    batch_size_per_weight,
+                    Parameters { t, f },
+                )
+                .unwrap();
                 (id, pairs)
             })
             .collect::<HashMap<_, _>>();
@@ -713,7 +714,8 @@ mod tests {
         let mut presigning = outputs
             .into_iter()
             .map(|output| {
-                Presignatures::pairs(output, batch_size_per_weight, Parameters { t, f }).unwrap()
+                PresignaturePair::from_dealings(output, batch_size_per_weight, Parameters { t, f })
+                    .unwrap()
             })
             .collect_vec();
 
@@ -1006,7 +1008,8 @@ mod tests {
         let mut presigning = outputs
             .into_iter()
             .map(|output| {
-                Presignatures::pairs(output, batch_size_per_weight, Parameters { t, f }).unwrap()
+                PresignaturePair::from_dealings(output, batch_size_per_weight, Parameters { t, f })
+                    .unwrap()
             })
             .collect_vec();
 

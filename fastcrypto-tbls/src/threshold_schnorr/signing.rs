@@ -323,9 +323,7 @@ fn combine_public_presignatures(
     Ok(r_g)
 }
 
-/// Compute the binding factor `delta = H(vk, session_id, index, D, D', message)`, where `vk` is the
-/// derived verifying key if a derivation address is given. The session id and the pair index tie
-/// the factor to the presigning instance and to the position in it that the pair came from.
+/// Compute the binding factor `delta = H(vk, session_id, index, D, D', message)`.
 fn binding_factor(
     message: &[u8],
     presig_pair: &PublicPresignaturePair,

@@ -89,7 +89,7 @@ mod batch_avss_benches {
         self as batch_avss, AvidMessageBuilder, AvidVote, AvssCommonMessage, AvssMessageBuilder,
         AvssVote, Dealer,
     };
-    use fastcrypto_tbls::threshold_schnorr::presigning::Presignatures;
+    use fastcrypto_tbls::threshold_schnorr::presigning::PresignaturePair;
     use fastcrypto_tbls::threshold_schnorr::Certificate;
     use itertools::Itertools;
     use serde::{Deserialize, Serialize};
@@ -449,7 +449,7 @@ mod batch_avss_benches {
                     format!("create/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
                     |b| {
                         b.iter(|| {
-                            Presignatures::pairs(
+                            PresignaturePair::from_dealings(
                                 outputs.clone(),
                                 batch_size_per_weight,
                                 Parameters { t, f },
@@ -462,7 +462,7 @@ mod batch_avss_benches {
                 // Ensure that we have enough presignature pairs.
                 let mut presigs = (0..1000)
                     .map(|_| {
-                        Presignatures::pairs(
+                        PresignaturePair::from_dealings(
                             outputs.clone(),
                             batch_size_per_weight,
                             Parameters { t, f },

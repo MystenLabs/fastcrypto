@@ -23,7 +23,7 @@ const SESSION_ID_DOMAIN: &str = "fastcrypto_threshold_schnorr_presigning_session
 /// The tuples are tied to the committee and weights they were created for, since share indices
 /// follow the cumulative weights. They must be discarded and regenerated when the committee
 /// changes.
-pub struct Presignatures {
+pub(crate) struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
     batch_id: BatchId,
@@ -95,6 +95,23 @@ pub struct PresignaturePair {
 }
 
 impl PresignaturePair {
+    /// The presigning tuples of one instance, paired up two per signature, dropping a trailing
+    /// tuple with nothing to pair it with. This is the only way to get a [PresignaturePair]:
+    /// overlapping pairs such as `(0, 1)`, `(1, 2)`, `(2, 3)` would use every tuple in the middle
+    /// twice and still produce valid signatures.
+    ///
+    /// Pairs are indexed from the start of the returned iterator, so a caller resuming where it
+    /// left off must do so with e.g. `nth` on this iterator.
+    ///
+    /// See [Presignatures::new] for what the dealings must satisfy.
+    pub fn from_dealings(
+        outputs: Vec<ReceiverOutput>,
+        batch_size_per_weight: u16,
+        params: Parameters,
+    ) -> FastCryptoResult<impl Iterator<Item = Self>> {
+        Ok(Presignatures::new(outputs, batch_size_per_weight, params)?.into_pairs())
+    }
+
     /// What the other parties must agree on to sign with this pair.
     pub fn public(&self) -> &PublicPresignaturePair {
         &self.public
@@ -295,21 +312,6 @@ impl Presignatures {
         })
     }
 
-    /// The presigning tuples of one instance, paired up two per signature, dropping a trailing
-    /// tuple with nothing to pair it with. This is the only way to get a [PresignaturePair]:
-    /// overlapping pairs such as `(0, 1)`, `(1, 2)`, `(2, 3)` would use every tuple in the middle
-    /// twice and still produce valid signatures.
-    ///
-    /// Pairs are indexed from the start of the returned iterator, so a caller resuming where it
-    /// left off must do so with e.g. `nth` on this iterator.
-    pub fn pairs(
-        outputs: Vec<ReceiverOutput>,
-        batch_size_per_weight: u16,
-        params: Parameters,
-    ) -> FastCryptoResult<impl Iterator<Item = PresignaturePair>> {
-        Ok(Self::new(outputs, batch_size_per_weight, params)?.into_pairs())
-    }
-
     fn into_pairs(self) -> impl Iterator<Item = PresignaturePair> {
         let session_id = self.session_id;
         self.tuples().enumerate().map(
@@ -329,7 +331,7 @@ impl Presignatures {
 
 #[cfg(test)]
 mod tests {
-    use super::{BatchId, PartyId, Presignatures};
+    use super::{BatchId, PartyId, PresignaturePair, Presignatures};
     use crate::threshold_schnorr::batch_avss_avid::{ReceiverOutput, ShareBatch, SharesForNode};
     use crate::threshold_schnorr::{Parameters, G, S};
     use fastcrypto::groups::GroupElement;
@@ -459,7 +461,7 @@ mod tests {
             9
         );
         assert_eq!(
-            Presignatures::pairs(outputs, batch_size_per_weight, params)
+            PresignaturePair::from_dealings(outputs, batch_size_per_weight, params)
                 .unwrap()
                 .map(|pair| pair.public().index())
                 .collect::<Vec<_>>(),
@@ -513,7 +515,7 @@ mod tests {
         let params = Parameters { t: 2, f: 1 };
         let session_id = |dealers: &[PartyId], batch_id: &[u8]| {
             let batch_id = BatchId::new(batch_id.to_vec());
-            *Presignatures::pairs(
+            *PresignaturePair::from_dealings(
                 mock_outputs(dealers, &batch_id, batch_size_per_weight),
                 batch_size_per_weight,
                 params,
