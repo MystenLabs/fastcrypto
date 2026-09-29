@@ -59,8 +59,9 @@ impl PublicPresignaturePair {
         &self.session_id
     }
 
-    /// The index of this pair within its presigning instance.
-    pub(crate) fn index(&self) -> u32 {
+    /// The index of this pair within its presigning instance, which the caller tracks to use each
+    /// pair exactly once.
+    pub fn index(&self) -> u32 {
         self.index
     }
 
