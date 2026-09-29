@@ -385,8 +385,10 @@ mod tests {
         PublicPresignaturePair::new_for_testing(
             PresigningId::from_bytes_for_testing([7u8; 64]),
             1,
-            G::generator() * S::from(3u128),
-            G::generator() * S::from(4u128),
+            (
+                G::generator() * S::from(3u128),
+                G::generator() * S::from(4u128),
+            ),
         )
     }
 
@@ -441,15 +443,13 @@ mod tests {
         let other_session = PublicPresignaturePair::new_for_testing(
             PresigningId::from_bytes_for_testing([10u8; 64]),
             pair.index(),
-            *pair.presignatures().0,
-            *pair.presignatures().1,
+            *pair.presignatures(),
         );
         assert_ne!(r, nonce(b"Hello, world!", &other_session, &vk, None));
         let other_index = PublicPresignaturePair::new_for_testing(
             *pair.presigning_id(),
             pair.index() + 1,
-            *pair.presignatures().0,
-            *pair.presignatures().1,
+            *pair.presignatures(),
         );
         assert_ne!(r, nonce(b"Hello, world!", &other_index, &vk, None));
 
@@ -457,8 +457,7 @@ mod tests {
         let swapped = PublicPresignaturePair::new_for_testing(
             *pair.presigning_id(),
             pair.index(),
-            *pair.presignatures().1,
-            *pair.presignatures().0,
+            (pair.presignatures().1, pair.presignatures().0),
         );
         assert_ne!(r, nonce(b"Hello, world!", &swapped, &vk, None));
     }

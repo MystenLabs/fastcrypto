@@ -812,8 +812,10 @@ mod tests {
                 &PublicPresignaturePair::new_for_testing(
                     *presig_pair.presigning_id(),
                     presig_pair.index(),
-                    *presig_pair.presignatures().0,
-                    *presig_pair.presignatures().1 + G::generator(),
+                    (
+                        presig_pair.presignatures().0,
+                        presig_pair.presignatures().1 + G::generator(),
+                    ),
                 ),
                 &honest,
                 Parameters { t, f },
@@ -900,8 +902,7 @@ mod tests {
                         let presig_pair = PublicPresignaturePair::new_for_testing(
                             mock_presigning_id(),
                             0,
-                            G::generator() * presig_0,
-                            G::generator() * presig_1,
+                            (G::generator() * presig_0, G::generator() * presig_1),
                         );
                         let nonce = bind_public_presignatures_for_testing(
                             message,

@@ -27,8 +27,7 @@ pub(crate) struct Presignatures {
 pub struct PublicPresignaturePair {
     presigning_id: PresigningId,
     index: u32,
-    first: G,
-    second: G,
+    presignatures: (G, G),
 }
 
 impl PublicPresignaturePair {
@@ -44,19 +43,18 @@ impl PublicPresignaturePair {
     }
 
     /// The public parts of the two presigning tuples, `D` and `D'` in the protocol description.
-    pub fn presignatures(&self) -> (&G, &G) {
-        (&self.first, &self.second)
+    pub fn presignatures(&self) -> &(G, G) {
+        &self.presignatures
     }
 
     /// Build a pair directly, bypassing [PresignaturePair::from_dealings], which is the only
     /// source of pairs that are guaranteed not to overlap. For tests only.
     #[cfg(any(test, feature = "test-utils"))]
-    pub fn new_for_testing(presigning_id: PresigningId, index: u32, first: G, second: G) -> Self {
+    pub fn new_for_testing(presigning_id: PresigningId, index: u32, presignatures: (G, G)) -> Self {
         Self {
             presigning_id,
             index,
-            first,
-            second,
+            presignatures,
         }
     }
 }
@@ -278,8 +276,7 @@ impl Presignatures {
                 public: PublicPresignaturePair {
                     presigning_id,
                     index: index as u32,
-                    first,
-                    second,
+                    presignatures: (first, second),
                 },
                 first_shares,
                 second_shares,
