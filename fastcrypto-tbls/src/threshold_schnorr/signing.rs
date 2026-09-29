@@ -35,7 +35,7 @@ const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_b
 ///
 /// The signatures produced follow the BIP-0340 standard (<https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki>).
 ///
-/// If a derivation index is provided, a new verifying key is derived for this index (see
+/// If a derivation address is provided, a new verifying key is derived for it (see
 /// [derive_verifying_key]), and the signature is adjusted accordingly.
 /// The signature will be valid for the derived verifying key.
 ///
@@ -61,7 +61,7 @@ pub fn generate_partial_signatures(
         }
     }
 
-    // If a derivation index is provided, derive a new verifying key (and implicitly also signing key) for this index.
+    // If a derivation address is provided, derive a new verifying key (and implicitly also signing key) for it.
     let verifying_key = if let Some(address) = derivation_address {
         derive_verifying_key_internal(verifying_key, address)?
     } else {
@@ -124,7 +124,7 @@ pub enum Blame {
 /// reject any whose share index the sender does not hold. `params` must be the parameters
 /// validated for this committee, see [Parameters::validate].
 ///
-/// If a derivation index is provided, a new verifying key is derived for this index (see
+/// If a derivation address is provided, a new verifying key is derived for it (see
 /// [derive_verifying_key]), and the signature is adjusted accordingly.
 /// The signature will be valid for the derived verifying key.
 ///
@@ -135,8 +135,7 @@ pub enum Blame {
 ///
 /// A failed aggregation, reported as an `InvalidSignature` error, may be retried with a new set of
 /// partial signatures as long as the presigning tuples, message and derivation address stay the
-/// same. Any second use of the presigning tuples with a different message or derivation address
-/// discloses the signing key.
+/// same. Reusing the tuples for anything else is unsafe, see [generate_partial_signatures].
 ///
 /// The excluded indices come back as [Blame::Certain] when their contributors did not follow the
 /// protocol, and as [Blame::Inconclusive] when the decoding had too little margin to show that.
@@ -237,7 +236,7 @@ fn can_blame_excluded_indices(given: usize, excluded: usize, params: Parameters)
 /// This is the second half of [aggregate_signatures], shared with the Reed-Solomon path, which
 /// recovers `s` as the constant coefficient of the message polynomial instead of by interpolation.
 ///
-/// If a derivation index is provided, a new verifying key is derived for this index (see
+/// If a derivation address is provided, a new verifying key is derived for it (see
 /// [derive_verifying_key]), and the signature is adjusted accordingly. The signature will
 /// be valid for the derived verifying key.
 ///
@@ -261,7 +260,7 @@ fn finalize_schnorr_signature(
         derivation_address,
     )?;
 
-    // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
+    // If a derivation address is provided, compute the derived verifying key and adjust the signature accordingly.
     let verifying_key = if let Some(address) = derivation_address {
         let tweak = compute_tweak(verifying_key, address)?;
         let derived_vk = derive_verifying_key_internal(verifying_key, address)?;
@@ -285,8 +284,8 @@ fn finalize_schnorr_signature(
     Ok(signature)
 }
 
-/// Combine two presigning tuples into one bound to the message and verifying key:
-/// `(T + delta * T', D + delta * D')`, see [compute_delta].
+/// Combine a presignature pair into the shares of the nonce a signature is made with, and the
+/// nonce itself: `(T + delta * T', D + delta * D')`, see [compute_delta].
 fn compute_nonce_shares(
     message: &[u8],
     presig_pair: PresignaturePair,
