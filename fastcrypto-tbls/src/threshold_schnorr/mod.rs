@@ -107,7 +107,7 @@ const DEALER_SESSION_DOMAIN: &[u8] = b"fastcrypto_threshold_schnorr_dealer_sessi
 /// description. Each dealer's own AVSS session id is derived from it with
 /// [BatchId::dealer_session_id], and the presigning instances built from its dealings are
 /// identified by it together with their dealers.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BatchId(Vec<u8>);
 
 impl BatchId {
