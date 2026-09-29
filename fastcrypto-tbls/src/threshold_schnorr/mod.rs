@@ -384,7 +384,8 @@ mod tests {
             .collect_vec();
 
         // The public parts should all be the same
-        let presig_pair = get_uniform_value(presig_pairs.iter().map(|pair| pair.public)).unwrap();
+        let presig_pair =
+            get_uniform_value(presig_pairs.iter().map(|pair| *pair.public())).unwrap();
 
         // Each party generates their partial signatures
         let partial_signatures = nodes
@@ -561,7 +562,8 @@ mod tests {
             .collect_vec();
 
         // The public parts should all be the same
-        let presig_pair = get_uniform_value(presig_pairs.iter().map(|pair| pair.public)).unwrap();
+        let presig_pair =
+            get_uniform_value(presig_pairs.iter().map(|pair| *pair.public())).unwrap();
 
         // Each party generates their partial signatures
         let partial_signatures = nodes
@@ -706,7 +708,8 @@ mod tests {
             .map(|presigning| presigning.next().unwrap())
             .collect_vec();
 
-        let presig_pair = get_uniform_value(presig_pairs.iter().map(|pair| pair.public)).unwrap();
+        let presig_pair =
+            get_uniform_value(presig_pairs.iter().map(|pair| *pair.public())).unwrap();
 
         let partial_signatures = presig_pairs
             .into_iter()
@@ -770,10 +773,12 @@ mod tests {
         assert!(matches!(
             aggregate_signatures(
                 message,
-                &PublicPresignaturePair {
-                    second: presig_pair.second + G::generator(),
-                    ..presig_pair
-                },
+                &PublicPresignaturePair::new_for_testing(
+                    *presig_pair.session_id(),
+                    presig_pair.index(),
+                    *presig_pair.first(),
+                    *presig_pair.second() + G::generator(),
+                ),
                 &honest,
                 Parameters { t, f },
                 &vk_element,
@@ -856,12 +861,12 @@ mod tests {
                     let presig_0 = S::rand(&mut rng);
                     let (presig_1, presig_pair) = loop {
                         let presig_1 = S::rand(&mut rng);
-                        let presig_pair = PublicPresignaturePair {
-                            session_id: SESSION_ID_HASH,
-                            index: 0,
-                            first: G::generator() * presig_0,
-                            second: G::generator() * presig_1,
-                        };
+                        let presig_pair = PublicPresignaturePair::new_for_testing(
+                            SESSION_ID_HASH,
+                            0,
+                            G::generator() * presig_0,
+                            G::generator() * presig_1,
+                        );
                         let nonce = bind_public_presignatures_for_testing(
                             message,
                             &presig_pair,
@@ -880,11 +885,11 @@ mod tests {
                         .flat_map(|i| {
                             generate_partial_signatures(
                                 message,
-                                PresignaturePair {
-                                    public: presig_pair,
-                                    first_shares: vec![presig_shares_0[i].value],
-                                    second_shares: vec![presig_shares_1[i].value],
-                                },
+                                PresignaturePair::new_for_testing(
+                                    presig_pair,
+                                    vec![presig_shares_0[i].value],
+                                    vec![presig_shares_1[i].value],
+                                ),
                                 &avss::SharesForNode {
                                     shares: vec![sk_shares[i].clone()],
                                 },
@@ -1006,7 +1011,8 @@ mod tests {
             .map(|presigning| presigning.next().unwrap())
             .collect_vec();
 
-        let presig_pair = get_uniform_value(presig_pairs.iter().map(|pair| pair.public)).unwrap();
+        let presig_pair =
+            get_uniform_value(presig_pairs.iter().map(|pair| *pair.public())).unwrap();
 
         let partial_signatures = presig_pairs
             .into_iter()

@@ -282,11 +282,7 @@ fn bind_presignatures(
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(Vec<S>, G)> {
-    let PresignaturePair {
-        public,
-        first_shares,
-        second_shares,
-    } = presig_pair;
+    let (public, first_shares, second_shares) = presig_pair.into_parts();
     if first_shares.len() != second_shares.len() {
         return Err(FastCryptoError::InvalidInput);
     }
@@ -297,7 +293,7 @@ fn bind_presignatures(
             .zip(second_shares)
             .map(|(t, t_prime)| t + delta * t_prime)
             .collect(),
-        combine_public_presignatures(&public.first, &public.second, &delta)?,
+        combine_public_presignatures(public.first(), public.second(), &delta)?,
     ))
 }
 
@@ -309,7 +305,7 @@ fn bind_public_presignatures(
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<G> {
     let delta = binding_factor(message, presig_pair, verifying_key, derivation_address)?;
-    combine_public_presignatures(&presig_pair.first, &presig_pair.second, &delta)
+    combine_public_presignatures(presig_pair.first(), presig_pair.second(), &delta)
 }
 
 /// Compute the nonce `D + delta * D'` for a signature. Since the presignatures are random, the
@@ -338,9 +334,9 @@ fn binding_factor(
 ) -> FastCryptoResult<S> {
     // As in FROST, the public presignatures must be non-identity group elements, and they must be
     // distinct so that the binding factor actually binds the second nonce to the message.
-    if presig_pair.first == G::zero()
-        || presig_pair.second == G::zero()
-        || presig_pair.first == presig_pair.second
+    if *presig_pair.first() == G::zero()
+        || *presig_pair.second() == G::zero()
+        || presig_pair.first() == presig_pair.second()
         || *verifying_key == G::zero()
     {
         return Err(FastCryptoError::InvalidInput);
@@ -353,10 +349,10 @@ fn binding_factor(
     Ok(
         RandomOracle::new(BINDING_FACTOR_DOMAIN).evaluate_to_group_element(&(
             verifying_key,
-            presig_pair.session_id,
-            presig_pair.index,
-            presig_pair.first,
-            presig_pair.second,
+            presig_pair.session_id(),
+            presig_pair.index(),
+            presig_pair.first(),
+            presig_pair.second(),
             message,
         )),
     )
@@ -386,14 +382,18 @@ mod tests {
     use fastcrypto::encoding::{Encoding, Hex};
     use fastcrypto::serde_helpers::ToFromByteArray;
 
+    fn presig_pair() -> PublicPresignaturePair {
+        PublicPresignaturePair::new_for_testing(
+            [7u8; 32],
+            1,
+            G::generator() * S::from(3u128),
+            G::generator() * S::from(4u128),
+        )
+    }
+
     #[test]
     fn test_bind_public_presignatures_vector() {
-        let presig_pair = PublicPresignaturePair {
-            session_id: [7u8; 32],
-            index: 1,
-            first: G::generator() * S::from(3u128),
-            second: G::generator() * S::from(4u128),
-        };
+        let presig_pair = presig_pair();
         let vk = G::generator() * S::from(5u128);
         let address = [6u8; 32];
 
@@ -409,5 +409,58 @@ mod tests {
             Hex::encode(r.to_byte_array()),
             "c8b3d370f778561127cf48706ec83f97bcc75604bdb897ab625dbd6b9d1651fd00"
         );
+    }
+
+    /// Everything the binding factor is meant to cover must move the nonce it produces, since the
+    /// signing tests only check that the parties agree on a delta, not on which one.
+    #[test]
+    fn test_bound_nonce_covers_every_input() {
+        let pair = presig_pair();
+        let vk = G::generator() * S::from(5u128);
+        let address = [6u8; 32];
+        let nonce = |message, pair: &PublicPresignaturePair, vk: &G, address| {
+            bind_public_presignatures(message, pair, vk, address).unwrap()
+        };
+
+        let r = nonce(b"Hello, world!", &pair, &vk, None);
+
+        // The message
+        assert_ne!(r, nonce(b"Goodbye, world!", &pair, &vk, None));
+
+        // The derivation address, and hence the derived verifying key
+        assert_ne!(r, nonce(b"Hello, world!", &pair, &vk, Some(&address)));
+        assert_ne!(
+            nonce(b"Hello, world!", &pair, &vk, Some(&address)),
+            nonce(b"Hello, world!", &pair, &vk, Some(&[8u8; 32]))
+        );
+
+        // The verifying key
+        let other_vk = G::generator() * S::from(9u128);
+        assert_ne!(r, nonce(b"Hello, world!", &pair, &other_vk, None));
+
+        // The presigning instance and the index of the pair within it
+        let other_session = PublicPresignaturePair::new_for_testing(
+            [10u8; 32],
+            pair.index(),
+            *pair.first(),
+            *pair.second(),
+        );
+        assert_ne!(r, nonce(b"Hello, world!", &other_session, &vk, None));
+        let other_index = PublicPresignaturePair::new_for_testing(
+            *pair.session_id(),
+            pair.index() + 1,
+            *pair.first(),
+            *pair.second(),
+        );
+        assert_ne!(r, nonce(b"Hello, world!", &other_index, &vk, None));
+
+        // The two presignatures, including the order they are given in
+        let swapped = PublicPresignaturePair::new_for_testing(
+            *pair.session_id(),
+            pair.index(),
+            *pair.second(),
+            *pair.first(),
+        );
+        assert_ne!(r, nonce(b"Hello, world!", &swapped, &vk, None));
     }
 }

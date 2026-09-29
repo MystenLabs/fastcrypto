@@ -29,21 +29,82 @@ pub struct Presignatures {
 /// The public part of a [PresignaturePair]: the presigning instance it came from, the index of
 /// the pair within that instance and the two public presignatures. This is what the parties must
 /// agree on, and what aggregation needs.
+///
+/// The fields are private so that pairs can only come from [Presignatures::pairs], which hands
+/// out disjoint pairs. Overlapping pairs such as `(0, 1)`, `(1, 2)`, `(2, 3)` would use every
+/// tuple in the middle twice and still produce valid signatures.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicPresignaturePair {
-    pub session_id: [u8; 32],
-    pub index: u32,
-    pub first: G,
-    pub second: G,
+    session_id: [u8; 32],
+    index: u32,
+    first: G,
+    second: G,
+}
+
+impl PublicPresignaturePair {
+    /// The presigning instance this pair came from, as hashed by [Presignatures::new].
+    pub fn session_id(&self) -> &[u8; 32] {
+        &self.session_id
+    }
+
+    /// The index of this pair within its presigning instance.
+    pub fn index(&self) -> u32 {
+        self.index
+    }
+
+    /// The public part of the first presigning tuple, `D` in the protocol description.
+    pub fn first(&self) -> &G {
+        &self.first
+    }
+
+    /// The public part of the second presigning tuple, `D'` in the protocol description.
+    pub fn second(&self) -> &G {
+        &self.second
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_for_testing(session_id: [u8; 32], index: u32, first: G, second: G) -> Self {
+        Self {
+            session_id,
+            index,
+            first,
+            second,
+        }
+    }
 }
 
 /// Two presigning tuples to be used for a single signature, along with the index of the pair
-/// within its presigning instance. Yielded by [Presignatures::pairs].
+/// within its presigning instance. Yielded by [Presignatures::pairs], see
+/// [PublicPresignaturePair] for why it cannot be built directly.
 #[derive(Clone, Debug)]
 pub struct PresignaturePair {
-    pub public: PublicPresignaturePair,
-    pub first_shares: Vec<S>,
-    pub second_shares: Vec<S>,
+    public: PublicPresignaturePair,
+    first_shares: Vec<S>,
+    second_shares: Vec<S>,
+}
+
+impl PresignaturePair {
+    /// What the other parties must agree on to sign with this pair.
+    pub fn public(&self) -> &PublicPresignaturePair {
+        &self.public
+    }
+
+    pub(crate) fn into_parts(self) -> (PublicPresignaturePair, Vec<S>, Vec<S>) {
+        (self.public, self.first_shares, self.second_shares)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_for_testing(
+        public: PublicPresignaturePair,
+        first_shares: Vec<S>,
+        second_shares: Vec<S>,
+    ) -> Self {
+        Self {
+            public,
+            first_shares,
+            second_shares,
+        }
+    }
 }
 
 impl Iterator for Presignatures {
@@ -348,7 +409,7 @@ mod tests {
         assert_eq!(
             presignatures
                 .pairs()
-                .map(|pair| pair.public.index)
+                .map(|pair| pair.public().index())
                 .collect::<Vec<_>>(),
             vec![0, 1, 2, 3]
         );
