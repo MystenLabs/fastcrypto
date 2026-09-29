@@ -8,6 +8,7 @@ use crate::types::get_uniform_value;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 /// An iterator that yields presigning tuples (t_i, p_i).
@@ -18,7 +19,68 @@ use tracing::warn;
 pub struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
+    /// Number of rows of the presigning matrix, `M` in the protocol description.
+    rows: u32,
+    /// Number of tuples yielded so far, which gives the coordinate of the next one.
+    yielded: u32,
 }
+
+/// The coordinate of a presigning tuple in the presigning matrix, `(t, l)` in the protocol
+/// description. Tuples are yielded column by column, starting with the last column, so the
+/// `n`-th tuple sits at row `n % M` of column `L - 1 - n / M`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PresignatureSlot {
+    pub row: u32,
+    pub column: u32,
+}
+
+/// The public part of a [PresignaturePair]: the slot the pair starts at and the two public
+/// presignatures. This is what the parties must agree on, and what aggregation needs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublicPresignaturePair {
+    pub slot: PresignatureSlot,
+    pub first: G,
+    pub second: G,
+}
+
+/// Two presigning tuples to be used for a single signature, along with the slot the first of them
+/// occupies. Yielded by [PresignaturePairs].
+#[derive(Clone, Debug)]
+pub struct PresignaturePair {
+    pub public: PublicPresignaturePair,
+    pub first_shares: Vec<S>,
+    pub second_shares: Vec<S>,
+}
+
+/// An iterator that yields [PresignaturePair]s, consuming two presigning tuples for each. A
+/// trailing tuple with nothing to pair it with is dropped.
+pub struct PresignaturePairs(Presignatures);
+
+impl Iterator for PresignaturePairs {
+    type Item = PresignaturePair;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let slot = self.0.next_slot();
+        let (first_shares, first) = self.0.next()?;
+        let (second_shares, second) = self.0.next()?;
+        Some(PresignaturePair {
+            public: PublicPresignaturePair {
+                slot,
+                first,
+                second,
+            },
+            first_shares,
+            second_shares,
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.0.len() / 2;
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for PresignaturePairs {}
 
 impl Iterator for Presignatures {
     type Item = (Vec<S>, G);
@@ -26,6 +88,7 @@ impl Iterator for Presignatures {
     fn next(&mut self) -> Option<Self::Item> {
         // `public` drives the length; `secret` is empty for a zero-weight party.
         let public = self.public.next()?;
+        self.yielded += 1;
         let secret = self
             .secret
             .iter_mut()
@@ -166,13 +229,32 @@ impl Presignatures {
         assert!(secret.iter().all(|s| s.len() == expected_len));
         assert_eq!(public.len(), expected_len);
 
-        Ok(Self { secret, public })
+        Ok(Self {
+            secret,
+            public,
+            rows: height as u32,
+            yielded: 0,
+        })
+    }
+
+    /// Pair up the remaining tuples, two per signature, see [PresignaturePairs].
+    pub fn pairs(self) -> PresignaturePairs {
+        PresignaturePairs(self)
+    }
+
+    /// The slot the next tuple will come from.
+    fn next_slot(&self) -> PresignatureSlot {
+        let columns_done = self.yielded / self.rows;
+        PresignatureSlot {
+            row: self.yielded % self.rows,
+            column: (self.public.len() as u32 + self.yielded) / self.rows - 1 - columns_done,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Presignatures;
+    use super::{PresignatureSlot, Presignatures};
     use crate::threshold_schnorr::batch_avss_avid::{ReceiverOutput, ShareBatch, SharesForNode};
     use crate::threshold_schnorr::{Parameters, G, S};
     use fastcrypto::groups::GroupElement;
@@ -270,5 +352,33 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert!(Presignatures::new(outputs, batch_size_per_weight, params).is_err());
+    }
+
+    #[test]
+    fn test_pair_slots() {
+        // Four weight-1 dealers with three nonces each: a 3 x 3 matrix, yielded column by column
+        // starting with the last one, which pairs up into four pairs.
+        let batch_size_per_weight: u16 = 3;
+        let params = Parameters { t: 2, f: 1 };
+        let outputs = (0..4)
+            .map(|i| ReceiverOutput {
+                my_shares: SharesForNode { shares: vec![] },
+                public_keys: vec![G::generator() * S::from(i + 1); batch_size_per_weight as usize],
+            })
+            .collect::<Vec<_>>();
+
+        let pairs = Presignatures::new(outputs, batch_size_per_weight, params)
+            .unwrap()
+            .pairs();
+        assert_eq!(pairs.len(), 4);
+        assert_eq!(
+            pairs.map(|pair| pair.public.slot).collect::<Vec<_>>(),
+            vec![
+                PresignatureSlot { row: 0, column: 2 },
+                PresignatureSlot { row: 2, column: 2 },
+                PresignatureSlot { row: 1, column: 1 },
+                PresignatureSlot { row: 0, column: 0 },
+            ]
+        );
     }
 }

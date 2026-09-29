@@ -156,6 +156,9 @@ impl Display for Extensions {
 
 #[cfg(test)]
 mod tests {
+    /// The presigning instance the test tuples come from.
+    const SESSION_ID: &[u8] = b"test session";
+
     use crate::ecies_v1;
     use crate::ecies_v1::PublicKey;
     use crate::nodes::{Node, Nodes, PartyId};
@@ -164,7 +167,9 @@ mod tests {
     use crate::threshold_schnorr::key_derivation::{
         derive_verifying_key, derive_verifying_key_internal,
     };
-    use crate::threshold_schnorr::presigning::Presignatures;
+    use crate::threshold_schnorr::presigning::{
+        PresignaturePair, PresignatureSlot, Presignatures, PublicPresignaturePair,
+    };
     use crate::threshold_schnorr::signing::{
         aggregate_signatures, bind_public_presignatures_for_testing, generate_partial_signatures,
         Blame,
@@ -352,13 +357,16 @@ mod tests {
                 (
                     id,
                     Presignatures::new(outputs, batch_size_per_weight, Parameters { t, f })
+                        .map(Presignatures::pairs)
                         .unwrap(),
                 )
             })
             .collect::<HashMap<_, _>>();
+        // Two tuples per pair
         assert_eq!(
             presigs.get(&PartyId::from(1u8)).unwrap().len(),
             batch_size_per_weight as usize * (weights.iter().sum::<u16>() as usize - f as usize)
+                / 2
         );
 
         //
@@ -370,27 +378,21 @@ mod tests {
         // Each signature consumes two presigning tuples
         let presig_pairs = nodes
             .iter()
-            .map(|node| {
-                let presigs = presigs.get_mut(&node.id).unwrap();
-                (presigs.next().unwrap(), presigs.next().unwrap())
-            })
+            .map(|node| presigs.get_mut(&node.id).unwrap().next().unwrap())
             .collect_vec();
 
         // The public parts should all be the same
-        let public_presig_0 =
-            get_uniform_value(presig_pairs.iter().map(|(presig, _)| presig.1)).unwrap();
-        let public_presig_1 =
-            get_uniform_value(presig_pairs.iter().map(|(_, presig)| presig.1)).unwrap();
+        let presig_pair = get_uniform_value(presig_pairs.iter().map(|pair| pair.public)).unwrap();
 
         // Each party generates their partial signatures
         let partial_signatures = nodes
             .iter()
             .zip(presig_pairs)
-            .map(|(node, (presig_0, presig_1))| {
+            .map(|(node, presig_pair)| {
                 generate_partial_signatures(
                     message,
-                    presig_0,
-                    presig_1,
+                    presig_pair,
+                    SESSION_ID,
                     &merged_shares.get(&node.id).unwrap().my_shares,
                     &vk,
                     None,
@@ -402,8 +404,8 @@ mod tests {
         // Aggregate partial signatures
         let (signature, excluded) = aggregate_signatures(
             message,
-            &public_presig_0,
-            &public_presig_1,
+            &presig_pair,
+            SESSION_ID,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, s)| s.clone())
@@ -555,27 +557,21 @@ mod tests {
         // Each signature consumes two presigning tuples
         let presig_pairs = nodes
             .iter()
-            .map(|node| {
-                let presigs = presigs.get_mut(&node.id).unwrap();
-                (presigs.next().unwrap(), presigs.next().unwrap())
-            })
+            .map(|node| presigs.get_mut(&node.id).unwrap().next().unwrap())
             .collect_vec();
 
         // The public parts should all be the same
-        let public_presig_0 =
-            get_uniform_value(presig_pairs.iter().map(|(presig, _)| presig.1)).unwrap();
-        let public_presig_1 =
-            get_uniform_value(presig_pairs.iter().map(|(_, presig)| presig.1)).unwrap();
+        let presig_pair = get_uniform_value(presig_pairs.iter().map(|pair| pair.public)).unwrap();
 
         // Each party generates their partial signatures
         let partial_signatures = nodes
             .iter()
             .zip(presig_pairs)
-            .map(|(node, (presig_0, presig_1))| {
+            .map(|(node, presig_pair)| {
                 generate_partial_signatures(
                     message_2,
-                    presig_0,
-                    presig_1,
+                    presig_pair,
+                    SESSION_ID,
                     &merged_shares.get(&node.id).unwrap().my_shares,
                     &vk,
                     None,
@@ -587,8 +583,8 @@ mod tests {
         // Aggregate partial signatures
         let (signature_2, excluded) = aggregate_signatures(
             message_2,
-            &public_presig_0,
-            &public_presig_1,
+            &presig_pair,
+            SESSION_ID,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, s)| s.clone())
@@ -690,36 +686,38 @@ mod tests {
         let mut presigning = outputs
             .into_iter()
             .map(|output| {
-                Presignatures::new(output, batch_size_per_weight, Parameters { t, f }).unwrap()
+                Presignatures::new(output, batch_size_per_weight, Parameters { t, f })
+                    .unwrap()
+                    .pairs()
             })
             .collect_vec();
 
+        // Two tuples per pair
         assert_eq!(
             presigning[0].len(),
-            batch_size_per_weight as usize * (n - f) as usize
+            batch_size_per_weight as usize * (n - f) as usize / 2
         );
 
         let message = b"Hello, world!";
 
         let presig_pairs = presigning
             .iter_mut()
-            .map(|presigning| (presigning.next().unwrap(), presigning.next().unwrap()))
+            .map(|presigning| presigning.next().unwrap())
             .collect_vec();
 
-        let public_0 = get_uniform_value(presig_pairs.iter().map(|(presig, _)| presig.1)).unwrap();
-        let public_1 = get_uniform_value(presig_pairs.iter().map(|(_, presig)| presig.1)).unwrap();
+        let presig_pair = get_uniform_value(presig_pairs.iter().map(|pair| pair.public)).unwrap();
 
         let partial_signatures = presig_pairs
             .into_iter()
             .enumerate()
-            .map(|(i, (presig_0, presig_1))| {
+            .map(|(i, pair)| {
                 let my_shares = avss::SharesForNode {
                     shares: vec![sk_shares[i].clone()],
                 };
                 generate_partial_signatures(
                     message,
-                    presig_0,
-                    presig_1,
+                    pair,
+                    SESSION_ID,
                     &my_shares,
                     &vk_element,
                     None,
@@ -730,8 +728,8 @@ mod tests {
 
         let (signature, excluded) = aggregate_signatures(
             message,
-            &public_0,
-            &public_1,
+            &presig_pair,
+            SESSION_ID,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())
@@ -757,8 +755,8 @@ mod tests {
         corrupted[0].value = S::rand(&mut rng);
         let (corrected, excluded) = aggregate_signatures(
             message,
-            &public_0,
-            &public_1,
+            &presig_pair,
+            SESSION_ID,
             &corrupted,
             Parameters { t, f },
             &vk_element,
@@ -781,8 +779,11 @@ mod tests {
         assert!(matches!(
             aggregate_signatures(
                 message,
-                &public_0,
-                &(public_1 + G::generator()),
+                &PublicPresignaturePair {
+                    second: presig_pair.second + G::generator(),
+                    ..presig_pair
+                },
+                SESSION_ID,
                 &honest,
                 Parameters { t, f },
                 &vk_element,
@@ -795,8 +796,8 @@ mod tests {
         let aggregate = |partials: &[Eval<S>]| {
             aggregate_signatures(
                 message,
-                &public_0,
-                &public_1,
+                &presig_pair,
+                SESSION_ID,
                 partials,
                 Parameters { t, f },
                 &vk_element,
@@ -817,8 +818,8 @@ mod tests {
         // four, short of the `t + f` the aggregation wants before it will name an index.
         let (corrected, excluded) = aggregate_signatures(
             message,
-            &public_0,
-            &public_1,
+            &presig_pair,
+            SESSION_ID,
             &corrupted[..5],
             Parameters { t, f },
             &vk_element,
@@ -865,20 +866,23 @@ mod tests {
                     // The binding factor fixes the combined nonce, so resample the second
                     // presignature until that nonce has the Y parity this iteration covers.
                     let presig_0 = S::rand(&mut rng);
-                    let public_presig_0 = G::generator() * presig_0;
-                    let (presig_1, public_presig_1) = loop {
+                    let (presig_1, presig_pair) = loop {
                         let presig_1 = S::rand(&mut rng);
-                        let public_presig_1 = G::generator() * presig_1;
+                        let presig_pair = PublicPresignaturePair {
+                            slot: PresignatureSlot { row: 0, column: 0 },
+                            first: G::generator() * presig_0,
+                            second: G::generator() * presig_1,
+                        };
                         let nonce = bind_public_presignatures_for_testing(
                             message,
-                            &public_presig_0,
-                            &public_presig_1,
+                            &presig_pair,
+                            SESSION_ID,
                             &vk,
                             address.as_ref(),
                         )
                         .unwrap();
                         if has_even_y(&nonce) == nonce_even {
-                            break (presig_1, public_presig_1);
+                            break (presig_1, presig_pair);
                         }
                     };
                     let presig_shares_0 = mock_shares(&mut rng, presig_0, t, n);
@@ -888,8 +892,12 @@ mod tests {
                         .flat_map(|i| {
                             generate_partial_signatures(
                                 message,
-                                (vec![presig_shares_0[i].value], public_presig_0),
-                                (vec![presig_shares_1[i].value], public_presig_1),
+                                PresignaturePair {
+                                    public: presig_pair,
+                                    first_shares: vec![presig_shares_0[i].value],
+                                    second_shares: vec![presig_shares_1[i].value],
+                                },
+                                SESSION_ID,
                                 &avss::SharesForNode {
                                     shares: vec![sk_shares[i].clone()],
                                 },
@@ -902,8 +910,8 @@ mod tests {
                         .collect_vec();
                     let (signature, excluded) = aggregate_signatures(
                         message,
-                        &public_presig_0,
-                        &public_presig_1,
+                        &presig_pair,
+                        SESSION_ID,
                         &partial_signatures,
                         Parameters { t, f },
                         &vk,
@@ -989,13 +997,16 @@ mod tests {
         let mut presigning = outputs
             .into_iter()
             .map(|output| {
-                Presignatures::new(output, batch_size_per_weight, Parameters { t, f }).unwrap()
+                Presignatures::new(output, batch_size_per_weight, Parameters { t, f })
+                    .unwrap()
+                    .pairs()
             })
             .collect_vec();
 
+        // Two tuples per pair
         assert_eq!(
             presigning[0].len(),
-            batch_size_per_weight as usize * (n - f) as usize
+            batch_size_per_weight as usize * (n - f) as usize / 2
         );
 
         let message = b"Hello, world!";
@@ -1003,23 +1014,22 @@ mod tests {
         let address = [7u8; 32];
         let presig_pairs = presigning
             .iter_mut()
-            .map(|presigning| (presigning.next().unwrap(), presigning.next().unwrap()))
+            .map(|presigning| presigning.next().unwrap())
             .collect_vec();
 
-        let public_0 = get_uniform_value(presig_pairs.iter().map(|(presig, _)| presig.1)).unwrap();
-        let public_1 = get_uniform_value(presig_pairs.iter().map(|(_, presig)| presig.1)).unwrap();
+        let presig_pair = get_uniform_value(presig_pairs.iter().map(|pair| pair.public)).unwrap();
 
         let partial_signatures = presig_pairs
             .into_iter()
             .enumerate()
-            .map(|(i, (presig_0, presig_1))| {
+            .map(|(i, pair)| {
                 let my_shares = avss::SharesForNode {
                     shares: vec![sk_shares[i].clone()],
                 };
                 generate_partial_signatures(
                     message,
-                    presig_0,
-                    presig_1,
+                    pair,
+                    SESSION_ID,
                     &my_shares,
                     &vk_element,
                     Some(&address),
@@ -1030,8 +1040,8 @@ mod tests {
 
         let (signature, excluded) = aggregate_signatures(
             message,
-            &public_0,
-            &public_1,
+            &presig_pair,
+            SESSION_ID,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())
