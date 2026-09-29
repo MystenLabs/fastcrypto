@@ -361,7 +361,7 @@ mod tests {
             presigning_outputs.insert(id, Vec::new());
         });
 
-        let presig_batch_id = BatchId::new(b"presig-test-batch".to_vec());
+        let batch_id = BatchId::new(b"presig-test-batch".to_vec());
 
         // Each dealer generates a batch of presigs per share they control.
         for dealer_id in nodes.node_ids_iter() {
@@ -370,7 +370,7 @@ mod tests {
                 nodes.clone(),
                 dealer_id,
                 params,
-                &presig_batch_id,
+                &batch_id,
                 batch_size_per_weight,
             )
             .unwrap();
@@ -383,7 +383,7 @@ mod tests {
                         id as u16,
                         dealer_id,
                         params,
-                        &presig_batch_id,
+                        &batch_id,
                         enc_secret_key.clone(),
                         batch_size_per_weight,
                     )
