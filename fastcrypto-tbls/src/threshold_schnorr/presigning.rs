@@ -1,13 +1,11 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::batch_avss_avid::ReceiverOutput;
 use crate::threshold_schnorr::pascal_matrix::LazyPascalMatrixMultiplier;
-use crate::threshold_schnorr::{BatchId, Parameters, G, S};
+use crate::threshold_schnorr::{Parameters, G, S};
 use crate::types::get_uniform_value;
-use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 
@@ -26,21 +24,8 @@ const SESSION_ID_DOMAIN: &str = "fastcrypto_threshold_schnorr_presigning_session
 pub(crate) struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
-    batch_id: BatchId,
-    dealers: Vec<PartyId>,
-    /// Hash of the two above, which identifies this presigning instance.
+    /// Hash of the batch and its dealers, which identifies this presigning instance.
     session_id: [u8; 32],
-}
-
-impl std::fmt::Debug for Presignatures {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Presignatures")
-            .field("batch_id", &Hex::encode(self.batch_id.as_bytes()))
-            .field("dealers", &self.dealers)
-            .field("session_id", &Hex::encode(self.session_id))
-            .field("remaining", &self.public.len())
-            .finish()
-    }
 }
 
 /// The public part of a [PresignaturePair]: the presigning instance it came from, the index of
@@ -308,8 +293,6 @@ impl Presignatures {
                 .evaluate(&(batch_id.as_bytes(), &dealers))[..32]
                 .try_into()
                 .expect("the random oracle returns 64 bytes"),
-            batch_id,
-            dealers,
         })
     }
 
@@ -332,8 +315,10 @@ impl Presignatures {
 
 #[cfg(test)]
 mod tests {
-    use super::{BatchId, PartyId, PresignaturePair, Presignatures};
+    use super::{PresignaturePair, Presignatures};
+    use crate::nodes::PartyId;
     use crate::threshold_schnorr::batch_avss_avid::{ReceiverOutput, ShareBatch, SharesForNode};
+    use crate::threshold_schnorr::BatchId;
     use crate::threshold_schnorr::{Parameters, G, S};
     use fastcrypto::groups::GroupElement;
 
