@@ -104,9 +104,7 @@ impl Parameters {
 const DEALER_SESSION_DOMAIN: &[u8] = b"fastcrypto_threshold_schnorr_dealer_session";
 
 /// Identifier of one round of nonce dealing, shared by every dealer in it, `bid` in the protocol
-/// description. Each dealer's own AVSS session id is derived from it with
-/// [BatchId::dealer_session_id], and the presigning instances built from its dealings are
-/// identified by it together with their dealers.
+/// description.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BatchId(Vec<u8>);
 
@@ -116,8 +114,7 @@ impl BatchId {
     }
 
     /// The AVSS session id of one dealer in this batch, `sid_i = (bid, P_i)` in the protocol
-    /// description. The encoding is unambiguous, so two batches can never give the same session
-    /// id to different dealers.
+    /// description.
     pub fn dealer_session_id(&self, dealer: PartyId) -> Vec<u8> {
         ::bcs::to_bytes(&(DEALER_SESSION_DOMAIN, &self.0, dealer))
             .expect("serializing bytes and an id never fails")
@@ -132,8 +129,7 @@ impl BatchId {
 const PRESIGNING_ID_DOMAIN: &str = "fastcrypto_threshold_schnorr_presigning_session";
 
 /// Identifier of a presigning instance: a nonce batch together with the dealers whose dealings it
-/// combines, `pid = (bid, J)` in the protocol description. It is bound into every signature made
-/// with tuples from that instance.
+/// combines, `pid = (bid, J)` in the protocol description.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PresigningId([u8; 32]);
 
