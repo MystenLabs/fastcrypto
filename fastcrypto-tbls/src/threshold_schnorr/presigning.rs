@@ -189,7 +189,8 @@ impl Presignatures {
         outputs.sort_by_key(|output| output.dealer);
         let dealers = outputs.iter().map(|output| output.dealer).collect_vec();
         let batch_id = outputs[0].batch_id.clone();
-        if !dealers.windows(2).all(|pair| pair[0] < pair[1])
+        // Sorting leaves outputs from the same dealer adjacent.
+        if dealers.windows(2).any(|pair| pair[0] == pair[1])
             || outputs.iter().any(|output| output.batch_id != batch_id)
         {
             return Err(InvalidInput);
@@ -285,8 +286,6 @@ impl Presignatures {
         Ok(Self {
             secret,
             public,
-            // bcs length-prefixes the byte strings and the dealer list, so a long batch id
-            // cannot encode as a short one followed by another dealer.
             session_id: Blake2b256::digest(
                 bcs::to_bytes(&(SESSION_ID_DOMAIN, batch_id.as_bytes(), &dealers))
                     .expect("serializing bytes and ids never fails"),
