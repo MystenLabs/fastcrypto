@@ -180,8 +180,7 @@ pub struct VerifiedComplaintResponse {
     shares: SharesForNode,
 }
 
-/// The output of a receiver which is a batch of shares and public keys for all nonces, along with
-/// the dealing it came from.
+/// The output of a receiver which is a batch of shares and public keys for all nonces.
 #[derive(Debug, Clone)]
 pub struct ReceiverOutput {
     pub batch_id: BatchId,

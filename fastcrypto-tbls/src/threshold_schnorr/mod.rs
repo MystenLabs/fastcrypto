@@ -427,7 +427,7 @@ mod tests {
             .collect_vec();
 
         // The public parts should all be the same
-        let presig_pair =
+        let public_presig_pair =
             get_uniform_value(presig_pairs.iter().map(|pair| *pair.public())).unwrap();
 
         // Each party generates their partial signatures
@@ -449,7 +449,7 @@ mod tests {
         // Aggregate partial signatures
         let (signature, excluded) = aggregate_signatures(
             message,
-            &presig_pair,
+            &public_presig_pair,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, s)| s.clone())
@@ -605,7 +605,7 @@ mod tests {
             .collect_vec();
 
         // The public parts should all be the same
-        let presig_pair =
+        let public_presig_pair =
             get_uniform_value(presig_pairs.iter().map(|pair| *pair.public())).unwrap();
 
         // Each party generates their partial signatures
@@ -627,7 +627,7 @@ mod tests {
         // Aggregate partial signatures
         let (signature_2, excluded) = aggregate_signatures(
             message_2,
-            &presig_pair,
+            &public_presig_pair,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, s)| s.clone())
@@ -743,7 +743,7 @@ mod tests {
             .map(|presigning| presigning.next().unwrap())
             .collect_vec();
 
-        let presig_pair =
+        let public_presig_pair =
             get_uniform_value(presig_pairs.iter().map(|pair| *pair.public())).unwrap();
 
         let partial_signatures = presig_pairs
@@ -759,7 +759,7 @@ mod tests {
 
         let (signature, excluded) = aggregate_signatures(
             message,
-            &presig_pair,
+            &public_presig_pair,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())
@@ -785,7 +785,7 @@ mod tests {
         corrupted[0].value = S::rand(&mut rng);
         let (corrected, excluded) = aggregate_signatures(
             message,
-            &presig_pair,
+            &public_presig_pair,
             &corrupted,
             Parameters { t, f },
             &vk_element,
@@ -809,11 +809,11 @@ mod tests {
             aggregate_signatures(
                 message,
                 &PublicPresignaturePair::new_for_testing(
-                    *presig_pair.presigning_id(),
-                    presig_pair.index(),
+                    *public_presig_pair.presigning_id(),
+                    public_presig_pair.index(),
                     (
-                        presig_pair.presignatures().0,
-                        presig_pair.presignatures().1 + G::generator(),
+                        public_presig_pair.presignatures().0,
+                        public_presig_pair.presignatures().1 + G::generator(),
                     ),
                 ),
                 &honest,
@@ -828,7 +828,7 @@ mod tests {
         let aggregate = |partials: &[Eval<S>]| {
             aggregate_signatures(
                 message,
-                &presig_pair,
+                &public_presig_pair,
                 partials,
                 Parameters { t, f },
                 &vk_element,
@@ -849,7 +849,7 @@ mod tests {
         // four, short of the `t + f` the aggregation wants before it will name an index.
         let (corrected, excluded) = aggregate_signatures(
             message,
-            &presig_pair,
+            &public_presig_pair,
             &corrupted[..5],
             Parameters { t, f },
             &vk_element,
@@ -896,18 +896,22 @@ mod tests {
                     // The binding factor fixes the combined nonce, so resample the second
                     // presignature until that nonce has the Y parity this iteration covers.
                     let presig_0 = S::rand(&mut rng);
-                    let (presig_1, presig_pair) = loop {
+                    let (presig_1, public_presig_pair) = loop {
                         let presig_1 = S::rand(&mut rng);
-                        let presig_pair = PublicPresignaturePair::new_for_testing(
+                        let public_presig_pair = PublicPresignaturePair::new_for_testing(
                             mock_presigning_id(),
                             0,
                             (G::generator() * presig_0, G::generator() * presig_1),
                         );
-                        let nonce =
-                            compute_nonce_for_testing(message, &presig_pair, &vk, address.as_ref())
-                                .unwrap();
+                        let nonce = compute_nonce_for_testing(
+                            message,
+                            &public_presig_pair,
+                            &vk,
+                            address.as_ref(),
+                        )
+                        .unwrap();
                         if has_even_y(&nonce) == nonce_even {
-                            break (presig_1, presig_pair);
+                            break (presig_1, public_presig_pair);
                         }
                     };
                     let presig_shares_0 = mock_shares(&mut rng, presig_0, t, n);
@@ -918,7 +922,7 @@ mod tests {
                             generate_partial_signatures(
                                 message,
                                 PresignaturePair::new_for_testing(
-                                    presig_pair,
+                                    public_presig_pair,
                                     (
                                         vec![presig_shares_0[i].value],
                                         vec![presig_shares_1[i].value],
@@ -936,7 +940,7 @@ mod tests {
                         .collect_vec();
                     let (signature, excluded) = aggregate_signatures(
                         message,
-                        &presig_pair,
+                        &public_presig_pair,
                         &partial_signatures,
                         Parameters { t, f },
                         &vk,
@@ -1037,7 +1041,7 @@ mod tests {
             .map(|presigning| presigning.next().unwrap())
             .collect_vec();
 
-        let presig_pair =
+        let public_presig_pair =
             get_uniform_value(presig_pairs.iter().map(|pair| *pair.public())).unwrap();
 
         let partial_signatures = presig_pairs
@@ -1054,7 +1058,7 @@ mod tests {
 
         let (signature, excluded) = aggregate_signatures(
             message,
-            &presig_pair,
+            &public_presig_pair,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())
