@@ -26,7 +26,8 @@ const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_b
 /// The tuples are combined into a single nonce which is bound to the message and the verifying
 /// key, so the signature is secure whether the presignatures are generated before or after the
 /// message is known.
-/// The pair must be taken from [PresignaturePair::from_dealings], and the other parties must use the same pair.
+/// The pair must come from the iterator returned by [PresignaturePair::from_dealings], and the
+/// other parties must use the same pair.
 /// Each tuple must go into exactly one signature: two signatures from one pair do not disclose the
 /// signing key on their own, but three on different messages do, and many pairs each used twice is
 /// a ROS forgery.
