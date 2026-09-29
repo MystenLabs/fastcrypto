@@ -327,8 +327,8 @@ fn combine_public_presignatures(
     public_presig_pair: &PublicPresignaturePair,
     delta: &S,
 ) -> FastCryptoResult<G> {
-    let (first, second) = public_presig_pair.presignatures();
-    let r_g = *first + *second * delta;
+    let (d, d_prime) = public_presig_pair.presignatures();
+    let r_g = *d + *d_prime * delta;
     if r_g == G::zero() {
         return Err(FastCryptoError::GeneralOpaqueError);
     }
@@ -344,9 +344,8 @@ fn compute_delta(
 ) -> FastCryptoResult<S> {
     // As in FROST, the public presignatures must be non-identity group elements, and they must be
     // distinct so that the binding factor actually binds the second nonce to the message.
-    let (first, second) = public_presig_pair.presignatures();
-    if *first == G::zero() || *second == G::zero() || first == second || *verifying_key == G::zero()
-    {
+    let (d, d_prime) = public_presig_pair.presignatures();
+    if *d == G::zero() || *d_prime == G::zero() || d == d_prime || *verifying_key == G::zero() {
         return Err(FastCryptoError::InvalidInput);
     }
     // The derived key, not the base one, goes into the hash: one pair signing one message under
@@ -361,8 +360,8 @@ fn compute_delta(
             verifying_key,
             public_presig_pair.presigning_id().as_bytes(),
             public_presig_pair.index(),
-            first,
-            second,
+            d,
+            d_prime,
             message,
         )),
     )
