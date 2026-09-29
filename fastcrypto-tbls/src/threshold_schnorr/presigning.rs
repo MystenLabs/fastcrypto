@@ -255,10 +255,7 @@ impl Presignatures {
         assert_eq!(public.len(), expected_len);
 
         if expected_len % 2 == 1 {
-            warn!(
-                "presigning: {expected_len} tuples is odd, so the last one will go unused; \
-                 an even `batch_size_per_weight` always avoids this"
-            );
+            warn!("presigning: {expected_len} tuples is odd, so the last one will go unused.");
         }
 
         Ok(Self {
