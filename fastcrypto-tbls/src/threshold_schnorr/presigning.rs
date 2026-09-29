@@ -165,10 +165,7 @@ impl Presignatures {
     /// nonces per position remain uniformly random and safe to output.
     ///
     /// The outputs must all come from the same nonce batch, from distinct dealers, and be given in
-    /// ascending dealer order. That batch and those dealers identify this presigning
-    /// instance, `pid = (bid, J)` in the protocol description, and are hashed into the binding
-    /// factor of every pair from this generator, so pairs from different batches, or from
-    /// different dealer sets of the same batch, can never be bound the same way.
+    /// ascending dealer order.
     ///
     /// An InvalidInput error will be returned if:
     /// * the outputs are empty, come from more than one batch, are not in ascending dealer order,
