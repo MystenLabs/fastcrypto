@@ -6,6 +6,7 @@ use crate::threshold_schnorr::batch_avss_avid::ReceiverOutput;
 use crate::threshold_schnorr::pascal_matrix::LazyPascalMatrixMultiplier;
 use crate::threshold_schnorr::{Parameters, G, S};
 use crate::types::get_uniform_value;
+use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::hash::{Blake2b256, HashFunction};
@@ -24,7 +25,23 @@ const SESSION_ID_DOMAIN: &[u8] = b"fastcrypto_threshold_schnorr_presigning_sessi
 pub struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
+    /// The nonce batch these tuples were dealt in, kept for diagnostics.
+    batch_id: Vec<u8>,
+    /// The dealers whose outputs they combine, ascending, kept for diagnostics.
+    dealers: Vec<PartyId>,
+    /// Hash of the two above, which identifies this presigning instance.
     session_id: [u8; 32],
+}
+
+impl std::fmt::Debug for Presignatures {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Presignatures")
+            .field("batch_id", &Hex::encode(&self.batch_id))
+            .field("dealers", &self.dealers)
+            .field("session_id", &Hex::encode(self.session_id))
+            .field("remaining", &self.public.len())
+            .finish()
+    }
 }
 
 /// The public part of a [PresignaturePair]: the presigning instance it came from, the index of
@@ -154,13 +171,13 @@ impl Presignatures {
     /// nonces per position remain uniformly random and safe to output.
     ///
     /// `batch_id` is the batch the dealers shared, and `dealers` are the dealers the outputs come
-    /// from, in the same order. Together they identify this presigning instance, `pid = (bid, J)`
+    /// from, in the same, ascending order. Together they identify this presigning instance, `pid = (bid, J)`
     /// in the protocol description, and are hashed into the binding factor of every pair from this
     /// generator, so pairs from different batches, or from different dealer sets of the same
     /// batch, can never be bound the same way. All parties must use the same ones.
     ///
     /// An InvalidInput error will be returned if:
-    /// * `dealers` does not have one distinct id per output,
+    /// * `dealers` does not have one id per output, in ascending order,
     /// * `params.t` is zero,
     /// * The total weight of the dealers for the outputs is not at least `params.t`,
     /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
@@ -172,9 +189,12 @@ impl Presignatures {
         params: Parameters,
         batch_id: &[u8],
     ) -> FastCryptoResult<Self> {
+        // The dealer order fixes the layout of the presigning matrix, so it must be canonical:
+        // callers that assemble the same set differently are rejected rather than silently
+        // deriving the same instance id for different tuples.
         if batch_size_per_weight == 0
             || dealers.len() != outputs.len()
-            || !dealers.iter().all_unique()
+            || !dealers.windows(2).all(|pair| pair[0] < pair[1])
         {
             return Err(InvalidInput);
         }
@@ -269,6 +289,8 @@ impl Presignatures {
         Ok(Self {
             secret,
             public,
+            batch_id: batch_id.to_vec(),
+            dealers: dealers.to_vec(),
             session_id: Blake2b256::digest(
                 bcs::to_bytes(&(SESSION_ID_DOMAIN, batch_id, dealers))
                     .expect("serializing bytes and ids never fails"),
@@ -454,10 +476,11 @@ mod tests {
         };
 
         assert!(new(&[0, 1]).is_ok());
-        // One id per output, and all distinct
+        // One id per output, distinct and ascending
         assert!(new(&[0]).is_err());
         assert!(new(&[0, 1, 2]).is_err());
         assert!(new(&[0, 0]).is_err());
+        assert!(new(&[1, 0]).is_err());
     }
 
     #[test]
@@ -489,6 +512,5 @@ mod tests {
         let id = session_id(&[0, 1], b"batch");
         assert_ne!(id, session_id(&[0, 1], b"other batch"));
         assert_ne!(id, session_id(&[0, 2], b"batch"));
-        assert_ne!(id, session_id(&[1, 0], b"batch"));
     }
 }
