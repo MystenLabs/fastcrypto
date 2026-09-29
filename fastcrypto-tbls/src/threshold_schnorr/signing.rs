@@ -22,16 +22,16 @@ use tracing::warn;
 const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_binding";
 
 /// Generate partial threshold Schnorr signatures for a given message using a pair of presigning
-/// tuples.
+/// tuples. Returns also the public nonce, which all parties must agree on.
+///
 /// The tuples are combined into a single nonce which is bound to the message and the verifying
 /// key, so the signature is secure whether the presignatures are generated before or after the
 /// message is known.
+///
 /// The pair must come from the iterator returned by [PresignaturePair::from_dealings], and the
-/// other parties must use the same pair.
-/// Each tuple must go into exactly one signature: two signatures from one pair do not disclose the
-/// signing key on their own, but three on different messages do, and many pairs each used twice is
-/// a ROS forgery.
-/// Returns also the public nonce, which all parties must agree on.
+/// other parties must use the same pair. Each tuple must go into exactly one signature: two
+/// signatures from one pair do not disclose the signing key on their own, but three on different
+/// messages do, and many pairs each used twice is a ROS forgery.
 ///
 /// The signatures produced follow the BIP-0340 standard (<https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki>).
 ///
@@ -41,8 +41,8 @@ const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_b
 ///
 /// `GeneralOpaqueError` is returned if the generated nonce R is the identity element (should happen only with negligible probability).
 /// `InvalidInput` is returned if the verifying key or one of the public presignatures is the
-/// identity element, if the two presigning tuples are equal or if they hold a different number of
-/// shares.
+/// identity element, if the two public presignatures are equal or if the tuples hold a different
+/// number of shares.
 pub fn generate_partial_signatures(
     message: &[u8],
     presig_pair: PresignaturePair,

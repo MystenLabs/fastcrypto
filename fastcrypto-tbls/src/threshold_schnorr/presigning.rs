@@ -12,7 +12,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-/// An iterator that yields presigning tuples (t_i, p_i).
+/// An iterator that yields presigning tuples `(T, D)`.
 ///
 /// The tuples are tied to the committee and weights they were created for, since share indices
 /// follow the cumulative weights. They must be discarded and regenerated when the committee
@@ -144,13 +144,9 @@ impl Presignatures {
     /// Based on the output of a batched AVSS from multiple dealers, create a presignature
     /// generator.
     ///
-    /// The generator always starts at the first tuple and stores no position, so the caller must
-    /// keep track of which tuples have been used in state that survives restarts, and resume with
-    /// e.g. `nth`.
-    ///
-    /// All parties must use the same outputs, and the output from a dealer with weight `w` should
-    /// be equal to `batch_size_per_weight * w`. The outputs must come from distinct dealers, with
-    /// at most one output per dealer.
+    /// All parties must use the same outputs, which must all come from the same nonce batch, from
+    /// distinct dealers, and be given in ascending dealer order. The output from a dealer with
+    /// weight `w` should be equal to `batch_size_per_weight * w`.
     ///
     /// More parties contributing outputs gives more presignatures, so include as many as possible
     /// but at least `params.t` (by weight). The set of outputs must be agreed on before calling
@@ -161,9 +157,6 @@ impl Presignatures {
     /// position: the privacy threshold of the sharings is `t - 1`, meaning a sub-`t` coalition can
     /// know or bias up to `t - 1` of the input nonces, so only `total_weight - (t - 1)` combined
     /// nonces per position remain uniformly random and safe to output.
-    ///
-    /// The outputs must all come from the same nonce batch, from distinct dealers, and be given in
-    /// ascending dealer order.
     ///
     /// An InvalidInput error will be returned if:
     /// * the outputs are empty, come from more than one batch, are not in ascending dealer order,
@@ -186,7 +179,7 @@ impl Presignatures {
             .ok_or(InvalidInput)?;
 
         // The dealer order fixes the layout of the presigning matrix, so the caller must present
-        // the dealings in a canonical order: every party then combines them the same way.
+        // the dealings in a canonical order.
         let dealers = outputs.iter().map(|output| output.dealer).collect_vec();
         if !dealers.iter().all_unique() || !dealers.is_sorted() {
             return Err(InvalidInput);

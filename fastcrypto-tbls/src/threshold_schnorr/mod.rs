@@ -13,10 +13,10 @@
 //!    the [batch_avss_avid] module.
 //! 3. A presigning protocol to create presigning tuples from the secret shared nonces. This is
 //!    implemented in the [presigning] module. The presigning tuples can be created in advance of
-//!    knowing the message to be signed, and one tuple is consumed for each signature.
-//! 4. A signing protocol which allows parties to create partial signatures from a presigning
-//!    tuple and aggregate them into a full signature if there are enough partial signatures. This
-//!    is implemented in the [signing] module.
+//!    knowing the message to be signed, and a pair of them is consumed for each signature.
+//! 4. A signing protocol which allows parties to create partial signatures from a pair of
+//!    presigning tuples and aggregate them into a full signature if there are enough partial
+//!    signatures. This is implemented in the [signing] module.
 //!
 //! For both the DKG and nonce generation protocols, it is assumed that each party has an
 //! encryption key pair (ECIES) and these public keys are known to all parties. These can be
