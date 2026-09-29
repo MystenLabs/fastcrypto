@@ -75,9 +75,12 @@ impl PresignaturePair {
     ///
     /// The caller must:
     /// * pass the outputs of one nonce batch, from distinct dealers, in ascending dealer order,
-    ///   where a dealer of weight `w` dealt `batch_size_per_weight * w` nonces,
+    ///   where a dealer of weight `w` dealt `batch_size_per_weight * w` nonces and this party
+    ///   holds that many shares of them,
     /// * agree that set with the other parties beforehand, e.g. by the dealers' certificates on
     ///   the TOB channel,
+    /// * pass the same `batch_size_per_weight` the dealers dealt with, and the `params` validated
+    ///   for this committee, both agreed with the other parties,
     /// * build at most one instance from a batch's dealings,
     /// * discard the pairs when the committee or its weights change, since share indices follow
     ///   the cumulative weights,
@@ -89,8 +92,9 @@ impl PresignaturePair {
     ///
     /// `InvalidInput` is returned if the outputs are empty, come from more than one batch, are
     /// not in ascending dealer order, two come from the same dealer, their total weight is below
-    /// `params.t`, a dealer's batch size is not a multiple of `batch_size_per_weight`, or either
-    /// `params.t` or `batch_size_per_weight` is zero.
+    /// `params.t`, a dealer's batch size is not a multiple of `batch_size_per_weight`, the outputs
+    /// do not all carry the same number of shares for this party, a share batch does not cover
+    /// exactly its dealer's nonces, or either `params.t` or `batch_size_per_weight` is zero.
     pub fn from_dealings(
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,
