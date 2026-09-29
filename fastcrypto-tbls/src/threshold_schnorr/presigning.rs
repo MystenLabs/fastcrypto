@@ -263,9 +263,11 @@ impl Presignatures {
     }
 
     fn into_pairs(self) -> impl Iterator<Item = PresignaturePair> {
-        let tuples = self.len();
-        if tuples % 2 == 1 {
-            warn!("presigning: {tuples} tuples is odd, so the last one will go unused.");
+        if self.len() % 2 == 1 {
+            warn!(
+                "presigning: {} tuples is odd, so the last one will go unused.",
+                self.len()
+            );
         }
         let presigning_id = self.presigning_id;
         self.tuples().enumerate().map(
