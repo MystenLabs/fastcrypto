@@ -162,7 +162,7 @@ impl Presignatures {
             .ok_or(InvalidInput)?;
 
         // The dealer order fixes the layout of the presigning matrix, so the caller must present
-        // the dealings in a canonical order.
+        // the dealings in strictly ascending dealer order.
         let dealers = outputs.iter().map(|output| output.dealer).collect_vec();
         if !dealers.iter().is_sorted_by(|a, b| a < b) {
             return Err(InvalidInput);
