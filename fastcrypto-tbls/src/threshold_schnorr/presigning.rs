@@ -19,8 +19,6 @@ use tracing::warn;
 pub struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
-    /// Number of tuples yielded so far, which gives the index of the next pair.
-    yielded: u32,
 }
 
 /// The public part of a [PresignaturePair]: the index of the pair within its presigning instance
@@ -44,15 +42,22 @@ pub struct PresignaturePair {
 
 /// An iterator that yields [PresignaturePair]s, consuming two presigning tuples for each. A
 /// trailing tuple with nothing to pair it with is dropped.
-pub struct PresignaturePairs(Presignatures);
+///
+/// Pairs are indexed from the start of this iterator, so it must be created from a fresh
+/// [Presignatures] and resumed with e.g. `nth`, not by advancing the tuples underneath it.
+pub struct PresignaturePairs {
+    presignatures: Presignatures,
+    next_index: u32,
+}
 
 impl Iterator for PresignaturePairs {
     type Item = PresignaturePair;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let index = self.0.next_pair_index();
-        let (first_shares, first) = self.0.next()?;
-        let (second_shares, second) = self.0.next()?;
+        let index = self.next_index;
+        let (first_shares, first) = self.presignatures.next()?;
+        let (second_shares, second) = self.presignatures.next()?;
+        self.next_index += 1;
         Some(PresignaturePair {
             public: PublicPresignaturePair {
                 index,
@@ -65,7 +70,7 @@ impl Iterator for PresignaturePairs {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.0.len() / 2;
+        let remaining = self.presignatures.len() / 2;
         (remaining, Some(remaining))
     }
 }
@@ -78,7 +83,6 @@ impl Iterator for Presignatures {
     fn next(&mut self) -> Option<Self::Item> {
         // `public` drives the length; `secret` is empty for a zero-weight party.
         let public = self.public.next()?;
-        self.yielded += 1;
         let secret = self
             .secret
             .iter_mut()
@@ -219,21 +223,15 @@ impl Presignatures {
         assert!(secret.iter().all(|s| s.len() == expected_len));
         assert_eq!(public.len(), expected_len);
 
-        Ok(Self {
-            secret,
-            public,
-            yielded: 0,
-        })
+        Ok(Self { secret, public })
     }
 
-    /// Pair up the remaining tuples, two per signature, see [PresignaturePairs].
+    /// Pair up the tuples, two per signature, see [PresignaturePairs].
     pub fn pairs(self) -> PresignaturePairs {
-        PresignaturePairs(self)
-    }
-
-    /// The index the next pair will have, counted from the start of this presigning instance.
-    fn next_pair_index(&self) -> u32 {
-        self.yielded / 2
+        PresignaturePairs {
+            presignatures: self,
+            next_index: 0,
+        }
     }
 }
 
