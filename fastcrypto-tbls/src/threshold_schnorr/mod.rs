@@ -166,7 +166,8 @@ mod tests {
     };
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::signing::{
-        aggregate_signatures, generate_partial_signatures, Blame,
+        aggregate_signatures, bind_public_presignatures_for_testing, generate_partial_signatures,
+        Blame,
     };
     use crate::threshold_schnorr::{avss, batch_avss_avid, Address, Parameters, EG, G, S};
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
@@ -366,17 +367,30 @@ mod tests {
 
         let message = b"Hello, world!";
 
-        // Mock a value from the random beacon
-        let beacon_value = S::rand(&mut rng);
+        // Each signature consumes two presigning tuples
+        let presig_pairs = nodes
+            .iter()
+            .map(|node| {
+                let presigs = presigs.get_mut(&node.id).unwrap();
+                (presigs.next().unwrap(), presigs.next().unwrap())
+            })
+            .collect_vec();
+
+        // The public parts should all be the same
+        let public_presig_0 =
+            get_uniform_value(presig_pairs.iter().map(|(presig, _)| presig.1)).unwrap();
+        let public_presig_1 =
+            get_uniform_value(presig_pairs.iter().map(|(_, presig)| presig.1)).unwrap();
 
         // Each party generates their partial signatures
         let partial_signatures = nodes
             .iter()
-            .map(|node| {
+            .zip(presig_pairs)
+            .map(|(node, (presig_0, presig_1))| {
                 generate_partial_signatures(
                     message,
-                    presigs.get_mut(&node.id).unwrap().next().unwrap(),
-                    &beacon_value,
+                    presig_0,
+                    presig_1,
                     &merged_shares.get(&node.id).unwrap().my_shares,
                     &vk,
                     None,
@@ -385,19 +399,11 @@ mod tests {
             })
             .collect_vec();
 
-        // The public parts should all be the same
-        let public_presig = get_uniform_value(
-            partial_signatures
-                .iter()
-                .map(|partial_signature| partial_signature.0),
-        )
-        .unwrap();
-
         // Aggregate partial signatures
         let (signature, excluded) = aggregate_signatures(
             message,
-            &public_presig,
-            &beacon_value,
+            &public_presig_0,
+            &public_presig_1,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, s)| s.clone())
@@ -546,17 +552,30 @@ mod tests {
 
         let message_2 = b"Hello again, world!";
 
-        // Mock a value from the random beacon
-        let beacon_value = S::rand(&mut rng);
+        // Each signature consumes two presigning tuples
+        let presig_pairs = nodes
+            .iter()
+            .map(|node| {
+                let presigs = presigs.get_mut(&node.id).unwrap();
+                (presigs.next().unwrap(), presigs.next().unwrap())
+            })
+            .collect_vec();
+
+        // The public parts should all be the same
+        let public_presig_0 =
+            get_uniform_value(presig_pairs.iter().map(|(presig, _)| presig.1)).unwrap();
+        let public_presig_1 =
+            get_uniform_value(presig_pairs.iter().map(|(_, presig)| presig.1)).unwrap();
 
         // Each party generates their partial signatures
         let partial_signatures = nodes
             .iter()
-            .map(|node| {
+            .zip(presig_pairs)
+            .map(|(node, (presig_0, presig_1))| {
                 generate_partial_signatures(
                     message_2,
-                    presigs.get_mut(&node.id).unwrap().next().unwrap(),
-                    &beacon_value,
+                    presig_0,
+                    presig_1,
                     &merged_shares.get(&node.id).unwrap().my_shares,
                     &vk,
                     None,
@@ -565,19 +584,11 @@ mod tests {
             })
             .collect_vec();
 
-        // The public parts should all be the same
-        let public_presig = get_uniform_value(
-            partial_signatures
-                .iter()
-                .map(|partial_signature| partial_signature.0),
-        )
-        .unwrap();
-
         // Aggregate partial signatures
         let (signature_2, excluded) = aggregate_signatures(
             message_2,
-            &public_presig,
-            &beacon_value,
+            &public_presig_0,
+            &public_presig_1,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, s)| s.clone())
@@ -690,19 +701,25 @@ mod tests {
 
         let message = b"Hello, world!";
 
-        let beacon_value = S::rand(&mut rng);
-
-        let partial_signatures = presigning
+        let presig_pairs = presigning
             .iter_mut()
+            .map(|presigning| (presigning.next().unwrap(), presigning.next().unwrap()))
+            .collect_vec();
+
+        let public_0 = get_uniform_value(presig_pairs.iter().map(|(presig, _)| presig.1)).unwrap();
+        let public_1 = get_uniform_value(presig_pairs.iter().map(|(_, presig)| presig.1)).unwrap();
+
+        let partial_signatures = presig_pairs
+            .into_iter()
             .enumerate()
-            .map(|(i, presigning)| {
+            .map(|(i, (presig_0, presig_1))| {
                 let my_shares = avss::SharesForNode {
                     shares: vec![sk_shares[i].clone()],
                 };
                 generate_partial_signatures(
                     message,
-                    presigning.next().unwrap(),
-                    &beacon_value,
+                    presig_0,
+                    presig_1,
                     &my_shares,
                     &vk_element,
                     None,
@@ -711,17 +728,10 @@ mod tests {
             })
             .collect_vec();
 
-        let public = get_uniform_value(
-            partial_signatures
-                .iter()
-                .map(|partial_signature| partial_signature.0),
-        )
-        .unwrap();
-
         let (signature, excluded) = aggregate_signatures(
             message,
-            &public,
-            &beacon_value,
+            &public_0,
+            &public_1,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())
@@ -747,8 +757,8 @@ mod tests {
         corrupted[0].value = S::rand(&mut rng);
         let (corrected, excluded) = aggregate_signatures(
             message,
-            &public,
-            &beacon_value,
+            &public_0,
+            &public_1,
             &corrupted,
             Parameters { t, f },
             &vk_element,
@@ -761,8 +771,9 @@ mod tests {
             .verify(message, &corrected)
             .unwrap();
 
-        // Honest partial signatures with the wrong beacon here: the decoding rules them out as the
-        // cause, so this is reported as the inputs disagreeing rather than as a bad signature.
+        // Honest partial signatures with the wrong presignature here: the decoding rules them out
+        // as the cause, so this is reported as the inputs disagreeing rather than as a bad
+        // signature.
         let honest = partial_signatures
             .iter()
             .flat_map(|(_, sigs)| sigs.clone())
@@ -770,8 +781,8 @@ mod tests {
         assert!(matches!(
             aggregate_signatures(
                 message,
-                &public,
-                &(beacon_value + S::generator()),
+                &public_0,
+                &(public_1 + G::generator()),
                 &honest,
                 Parameters { t, f },
                 &vk_element,
@@ -784,8 +795,8 @@ mod tests {
         let aggregate = |partials: &[Eval<S>]| {
             aggregate_signatures(
                 message,
-                &public,
-                &beacon_value,
+                &public_0,
+                &public_1,
                 partials,
                 Parameters { t, f },
                 &vk_element,
@@ -806,8 +817,8 @@ mod tests {
         // four, short of the `t + f` the aggregation wants before it will name an index.
         let (corrected, excluded) = aggregate_signatures(
             message,
-            &public,
-            &beacon_value,
+            &public_0,
+            &public_1,
             &corrupted[..5],
             Parameters { t, f },
             &vk_element,
@@ -851,22 +862,34 @@ mod tests {
             };
             for address in [None, Some(address_with(true)), Some(address_with(false))] {
                 for nonce_even in [true, false] {
-                    let presig = S::rand(&mut rng);
-                    let public_presig = G::generator() * presig;
-                    let presig_shares = mock_shares(&mut rng, presig, t, n);
-                    let beacon = loop {
-                        let beacon = S::rand(&mut rng);
-                        if has_even_y(&(public_presig + G::generator() * beacon)) == nonce_even {
-                            break beacon;
+                    // The binding factor fixes the combined nonce, so resample the second
+                    // presignature until that nonce has the Y parity this iteration covers.
+                    let presig_0 = S::rand(&mut rng);
+                    let public_presig_0 = G::generator() * presig_0;
+                    let (presig_1, public_presig_1) = loop {
+                        let presig_1 = S::rand(&mut rng);
+                        let public_presig_1 = G::generator() * presig_1;
+                        let nonce = bind_public_presignatures_for_testing(
+                            message,
+                            &public_presig_0,
+                            &public_presig_1,
+                            &vk,
+                            address.as_ref(),
+                        )
+                        .unwrap();
+                        if has_even_y(&nonce) == nonce_even {
+                            break (presig_1, public_presig_1);
                         }
                     };
+                    let presig_shares_0 = mock_shares(&mut rng, presig_0, t, n);
+                    let presig_shares_1 = mock_shares(&mut rng, presig_1, t, n);
 
                     let partial_signatures = (0..n as usize)
                         .flat_map(|i| {
                             generate_partial_signatures(
                                 message,
-                                (vec![presig_shares[i].value], public_presig),
-                                &beacon,
+                                (vec![presig_shares_0[i].value], public_presig_0),
+                                (vec![presig_shares_1[i].value], public_presig_1),
                                 &avss::SharesForNode {
                                     shares: vec![sk_shares[i].clone()],
                                 },
@@ -879,8 +902,8 @@ mod tests {
                         .collect_vec();
                     let (signature, excluded) = aggregate_signatures(
                         message,
-                        &public_presig,
-                        &beacon,
+                        &public_presig_0,
+                        &public_presig_1,
                         &partial_signatures,
                         Parameters { t, f },
                         &vk,
@@ -977,19 +1000,26 @@ mod tests {
 
         let message = b"Hello, world!";
 
-        let beacon_value = S::rand(&mut rng);
         let address = [7u8; 32];
-        let partial_signatures = presigning
+        let presig_pairs = presigning
             .iter_mut()
+            .map(|presigning| (presigning.next().unwrap(), presigning.next().unwrap()))
+            .collect_vec();
+
+        let public_0 = get_uniform_value(presig_pairs.iter().map(|(presig, _)| presig.1)).unwrap();
+        let public_1 = get_uniform_value(presig_pairs.iter().map(|(_, presig)| presig.1)).unwrap();
+
+        let partial_signatures = presig_pairs
+            .into_iter()
             .enumerate()
-            .map(|(i, presigning)| {
+            .map(|(i, (presig_0, presig_1))| {
                 let my_shares = avss::SharesForNode {
                     shares: vec![sk_shares[i].clone()],
                 };
                 generate_partial_signatures(
                     message,
-                    presigning.next().unwrap(),
-                    &beacon_value,
+                    presig_0,
+                    presig_1,
                     &my_shares,
                     &vk_element,
                     Some(&address),
@@ -998,17 +1028,10 @@ mod tests {
             })
             .collect_vec();
 
-        let public = get_uniform_value(
-            partial_signatures
-                .iter()
-                .map(|partial_signature| partial_signature.0),
-        )
-        .unwrap();
-
         let (signature, excluded) = aggregate_signatures(
             message,
-            &public,
-            &beacon_value,
+            &public_0,
+            &public_1,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())

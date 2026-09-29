@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::polynomial::{Eval, Poly};
+use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::key_derivation::{compute_tweak, derive_verifying_key_internal};
 use crate::threshold_schnorr::reed_solomon::RSDecoder;
 use crate::threshold_schnorr::{avss, Address, Parameters, G, S};
@@ -16,10 +17,16 @@ use itertools::Itertools;
 use tap::TapFallible;
 use tracing::warn;
 
-/// Generate partial threshold Schnorr signatures for a given message using a presigning tuple.
-/// The presigning tuple must be taken from a [Presignatures] iterator, the other parties should use the same tuple and one tuple may only be used once.
-/// Signing twice with the same tuple discloses the signing key, whatever the beacon value.
-/// Returns also the public presignature, which all parties must agree on.
+/// Domain separation prefix for the random oracle used to compute presignature binding factors.
+const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_binding";
+
+/// Generate partial threshold Schnorr signatures for a given message using two presigning tuples.
+/// The tuples are combined into a single nonce which is bound to the message and the verifying
+/// key, so the signature is secure whether the presignatures are generated before or after the
+/// message is known.
+/// The presigning tuples must be taken from a [Presignatures] iterator, the other parties should use the same tuples in the same order and one tuple may only be used once.
+/// Signing twice with the same pair of tuples discloses the signing key.
+/// Returns also the public nonce, which all parties must agree on.
 ///
 /// The signatures produced follow the BIP-0340 standard (<https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki>).
 ///
@@ -28,16 +35,24 @@ use tracing::warn;
 /// The signature will be valid for the derived verifying key.
 ///
 /// `GeneralOpaqueError` is returned if the generated nonce R is the identity element (should happen only with negligible probability).
-/// `InvalidInput` is returned if the verifying key is the identity element.
+/// `InvalidInput` is returned if the verifying key or one of the public presignatures is the
+/// identity element, if the two presigning tuples are equal or if they hold a different number of
+/// shares.
 pub fn generate_partial_signatures(
     message: &[u8],
-    (mut secret_presigs, public_presig): (Vec<S>, G),
-    beacon_value: &S,
+    presig_0: (Vec<S>, G),
+    presig_1: (Vec<S>, G),
     my_signing_key_shares: &avss::SharesForNode,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
-    let r_g = compute_nonce(&public_presig, beacon_value)?;
+    let (mut secret_presigs, r_g) = bind_presignatures(
+        message,
+        presig_0,
+        presig_1,
+        verifying_key,
+        derivation_address,
+    )?;
 
     // In BIP-340, the nonce R must have an even Y coordinate.
     // If it doesn't, we negate the secret nonce to get a new nonce R' = -R with an even Y.
@@ -69,7 +84,7 @@ pub fn generate_partial_signatures(
     }
 
     Ok((
-        public_presig,
+        r_g,
         my_signing_key_shares
             .shares
             .iter()
@@ -121,9 +136,9 @@ pub enum Blame {
 /// partial signatures.
 ///
 /// A failed aggregation, reported as an `InvalidSignature` error, may be retried with a new set of
-/// partial signatures as long as the presigning tuple, message, beacon value and derivation
-/// address stay the same. Any second use of the presigning tuple with a different message, beacon
-/// value or derivation address discloses the signing key.
+/// partial signatures as long as the presigning tuples, message and derivation address stay the
+/// same. Any second use of the presigning tuples with a different message or derivation address
+/// discloses the signing key.
 ///
 /// The excluded indices come back as [Blame::Certain] when their contributors did not follow the
 /// protocol, and as [Blame::Inconclusive] when the decoding had too little margin to show that.
@@ -134,14 +149,15 @@ pub enum Blame {
 /// `InvalidSignature` is returned if there are too many corrupted partial signatures to correct,
 /// which the caller should retry as above, with more of them.
 /// `InconsistentInputs` is returned if enough partial signatures were good to rule them out as the
-/// cause, which leaves the presigning tuple, beacon value, message, verifying key or derivation
-/// address given here disagreeing with the ones the signers used. Retrying does not help.
-/// `InvalidInput` is returned if two partial signatures share a share index, or if the provided
-/// verifying key is the identity element.
+/// cause, which leaves the presigning tuples, message, verifying key or derivation address given
+/// here disagreeing with the ones the signers used. Retrying does not help.
+/// `InvalidInput` is returned if two partial signatures share a share index, if the verifying key
+/// or one of the public presignatures is the identity element, or if the two public presignatures
+/// are equal.
 pub fn aggregate_signatures(
     message: &[u8],
-    public_presig: &G,
-    beacon_value: &S,
+    public_presig_0: &G,
+    public_presig_1: &G,
     partial_signatures: &[Eval<S>],
     params: Parameters,
     verifying_key: &G,
@@ -159,8 +175,8 @@ pub fn aggregate_signatures(
 
     match finalize_schnorr_signature(
         message,
-        public_presig,
-        beacon_value,
+        public_presig_0,
+        public_presig_1,
         s,
         verifying_key,
         derivation_address,
@@ -187,8 +203,8 @@ pub fn aggregate_signatures(
 
             let signature = match finalize_schnorr_signature(
                 message,
-                public_presig,
-                beacon_value,
+                public_presig_0,
+                public_presig_1,
                 decoding.constant_term(),
                 verifying_key,
                 derivation_address,
@@ -232,26 +248,26 @@ fn can_blame_excluded_indices(given: usize, excluded: usize, params: Parameters)
 ///
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
 /// `InvalidSignature` is returned if the aggregated signature does not verify.
-/// `InvalidInput` is returned if the provided verifying key is the identity element.
+/// `InvalidInput` is returned if the verifying key or one of the public presignatures is the
+/// identity element, or if the two public presignatures are equal.
 fn finalize_schnorr_signature(
     message: &[u8],
-    public_presig: &G,
-    beacon_value: &S,
-    mut s: S,
+    public_presig_0: &G,
+    public_presig_1: &G,
+    s: S,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<SchnorrSignature> {
-    // Compute the nonce R for the signature.
-    let r_g = compute_nonce(public_presig, beacon_value)?;
-
-    // In acc. with BIP-0340, we need to ensure the nonce R has an even Y coordinate.
-    // If it doesn't, we subtract the beacon value instead of adding it like it is done for the secret shares.
-    // We don't need to change R itself since only the X coordinate of this is used in the hash and signature below.
-    if r_g.has_even_y()? {
-        s += beacon_value
-    } else {
-        s -= beacon_value
-    };
+    // Compute the nonce R for the signature. The signers negate their secret nonces when R has an
+    // odd Y coordinate, which covers the whole nonce here, so `s` needs no adjustment.
+    let r_g = bind_public_presignatures(
+        message,
+        public_presig_0,
+        public_presig_1,
+        verifying_key,
+        derivation_address,
+    )?;
+    let mut s = s;
 
     // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
     let verifying_key = if let Some(address) = derivation_address {
@@ -277,15 +293,99 @@ fn finalize_schnorr_signature(
     Ok(signature)
 }
 
-/// Compute the signature nonce `R = public_presig + G * beacon_value`. Since both inputs are
-/// random, the identity element occurs only with negligible probability and is rejected with
+/// Combine two presigning tuples into one bound to the message and verifying key:
+/// `(t_0 + b * t_1, p_0 + b * p_1)` with `b = H(p_0, p_1, vk, message)`.
+fn bind_presignatures(
+    message: &[u8],
+    (secret_presigs_0, public_presig_0): (Vec<S>, G),
+    (secret_presigs_1, public_presig_1): (Vec<S>, G),
+    verifying_key: &G,
+    derivation_address: Option<&Address>,
+) -> FastCryptoResult<(Vec<S>, G)> {
+    if secret_presigs_0.len() != secret_presigs_1.len() {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    let b = binding_factor(
+        message,
+        &public_presig_0,
+        &public_presig_1,
+        verifying_key,
+        derivation_address,
+    )?;
+    Ok((
+        secret_presigs_0
+            .into_iter()
+            .zip(secret_presigs_1)
+            .map(|(t_0, t_1)| t_0 + b * t_1)
+            .collect(),
+        combine_public_presignatures(&public_presig_0, &public_presig_1, &b)?,
+    ))
+}
+
+/// Compute the public part of [bind_presignatures], `p_0 + b * p_1`.
+fn bind_public_presignatures(
+    message: &[u8],
+    public_presig_0: &G,
+    public_presig_1: &G,
+    verifying_key: &G,
+    derivation_address: Option<&Address>,
+) -> FastCryptoResult<G> {
+    let b = binding_factor(
+        message,
+        public_presig_0,
+        public_presig_1,
+        verifying_key,
+        derivation_address,
+    )?;
+    combine_public_presignatures(public_presig_0, public_presig_1, &b)
+}
+
+/// Compute the nonce `p_0 + b * p_1` for a signature. Since the presignatures are random, the
+/// identity element occurs only with negligible probability and is rejected with
 /// [`FastCryptoError::GeneralOpaqueError`].
-fn compute_nonce(public_presig: &G, beacon_value: &S) -> FastCryptoResult<G> {
-    let r_g = *public_presig + G::generator() * beacon_value;
+fn combine_public_presignatures(
+    public_presig_0: &G,
+    public_presig_1: &G,
+    b: &S,
+) -> FastCryptoResult<G> {
+    let r_g = *public_presig_0 + *public_presig_1 * b;
     if r_g == G::zero() {
         return Err(FastCryptoError::GeneralOpaqueError);
     }
     Ok(r_g)
+}
+
+/// Compute the binding factor `b = H(p_0, p_1, vk, message)`, where `vk` is the derived verifying
+/// key if a derivation address is given.
+fn binding_factor(
+    message: &[u8],
+    public_presig_0: &G,
+    public_presig_1: &G,
+    verifying_key: &G,
+    derivation_address: Option<&Address>,
+) -> FastCryptoResult<S> {
+    // As in FROST, the public presignatures must be non-identity group elements, and they must be
+    // distinct so that the binding factor actually binds the second nonce to the message.
+    if *public_presig_0 == G::zero()
+        || *public_presig_1 == G::zero()
+        || public_presig_0 == public_presig_1
+        || *verifying_key == G::zero()
+    {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    let verifying_key = if let Some(address) = derivation_address {
+        derive_verifying_key_internal(verifying_key, address)?
+    } else {
+        *verifying_key
+    };
+    Ok(
+        RandomOracle::new(BINDING_FACTOR_DOMAIN).evaluate_to_group_element(&(
+            public_presig_0,
+            public_presig_1,
+            verifying_key,
+            message,
+        )),
+    )
 }
 
 fn bip0340_hash(r_g: &G, vk: &G, message: &[u8]) -> FastCryptoResult<S> {
@@ -293,4 +393,50 @@ fn bip0340_hash(r_g: &G, vk: &G, message: &[u8]) -> FastCryptoResult<S> {
         Tag::Challenge,
         [&r_g.x_as_be_bytes()?, &vk.x_as_be_bytes()?, message],
     ))
+}
+
+/// Expose the nonce computation to the tests in the parent module.
+#[cfg(test)]
+pub(crate) fn bind_public_presignatures_for_testing(
+    message: &[u8],
+    public_presig_0: &G,
+    public_presig_1: &G,
+    verifying_key: &G,
+    derivation_address: Option<&Address>,
+) -> FastCryptoResult<G> {
+    bind_public_presignatures(
+        message,
+        public_presig_0,
+        public_presig_1,
+        verifying_key,
+        derivation_address,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fastcrypto::encoding::{Encoding, Hex};
+    use fastcrypto::serde_helpers::ToFromByteArray;
+
+    #[test]
+    fn test_bind_public_presignatures_vector() {
+        let p_0 = G::generator() * S::from(1u128);
+        let p_1 = G::generator() * S::from(2u128);
+        let vk = G::generator() * S::from(3u128);
+        let address = [4u8; 32];
+
+        let r = bind_public_presignatures(b"Hello, world!", &p_0, &p_1, &vk, None).unwrap();
+        assert_eq!(
+            Hex::encode(r.to_byte_array()),
+            "a73d0abbc7f892d55e1fe3c86a86d4eec63a47ca6410469fab1939f5f08e08ee00"
+        );
+
+        let r =
+            bind_public_presignatures(b"Hello, world!", &p_0, &p_1, &vk, Some(&address)).unwrap();
+        assert_eq!(
+            Hex::encode(r.to_byte_array()),
+            "4ffcc2538b053e64ae56e93f2ae5ca8790251fbab0fdb9d5f29fe4dfd564e31900"
+        );
+    }
 }
