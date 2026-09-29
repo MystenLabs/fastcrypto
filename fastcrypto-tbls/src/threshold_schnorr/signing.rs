@@ -24,9 +24,9 @@ const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_b
 /// Generate partial threshold Schnorr signatures for a given message using a pair of presigning
 /// tuples. Returns also the public nonce, which all parties must agree on.
 ///
-/// The tuples are combined into a single nonce which is bound to the message and the verifying
-/// key, so the signature is secure whether the presignatures are generated before or after the
-/// message is known.
+/// The pair is combined into a single nonce which is bound to the message and the verifying key,
+/// so the signature is secure whether the presignatures are generated before or after the message
+/// is known.
 ///
 /// The pair must come from the iterator returned by [PresignaturePair::from_dealings], and the
 /// other parties must use the same pair. Each tuple must go into exactly one signature: two
