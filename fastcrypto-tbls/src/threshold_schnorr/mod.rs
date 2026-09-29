@@ -43,7 +43,6 @@ use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::GroupElement;
-use serde::Serialize;
 use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter};
 
@@ -123,11 +122,7 @@ impl BatchId {
     /// The presigning instance combining the dealings of `dealers` from this batch,
     /// `pid = (bid, J)` in the protocol description.
     pub(crate) fn presigning_id(&self, dealers: &[PartyId]) -> PresigningId {
-        PresigningId(
-            RandomOracle::new(PRESIGNING_ID_DOMAIN).evaluate(&(&self.0, dealers))[..32]
-                .try_into()
-                .expect("the random oracle returns 64 bytes"),
-        )
+        PresigningId(RandomOracle::new(PRESIGNING_ID_DOMAIN).evaluate(&(&self.0, dealers)))
     }
 }
 
@@ -136,12 +131,16 @@ const PRESIGNING_ID_DOMAIN: &str = "fastcrypto_threshold_schnorr_presigning_sess
 
 /// Identifier of a presigning instance: the hash of a nonce batch together with the dealers whose
 /// dealings it combines, `pid = (bid, J)` in the protocol description.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
-pub struct PresigningId([u8; 32]);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct PresigningId([u8; 64]);
 
 impl PresigningId {
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
     #[cfg(any(test, feature = "test-utils"))]
-    pub fn from_bytes_for_testing(bytes: [u8; 32]) -> Self {
+    pub fn from_bytes_for_testing(bytes: [u8; 64]) -> Self {
         Self(bytes)
     }
 }
@@ -207,7 +206,7 @@ mod tests {
     const BATCH_ID: &[u8] = b"test batch";
     /// Stands in for a presigning instance in tests that mock a pair outright.
     fn mock_presigning_id() -> PresigningId {
-        PresigningId::from_bytes_for_testing([9u8; 32])
+        PresigningId::from_bytes_for_testing([9u8; 64])
     }
 
     use crate::ecies_v1;

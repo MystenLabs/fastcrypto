@@ -347,7 +347,7 @@ fn compute_delta(
     Ok(
         RandomOracle::new(BINDING_FACTOR_DOMAIN).evaluate_to_group_element(&(
             verifying_key,
-            presig_pair.presigning_id(),
+            presig_pair.presigning_id().as_bytes(),
             presig_pair.index(),
             first,
             second,
@@ -383,7 +383,7 @@ mod tests {
 
     fn presig_pair() -> PublicPresignaturePair {
         PublicPresignaturePair::new_for_testing(
-            PresigningId::from_bytes_for_testing([7u8; 32]),
+            PresigningId::from_bytes_for_testing([7u8; 64]),
             1,
             G::generator() * S::from(3u128),
             G::generator() * S::from(4u128),
@@ -399,14 +399,14 @@ mod tests {
         let r = bind_public_presignatures(b"Hello, world!", &presig_pair, &vk, None).unwrap();
         assert_eq!(
             Hex::encode(r.to_byte_array()),
-            "becf199e424849839dea14cef5837c086b701c4332472bca6a21902fe309626400"
+            "045bfc64e26e284db3dcc72e2be4e99cfdea05879a2e250c56e66175d2bd701e00"
         );
 
         let r =
             bind_public_presignatures(b"Hello, world!", &presig_pair, &vk, Some(&address)).unwrap();
         assert_eq!(
             Hex::encode(r.to_byte_array()),
-            "c8b3d370f778561127cf48706ec83f97bcc75604bdb897ab625dbd6b9d1651fd00"
+            "0d72c476a432ce93f844e665d9cb6a973f00e26046075a6ca7817c98a0e2036680"
         );
     }
 
@@ -439,7 +439,7 @@ mod tests {
 
         // The presigning instance and the index of the pair within it
         let other_session = PublicPresignaturePair::new_for_testing(
-            PresigningId::from_bytes_for_testing([10u8; 32]),
+            PresigningId::from_bytes_for_testing([10u8; 64]),
             pair.index(),
             *pair.presignatures().0,
             *pair.presignatures().1,
