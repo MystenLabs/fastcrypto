@@ -251,8 +251,6 @@ fn finalize_schnorr_signature(
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<SchnorrSignature> {
-    // Compute the nonce R for the signature. The signers negate their secret nonces when R has an
-    // odd Y coordinate, which covers the whole nonce here, so `s` needs no adjustment.
     let r_g = compute_nonce(
         message,
         public_presig_pair,
