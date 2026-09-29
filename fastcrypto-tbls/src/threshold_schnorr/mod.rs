@@ -156,8 +156,9 @@ impl Display for Extensions {
 
 #[cfg(test)]
 mod tests {
-    /// Stands in for the presigning instance where the nonces are mocked rather than dealt.
-    const SESSION_ID: &[u8] = b"test session";
+    /// Stands in for the nonce batch where the nonces are mocked rather than dealt.
+    const BATCH_ID: &[u8] = b"test batch";
+    /// Stands in for the hash of a presigning instance in tests that mock a pair outright.
     const SESSION_ID_HASH: [u8; 32] = [9u8; 32];
 
     use crate::ecies_v1;
@@ -313,13 +314,10 @@ mod tests {
         });
 
         // The dealers share a batch id, and each dealer's own session id extends it with its
-        // identity. The presigning instance is that batch id together with the set of dealers
-        // whose outputs are used, `pid = (bid, J)` in the protocol description.
+        // identity. The batch id and the dealers whose outputs are used identify the presigning
+        // instance, `pid = (bid, J)` in the protocol description.
         let presig_batch_id = "presig-test-batch";
-        let mut presig_session_id = presig_batch_id.as_bytes().to_vec();
-        for dealer_id in nodes.node_ids_iter() {
-            presig_session_id.extend_from_slice(&dealer_id.to_be_bytes());
-        }
+        let presig_dealers = nodes.node_ids_iter().collect_vec();
 
         // Each dealer generates a batch of presigs per share they control.
         for dealer_id in nodes.node_ids_iter() {
@@ -366,9 +364,10 @@ mod tests {
             .map(|(id, outputs)| {
                 let presignatures = Presignatures::new(
                     outputs,
+                    &presig_dealers,
                     batch_size_per_weight,
                     Parameters { t, f },
-                    &presig_session_id,
+                    presig_batch_id.as_bytes(),
                 )
                 .unwrap();
                 assert_eq!(
@@ -697,9 +696,10 @@ mod tests {
             .map(|output| {
                 let presignatures = Presignatures::new(
                     output,
+                    &(0..n).collect_vec(),
                     batch_size_per_weight,
                     Parameters { t, f },
-                    SESSION_ID,
+                    BATCH_ID,
                 )
                 .unwrap();
                 assert_eq!(
@@ -999,9 +999,10 @@ mod tests {
             .map(|output| {
                 let presignatures = Presignatures::new(
                     output,
+                    &(0..n).collect_vec(),
                     batch_size_per_weight,
                     Parameters { t, f },
-                    SESSION_ID,
+                    BATCH_ID,
                 )
                 .unwrap();
                 assert_eq!(

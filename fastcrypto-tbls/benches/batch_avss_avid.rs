@@ -443,6 +443,7 @@ mod batch_avss_benches {
                         }
                     })
                     .collect_vec();
+                let dealers = (0..outputs.len() as PartyId).collect_vec();
 
                 complete.bench_function(
                     format!("create/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
@@ -450,9 +451,10 @@ mod batch_avss_benches {
                         b.iter(|| {
                             Presignatures::new(
                                 outputs.clone(),
+                                &dealers,
                                 batch_size_per_weight,
                                 Parameters { t, f },
-                                b"bench session",
+                                b"bench batch",
                             )
                             .unwrap()
                         })
@@ -464,9 +466,10 @@ mod batch_avss_benches {
                     .map(|_| {
                         Presignatures::new(
                             outputs.clone(),
+                            &dealers,
                             batch_size_per_weight,
                             Parameters { t, f },
-                            b"bench session",
+                            b"bench batch",
                         )
                         .unwrap()
                     })
