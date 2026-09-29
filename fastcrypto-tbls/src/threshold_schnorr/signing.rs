@@ -338,6 +338,8 @@ fn compute_delta(
     {
         return Err(FastCryptoError::InvalidInput);
     }
+    // The derived key, not the base one, goes into the hash: one pair signing one message under
+    // two derivation addresses must still get two different nonces.
     let verifying_key = if let Some(address) = derivation_address {
         derive_verifying_key_internal(verifying_key, address)?
     } else {
