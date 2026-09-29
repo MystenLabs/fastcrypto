@@ -293,7 +293,7 @@ fn bind_presignatures(
             .zip(second_shares)
             .map(|(t, t_prime)| t + delta * t_prime)
             .collect(),
-        combine_public_presignatures(public.first(), public.second(), &delta)?,
+        combine_public_presignatures(&public, &delta)?,
     ))
 }
 
@@ -305,18 +305,17 @@ fn bind_public_presignatures(
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<G> {
     let delta = compute_delta(message, presig_pair, verifying_key, derivation_address)?;
-    combine_public_presignatures(presig_pair.first(), presig_pair.second(), &delta)
+    combine_public_presignatures(presig_pair, &delta)
 }
 
 /// Compute the nonce `D + delta * D'` for a signature. Since the presignatures are random, the
 /// identity element occurs only with negligible probability and is rejected with
 /// [`FastCryptoError::GeneralOpaqueError`].
 fn combine_public_presignatures(
-    public_presig_0: &G,
-    public_presig_1: &G,
+    presig_pair: &PublicPresignaturePair,
     delta: &S,
 ) -> FastCryptoResult<G> {
-    let r_g = *public_presig_0 + *public_presig_1 * delta;
+    let r_g = *presig_pair.first() + *presig_pair.second() * delta;
     if r_g == G::zero() {
         return Err(FastCryptoError::GeneralOpaqueError);
     }
