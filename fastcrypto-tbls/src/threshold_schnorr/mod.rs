@@ -140,7 +140,6 @@ const PRESIGNING_ID_DOMAIN: &str = "fastcrypto_threshold_schnorr_presigning_sess
 pub struct PresigningId([u8; 32]);
 
 impl PresigningId {
-    /// Build an id directly, bypassing [BatchId::presigning_id]. For tests only.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn from_bytes_for_testing(bytes: [u8; 32]) -> Self {
         Self(bytes)
