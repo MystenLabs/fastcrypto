@@ -76,7 +76,6 @@ pub struct Receiver {
     enc_secret_key: PrivateKey<EG>,
     nodes: Arc<Nodes<EG>>,
     params: Parameters,
-    /// The batch being dealt and the dealer dealing it, stamped onto this receiver's outputs.
     batch_id: BatchId,
     dealer: PartyId,
     sid: Vec<u8>,
