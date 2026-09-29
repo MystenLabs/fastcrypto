@@ -7,7 +7,6 @@ use crate::threshold_schnorr::{Parameters, PresigningId, G, S};
 use crate::types::get_uniform_value;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
-
 use itertools::Itertools;
 use tracing::warn;
 
