@@ -128,6 +128,30 @@ impl BatchId {
     }
 }
 
+/// Domain separation prefix for the random oracle identifying a presigning instance.
+const PRESIGNING_ID_DOMAIN: &str = "fastcrypto_threshold_schnorr_presigning_session";
+
+/// Identifier of a presigning instance: a nonce batch together with the dealers whose dealings it
+/// combines, `pid = (bid, J)` in the protocol description. It is bound into every signature made
+/// with tuples from that instance.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PresigningId([u8; 32]);
+
+impl PresigningId {
+    pub(crate) fn new(batch_id: &BatchId, dealers: &[PartyId]) -> Self {
+        Self(
+            RandomOracle::new(PRESIGNING_ID_DOMAIN).evaluate(&(batch_id.as_bytes(), dealers))[..32]
+                .try_into()
+                .expect("the random oracle returns 64 bytes"),
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_bytes_for_testing(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+}
+
 /// Helper function to create a random oracle from a session ID.
 fn random_oracle_from_sid(sid: &[u8]) -> RandomOracle {
     RandomOracle::new(&Hex::encode(sid))
@@ -187,8 +211,10 @@ impl Display for Extensions {
 mod tests {
     /// Stands in for the nonce batch where the nonces are mocked rather than dealt.
     const BATCH_ID: &[u8] = b"test batch";
-    /// Stands in for the hash of a presigning instance in tests that mock a pair outright.
-    const SESSION_ID_HASH: [u8; 32] = [9u8; 32];
+    /// Stands in for a presigning instance in tests that mock a pair outright.
+    fn mock_presigning_id() -> PresigningId {
+        PresigningId::from_bytes_for_testing([9u8; 32])
+    }
 
     use crate::ecies_v1;
     use crate::ecies_v1::PublicKey;
@@ -203,7 +229,9 @@ mod tests {
         aggregate_signatures, bind_public_presignatures_for_testing, generate_partial_signatures,
         Blame,
     };
-    use crate::threshold_schnorr::{avss, batch_avss_avid, Address, BatchId, Parameters, EG, G, S};
+    use crate::threshold_schnorr::{
+        avss, batch_avss_avid, Address, BatchId, Parameters, PresigningId, EG, G, S,
+    };
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
     use fastcrypto::error::FastCryptoError::{InputTooShort, InvalidInput};
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
@@ -792,7 +820,7 @@ mod tests {
             aggregate_signatures(
                 message,
                 &PublicPresignaturePair::new_for_testing(
-                    *presig_pair.session_id(),
+                    *presig_pair.presigning_id(),
                     presig_pair.index(),
                     *presig_pair.first(),
                     *presig_pair.second() + G::generator(),
@@ -880,7 +908,7 @@ mod tests {
                     let (presig_1, presig_pair) = loop {
                         let presig_1 = S::rand(&mut rng);
                         let presig_pair = PublicPresignaturePair::new_for_testing(
-                            SESSION_ID_HASH,
+                            mock_presigning_id(),
                             0,
                             G::generator() * presig_0,
                             G::generator() * presig_1,

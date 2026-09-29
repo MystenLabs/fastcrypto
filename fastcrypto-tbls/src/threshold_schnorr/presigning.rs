@@ -1,10 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::batch_avss_avid::ReceiverOutput;
 use crate::threshold_schnorr::pascal_matrix::LazyPascalMatrixMultiplier;
-use crate::threshold_schnorr::{Parameters, G, S};
+use crate::threshold_schnorr::{Parameters, PresigningId, G, S};
 use crate::types::get_uniform_value;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
@@ -12,9 +11,6 @@ use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
-
-/// Domain separation prefix for the random oracle identifying a presigning instance.
-const SESSION_ID_DOMAIN: &str = "fastcrypto_threshold_schnorr_presigning_session";
 
 /// An iterator that yields presigning tuples (t_i, p_i).
 ///
@@ -24,15 +20,14 @@ const SESSION_ID_DOMAIN: &str = "fastcrypto_threshold_schnorr_presigning_session
 pub(crate) struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
-    /// Hash of the batch and its dealers, which identifies this presigning instance.
-    session_id: [u8; 32],
+    presigning_id: PresigningId,
 }
 
 /// The public part of a [PresignaturePair]: the presigning instance it came from, the index of
 /// the pair within that instance and the two public presignatures.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicPresignaturePair {
-    session_id: [u8; 32],
+    presigning_id: PresigningId,
     index: u32,
     first: G,
     second: G,
@@ -40,8 +35,8 @@ pub struct PublicPresignaturePair {
 
 impl PublicPresignaturePair {
     /// The presigning instance this pair came from.
-    pub(crate) fn session_id(&self) -> &[u8; 32] {
-        &self.session_id
+    pub(crate) fn presigning_id(&self) -> &PresigningId {
+        &self.presigning_id
     }
 
     /// The index of this pair within its presigning instance, which the caller tracks to use each
@@ -61,9 +56,14 @@ impl PublicPresignaturePair {
     }
 
     #[cfg(test)]
-    pub(crate) fn new_for_testing(session_id: [u8; 32], index: u32, first: G, second: G) -> Self {
+    pub(crate) fn new_for_testing(
+        presigning_id: PresigningId,
+        index: u32,
+        first: G,
+        second: G,
+    ) -> Self {
         Self {
-            session_id,
+            presigning_id,
             index,
             first,
             second,
@@ -287,19 +287,16 @@ impl Presignatures {
         Ok(Self {
             secret,
             public,
-            session_id: RandomOracle::new(SESSION_ID_DOMAIN)
-                .evaluate(&(batch_id.as_bytes(), &dealers))[..32]
-                .try_into()
-                .expect("the random oracle returns 64 bytes"),
+            presigning_id: PresigningId::new(&batch_id, &dealers),
         })
     }
 
     fn into_pairs(self) -> impl Iterator<Item = PresignaturePair> {
-        let session_id = self.session_id;
+        let presigning_id = self.presigning_id;
         self.tuples().enumerate().map(
             move |(index, ((first_shares, first), (second_shares, second)))| PresignaturePair {
                 public: PublicPresignaturePair {
-                    session_id,
+                    presigning_id,
                     index: index as u32,
                     first,
                     second,
@@ -494,10 +491,10 @@ mod tests {
     }
 
     #[test]
-    fn test_session_id_covers_batch_and_dealers() {
+    fn test_presigning_id_covers_batch_and_dealers() {
         let batch_size_per_weight: u16 = 2;
         let params = Parameters { t: 2, f: 1 };
-        let session_id = |dealers: &[PartyId], batch_id: &[u8]| {
+        let presigning_id = |dealers: &[PartyId], batch_id: &[u8]| {
             let batch_id = BatchId::new(batch_id.to_vec());
             *PresignaturePair::from_dealings(
                 mock_outputs(dealers, &batch_id, batch_size_per_weight),
@@ -508,11 +505,11 @@ mod tests {
             .next()
             .unwrap()
             .public()
-            .session_id()
+            .presigning_id()
         };
 
-        let id = session_id(&[0, 1], b"batch");
-        assert_ne!(id, session_id(&[0, 1], b"other batch"));
-        assert_ne!(id, session_id(&[0, 2], b"batch"));
+        let id = presigning_id(&[0, 1], b"batch");
+        assert_ne!(id, presigning_id(&[0, 1], b"other batch"));
+        assert_ne!(id, presigning_id(&[0, 2], b"batch"));
     }
 }

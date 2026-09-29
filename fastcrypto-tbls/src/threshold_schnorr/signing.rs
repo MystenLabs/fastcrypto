@@ -25,7 +25,7 @@ const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_b
 /// The tuples are combined into a single nonce which is bound to the message and the verifying
 /// key, so the signature is secure whether the presignatures are generated before or after the
 /// message is known.
-/// The pair must be taken from [Presignatures::pairs], and the other parties must use the same pair.
+/// The pair must be taken from [PresignaturePair::from_dealings], and the other parties must use the same pair.
 /// Each tuple must go into exactly one signature: two signatures from one pair do not disclose the
 /// signing key on their own, but three on different messages do, and many pairs each used twice is
 /// a ROS forgery.
@@ -323,7 +323,7 @@ fn combine_public_presignatures(
     Ok(r_g)
 }
 
-/// Compute the binding factor `delta = H(vk, session_id, index, D, D', message)`.
+/// Compute the binding factor `delta = H(vk, presigning_id, index, D, D', message)`.
 fn binding_factor(
     message: &[u8],
     presig_pair: &PublicPresignaturePair,
@@ -347,7 +347,7 @@ fn binding_factor(
     Ok(
         RandomOracle::new(BINDING_FACTOR_DOMAIN).evaluate_to_group_element(&(
             verifying_key,
-            presig_pair.session_id(),
+            presig_pair.presigning_id(),
             presig_pair.index(),
             presig_pair.first(),
             presig_pair.second(),
@@ -377,12 +377,13 @@ pub(crate) fn bind_public_presignatures_for_testing(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::threshold_schnorr::PresigningId;
     use fastcrypto::encoding::{Encoding, Hex};
     use fastcrypto::serde_helpers::ToFromByteArray;
 
     fn presig_pair() -> PublicPresignaturePair {
         PublicPresignaturePair::new_for_testing(
-            [7u8; 32],
+            PresigningId::from_bytes_for_testing([7u8; 32]),
             1,
             G::generator() * S::from(3u128),
             G::generator() * S::from(4u128),
@@ -438,14 +439,14 @@ mod tests {
 
         // The presigning instance and the index of the pair within it
         let other_session = PublicPresignaturePair::new_for_testing(
-            [10u8; 32],
+            PresigningId::from_bytes_for_testing([10u8; 32]),
             pair.index(),
             *pair.first(),
             *pair.second(),
         );
         assert_ne!(r, nonce(b"Hello, world!", &other_session, &vk, None));
         let other_index = PublicPresignaturePair::new_for_testing(
-            *pair.session_id(),
+            *pair.presigning_id(),
             pair.index() + 1,
             *pair.first(),
             *pair.second(),
@@ -454,7 +455,7 @@ mod tests {
 
         // The two presignatures, including the order they are given in
         let swapped = PublicPresignaturePair::new_for_testing(
-            *pair.session_id(),
+            *pair.presigning_id(),
             pair.index(),
             *pair.second(),
             *pair.first(),
