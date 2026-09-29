@@ -242,14 +242,13 @@ fn can_blame_excluded_indices(given: usize, excluded: usize, params: Parameters)
 fn finalize_schnorr_signature(
     message: &[u8],
     presig_pair: &PublicPresignaturePair,
-    s: S,
+    mut s: S,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<SchnorrSignature> {
     // Compute the nonce R for the signature. The signers negate their secret nonces when R has an
     // odd Y coordinate, which covers the whole nonce here, so `s` needs no adjustment.
     let r_g = compute_nonce(message, presig_pair, verifying_key, derivation_address)?;
-    let mut s = s;
 
     // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
     let verifying_key = if let Some(address) = derivation_address {
