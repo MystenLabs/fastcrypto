@@ -293,15 +293,11 @@ fn compute_nonce_shares(
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(Vec<S>, G)> {
-    let (public, (first_shares, second_shares)) = presig_pair.into_parts();
-    if first_shares.len() != second_shares.len() {
-        return Err(FastCryptoError::InvalidInput);
-    }
+    let (public, shares) = presig_pair.into_parts();
     let delta = compute_delta(message, &public, verifying_key, derivation_address)?;
     Ok((
-        first_shares
+        shares
             .into_iter()
-            .zip(second_shares)
             .map(|(t, t_prime)| t + delta * t_prime)
             .collect(),
         combine_public_presignatures(&public, &delta)?,

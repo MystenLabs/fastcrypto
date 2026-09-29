@@ -64,7 +64,8 @@ impl PublicPresignaturePair {
 #[derive(Clone, Debug)]
 pub struct PresignaturePair {
     public: PublicPresignaturePair,
-    shares: (Vec<S>, Vec<S>),
+    /// One share of each of the two nonces, per share index this party holds.
+    shares: Vec<(S, S)>,
 }
 
 impl PresignaturePair {
@@ -87,14 +88,14 @@ impl PresignaturePair {
         &self.public
     }
 
-    pub(crate) fn into_parts(self) -> (PublicPresignaturePair, (Vec<S>, Vec<S>)) {
+    pub(crate) fn into_parts(self) -> (PublicPresignaturePair, Vec<(S, S)>) {
         (self.public, self.shares)
     }
 
     /// Build a pair directly, bypassing [PresignaturePair::from_dealings], which is the only
     /// source of pairs that are guaranteed not to overlap. For tests only.
     #[cfg(any(test, feature = "test-utils"))]
-    pub fn new_for_testing(public: PublicPresignaturePair, shares: (Vec<S>, Vec<S>)) -> Self {
+    pub fn new_for_testing(public: PublicPresignaturePair, shares: Vec<(S, S)>) -> Self {
         Self { public, shares }
     }
 }
@@ -274,7 +275,7 @@ impl Presignatures {
                     index: index as u32,
                     presignatures: (first, second),
                 },
-                shares: (first_shares, second_shares),
+                shares: first_shares.into_iter().zip(second_shares).collect(),
             },
         )
     }
