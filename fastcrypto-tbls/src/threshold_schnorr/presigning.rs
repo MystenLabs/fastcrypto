@@ -85,8 +85,7 @@ impl PublicPresignaturePair {
 }
 
 /// Two presigning tuples to be used for a single signature, along with the index of the pair
-/// within its presigning instance. Yielded by [Presignatures::pairs], see
-/// [PublicPresignaturePair] for why it cannot be built directly.
+/// within its presigning instance.
 #[derive(Clone, Debug)]
 pub struct PresignaturePair {
     public: PublicPresignaturePair,
