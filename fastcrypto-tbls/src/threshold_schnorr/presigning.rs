@@ -82,9 +82,7 @@ pub struct PresignaturePair {
 
 impl PresignaturePair {
     /// The presigning tuples of one instance, paired up two per signature, dropping a trailing
-    /// tuple with nothing to pair it with. This is the only way to get a [PresignaturePair]:
-    /// overlapping pairs such as `(0, 1)`, `(1, 2)`, `(2, 3)` would use every tuple in the middle
-    /// twice and still produce valid signatures.
+    /// tuple with nothing to pair it with.
     ///
     /// Pairs are indexed from the start of the returned iterator, so a caller resuming where it
     /// left off must do so with e.g. `nth` on this iterator.
