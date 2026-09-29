@@ -213,8 +213,7 @@ impl Dealer {
     /// * `nodes` defines the set of receivers and their weights.
     /// * `dealer_id` is the id of this dealer as a node.
     /// * `params` carries the reconstruction thresholds.
-    /// * `batch_id` identifies the nonce batch; the dealer's own session id is derived from it
-    ///   the same for all parties in the same session.
+    /// * `batch_id` identifies the nonce batch, and must be the same for all parties.
     /// * `batch_size_per_weight` is the number of secrets a dealer must deal per weight it has.
     ///
     /// All arguments must be the same for the dealer and all receivers.
@@ -460,8 +459,7 @@ impl Receiver {
     /// * `id` is the id of this receiver.
     /// * `dealer_id` is the id of the dealer.
     /// * `params` carries the reconstruction threshold `t` and Byzantine bound `f`.
-    /// * `batch_id` identifies the nonce batch; the dealer's own session id is derived from it the
-    ///   same for all parties in the same session.
+    /// * `batch_id` identifies the nonce batch, and must be the same for all parties.
     /// * `enc_secret_key` is this Receivers' secret key for the distribution of nonces. The
     ///   corresponding public key is defined in `nodes`.
     /// * `batch_size_per_weight` is the number of secrets a dealer must deal per weight it has.
