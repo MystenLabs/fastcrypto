@@ -25,9 +25,7 @@ const SESSION_ID_DOMAIN: &[u8] = b"fastcrypto_threshold_schnorr_presigning_sessi
 pub struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
-    /// The nonce batch these tuples were dealt in, kept for diagnostics.
     batch_id: BatchId,
-    /// The dealers whose outputs they combine, ascending, kept for diagnostics.
     dealers: Vec<PartyId>,
     /// Hash of the two above, which identifies this presigning instance.
     session_id: [u8; 32],
