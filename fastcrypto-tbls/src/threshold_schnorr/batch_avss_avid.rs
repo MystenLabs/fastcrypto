@@ -38,7 +38,7 @@ use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::recovery_proof;
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use crate::threshold_schnorr::{avid, Certificate, VerifiedCertificate};
-use crate::threshold_schnorr::{random_oracle_from_sid, Parameters, EG, G, S};
+use crate::threshold_schnorr::{random_oracle_from_sid, BatchId, Parameters, EG, G, S};
 use crate::types::{get_uniform_value, ShareIndex};
 use fastcrypto::error::FastCryptoError::{
     GeneralOpaqueError, InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
@@ -76,6 +76,9 @@ pub struct Receiver {
     enc_secret_key: PrivateKey<EG>,
     nodes: Arc<Nodes<EG>>,
     params: Parameters,
+    /// The batch being dealt and the dealer dealing it, stamped onto this receiver's outputs.
+    batch_id: BatchId,
+    dealer: PartyId,
     sid: Vec<u8>,
     batch_size: usize,
     avid: avid::Avid,
@@ -178,9 +181,12 @@ pub struct VerifiedComplaintResponse {
     shares: SharesForNode,
 }
 
-/// The output of a receiver which is a batch of shares and public keys for all nonces.
+/// The output of a receiver which is a batch of shares and public keys for all nonces, along with
+/// the dealing it came from.
 #[derive(Debug, Clone)]
 pub struct ReceiverOutput {
+    pub batch_id: BatchId,
+    pub dealer: PartyId,
     pub my_shares: SharesForNode,
     pub public_keys: Vec<G>,
 }
@@ -208,7 +214,7 @@ impl Dealer {
     /// * `nodes` defines the set of receivers and their weights.
     /// * `dealer_id` is the id of this dealer as a node.
     /// * `params` carries the reconstruction thresholds.
-    /// * `sid` is a session identifier that must be unique for each invocation of a dealer, but
+    /// * `batch_id` identifies the nonce batch; the dealer's own session id is derived from it
     ///   the same for all parties in the same session.
     /// * `batch_size_per_weight` is the number of secrets a dealer must deal per weight it has.
     ///
@@ -220,9 +226,10 @@ impl Dealer {
         nodes: Nodes<EG>,
         dealer_id: PartyId,
         params: Parameters,
-        sid: Vec<u8>,
+        batch_id: &BatchId,
         batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
+        let sid = batch_id.dealer_session_id(dealer_id);
         let total_weight = nodes.total_weight();
         params.validate(total_weight)?;
         let nodes = Arc::new(nodes);
@@ -454,7 +461,7 @@ impl Receiver {
     /// * `id` is the id of this receiver.
     /// * `dealer_id` is the id of the dealer.
     /// * `params` carries the reconstruction threshold `t` and Byzantine bound `f`.
-    /// * `sid` is a session identifier that must be unique for each invocation of a dealer, but the
+    /// * `batch_id` identifies the nonce batch; the dealer's own session id is derived from it the
     ///   same for all parties in the same session.
     /// * `enc_secret_key` is this Receivers' secret key for the distribution of nonces. The
     ///   corresponding public key is defined in `nodes`.
@@ -470,11 +477,12 @@ impl Receiver {
         id: PartyId,
         dealer_id: PartyId,
         params: Parameters,
-        sid: Vec<u8>,
+        batch_id: &BatchId,
         enc_secret_key: PrivateKey<EG>,
         batch_size_per_weight: u16,
     ) -> FastCryptoResult<Self> {
         let _ = nodes.node_id_to_node(id)?;
+        let sid = batch_id.dealer_session_id(dealer_id);
 
         // The dealer is expected to deal a number of nonces proportional to its weight
         let batch_size = nodes.weight_of(dealer_id)? as usize * batch_size_per_weight as usize;
@@ -491,6 +499,8 @@ impl Receiver {
             id,
             enc_secret_key,
             nodes,
+            batch_id: batch_id.clone(),
+            dealer: dealer_id,
             sid,
             params,
             batch_size,
@@ -713,6 +723,8 @@ impl Receiver {
             self.batch_size,
         )?;
         Ok(ReceiverOutput {
+            batch_id: self.batch_id.clone(),
+            dealer: self.dealer,
             my_shares,
             public_keys: full_public_keys.clone(),
         })
@@ -891,6 +903,8 @@ impl Receiver {
             })?;
 
         Ok(ReceiverOutput {
+            batch_id: self.batch_id.clone(),
+            dealer: self.dealer,
             my_shares,
             public_keys: verified_common.message.full_public_keys.clone(),
         })
@@ -1217,7 +1231,7 @@ fn compute_challenge_from_common_message(
 #[cfg(test)]
 mod tests {
     use super::{
-        AvidMessageBuilder, AvidVote, AvssMessage, AvssMessageBuilder, AvssVote, Dealer,
+        AvidMessageBuilder, AvidVote, AvssMessage, AvssMessageBuilder, AvssVote, BatchId, Dealer,
         DecodeAndDecryptOutcome, Parameters, Receiver, ReceiverOutput, VerifiedEcho,
     };
     use crate::ecies_v1;
@@ -1299,14 +1313,14 @@ mod tests {
         )
         .unwrap();
 
-        let sid = b"zero weight test".to_vec();
+        let batch_id = BatchId::new(b"zero weight test".to_vec());
         let dealer_id = 0;
         let params = Parameters { t, f };
         let dealer = Dealer::new(
             nodes.clone(),
             dealer_id,
             params,
-            sid.clone(),
+            &batch_id,
             batch_size_per_weight,
         )
         .unwrap();
@@ -1320,7 +1334,7 @@ mod tests {
                     id as u16,
                     dealer_id,
                     params,
-                    sid.clone(),
+                    &batch_id,
                     sk,
                     batch_size_per_weight,
                 )
@@ -1397,14 +1411,14 @@ mod tests {
         )
         .unwrap();
 
-        let sid = b"opt test".to_vec();
+        let batch_id = BatchId::new(b"opt test".to_vec());
         let dealer_id = 0;
         let params = Parameters { t, f };
         let dealer = Dealer::new(
             nodes.clone(),
             dealer_id,
             params,
-            sid.clone(),
+            &batch_id,
             batch_size_per_weight,
         )
         .unwrap();
@@ -1418,7 +1432,7 @@ mod tests {
                     id as u16,
                     dealer_id,
                     params,
-                    sid.clone(),
+                    &batch_id,
                     sk,
                     batch_size_per_weight,
                 )
@@ -1862,9 +1876,9 @@ mod tests {
         .unwrap();
         assert_eq!(nodes.weight_of(dealer_id).unwrap(), 0);
 
-        let sid = b"zero weight dealer".to_vec();
+        let batch_id = BatchId::new(b"zero weight dealer".to_vec());
 
-        assert!(Dealer::new(nodes, dealer_id, params, sid, batch_size_per_weight).is_err());
+        assert!(Dealer::new(nodes, dealer_id, params, &batch_id, batch_size_per_weight).is_err());
     }
 
     /// Build a uniform-weight Dealer and matching set of Receivers for tests.
@@ -1889,14 +1903,14 @@ mod tests {
                 .collect::<Vec<_>>(),
         )
         .unwrap();
-        let sid = b"avss test".to_vec();
+        let batch_id = BatchId::new(b"avss test".to_vec());
         let dealer_id = 1;
         let params = Parameters { t, f };
         let dealer = Dealer::new(
             nodes.clone(),
             dealer_id,
             params,
-            sid.clone(),
+            &batch_id,
             batch_size_per_weight,
         )
         .unwrap();
@@ -1909,7 +1923,7 @@ mod tests {
                     id as u16,
                     dealer_id,
                     params,
-                    sid.clone(),
+                    &batch_id,
                     sk,
                     batch_size_per_weight,
                 )

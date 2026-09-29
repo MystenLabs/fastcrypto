@@ -43,6 +43,7 @@ use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::GroupElement;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter};
 
@@ -96,6 +97,34 @@ impl Parameters {
             return Err(InvalidInput);
         }
         Ok(())
+    }
+}
+
+/// Domain separation prefix for a dealer's AVSS session id within a nonce batch.
+const DEALER_SESSION_DOMAIN: &[u8] = b"fastcrypto_threshold_schnorr_dealer_session";
+
+/// Identifier of one round of nonce dealing, shared by every dealer in it, `bid` in the protocol
+/// description. Each dealer's own AVSS session id is derived from it with
+/// [BatchId::dealer_session_id], and the presigning instances built from its dealings are
+/// identified by it together with their dealers.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct BatchId(Vec<u8>);
+
+impl BatchId {
+    pub fn new(id: impl Into<Vec<u8>>) -> Self {
+        Self(id.into())
+    }
+
+    /// The AVSS session id of one dealer in this batch, `sid_i = (bid, P_i)` in the protocol
+    /// description. The encoding is unambiguous, so two batches can never give the same session
+    /// id to different dealers.
+    pub fn dealer_session_id(&self, dealer: PartyId) -> Vec<u8> {
+        ::bcs::to_bytes(&(DEALER_SESSION_DOMAIN, &self.0, dealer))
+            .expect("serializing bytes and an id never fails")
+    }
+
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        &self.0
     }
 }
 
@@ -176,7 +205,7 @@ mod tests {
         aggregate_signatures, bind_public_presignatures_for_testing, generate_partial_signatures,
         Blame,
     };
-    use crate::threshold_schnorr::{avss, batch_avss_avid, Address, Parameters, EG, G, S};
+    use crate::threshold_schnorr::{avss, batch_avss_avid, Address, BatchId, Parameters, EG, G, S};
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
     use fastcrypto::error::FastCryptoError::{InputTooShort, InvalidInput};
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
@@ -316,18 +345,16 @@ mod tests {
         // The dealers share a batch id, and each dealer's own session id extends it with its
         // identity. The batch id and the dealers whose outputs are used identify the presigning
         // instance, `pid = (bid, J)` in the protocol description.
-        let presig_batch_id = "presig-test-batch";
-        let presig_dealers = nodes.node_ids_iter().collect_vec();
+        let presig_batch_id = BatchId::new(b"presig-test-batch".to_vec());
 
         // Each dealer generates a batch of presigs per share they control.
         for dealer_id in nodes.node_ids_iter() {
-            let sid = format!("{presig_batch_id}-{dealer_id}").into_bytes();
             let params = Parameters { t, f };
             let dealer: batch_avss_avid::Dealer = batch_avss_avid::Dealer::new(
                 nodes.clone(),
                 dealer_id,
                 params,
-                sid.clone(),
+                &presig_batch_id,
                 batch_size_per_weight,
             )
             .unwrap();
@@ -340,7 +367,7 @@ mod tests {
                         id as u16,
                         dealer_id,
                         params,
-                        sid.clone(),
+                        &presig_batch_id,
                         enc_secret_key.clone(),
                         batch_size_per_weight,
                     )
@@ -362,14 +389,9 @@ mod tests {
         let mut presigs = presigning_outputs
             .into_iter()
             .map(|(id, outputs)| {
-                let presignatures = Presignatures::new(
-                    outputs,
-                    &presig_dealers,
-                    batch_size_per_weight,
-                    Parameters { t, f },
-                    presig_batch_id.as_bytes(),
-                )
-                .unwrap();
+                let presignatures =
+                    Presignatures::new(outputs, batch_size_per_weight, Parameters { t, f })
+                        .unwrap();
                 assert_eq!(
                     presignatures.len(),
                     batch_size_per_weight as usize
@@ -676,6 +698,8 @@ mod tests {
                 (0..n)
                     .map(|j| {
                         batch_avss_avid::ReceiverOutput {
+                            batch_id: BatchId::new(BATCH_ID.to_vec()),
+                            dealer: j as PartyId,
                             my_shares: SharesForNode {
                                 shares: vec![ShareBatch {
                                     batch: (0..batch_size_per_weight as usize)
@@ -694,14 +718,8 @@ mod tests {
         let mut presigning = outputs
             .into_iter()
             .map(|output| {
-                let presignatures = Presignatures::new(
-                    output,
-                    &(0..n).collect_vec(),
-                    batch_size_per_weight,
-                    Parameters { t, f },
-                    BATCH_ID,
-                )
-                .unwrap();
+                let presignatures =
+                    Presignatures::new(output, batch_size_per_weight, Parameters { t, f }).unwrap();
                 assert_eq!(
                     presignatures.len(),
                     batch_size_per_weight as usize * (n - f) as usize
@@ -979,6 +997,8 @@ mod tests {
                 (0..n as usize)
                     .map(|j| {
                         batch_avss_avid::ReceiverOutput {
+                            batch_id: BatchId::new(BATCH_ID.to_vec()),
+                            dealer: j as PartyId,
                             my_shares: SharesForNode {
                                 shares: vec![ShareBatch {
                                     batch: (0..batch_size_per_weight as usize)
@@ -997,14 +1017,8 @@ mod tests {
         let mut presigning = outputs
             .into_iter()
             .map(|output| {
-                let presignatures = Presignatures::new(
-                    output,
-                    &(0..n).collect_vec(),
-                    batch_size_per_weight,
-                    Parameters { t, f },
-                    BATCH_ID,
-                )
-                .unwrap();
+                let presignatures =
+                    Presignatures::new(output, batch_size_per_weight, Parameters { t, f }).unwrap();
                 assert_eq!(
                     presignatures.len(),
                     batch_size_per_weight as usize * (n - f) as usize

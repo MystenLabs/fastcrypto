@@ -6,6 +6,7 @@ use fastcrypto::groups::ristretto255;
 use fastcrypto_tbls::ecies_v1;
 use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
 use fastcrypto_tbls::threshold_schnorr::batch_avss_avid as batch_avss;
+use fastcrypto_tbls::threshold_schnorr::BatchId;
 use fastcrypto_tbls::threshold_schnorr::Parameters;
 use itertools::iproduct;
 use rand::thread_rng;
@@ -47,7 +48,7 @@ pub fn setup_receiver(
         id,
         dealer_id,
         Parameters { t: threshold, f },
-        b"avss".to_vec(),
+        &BatchId::new(b"avss".to_vec()),
         keys.get(id as usize).unwrap().1.clone(),
         batch_size_per_weight,
     )
@@ -74,7 +75,7 @@ pub fn setup_dealer(
         Nodes::new(nodes).unwrap(),
         dealer_id,
         Parameters { t: threshold, f },
-        b"avss".to_vec(),
+        &BatchId::new(b"avss".to_vec()),
         batch_size_per_weight,
     )
     .unwrap()
@@ -443,7 +444,6 @@ mod batch_avss_benches {
                         }
                     })
                     .collect_vec();
-                let dealers = (0..outputs.len() as PartyId).collect_vec();
 
                 complete.bench_function(
                     format!("create/n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
@@ -451,10 +451,8 @@ mod batch_avss_benches {
                         b.iter(|| {
                             Presignatures::new(
                                 outputs.clone(),
-                                &dealers,
                                 batch_size_per_weight,
                                 Parameters { t, f },
-                                b"bench batch",
                             )
                             .unwrap()
                         })
@@ -466,10 +464,8 @@ mod batch_avss_benches {
                     .map(|_| {
                         Presignatures::new(
                             outputs.clone(),
-                            &dealers,
                             batch_size_per_weight,
                             Parameters { t, f },
-                            b"bench batch",
                         )
                         .unwrap()
                     })
