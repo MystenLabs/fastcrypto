@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::nodes::PartyId;
+use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::batch_avss_avid::ReceiverOutput;
 use crate::threshold_schnorr::pascal_matrix::LazyPascalMatrixMultiplier;
 use crate::threshold_schnorr::{BatchId, Parameters, G, S};
@@ -9,13 +10,13 @@ use crate::types::get_uniform_value;
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
-use fastcrypto::hash::{Blake2b256, HashFunction};
+
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-/// Domain separation prefix for the hash identifying a presigning instance.
-const SESSION_ID_DOMAIN: &[u8] = b"fastcrypto_threshold_schnorr_presigning_session";
+/// Domain separation prefix for the random oracle identifying a presigning instance.
+const SESSION_ID_DOMAIN: &str = "fastcrypto_threshold_schnorr_presigning_session";
 
 /// An iterator that yields presigning tuples (t_i, p_i).
 ///
@@ -180,18 +181,18 @@ impl Presignatures {
         batch_size_per_weight: u16,
         params: Parameters,
     ) -> FastCryptoResult<Self> {
-        if batch_size_per_weight == 0 || outputs.is_empty() {
+        if batch_size_per_weight == 0 {
             return Err(InvalidInput);
         }
+
+        // All dealings must be from one batch, which also rejects an empty set of outputs.
+        let batch_id = get_uniform_value(outputs.iter().map(|output| output.batch_id.clone()))
+            .ok_or(InvalidInput)?;
 
         // The dealer order fixes the layout of the presigning matrix, so the caller must present
         // the dealings in a canonical order: every party then combines them the same way.
         let dealers = outputs.iter().map(|output| output.dealer).collect_vec();
-        let batch_id = outputs[0].batch_id.clone();
-        if !dealers.iter().all_unique()
-            || !dealers.is_sorted()
-            || outputs.iter().any(|output| output.batch_id != batch_id)
-        {
+        if !dealers.iter().all_unique() || !dealers.is_sorted() {
             return Err(InvalidInput);
         }
         let batch_size_per_weight = batch_size_per_weight as usize;
@@ -285,11 +286,10 @@ impl Presignatures {
         Ok(Self {
             secret,
             public,
-            session_id: Blake2b256::digest(
-                bcs::to_bytes(&(SESSION_ID_DOMAIN, batch_id.as_bytes(), &dealers))
-                    .expect("serializing bytes and ids never fails"),
-            )
-            .digest,
+            session_id: RandomOracle::new(SESSION_ID_DOMAIN)
+                .evaluate(&(batch_id.as_bytes(), &dealers))[..32]
+                .try_into()
+                .expect("the random oracle returns 64 bytes"),
             batch_id,
             dealers,
         })
