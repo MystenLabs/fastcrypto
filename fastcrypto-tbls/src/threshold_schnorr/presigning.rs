@@ -255,10 +255,6 @@ impl Presignatures {
         assert!(secret.iter().all(|s| s.len() == expected_len));
         assert_eq!(public.len(), expected_len);
 
-        if expected_len % 2 == 1 {
-            warn!("presigning: {expected_len} tuples is odd, so the last one will go unused.");
-        }
-
         Ok(Self {
             secret,
             public,
@@ -267,6 +263,10 @@ impl Presignatures {
     }
 
     fn into_pairs(self) -> impl Iterator<Item = PresignaturePair> {
+        let tuples = self.len();
+        if tuples % 2 == 1 {
+            warn!("presigning: {tuples} tuples is odd, so the last one will go unused.");
+        }
         let presigning_id = self.presigning_id;
         self.tuples().enumerate().map(
             move |(index, ((first_shares, first), (second_shares, second)))| PresignaturePair {
