@@ -7,9 +7,13 @@ use crate::threshold_schnorr::{Parameters, G, S};
 use crate::types::get_uniform_value;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
+use fastcrypto::hash::{Blake2b256, HashFunction};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
+
+/// Domain separation prefix for the hash of a presigning session id.
+const SESSION_ID_DOMAIN: &[u8] = b"fastcrypto_threshold_schnorr_presigning_session";
 
 /// An iterator that yields presigning tuples (t_i, p_i).
 ///
@@ -19,13 +23,15 @@ use tracing::warn;
 pub struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
+    session_id: [u8; 32],
 }
 
-/// The public part of a [PresignaturePair]: the index of the pair within its presigning instance
-/// and the two public presignatures. This is what the parties must agree on, and what aggregation
-/// needs.
+/// The public part of a [PresignaturePair]: the presigning instance it came from, the index of
+/// the pair within that instance and the two public presignatures. This is what the parties must
+/// agree on, and what aggregation needs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicPresignaturePair {
+    pub session_id: [u8; 32],
     pub index: u32,
     pub first: G,
     pub second: G,
@@ -85,6 +91,10 @@ impl Presignatures {
     /// know or bias up to `t - 1` of the input nonces, so only `total_weight - (t - 1)` combined
     /// nonces per position remain uniformly random and safe to output.
     ///
+    /// `session_id` identifies this presigning instance, and all parties must use the same one.
+    /// It is hashed into the binding factor of every pair from this generator, so pairs from
+    /// different instances can never be bound the same way.
+    ///
     /// An InvalidInput error will be returned if:
     /// * `params.t` is zero,
     /// * The total weight of the dealers for the outputs is not at least `params.t`,
@@ -94,6 +104,7 @@ impl Presignatures {
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,
         params: Parameters,
+        session_id: &[u8],
     ) -> FastCryptoResult<Self> {
         if batch_size_per_weight == 0 {
             return Err(InvalidInput);
@@ -186,16 +197,22 @@ impl Presignatures {
         assert!(secret.iter().all(|s| s.len() == expected_len));
         assert_eq!(public.len(), expected_len);
 
-        Ok(Self { secret, public })
+        Ok(Self {
+            secret,
+            public,
+            session_id: Blake2b256::digest([SESSION_ID_DOMAIN, session_id].concat()).digest,
+        })
     }
 
     /// Pair up the tuples, two per signature, dropping a trailing tuple with nothing to pair it
     /// with. Pairs are indexed from the start of the returned iterator, so it must be created
     /// from a fresh generator and resumed with e.g. `nth`, not by advancing the tuples first.
     pub fn pairs(self) -> impl Iterator<Item = PresignaturePair> {
+        let session_id = self.session_id;
         self.tuples().enumerate().map(
-            |(index, ((first_shares, first), (second_shares, second)))| PresignaturePair {
+            move |(index, ((first_shares, first), (second_shares, second)))| PresignaturePair {
                 public: PublicPresignaturePair {
+                    session_id,
                     index: index as u32,
                     first,
                     second,
@@ -228,7 +245,8 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let presignatures = Presignatures::new(outputs, batch_size_per_weight, params).unwrap();
+        let presignatures =
+            Presignatures::new(outputs, batch_size_per_weight, params, b"session").unwrap();
 
         let total_weight_of_outputs = 2;
         let expected_len =
@@ -258,7 +276,8 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Privacy threshold t-1: (4 - (3 - 1)) * 2 = 4.
-        let presignatures = Presignatures::new(outputs, batch_size_per_weight, params).unwrap();
+        let presignatures =
+            Presignatures::new(outputs, batch_size_per_weight, params, b"session").unwrap();
         assert_eq!(
             presignatures.len(),
             (4 - (params.t as usize - 1)) * batch_size_per_weight as usize
@@ -278,7 +297,8 @@ mod tests {
         // Total weight 4 and `t - 1 = 1` give a height of 3, and each row yields one presignature
         // per nonce position, so (4 - (2 - 1)) * 2 = 6. Using `f = 2` as the threshold would leave
         // a height of 2 and so (4 - 2) * 2 = 4.
-        let presignatures = Presignatures::new(outputs, batch_size_per_weight, params).unwrap();
+        let presignatures =
+            Presignatures::new(outputs, batch_size_per_weight, params, b"session").unwrap();
         assert_eq!(
             presignatures.len(),
             (4 - (params.t as usize - 1)) * batch_size_per_weight as usize
@@ -306,7 +326,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert!(Presignatures::new(outputs, batch_size_per_weight, params).is_err());
+        assert!(Presignatures::new(outputs, batch_size_per_weight, params, b"session").is_err());
     }
 
     #[test]
@@ -322,7 +342,8 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let presignatures = Presignatures::new(outputs, batch_size_per_weight, params).unwrap();
+        let presignatures =
+            Presignatures::new(outputs, batch_size_per_weight, params, b"session").unwrap();
         assert_eq!(presignatures.len(), 9);
         assert_eq!(
             presignatures

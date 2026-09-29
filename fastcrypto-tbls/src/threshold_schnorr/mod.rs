@@ -158,6 +158,7 @@ impl Display for Extensions {
 mod tests {
     /// The presigning instance the test tuples come from.
     const SESSION_ID: &[u8] = b"test session";
+    const SESSION_ID_HASH: [u8; 32] = [9u8; 32];
 
     use crate::ecies_v1;
     use crate::ecies_v1::PublicKey;
@@ -354,9 +355,13 @@ mod tests {
         let mut presigs = presigning_outputs
             .into_iter()
             .map(|(id, outputs)| {
-                let presignatures =
-                    Presignatures::new(outputs, batch_size_per_weight, Parameters { t, f })
-                        .unwrap();
+                let presignatures = Presignatures::new(
+                    outputs,
+                    batch_size_per_weight,
+                    Parameters { t, f },
+                    SESSION_ID,
+                )
+                .unwrap();
                 assert_eq!(
                     presignatures.len(),
                     batch_size_per_weight as usize
@@ -389,7 +394,6 @@ mod tests {
                 generate_partial_signatures(
                     message,
                     presig_pair,
-                    SESSION_ID,
                     &merged_shares.get(&node.id).unwrap().my_shares,
                     &vk,
                     None,
@@ -402,7 +406,6 @@ mod tests {
         let (signature, excluded) = aggregate_signatures(
             message,
             &presig_pair,
-            SESSION_ID,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, s)| s.clone())
@@ -568,7 +571,6 @@ mod tests {
                 generate_partial_signatures(
                     message_2,
                     presig_pair,
-                    SESSION_ID,
                     &merged_shares.get(&node.id).unwrap().my_shares,
                     &vk,
                     None,
@@ -581,7 +583,6 @@ mod tests {
         let (signature_2, excluded) = aggregate_signatures(
             message_2,
             &presig_pair,
-            SESSION_ID,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, s)| s.clone())
@@ -683,8 +684,13 @@ mod tests {
         let mut presigning = outputs
             .into_iter()
             .map(|output| {
-                let presignatures =
-                    Presignatures::new(output, batch_size_per_weight, Parameters { t, f }).unwrap();
+                let presignatures = Presignatures::new(
+                    output,
+                    batch_size_per_weight,
+                    Parameters { t, f },
+                    SESSION_ID,
+                )
+                .unwrap();
                 assert_eq!(
                     presignatures.len(),
                     batch_size_per_weight as usize * (n - f) as usize
@@ -709,22 +715,13 @@ mod tests {
                 let my_shares = avss::SharesForNode {
                     shares: vec![sk_shares[i].clone()],
                 };
-                generate_partial_signatures(
-                    message,
-                    pair,
-                    SESSION_ID,
-                    &my_shares,
-                    &vk_element,
-                    None,
-                )
-                .unwrap()
+                generate_partial_signatures(message, pair, &my_shares, &vk_element, None).unwrap()
             })
             .collect_vec();
 
         let (signature, excluded) = aggregate_signatures(
             message,
             &presig_pair,
-            SESSION_ID,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())
@@ -751,7 +748,6 @@ mod tests {
         let (corrected, excluded) = aggregate_signatures(
             message,
             &presig_pair,
-            SESSION_ID,
             &corrupted,
             Parameters { t, f },
             &vk_element,
@@ -778,7 +774,6 @@ mod tests {
                     second: presig_pair.second + G::generator(),
                     ..presig_pair
                 },
-                SESSION_ID,
                 &honest,
                 Parameters { t, f },
                 &vk_element,
@@ -792,7 +787,6 @@ mod tests {
             aggregate_signatures(
                 message,
                 &presig_pair,
-                SESSION_ID,
                 partials,
                 Parameters { t, f },
                 &vk_element,
@@ -814,7 +808,6 @@ mod tests {
         let (corrected, excluded) = aggregate_signatures(
             message,
             &presig_pair,
-            SESSION_ID,
             &corrupted[..5],
             Parameters { t, f },
             &vk_element,
@@ -864,6 +857,7 @@ mod tests {
                     let (presig_1, presig_pair) = loop {
                         let presig_1 = S::rand(&mut rng);
                         let presig_pair = PublicPresignaturePair {
+                            session_id: SESSION_ID_HASH,
                             index: 0,
                             first: G::generator() * presig_0,
                             second: G::generator() * presig_1,
@@ -871,7 +865,6 @@ mod tests {
                         let nonce = bind_public_presignatures_for_testing(
                             message,
                             &presig_pair,
-                            SESSION_ID,
                             &vk,
                             address.as_ref(),
                         )
@@ -892,7 +885,6 @@ mod tests {
                                     first_shares: vec![presig_shares_0[i].value],
                                     second_shares: vec![presig_shares_1[i].value],
                                 },
-                                SESSION_ID,
                                 &avss::SharesForNode {
                                     shares: vec![sk_shares[i].clone()],
                                 },
@@ -906,7 +898,6 @@ mod tests {
                     let (signature, excluded) = aggregate_signatures(
                         message,
                         &presig_pair,
-                        SESSION_ID,
                         &partial_signatures,
                         Parameters { t, f },
                         &vk,
@@ -992,8 +983,13 @@ mod tests {
         let mut presigning = outputs
             .into_iter()
             .map(|output| {
-                let presignatures =
-                    Presignatures::new(output, batch_size_per_weight, Parameters { t, f }).unwrap();
+                let presignatures = Presignatures::new(
+                    output,
+                    batch_size_per_weight,
+                    Parameters { t, f },
+                    SESSION_ID,
+                )
+                .unwrap();
                 assert_eq!(
                     presignatures.len(),
                     batch_size_per_weight as usize * (n - f) as usize
@@ -1019,22 +1015,14 @@ mod tests {
                 let my_shares = avss::SharesForNode {
                     shares: vec![sk_shares[i].clone()],
                 };
-                generate_partial_signatures(
-                    message,
-                    pair,
-                    SESSION_ID,
-                    &my_shares,
-                    &vk_element,
-                    Some(&address),
-                )
-                .unwrap()
+                generate_partial_signatures(message, pair, &my_shares, &vk_element, Some(&address))
+                    .unwrap()
             })
             .collect_vec();
 
         let (signature, excluded) = aggregate_signatures(
             message,
             &presig_pair,
-            SESSION_ID,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())

@@ -452,6 +452,7 @@ mod batch_avss_benches {
                                 outputs.clone(),
                                 batch_size_per_weight,
                                 Parameters { t, f },
+                                b"bench session",
                             )
                             .unwrap()
                         })
@@ -465,6 +466,7 @@ mod batch_avss_benches {
                             outputs.clone(),
                             batch_size_per_weight,
                             Parameters { t, f },
+                            b"bench session",
                         )
                         .unwrap()
                     })

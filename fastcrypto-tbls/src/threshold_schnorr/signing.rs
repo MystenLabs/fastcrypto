@@ -25,9 +25,10 @@ const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_b
 /// The tuples are combined into a single nonce which is bound to the message and the verifying
 /// key, so the signature is secure whether the presignatures are generated before or after the
 /// message is known.
-/// The pair must be taken from a [PresignaturePairs] iterator, the other parties should use the same pair and one pair may only be used once.
-/// `session_id` identifies the presigning instance the pair came from, and must be the same for all parties.
-/// Signing twice with the same pair of tuples discloses the signing key.
+/// The pair must be taken from [Presignatures::pairs], and the other parties must use the same pair.
+/// Each tuple must go into exactly one signature: two signatures from one pair do not disclose the
+/// signing key on their own, but three on different messages do, and many pairs each used twice is
+/// a ROS forgery.
 /// Returns also the public nonce, which all parties must agree on.
 ///
 /// The signatures produced follow the BIP-0340 standard (<https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki>).
@@ -43,18 +44,12 @@ const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_b
 pub fn generate_partial_signatures(
     message: &[u8],
     presig_pair: PresignaturePair,
-    session_id: &[u8],
     my_signing_key_shares: &avss::SharesForNode,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
-    let (mut secret_presigs, r_g) = bind_presignatures(
-        message,
-        presig_pair,
-        session_id,
-        verifying_key,
-        derivation_address,
-    )?;
+    let (mut secret_presigs, r_g) =
+        bind_presignatures(message, presig_pair, verifying_key, derivation_address)?;
 
     // In BIP-340, the nonce R must have an even Y coordinate.
     // If it doesn't, we negate the secret nonce to get a new nonce R' = -R with an even Y.
@@ -159,7 +154,6 @@ pub enum Blame {
 pub fn aggregate_signatures(
     message: &[u8],
     presig_pair: &PublicPresignaturePair,
-    session_id: &[u8],
     partial_signatures: &[Eval<S>],
     params: Parameters,
     verifying_key: &G,
@@ -175,14 +169,7 @@ pub fn aggregate_signatures(
 
     let s = Poly::recover_c0(params.t, partial_signatures.iter().take(params.t as usize))?;
 
-    match finalize_schnorr_signature(
-        message,
-        presig_pair,
-        session_id,
-        s,
-        verifying_key,
-        derivation_address,
-    ) {
+    match finalize_schnorr_signature(message, presig_pair, s, verifying_key, derivation_address) {
         Ok(signature) => Ok((signature, Blame::Nobody)),
         // Decode the partial signatures as a Reed-Solomon code word instead.
         Err(InvalidSignature) => {
@@ -206,7 +193,6 @@ pub fn aggregate_signatures(
             let signature = match finalize_schnorr_signature(
                 message,
                 presig_pair,
-                session_id,
                 decoding.constant_term(),
                 verifying_key,
                 derivation_address,
@@ -255,20 +241,13 @@ fn can_blame_excluded_indices(given: usize, excluded: usize, params: Parameters)
 fn finalize_schnorr_signature(
     message: &[u8],
     presig_pair: &PublicPresignaturePair,
-    session_id: &[u8],
     s: S,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<SchnorrSignature> {
     // Compute the nonce R for the signature. The signers negate their secret nonces when R has an
     // odd Y coordinate, which covers the whole nonce here, so `s` needs no adjustment.
-    let r_g = bind_public_presignatures(
-        message,
-        presig_pair,
-        session_id,
-        verifying_key,
-        derivation_address,
-    )?;
+    let r_g = bind_public_presignatures(message, presig_pair, verifying_key, derivation_address)?;
     let mut s = s;
 
     // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
@@ -296,11 +275,10 @@ fn finalize_schnorr_signature(
 }
 
 /// Combine two presigning tuples into one bound to the message and verifying key:
-/// `(t_0 + b * t_1, p_0 + b * p_1)` with `b = H(p_0, p_1, vk, message)`.
+/// `(T + delta * T', D + delta * D')`, see [binding_factor].
 fn bind_presignatures(
     message: &[u8],
     presig_pair: PresignaturePair,
-    session_id: &[u8],
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(Vec<S>, G)> {
@@ -312,63 +290,49 @@ fn bind_presignatures(
     if first_shares.len() != second_shares.len() {
         return Err(FastCryptoError::InvalidInput);
     }
-    let b = binding_factor(
-        message,
-        &public,
-        session_id,
-        verifying_key,
-        derivation_address,
-    )?;
+    let delta = binding_factor(message, &public, verifying_key, derivation_address)?;
     Ok((
         first_shares
             .into_iter()
             .zip(second_shares)
-            .map(|(t_0, t_1)| t_0 + b * t_1)
+            .map(|(t, t_prime)| t + delta * t_prime)
             .collect(),
-        combine_public_presignatures(&public.first, &public.second, &b)?,
+        combine_public_presignatures(&public.first, &public.second, &delta)?,
     ))
 }
 
-/// Compute the public part of [bind_presignatures], `p_0 + b * p_1`.
+/// Compute the public part of [bind_presignatures], `D + delta * D'`.
 fn bind_public_presignatures(
     message: &[u8],
     presig_pair: &PublicPresignaturePair,
-    session_id: &[u8],
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<G> {
-    let b = binding_factor(
-        message,
-        presig_pair,
-        session_id,
-        verifying_key,
-        derivation_address,
-    )?;
-    combine_public_presignatures(&presig_pair.first, &presig_pair.second, &b)
+    let delta = binding_factor(message, presig_pair, verifying_key, derivation_address)?;
+    combine_public_presignatures(&presig_pair.first, &presig_pair.second, &delta)
 }
 
-/// Compute the nonce `p_0 + b * p_1` for a signature. Since the presignatures are random, the
+/// Compute the nonce `D + delta * D'` for a signature. Since the presignatures are random, the
 /// identity element occurs only with negligible probability and is rejected with
 /// [`FastCryptoError::GeneralOpaqueError`].
 fn combine_public_presignatures(
     public_presig_0: &G,
     public_presig_1: &G,
-    b: &S,
+    delta: &S,
 ) -> FastCryptoResult<G> {
-    let r_g = *public_presig_0 + *public_presig_1 * b;
+    let r_g = *public_presig_0 + *public_presig_1 * delta;
     if r_g == G::zero() {
         return Err(FastCryptoError::GeneralOpaqueError);
     }
     Ok(r_g)
 }
 
-/// Compute the binding factor `b = H(vk, session_id, index, p_0, p_1, message)`, where `vk` is the
+/// Compute the binding factor `delta = H(vk, session_id, index, D, D', message)`, where `vk` is the
 /// derived verifying key if a derivation address is given. The session id and the pair index tie
 /// the factor to the presigning instance and to the position in it that the pair came from.
 fn binding_factor(
     message: &[u8],
     presig_pair: &PublicPresignaturePair,
-    session_id: &[u8],
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<S> {
@@ -389,7 +353,7 @@ fn binding_factor(
     Ok(
         RandomOracle::new(BINDING_FACTOR_DOMAIN).evaluate_to_group_element(&(
             verifying_key,
-            session_id,
+            presig_pair.session_id,
             presig_pair.index,
             presig_pair.first,
             presig_pair.second,
@@ -410,17 +374,10 @@ fn bip0340_hash(r_g: &G, vk: &G, message: &[u8]) -> FastCryptoResult<S> {
 pub(crate) fn bind_public_presignatures_for_testing(
     message: &[u8],
     presig_pair: &PublicPresignaturePair,
-    session_id: &[u8],
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<G> {
-    bind_public_presignatures(
-        message,
-        presig_pair,
-        session_id,
-        verifying_key,
-        derivation_address,
-    )
+    bind_public_presignatures(message, presig_pair, verifying_key, derivation_address)
 }
 
 #[cfg(test)]
@@ -432,6 +389,7 @@ mod tests {
     #[test]
     fn test_bind_public_presignatures_vector() {
         let presig_pair = PublicPresignaturePair {
+            session_id: [7u8; 32],
             index: 1,
             first: G::generator() * S::from(3u128),
             second: G::generator() * S::from(4u128),
@@ -439,24 +397,17 @@ mod tests {
         let vk = G::generator() * S::from(5u128);
         let address = [6u8; 32];
 
-        let r = bind_public_presignatures(b"Hello, world!", &presig_pair, b"session", &vk, None)
-            .unwrap();
+        let r = bind_public_presignatures(b"Hello, world!", &presig_pair, &vk, None).unwrap();
         assert_eq!(
             Hex::encode(r.to_byte_array()),
-            "9bfda9230664839990cea4bb93eeafacb48d79184c435321782bdb3bfed9bdff00"
+            "becf199e424849839dea14cef5837c086b701c4332472bca6a21902fe309626400"
         );
 
-        let r = bind_public_presignatures(
-            b"Hello, world!",
-            &presig_pair,
-            b"session",
-            &vk,
-            Some(&address),
-        )
-        .unwrap();
+        let r =
+            bind_public_presignatures(b"Hello, world!", &presig_pair, &vk, Some(&address)).unwrap();
         assert_eq!(
             Hex::encode(r.to_byte_array()),
-            "bdbfdfda828a550a3d0c4258a9be27c27be6ce808ac63b09c0c5fcd4f5e61df200"
+            "c8b3d370f778561127cf48706ec83f97bcc75604bdb897ab625dbd6b9d1651fd00"
         );
     }
 }
