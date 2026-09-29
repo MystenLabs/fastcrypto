@@ -275,7 +275,7 @@ fn finalize_schnorr_signature(
 }
 
 /// Combine two presigning tuples into one bound to the message and verifying key:
-/// `(T + delta * T', D + delta * D')`, see [binding_factor].
+/// `(T + delta * T', D + delta * D')`, see [compute_delta].
 fn bind_presignatures(
     message: &[u8],
     presig_pair: PresignaturePair,
@@ -286,7 +286,7 @@ fn bind_presignatures(
     if first_shares.len() != second_shares.len() {
         return Err(FastCryptoError::InvalidInput);
     }
-    let delta = binding_factor(message, &public, verifying_key, derivation_address)?;
+    let delta = compute_delta(message, &public, verifying_key, derivation_address)?;
     Ok((
         first_shares
             .into_iter()
@@ -304,7 +304,7 @@ fn bind_public_presignatures(
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<G> {
-    let delta = binding_factor(message, presig_pair, verifying_key, derivation_address)?;
+    let delta = compute_delta(message, presig_pair, verifying_key, derivation_address)?;
     combine_public_presignatures(presig_pair.first(), presig_pair.second(), &delta)
 }
 
@@ -324,7 +324,7 @@ fn combine_public_presignatures(
 }
 
 /// Compute the binding factor `delta = H(vk, presigning_id, index, D, D', message)`.
-fn binding_factor(
+fn compute_delta(
     message: &[u8],
     presig_pair: &PublicPresignaturePair,
     verifying_key: &G,
