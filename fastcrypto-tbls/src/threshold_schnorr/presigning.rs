@@ -153,8 +153,11 @@ impl Presignatures {
     /// nonces per position remain uniformly random and safe to output.
     ///
     /// `session_id` identifies this presigning instance, and all parties must use the same one.
+    /// It is the batch the dealers shared together with the set of dealers whose outputs are used
+    /// here, `pid = (bid, J)` in the protocol description, and never a single dealer's session id.
     /// It is hashed into the binding factor of every pair from this generator, so pairs from
-    /// different instances can never be bound the same way.
+    /// different instances, or from different dealer sets of the same batch, can never be bound
+    /// the same way.
     ///
     /// An InvalidInput error will be returned if:
     /// * `params.t` is zero,

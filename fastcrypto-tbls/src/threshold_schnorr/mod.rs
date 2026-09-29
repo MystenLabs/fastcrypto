@@ -156,7 +156,7 @@ impl Display for Extensions {
 
 #[cfg(test)]
 mod tests {
-    /// The presigning instance the test tuples come from.
+    /// Stands in for the presigning instance where the nonces are mocked rather than dealt.
     const SESSION_ID: &[u8] = b"test session";
     const SESSION_ID_HASH: [u8; 32] = [9u8; 32];
 
@@ -312,9 +312,18 @@ mod tests {
             presigning_outputs.insert(id, Vec::new());
         });
 
+        // The dealers share a batch id, and each dealer's own session id extends it with its
+        // identity. The presigning instance is that batch id together with the set of dealers
+        // whose outputs are used, `pid = (bid, J)` in the protocol description.
+        let presig_batch_id = "presig-test-batch";
+        let mut presig_session_id = presig_batch_id.as_bytes().to_vec();
+        for dealer_id in nodes.node_ids_iter() {
+            presig_session_id.extend_from_slice(&dealer_id.to_be_bytes());
+        }
+
         // Each dealer generates a batch of presigs per share they control.
         for dealer_id in nodes.node_ids_iter() {
-            let sid = format!("presig-test-session-{}", dealer_id).into_bytes();
+            let sid = format!("{presig_batch_id}-{dealer_id}").into_bytes();
             let params = Parameters { t, f };
             let dealer: batch_avss_avid::Dealer = batch_avss_avid::Dealer::new(
                 nodes.clone(),
@@ -359,7 +368,7 @@ mod tests {
                     outputs,
                     batch_size_per_weight,
                     Parameters { t, f },
-                    SESSION_ID,
+                    &presig_session_id,
                 )
                 .unwrap();
                 assert_eq!(
