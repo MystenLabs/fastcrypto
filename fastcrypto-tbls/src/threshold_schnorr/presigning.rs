@@ -44,14 +44,9 @@ impl PublicPresignaturePair {
         self.index
     }
 
-    /// The public part of the first presigning tuple, `D` in the protocol description.
-    pub fn first(&self) -> &G {
-        &self.first
-    }
-
-    /// The public part of the second presigning tuple, `D'` in the protocol description.
-    pub fn second(&self) -> &G {
-        &self.second
+    /// The public parts of the two presigning tuples, `D` and `D'` in the protocol description.
+    pub fn presignatures(&self) -> (&G, &G) {
+        (&self.first, &self.second)
     }
 
     #[cfg(test)]

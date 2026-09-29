@@ -816,8 +816,8 @@ mod tests {
                 &PublicPresignaturePair::new_for_testing(
                     *presig_pair.presigning_id(),
                     presig_pair.index(),
-                    *presig_pair.first(),
-                    *presig_pair.second() + G::generator(),
+                    *presig_pair.presignatures().0,
+                    *presig_pair.presignatures().1 + G::generator(),
                 ),
                 &honest,
                 Parameters { t, f },

@@ -317,7 +317,8 @@ fn combine_public_presignatures(
     presig_pair: &PublicPresignaturePair,
     delta: &S,
 ) -> FastCryptoResult<G> {
-    let r_g = *presig_pair.first() + *presig_pair.second() * delta;
+    let (first, second) = presig_pair.presignatures();
+    let r_g = *first + *second * delta;
     if r_g == G::zero() {
         return Err(FastCryptoError::GeneralOpaqueError);
     }
@@ -333,10 +334,8 @@ fn compute_delta(
 ) -> FastCryptoResult<S> {
     // As in FROST, the public presignatures must be non-identity group elements, and they must be
     // distinct so that the binding factor actually binds the second nonce to the message.
-    if *presig_pair.first() == G::zero()
-        || *presig_pair.second() == G::zero()
-        || presig_pair.first() == presig_pair.second()
-        || *verifying_key == G::zero()
+    let (first, second) = presig_pair.presignatures();
+    if *first == G::zero() || *second == G::zero() || first == second || *verifying_key == G::zero()
     {
         return Err(FastCryptoError::InvalidInput);
     }
@@ -350,8 +349,8 @@ fn compute_delta(
             verifying_key,
             presig_pair.presigning_id(),
             presig_pair.index(),
-            presig_pair.first(),
-            presig_pair.second(),
+            first,
+            second,
             message,
         )),
     )
@@ -442,15 +441,15 @@ mod tests {
         let other_session = PublicPresignaturePair::new_for_testing(
             PresigningId::from_bytes_for_testing([10u8; 32]),
             pair.index(),
-            *pair.first(),
-            *pair.second(),
+            *pair.presignatures().0,
+            *pair.presignatures().1,
         );
         assert_ne!(r, nonce(b"Hello, world!", &other_session, &vk, None));
         let other_index = PublicPresignaturePair::new_for_testing(
             *pair.presigning_id(),
             pair.index() + 1,
-            *pair.first(),
-            *pair.second(),
+            *pair.presignatures().0,
+            *pair.presignatures().1,
         );
         assert_ne!(r, nonce(b"Hello, world!", &other_index, &vk, None));
 
@@ -458,8 +457,8 @@ mod tests {
         let swapped = PublicPresignaturePair::new_for_testing(
             *pair.presigning_id(),
             pair.index(),
-            *pair.second(),
-            *pair.first(),
+            *pair.presignatures().1,
+            *pair.presignatures().0,
         );
         assert_ne!(r, nonce(b"Hello, world!", &swapped, &vk, None));
     }
