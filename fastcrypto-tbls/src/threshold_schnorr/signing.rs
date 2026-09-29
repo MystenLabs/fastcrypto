@@ -41,8 +41,7 @@ const BINDING_FACTOR_DOMAIN: &str = "fastcrypto_threshold_schnorr_presignature_b
 ///
 /// `GeneralOpaqueError` is returned if the generated nonce R is the identity element (should happen only with negligible probability).
 /// `InvalidInput` is returned if the verifying key or one of the public presignatures is the
-/// identity element, if the two public presignatures are equal or if the tuples hold a different
-/// number of shares.
+/// identity element, or if the two public presignatures are equal.
 pub fn generate_partial_signatures(
     message: &[u8],
     presig_pair: PresignaturePair,
