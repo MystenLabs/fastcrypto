@@ -924,8 +924,10 @@ mod tests {
                                 message,
                                 PresignaturePair::new_for_testing(
                                     presig_pair,
-                                    vec![presig_shares_0[i].value],
-                                    vec![presig_shares_1[i].value],
+                                    (
+                                        vec![presig_shares_0[i].value],
+                                        vec![presig_shares_1[i].value],
+                                    ),
                                 ),
                                 &avss::SharesForNode {
                                     shares: vec![sk_shares[i].clone()],

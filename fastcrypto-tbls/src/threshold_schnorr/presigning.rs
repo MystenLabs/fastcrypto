@@ -64,8 +64,7 @@ impl PublicPresignaturePair {
 #[derive(Clone, Debug)]
 pub struct PresignaturePair {
     public: PublicPresignaturePair,
-    first_shares: Vec<S>,
-    second_shares: Vec<S>,
+    shares: (Vec<S>, Vec<S>),
 }
 
 impl PresignaturePair {
@@ -87,23 +86,15 @@ impl PresignaturePair {
         &self.public
     }
 
-    pub(crate) fn into_parts(self) -> (PublicPresignaturePair, Vec<S>, Vec<S>) {
-        (self.public, self.first_shares, self.second_shares)
+    pub(crate) fn into_parts(self) -> (PublicPresignaturePair, (Vec<S>, Vec<S>)) {
+        (self.public, self.shares)
     }
 
     /// Build a pair directly, bypassing [PresignaturePair::from_dealings], which is the only
     /// source of pairs that are guaranteed not to overlap. For tests only.
     #[cfg(any(test, feature = "test-utils"))]
-    pub fn new_for_testing(
-        public: PublicPresignaturePair,
-        first_shares: Vec<S>,
-        second_shares: Vec<S>,
-    ) -> Self {
-        Self {
-            public,
-            first_shares,
-            second_shares,
-        }
+    pub fn new_for_testing(public: PublicPresignaturePair, shares: (Vec<S>, Vec<S>)) -> Self {
+        Self { public, shares }
     }
 }
 
@@ -278,8 +269,7 @@ impl Presignatures {
                     index: index as u32,
                     presignatures: (first, second),
                 },
-                first_shares,
-                second_shares,
+                shares: (first_shares, second_shares),
             },
         )
     }

@@ -284,7 +284,7 @@ fn bind_presignatures(
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(Vec<S>, G)> {
-    let (public, first_shares, second_shares) = presig_pair.into_parts();
+    let (public, (first_shares, second_shares)) = presig_pair.into_parts();
     if first_shares.len() != second_shares.len() {
         return Err(FastCryptoError::InvalidInput);
     }
