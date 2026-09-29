@@ -154,7 +154,7 @@ pub enum Blame {
 /// are equal.
 pub fn aggregate_signatures(
     message: &[u8],
-    presig_pair: &PublicPresignaturePair,
+    public_presig_pair: &PublicPresignaturePair,
     partial_signatures: &[Eval<S>],
     params: Parameters,
     verifying_key: &G,
@@ -170,7 +170,13 @@ pub fn aggregate_signatures(
 
     let s = Poly::recover_c0(params.t, partial_signatures.iter().take(params.t as usize))?;
 
-    match finalize_schnorr_signature(message, presig_pair, s, verifying_key, derivation_address) {
+    match finalize_schnorr_signature(
+        message,
+        public_presig_pair,
+        s,
+        verifying_key,
+        derivation_address,
+    ) {
         Ok(signature) => Ok((signature, Blame::Nobody)),
         // Decode the partial signatures as a Reed-Solomon code word instead.
         Err(InvalidSignature) => {
@@ -193,7 +199,7 @@ pub fn aggregate_signatures(
 
             let signature = match finalize_schnorr_signature(
                 message,
-                presig_pair,
+                public_presig_pair,
                 decoding.constant_term(),
                 verifying_key,
                 derivation_address,
@@ -241,14 +247,19 @@ fn can_blame_excluded_indices(given: usize, excluded: usize, params: Parameters)
 /// identity element, or if the two public presignatures are equal.
 fn finalize_schnorr_signature(
     message: &[u8],
-    presig_pair: &PublicPresignaturePair,
+    public_presig_pair: &PublicPresignaturePair,
     mut s: S,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<SchnorrSignature> {
     // Compute the nonce R for the signature. The signers negate their secret nonces when R has an
     // odd Y coordinate, which covers the whole nonce here, so `s` needs no adjustment.
-    let r_g = compute_nonce(message, presig_pair, verifying_key, derivation_address)?;
+    let r_g = compute_nonce(
+        message,
+        public_presig_pair,
+        verifying_key,
+        derivation_address,
+    )?;
 
     // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
     let verifying_key = if let Some(address) = derivation_address {
@@ -300,22 +311,27 @@ fn compute_nonce_shares(
 /// Compute the nonce `R = D + delta * D'` a signature is made with.
 fn compute_nonce(
     message: &[u8],
-    presig_pair: &PublicPresignaturePair,
+    public_presig_pair: &PublicPresignaturePair,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<G> {
-    let delta = compute_delta(message, presig_pair, verifying_key, derivation_address)?;
-    combine_public_presignatures(presig_pair, &delta)
+    let delta = compute_delta(
+        message,
+        public_presig_pair,
+        verifying_key,
+        derivation_address,
+    )?;
+    combine_public_presignatures(public_presig_pair, &delta)
 }
 
 /// Compute the nonce `D + delta * D'` for a signature. Since the presignatures are random, the
 /// identity element occurs only with negligible probability and is rejected with
 /// [`FastCryptoError::GeneralOpaqueError`].
 fn combine_public_presignatures(
-    presig_pair: &PublicPresignaturePair,
+    public_presig_pair: &PublicPresignaturePair,
     delta: &S,
 ) -> FastCryptoResult<G> {
-    let (first, second) = presig_pair.presignatures();
+    let (first, second) = public_presig_pair.presignatures();
     let r_g = *first + *second * delta;
     if r_g == G::zero() {
         return Err(FastCryptoError::GeneralOpaqueError);
@@ -326,13 +342,13 @@ fn combine_public_presignatures(
 /// Compute the binding factor `delta = H(vk, presigning_id, index, D, D', message)`.
 fn compute_delta(
     message: &[u8],
-    presig_pair: &PublicPresignaturePair,
+    public_presig_pair: &PublicPresignaturePair,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<S> {
     // As in FROST, the public presignatures must be non-identity group elements, and they must be
     // distinct so that the binding factor actually binds the second nonce to the message.
-    let (first, second) = presig_pair.presignatures();
+    let (first, second) = public_presig_pair.presignatures();
     if *first == G::zero() || *second == G::zero() || first == second || *verifying_key == G::zero()
     {
         return Err(FastCryptoError::InvalidInput);
@@ -347,8 +363,8 @@ fn compute_delta(
     Ok(
         RandomOracle::new(BINDING_FACTOR_DOMAIN).evaluate_to_group_element(&(
             verifying_key,
-            presig_pair.presigning_id().as_bytes(),
-            presig_pair.index(),
+            public_presig_pair.presigning_id().as_bytes(),
+            public_presig_pair.index(),
             first,
             second,
             message,
@@ -367,11 +383,16 @@ fn bip0340_hash(r_g: &G, vk: &G, message: &[u8]) -> FastCryptoResult<S> {
 #[cfg(test)]
 pub(crate) fn compute_nonce_for_testing(
     message: &[u8],
-    presig_pair: &PublicPresignaturePair,
+    public_presig_pair: &PublicPresignaturePair,
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<G> {
-    compute_nonce(message, presig_pair, verifying_key, derivation_address)
+    compute_nonce(
+        message,
+        public_presig_pair,
+        verifying_key,
+        derivation_address,
+    )
 }
 
 #[cfg(test)]
@@ -381,7 +402,7 @@ mod tests {
     use fastcrypto::encoding::{Encoding, Hex};
     use fastcrypto::serde_helpers::ToFromByteArray;
 
-    fn presig_pair() -> PublicPresignaturePair {
+    fn public_presig_pair() -> PublicPresignaturePair {
         PublicPresignaturePair::new_for_testing(
             PresigningId::from_bytes_for_testing([7u8; 64]),
             1,
@@ -394,17 +415,17 @@ mod tests {
 
     #[test]
     fn test_compute_nonce_vector() {
-        let presig_pair = presig_pair();
+        let public_presig_pair = public_presig_pair();
         let vk = G::generator() * S::from(5u128);
         let address = [6u8; 32];
 
-        let r = compute_nonce(b"Hello, world!", &presig_pair, &vk, None).unwrap();
+        let r = compute_nonce(b"Hello, world!", &public_presig_pair, &vk, None).unwrap();
         assert_eq!(
             Hex::encode(r.to_byte_array()),
             "045bfc64e26e284db3dcc72e2be4e99cfdea05879a2e250c56e66175d2bd701e00"
         );
 
-        let r = compute_nonce(b"Hello, world!", &presig_pair, &vk, Some(&address)).unwrap();
+        let r = compute_nonce(b"Hello, world!", &public_presig_pair, &vk, Some(&address)).unwrap();
         assert_eq!(
             Hex::encode(r.to_byte_array()),
             "0d72c476a432ce93f844e665d9cb6a973f00e26046075a6ca7817c98a0e2036680"
@@ -415,7 +436,7 @@ mod tests {
     /// signing tests only check that the parties agree on a delta, not on which one.
     #[test]
     fn test_bound_nonce_covers_every_input() {
-        let pair = presig_pair();
+        let pair = public_presig_pair();
         let vk = G::generator() * S::from(5u128);
         let address = [6u8; 32];
         let nonce = |message, pair: &PublicPresignaturePair, vk: &G, address| {
