@@ -164,7 +164,7 @@ impl Presignatures {
         // The dealer order fixes the layout of the presigning matrix, so the caller must present
         // the dealings in a canonical order.
         let dealers = outputs.iter().map(|output| output.dealer).collect_vec();
-        if !dealers.iter().all_unique() || !dealers.is_sorted() {
+        if !dealers.iter().is_sorted_by(|a, b| a < b) {
             return Err(InvalidInput);
         }
         let batch_size_per_weight = batch_size_per_weight as usize;
