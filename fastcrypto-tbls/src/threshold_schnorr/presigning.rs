@@ -254,9 +254,6 @@ impl Presignatures {
         assert!(secret.iter().all(|s| s.len() == expected_len));
         assert_eq!(public.len(), expected_len);
 
-        // Tuples are consumed two at a time, so an odd count leaves one behind. The parity
-        // depends on the committee's weights as well as `batch_size_per_weight`, so an unchanged
-        // configuration can start wasting a tuple after a committee change.
         if expected_len % 2 == 1 {
             warn!(
                 "presigning: {expected_len} tuples is odd, so the last one will go unused; \
