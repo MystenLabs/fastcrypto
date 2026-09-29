@@ -291,6 +291,8 @@ impl Presignatures {
             public,
             batch_id: batch_id.to_vec(),
             dealers: dealers.to_vec(),
+            // bcs length-prefixes the byte strings and the dealer list, so a long batch id
+            // cannot encode as a short one followed by another dealer.
             session_id: Blake2b256::digest(
                 bcs::to_bytes(&(SESSION_ID_DOMAIN, batch_id, dealers))
                     .expect("serializing bytes and ids never fails"),
