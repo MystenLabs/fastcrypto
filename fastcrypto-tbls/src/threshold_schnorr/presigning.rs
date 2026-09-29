@@ -55,22 +55,22 @@ pub struct PublicPresignaturePair {
 
 impl PublicPresignaturePair {
     /// The presigning instance this pair came from, as hashed by [Presignatures::new].
-    pub fn session_id(&self) -> &[u8; 32] {
+    pub(crate) fn session_id(&self) -> &[u8; 32] {
         &self.session_id
     }
 
     /// The index of this pair within its presigning instance.
-    pub fn index(&self) -> u32 {
+    pub(crate) fn index(&self) -> u32 {
         self.index
     }
 
     /// The public part of the first presigning tuple, `D` in the protocol description.
-    pub fn first(&self) -> &G {
+    pub(crate) fn first(&self) -> &G {
         &self.first
     }
 
     /// The public part of the second presigning tuple, `D'` in the protocol description.
-    pub fn second(&self) -> &G {
+    pub(crate) fn second(&self) -> &G {
         &self.second
     }
 
