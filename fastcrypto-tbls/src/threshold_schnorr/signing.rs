@@ -49,13 +49,13 @@ pub fn generate_partial_signatures(
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
-    let (mut secret_presigs, r_g) =
+    let (mut secret_presigs, nonce) =
         compute_nonce_shares(message, presig_pair, verifying_key, derivation_address)?;
 
     // In BIP-340, the nonce R must have an even Y coordinate.
     // If it doesn't, we negate the secret nonce to get a new nonce R' = -R with an even Y.
     // Since only the X coordinate of R is included in the signature, we don't need to change R, but we must negate the presigs.
-    if !r_g.has_even_y()? {
+    if !nonce.has_even_y()? {
         for presig in &mut secret_presigs {
             *presig = -*presig;
         }
@@ -71,7 +71,7 @@ pub fn generate_partial_signatures(
     // The verifying key must also have an even Y coordinate.
     // If this is not the case, we must negate the verifying key (and hence also the signing key).
     // Since the signing key shares are multiplied with the challenge, we just change the sign of the challenge instead.
-    let mut h = bip0340_hash(&r_g, &verifying_key, message)?;
+    let mut h = bip0340_hash(&nonce, &verifying_key, message)?;
     if !verifying_key.has_even_y()? {
         h = -h;
     }
@@ -82,7 +82,7 @@ pub fn generate_partial_signatures(
     }
 
     Ok((
-        r_g,
+        nonce,
         my_signing_key_shares
             .shares
             .iter()
@@ -251,7 +251,7 @@ fn finalize_schnorr_signature(
     verifying_key: &G,
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<SchnorrSignature> {
-    let r_g = compute_nonce(
+    let nonce = compute_nonce(
         message,
         public_presig_pair,
         verifying_key,
@@ -262,7 +262,7 @@ fn finalize_schnorr_signature(
     let verifying_key = if let Some(address) = derivation_address {
         let tweak = compute_tweak(verifying_key, address)?;
         let derived_vk = derive_verifying_key_internal(verifying_key, address)?;
-        let h = tweak * bip0340_hash(&r_g, &derived_vk, message)?;
+        let h = tweak * bip0340_hash(&nonce, &derived_vk, message)?;
         if derived_vk.has_even_y()? {
             s += h;
         } else {
@@ -273,7 +273,7 @@ fn finalize_schnorr_signature(
         *verifying_key
     };
 
-    let signature = SchnorrSignature::try_from((r_g, s))?;
+    let signature = SchnorrSignature::try_from((nonce, s))?;
 
     SchnorrPublicKey::try_from(&verifying_key)?
         .verify(message, &signature)
@@ -325,11 +325,11 @@ fn combine_public_presignatures(
     delta: &S,
 ) -> FastCryptoResult<G> {
     let (d, d_prime) = public_presig_pair.presignatures();
-    let r_g = *d + *d_prime * delta;
-    if r_g == G::zero() {
+    let nonce = *d + *d_prime * delta;
+    if nonce == G::zero() {
         return Err(FastCryptoError::GeneralOpaqueError);
     }
-    Ok(r_g)
+    Ok(nonce)
 }
 
 /// Compute the binding factor `delta = H(vk, presigning_id, index, D, D', message)`.
@@ -364,10 +364,10 @@ fn compute_delta(
     )
 }
 
-fn bip0340_hash(r_g: &G, vk: &G, message: &[u8]) -> FastCryptoResult<S> {
+fn bip0340_hash(nonce: &G, vk: &G, message: &[u8]) -> FastCryptoResult<S> {
     Ok(bip0340_hash_to_scalar(
         Tag::Challenge,
-        [&r_g.x_as_be_bytes()?, &vk.x_as_be_bytes()?, message],
+        [&nonce.x_as_be_bytes()?, &vk.x_as_be_bytes()?, message],
     ))
 }
 
