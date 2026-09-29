@@ -69,7 +69,8 @@ pub struct PresignaturePair {
 
 impl PresignaturePair {
     /// The presigning tuples of one instance, paired up two per signature, dropping a trailing
-    /// tuple with nothing to pair it with.
+    /// tuple with nothing to pair it with. An even `batch_size_per_weight` makes the count even
+    /// whatever the committee's weights are, so nothing is dropped.
     ///
     /// Pairs are indexed from the start of the returned iterator, so a caller resuming where it
     /// left off must do so with e.g. `nth` on this iterator.
@@ -252,6 +253,16 @@ impl Presignatures {
         let expected_len = height * batch_size_per_weight;
         assert!(secret.iter().all(|s| s.len() == expected_len));
         assert_eq!(public.len(), expected_len);
+
+        // Tuples are consumed two at a time, so an odd count leaves one behind. The parity
+        // depends on the committee's weights as well as `batch_size_per_weight`, so an unchanged
+        // configuration can start wasting a tuple after a committee change.
+        if expected_len % 2 == 1 {
+            warn!(
+                "presigning: {expected_len} tuples is odd, so the last one will go unused; \
+                 an even `batch_size_per_weight` always avoids this"
+            );
+        }
 
         Ok(Self {
             secret,
