@@ -32,50 +32,13 @@ pub struct PublicPresignaturePair {
 }
 
 /// Two presigning tuples to be used for a single signature, along with the index of the pair
-/// within its presigning instance. Yielded by [PresignaturePairs].
+/// within its presigning instance. Yielded by [Presignatures::pairs].
 #[derive(Clone, Debug)]
 pub struct PresignaturePair {
     pub public: PublicPresignaturePair,
     pub first_shares: Vec<S>,
     pub second_shares: Vec<S>,
 }
-
-/// An iterator that yields [PresignaturePair]s, consuming two presigning tuples for each. A
-/// trailing tuple with nothing to pair it with is dropped.
-///
-/// Pairs are indexed from the start of this iterator, so it must be created from a fresh
-/// [Presignatures] and resumed with e.g. `nth`, not by advancing the tuples underneath it.
-pub struct PresignaturePairs {
-    presignatures: Presignatures,
-    next_index: u32,
-}
-
-impl Iterator for PresignaturePairs {
-    type Item = PresignaturePair;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let index = self.next_index;
-        let (first_shares, first) = self.presignatures.next()?;
-        let (second_shares, second) = self.presignatures.next()?;
-        self.next_index += 1;
-        Some(PresignaturePair {
-            public: PublicPresignaturePair {
-                index,
-                first,
-                second,
-            },
-            first_shares,
-            second_shares,
-        })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.presignatures.len() / 2;
-        (remaining, Some(remaining))
-    }
-}
-
-impl ExactSizeIterator for PresignaturePairs {}
 
 impl Iterator for Presignatures {
     type Item = (Vec<S>, G);
@@ -226,12 +189,21 @@ impl Presignatures {
         Ok(Self { secret, public })
     }
 
-    /// Pair up the tuples, two per signature, see [PresignaturePairs].
-    pub fn pairs(self) -> PresignaturePairs {
-        PresignaturePairs {
-            presignatures: self,
-            next_index: 0,
-        }
+    /// Pair up the tuples, two per signature, dropping a trailing tuple with nothing to pair it
+    /// with. Pairs are indexed from the start of the returned iterator, so it must be created
+    /// from a fresh generator and resumed with e.g. `nth`, not by advancing the tuples first.
+    pub fn pairs(self) -> impl Iterator<Item = PresignaturePair> {
+        self.tuples().enumerate().map(
+            |(index, ((first_shares, first), (second_shares, second)))| PresignaturePair {
+                public: PublicPresignaturePair {
+                    index: index as u32,
+                    first,
+                    second,
+                },
+                first_shares,
+                second_shares,
+            },
+        )
     }
 }
 
@@ -350,12 +322,13 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let pairs = Presignatures::new(outputs, batch_size_per_weight, params)
-            .unwrap()
-            .pairs();
-        assert_eq!(pairs.len(), 4);
+        let presignatures = Presignatures::new(outputs, batch_size_per_weight, params).unwrap();
+        assert_eq!(presignatures.len(), 9);
         assert_eq!(
-            pairs.map(|pair| pair.public.index).collect::<Vec<_>>(),
+            presignatures
+                .pairs()
+                .map(|pair| pair.public.index)
+                .collect::<Vec<_>>(),
             vec![0, 1, 2, 3]
         );
     }
