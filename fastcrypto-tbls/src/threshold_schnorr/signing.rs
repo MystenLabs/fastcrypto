@@ -51,7 +51,7 @@ pub fn generate_partial_signatures(
     derivation_address: Option<&Address>,
 ) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
     let (mut secret_presigs, r_g) =
-        bind_presignatures(message, presig_pair, verifying_key, derivation_address)?;
+        compute_nonce_shares(message, presig_pair, verifying_key, derivation_address)?;
 
     // In BIP-340, the nonce R must have an even Y coordinate.
     // If it doesn't, we negate the secret nonce to get a new nonce R' = -R with an even Y.
@@ -278,7 +278,7 @@ fn finalize_schnorr_signature(
 
 /// Combine two presigning tuples into one bound to the message and verifying key:
 /// `(T + delta * T', D + delta * D')`, see [compute_delta].
-fn bind_presignatures(
+fn compute_nonce_shares(
     message: &[u8],
     presig_pair: PresignaturePair,
     verifying_key: &G,
