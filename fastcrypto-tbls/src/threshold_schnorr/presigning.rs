@@ -39,7 +39,7 @@ pub struct PublicPresignaturePair {
 }
 
 impl PublicPresignaturePair {
-    /// The presigning instance this pair came from, as hashed by [Presignatures::new].
+    /// The presigning instance this pair came from.
     pub(crate) fn session_id(&self) -> &[u8; 32] {
         &self.session_id
     }
@@ -88,8 +88,6 @@ impl PresignaturePair {
     ///
     /// Pairs are indexed from the start of the returned iterator, so a caller resuming where it
     /// left off must do so with e.g. `nth` on this iterator.
-    ///
-    /// See [Presignatures::new] for what the dealings must satisfy.
     pub fn from_dealings(
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,
@@ -179,7 +177,7 @@ impl Presignatures {
     /// * The total weight of the dealers for the outputs is not at least `params.t`,
     /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
     /// * or if batch_size_per_weight is zero.
-    pub(crate) fn new(
+    fn new(
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,
         params: Parameters,
