@@ -2420,8 +2420,9 @@ dependencies = [
 
 [[package]]
 name = "mysten-mldsa-native-rs"
-version = "0.1.0"
-source = "git+https://github.com/MystenLabs/mysten-mldsa-native-rs.git?rev=ea1a9794c7ad0c68b9410121964b7439540826bc#ea1a9794c7ad0c68b9410121964b7439540826bc"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5231855e373e808df1b5e3db04233163ece09bec5866fbd8035cc2a7cdfdd831"
 dependencies = [
  "cc",
  "cpufeatures",
