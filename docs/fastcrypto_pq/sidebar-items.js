@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["mldsa65","sphincs"]};
+window.SIDEBAR_ITEMS = {"mod":["mldsa65","slip10","sphincs"]};
