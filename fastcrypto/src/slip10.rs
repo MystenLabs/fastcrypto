@@ -32,7 +32,7 @@ pub enum Slip10MasterKey {
 }
 
 impl Slip10MasterKey {
-    pub fn as_bytes(&self) -> &'static [u8] {
+    pub fn slip10_string(&self) -> &'static [u8] {
         match self {
             Slip10MasterKey::Ed25519 => b"ed25519 seed",
             Slip10MasterKey::MlDsa65 => b"ML-DSA-65 seed",
@@ -66,7 +66,7 @@ pub fn derive_hardened(
         return Err(FastCryptoError::InputTooLong(MAX_SEED_LENGTH));
     }
 
-    let mut node = hmac_sha512(master_key.as_bytes(), seed);
+    let mut node = hmac_sha512(master_key.slip10_string(), seed);
     for index in indexes {
         // Hardened child: HMAC(chain code, 0x00 || secret || index).
         let mut data = [0u8; 37];
