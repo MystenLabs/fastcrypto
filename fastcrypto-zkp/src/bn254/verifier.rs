@@ -10,7 +10,7 @@ use ark_ec::pairing::Pairing;
 use ark_groth16::{Groth16, PreparedVerifyingKey as ArkPreparedVerifyingKey};
 use ark_snark::SNARK;
 
-use crate::bn254::api::SCALAR_SIZE;
+use crate::bn254::api::G1_SIZE;
 use crate::bn254::{FieldElement, Proof, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
@@ -91,12 +91,12 @@ impl PreparedVerifyingKey {
         }
 
         let vk_gamma_abc_g1_bytes = bytes[0].borrow();
-        if vk_gamma_abc_g1_bytes.len() % SCALAR_SIZE != 0 {
+        if vk_gamma_abc_g1_bytes.len() % G1_SIZE != 0 {
             return Err(FastCryptoError::InvalidInput);
         }
 
         let mut vk_gamma_abc_g1: Vec<G1Affine> = Vec::new();
-        for g1_bytes in vk_gamma_abc_g1_bytes.chunks(SCALAR_SIZE) {
+        for g1_bytes in vk_gamma_abc_g1_bytes.chunks(G1_SIZE) {
             let g1 = G1Affine::deserialize_compressed(g1_bytes)
                 .map_err(|_| FastCryptoError::InvalidInput)?;
             vk_gamma_abc_g1.push(g1);
