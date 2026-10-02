@@ -3,21 +3,121 @@
 
 use crate::threshold_schnorr::batch_avss_avid::ReceiverOutput;
 use crate::threshold_schnorr::pascal_matrix::LazyPascalMatrixMultiplier;
-use crate::threshold_schnorr::{Parameters, G, S};
+use crate::threshold_schnorr::{Parameters, PresigningId, G, S};
 use crate::types::get_uniform_value;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use itertools::Itertools;
 use tracing::warn;
 
-/// An iterator that yields presigning tuples (t_i, p_i).
+/// An iterator that yields presigning tuples `(T, D)`.
 ///
 /// The tuples are tied to the committee and weights they were created for, since share indices
 /// follow the cumulative weights. They must be discarded and regenerated when the committee
 /// changes.
-pub struct Presignatures {
+pub(crate) struct Presignatures {
     secret: Vec<LazyPascalMatrixMultiplier<S>>,
     public: LazyPascalMatrixMultiplier<G>,
+    presigning_id: PresigningId,
+}
+
+/// The public part of a [PresignaturePair]: the presigning instance it came from, the index of
+/// the pair within that instance and the two public presignatures.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PublicPresignaturePair {
+    presigning_id: PresigningId,
+    index: u32,
+    presignatures: (G, G),
+}
+
+impl PublicPresignaturePair {
+    /// The presigning instance this pair came from.
+    pub(crate) fn presigning_id(&self) -> &PresigningId {
+        &self.presigning_id
+    }
+
+    /// The index of this pair within its presigning instance, which the caller tracks to use each
+    /// pair exactly once.
+    pub fn index(&self) -> u32 {
+        self.index
+    }
+
+    /// The public parts of the two presigning tuples, `D` and `D'` in the protocol description.
+    pub fn presignatures(&self) -> &(G, G) {
+        &self.presignatures
+    }
+
+    /// Build the public part of a pair directly, bypassing [PresignaturePair::from_dealings],
+    /// which is the only source of pairs that are guaranteed not to overlap. For tests only.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn new_for_testing(presigning_id: PresigningId, index: u32, presignatures: (G, G)) -> Self {
+        Self {
+            presigning_id,
+            index,
+            presignatures,
+        }
+    }
+}
+
+/// Two presigning tuples to be used for a single signature, along with the index of the pair
+/// within its presigning instance.
+#[derive(Clone, Debug)]
+pub struct PresignaturePair {
+    public: PublicPresignaturePair,
+    /// One share of each of the two nonces, per share index this party holds.
+    shares: Vec<(S, S)>,
+}
+
+impl PresignaturePair {
+    /// The presigning tuples of one instance, paired up two per signature, dropping a trailing
+    /// tuple with nothing to pair it with. An even `batch_size_per_weight` makes the count even
+    /// whatever the committee's weights are, so nothing is dropped.
+    ///
+    /// The caller must:
+    /// * pass the outputs of one nonce batch, from distinct dealers, in ascending dealer order,
+    ///   where a dealer of weight `w` dealt `batch_size_per_weight * w` nonces and this party
+    ///   holds that many shares of them,
+    /// * agree that set with the other parties beforehand, e.g. by the dealers' certificates on
+    ///   the TOB channel,
+    /// * pass the same `batch_size_per_weight` the dealers dealt with, and the `params` validated
+    ///   for this committee, both agreed with the other parties,
+    /// * build at most one instance from a batch's dealings,
+    /// * discard the pairs when the committee or its weights change, since share indices follow
+    ///   the cumulative weights,
+    /// * resume where it left off with e.g. `nth` on the returned iterator, whose pairs are
+    ///   indexed from its start.
+    ///
+    /// More dealers give more presignatures, so include as many outputs as possible, but at
+    /// least `params.t` by weight.
+    ///
+    /// `InvalidInput` is returned if the outputs are empty, come from more than one batch, are
+    /// not in ascending dealer order, two come from the same dealer, their total weight is below
+    /// `params.t`, a dealer's batch size is not a multiple of `batch_size_per_weight`, the outputs
+    /// do not all carry the same number of shares for this party, a share batch does not cover
+    /// exactly its dealer's nonces, or either `params.t` or `batch_size_per_weight` is zero.
+    pub fn from_dealings(
+        outputs: Vec<ReceiverOutput>,
+        batch_size_per_weight: u16,
+        params: Parameters,
+    ) -> FastCryptoResult<impl Iterator<Item = Self>> {
+        Ok(Presignatures::new(outputs, batch_size_per_weight, params)?.into_pairs())
+    }
+
+    /// What the other parties must agree on to sign with this pair.
+    pub fn public(&self) -> &PublicPresignaturePair {
+        &self.public
+    }
+
+    pub(crate) fn into_parts(self) -> (PublicPresignaturePair, Vec<(S, S)>) {
+        (self.public, self.shares)
+    }
+
+    /// Build a pair directly, bypassing [PresignaturePair::from_dealings], which is the only
+    /// source of pairs that are guaranteed not to overlap. For tests only.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn new_for_testing(public: PublicPresignaturePair, shares: Vec<(S, S)>) -> Self {
+        Self { public, shares }
+    }
 }
 
 impl Iterator for Presignatures {
@@ -45,37 +145,30 @@ impl ExactSizeIterator for Presignatures {}
 
 impl Presignatures {
     /// Based on the output of a batched AVSS from multiple dealers, create a presignature
-    /// generator.
-    ///
-    /// The generator always starts at the first tuple and stores no position, so the caller must
-    /// keep track of which tuples have been used in state that survives restarts, and resume with
-    /// e.g. `nth`.
-    ///
-    /// All parties must use the same outputs in the same order, and the output from a dealer with
-    /// weight `w` should be equal to `batch_size_per_weight * w`. The outputs must come from
-    /// distinct dealers, with at most one output per dealer.
-    ///
-    /// More parties contributing outputs gives more presignatures, so include as many as possible
-    /// but at least `params.t` (by weight). The set of outputs and their order must be agreed on
-    /// before calling this, e.g., by the order of the dealers' certificates on the TOB channel.
+    /// generator. See [PresignaturePair::from_dealings] for what the outputs must satisfy.
     ///
     /// `params.t` is the reconstruction threshold. The nonce polynomials are shared at degree
     /// `params.t - 1`, so this produces `total_weight - (params.t - 1)` presignatures per nonce
     /// position: the privacy threshold of the sharings is `t - 1`, meaning a sub-`t` coalition can
     /// know or bias up to `t - 1` of the input nonces, so only `total_weight - (t - 1)` combined
     /// nonces per position remain uniformly random and safe to output.
-    ///
-    /// An InvalidInput error will be returned if:
-    /// * `params.t` is zero,
-    /// * The total weight of the dealers for the outputs is not at least `params.t`,
-    /// * The batch size of one of the outputs is not divisible by `batch_size_per_weight`,
-    /// * or if batch_size_per_weight is zero.
-    pub fn new(
+    fn new(
         outputs: Vec<ReceiverOutput>,
         batch_size_per_weight: u16,
         params: Parameters,
     ) -> FastCryptoResult<Self> {
         if batch_size_per_weight == 0 {
+            return Err(InvalidInput);
+        }
+
+        // All dealings must be from one batch, which also rejects an empty set of outputs.
+        let batch_id = get_uniform_value(outputs.iter().map(|output| output.batch_id.clone()))
+            .ok_or(InvalidInput)?;
+
+        // The dealer order fixes the layout of the presigning matrix, so the caller must present
+        // the dealings in strictly ascending dealer order.
+        let dealers = outputs.iter().map(|output| output.dealer).collect_vec();
+        if !dealers.iter().is_sorted_by(|a, b| a < b) {
             return Err(InvalidInput);
         }
         let batch_size_per_weight = batch_size_per_weight as usize;
@@ -166,14 +259,40 @@ impl Presignatures {
         assert!(secret.iter().all(|s| s.len() == expected_len));
         assert_eq!(public.len(), expected_len);
 
-        Ok(Self { secret, public })
+        Ok(Self {
+            secret,
+            public,
+            presigning_id: batch_id.presigning_id(&dealers),
+        })
+    }
+
+    fn into_pairs(self) -> impl Iterator<Item = PresignaturePair> {
+        if self.len() % 2 == 1 {
+            warn!(
+                "presigning: {} tuples is odd, so the last one will go unused.",
+                self.len()
+            );
+        }
+        let presigning_id = self.presigning_id;
+        self.tuples().enumerate().map(
+            move |(index, ((first_shares, first), (second_shares, second)))| PresignaturePair {
+                public: PublicPresignaturePair {
+                    presigning_id,
+                    index: index as u32,
+                    presignatures: (first, second),
+                },
+                shares: first_shares.into_iter().zip(second_shares).collect(),
+            },
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Presignatures;
+    use super::{PresignaturePair, Presignatures};
+    use crate::nodes::PartyId;
     use crate::threshold_schnorr::batch_avss_avid::{ReceiverOutput, ShareBatch, SharesForNode};
+    use crate::threshold_schnorr::BatchId;
     use crate::threshold_schnorr::{Parameters, G, S};
     use fastcrypto::groups::GroupElement;
 
@@ -186,6 +305,8 @@ mod tests {
         // Two weight-1 dealers: each output has batch_size_per_weight public keys, no shares.
         let outputs = (0..2)
             .map(|i| ReceiverOutput {
+                batch_id: BatchId::new(b"batch".to_vec()),
+                dealer: i as PartyId,
                 my_shares: SharesForNode { shares: vec![] },
                 public_keys: vec![G::generator() * S::from(i + 1); batch_size_per_weight as usize],
             })
@@ -215,6 +336,8 @@ mod tests {
         // Four weight-1 dealers -> total weight 4. Zero-weight receiver perspective (empty shares).
         let outputs = (0..4)
             .map(|i| ReceiverOutput {
+                batch_id: BatchId::new(b"batch".to_vec()),
+                dealer: i as PartyId,
                 my_shares: SharesForNode { shares: vec![] },
                 public_keys: vec![G::generator() * S::from(i + 1); batch_size_per_weight as usize],
             })
@@ -233,6 +356,8 @@ mod tests {
         let params = Parameters { t: 2, f: 2 };
         let outputs = (0..4)
             .map(|i| ReceiverOutput {
+                batch_id: BatchId::new(b"batch".to_vec()),
+                dealer: i as PartyId,
                 my_shares: SharesForNode { shares: vec![] },
                 public_keys: vec![G::generator() * S::from(i + 1); batch_size_per_weight as usize],
             })
@@ -259,6 +384,8 @@ mod tests {
 
         let outputs = (0..2)
             .map(|i| ReceiverOutput {
+                batch_id: BatchId::new(b"batch".to_vec()),
+                dealer: i as PartyId,
                 my_shares: SharesForNode {
                     shares: vec![ShareBatch {
                         batch: vec![S::generator()], // length 1 < expected 2
@@ -270,5 +397,98 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert!(Presignatures::new(outputs, batch_size_per_weight, params).is_err());
+    }
+
+    #[test]
+    fn test_pair_indices() {
+        // Four weight-1 dealers with three nonces each: nine tuples, which pair up into four
+        // pairs, leaving the last tuple unpaired.
+        let batch_size_per_weight: u16 = 3;
+        let params = Parameters { t: 2, f: 1 };
+        let outputs = (0..4)
+            .map(|i| ReceiverOutput {
+                batch_id: BatchId::new(b"batch".to_vec()),
+                dealer: i as PartyId,
+                my_shares: SharesForNode { shares: vec![] },
+                public_keys: vec![G::generator() * S::from(i + 1); batch_size_per_weight as usize],
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            Presignatures::new(outputs.clone(), batch_size_per_weight, params)
+                .unwrap()
+                .len(),
+            9
+        );
+        assert_eq!(
+            PresignaturePair::from_dealings(outputs, batch_size_per_weight, params)
+                .unwrap()
+                .map(|pair| pair.public().index())
+                .collect::<Vec<_>>(),
+            vec![0, 1, 2, 3]
+        );
+    }
+
+    fn mock_outputs(
+        dealers: &[PartyId],
+        batch_id: &BatchId,
+        batch_size_per_weight: u16,
+    ) -> Vec<ReceiverOutput> {
+        dealers
+            .iter()
+            .map(|&dealer| ReceiverOutput {
+                batch_id: batch_id.clone(),
+                dealer,
+                my_shares: SharesForNode { shares: vec![] },
+                public_keys: vec![
+                    G::generator() * S::from(dealer as u128 + 1);
+                    batch_size_per_weight as usize
+                ],
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_new_rejects_inconsistent_outputs() {
+        let batch_size_per_weight: u16 = 2;
+        let params = Parameters { t: 2, f: 1 };
+        let batch_id = BatchId::new(b"batch".to_vec());
+        let new = |outputs: Vec<ReceiverOutput>| {
+            Presignatures::new(outputs, batch_size_per_weight, params)
+        };
+
+        assert!(new(mock_outputs(&[0, 1], &batch_id, batch_size_per_weight)).is_ok());
+        // Out of order
+        assert!(new(mock_outputs(&[1, 0], &batch_id, batch_size_per_weight)).is_err());
+        // No outputs at all, and two outputs from one dealer
+        assert!(new(vec![]).is_err());
+        assert!(new(mock_outputs(&[0, 0], &batch_id, batch_size_per_weight)).is_err());
+        // Outputs from two different batches
+        let mut mixed = mock_outputs(&[0, 1], &batch_id, batch_size_per_weight);
+        mixed[1].batch_id = BatchId::new(b"other batch".to_vec());
+        assert!(new(mixed).is_err());
+    }
+
+    #[test]
+    fn test_presigning_id_covers_batch_and_dealers() {
+        let batch_size_per_weight: u16 = 2;
+        let params = Parameters { t: 2, f: 1 };
+        let presigning_id = |dealers: &[PartyId], batch_id: &[u8]| {
+            let batch_id = BatchId::new(batch_id.to_vec());
+            *PresignaturePair::from_dealings(
+                mock_outputs(dealers, &batch_id, batch_size_per_weight),
+                batch_size_per_weight,
+                params,
+            )
+            .unwrap()
+            .next()
+            .unwrap()
+            .public()
+            .presigning_id()
+        };
+
+        let id = presigning_id(&[0, 1], b"batch");
+        assert_ne!(id, presigning_id(&[0, 1], b"other batch"));
+        assert_ne!(id, presigning_id(&[0, 2], b"batch"));
     }
 }
