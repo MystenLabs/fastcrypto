@@ -10,7 +10,7 @@
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>ark_groth16::{Groth16, PreparedVerifyingKey <span class="kw">as </span>ArkPreparedVerifyingKey};
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>ark_snark::SNARK;
 <a href=#12 id=12 data-nosnippet>12</a>
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::bn254::api::SCALAR_SIZE;
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::bn254::api::G1_SIZE;
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::bn254::{FieldElement, Proof, VerifyingKey};
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
@@ -91,12 +91,12 @@
 <a href=#91 id=91 data-nosnippet>91</a>        }
 <a href=#92 id=92 data-nosnippet>92</a>
 <a href=#93 id=93 data-nosnippet>93</a>        <span class="kw">let </span>vk_gamma_abc_g1_bytes = bytes[<span class="number">0</span>].borrow();
-<a href=#94 id=94 data-nosnippet>94</a>        <span class="kw">if </span>vk_gamma_abc_g1_bytes.len() % SCALAR_SIZE != <span class="number">0 </span>{
+<a href=#94 id=94 data-nosnippet>94</a>        <span class="kw">if </span>vk_gamma_abc_g1_bytes.len() % G1_SIZE != <span class="number">0 </span>{
 <a href=#95 id=95 data-nosnippet>95</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
 <a href=#96 id=96 data-nosnippet>96</a>        }
 <a href=#97 id=97 data-nosnippet>97</a>
 <a href=#98 id=98 data-nosnippet>98</a>        <span class="kw">let </span><span class="kw-2">mut </span>vk_gamma_abc_g1: Vec&lt;G1Affine&gt; = Vec::new();
-<a href=#99 id=99 data-nosnippet>99</a>        <span class="kw">for </span>g1_bytes <span class="kw">in </span>vk_gamma_abc_g1_bytes.chunks(SCALAR_SIZE) {
+<a href=#99 id=99 data-nosnippet>99</a>        <span class="kw">for </span>g1_bytes <span class="kw">in </span>vk_gamma_abc_g1_bytes.chunks(G1_SIZE) {
 <a href=#100 id=100 data-nosnippet>100</a>            <span class="kw">let </span>g1 = G1Affine::deserialize_compressed(g1_bytes)
 <a href=#101 id=101 data-nosnippet>101</a>                .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 <a href=#102 id=102 data-nosnippet>102</a>            vk_gamma_abc_g1.push(g1);
