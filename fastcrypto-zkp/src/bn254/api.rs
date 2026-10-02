@@ -13,6 +13,12 @@ mod api_tests;
 /// Size of scalars in the BN254 construction.
 pub const SCALAR_SIZE: usize = 32;
 
+/// Size in bytes of a compressed G1 element in the BN254 construction.
+pub const G1_SIZE: usize = 32;
+
+/// Size in bytes of a compressed G2 element in the BN254 construction.
+pub const G2_SIZE: usize = 64;
+
 /// Deserialize bytes as an Arkwork representation of a verifying key, and return a vector of the
 /// four components of a prepared verified key (see more at [`PreparedVerifyingKey`]).
 pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoError> {
