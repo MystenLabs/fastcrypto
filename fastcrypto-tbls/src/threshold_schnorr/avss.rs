@@ -236,10 +236,10 @@ impl Dealer {
     ///    That message is broadcast to all receivers by the caller. Receivers process it to decrypt
     ///    and verify their shares (see [Receiver::process_message]), and sign it if their shares
     ///    are valid. Once the dealer has signatures from receivers of total weight at least
-    ///    `t + f`, it forms a certificate and posts it on the TOB. This ensures that receivers of
-    ///    weight at least `t` holding valid shares are honest, so they can help others recover
-    ///    their shares. Nothing here checks the weight of a certificate, so receivers must check it
-    ///    before accepting a certificate.
+    ///    `t + f`, it forms a certificate and posts it on the TOB. Then signers of weight at least
+    ///    `t` are honest and hold valid shares, so they can help others recover their shares.
+    ///    Nothing here checks the weight of a certificate, so receivers must check it before
+    ///    accepting a certificate.
     pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> Message {
         let polynomial = Poly::rand_fixed_c0(self.params.t - 1, self.secret, rng);
         let all_shares = polynomial.eval_range(self.nodes.total_weight());
