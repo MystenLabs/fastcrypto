@@ -37,8 +37,7 @@
 //! [AvssCommonMessage::hash] of the common message it verified, if any. If they match, it uses
 //! its output from the first phase. Otherwise, it discards that output and gets its shares like
 //! any other pending recipient, from the signers of the completion certificate (see
-//! [Receiver::verify_common_message]). It is one, since it did not sign the certified common
-//! message.
+//! [Receiver::verify_common_message]).
 
 use crate::ecies_v1::{
     Ciphertext, MultiRecipientEncryption, PrivateKey, RecoveryPackage, SharedComponents,
