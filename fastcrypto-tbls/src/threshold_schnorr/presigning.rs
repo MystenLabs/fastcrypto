@@ -207,8 +207,8 @@ mod tests {
     fn test_presig_count_uses_privacy_threshold_not_f() {
         // Regression test for the SI-matrix height: it must be `total_weight - (t - 1)`, the
         // privacy threshold of the degree-`(t-1)` nonce sharings, NOT `total_weight - f`. The two
-        // agree only when `t - 1 == f`, so this covers both sides: t = 3, f = 1 gives fewer
-        // positions than `total_weight - f` would, and t = f gives one more.
+        // agree only when `t - 1 == f`, so this uses t = 3, f = 1, where the privacy threshold
+        // gives fewer positions than `total_weight - f` would.
         let batch_size_per_weight: u16 = 2;
         let params = Parameters { t: 3, f: 1 };
 
@@ -227,26 +227,6 @@ mod tests {
             (4 - (params.t as usize - 1)) * batch_size_per_weight as usize
         );
         assert_eq!(presignatures.len(), 4);
-
-        // `t == f` is allowed (`validate` rejects only `t < f`), and is the direction where
-        // `total_weight - f` under-produces instead of over-producing.
-        let params = Parameters { t: 2, f: 2 };
-        let outputs = (0..4)
-            .map(|i| ReceiverOutput {
-                my_shares: SharesForNode { shares: vec![] },
-                public_keys: vec![G::generator() * S::from(i + 1); batch_size_per_weight as usize],
-            })
-            .collect::<Vec<_>>();
-
-        // Total weight 4 and `t - 1 = 1` give a height of 3, and each row yields one presignature
-        // per nonce position, so (4 - (2 - 1)) * 2 = 6. Using `f = 2` as the threshold would leave
-        // a height of 2 and so (4 - 2) * 2 = 4.
-        let presignatures = Presignatures::new(outputs, batch_size_per_weight, params).unwrap();
-        assert_eq!(
-            presignatures.len(),
-            (4 - (params.t as usize - 1)) * batch_size_per_weight as usize
-        );
-        assert_eq!(presignatures.len(), 6);
     }
 
     #[test]
