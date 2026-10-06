@@ -15,28 +15,24 @@
 //!
 //! In the first phase, the dealer sends an [AvssMessage] to each recipient. Receivers decrypt the
 //! ciphertext, verify the shares and vote on the message.
-//! The dealer collects the votes and forms an AVSS certificate. If it has the total weight, every
-//! receiver has its shares, and it is the dealer's completion certificate (see below). Otherwise,
-//! it is the input to the second phase: the receivers that did not sign it are the pending
-//! recipients, and the dealer sends it to all receivers along with the dispersal, so they can
-//! check that the dispersal covers exactly the pending recipients.
+//! The dealer collects the votes and forms a [Certificate] over [AvssVote]s. If it has the total
+//! weight `W`, every receiver has its shares, so the second phase is skipped and this is the
+//! dealer's completion certificate, which it publishes on the TOB. Otherwise, it is not a
+//! completion certificate, since a receiver that did not vote has no way to get its shares without
+//! the second phase. It only shows that its signers hold their shares and is the input to the
+//! second phase: the receivers that did not sign it are the pending recipients, and the dealer
+//! sends it to all receivers along with the dispersal, so they can check that the dispersal covers
+//! exactly the pending recipients.
 //!
 //! In the second phase, the dealer disperses the pending recipients' ciphertexts to all receivers
 //! using AVID. Receivers again check the dispersal and vote on the message. The dealer collects
-//! the votes and forms an AVID certificate, which is its completion certificate. Given it, pending
+//! the votes and forms a [Certificate] over [AvidVote]s. Once it has weight at least `W - f`, this
+//! is the dealer's completion certificate, which it publishes on the TOB. Given it, pending
 //! recipients can ask its signers to send their echoes or help recover their shares.
-//!
-//! The dealer finishes by publishing a completion certificate on the TOB, which is one of:
-//! * a [Certificate] over [AvssVote]s of the total weight `W`, if every receiver with weight voted
-//!   in the first phase, so the second phase is skipped, or
-//! * a [Certificate] over [AvidVote]s of weight at least `W - f` otherwise.
 //!
 //! Receivers go through the certificates published on the TOB for a dealer in TOB order, and
 //! accept the first one that verifies and meets the weight above for its kind as the dealer's
 //! completion certificate. They ignore any certificate for that dealer after it, even a valid one.
-//! A certificate over [AvssVote]s of less than the total weight is not a completion certificate,
-//! since a receiver that did not vote has no way to get its shares without the second phase. It
-//! shows only that its signers hold their shares, and is used to start the second phase.
 
 use crate::ecies_v1::{
     Ciphertext, MultiRecipientEncryption, PrivateKey, RecoveryPackage, SharedComponents,
