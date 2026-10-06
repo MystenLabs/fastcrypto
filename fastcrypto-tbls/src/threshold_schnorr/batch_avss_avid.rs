@@ -15,12 +15,16 @@
 //!
 //! In the first phase, the dealer sends an [AvssMessage] to each recipient. Receivers decrypt the
 //! ciphertext, verify the shares and vote on the message.
-//! The dealer collects the votes and forms a certificate.
-//! In the second phase, the dealer disperses messages to the remaining recipients using AVID.
-//! Receivers again check the dispersal and vote on the message. The dealer collects the votes and
-//! forms a certificate.
-//! Given the second certificate, receivers can ask signers to send their echoes or help recover
-//! their shares.
+//! The dealer collects the votes and forms an AVSS certificate. If it has the total weight, every
+//! receiver has its shares, and it is the dealer's completion certificate (see below). Otherwise,
+//! it is the input to the second phase: the receivers that did not sign it are the pending
+//! recipients, and the dealer sends it to all receivers along with the dispersal, so they can
+//! check that the dispersal covers exactly the pending recipients.
+//!
+//! In the second phase, the dealer disperses the pending recipients' ciphertexts to all receivers
+//! using AVID. Receivers again check the dispersal and vote on the message. The dealer collects
+//! the votes and forms an AVID certificate, which is its completion certificate. Given it, pending
+//! recipients can ask its signers to send their echoes or help recover their shares.
 //!
 //! The dealer finishes by publishing a completion certificate on the TOB, which is one of:
 //! * a [Certificate] over [AvssVote]s of the total weight `W`, if every receiver with weight voted
@@ -31,7 +35,8 @@
 //! accept the first one that verifies and meets the weight above for its kind as the dealer's
 //! completion certificate. They ignore any certificate for that dealer after it, even a valid one.
 //! A certificate over [AvssVote]s of less than the total weight is not a completion certificate,
-//! since a receiver that did not vote has no way to get its shares without the second phase.
+//! since a receiver that did not vote has no way to get its shares without the second phase. It
+//! shows only that its signers hold their shares, and is used to start the second phase.
 
 use crate::ecies_v1::{
     Ciphertext, MultiRecipientEncryption, PrivateKey, RecoveryPackage, SharedComponents,
@@ -142,7 +147,8 @@ pub struct AvidMessageBuilder<C: Certificate<Payload = AvssVote>> {
     avss_cert: C,
 }
 
-/// The dealer's per-receiver second phase message.
+/// The dealer's per-receiver second phase message. It carries the AVSS certificate from the first
+/// phase, whose non-signers are the pending recipients that the dispersal must cover.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AvidMessage<C: Certificate<Payload = AvssVote>> {
     pub dispersal: avid::Dispersal,
