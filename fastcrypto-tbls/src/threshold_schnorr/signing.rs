@@ -21,6 +21,13 @@ use tracing::warn;
 /// Signing twice with the same tuple discloses the signing key, whatever the beacon value.
 /// Returns also the public presignature, which all parties must agree on.
 ///
+/// The `beacon_value` is added to the nonce, `R = public_presig + beacon_value * G`, and must be
+/// randomness that all parties agree on, drawn only after both the message is known and the nonce
+/// generation that produced the presigning tuple is done. Otherwise, a party that knows it in
+/// advance can choose messages or bias the nonces it deals to fit it (a ROS-style attack), and
+/// forge signatures. So if a message is moved to a new presigning tuple, e.g., from a later nonce
+/// generation, a new beacon value must also be drawn.
+///
 /// The signatures produced follow the BIP-0340 standard (<https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki>).
 ///
 /// If a derivation index is provided, a new verifying key is derived for this index (see
@@ -109,7 +116,8 @@ pub enum Blame {
 ///
 /// The partial signatures must be received over an authenticated channel, and the caller must
 /// reject any whose share index the sender does not hold. `params` must be the parameters
-/// validated for this committee, see [Parameters::validate].
+/// validated for this committee, see [Parameters::validate]. `beacon_value` must be the one the
+/// signers used, drawn as described in [generate_partial_signatures].
 ///
 /// If a derivation index is provided, a new verifying key is derived for this index (see
 /// [derive_verifying_key]), and the signature is adjusted accordingly.

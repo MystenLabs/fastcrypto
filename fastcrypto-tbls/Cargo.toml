@@ -23,7 +23,7 @@ zeroize.workspace = true
 itertools.workspace = true
 hex = "0.4.3"
 tap = { version = "1.0.1", features = [] }
-reed-solomon-erasure = "6.0.0"
+reed-solomon-erasure = { version = "6.0.0", default-features = false }
 
 [dev-dependencies]
 criterion = "0.5.1"
