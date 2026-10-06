@@ -906,7 +906,7 @@ impl Receiver {
         &self,
         avid_cert: &VerifiedCertificate<C>,
     ) -> FastCryptoResult<()> {
-        // `validate` ensures f <= t < W, so this cannot underflow.
+        // `validate` ensures f < t < W, so this cannot underflow.
         let required_weight = self.nodes.total_weight() - self.params.f;
         if self
             .nodes

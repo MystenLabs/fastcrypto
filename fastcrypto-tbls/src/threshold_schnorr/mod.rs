@@ -31,8 +31,7 @@
 //! * <i>t</i> = threshold for signing
 //!
 //! For the weights used here, [Parameters::validate] checks the basic invariants `t < W`,
-//! `t &geq; f` and `t + f &leq; W`. The AVID-based nonce protocol additionally requires `W > 2f`
-//! (enforced in `Avid::new`).
+//! `t > f` and `t + f &leq; W`, which together imply `W > 2f`.
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
@@ -84,9 +83,7 @@ pub struct Parameters {
 
 impl Parameters {
     /// Validate `(t, f)` against the given total weight `W`, checking the basic invariants needed
-    /// for the sharing here: `0 < f`, `t < W`, `t > f` and `t + f ≤ W`. Note the AVID-based nonce
-    /// protocol has a further requirement, `W > 2f`, which is enforced when its Reed-Solomon coder
-    /// is built (`Avid::new`), not here.
+    /// for the sharing here: `0 < f`, `t < W`, `t > f` and `t + f ≤ W`.
     pub fn validate(&self, total_weight: u16) -> FastCryptoResult<()> {
         let Parameters { t, f } = *self;
         if f == 0
