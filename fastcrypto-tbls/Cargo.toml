@@ -20,7 +20,7 @@ bcs.workspace = true
 tracing.workspace = true
 zeroize.workspace = true
 
-itertools = "0.10.5"
+itertools.workspace = true
 hex = "0.4.3"
 tap = { version = "1.0.1", features = [] }
 reed-solomon-erasure = "6.0.0"
