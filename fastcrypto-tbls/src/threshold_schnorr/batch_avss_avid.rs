@@ -35,10 +35,10 @@
 //! from the first phase may not be for the certified one. Once it has accepted the completion
 //! certificate, a receiver compares the certificate's `common_message_hash` with the
 //! [AvssCommonMessage::hash] of the common message it verified, if any. If they match, it uses
-//! its output from the first phase. Otherwise, it discards that output and recovers its shares as
-//! a pending recipient, starting at [Receiver::verify_common_message]. This is possible since it
-//! did not sign the certificate's common message, so the completion certificate is over
-//! [AvidVote]s and the dispersal covers it.
+//! its output from the first phase. Otherwise, it discards that output and gets its shares like
+//! any other pending recipient, from the signers of the completion certificate (see
+//! [Receiver::verify_common_message]). It is one, since it did not sign the certified common
+//! message.
 
 use crate::ecies_v1::{
     Ciphertext, MultiRecipientEncryption, PrivateKey, RecoveryPackage, SharedComponents,
