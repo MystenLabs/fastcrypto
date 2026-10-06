@@ -21,6 +21,17 @@
 //! forms a certificate.
 //! Given the second certificate, receivers can ask signers to send their echoes or help recover
 //! their shares.
+//!
+//! The dealer is done once the caller publishes one of the following on the TOB, which all parties
+//! then treat as the dealer's completion certificate:
+//! * a [Certificate] over [AvssVote]s signed by all parties (weight `W`), if every receiver voted
+//!   in the first phase, so the second phase is skipped, or
+//! * a [Certificate] over [AvidVote]s of weight at least `W - f` otherwise.
+//!
+//! A certificate over [AvssVote]s with less than all the weight does not complete the dealer, since
+//! a receiver that did not vote has no way to get its shares without the second phase. Parties
+//! must only accept the first completion certificate, of either kind, from each dealer per session
+//! and ignore later ones.
 
 use crate::ecies_v1::{
     Ciphertext, MultiRecipientEncryption, PrivateKey, RecoveryPackage, SharedComponents,
@@ -243,9 +254,9 @@ impl Dealer {
     /// 1. Build the [AvssMessageBuilder]. This encrypts the shares for every receiver and holds
     ///    everything the dealer needs to create the per-receiver [AvssMessage]s.
     ///
-    ///    The dealer must send all [AvssMessage]s until it has collected an AVID certificate, even
-    ///    after an AVSS certificate has been created (i.e., it is critical that a receiver receives
-    ///    an AVSS message before the AVID message).
+    ///    The dealer must send all [AvssMessage]s until it has a completion certificate (see the
+    ///    module documentation), even after an AVSS certificate has been created (i.e., it is
+    ///    critical that a receiver receives an AVSS message before the AVID message).
     ///
     ///    To survive a crash, the caller should persist the returned [AvssMessageBuilder] before
     ///    sending any messages.
@@ -372,7 +383,7 @@ impl Dealer {
     ///
     ///    This phase is only needed if any receiver failed to confirm in the first phase.
     ///    If every receiver confirmed, the second phase should be skipped entirely, and this returns
-    ///    an [InvalidInput] error.
+    ///    an [InvalidInput] error. The AVSS certificate is then the dealer's completion certificate.
     ///
     ///    The [AvidMessageBuilder] cannot be persisted, so to survive a crash the caller should
     ///    persist the AVSS certificate and rebuild the builder from it and the persisted
@@ -392,7 +403,8 @@ impl Dealer {
     //   6. Once `W-f` weight of [AvidVote]s has been collected, the dealer can form and
     //      publish a certificate over those votes on the TOB. This is done by the caller and
     //      completes the dealer's role in the protocol. Parties must only accept the first
-    //      certificate from each dealer per session and ignore later ones.
+    //      completion certificate, of either kind, from each dealer per session and ignore later
+    //      ones (see the module documentation).
 
     /// Test-only variant of [Self::create_avid_messages] that runs `mutate_shards` over the
     /// per-recipient, per-disperser shards before they are committed, to simulate a cheating
