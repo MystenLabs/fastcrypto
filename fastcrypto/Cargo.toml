@@ -62,8 +62,7 @@ getrandom = {version = "0.2.15", features = ["js"], optional = true}
 bcs.workspace = true
 bulletproofs = "5.0.0"
 merlin = "3.0.0"
-tracing.workspace = true
-itertools = "0.12.0"
+itertools.workspace = true
 
 # Required for the aes feature
 aes = { version = "0.8.2", optional = true }
@@ -140,7 +139,6 @@ wasm = ["dep:getrandom"]
 criterion = "0.5.1"
 k256 = { version = "0.11.6", features = ["ecdsa", "sha256", "keccak256"] }
 proptest = "1.1.0"
-serde-reflection = "0.3.6"
 wycheproof = "0.5.0"
 faster-hex = "0.10.1"
 rustc-hex = "2.1.0"
