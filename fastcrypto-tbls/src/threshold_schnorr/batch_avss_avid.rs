@@ -27,11 +27,11 @@
 //!   in the first phase, so the second phase is skipped, or
 //! * a [Certificate] over [AvidVote]s of weight at least `W - f` otherwise.
 //!
-//! Receivers treat the dealer as done once its completion certificate is on the TOB. A certificate
-//! over [AvssVote]s of less than the total weight does not complete the dealer, since a receiver
-//! that did not vote has no way to get its shares without the second phase. Receivers must only
-//! accept the first completion certificate, of either kind, from each dealer per session and
-//! ignore later ones.
+//! Receivers go through the certificates published on the TOB for a dealer in TOB order, and
+//! accept the first one that verifies and meets the weight above for its kind as the dealer's
+//! completion certificate. They ignore any certificate for that dealer after it, even a valid one.
+//! A certificate over [AvssVote]s of less than the total weight is not a completion certificate,
+//! since a receiver that did not vote has no way to get its shares without the second phase.
 
 use crate::ecies_v1::{
     Ciphertext, MultiRecipientEncryption, PrivateKey, RecoveryPackage, SharedComponents,
@@ -404,9 +404,8 @@ impl Dealer {
     // Step 6 happens at the caller level:
     //   6. Once `W-f` weight of [AvidVote]s has been collected, the dealer can form and
     //      publish a certificate over those votes on the TOB. This is done by the caller and
-    //      completes the dealer's role in the protocol. Parties must only accept the first
-    //      completion certificate, of either kind, from each dealer per session and ignore later
-    //      ones (see the module documentation).
+    //      completes the dealer's role in the protocol. See the module documentation for which
+    //      certificate receivers accept.
 
     /// Test-only variant of [Self::create_avid_messages] that runs `mutate_shards` over the
     /// per-recipient, per-disperser shards before they are committed, to simulate a cheating
