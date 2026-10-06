@@ -233,8 +233,13 @@ impl Dealer {
 
     /// 1. The Dealer generates shares and creates a message containing the encrypted shares.
     ///
-    ///    That message is broadcast to all receivers by the caller. Receivers process it to decrypt and verify their shares (see below),
-    ///    and contribute a signature on the message to a certificate. The dealer posts the certificate to the TOB channel.
+    ///    That message is broadcast to all receivers by the caller. Receivers process it to decrypt
+    ///    and verify their shares (see [Receiver::process_message]), and sign it if their shares
+    ///    are valid. Once the dealer has signatures from receivers of total weight at least
+    ///    `t + f`, it forms a certificate and posts it on the TOB. This ensures that receivers of
+    ///    weight at least `t` holding valid shares are honest, so they can help others recover
+    ///    their shares. Nothing here checks the weight of a certificate, so receivers must check it
+    ///    before accepting a certificate.
     pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> Message {
         let polynomial = Poly::rand_fixed_c0(self.params.t - 1, self.secret, rng);
         let all_shares = polynomial.eval_range(self.nodes.total_weight());
@@ -312,7 +317,11 @@ impl Receiver {
 
     /// 2. A receiver processes the message, verifies and decrypts its shares.
     ///
-    /// If this works, the receiver can store the shares and contribute a signature on the message to a certificate.
+    /// If this returns [ProcessedMessage::Valid], the receiver stores the shares and signs the
+    /// message for the dealer's certificate. If it returns a [ProcessedMessage::Complaint], the
+    /// receiver does not sign. Instead, it waits for a certificate for this message on the TOB
+    /// and then broadcasts the complaint, so that the signers can respond (see
+    /// [Self::handle_complaint]).
     ///
     /// Returns an [InvalidMessage] error if the message is malformed. All honest receivers reject
     /// such a message with the same error, and it should be ignored.
@@ -407,13 +416,7 @@ impl Receiver {
         }
     }
 
-    // The following steps happen at the caller level, before a receiver handles complaints:
-    //   3. Once t+f signatures have been collected in the certificate, the receivers can finish
-    //      the distribution phase of the protocol.
-    //      Then, upon seeing a certificate for a message for which it got a complaint, a receiver
-    //      broadcasts its complaint.
-
-    /// 4. Upon receiving a complaint, a receiver verifies it and responds with its shares.
+    /// 3. Upon receiving a complaint, a receiver verifies it and responds with its shares.
     ///    `accuser_id` is the party that raised the complaint (tracked by the caller).
     pub fn handle_complaint(
         &self,
@@ -459,7 +462,7 @@ impl Receiver {
         })
     }
 
-    /// 5. Upon receiving enough verified responses to a complaint, the accuser can recover its shares.
+    /// 4. Upon receiving enough verified responses to a complaint, the accuser can recover its shares.
     ///
     ///    Returns an error if the responses do not come from distinct parties, if their combined weight is
     ///    below the threshold `t`, or if the dealing does not match this receiver's `commitment`. The
