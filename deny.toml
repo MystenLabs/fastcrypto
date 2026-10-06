@@ -37,9 +37,7 @@ ignore = [
     # Unmaintained clear_on_drop crate used by bulletproofs v5.0.0
     "RUSTSEC-2026-0283",
     # Unmaintained instant crate used by parking_lot v0.11 through reed-solomon-erasure v6.0.0
-    "RUSTSEC-2024-0384",
-    # Unsound faster-hex v0.6, only used as a dev-dependency in the encoding benchmark
-    "RUSTSEC-2026-0306"
+    "RUSTSEC-2024-0384"
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
