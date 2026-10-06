@@ -22,16 +22,16 @@
 //! Given the second certificate, receivers can ask signers to send their echoes or help recover
 //! their shares.
 //!
-//! The dealer is done once the caller publishes one of the following on the TOB, which all parties
-//! then treat as the dealer's completion certificate:
+//! The dealer finishes by publishing a completion certificate on the TOB, which is one of:
 //! * a [Certificate] over [AvssVote]s of the total weight `W`, if every receiver with weight voted
 //!   in the first phase, so the second phase is skipped, or
 //! * a [Certificate] over [AvidVote]s of weight at least `W - f` otherwise.
 //!
-//! A certificate over [AvssVote]s of less than the total weight does not complete the dealer, since
-//! a receiver that did not vote has no way to get its shares without the second phase. Parties
-//! must only accept the first completion certificate, of either kind, from each dealer per session
-//! and ignore later ones.
+//! Receivers treat the dealer as done once its completion certificate is on the TOB. A certificate
+//! over [AvssVote]s of less than the total weight does not complete the dealer, since a receiver
+//! that did not vote has no way to get its shares without the second phase. Receivers must only
+//! accept the first completion certificate, of either kind, from each dealer per session and
+//! ignore later ones.
 
 use crate::ecies_v1::{
     Ciphertext, MultiRecipientEncryption, PrivateKey, RecoveryPackage, SharedComponents,
