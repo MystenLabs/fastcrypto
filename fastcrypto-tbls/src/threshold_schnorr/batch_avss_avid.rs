@@ -24,11 +24,11 @@
 //!
 //! The dealer is done once the caller publishes one of the following on the TOB, which all parties
 //! then treat as the dealer's completion certificate:
-//! * a [Certificate] over [AvssVote]s signed by all parties (weight `W`), if every receiver voted
+//! * a [Certificate] over [AvssVote]s of the total weight `W`, if every receiver with weight voted
 //!   in the first phase, so the second phase is skipped, or
 //! * a [Certificate] over [AvidVote]s of weight at least `W - f` otherwise.
 //!
-//! A certificate over [AvssVote]s with less than all the weight does not complete the dealer, since
+//! A certificate over [AvssVote]s of less than the total weight does not complete the dealer, since
 //! a receiver that did not vote has no way to get its shares without the second phase. Parties
 //! must only accept the first completion certificate, of either kind, from each dealer per session
 //! and ignore later ones.
@@ -254,9 +254,11 @@ impl Dealer {
     /// 1. Build the [AvssMessageBuilder]. This encrypts the shares for every receiver and holds
     ///    everything the dealer needs to create the per-receiver [AvssMessage]s.
     ///
-    ///    The dealer must send all [AvssMessage]s until it has a completion certificate (see the
-    ///    module documentation), even after an AVSS certificate has been created (i.e., it is
-    ///    critical that a receiver receives an AVSS message before the AVID message).
+    ///    Until the dealer has a completion certificate (see the module documentation), every
+    ///    receiver must be able to get its [AvssMessage] no later than its [AvidMessage], since a
+    ///    receiver cannot process an [AvidMessage] without a verified common message. The dealer
+    ///    can, e.g., keep resending the [AvssMessage]s, or send each receiver's [AvssMessage]
+    ///    together with its [AvidMessage].
     ///
     ///    To survive a crash, the caller should persist the returned [AvssMessageBuilder] before
     ///    sending any messages.
