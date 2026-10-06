@@ -73,8 +73,7 @@ pub type Address = [u8; 32];
 
 /// Threshold parameters for the AVSS protocols.
 ///
-/// The values must satisfy `t > f`, which [Parameters::validate] checks and
-/// [crate::knapsack_weight_reduction] guarantees on its output.
+/// The values must satisfy `t > f`.
 #[derive(Copy, Clone, Debug)]
 pub struct Parameters {
     /// Reconstruction threshold: `≥ t` valid shares (by weight) reconstruct a secret.
