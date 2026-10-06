@@ -157,6 +157,11 @@ pub struct AvidMessage<C: Certificate<Payload = AvssVote>> {
 }
 
 /// An endorsement of the dealer's second phase dispersal (bounded to the AVSS certificate).
+///
+/// 6. Once the dealer has collected [AvidVote]s of weight at least `W - f`, it forms a
+///    [Certificate] over them and publishes it on the TOB. This is its completion certificate and
+///    ends the dealer's role (see the module documentation for which certificate receivers
+///    accept).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AvidVote {
     pub vote: avid::Vote,
@@ -408,12 +413,6 @@ impl Dealer {
             .map(|inner| AvidMessageBuilder { inner, avss_cert })
     }
 
-    // Step 6 happens at the caller level:
-    //   6. Once `W-f` weight of [AvidVote]s has been collected, the dealer can form and
-    //      publish a certificate over those votes on the TOB. This is done by the caller and
-    //      completes the dealer's role in the protocol. See the module documentation for which
-    //      certificate receivers accept.
-
     /// Test-only variant of [Self::create_avid_messages] that runs `mutate_shards` over the
     /// per-recipient, per-disperser shards before they are committed, to simulate a cheating
     /// dealer.
@@ -610,11 +609,12 @@ impl Receiver {
     }
 
     // ---- Non happy path flows ----
-    //
-    // 7. A receiver that did not receive its shares through an [AvssMessage] should wait for a
-    //    (TOB) published [Certificate] over [AvidVote]s that confirms they are a pending
-    //    recipient, and then retrieve the [AvssCommonMessage] and [Echo]es from the signers.
 
+    /// 7. A pending recipient, i.e., a receiver that did not get its shares in the first phase,
+    ///    waits for the dealer's completion certificate on the TOB. This is a [Certificate] over
+    ///    [AvidVote]s that lists it among the recipients. It then gets the [AvssCommonMessage] and
+    ///    [Echo]es from the certificate's signers.
+    ///
     /// 7a. Validate an [AvssCommonMessage] based on the cert, and return
     ///     [VerifiedAvssCommonMessage].
     ///     Returns [NotEnoughWeight] if the signers of `avid_cert` have less than `W − f` weight.
