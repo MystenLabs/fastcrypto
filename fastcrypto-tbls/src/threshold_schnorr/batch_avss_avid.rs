@@ -361,9 +361,12 @@ impl Dealer {
     }
 
     // Step 3 happens at the caller level:
-    //   3. Collect votes from the signers to form an AVSS certificate. The more votes collected,
-    //      the more efficient is the second phase, thus the caller should collect t+f votes and
-    //      then wait for \delta time to collect more votes from stragglers (e.g., 2 seconds).
+    //   3. Collect votes from the signers to form an AVSS certificate. The dealer needs votes of
+    //      weight at least `max(t + f, W - f)`: `W - f` so that the non-signers have weight at most
+    //      `f`, which [Self::create_avid_messages] requires, and `t + f` since receivers reject a
+    //      certificate with less. The more votes collected, the more efficient is the second
+    //      phase, so the dealer should then wait for δ time to collect more votes from stragglers
+    //      (e.g., 2 seconds).
 
     /// 4. RS-encode and commit the pending recipients' ciphertexts via AVID, returning an
     ///    [AvidMessageBuilder] that can create per-receiver [AvidMessage]s. The pending recipients
