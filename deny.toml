@@ -35,7 +35,11 @@ ignore = [
     # Unmaintained bincode (direct dependency, no safe upgrade available)
     "RUSTSEC-2025-0141",
     # Unmaintained clear_on_drop crate used by bulletproofs v5.0.0
-    "RUSTSEC-2026-0283"
+    "RUSTSEC-2026-0283",
+    # Unmaintained instant crate used by parking_lot v0.11 through reed-solomon-erasure v6.0.0
+    "RUSTSEC-2024-0384",
+    # Unsound faster-hex v0.6, only used as a dev-dependency in the encoding benchmark
+    "RUSTSEC-2026-0306"
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -102,18 +106,6 @@ exceptions = [
 # Each entry is a crate relative path, and the (opaque) hash of its contents
 #{ path = "LICENSE", hash = 0xbd0eed23 }
 #]
-[[licenses.clarify]]
-name = "bls-crypto"
-version = "*"
-expression = "MIT AND Apache-2.0"
-license-files = [
-]
-[[licenses.clarify]]
-name = "ring"
-expression = "LicenseRef-ring"
-license-files = [
-    { path = "LICENSE", hash = 0xbd0eed23 }
-]
 
 [licenses.private]
 # If true, ignores workspace crates that aren't published, or are only
