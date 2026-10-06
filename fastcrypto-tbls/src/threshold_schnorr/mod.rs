@@ -72,6 +72,9 @@ type EG = RistrettoPoint;
 pub type Address = [u8; 32];
 
 /// Threshold parameters for the AVSS protocols.
+///
+/// The values must satisfy `t > f`, which [Parameters::validate] does not check, or come from
+/// [crate::knapsack_weight_reduction], which guarantees it.
 #[derive(Copy, Clone, Debug)]
 pub struct Parameters {
     /// Reconstruction threshold: `≥ t` valid shares (by weight) reconstruct a secret.
