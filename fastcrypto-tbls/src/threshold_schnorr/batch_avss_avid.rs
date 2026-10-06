@@ -16,13 +16,10 @@
 //! In the first phase, the dealer sends an [AvssMessage] to each recipient. Receivers decrypt the
 //! ciphertext, verify the shares and vote on the message.
 //! The dealer collects the votes and forms a [Certificate] over [AvssVote]s. If it has the total
-//! weight `W`, every receiver has its shares, so the second phase is skipped and this is the
-//! dealer's completion certificate, which it publishes on the TOB. Otherwise, it is not a
-//! completion certificate, since a receiver that did not vote has no way to get its shares without
-//! the second phase. It only shows that its signers hold their shares and is the input to the
-//! second phase: the receivers that did not sign it are the pending recipients, and the dealer
-//! sends it to all receivers along with the dispersal, so they can check that the dispersal covers
-//! exactly the pending recipients.
+//! weight `W`, every receiver has its shares, so this is the dealer's completion certificate, which
+//! it publishes on the TOB, and the second phase is skipped. Otherwise, the receivers that did not
+//! sign it are the pending recipients, who get their shares in the second phase, and the dealer
+//! sends the certificate along with the dispersal so receivers can check that it covers them.
 //!
 //! In the second phase, the dealer disperses the pending recipients' ciphertexts to all receivers
 //! using AVID. Receivers again check the dispersal and vote on the message. The dealer collects
