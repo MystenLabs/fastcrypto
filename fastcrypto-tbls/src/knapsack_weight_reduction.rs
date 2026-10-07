@@ -8,8 +8,8 @@
 //! security of the weighted protocols when instantiated with
 //! `(t', f', W')` in place of `(t, f, W)`. Inputs are the privacy threshold
 //! `t`, the Byzantine weight bound `f` (with `0 < f < t`, `t + 2f <= W` and
-//! `t + f + delta <= W` enforced), and the
-//! allowed liveness degradation `delta` in original weight units.
+//! `t + f + δ <= W` enforced), and the
+//! allowed liveness degradation `δ` (the `delta` argument) in original weight units.
 //!
 //! # Guarantees
 //!
@@ -17,22 +17,22 @@
 //! and set `t' = g(t-1) + 1`, `f' = g(f)`. For every subset S of parties:
 //!
 //! - (P) Privacy: `w(S) < t  =>  w'(S) < t'`.
-//! - (L1) Liveness: `w(S) >= t + f + delta  =>  w'(S) >= t' + f'`. Sets that
+//! - (L1) Liveness: `w(S) >= t + f + δ  =>  w'(S) >= t' + f'`. Sets that
 //!   could form a Byzantine-tolerant quorum originally still can.
 //! - (L2) Byzantine bound: `w(S) <= f  =>  w'(S) <= f'`. Limits how much of
 //!   the (L1) quorum might be Byzantine.
-//! - (L3) Liveness: `w(S) >= t + delta  =>  w'(S) >= t'`. Sets that could
-//!   reconstruct originally (with `delta` slack) still reach the reduced
+//! - (L3) Liveness: `w(S) >= t + δ  =>  w'(S) >= t'`. Sets that could
+//!   reconstruct originally (with `δ` slack) still reach the reduced
 //!   threshold.
 //!
 //! `t > f` => `t' > f'` follows from monotonicity of `g`, and the output
 //! satisfies `t' > f' >= 1` (candidates with `f' == 0` are rejected).
 //!
 //! Note that `t' + 2f' <= W'` need not hold, so `t' + f'` can exceed `W' - f'`. Still, if the
-//! honest parties H have `w(H) >= W - f + delta`, they alone reach `max(t' + f', W' - f')`:
-//! since `t + 2f <= W`, `w(H) >= t + f + delta`, so (L1) gives `w'(H) >= t' + f'`, and the
+//! honest parties H have `w(H) >= W - f + δ`, they alone reach `max(t' + f', W' - f')`:
+//! since `t + 2f <= W`, `w(H) >= t + f + δ`, so (L1) gives `w'(H) >= t' + f'`, and the
 //! Byzantine parties B have `w(B) <= f`, so (L2) gives `w'(H) >= W' - f'`. Protocols that wait
-//! for both are therefore live against Byzantine weight up to `f - delta`.
+//! for both are therefore live against Byzantine weight up to `f - δ`.
 //!
 //! # Algorithm
 //!
