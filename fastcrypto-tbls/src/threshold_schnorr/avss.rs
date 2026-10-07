@@ -418,6 +418,11 @@ impl Receiver {
 
     /// 3. Upon receiving a complaint, a receiver verifies it and responds with its shares.
     ///    `accuser_id` is the party that raised the complaint (tracked by the caller).
+    ///
+    ///    To answer complaints, a receiver keeps the dealer's [Message] and its [AvssOutput] for
+    ///    every dealer in the set used in [DkOutput::complete_dkg] or
+    ///    [DkOutput::complete_key_rotation], persisted so that they survive a restart, until the
+    ///    end of the epoch.
     pub fn handle_complaint(
         &self,
         message: &Message,
