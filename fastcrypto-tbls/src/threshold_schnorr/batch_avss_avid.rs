@@ -374,10 +374,10 @@ impl Dealer {
     ///      recipients, and an honest dealer always gets these votes eventually.
     ///
     ///    Neither bound implies the other, e.g., after weight reduction, but the honest parties
-    ///    reach both when the Byzantine weight is at most `f - delta`, where `delta` is the
-    ///    reduction's allowed liveness degradation (see
+    ///    reach both when the Byzantine weight is at most `f - δ`, where `δ` is the reduction's
+    ///    allowed liveness degradation (see
     ///    [knapsack_weight_reduction](crate::knapsack_weight_reduction)). Since each extra vote
-    ///    makes the second phase cheaper, the dealer should then wait for δ time to collect more
+    ///    makes the second phase cheaper, the dealer should then wait for Δ time to collect more
     ///    votes from stragglers (e.g., 2 seconds).
     ///
     ///    This phase is only needed if any receiver failed to confirm in the first phase.
