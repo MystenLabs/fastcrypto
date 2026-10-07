@@ -30,6 +30,14 @@
 //! Receivers go through the certificates published on the TOB for a dealer in TOB order, and
 //! accept the first one that verifies and meets the weight above for its kind as the dealer's
 //! completion certificate. They ignore any certificate for that dealer after it, even a valid one.
+//!
+//! A dealer may send different common messages to different receivers, so a receiver's output
+//! from the first phase may not be for the certified one. Once it has accepted the completion
+//! certificate, a receiver compares the certificate's `common_message_hash` with the
+//! [AvssCommonMessage::hash] of the common message it verified, if any. If they match, it uses
+//! its output from the first phase. Otherwise, it discards that output and gets its shares like
+//! any other pending recipient, from the signers of the completion certificate (see
+//! [Receiver::verify_common_message]).
 
 use crate::ecies_v1::{
     Ciphertext, MultiRecipientEncryption, PrivateKey, RecoveryPackage, SharedComponents,
