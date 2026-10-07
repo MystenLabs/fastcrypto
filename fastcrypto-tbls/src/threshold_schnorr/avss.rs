@@ -239,7 +239,11 @@ impl Dealer {
     ///    `t + f`, it forms a certificate and posts it on the TOB. Then signers of weight at least
     ///    `t` are honest and hold valid shares, so they can help others recover their shares.
     ///    Nothing here checks the weight of a certificate, so receivers must check it before
-    ///    accepting a certificate.
+    ///    accepting a certificate. Receivers only accept the first certificate from each dealer, in
+    ///    TOB order.
+    ///
+    ///    The caller should persist the message before sending it, and resend the same message
+    ///    after a crash.
     pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> Message {
         let polynomial = Poly::rand_fixed_c0(self.params.t - 1, self.secret, rng);
         let all_shares = polynomial.eval_range(self.nodes.total_weight());
@@ -322,6 +326,9 @@ impl Receiver {
     /// receiver does not sign. Instead, it waits for a certificate for this message on the TOB
     /// and then broadcasts the complaint, so that the signers can respond (see
     /// [Self::handle_complaint]).
+    ///
+    /// A receiver signs at most one message per dealer and persists it, with its output, before
+    /// signing.
     ///
     /// Returns an [InvalidMessage] error if the message is malformed. All honest receivers reject
     /// such a message with the same error, and it should be ignored.
