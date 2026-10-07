@@ -28,6 +28,12 @@
 //! `t > f` => `t' > f'` follows from monotonicity of `g`, and the output
 //! satisfies `t' > f' >= 1` (candidates with `f' == 0` are rejected).
 //!
+//! Note that `t' + 2f' <= W'` need not hold, so `t' + f'` can exceed `W' - f'`. Still, if the
+//! honest parties H have `w(H) >= W - f + delta`, they alone reach `max(t' + f', W' - f')`:
+//! since `t + 2f <= W`, `w(H) >= t + f + delta`, so (L1) gives `w'(H) >= t' + f'`, and the
+//! Byzantine parties B have `w(B) <= f`, so (L2) gives `w'(H) >= W' - f'`. Protocols that wait
+//! for both are therefore live against Byzantine weight up to `f - delta`.
+//!
 //! # Algorithm
 //!
 //! Candidates are scaled roundings `w'_i = floor(w_i / d + c)` for divisors
