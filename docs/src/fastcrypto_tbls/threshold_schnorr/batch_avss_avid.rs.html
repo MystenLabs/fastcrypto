@@ -926,7 +926,7 @@
 <a href=#926 id=926 data-nosnippet>926</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#927 id=927 data-nosnippet>927</a>        avid_cert: <span class="kw-2">&amp;</span>VerifiedCertificate&lt;C&gt;,
 <a href=#928 id=928 data-nosnippet>928</a>    ) -&gt; FastCryptoResult&lt;()&gt; {
-<a href=#929 id=929 data-nosnippet>929</a>        <span class="comment">// `validate` ensures f &lt;= t &lt; W, so this cannot underflow.
+<a href=#929 id=929 data-nosnippet>929</a>        <span class="comment">// `validate` ensures f &lt; t &lt; W, so this cannot underflow.
 <a href=#930 id=930 data-nosnippet>930</a>        </span><span class="kw">let </span>required_weight = <span class="self">self</span>.nodes.total_weight() - <span class="self">self</span>.params.f;
 <a href=#931 id=931 data-nosnippet>931</a>        <span class="kw">if </span><span class="self">self
 <a href=#932 id=932 data-nosnippet>932</a>            </span>.nodes
@@ -1396,7 +1396,7 @@
 <a href=#1396 id=1396 data-nosnippet>1396</a>        // (= 3) must be at most `f` so the dealer-side precheck in
 <a href=#1397 id=1397 data-nosnippet>1397</a>        // `create_avid_messages_with_mutation` accepts the cert; here it sits exactly at the
 <a href=#1398 id=1398 data-nosnippet>1398</a>        // `f = 3` boundary.
-<a href=#1399 id=1399 data-nosnippet>1399</a>        </span><span class="kw">let </span>t = <span class="number">3</span>;
+<a href=#1399 id=1399 data-nosnippet>1399</a>        </span><span class="kw">let </span>t = <span class="number">4</span>;
 <a href=#1400 id=1400 data-nosnippet>1400</a>        <span class="kw">let </span>f = <span class="number">3</span>;
 <a href=#1401 id=1401 data-nosnippet>1401</a>        <span class="kw">let </span>n = <span class="number">10u16</span>;
 <a href=#1402 id=1402 data-nosnippet>1402</a>        <span class="kw">let </span>batch_size_per_weight = <span class="number">3</span>;
