@@ -441,6 +441,8 @@ impl Receiver {
     ///    every dealer in the set used in [DkOutput::complete_dkg] or
     ///    [DkOutput::complete_key_rotation], persisted so that they survive a restart, until the
     ///    end of the epoch.
+    ///
+    ///    Returns an [InvalidInput] error if `my_output` is not the output for `message`.
     pub fn handle_complaint(
         &self,
         message: &Message,
@@ -448,6 +450,12 @@ impl Receiver {
         complaint: &Complaint,
         my_output: &AvssOutput,
     ) -> FastCryptoResult<ComplaintResponse> {
+        // Responding with the output for another dealing would reveal this receiver's shares of
+        // that dealing.
+        if my_output.feldman_commitment != message.feldman_commitment {
+            warn!("AVSS handle_complaint: the output is not for this message");
+            return Err(InvalidInput);
+        }
         let accuser_share_ids = self.nodes.share_ids_of(accuser_id)?;
         complaint.proof.check(
             accuser_id,
@@ -763,7 +771,7 @@ mod tests {
     use crate::threshold_schnorr::Extensions::Encryption;
     use crate::threshold_schnorr::{Parameters, EG, G};
     use crate::types::{IndexedValue, ShareIndex};
-    use fastcrypto::error::FastCryptoError::InvalidMessage;
+    use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
@@ -1036,6 +1044,18 @@ mod tests {
             .collect::<HashMap<_, _>>();
 
         let accuser_id = receivers[0].id;
+
+        // A receiver refuses to respond with its output for another dealing.
+        let other_output = assert_valid(
+            receivers[1]
+                .process_message(&dealer.create_message(&mut rng), &mut rng)
+                .unwrap(),
+        );
+        assert!(matches!(
+            receivers[1].handle_complaint(&message, accuser_id, &complaint, &other_output),
+            Err(InvalidInput)
+        ));
+
         let responses = receivers
             .iter()
             .skip(1)
