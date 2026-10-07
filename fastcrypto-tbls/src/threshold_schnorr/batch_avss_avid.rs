@@ -926,7 +926,7 @@ impl Receiver {
         &self,
         avid_cert: &VerifiedCertificate<C>,
     ) -> FastCryptoResult<()> {
-        // `validate` ensures f <= t < W, so this cannot underflow.
+        // `validate` ensures f < t < W, so this cannot underflow.
         let required_weight = self.nodes.total_weight() - self.params.f;
         if self
             .nodes
@@ -1396,7 +1396,7 @@ mod tests {
         // (= 3) must be at most `f` so the dealer-side precheck in
         // `create_avid_messages_with_mutation` accepts the cert; here it sits exactly at the
         // `f = 3` boundary.
-        let t = 3;
+        let t = 4;
         let f = 3;
         let n = 10u16;
         let batch_size_per_weight = 3;
