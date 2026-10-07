@@ -1393,9 +1393,8 @@ mod tests {
     fn test_optimistic_then_pessimistic() {
         // 7 of 10 parties confirm in the optimistic phase; the remaining 3 receive their shares
         // via the pessimistic AVID phase, gated on the optimistic certificate. Pending weight
-        // (= 3) must be at most `f` so the dealer-side precheck in
-        // `create_avid_messages_with_mutation` accepts the cert; here it sits exactly at the
-        // `f = 3` boundary.
+        // (= 3) must be at most `f` so the dealer-side precheck in `prepare_avid_payloads` accepts
+        // the cert; here it sits exactly at the `f = 3` boundary.
         let t = 3;
         let f = 3;
         let n = 10u16;
