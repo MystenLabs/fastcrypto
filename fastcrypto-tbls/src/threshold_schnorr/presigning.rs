@@ -181,7 +181,7 @@ mod tests {
     fn test_new_with_zero_weight_party() {
         // A zero-weight party gets ReceiverOutputs with empty shares; this must not panic.
         let batch_size_per_weight: u16 = 2;
-        let params = Parameters { t: 2, f: 1 }; // total weight is 2; requires t >= f
+        let params = Parameters { t: 2, f: 1 }; // total weight is 2; requires t > f
 
         // Two weight-1 dealers: each output has batch_size_per_weight public keys, no shares.
         let outputs = (0..2)
@@ -235,7 +235,7 @@ mod tests {
         // batch must have batch_size_per_weight entries. A shorter batch must be rejected, not
         // panic.
         let batch_size_per_weight: u16 = 2;
-        let params = Parameters { t: 2, f: 1 }; // total weight is 2; requires t >= f
+        let params = Parameters { t: 2, f: 1 }; // total weight is 2; requires t > f
 
         let outputs = (0..2)
             .map(|i| ReceiverOutput {

@@ -31,7 +31,7 @@
 //! * <i>t</i> = threshold for signing
 //!
 //! For the weights used here, [Parameters::validate] checks the basic invariants `t < W`,
-//! `t > f` and `t + f &leq; W`, which together imply `W > 2f`.
+//! `t > f` and `t + f ≤ W`, which together imply `W > 2f`.
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
@@ -73,6 +73,11 @@ pub type Address = [u8; 32];
 /// Threshold parameters for the AVSS protocols.
 ///
 /// The values must satisfy `t > f`.
+///
+/// If the weights of the parties are reduced, the reduced weights and thresholds must come from
+/// [Nodes::knapsack_reduce](crate::nodes::Nodes::knapsack_reduce), which guarantees `t > f`. The
+/// other reductions in [Nodes](crate::nodes::Nodes) can return `t == f`, which
+/// [Parameters::validate] rejects.
 #[derive(Copy, Clone, Debug)]
 pub struct Parameters {
     /// Reconstruction threshold: `≥ t` valid shares (by weight) reconstruct a secret.
