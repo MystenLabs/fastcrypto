@@ -572,7 +572,9 @@ impl Receiver {
     ///
     ///    Only receivers that verified a common message for this round should process
     ///    [AvidMessage]s and sign [AvidVote]s, whether or not their [AvssVote] reached the dealer
-    ///    in time. The caller must pass the [VerifiedAvssCommonMessage] it verified.
+    ///    in time. The caller must pass the [VerifiedAvssCommonMessage] it verified. A receiver
+    ///    that gets an [AvidMessage] before it has verified a common message keeps it until its
+    ///    [AvssMessage] arrives (see [Dealer::create_avss_messages]), and then processes both.
     ///
     ///    Receivers who did not receive their shares through an [AvssMessage] (or verified a
     ///    different common message) are pending recipients: they wait for a published
