@@ -60,6 +60,11 @@ impl Presignatures {
     /// before calling this, e.g., by the order of the dealers' completion certificates
     /// on the TOB channel (see [batch_avss_avid](crate::threshold_schnorr::batch_avss_avid)).
     ///
+    /// The caller must hold its output from every dealer in the agreed set, recovering any it is
+    /// missing (see [batch_avss_avid](crate::threshold_schnorr::batch_avss_avid)) rather than
+    /// leaving the dealer out. `params` and `batch_size_per_weight` must be the ones used for the
+    /// dealings.
+    ///
     /// `params.t` is the reconstruction threshold. The nonce polynomials are shared at degree
     /// `params.t - 1`, so this produces `total_weight - (params.t - 1)` presignatures per nonce
     /// position: the privacy threshold of the sharings is `t - 1`, meaning a sub-`t` coalition can
