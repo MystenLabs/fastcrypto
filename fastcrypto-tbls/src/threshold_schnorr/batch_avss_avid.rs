@@ -197,7 +197,12 @@ pub struct VerifiedComplaintResponse {
 }
 
 /// The output of a receiver which is a batch of shares and public keys for all nonces.
-#[derive(Debug, Clone)]
+///
+/// A receiver should persist its output, since
+/// [Presignatures](crate::threshold_schnorr::presigning::Presignatures) is rebuilt from the
+/// outputs after a restart, and a pending recipient cannot otherwise recover its output without
+/// the help of other parties.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReceiverOutput {
     pub my_shares: SharesForNode,
     pub public_keys: Vec<G>,
@@ -1375,6 +1380,10 @@ mod tests {
                 output.my_shares.weight(),
                 nodes.weight_of(receiver.id).unwrap()
             );
+            // The output can be persisted and restored.
+            let bytes = bcs::to_bytes(&output).unwrap();
+            let restored: ReceiverOutput = bcs::from_bytes(&bytes).unwrap();
+            assert_eq!(bcs::to_bytes(&restored).unwrap(), bytes);
             if receiver.id == weight_bearing {
                 weight_bearing_shares = Some(output.my_shares);
             }
