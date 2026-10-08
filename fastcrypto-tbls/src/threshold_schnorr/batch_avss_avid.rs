@@ -753,8 +753,9 @@ impl Receiver {
 
     /// 8. Handle a complaint from an accuser.
     ///
-    /// `own_ciphertext` is this receiver's ciphertext from the [AvssMessage] it verified, so a
-    /// receiver keeps it to answer complaints.
+    /// `own_ciphertext` is this receiver's ciphertext from the [AvssMessage] it verified. A
+    /// receiver keeps its [AvssMessage] and [AvidMessage] to answer complaints and serve echoes
+    /// until the end of the epoch, after which no presignatures from the dealing are used.
     ///
     /// 8a. Validate a [AvssComplaint] and respond with this party's own shares. This is called
     ///     only by a receiver that sent a vote for the common message.
