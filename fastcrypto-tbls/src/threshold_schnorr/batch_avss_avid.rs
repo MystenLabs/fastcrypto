@@ -397,11 +397,6 @@ impl Dealer {
     ///    The [AvidMessageBuilder] cannot be persisted, so to survive a crash the caller should
     ///    persist the AVSS certificate and rebuild the builder from it and the persisted
     ///    [AvssMessageBuilder].
-    ///
-    /// 6. Once the dealer has collected [AvidVote]s (step 5) of weight at least `W - f`, it forms
-    ///    a [Certificate] over them and publishes it on the TOB. This is its completion certificate
-    ///    and ends the dealer's role (see the module documentation for which certificate receivers
-    ///    accept).
     pub fn create_avid_messages<C: Certificate<Payload = AvssVote>>(
         &self,
         avss_message_builder: &AvssMessageBuilder,
@@ -412,6 +407,12 @@ impl Dealer {
             .disperse(&payloads)
             .map(|inner| AvidMessageBuilder { inner, avss_cert })
     }
+
+    // Step 6 happens at the caller level:
+    //   6. Once `W-f` weight of [AvidVote]s has been collected, the dealer can form and
+    //      publish a certificate over those votes on the TOB. This is done by the caller and
+    //      completes the dealer's role in the protocol. See the module documentation for which
+    //      certificate receivers accept.
 
     /// Test-only variant of [Self::create_avid_messages] that runs `mutate_shards` over the
     /// per-recipient, per-disperser shards before they are committed, to simulate a cheating
