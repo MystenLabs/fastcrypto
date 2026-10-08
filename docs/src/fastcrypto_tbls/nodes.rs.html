@@ -226,7 +226,7 @@
 <a href=#226 id=226 data-nosnippet>226</a>            }
 <a href=#227 id=227 data-nosnippet>227</a>            <span class="comment">// Compute the precision loss.
 <a href=#228 id=228 data-nosnippet>228</a>            // U16 is safe here since total_weight is u16.
-<a href=#229 id=229 data-nosnippet>229</a>            // TODO: The reduction delta should be estimated here as it is done in `new_reduced_with_f`.
+<a href=#229 id=229 data-nosnippet>229</a>            // TODO: The reduction delta should also account for the rounding of t.
 <a href=#230 id=230 data-nosnippet>230</a>            </span><span class="kw">let </span>delta = n.nodes.iter().map(|n| n.weight % d).sum::&lt;u16&gt;();
 <a href=#231 id=231 data-nosnippet>231</a>            <span class="kw">if </span>delta &lt;= allowed_delta {
 <a href=#232 id=232 data-nosnippet>232</a>                max_d = d;
@@ -262,247 +262,49 @@
 <a href=#262 id=262 data-nosnippet>262</a>        ))
 <a href=#263 id=263 data-nosnippet>263</a>    }
 <a href=#264 id=264 data-nosnippet>264</a>
-<a href=#265 id=265 data-nosnippet>265</a>    <span class="doccomment">/// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
-<a href=#266 id=266 data-nosnippet>266</a>    /// Reduces weights up to an allowed delta in the original total weight.
-<a href=#267 id=267 data-nosnippet>267</a>    /// Finds the largest d such that:
-<a href=#268 id=268 data-nosnippet>268</a>    /// - The new threshold is ceil(t / d)
-<a href=#269 id=269 data-nosnippet>269</a>    /// - The new threshold for Byzantine parties is ceil(f / d)
-<a href=#270 id=270 data-nosnippet>270</a>    /// - The new weights are all divided by d (floor division)
-<a href=#271 id=271 data-nosnippet>271</a>    /// - The precision loss, counted as the sum of the remainders of the division by d, is at most
-<a href=#272 id=272 data-nosnippet>272</a>    ///   the allowed delta
-<a href=#273 id=273 data-nosnippet>273</a>    ///
-<a href=#274 id=274 data-nosnippet>274</a>    /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
-<a href=#275 id=275 data-nosnippet>275</a>    ///
-<a href=#276 id=276 data-nosnippet>276</a>    /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To
-<a href=#277 id=277 data-nosnippet>277</a>    /// get the best results, set it to 1.
-<a href=#278 id=278 data-nosnippet>278</a>    </span><span class="kw">pub fn </span>new_reduced_with_f(
-<a href=#279 id=279 data-nosnippet>279</a>        nodes_vec: Vec&lt;Node&lt;G&gt;&gt;,
-<a href=#280 id=280 data-nosnippet>280</a>        t: u16,
-<a href=#281 id=281 data-nosnippet>281</a>        f: u16,
-<a href=#282 id=282 data-nosnippet>282</a>        allowed_delta: u16,
-<a href=#283 id=283 data-nosnippet>283</a>        total_weight_lower_bound: u16,
-<a href=#284 id=284 data-nosnippet>284</a>    ) -&gt; FastCryptoResult&lt;(<span class="self">Self</span>, u16, u16)&gt; {
-<a href=#285 id=285 data-nosnippet>285</a>        <span class="kw">let </span>n = <span class="self">Self</span>::new(nodes_vec)<span class="question-mark">?</span>; <span class="comment">// checks the input, etc
-<a href=#286 id=286 data-nosnippet>286</a>        </span><span class="macro">assert!</span>(total_weight_lower_bound &lt;= n.total_weight &amp;&amp; total_weight_lower_bound &gt; <span class="number">0</span>);
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="kw">let </span><span class="kw-2">mut </span>max_d = <span class="number">1</span>;
-<a href=#288 id=288 data-nosnippet>288</a>        <span class="kw">for </span>d <span class="kw">in </span><span class="number">2</span>..=<span class="number">40 </span>{
-<a href=#289 id=289 data-nosnippet>289</a>            <span class="comment">// Break if we reached the lower bound.
-<a href=#290 id=290 data-nosnippet>290</a>            // U16 is safe here since total_weight is u16.
-<a href=#291 id=291 data-nosnippet>291</a>            </span><span class="kw">let </span>new_total_weight = n.nodes.iter().map(|n| n.weight / d).sum::&lt;u16&gt;();
-<a href=#292 id=292 data-nosnippet>292</a>            <span class="kw">if </span>new_total_weight &lt; total_weight_lower_bound {
-<a href=#293 id=293 data-nosnippet>293</a>                <span class="kw">break</span>;
-<a href=#294 id=294 data-nosnippet>294</a>            }
-<a href=#295 id=295 data-nosnippet>295</a>            <span class="comment">// Compute the precision loss.
-<a href=#296 id=296 data-nosnippet>296</a>            // U16 is safe here since total_weight is u16.
-<a href=#297 id=297 data-nosnippet>297</a>            </span><span class="kw">let </span>delta =
-<a href=#298 id=298 data-nosnippet>298</a>                n.nodes.iter().map(|n| n.weight % d).sum::&lt;u16&gt;() + neg_mod(t, d) + neg_mod(f, d);
-<a href=#299 id=299 data-nosnippet>299</a>            <span class="kw">if </span>delta &lt;= allowed_delta {
-<a href=#300 id=300 data-nosnippet>300</a>                max_d = d;
-<a href=#301 id=301 data-nosnippet>301</a>            }
-<a href=#302 id=302 data-nosnippet>302</a>        }
-<a href=#303 id=303 data-nosnippet>303</a>        <span class="macro">debug!</span>(
-<a href=#304 id=304 data-nosnippet>304</a>            <span class="string">"Nodes::reduce reducing from {} with max_d {}, allowed_delta {}, total_weight_lower_bound {}"</span>,
-<a href=#305 id=305 data-nosnippet>305</a>            n.total_weight, max_d, allowed_delta, total_weight_lower_bound
-<a href=#306 id=306 data-nosnippet>306</a>        );
-<a href=#307 id=307 data-nosnippet>307</a>
-<a href=#308 id=308 data-nosnippet>308</a>        <span class="kw">let </span>nodes = n
-<a href=#309 id=309 data-nosnippet>309</a>            .nodes
-<a href=#310 id=310 data-nosnippet>310</a>            .iter()
-<a href=#311 id=311 data-nosnippet>311</a>            .map(|n| Node {
-<a href=#312 id=312 data-nosnippet>312</a>                id: n.id,
-<a href=#313 id=313 data-nosnippet>313</a>                pk: n.pk.clone(),
-<a href=#314 id=314 data-nosnippet>314</a>                weight: n.weight / max_d,
-<a href=#315 id=315 data-nosnippet>315</a>            })
-<a href=#316 id=316 data-nosnippet>316</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#317 id=317 data-nosnippet>317</a>        <span class="kw">let </span>accumulated_weights = <span class="self">Self</span>::get_accumulated_weights(<span class="kw-2">&amp;</span>nodes);
-<a href=#318 id=318 data-nosnippet>318</a>        <span class="kw">let </span>nodes_with_nonzero_weight = <span class="self">Self</span>::filter_nonzero_weights(<span class="kw-2">&amp;</span>nodes);
-<a href=#319 id=319 data-nosnippet>319</a>        <span class="comment">// U16 is safe here since the original total_weight is u16.
-<a href=#320 id=320 data-nosnippet>320</a>        </span><span class="kw">let </span>total_weight = nodes.iter().map(|n| n.weight).sum::&lt;u16&gt;();
-<a href=#321 id=321 data-nosnippet>321</a>        <span class="kw">let </span>new_t = t.div_ceil(max_d);
-<a href=#322 id=322 data-nosnippet>322</a>        <span class="kw">let </span>new_f = f.div_ceil(max_d);
-<a href=#323 id=323 data-nosnippet>323</a>        <span class="prelude-val">Ok</span>((
-<a href=#324 id=324 data-nosnippet>324</a>            <span class="self">Self </span>{
-<a href=#325 id=325 data-nosnippet>325</a>                nodes,
-<a href=#326 id=326 data-nosnippet>326</a>                total_weight,
-<a href=#327 id=327 data-nosnippet>327</a>                accumulated_weights,
-<a href=#328 id=328 data-nosnippet>328</a>                nodes_with_nonzero_weight,
-<a href=#329 id=329 data-nosnippet>329</a>            },
-<a href=#330 id=330 data-nosnippet>330</a>            new_t,
-<a href=#331 id=331 data-nosnippet>331</a>            new_f,
-<a href=#332 id=332 data-nosnippet>332</a>        ))
-<a href=#333 id=333 data-nosnippet>333</a>    }
-<a href=#334 id=334 data-nosnippet>334</a>
-<a href=#335 id=335 data-nosnippet>335</a>    <span class="doccomment">/// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
-<a href=#336 id=336 data-nosnippet>336</a>    /// Like [`Nodes::new_reduced_with_f`], but in addition to the integer divisor
-<a href=#337 id=337 data-nosnippet>337</a>    /// sweep, fine-sweeps the unit interval above the first feasible integer at
-<a href=#338 id=338 data-nosnippet>338</a>    /// granularity 0.01 to find a (possibly strictly larger) fractional divisor d.
-<a href=#339 id=339 data-nosnippet>339</a>    /// Finds the largest d such that:
-<a href=#340 id=340 data-nosnippet>340</a>    /// - The new threshold is ceil(t / d)
-<a href=#341 id=341 data-nosnippet>341</a>    /// - The new threshold for Byzantine parties is ceil(f / d)
-<a href=#342 id=342 data-nosnippet>342</a>    /// - The new weights are all divided by d (floor division)
-<a href=#343 id=343 data-nosnippet>343</a>    /// - The precision loss, counted as the sum of remainders Σ_i (w_i mod d) plus the
-<a href=#344 id=344 data-nosnippet>344</a>    ///   ceiling overheads (-t) mod d and (-f) mod d, is at most the allowed delta
-<a href=#345 id=345 data-nosnippet>345</a>    ///
-<a href=#346 id=346 data-nosnippet>346</a>    /// Operates on a 0.01-multiple grid for d (represented internally in u64
-<a href=#347 id=347 data-nosnippet>347</a>    /// arithmetic via d_x100 = 100*d). The Stage-1 criterion is the natural
-<a href=#348 id=348 data-nosnippet>348</a>    /// fractional-d extension of the one in `new_reduced_with_f`, with
-<a href=#349 id=349 data-nosnippet>349</a>    /// (w mod d) := w - floor(w/d) * d ∈ [0, d) for any real d &gt; 0; the
-<a href=#350 id=350 data-nosnippet>350</a>    /// Safety, Liveness, and Byzantine-removal proofs go through verbatim.
-<a href=#351 id=351 data-nosnippet>351</a>    /// Since prop_reduce considers a strict superset of `new_reduced_with_f`'s
-<a href=#352 id=352 data-nosnippet>352</a>    /// candidates, its reduced total weight (and ceilings t', f') are always
-<a href=#353 id=353 data-nosnippet>353</a>    /// ≤ those of `new_reduced_with_f`.
-<a href=#354 id=354 data-nosnippet>354</a>    ///
-<a href=#355 id=355 data-nosnippet>355</a>    /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
-<a href=#356 id=356 data-nosnippet>356</a>    ///
-<a href=#357 id=357 data-nosnippet>357</a>    /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To
-<a href=#358 id=358 data-nosnippet>358</a>    /// get the best results, set it to 1.
-<a href=#359 id=359 data-nosnippet>359</a>    </span><span class="kw">pub fn </span>prop_reduce(
-<a href=#360 id=360 data-nosnippet>360</a>        nodes_vec: Vec&lt;Node&lt;G&gt;&gt;,
-<a href=#361 id=361 data-nosnippet>361</a>        t: u16,
-<a href=#362 id=362 data-nosnippet>362</a>        f: u16,
-<a href=#363 id=363 data-nosnippet>363</a>        allowed_delta: u16,
-<a href=#364 id=364 data-nosnippet>364</a>        total_weight_lower_bound: u16,
-<a href=#365 id=365 data-nosnippet>365</a>    ) -&gt; FastCryptoResult&lt;(<span class="self">Self</span>, u16, u16)&gt; {
-<a href=#366 id=366 data-nosnippet>366</a>        <span class="kw">let </span>n = <span class="self">Self</span>::new(nodes_vec)<span class="question-mark">?</span>; <span class="comment">// checks the input, etc
-<a href=#367 id=367 data-nosnippet>367</a>        </span><span class="macro">assert!</span>(total_weight_lower_bound &lt;= n.total_weight &amp;&amp; total_weight_lower_bound &gt; <span class="number">0</span>);
-<a href=#368 id=368 data-nosnippet>368</a>        <span class="kw">let </span>allowed_delta_x100 = (allowed_delta <span class="kw">as </span>u64) * <span class="number">100</span>;
-<a href=#369 id=369 data-nosnippet>369</a>        <span class="kw">let </span><span class="kw-2">mut </span>max_d_x100: u32 = <span class="number">100</span>; <span class="comment">// d = 1, no reduction
-<a href=#370 id=370 data-nosnippet>370</a>                                       // Sweep d downward from 40 to 2. Going down, the first feasible integer
-<a href=#371 id=371 data-nosnippet>371</a>                                       // is the largest feasible integer divisor (the criterion is non-monotone
-<a href=#372 id=372 data-nosnippet>372</a>                                       // in d, so an upward sweep cannot break early). After locking onto the
-<a href=#373 id=373 data-nosnippet>373</a>                                       // first feasible integer d, fine-sweep (d, d+1) at 0.01 in decreasing
-<a href=#374 id=374 data-nosnippet>374</a>                                       // order to find the largest feasible fractional divisor in that interval.
-<a href=#375 id=375 data-nosnippet>375</a>        </span><span class="lifetime">'outer</span>: <span class="kw">for </span>d <span class="kw">in </span>(<span class="number">2u16</span>..=<span class="number">40</span>).rev() {
-<a href=#376 id=376 data-nosnippet>376</a>            <span class="comment">// Continue if we are below the lower bound. (Going down, W' grows as
-<a href=#377 id=377 data-nosnippet>377</a>            // d shrinks, so once W' clears the lower bound it stays cleared.)
-<a href=#378 id=378 data-nosnippet>378</a>            // U16 is safe here since total_weight is u16.
-<a href=#379 id=379 data-nosnippet>379</a>            </span><span class="kw">let </span>new_total_weight = n.nodes.iter().map(|n| n.weight / d).sum::&lt;u16&gt;();
-<a href=#380 id=380 data-nosnippet>380</a>            <span class="kw">if </span>new_total_weight &lt; total_weight_lower_bound {
-<a href=#381 id=381 data-nosnippet>381</a>                <span class="kw">continue</span>;
-<a href=#382 id=382 data-nosnippet>382</a>            }
-<a href=#383 id=383 data-nosnippet>383</a>            <span class="comment">// Compute the precision loss at integer d.
-<a href=#384 id=384 data-nosnippet>384</a>            // U16 is safe here since total_weight is u16.
-<a href=#385 id=385 data-nosnippet>385</a>            </span><span class="kw">let </span>delta =
-<a href=#386 id=386 data-nosnippet>386</a>                n.nodes.iter().map(|n| n.weight % d).sum::&lt;u16&gt;() + neg_mod(t, d) + neg_mod(f, d);
-<a href=#387 id=387 data-nosnippet>387</a>            <span class="kw">if </span>delta &gt; allowed_delta {
-<a href=#388 id=388 data-nosnippet>388</a>                <span class="kw">continue</span>;
-<a href=#389 id=389 data-nosnippet>389</a>            }
-<a href=#390 id=390 data-nosnippet>390</a>            <span class="comment">// Integer d is feasible; lock it as the fallback.
-<a href=#391 id=391 data-nosnippet>391</a>            </span>max_d_x100 = (d <span class="kw">as </span>u32) * <span class="number">100</span>;
-<a href=#392 id=392 data-nosnippet>392</a>            <span class="comment">// Fine-sweep (d, d+1) at 0.01, largest-first. The first hit is the
-<a href=#393 id=393 data-nosnippet>393</a>            // largest feasible 0.01-multiple in that interval.
-<a href=#394 id=394 data-nosnippet>394</a>            </span><span class="kw">for </span>k <span class="kw">in </span>(<span class="number">1</span>..<span class="number">100u32</span>).rev() {
-<a href=#395 id=395 data-nosnippet>395</a>                <span class="kw">let </span>d_x100 = (d <span class="kw">as </span>u32) * <span class="number">100 </span>+ k;
-<a href=#396 id=396 data-nosnippet>396</a>                <span class="kw">let </span>new_w_total = n
-<a href=#397 id=397 data-nosnippet>397</a>                    .nodes
-<a href=#398 id=398 data-nosnippet>398</a>                    .iter()
-<a href=#399 id=399 data-nosnippet>399</a>                    .map(|n| ((n.weight <span class="kw">as </span>u32) * <span class="number">100</span>) / d_x100)
-<a href=#400 id=400 data-nosnippet>400</a>                    .sum::&lt;u32&gt;();
-<a href=#401 id=401 data-nosnippet>401</a>                <span class="kw">if </span>(new_w_total <span class="kw">as </span>u16) &lt; total_weight_lower_bound {
-<a href=#402 id=402 data-nosnippet>402</a>                    <span class="kw">continue</span>;
-<a href=#403 id=403 data-nosnippet>403</a>                }
-<a href=#404 id=404 data-nosnippet>404</a>                <span class="comment">// Σ_i (w_i mod d) * 100 = W*100 − W' * d_x100 (telescopes by floor).
-<a href=#405 id=405 data-nosnippet>405</a>                </span><span class="kw">let </span>sum_mod_x100 =
-<a href=#406 id=406 data-nosnippet>406</a>                    (n.total_weight <span class="kw">as </span>u64) * <span class="number">100 </span>- (new_w_total <span class="kw">as </span>u64) * (d_x100 <span class="kw">as </span>u64);
-<a href=#407 id=407 data-nosnippet>407</a>                <span class="kw">let </span>delta_x100 = sum_mod_x100 + neg_mod_x100(t, d_x100) + neg_mod_x100(f, d_x100);
-<a href=#408 id=408 data-nosnippet>408</a>                <span class="kw">if </span>delta_x100 &lt;= allowed_delta_x100 {
-<a href=#409 id=409 data-nosnippet>409</a>                    max_d_x100 = d_x100;
-<a href=#410 id=410 data-nosnippet>410</a>                    <span class="kw">break</span>;
-<a href=#411 id=411 data-nosnippet>411</a>                }
-<a href=#412 id=412 data-nosnippet>412</a>            }
-<a href=#413 id=413 data-nosnippet>413</a>            <span class="kw">break </span><span class="lifetime">'outer</span>;
-<a href=#414 id=414 data-nosnippet>414</a>        }
-<a href=#415 id=415 data-nosnippet>415</a>        <span class="macro">debug!</span>(
-<a href=#416 id=416 data-nosnippet>416</a>            <span class="string">"Nodes::prop_reduce reducing from {} with max_d_x100 {}, allowed_delta {}, total_weight_lower_bound {}"</span>,
-<a href=#417 id=417 data-nosnippet>417</a>            n.total_weight, max_d_x100, allowed_delta, total_weight_lower_bound
-<a href=#418 id=418 data-nosnippet>418</a>        );
-<a href=#419 id=419 data-nosnippet>419</a>
-<a href=#420 id=420 data-nosnippet>420</a>        <span class="kw">let </span>nodes = n
-<a href=#421 id=421 data-nosnippet>421</a>            .nodes
-<a href=#422 id=422 data-nosnippet>422</a>            .iter()
-<a href=#423 id=423 data-nosnippet>423</a>            .map(|n| Node {
-<a href=#424 id=424 data-nosnippet>424</a>                id: n.id,
-<a href=#425 id=425 data-nosnippet>425</a>                pk: n.pk.clone(),
-<a href=#426 id=426 data-nosnippet>426</a>                weight: (((n.weight <span class="kw">as </span>u32) * <span class="number">100</span>) / max_d_x100) <span class="kw">as </span>u16,
-<a href=#427 id=427 data-nosnippet>427</a>            })
-<a href=#428 id=428 data-nosnippet>428</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#429 id=429 data-nosnippet>429</a>        <span class="kw">let </span>accumulated_weights = <span class="self">Self</span>::get_accumulated_weights(<span class="kw-2">&amp;</span>nodes);
-<a href=#430 id=430 data-nosnippet>430</a>        <span class="kw">let </span>nodes_with_nonzero_weight = <span class="self">Self</span>::filter_nonzero_weights(<span class="kw-2">&amp;</span>nodes);
-<a href=#431 id=431 data-nosnippet>431</a>        <span class="comment">// U16 is safe here since the original total_weight is u16.
-<a href=#432 id=432 data-nosnippet>432</a>        </span><span class="kw">let </span>total_weight = nodes.iter().map(|n| n.weight).sum::&lt;u16&gt;();
-<a href=#433 id=433 data-nosnippet>433</a>        <span class="kw">let </span>new_t = ((t <span class="kw">as </span>u64) * <span class="number">100</span>).div_ceil(max_d_x100 <span class="kw">as </span>u64) <span class="kw">as </span>u16;
-<a href=#434 id=434 data-nosnippet>434</a>        <span class="kw">let </span>new_f = ((f <span class="kw">as </span>u64) * <span class="number">100</span>).div_ceil(max_d_x100 <span class="kw">as </span>u64) <span class="kw">as </span>u16;
-<a href=#435 id=435 data-nosnippet>435</a>        <span class="prelude-val">Ok</span>((
-<a href=#436 id=436 data-nosnippet>436</a>            <span class="self">Self </span>{
-<a href=#437 id=437 data-nosnippet>437</a>                nodes,
-<a href=#438 id=438 data-nosnippet>438</a>                total_weight,
-<a href=#439 id=439 data-nosnippet>439</a>                accumulated_weights,
-<a href=#440 id=440 data-nosnippet>440</a>                nodes_with_nonzero_weight,
-<a href=#441 id=441 data-nosnippet>441</a>            },
-<a href=#442 id=442 data-nosnippet>442</a>            new_t,
-<a href=#443 id=443 data-nosnippet>443</a>            new_f,
-<a href=#444 id=444 data-nosnippet>444</a>        ))
-<a href=#445 id=445 data-nosnippet>445</a>    }
-<a href=#446 id=446 data-nosnippet>446</a>
-<a href=#447 id=447 data-nosnippet>447</a>    <span class="doccomment">/// Create a new set of nodes with reduced weights using the knapsack-verified
-<a href=#448 id=448 data-nosnippet>448</a>    /// reduction.
-<a href=#449 id=449 data-nosnippet>449</a>    </span><span class="kw">pub fn </span>knapsack_reduce(
-<a href=#450 id=450 data-nosnippet>450</a>        nodes_vec: Vec&lt;Node&lt;G&gt;&gt;,
-<a href=#451 id=451 data-nosnippet>451</a>        t: u16,
-<a href=#452 id=452 data-nosnippet>452</a>        f: u16,
-<a href=#453 id=453 data-nosnippet>453</a>        allowed_delta: u16,
-<a href=#454 id=454 data-nosnippet>454</a>        total_weight_lower_bound: u16,
-<a href=#455 id=455 data-nosnippet>455</a>    ) -&gt; FastCryptoResult&lt;(<span class="self">Self</span>, u16, u16)&gt; {
-<a href=#456 id=456 data-nosnippet>456</a>        <span class="kw">let </span>n = <span class="self">Self</span>::new(nodes_vec)<span class="question-mark">?</span>; <span class="comment">// checks the input, etc
-<a href=#457 id=457 data-nosnippet>457</a>        </span><span class="kw">let </span>weights = n.nodes.iter().map(|node| node.weight).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#458 id=458 data-nosnippet>458</a>        <span class="kw">let </span>reduction = knapsack_weight_reduction::reduce_weights(
-<a href=#459 id=459 data-nosnippet>459</a>            <span class="kw-2">&amp;</span>weights,
-<a href=#460 id=460 data-nosnippet>460</a>            t,
-<a href=#461 id=461 data-nosnippet>461</a>            f,
-<a href=#462 id=462 data-nosnippet>462</a>            allowed_delta,
-<a href=#463 id=463 data-nosnippet>463</a>            total_weight_lower_bound,
-<a href=#464 id=464 data-nosnippet>464</a>        )<span class="question-mark">?</span>;
-<a href=#465 id=465 data-nosnippet>465</a>
-<a href=#466 id=466 data-nosnippet>466</a>        <span class="comment">// Defense in depth: independently re-verify the security properties of
-<a href=#467 id=467 data-nosnippet>467</a>        // the reduction (cheap, and runs only once per epoch).
-<a href=#468 id=468 data-nosnippet>468</a>        </span>knapsack_weight_reduction::verify_reduction(<span class="kw-2">&amp;</span>weights, t, f, allowed_delta, <span class="kw-2">&amp;</span>reduction)<span class="question-mark">?</span>;
-<a href=#469 id=469 data-nosnippet>469</a>
-<a href=#470 id=470 data-nosnippet>470</a>        <span class="macro">debug!</span>(
-<a href=#471 id=471 data-nosnippet>471</a>            <span class="string">"Nodes::knapsack_reduce reducing from {} to {} with t' {}, f' {}, allowed_delta {}, total_weight_lower_bound {}"</span>,
-<a href=#472 id=472 data-nosnippet>472</a>            n.total_weight,
-<a href=#473 id=473 data-nosnippet>473</a>            reduction.weights.iter().map(|<span class="kw-2">&amp;</span>w| w <span class="kw">as </span>u32).sum::&lt;u32&gt;(),
-<a href=#474 id=474 data-nosnippet>474</a>            reduction.t,
-<a href=#475 id=475 data-nosnippet>475</a>            reduction.f,
-<a href=#476 id=476 data-nosnippet>476</a>            allowed_delta,
-<a href=#477 id=477 data-nosnippet>477</a>            total_weight_lower_bound
-<a href=#478 id=478 data-nosnippet>478</a>        );
-<a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">let </span>nodes = n
-<a href=#480 id=480 data-nosnippet>480</a>            .nodes
-<a href=#481 id=481 data-nosnippet>481</a>            .iter()
-<a href=#482 id=482 data-nosnippet>482</a>            .zip(reduction.weights.iter())
-<a href=#483 id=483 data-nosnippet>483</a>            .map(|(node, <span class="kw-2">&amp;</span>weight)| Node {
-<a href=#484 id=484 data-nosnippet>484</a>                id: node.id,
-<a href=#485 id=485 data-nosnippet>485</a>                pk: node.pk.clone(),
-<a href=#486 id=486 data-nosnippet>486</a>                weight,
-<a href=#487 id=487 data-nosnippet>487</a>            })
-<a href=#488 id=488 data-nosnippet>488</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#489 id=489 data-nosnippet>489</a>        <span class="prelude-val">Ok</span>((<span class="self">Self</span>::new(nodes)<span class="question-mark">?</span>, reduction.t, reduction.f))
-<a href=#490 id=490 data-nosnippet>490</a>    }
-<a href=#491 id=491 data-nosnippet>491</a>}
-<a href=#492 id=492 data-nosnippet>492</a>
-<a href=#493 id=493 data-nosnippet>493</a><span class="doccomment">/// Compute (-x) mod d = d * ceil(x/d) - x
-<a href=#494 id=494 data-nosnippet>494</a></span><span class="kw">fn </span>neg_mod(x: u16, d: u16) -&gt; u16 {
-<a href=#495 id=495 data-nosnippet>495</a>    (-(x <span class="kw">as </span>i32)).rem_euclid(d <span class="kw">as </span>i32) <span class="kw">as </span>u16
-<a href=#496 id=496 data-nosnippet>496</a>}
-<a href=#497 id=497 data-nosnippet>497</a>
-<a href=#498 id=498 data-nosnippet>498</a><span class="doccomment">/// Compute ((-w) mod d) * 100 for the possibly-fractional divisor d = d_x100 / 100.
-<a href=#499 id=499 data-nosnippet>499</a>/// Equals (ceil(w/d) * d - w) * 100, a non-negative integer in [0, d_x100).
-<a href=#500 id=500 data-nosnippet>500</a></span><span class="kw">fn </span>neg_mod_x100(w: u16, d_x100: u32) -&gt; u64 {
-<a href=#501 id=501 data-nosnippet>501</a>    <span class="kw">let </span>r = ((w <span class="kw">as </span>u64) * <span class="number">100</span>) % (d_x100 <span class="kw">as </span>u64);
-<a href=#502 id=502 data-nosnippet>502</a>    <span class="kw">if </span>r == <span class="number">0 </span>{
-<a href=#503 id=503 data-nosnippet>503</a>        <span class="number">0
-<a href=#504 id=504 data-nosnippet>504</a>    </span>} <span class="kw">else </span>{
-<a href=#505 id=505 data-nosnippet>505</a>        (d_x100 <span class="kw">as </span>u64) - r
-<a href=#506 id=506 data-nosnippet>506</a>    }
-<a href=#507 id=507 data-nosnippet>507</a>}
+<a href=#265 id=265 data-nosnippet>265</a>    <span class="doccomment">/// Create a new set of nodes with reduced weights using the knapsack-verified
+<a href=#266 id=266 data-nosnippet>266</a>    /// reduction.
+<a href=#267 id=267 data-nosnippet>267</a>    </span><span class="kw">pub fn </span>knapsack_reduce(
+<a href=#268 id=268 data-nosnippet>268</a>        nodes_vec: Vec&lt;Node&lt;G&gt;&gt;,
+<a href=#269 id=269 data-nosnippet>269</a>        t: u16,
+<a href=#270 id=270 data-nosnippet>270</a>        f: u16,
+<a href=#271 id=271 data-nosnippet>271</a>        allowed_delta: u16,
+<a href=#272 id=272 data-nosnippet>272</a>        total_weight_lower_bound: u16,
+<a href=#273 id=273 data-nosnippet>273</a>    ) -&gt; FastCryptoResult&lt;(<span class="self">Self</span>, u16, u16)&gt; {
+<a href=#274 id=274 data-nosnippet>274</a>        <span class="kw">let </span>n = <span class="self">Self</span>::new(nodes_vec)<span class="question-mark">?</span>; <span class="comment">// checks the input, etc
+<a href=#275 id=275 data-nosnippet>275</a>        </span><span class="kw">let </span>weights = n.nodes.iter().map(|node| node.weight).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#276 id=276 data-nosnippet>276</a>        <span class="kw">let </span>reduction = knapsack_weight_reduction::reduce_weights(
+<a href=#277 id=277 data-nosnippet>277</a>            <span class="kw-2">&amp;</span>weights,
+<a href=#278 id=278 data-nosnippet>278</a>            t,
+<a href=#279 id=279 data-nosnippet>279</a>            f,
+<a href=#280 id=280 data-nosnippet>280</a>            allowed_delta,
+<a href=#281 id=281 data-nosnippet>281</a>            total_weight_lower_bound,
+<a href=#282 id=282 data-nosnippet>282</a>        )<span class="question-mark">?</span>;
+<a href=#283 id=283 data-nosnippet>283</a>
+<a href=#284 id=284 data-nosnippet>284</a>        <span class="comment">// Defense in depth: independently re-verify the security properties of
+<a href=#285 id=285 data-nosnippet>285</a>        // the reduction (cheap, and runs only once per epoch).
+<a href=#286 id=286 data-nosnippet>286</a>        </span>knapsack_weight_reduction::verify_reduction(<span class="kw-2">&amp;</span>weights, t, f, allowed_delta, <span class="kw-2">&amp;</span>reduction)<span class="question-mark">?</span>;
+<a href=#287 id=287 data-nosnippet>287</a>
+<a href=#288 id=288 data-nosnippet>288</a>        <span class="macro">debug!</span>(
+<a href=#289 id=289 data-nosnippet>289</a>            <span class="string">"Nodes::knapsack_reduce reducing from {} to {} with t' {}, f' {}, allowed_delta {}, total_weight_lower_bound {}"</span>,
+<a href=#290 id=290 data-nosnippet>290</a>            n.total_weight,
+<a href=#291 id=291 data-nosnippet>291</a>            reduction.weights.iter().map(|<span class="kw-2">&amp;</span>w| w <span class="kw">as </span>u32).sum::&lt;u32&gt;(),
+<a href=#292 id=292 data-nosnippet>292</a>            reduction.t,
+<a href=#293 id=293 data-nosnippet>293</a>            reduction.f,
+<a href=#294 id=294 data-nosnippet>294</a>            allowed_delta,
+<a href=#295 id=295 data-nosnippet>295</a>            total_weight_lower_bound
+<a href=#296 id=296 data-nosnippet>296</a>        );
+<a href=#297 id=297 data-nosnippet>297</a>        <span class="kw">let </span>nodes = n
+<a href=#298 id=298 data-nosnippet>298</a>            .nodes
+<a href=#299 id=299 data-nosnippet>299</a>            .iter()
+<a href=#300 id=300 data-nosnippet>300</a>            .zip(reduction.weights.iter())
+<a href=#301 id=301 data-nosnippet>301</a>            .map(|(node, <span class="kw-2">&amp;</span>weight)| Node {
+<a href=#302 id=302 data-nosnippet>302</a>                id: node.id,
+<a href=#303 id=303 data-nosnippet>303</a>                pk: node.pk.clone(),
+<a href=#304 id=304 data-nosnippet>304</a>                weight,
+<a href=#305 id=305 data-nosnippet>305</a>            })
+<a href=#306 id=306 data-nosnippet>306</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#307 id=307 data-nosnippet>307</a>        <span class="prelude-val">Ok</span>((<span class="self">Self</span>::new(nodes)<span class="question-mark">?</span>, reduction.t, reduction.f))
+<a href=#308 id=308 data-nosnippet>308</a>    }
+<a href=#309 id=309 data-nosnippet>309</a>}
 </code></pre></div></section></main></body></html>
