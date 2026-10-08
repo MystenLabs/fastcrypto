@@ -17,8 +17,16 @@ use tap::TapFallible;
 use tracing::warn;
 
 /// Generate partial threshold Schnorr signatures for a given message using a presigning tuple.
-/// The presigning tuple must be taken from a [Presignatures] iterator, the other parties should use the same tuple and one tuple may only be used once.
-/// Signing twice with the same tuple discloses the signing key, whatever the beacon value.
+/// The presigning tuple must be taken from a
+/// [Presignatures](crate::threshold_schnorr::presigning::Presignatures) iterator, and the other
+/// parties should use the same tuple.
+///
+/// A tuple may be used for only one message, beacon value and derivation address: using it for
+/// any second combination discloses the signing key, whatever the beacon value. The caller must
+/// persist that binding before releasing the partial signatures, so a restart cannot reuse the
+/// tuple for anything else. Generating the same partial signatures again for the same inputs is
+/// safe.
+///
 /// Returns also the public presignature, which all parties must agree on.
 ///
 /// The `beacon_value` is added to the nonce, `R = public_presig + beacon_value * G`, and must be
