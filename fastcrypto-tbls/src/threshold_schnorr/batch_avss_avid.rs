@@ -157,11 +157,6 @@ pub struct AvidMessage<C: Certificate<Payload = AvssVote>> {
 }
 
 /// An endorsement of the dealer's second phase dispersal (bounded to the AVSS certificate).
-///
-/// 6. Once the dealer has collected [AvidVote]s of weight at least `W - f`, it forms a
-///    [Certificate] over them and publishes it on the TOB. This is its completion certificate and
-///    ends the dealer's role (see the module documentation for which certificate receivers
-///    accept).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AvidVote {
     pub vote: avid::Vote,
@@ -402,6 +397,11 @@ impl Dealer {
     ///    The [AvidMessageBuilder] cannot be persisted, so to survive a crash the caller should
     ///    persist the AVSS certificate and rebuild the builder from it and the persisted
     ///    [AvssMessageBuilder].
+    ///
+    /// 6. Once the dealer has collected [AvidVote]s (step 5) of weight at least `W - f`, it forms
+    ///    a [Certificate] over them and publishes it on the TOB. This is its completion certificate
+    ///    and ends the dealer's role (see the module documentation for which certificate receivers
+    ///    accept).
     pub fn create_avid_messages<C: Certificate<Payload = AvssVote>>(
         &self,
         avss_message_builder: &AvssMessageBuilder,
