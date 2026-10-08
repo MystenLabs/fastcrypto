@@ -442,7 +442,10 @@ impl Receiver {
     ///    [DkOutput::complete_key_rotation], persisted so that they survive a restart, until the
     ///    end of the epoch.
     ///
-    ///    Returns an [InvalidInput] error if `my_output` is not the output for `message`.
+    ///    Returns an [InvalidProof](FastCryptoError::InvalidProof) error if the complaint is invalid,
+    ///    and an [InvalidInput] error if the inputs are inconsistent: `accuser_id` is unknown,
+    ///    `message` was not validated, or `my_output` is not the output for `message`. The latter
+    ///    indicates a bug in the caller.
     pub fn handle_complaint(
         &self,
         message: &Message,
