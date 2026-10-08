@@ -31,8 +31,7 @@
 //! * <i>t</i> = threshold for signing
 //!
 //! For the weights used here, [Parameters::validate] checks the basic invariants `t < W`,
-//! `t &geq; f` and `t + f &leq; W`. The AVID-based nonce protocol additionally requires `W > 2f`
-//! (enforced in `Avid::new`).
+//! `t > f` and `t + f ≤ W`, which together imply `W > 2f`.
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
@@ -72,6 +71,13 @@ type EG = RistrettoPoint;
 pub type Address = [u8; 32];
 
 /// Threshold parameters for the AVSS protocols.
+///
+/// The values must satisfy `t > f`.
+///
+/// If the weights of the parties are reduced, the reduced weights and thresholds must come from
+/// [Nodes::knapsack_reduce](crate::nodes::Nodes::knapsack_reduce), which guarantees `t > f`. The
+/// other reductions in [Nodes](crate::nodes::Nodes) can return `t == f`, which
+/// [Parameters::validate] rejects.
 #[derive(Copy, Clone, Debug)]
 pub struct Parameters {
     /// Reconstruction threshold: `≥ t` valid shares (by weight) reconstruct a secret.
@@ -82,15 +88,13 @@ pub struct Parameters {
 
 impl Parameters {
     /// Validate `(t, f)` against the given total weight `W`, checking the basic invariants needed
-    /// for the sharing here: `0 < f`, `t < W`, `t ≥ f` and `t + f ≤ W`. Note the AVID-based nonce
-    /// protocol has a further requirement, `W > 2f`, which is enforced when its Reed-Solomon coder
-    /// is built (`Avid::new`), not here.
+    /// for the sharing here: `0 < f`, `t < W`, `t > f` and `t + f ≤ W`.
     pub fn validate(&self, total_weight: u16) -> FastCryptoResult<()> {
         let Parameters { t, f } = *self;
         if f == 0
             || t == 0
             || t >= total_weight
-            || t < f
+            || t <= f
             || t as u32 + f as u32 > total_weight as u32
         {
             return Err(InvalidInput);
@@ -181,8 +185,10 @@ mod tests {
     #[test]
     fn test_parameters_validate() {
         assert!(Parameters { t: 3, f: 2 }.validate(5).is_ok());
+        // A sharing of degree `t - 1` is reconstructed by the permitted `f` shares once `f >= t`.
+        assert!(Parameters { t: 3, f: 3 }.validate(10).is_err());
         // t + f > W, and it overflows u16.
-        assert!(Parameters { t: 40000, f: 40000 }.validate(65535).is_err());
+        assert!(Parameters { t: 40001, f: 40000 }.validate(65535).is_err());
     }
 
     /// A happy-path smoke test, not a reference for integrating the protocols.
