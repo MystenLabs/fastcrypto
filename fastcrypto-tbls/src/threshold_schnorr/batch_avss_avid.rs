@@ -572,7 +572,9 @@ impl Receiver {
     ///
     ///    Only receivers that verified a common message for this round should process
     ///    [AvidMessage]s and sign [AvidVote]s, whether or not their [AvssVote] reached the dealer
-    ///    in time. The caller must pass the [VerifiedAvssCommonMessage] it verified.
+    ///    in time. The caller must pass the [VerifiedAvssCommonMessage] it verified. A receiver
+    ///    that gets an [AvidMessage] before it has verified a common message keeps it until its
+    ///    [AvssMessage] arrives (see [Dealer::create_avss_messages]), and then processes both.
     ///
     ///    Receivers who did not receive their shares through an [AvssMessage] (or verified a
     ///    different common message) are pending recipients: they wait for a published
@@ -750,6 +752,10 @@ impl Receiver {
     }
 
     /// 8. Handle a complaint from an accuser.
+    ///
+    /// `own_ciphertext` is this receiver's ciphertext from the [AvssMessage] it verified. A
+    /// receiver keeps its [AvssMessage] and [AvidMessage] to answer complaints and serve echoes
+    /// until the end of the epoch, after which no presignatures from the dealing are used.
     ///
     /// 8a. Validate a [AvssComplaint] and respond with this party's own shares. This is called
     ///     only by a receiver that sent a vote for the common message.
