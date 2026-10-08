@@ -620,11 +620,12 @@ impl Receiver {
     }
 
     // ---- Non happy path flows ----
-    //
-    // 7. A receiver that did not receive its shares through an [AvssMessage] should wait for a
-    //    (TOB) published [Certificate] over [AvidVote]s that confirms they are a pending
-    //    recipient, and then retrieve the [AvssCommonMessage] and [Echo]es from the signers.
 
+    /// 7. A pending recipient, i.e., a receiver that did not get its shares in the first phase,
+    ///    waits for the dealer's completion certificate on the TOB. This is a [Certificate] over
+    ///    [AvidVote]s that lists it among the recipients. It then gets the [AvssCommonMessage] and
+    ///    [Echo]es from the certificate's signers.
+    ///
     /// 7a. Validate an [AvssCommonMessage] based on the cert, and return
     ///     [VerifiedAvssCommonMessage].
     ///     Returns [NotEnoughWeight] if the signers of `avid_cert` have less than `W − f` weight.
