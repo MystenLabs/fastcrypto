@@ -380,15 +380,25 @@ impl Dealer {
         })
     }
 
-    // Step 3 happens at the caller level:
-    //   3. Collect votes from the signers to form an AVSS certificate. The more votes collected,
-    //      the more efficient is the second phase, thus the caller should collect t+f votes and
-    //      then wait for \delta time to collect more votes from stragglers (e.g., 2 seconds).
-
     /// 4. RS-encode and commit the pending recipients' ciphertexts via AVID, returning an
     ///    [AvidMessageBuilder] that can create per-receiver [AvidMessage]s. The pending recipients
     ///    are derived as the relative
     ///    complement of `avss_cert.signers()` within the node set.
+    ///
+    ///    Before this, the dealer collects the [AvssVote]s from step 2 into `avss_cert` (step 3).
+    ///    It needs votes of weight at least `max(t + f, W - f)`:
+    ///    * `t + f`, so that signers of weight at least `t` are honest and can help pending
+    ///      recipients recover their shares. Receivers reject a certificate with less.
+    ///    * `W - f`, so that the pending recipients have weight at most `f`, which this requires.
+    ///      This bounds the cost of the second phase, which grows with the weight of the pending
+    ///      recipients, and an honest dealer always gets these votes eventually.
+    ///
+    ///    Neither bound implies the other, e.g., after weight reduction, but the honest parties
+    ///    reach both when the Byzantine weight is at most `f - δ`, where `δ` is the reduction's
+    ///    allowed liveness degradation (see
+    ///    [knapsack_weight_reduction](crate::knapsack_weight_reduction)). Since each extra vote
+    ///    makes the second phase cheaper, the dealer should then wait for Δ time to collect more
+    ///    votes from stragglers (e.g., 2 seconds).
     ///
     ///    This phase is only needed if any receiver failed to confirm in the first phase.
     ///    If every receiver confirmed, the second phase should be skipped entirely, and this returns
