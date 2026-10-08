@@ -9,6 +9,17 @@
 //! * The public keys along with the weights of each receiver are known to all parties and defined in the [Nodes] structure.
 //!
 //! See [Dealer] and [Receiver] below for the protocol steps.
+//!
+//! # Key rotation
+//!
+//! To reshare the key of a previous round with output `old` and threshold `t_old`:
+//! * Each old dealer runs one instance per share index `i` it holds, with its own sid and
+//!   `old.share_for_index(i)` as the secret.
+//! * Every receiver of that instance uses the public `old.commitment_for_index(i)` as its
+//!   `commitment`.
+//! * Each party passes exactly `t_old` of the outputs, each indexed by its `i`, to
+//!   [DkOutput::complete_key_rotation] with threshold `t_old`, and checks that the new `vk` is the
+//!   old one.
 
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
 use crate::nodes::{Nodes, PartyId};
@@ -209,7 +220,7 @@ impl BCSSerialized for SharesForNode {}
 impl Dealer {
     /// Create a new dealer.
     /// * `secret`: The secret to share. If None, a random secret is sampled from `rng`.
-    ///   For key rotation, this should be set to the previous round's secret.
+    ///   For key rotation, see the module documentation.
     /// * `nodes`: The set of nodes (parties) participating in the protocol.
     /// * `params`: The threshold parameters.
     /// * `sid`: A session identifier that must be unique for each invocation of the protocol, including for each dealer.
@@ -290,8 +301,8 @@ impl Receiver {
     /// * `id`: The unique identifier of this receiver. Should match one of the party ids in `nodes`.
     /// * `params`: The threshold parameters.
     /// * `sid`: A session identifier that must be unique for each invocation of the protocol, including for each dealer, but the same for all parties in a single invocation.
-    /// * `commitment`: A commitment to the secret being shared. Required for key rotation, where
-    ///   all receivers must use the same commitment for a given dealer.
+    /// * `commitment`: A commitment to the secret being shared. Required for key rotation (see
+    ///   the module documentation).
     /// * `enc_secret_key`: The private key used to decrypt the shares sent to this receiver.
     ///
     /// Returns an error if the parameters are invalid.
