@@ -231,8 +231,7 @@ fn parse_sui_epoch(contents: &str) -> Vec<u16> {
 
 #[test]
 fn test_reduce_weights_on_sui_epochs() {
-    // Expected totals (delta = 800); each is 30-60%
-    // below Nodes::prop_reduce on the same inputs.
+    // Expected totals (delta = 800).
     let expected: &[(&str, u16, u16, u32)] = &[
         ("100", 3400, 2900, 404),
         ("100", 5200, 2000, 247),
