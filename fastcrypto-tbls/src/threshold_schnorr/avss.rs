@@ -576,7 +576,9 @@ impl DkOutput {
     }
 
     /// Combine multiple AVSS outputs from different dealers into a single output by summing.
-    /// Called by the app level with AVSS outputs that represent at least t of the weight. The set of outputs is determined based on the order of the messages on the TOB channel.
+    /// Called by the app level with AVSS outputs that represent at least t of the weight. All
+    /// parties must use the outputs of the same certified dealers, e.g., the first ones on the TOB
+    /// until their weight reaches `t`.
     /// Returns the combined output, including the joint verifying key
     ///
     /// The outputs are not verified again, so they must come from [Receiver::process_message] or
