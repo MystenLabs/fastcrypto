@@ -62,7 +62,9 @@ pub struct Receiver {
 /// The message broadcast by the dealer, containing the encrypted shares and the public keys of the nonces.
 ///
 /// The size of a message grows with the total weight and the threshold: at a total weight of 2500
-/// over 1000 nodes, it measures ~170 KB.
+/// over 1000 nodes, it measures ~170 KB. Nothing here bounds the size of a message, so a caller
+/// should reject an untrusted message that is larger than its own deployment admits before
+/// deserializing it.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
     feldman_commitment: Poly<G>,
