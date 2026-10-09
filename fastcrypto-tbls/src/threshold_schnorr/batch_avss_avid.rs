@@ -666,6 +666,8 @@ impl Receiver {
 
     /// 7c. Reconstruct this receiver's ciphertext from at least `W − 2f` weight of
     ///    [VerifiedEcho]s and, when the dispersal is consistent, decrypt and verify its shares.
+    ///    All `echoes` must have been verified against the same certificate, the dealer's
+    ///    completion certificate.
     ///
     ///    Returns [DecodeAndDecryptOutcome::InvalidDispersal] (an [AvidComplaint]) when the
     ///    collected
@@ -759,6 +761,7 @@ impl Receiver {
     ///
     /// 8a. Validate a [AvssComplaint] and respond with this party's own shares. This is called
     ///     only by a receiver that sent a vote for the common message.
+    ///     This is non-trivial, so handle at most one complaint per accuser per dealing.
     pub fn handle_avss_complaint(
         &self,
         reveal: &AvssComplaint,
