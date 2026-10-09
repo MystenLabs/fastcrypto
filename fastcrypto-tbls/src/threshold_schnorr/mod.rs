@@ -20,7 +20,9 @@
 //!
 //! For both the DKG and nonce generation protocols, it is assumed that each party has an
 //! encryption key pair (ECIES) and these public keys are known to all parties. These can be
-//! reused for all instances of the protocols.
+//! reused for all instances of the protocols. Session ids must be unique across all instances of
+//! all these protocols, not just within one, since the instances share these keys and derive
+//! their random oracles from the session id alone.
 //!
 //! It is also assumed that all messages between parties are sent over authenticated channels, so
 //! that the receiver of a message knows who sent it and that it was not modified.
