@@ -118,6 +118,11 @@ enum Extensions {
 /// This represents a certificate over a payload that a subset of the parties have signed.
 /// Here, the implementation is abstract, and it is up to the caller to implement the actual
 /// verification functionality.
+///
+/// `verify` must check that every party in `signers` signed `payload`, since the protocols compute
+/// a certificate's weight from `signers`. Signatures should be domain-separated by protocol,
+/// session and vote type, so that a vote cannot be reused as another. The protocols check the
+/// weight of a certificate where they use it.
 pub trait Certificate {
     type Payload;
 
