@@ -345,9 +345,10 @@ impl Receiver {
     /// such a message with the same error, and it should be ignored.
     ///
     /// Returns an [InvalidInput] error if the dealing does not match this receiver's `commitment`.
-    /// All receivers use the same public commitment (see the module documentation on key
-    /// rotation), so this means the dealer shares a different secret, and the message should be
-    /// ignored like an [InvalidMessage] one.
+    /// If all receivers use the public commitment from the previous round, as in key rotation (see
+    /// the module documentation), this means the dealer shares a different secret, and the
+    /// message should be ignored like an [InvalidMessage] one. Otherwise, it may instead mean
+    /// that this receiver was given a different `commitment` than the others.
     ///
     /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
     pub fn process_message<R: AllowedRng>(
