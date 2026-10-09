@@ -435,7 +435,8 @@ impl Receiver {
     }
 
     /// 3. Upon receiving a complaint, a receiver verifies it and responds with its shares.
-    ///    `accuser_id` is the party that raised the complaint (tracked by the caller).
+    ///    `accuser_id` is the party that raised the complaint (tracked by the caller). This is
+    ///    non-trivial, so handle at most one complaint per accuser per dealing.
     ///
     ///    To answer complaints, a receiver keeps the dealer's [Message] and its [AvssOutput] for
     ///    every dealer in the set used in [DkOutput::complete_dkg] or
