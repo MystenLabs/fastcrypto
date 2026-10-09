@@ -18,8 +18,9 @@ use tracing::warn;
 
 /// Generate partial threshold Schnorr signatures for a given message using a presigning tuple.
 /// The presigning tuple must be taken from a
-/// [Presignatures](crate::threshold_schnorr::presigning::Presignatures) iterator, and the other
-/// parties should use the same tuple.
+/// [Presignatures](crate::threshold_schnorr::presigning::Presignatures) iterator, and all parties
+/// must use the same tuple for a message, so which tuple signs which message must be agreed on
+/// before signing, e.g., by its order on the TOB.
 ///
 /// A tuple may be used for only one message, beacon value and derivation address: using it for
 /// any second combination discloses the signing key, whatever the beacon value. Generating the
