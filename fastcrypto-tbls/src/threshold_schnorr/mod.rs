@@ -32,6 +32,22 @@
 //!
 //! For the weights used here, [Parameters::validate] checks the basic invariants `t < W`,
 //! `t > f` and `t + f ≤ W`, which together imply `W > 2f`.
+//!
+//! # Usage
+//!
+//! For each committee, the protocols are run in this order, with the TOB used to agree on what
+//! each step builds on:
+//! 1. Generate the key with [avss], or reshare the previous committee's key (see its module
+//!    documentation). Dealers post certificates on the TOB, and all parties combine the outputs
+//!    of the same certified dealers.
+//! 2. Generate batches of nonces with [batch_avss_avid]. Dealers post completion certificates on
+//!    the TOB.
+//! 3. Create [presigning::Presignatures] from the outputs of the same completed dealers.
+//! 4. For each message, agree on a presigning tuple and draw a beacon value, then sign with
+//!    [signing::generate_partial_signatures] and [signing::aggregate_signatures].
+//!
+//! Presignatures are tied to the committee, so when it changes, the key is reshared and new
+//! nonces are generated.
 
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
