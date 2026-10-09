@@ -22,10 +22,8 @@ use tracing::warn;
 /// parties should use the same tuple.
 ///
 /// A tuple may be used for only one message, beacon value and derivation address: using it for
-/// any second combination discloses the signing key, whatever the beacon value. The caller must
-/// persist that binding before releasing the partial signatures, so a restart cannot reuse the
-/// tuple for anything else. Generating the same partial signatures again for the same inputs is
-/// safe.
+/// any second combination discloses the signing key, whatever the beacon value. Generating the
+/// same partial signatures again for the same inputs is safe.
 ///
 /// Returns also the public presignature, which all parties must agree on.
 ///
