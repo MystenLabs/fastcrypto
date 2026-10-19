@@ -65,7 +65,7 @@ impl QuadraticForm {
 #[inline]
 fn increment_and_shift_right(mut x: BigInt) -> BigInt {
     if x.is_odd() {
-        // If x is even, there's no carry on the first bit, so adding 1 will not change anything.
+        // If x is odd, there's a carry on the first bit, so adding 1 will change the result.
         x += BigInt::one();
     }
     x.shr_assign(1);
