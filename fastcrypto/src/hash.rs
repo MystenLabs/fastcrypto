@@ -211,7 +211,12 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
     fn insert_all<It, Data>(&mut self, items: It)
     where
         It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>;
+        Data: AsRef<[u8]>,
+    {
+        for item in items {
+            self.insert(item);
+        }
+    }
 
     /// Add all the elements of another hash function into this hash function.
     fn union(&mut self, other: &Self);
@@ -236,7 +241,12 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
     fn remove_all<It, Data>(&mut self, items: It)
     where
         It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>;
+        Data: AsRef<[u8]>,
+    {
+        for item in items {
+            self.remove(item);
+        }
+    }
 
     /// Generate a digest of the current state of this hash function.
     fn digest(&self) -> Digest<DIGEST_LENGTH>;
@@ -270,32 +280,12 @@ impl MultisetHash<32> for EllipticCurveMultisetHash {
         self.accumulator += Self::hash_to_point(item);
     }
 
-    fn insert_all<It, Data>(&mut self, items: It)
-    where
-        It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>,
-    {
-        for i in items {
-            self.insert(i);
-        }
-    }
-
     fn union(&mut self, other: &Self) {
         self.accumulator += other.accumulator;
     }
 
     fn remove<Data: AsRef<[u8]>>(&mut self, item: Data) {
         self.accumulator -= Self::hash_to_point(item);
-    }
-
-    fn remove_all<It, Data>(&mut self, items: It)
-    where
-        It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>,
-    {
-        for i in items {
-            self.remove(i);
-        }
     }
 
     fn digest(&self) -> Digest<32> {
@@ -369,32 +359,12 @@ impl MultisetHash<32> for LtHash32 {
         self.add_lanes(&Self::hash_to_lanes(item));
     }
 
-    fn insert_all<It, Data>(&mut self, items: It)
-    where
-        It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>,
-    {
-        for i in items {
-            self.insert(i);
-        }
-    }
-
     fn union(&mut self, other: &Self) {
         self.add_lanes(&other.lanes);
     }
 
     fn remove<Data: AsRef<[u8]>>(&mut self, item: Data) {
         self.sub_lanes(&Self::hash_to_lanes(item));
-    }
-
-    fn remove_all<It, Data>(&mut self, items: It)
-    where
-        It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>,
-    {
-        for i in items {
-            self.remove(i);
-        }
     }
 
     fn digest(&self) -> Digest<32> {
