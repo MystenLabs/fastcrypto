@@ -3,6 +3,7 @@
 
 //! Vectors over the integers modulo `Q < 2^32`, used by lattice-based multiset hashes.
 
+use crate::error::FastCryptoError;
 use crate::groups::HashToGroupElement;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -26,11 +27,11 @@ struct ZqVectorU32Unchecked<const N: usize> {
 }
 
 impl<const N: usize, const Q: u32> TryFrom<ZqVectorU32Unchecked<N>> for ZqVectorU32<N, Q> {
-    type Error = &'static str;
+    type Error = FastCryptoError;
 
     fn try_from(unchecked: ZqVectorU32Unchecked<N>) -> Result<Self, Self::Error> {
         if unchecked.elements.iter().any(|e| *e >= Q) {
-            return Err("ZqVectorU32 element is not reduced modulo Q");
+            return Err(FastCryptoError::InvalidInput);
         }
         Ok(Self {
             elements: unchecked.elements,
