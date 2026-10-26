@@ -317,29 +317,58 @@ impl Debug for EllipticCurveMultisetHash {
     }
 }
 
-/// Number of 32-bit lanes in an [LtHash32] state.
+/// Number of lanes in an [LtHash32] state.
 #[cfg(feature = "experimental")]
 pub const LTHASH32_LANES: usize = 1024;
 
+/// The prime modulus for the lanes of an [LtHash32] state. This is the largest prime below 2^32.
+#[cfg(feature = "experimental")]
+pub const LTHASH32_MODULUS: u32 = 0xFFFF_FFFB;
+
 /// `LtHash32` is a lattice-based homomorphic multiset hash function. Each element is expanded with
-/// SHAKE256 into a vector of [LTHASH32_LANES] 32-bit lanes, and the hash is the lane-wise sum
-/// (mod 2^32) of these vectors. Collision resistance reduces to the Short Integer Solution (SIS)
-/// problem, which is believed to be hard also for quantum computers.
+/// SHAKE256 into a vector of [LTHASH32_LANES] lanes uniformly distributed modulo the prime
+/// [LTHASH32_MODULUS], and the hash is the lane-wise sum of these vectors modulo this prime.
+/// Collision resistance reduces to the Short Integer Solution (SIS) problem, which is believed to
+/// be hard also for quantum computers.
 ///
 /// See ["Securing Update Propagation with Homomorphic Hashing" by K. Lewi et al.](https://eprint.iacr.org/2019/227)
-/// for the construction. 32-bit lanes are used because the collision attack in
-/// ["Two-Bit Lifting for Ternary SIS" by R. Ding et al.](https://eprint.iacr.org/2026/2083) needs
-/// about N^(d/2) hash queries for N lanes of d bits, which is only ~2^81 for 16-bit lanes but
-/// ~2^160 for 32-bit lanes.
+/// for the construction. A prime modulus is used instead of the usual power of two because the
+/// collision attack in ["Two-Bit Lifting for Ternary SIS" by R. Ding et al.](https://eprint.iacr.org/2026/2083)
+/// relies on lifting solutions modulo 2^k to 2^(k+2), which is not possible modulo a prime.
 ///
-/// Note that since lanes wrap around, inserting the same element 2^32 times is the same as not
-/// inserting it at all, so this should only be used for multisets with small multiplicities.
+/// Note that inserting the same element [LTHASH32_MODULUS] times is the same as not inserting it at
+/// all, and collision resistance degrades as multiplicities grow, so this should only be used for
+/// sets or multisets with small multiplicities.
 #[cfg(feature = "experimental")]
 #[serde_as]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "LtHash32Unchecked")]
 pub struct LtHash32 {
     #[serde_as(as = "[_; LTHASH32_LANES]")]
     lanes: [u32; LTHASH32_LANES],
+}
+
+/// Deserialization target for [LtHash32], which is only accepted if all lanes are reduced.
+#[cfg(feature = "experimental")]
+#[serde_as]
+#[derive(Deserialize)]
+struct LtHash32Unchecked {
+    #[serde_as(as = "[_; LTHASH32_LANES]")]
+    lanes: [u32; LTHASH32_LANES],
+}
+
+#[cfg(feature = "experimental")]
+impl TryFrom<LtHash32Unchecked> for LtHash32 {
+    type Error = &'static str;
+
+    fn try_from(unchecked: LtHash32Unchecked) -> Result<Self, Self::Error> {
+        if unchecked.lanes.iter().any(|lane| *lane >= LTHASH32_MODULUS) {
+            return Err("LtHash32 lane is not reduced modulo the prime");
+        }
+        Ok(Self {
+            lanes: unchecked.lanes,
+        })
+    }
 }
 
 #[cfg(feature = "experimental")]
@@ -354,11 +383,7 @@ impl Default for LtHash32 {
 #[cfg(feature = "experimental")]
 impl MultisetHash<32> for LtHash32 {
     fn insert<Data: AsRef<[u8]>>(&mut self, item: Data) {
-        let other = Self::hash_to_lanes(item);
-        self.lanes
-            .iter_mut()
-            .zip(other.iter())
-            .for_each(|(a, b)| *a = a.wrapping_add(*b));
+        self.add_lanes(&Self::hash_to_lanes(item));
     }
 
     fn insert_all<It, Data>(&mut self, items: It)
@@ -372,18 +397,11 @@ impl MultisetHash<32> for LtHash32 {
     }
 
     fn union(&mut self, other: &Self) {
-        self.lanes
-            .iter_mut()
-            .zip(other.lanes.iter())
-            .for_each(|(a, b)| *a = a.wrapping_add(*b));
+        self.add_lanes(&other.lanes);
     }
 
     fn remove<Data: AsRef<[u8]>>(&mut self, item: Data) {
-        let other = Self::hash_to_lanes(item);
-        self.lanes
-            .iter_mut()
-            .zip(other.iter())
-            .for_each(|(a, b)| *a = a.wrapping_sub(*b));
+        self.sub_lanes(&Self::hash_to_lanes(item));
     }
 
     fn remove_all<It, Data>(&mut self, items: It)
@@ -408,21 +426,55 @@ impl MultisetHash<32> for LtHash32 {
 
 #[cfg(feature = "experimental")]
 impl LtHash32 {
-    /// Expand the given item into a vector of lanes using SHAKE256.
+    /// Lane-wise addition modulo the prime. Both inputs are reduced, so the sum is less than twice
+    /// the modulus and a single conditional subtraction suffices. If the u32 addition overflows,
+    /// the true sum is s + 2^32, and subtracting the modulus with wrap-around gives s + 5.
+    fn add_lanes(&mut self, other: &[u32; LTHASH32_LANES]) {
+        self.lanes.iter_mut().zip(other.iter()).for_each(|(a, b)| {
+            let (s, overflow) = a.overflowing_add(*b);
+            *a = if overflow || s >= LTHASH32_MODULUS {
+                s.wrapping_sub(LTHASH32_MODULUS)
+            } else {
+                s
+            };
+        });
+    }
+
+    /// Lane-wise subtraction modulo the prime.
+    fn sub_lanes(&mut self, other: &[u32; LTHASH32_LANES]) {
+        self.lanes.iter_mut().zip(other.iter()).for_each(|(a, b)| {
+            let (d, borrow) = a.overflowing_sub(*b);
+            *a = if borrow {
+                d.wrapping_add(LTHASH32_MODULUS)
+            } else {
+                d
+            };
+        });
+    }
+
+    /// Expand the given item into a vector of lanes uniformly distributed modulo the prime using
+    /// SHAKE256. Each lane is read as a little-endian u32 and resampled from the XOF if it is not
+    /// below the modulus, which happens with probability 5/2^32.
     fn hash_to_lanes<Data: AsRef<[u8]>>(item: Data) -> [u32; LTHASH32_LANES] {
         use sha3::digest::{ExtendableOutput, Update, XofReader};
 
         let mut xof = sha3::Shake256::default();
         xof.update(item.as_ref());
+        let mut reader = xof.finalize_xof();
         let mut bytes = [0u8; 4 * LTHASH32_LANES];
-        xof.finalize_xof().read(&mut bytes);
+        reader.read(&mut bytes);
 
         let mut lanes = [0u32; LTHASH32_LANES];
         lanes
             .iter_mut()
             .zip(bytes.chunks_exact(4))
             .for_each(|(lane, chunk)| {
-                *lane = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
+                *lane = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                while *lane >= LTHASH32_MODULUS {
+                    let mut resample = [0u8; 4];
+                    reader.read(&mut resample);
+                    *lane = u32::from_le_bytes(resample);
+                }
             });
         lanes
     }
