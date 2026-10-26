@@ -316,3 +316,106 @@ impl Debug for EllipticCurveMultisetHash {
         f.debug_struct("Accumulator").finish()
     }
 }
+
+/// Number of 16-bit lanes in an [LtHash16] state.
+#[cfg(feature = "experimental")]
+pub const LTHASH16_LANES: usize = 1024;
+
+/// `LtHash16` is a lattice-based homomorphic multiset hash function. Each element is expanded with
+/// SHAKE256 into a vector of [LTHASH16_LANES] 16-bit lanes, and the hash is the lane-wise sum
+/// (mod 2^16) of these vectors. Collision resistance reduces to the Short Integer Solution (SIS)
+/// problem, which is believed to be hard also for quantum computers.
+///
+/// See ["Securing Update Propagation with Homomorphic Hashing" by K. Lewi et al.](https://eprint.iacr.org/2019/227)
+/// for the construction and parameters.
+///
+/// Note that since lanes wrap around, inserting the same element 2^16 times is the same as not
+/// inserting it at all, so this should only be used for multisets with small multiplicities.
+#[cfg(feature = "experimental")]
+#[serde_as]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LtHash16 {
+    #[serde_as(as = "[_; LTHASH16_LANES]")]
+    lanes: [u16; LTHASH16_LANES],
+}
+
+#[cfg(feature = "experimental")]
+impl Default for LtHash16 {
+    fn default() -> Self {
+        Self {
+            lanes: [0; LTHASH16_LANES],
+        }
+    }
+}
+
+#[cfg(feature = "experimental")]
+impl MultisetHash<32> for LtHash16 {
+    fn insert<Data: AsRef<[u8]>>(&mut self, item: Data) {
+        let other = Self::hash_to_lanes(item);
+        self.lanes
+            .iter_mut()
+            .zip(other.iter())
+            .for_each(|(a, b)| *a = a.wrapping_add(*b));
+    }
+
+    fn union(&mut self, other: &Self) {
+        self.lanes
+            .iter_mut()
+            .zip(other.lanes.iter())
+            .for_each(|(a, b)| *a = a.wrapping_add(*b));
+    }
+
+    fn difference(&mut self, other: &Self) {
+        self.lanes
+            .iter_mut()
+            .zip(other.lanes.iter())
+            .for_each(|(a, b)| *a = a.wrapping_sub(*b));
+    }
+
+    fn remove<Data: AsRef<[u8]>>(&mut self, item: Data) {
+        let other = Self::hash_to_lanes(item);
+        self.lanes
+            .iter_mut()
+            .zip(other.iter())
+            .for_each(|(a, b)| *a = a.wrapping_sub(*b));
+    }
+
+    fn is_empty(&self) -> bool {
+        self.lanes.iter().all(|lane| *lane == 0)
+    }
+
+    fn digest(&self) -> Digest<32> {
+        let mut hash_function = Sha256::default();
+        self.lanes
+            .iter()
+            .for_each(|lane| hash_function.update(lane.to_le_bytes()));
+        hash_function.finalize()
+    }
+}
+
+#[cfg(feature = "experimental")]
+impl LtHash16 {
+    /// Expand the given item into a vector of lanes using SHAKE256.
+    fn hash_to_lanes<Data: AsRef<[u8]>>(item: Data) -> [u16; LTHASH16_LANES] {
+        use sha3::digest::{ExtendableOutput, Update, XofReader};
+
+        let mut xof = sha3::Shake256::default();
+        xof.update(item.as_ref());
+        let mut bytes = [0u8; 2 * LTHASH16_LANES];
+        xof.finalize_xof().read(&mut bytes);
+
+        let mut lanes = [0u16; LTHASH16_LANES];
+        lanes
+            .iter_mut()
+            .zip(bytes.chunks_exact(2))
+            .for_each(|(lane, chunk)| *lane = u16::from_le_bytes([chunk[0], chunk[1]]));
+        lanes
+    }
+}
+
+#[cfg(feature = "experimental")]
+impl Debug for LtHash16 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LtHash16").finish()
+    }
+}
