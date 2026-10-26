@@ -6,7 +6,7 @@
 use crate::groups::HashToGroupElement;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::ops::{Add, Sub};
+use std::ops::{AddAssign, SubAssign};
 
 /// Number of lanes in a [LatticeVectorU32].
 pub const LANES: usize = 1024;
@@ -50,12 +50,10 @@ impl Default for LatticeVectorU32 {
     }
 }
 
-impl Add for LatticeVectorU32 {
-    type Output = Self;
-
+impl AddAssign for LatticeVectorU32 {
     /// Both inputs are reduced, so one conditional subtraction of the modulus suffices. On u32
     /// overflow, the sum is s + 2^32, and s.wrapping_sub(modulus) gives s + 5.
-    fn add(mut self, other: Self) -> Self {
+    fn add_assign(&mut self, other: Self) {
         self.lanes
             .iter_mut()
             .zip(other.lanes.iter())
@@ -67,14 +65,11 @@ impl Add for LatticeVectorU32 {
                     s
                 };
             });
-        self
     }
 }
 
-impl Sub for LatticeVectorU32 {
-    type Output = Self;
-
-    fn sub(mut self, other: Self) -> Self {
+impl SubAssign for LatticeVectorU32 {
+    fn sub_assign(&mut self, other: Self) {
         self.lanes
             .iter_mut()
             .zip(other.lanes.iter())
@@ -82,7 +77,6 @@ impl Sub for LatticeVectorU32 {
                 let (d, borrow) = a.overflowing_sub(*b);
                 *a = if borrow { d.wrapping_add(MODULUS) } else { d };
             });
-        self
     }
 }
 

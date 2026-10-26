@@ -22,7 +22,7 @@ use generic_array::GenericArray;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::fmt;
-use std::ops::{Add, Sub};
+use std::ops::{AddAssign, SubAssign};
 
 use crate::encoding::{Base64, Encoding};
 use crate::groups::lattice::LatticeVectorU32;
@@ -263,20 +263,18 @@ pub struct HomomorphicMultisetHash<T> {
 
 impl<T> MultisetHash<32> for HomomorphicMultisetHash<T>
 where
-    T: HashToGroupElement + Add<Output = T> + Sub<Output = T> + Default + Clone + Eq + Serialize,
+    T: HashToGroupElement + AddAssign + SubAssign + Clone + Eq + Serialize,
 {
     fn insert<Data: AsRef<[u8]>>(&mut self, item: Data) {
-        self.accumulator =
-            std::mem::take(&mut self.accumulator) + T::hash_to_group_element(item.as_ref());
+        self.accumulator += T::hash_to_group_element(item.as_ref());
     }
 
     fn union(&mut self, other: &Self) {
-        self.accumulator = std::mem::take(&mut self.accumulator) + other.accumulator.clone();
+        self.accumulator += other.accumulator.clone();
     }
 
     fn remove<Data: AsRef<[u8]>>(&mut self, item: Data) {
-        self.accumulator =
-            std::mem::take(&mut self.accumulator) - T::hash_to_group_element(item.as_ref());
+        self.accumulator -= T::hash_to_group_element(item.as_ref());
     }
 
     fn digest(&self) -> Digest<32> {
