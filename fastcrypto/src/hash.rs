@@ -317,39 +317,42 @@ impl Debug for EllipticCurveMultisetHash {
     }
 }
 
-/// Number of 16-bit lanes in an [LtHash16] state.
+/// Number of 32-bit lanes in an [LtHash32] state.
 #[cfg(feature = "experimental")]
-pub const LTHASH16_LANES: usize = 1024;
+pub const LTHASH32_LANES: usize = 1024;
 
-/// `LtHash16` is a lattice-based homomorphic multiset hash function. Each element is expanded with
-/// SHAKE256 into a vector of [LTHASH16_LANES] 16-bit lanes, and the hash is the lane-wise sum
-/// (mod 2^16) of these vectors. Collision resistance reduces to the Short Integer Solution (SIS)
+/// `LtHash32` is a lattice-based homomorphic multiset hash function. Each element is expanded with
+/// SHAKE256 into a vector of [LTHASH32_LANES] 32-bit lanes, and the hash is the lane-wise sum
+/// (mod 2^32) of these vectors. Collision resistance reduces to the Short Integer Solution (SIS)
 /// problem, which is believed to be hard also for quantum computers.
 ///
 /// See ["Securing Update Propagation with Homomorphic Hashing" by K. Lewi et al.](https://eprint.iacr.org/2019/227)
-/// for the construction and parameters.
+/// for the construction. 32-bit lanes are used because the collision attack in
+/// ["Two-Bit Lifting for Ternary SIS" by R. Ding et al.](https://eprint.iacr.org/2026/2083) needs
+/// about N^(d/2) hash queries for N lanes of d bits, which is only ~2^81 for 16-bit lanes but
+/// ~2^160 for 32-bit lanes.
 ///
-/// Note that since lanes wrap around, inserting the same element 2^16 times is the same as not
+/// Note that since lanes wrap around, inserting the same element 2^32 times is the same as not
 /// inserting it at all, so this should only be used for multisets with small multiplicities.
 #[cfg(feature = "experimental")]
 #[serde_as]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LtHash16 {
-    #[serde_as(as = "[_; LTHASH16_LANES]")]
-    lanes: [u16; LTHASH16_LANES],
+pub struct LtHash32 {
+    #[serde_as(as = "[_; LTHASH32_LANES]")]
+    lanes: [u32; LTHASH32_LANES],
 }
 
 #[cfg(feature = "experimental")]
-impl Default for LtHash16 {
+impl Default for LtHash32 {
     fn default() -> Self {
         Self {
-            lanes: [0; LTHASH16_LANES],
+            lanes: [0; LTHASH32_LANES],
         }
     }
 }
 
 #[cfg(feature = "experimental")]
-impl MultisetHash<32> for LtHash16 {
+impl MultisetHash<32> for LtHash32 {
     fn insert<Data: AsRef<[u8]>>(&mut self, item: Data) {
         let other = Self::hash_to_lanes(item);
         self.lanes
@@ -385,37 +388,40 @@ impl MultisetHash<32> for LtHash16 {
     }
 
     fn digest(&self) -> Digest<32> {
-        let mut hash_function = Sha256::default();
-        self.lanes
-            .iter()
-            .for_each(|lane| hash_function.update(lane.to_le_bytes()));
-        hash_function.finalize()
+        let mut bytes = [0u8; 4 * LTHASH32_LANES];
+        bytes
+            .chunks_exact_mut(4)
+            .zip(self.lanes.iter())
+            .for_each(|(chunk, lane)| chunk.copy_from_slice(&lane.to_le_bytes()));
+        Sha256::digest(bytes)
     }
 }
 
 #[cfg(feature = "experimental")]
-impl LtHash16 {
+impl LtHash32 {
     /// Expand the given item into a vector of lanes using SHAKE256.
-    fn hash_to_lanes<Data: AsRef<[u8]>>(item: Data) -> [u16; LTHASH16_LANES] {
+    fn hash_to_lanes<Data: AsRef<[u8]>>(item: Data) -> [u32; LTHASH32_LANES] {
         use sha3::digest::{ExtendableOutput, Update, XofReader};
 
         let mut xof = sha3::Shake256::default();
         xof.update(item.as_ref());
-        let mut bytes = [0u8; 2 * LTHASH16_LANES];
+        let mut bytes = [0u8; 4 * LTHASH32_LANES];
         xof.finalize_xof().read(&mut bytes);
 
-        let mut lanes = [0u16; LTHASH16_LANES];
+        let mut lanes = [0u32; LTHASH32_LANES];
         lanes
             .iter_mut()
-            .zip(bytes.chunks_exact(2))
-            .for_each(|(lane, chunk)| *lane = u16::from_le_bytes([chunk[0], chunk[1]]));
+            .zip(bytes.chunks_exact(4))
+            .for_each(|(lane, chunk)| {
+                *lane = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
+            });
         lanes
     }
 }
 
 #[cfg(feature = "experimental")]
-impl Debug for LtHash16 {
+impl Debug for LtHash32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LtHash16").finish()
+        f.debug_struct("LtHash32").finish()
     }
 }

@@ -5,7 +5,7 @@ extern crate criterion;
 
 mod multiset_hash_benches {
     use criterion::*;
-    use fastcrypto::hash::{EllipticCurveMultisetHash, LtHash16, MultisetHash};
+    use fastcrypto::hash::{EllipticCurveMultisetHash, LtHash32, MultisetHash};
 
     fn bench<H: MultisetHash<32> + Default + Clone, M: measurement::Measurement>(
         name: &str,
@@ -39,7 +39,7 @@ mod multiset_hash_benches {
         let items: Vec<[u8; 32]> = (0..1000).map(|_| rand::random()).collect();
         let mut group = c.benchmark_group("MultisetHash");
         bench::<EllipticCurveMultisetHash, _>("ECMH", &items, &mut group);
-        bench::<LtHash16, _>("LtHash16", &items, &mut group);
+        bench::<LtHash32, _>("LtHash32", &items, &mut group);
     }
 
     criterion_group! {
