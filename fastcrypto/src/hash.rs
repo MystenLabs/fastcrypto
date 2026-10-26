@@ -361,18 +361,21 @@ impl MultisetHash<32> for LtHash32 {
             .for_each(|(a, b)| *a = a.wrapping_add(*b));
     }
 
+    fn insert_all<It, Data>(&mut self, items: It)
+    where
+        It: IntoIterator<Item = Data>,
+        Data: AsRef<[u8]>,
+    {
+        for i in items {
+            self.insert(i);
+        }
+    }
+
     fn union(&mut self, other: &Self) {
         self.lanes
             .iter_mut()
             .zip(other.lanes.iter())
             .for_each(|(a, b)| *a = a.wrapping_add(*b));
-    }
-
-    fn difference(&mut self, other: &Self) {
-        self.lanes
-            .iter_mut()
-            .zip(other.lanes.iter())
-            .for_each(|(a, b)| *a = a.wrapping_sub(*b));
     }
 
     fn remove<Data: AsRef<[u8]>>(&mut self, item: Data) {
@@ -383,8 +386,14 @@ impl MultisetHash<32> for LtHash32 {
             .for_each(|(a, b)| *a = a.wrapping_sub(*b));
     }
 
-    fn is_empty(&self) -> bool {
-        self.lanes.iter().all(|lane| *lane == 0)
+    fn remove_all<It, Data>(&mut self, items: It)
+    where
+        It: IntoIterator<Item = Data>,
+        Data: AsRef<[u8]>,
+    {
+        for i in items {
+            self.remove(i);
+        }
     }
 
     fn digest(&self) -> Digest<32> {
