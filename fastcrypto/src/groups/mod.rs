@@ -10,9 +10,9 @@ use std::fmt::Debug;
 use std::ops::{AddAssign, SubAssign};
 
 pub mod bls12381;
-pub mod prime_field_vector_u32;
 pub mod ristretto255;
 pub mod secp256r1;
+pub mod zq_vector_u32;
 
 pub mod multiplier;
 pub mod secp256k1;
