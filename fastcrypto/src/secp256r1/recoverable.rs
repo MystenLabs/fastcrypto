@@ -43,7 +43,7 @@ use ecdsa::elliptic_curve::subtle::Choice;
 use ecdsa::RecoveryId;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{Signature as ExternalSignature, VerifyingKey};
-use p256::elliptic_curve::bigint::ArrayEncoding;
+use p256::elliptic_curve::bigint::{ArrayEncoding, CheckedAdd};
 use p256::elliptic_curve::point::DecompressPoint;
 use p256::elliptic_curve::Curve;
 use p256::{AffinePoint, NistP256, U256};
@@ -196,11 +196,13 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         let (r, s) = self.sig.split_scalars();
         let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
 
-        // If the x-coordinate of kR overflowed the curve order, we reconstruct it here. Note that
-        // this does not seem to be done in the k256 implementation.
+        // If the x-coordinate of kR overflowed the curve order, we reconstruct it here. The sum
+        // must still fit in 256 bits: when r + n >= 2^256 it also exceeds p, so no x other than
+        // r itself reduces to r. A wrapping add would land on r + n - 2^256 instead and accept a
+        // second encoding of an existing signature (Wycheproof secp256r1 tc 482).
         let r_bytes = match v.is_x_reduced() {
-            true => U256::from(r.as_ref())
-                .wrapping_add(&NistP256::ORDER)
+            true => Option::<U256>::from(U256::from(r.as_ref()).checked_add(&NistP256::ORDER))
+                .ok_or(FastCryptoError::InvalidSignature)?
                 .to_be_byte_array(),
             false => r.to_bytes(),
         };

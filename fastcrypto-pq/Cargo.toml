@@ -32,6 +32,7 @@ native = ["mysten-mldsa-native-rs/native"]
 bcs.workspace = true
 criterion = "0.5.1"
 serde_json = "1.0.93"
+wycheproof.workspace = true
 
 [[bench]]
 name = "mldsa65"

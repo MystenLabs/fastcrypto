@@ -1511,6 +1511,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "wycheproof",
  "zeroize",
 ]
 
@@ -4577,12 +4578,13 @@ checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
 name = "wycheproof"
-version = "0.5.2"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71039afb8a94cba8b3fbcd400af2d259eb0ecd833fca548130f9e7681ef2c53a"
+checksum = "ffb6c33340cdfc5bebaa43b6debf9570812bb30465e42495188740ca8bf1e001"
 dependencies = [
  "data-encoding",
  "serde",
+ "serde_derive",
  "serde_json",
 ]
 

@@ -139,7 +139,7 @@ wasm = ["dep:getrandom"]
 criterion = "0.5.1"
 k256 = { version = "0.11.6", features = ["ecdsa", "sha256", "keccak256"] }
 proptest = "1.1.0"
-wycheproof = "0.5.0"
+wycheproof.workspace = true
 faster-hex = "0.10.1"
 rustc-hex = "2.1.0"
 base64 = "0.21.0"
