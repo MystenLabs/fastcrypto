@@ -320,6 +320,6 @@ impl EllipticCurveMultisetHash {
 
 impl Debug for EllipticCurveMultisetHash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Accumulator").field(&self.digest()).finish()
+        f.debug_struct("Accumulator").finish()
     }
 }

@@ -248,9 +248,8 @@ fn test_accumulator_is_empty() {
 
 #[test]
 fn test_accumulator_debug() {
-    let accumulator = EllipticCurveMultisetHash::default();
     assert_eq!(
-        format!("{:?}", accumulator),
-        format!("Accumulator({})", Base64::encode(accumulator.digest()))
+        format!("{:?}", EllipticCurveMultisetHash::default()),
+        "Accumulator"
     );
 }
