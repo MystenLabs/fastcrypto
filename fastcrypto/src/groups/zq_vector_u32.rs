@@ -85,17 +85,14 @@ impl<const N: usize, const Q: u32> HashToGroupElement for ZqVectorU32<N, Q> {
         xof.update(msg);
         let mut reader = xof.finalize_xof();
 
-        let mut bytes = vec![0u8; 4 * N];
-        reader.read(&mut bytes);
-        let mut elements = [0u32; N];
-        for (e, b) in elements.iter_mut().zip(bytes.chunks_exact(4)) {
-            *e = u32::from_le_bytes(b.try_into().unwrap());
-            while *e >= Q {
-                let mut resample = [0u8; 4];
-                reader.read(&mut resample);
-                *e = u32::from_le_bytes(resample);
+        let elements = std::array::from_fn(|_| loop {
+            let mut bytes = [0u8; 4];
+            reader.read(&mut bytes);
+            let e = u32::from_le_bytes(bytes);
+            if e < Q {
+                break e;
             }
-        }
+        });
         Self { elements }
     }
 }
