@@ -25,7 +25,7 @@ use std::fmt;
 use std::ops::{AddAssign, SubAssign};
 
 use crate::encoding::{Base64, Encoding};
-use crate::groups::lattice::LatticeVectorU32;
+use crate::groups::prime_field_vector::PrimeFieldVector;
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::HashToGroupElement;
 
@@ -302,10 +302,10 @@ impl Debug for EllipticCurveMultisetHash {
 }
 
 /// `LtHash32` is a lattice-based multiset hash ([Lewi et al.](https://eprint.iacr.org/2019/227)) over
-/// [LatticeVectorU32]. The modulus is prime because [Ding et al.](https://eprint.iacr.org/2026/2083)
-/// break power-of-two moduli and recommend large primes. Collision resistance only holds for small
-/// multiplicities, so callers should hash sets.
-pub type LtHash32 = HomomorphicMultisetHash<LatticeVectorU32>;
+/// vectors of 1024 elements of a 32-bit prime field. The modulus is prime because
+/// [Ding et al.](https://eprint.iacr.org/2026/2083) break power-of-two moduli and recommend large
+/// primes. Collision resistance only holds for small multiplicities, so callers should hash sets.
+pub type LtHash32 = HomomorphicMultisetHash<PrimeFieldVector<1024>>;
 
 impl Debug for LtHash32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
