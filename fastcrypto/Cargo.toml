@@ -108,7 +108,6 @@ harness = false
 [[bench]]
 name = "multiset_hash"
 harness = false
-required-features = ["experimental"]
 
 [[bench]]
 name = "bulletproofs"
