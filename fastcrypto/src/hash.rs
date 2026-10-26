@@ -22,10 +22,11 @@ use generic_array::GenericArray;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::fmt;
+use std::iter::Sum;
 
 use crate::encoding::{Base64, Encoding};
 use crate::groups::ristretto255::RistrettoPoint;
-use crate::groups::HashToGroupElement;
+use crate::groups::{GroupElement, HashToGroupElement};
 
 /// Represents a digest of `DIGEST_LEN` bytes.
 #[serde_as]
@@ -211,10 +212,20 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
     fn insert_all<It, Data>(&mut self, items: It)
     where
         It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>;
+        Data: AsRef<[u8]>,
+    {
+        for item in items {
+            self.insert(item);
+        }
+    }
 
     /// Add all the elements of another hash function into this hash function.
     fn union(&mut self, other: &Self);
+
+    /// Remove all the elements of another hash function from this hash function. This is the inverse
+    /// of [MultisetHash::union], so the result is well-defined even if `other` contains elements
+    /// that are not in `self` (see the note on [MultisetHash::remove]).
+    fn difference(&mut self, other: &Self);
 
     // Note that the "remove" operation is safe even if an item has been removed
     // more times than it has been inserted. To see why, consider the following
@@ -236,7 +247,16 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
     fn remove_all<It, Data>(&mut self, items: It)
     where
         It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>;
+        Data: AsRef<[u8]>,
+    {
+        for item in items {
+            self.remove(item);
+        }
+    }
+
+    /// Returns true if this is the hash of the empty multiset, e.g., if every inserted item has
+    /// been removed again.
+    fn is_empty(&self) -> bool;
 
     /// Generate a digest of the current state of this hash function.
     fn digest(&self) -> Digest<DIGEST_LENGTH>;
@@ -252,6 +272,9 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
 /// Under the hood, it uses a Ristretto-flavoured Elligator 2 map to map a Sha512 hash of the provided
 /// data into points in the Ristretto group, and Sha256 to construct a digest from a serialization of
 /// the resulting RistrettoPoint, so digests are 32 bytes long.
+///
+/// Besides the [MultisetHash] methods, a hash can be built from an iterator of items with
+/// [FromIterator] or [Extend], and the hashes of several multisets can be combined with [Sum].
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveMultisetHash {
     accumulator: RistrettoPoint,
@@ -270,32 +293,20 @@ impl MultisetHash<32> for EllipticCurveMultisetHash {
         self.accumulator += Self::hash_to_point(item);
     }
 
-    fn insert_all<It, Data>(&mut self, items: It)
-    where
-        It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>,
-    {
-        for i in items {
-            self.insert(i);
-        }
-    }
-
     fn union(&mut self, other: &Self) {
         self.accumulator += other.accumulator;
+    }
+
+    fn difference(&mut self, other: &Self) {
+        self.accumulator -= other.accumulator;
     }
 
     fn remove<Data: AsRef<[u8]>>(&mut self, item: Data) {
         self.accumulator -= Self::hash_to_point(item);
     }
 
-    fn remove_all<It, Data>(&mut self, items: It)
-    where
-        It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>,
-    {
-        for i in items {
-            self.remove(i);
-        }
+    fn is_empty(&self) -> bool {
+        self.accumulator == RistrettoPoint::zero()
     }
 
     fn digest(&self) -> Digest<32> {
@@ -311,8 +322,41 @@ impl EllipticCurveMultisetHash {
     }
 }
 
+impl<Data: AsRef<[u8]>> FromIterator<Data> for EllipticCurveMultisetHash {
+    fn from_iter<It: IntoIterator<Item = Data>>(items: It) -> Self {
+        let mut hash = Self::default();
+        hash.insert_all(items);
+        hash
+    }
+}
+
+impl<Data: AsRef<[u8]>> Extend<Data> for EllipticCurveMultisetHash {
+    fn extend<It: IntoIterator<Item = Data>>(&mut self, items: It) {
+        self.insert_all(items);
+    }
+}
+
+/// Summing hashes computes the hash of the union of the multisets.
+impl Sum for EllipticCurveMultisetHash {
+    fn sum<It: Iterator<Item = Self>>(hashes: It) -> Self {
+        hashes.fold(Self::default(), |mut acc, hash| {
+            acc.union(&hash);
+            acc
+        })
+    }
+}
+
+impl<'a> Sum<&'a EllipticCurveMultisetHash> for EllipticCurveMultisetHash {
+    fn sum<It: Iterator<Item = &'a Self>>(hashes: It) -> Self {
+        hashes.fold(Self::default(), |mut acc, hash| {
+            acc.union(hash);
+            acc
+        })
+    }
+}
+
 impl Debug for EllipticCurveMultisetHash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Accumulator").finish()
+        f.debug_tuple("Accumulator").field(&self.digest()).finish()
     }
 }

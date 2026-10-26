@@ -205,9 +205,85 @@ fn test_digest_debug() {
 }
 
 #[test]
-fn test_accumulator_debug() {
+fn test_accumulator_difference() {
+    let mut accumulator = EllipticCurveMultisetHash::default();
+    accumulator.insert_all([b"Hello", b"World"]);
+
+    let mut other = EllipticCurveMultisetHash::default();
+    other.insert(b"World");
+
+    // Removing a multiset is the same as removing its elements one by one
+    let mut expected = accumulator.clone();
+    expected.remove(b"World");
+    accumulator.difference(&other);
+    assert_eq!(accumulator, expected);
+
+    // Difference is the inverse of union
+    accumulator.union(&other);
+    accumulator.difference(&other);
+    assert_eq!(accumulator, expected);
+
+    // The difference may contain elements that are not in the multiset, and they are cancelled
+    // out when inserted later
+    let mut accumulator = EllipticCurveMultisetHash::default();
+    accumulator.difference(&other);
+    accumulator.insert(b"World");
+    assert!(accumulator.is_empty());
+}
+
+#[test]
+fn test_accumulator_is_empty() {
+    let mut accumulator = EllipticCurveMultisetHash::default();
+    assert!(accumulator.is_empty());
+
+    accumulator.insert(b"Hello");
+    assert!(!accumulator.is_empty());
+
+    accumulator.remove(b"Hello");
+    assert!(accumulator.is_empty());
+
+    accumulator.remove(b"Hello");
+    assert!(!accumulator.is_empty());
+}
+
+#[test]
+fn test_accumulator_from_iterator_and_extend() {
+    let mut expected = EllipticCurveMultisetHash::default();
+    expected.insert_all(["Hello", "World", "!"]);
+
+    let collected: EllipticCurveMultisetHash = ["Hello", "World", "!"].into_iter().collect();
+    assert_eq!(collected, expected);
+
+    let mut extended: EllipticCurveMultisetHash = ["Hello"].into_iter().collect();
+    extended.extend(["World", "!"]);
+    assert_eq!(extended, expected);
+}
+
+#[test]
+fn test_accumulator_sum() {
+    let mut expected = EllipticCurveMultisetHash::default();
+    expected.insert_all(["Hello", "World", "!"]);
+
+    let parts: Vec<EllipticCurveMultisetHash> = ["Hello", "World", "!"]
+        .into_iter()
+        .map(|item| [item].into_iter().collect())
+        .collect();
+
+    assert_eq!(parts.iter().sum::<EllipticCurveMultisetHash>(), expected);
     assert_eq!(
-        format!("{:?}", EllipticCurveMultisetHash::default()),
-        "Accumulator"
+        parts.into_iter().sum::<EllipticCurveMultisetHash>(),
+        expected
+    );
+    assert!(std::iter::empty::<EllipticCurveMultisetHash>()
+        .sum::<EllipticCurveMultisetHash>()
+        .is_empty());
+}
+
+#[test]
+fn test_accumulator_debug() {
+    let accumulator = EllipticCurveMultisetHash::default();
+    assert_eq!(
+        format!("{:?}", accumulator),
+        format!("Accumulator({})", Base64::encode(accumulator.digest()))
     );
 }
