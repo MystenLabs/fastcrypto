@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Vectors over the integers modulo `Q < 2^32`, used by lattice-based multiset hashes.
+//! Vectors of integers modulo `Q`.
 
 use crate::error::FastCryptoError;
 use crate::groups::HashToGroupElement;
