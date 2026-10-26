@@ -25,6 +25,7 @@ use std::fmt;
 use std::ops::{Add, Sub};
 
 use crate::encoding::{Base64, Encoding};
+use crate::groups::lattice::LatticeVectorU32;
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::HashToGroupElement;
 
@@ -253,25 +254,20 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
     fn digest(&self) -> Digest<DIGEST_LENGTH>;
 }
 
-/// A group into which items can be hashed. A [HomomorphicMultisetHash] over this group is the sum
-/// of the hashes of the items in the multiset.
-pub trait MultisetHashGroup:
-    Add<Output = Self> + Sub<Output = Self> + Default + Clone + Eq + Serialize
-{
-    /// Hash an item to a group element.
-    fn hash_to<Data: AsRef<[u8]>>(item: Data) -> Self;
-}
-
-/// A multiset hash computed as the sum of the hashes of the items in a [MultisetHashGroup]. The
-/// digest is the Sha256 hash of the bincode serialization of the sum.
+/// A multiset hash computed as the sum of the hashes of the items in a group. The digest is the
+/// Sha256 hash of the bincode serialization of the sum.
 #[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HomomorphicMultisetHash<T> {
     accumulator: T,
 }
 
-impl<T: MultisetHashGroup> MultisetHash<32> for HomomorphicMultisetHash<T> {
+impl<T> MultisetHash<32> for HomomorphicMultisetHash<T>
+where
+    T: HashToGroupElement + Add<Output = T> + Sub<Output = T> + Default + Clone + Eq + Serialize,
+{
     fn insert<Data: AsRef<[u8]>>(&mut self, item: Data) {
-        self.accumulator = std::mem::take(&mut self.accumulator) + T::hash_to(item);
+        self.accumulator =
+            std::mem::take(&mut self.accumulator) + T::hash_to_group_element(item.as_ref());
     }
 
     fn union(&mut self, other: &Self) {
@@ -279,7 +275,8 @@ impl<T: MultisetHashGroup> MultisetHash<32> for HomomorphicMultisetHash<T> {
     }
 
     fn remove<Data: AsRef<[u8]>>(&mut self, item: Data) {
-        self.accumulator = std::mem::take(&mut self.accumulator) - T::hash_to(item);
+        self.accumulator =
+            std::mem::take(&mut self.accumulator) - T::hash_to_group_element(item.as_ref());
     }
 
     fn digest(&self) -> Digest<32> {
@@ -300,134 +297,17 @@ impl<T: MultisetHashGroup> MultisetHash<32> for HomomorphicMultisetHash<T> {
 /// the resulting RistrettoPoint, so digests are 32 bytes long.
 pub type EllipticCurveMultisetHash = HomomorphicMultisetHash<RistrettoPoint>;
 
-impl MultisetHashGroup for RistrettoPoint {
-    fn hash_to<Data: AsRef<[u8]>>(item: Data) -> Self {
-        RistrettoPoint::hash_to_group_element(item.as_ref())
-    }
-}
-
 impl Debug for EllipticCurveMultisetHash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Accumulator").finish()
     }
 }
 
-/// Number of lanes in a [LatticeVector].
-pub const LTHASH32_LANES: usize = 1024;
-
-/// Modulus for the lanes of a [LatticeVector]. This is the largest prime below 2^32.
-pub const LTHASH32_MODULUS: u32 = 0xFFFF_FFFB;
-
-/// `LtHash32` is a lattice-based multiset hash ([Lewi et al.](https://eprint.iacr.org/2019/227)) with
-/// [LTHASH32_LANES] lanes modulo the prime [LTHASH32_MODULUS]. The modulus is prime because
-/// [Ding et al.](https://eprint.iacr.org/2026/2083) break power-of-two moduli and recommend large primes.
-/// Collision resistance only holds for small multiplicities, so callers should hash sets.
-pub type LtHash32 = HomomorphicMultisetHash<LatticeVector>;
-
-/// A vector of [LTHASH32_LANES] lanes modulo [LTHASH32_MODULUS].
-#[serde_as]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(try_from = "LatticeVectorUnchecked")]
-pub struct LatticeVector {
-    #[serde_as(as = "[_; LTHASH32_LANES]")]
-    lanes: [u32; LTHASH32_LANES],
-}
-
-/// Deserialization target for [LatticeVector]. Lanes must be reduced.
-#[serde_as]
-#[derive(Deserialize)]
-struct LatticeVectorUnchecked {
-    #[serde_as(as = "[_; LTHASH32_LANES]")]
-    lanes: [u32; LTHASH32_LANES],
-}
-
-impl TryFrom<LatticeVectorUnchecked> for LatticeVector {
-    type Error = &'static str;
-
-    fn try_from(unchecked: LatticeVectorUnchecked) -> Result<Self, Self::Error> {
-        if unchecked.lanes.iter().any(|lane| *lane >= LTHASH32_MODULUS) {
-            return Err("LatticeVector lane is not reduced modulo the prime");
-        }
-        Ok(Self {
-            lanes: unchecked.lanes,
-        })
-    }
-}
-
-impl Default for LatticeVector {
-    fn default() -> Self {
-        Self {
-            lanes: [0; LTHASH32_LANES],
-        }
-    }
-}
-
-impl Add for LatticeVector {
-    type Output = Self;
-
-    /// Both inputs are reduced, so one conditional subtraction of the modulus suffices. On u32
-    /// overflow, the sum is s + 2^32, and s.wrapping_sub(modulus) gives s + 5.
-    fn add(mut self, other: Self) -> Self {
-        self.lanes
-            .iter_mut()
-            .zip(other.lanes.iter())
-            .for_each(|(a, b)| {
-                let (s, overflow) = a.overflowing_add(*b);
-                *a = if overflow || s >= LTHASH32_MODULUS {
-                    s.wrapping_sub(LTHASH32_MODULUS)
-                } else {
-                    s
-                };
-            });
-        self
-    }
-}
-
-impl Sub for LatticeVector {
-    type Output = Self;
-
-    fn sub(mut self, other: Self) -> Self {
-        self.lanes
-            .iter_mut()
-            .zip(other.lanes.iter())
-            .for_each(|(a, b)| {
-                let (d, borrow) = a.overflowing_sub(*b);
-                *a = if borrow {
-                    d.wrapping_add(LTHASH32_MODULUS)
-                } else {
-                    d
-                };
-            });
-        self
-    }
-}
-
-impl MultisetHashGroup for LatticeVector {
-    /// Lanes are sampled from SHAKE256 with rejection, which happens with probability 5/2^32.
-    fn hash_to<Data: AsRef<[u8]>>(item: Data) -> Self {
-        use sha3::digest::{ExtendableOutput, Update, XofReader};
-
-        let mut xof = sha3::Shake256::default();
-        xof.update(item.as_ref());
-        let mut reader = xof.finalize_xof();
-        let mut bytes = [0u8; 4 * LTHASH32_LANES];
-        reader.read(&mut bytes);
-
-        let mut lanes = [0u32; LTHASH32_LANES];
-        lanes
-            .iter_mut()
-            .zip(bytes.chunks_exact(4))
-            .for_each(|(lane, chunk)| {
-                *lane = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                while *lane >= LTHASH32_MODULUS {
-                    let mut resample = [0u8; 4];
-                    reader.read(&mut resample);
-                    *lane = u32::from_le_bytes(resample);
-                }
-            });
-        Self { lanes }
-    }
-}
+/// `LtHash32` is a lattice-based multiset hash ([Lewi et al.](https://eprint.iacr.org/2019/227)) over
+/// [LatticeVectorU32]. The modulus is prime because [Ding et al.](https://eprint.iacr.org/2026/2083)
+/// break power-of-two moduli and recommend large primes. Collision resistance only holds for small
+/// multiplicities, so callers should hash sets.
+pub type LtHash32 = HomomorphicMultisetHash<LatticeVectorU32>;
 
 impl Debug for LtHash32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
