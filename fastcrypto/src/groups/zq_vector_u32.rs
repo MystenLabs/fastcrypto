@@ -75,9 +75,6 @@ impl<const N: usize, const Q: u32> SubAssign for ZqVectorU32<N, Q> {
     }
 }
 
-/// Number of elements sampled per XOF read in [ZqVectorU32::hash_to_group_element].
-const ELEMENTS_PER_READ: usize = 64;
-
 impl<const N: usize, const Q: u32> HashToGroupElement for ZqVectorU32<N, Q> {
     /// Elements are sampled from SHAKE256 as little-endian u32s with rejection of values that are
     /// not below `Q`.
@@ -88,17 +85,11 @@ impl<const N: usize, const Q: u32> HashToGroupElement for ZqVectorU32<N, Q> {
         xof.update(msg);
         let mut reader = xof.finalize_xof();
 
+        let mut bytes = vec![0u8; 4 * N];
+        reader.read(&mut bytes);
         let mut elements = [0u32; N];
-        let mut bytes = [0u8; 4 * ELEMENTS_PER_READ];
-        for chunk in elements.chunks_mut(ELEMENTS_PER_READ) {
-            let bytes = &mut bytes[..4 * chunk.len()];
-            reader.read(bytes);
-            chunk
-                .iter_mut()
-                .zip(bytes.chunks_exact(4))
-                .for_each(|(e, b)| *e = u32::from_le_bytes([b[0], b[1], b[2], b[3]]));
-        }
-        for e in elements.iter_mut() {
+        for (e, b) in elements.iter_mut().zip(bytes.chunks_exact(4)) {
+            *e = u32::from_le_bytes(b.try_into().unwrap());
             while *e >= Q {
                 let mut resample = [0u8; 4];
                 reader.read(&mut resample);
