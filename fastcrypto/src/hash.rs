@@ -22,7 +22,6 @@ use generic_array::GenericArray;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::fmt;
-use std::iter::Sum;
 
 use crate::encoding::{Base64, Encoding};
 use crate::groups::ristretto255::RistrettoPoint;
@@ -272,9 +271,6 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
 /// Under the hood, it uses a Ristretto-flavoured Elligator 2 map to map a Sha512 hash of the provided
 /// data into points in the Ristretto group, and Sha256 to construct a digest from a serialization of
 /// the resulting RistrettoPoint, so digests are 32 bytes long.
-///
-/// Besides the [MultisetHash] methods, a hash can be built from an iterator of items with
-/// [FromIterator] or [Extend], and the hashes of several multisets can be combined with [Sum].
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveMultisetHash {
     accumulator: RistrettoPoint,
@@ -319,39 +315,6 @@ impl EllipticCurveMultisetHash {
     /// Hash the given item into a RistrettoPoint to be used by the insert and remove methods.
     fn hash_to_point<Data: AsRef<[u8]>>(item: Data) -> RistrettoPoint {
         RistrettoPoint::hash_to_group_element(item.as_ref())
-    }
-}
-
-impl<Data: AsRef<[u8]>> FromIterator<Data> for EllipticCurveMultisetHash {
-    fn from_iter<It: IntoIterator<Item = Data>>(items: It) -> Self {
-        let mut hash = Self::default();
-        hash.insert_all(items);
-        hash
-    }
-}
-
-impl<Data: AsRef<[u8]>> Extend<Data> for EllipticCurveMultisetHash {
-    fn extend<It: IntoIterator<Item = Data>>(&mut self, items: It) {
-        self.insert_all(items);
-    }
-}
-
-/// Summing hashes computes the hash of the union of the multisets.
-impl Sum for EllipticCurveMultisetHash {
-    fn sum<It: Iterator<Item = Self>>(hashes: It) -> Self {
-        hashes.fold(Self::default(), |mut acc, hash| {
-            acc.union(&hash);
-            acc
-        })
-    }
-}
-
-impl<'a> Sum<&'a EllipticCurveMultisetHash> for EllipticCurveMultisetHash {
-    fn sum<It: Iterator<Item = &'a Self>>(hashes: It) -> Self {
-        hashes.fold(Self::default(), |mut acc, hash| {
-            acc.union(hash);
-            acc
-        })
     }
 }
 

@@ -247,39 +247,6 @@ fn test_accumulator_is_empty() {
 }
 
 #[test]
-fn test_accumulator_from_iterator_and_extend() {
-    let mut expected = EllipticCurveMultisetHash::default();
-    expected.insert_all(["Hello", "World", "!"]);
-
-    let collected: EllipticCurveMultisetHash = ["Hello", "World", "!"].into_iter().collect();
-    assert_eq!(collected, expected);
-
-    let mut extended: EllipticCurveMultisetHash = ["Hello"].into_iter().collect();
-    extended.extend(["World", "!"]);
-    assert_eq!(extended, expected);
-}
-
-#[test]
-fn test_accumulator_sum() {
-    let mut expected = EllipticCurveMultisetHash::default();
-    expected.insert_all(["Hello", "World", "!"]);
-
-    let parts: Vec<EllipticCurveMultisetHash> = ["Hello", "World", "!"]
-        .into_iter()
-        .map(|item| [item].into_iter().collect())
-        .collect();
-
-    assert_eq!(parts.iter().sum::<EllipticCurveMultisetHash>(), expected);
-    assert_eq!(
-        parts.into_iter().sum::<EllipticCurveMultisetHash>(),
-        expected
-    );
-    assert!(std::iter::empty::<EllipticCurveMultisetHash>()
-        .sum::<EllipticCurveMultisetHash>()
-        .is_empty());
-}
-
-#[test]
 fn test_accumulator_debug() {
     let accumulator = EllipticCurveMultisetHash::default();
     assert_eq!(
