@@ -343,6 +343,14 @@ impl Receiver {
     /// A receiver signs at most one message per dealer and persists it, with its output, before
     /// signing.
     ///
+    /// The receiver's output for a dealer must come from the certified message. A dealer may
+    /// send its message to only some receivers, or different messages to different receivers, and
+    /// still get a certificate. So when a receiver accepts a certificate but holds no message from
+    /// that dealer, or one that is not the certified message, it gets the certified message from
+    /// one of the signers, checking it against the certificate, discards any output or complaint
+    /// from the other message, and processes the certified one. Otherwise it can neither get its
+    /// shares nor complain.
+    ///
     /// Returns an [InvalidMessage] error if the message is malformed. All honest receivers reject
     /// such a message with the same error, and it should be ignored.
     ///
