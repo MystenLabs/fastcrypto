@@ -47,6 +47,11 @@ use p256::elliptic_curve::bigint::{ArrayEncoding, CheckedAdd};
 use p256::elliptic_curve::point::DecompressPoint;
 use p256::elliptic_curve::Curve;
 use p256::{AffinePoint, NistP256, U256};
+
+/// The prime p of the secp256r1 field (SEC 2 v2.0, sec. 2.4.2). The p256 crate keeps its
+/// own copy private.
+const FIELD_MODULUS: U256 =
+    U256::from_be_hex("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff");
 use std::fmt::{self, Debug};
 
 pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + 1;
@@ -196,16 +201,15 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         let (r, s) = self.sig.split_scalars();
         let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
 
-        // If the x-coordinate of kR overflowed the curve order, we reconstruct it here. The sum
-        // must still fit in 256 bits: when r + n >= 2^256 it also exceeds p, so no x other than
-        // r itself reduces to r. A wrapping add would land on r + n - 2^256 instead and accept a
-        // second encoding of an existing signature (Wycheproof secp256r1 tc 482).
-        let r_bytes = match v.is_x_reduced() {
-            true => Option::<U256>::from(U256::from(r.as_ref()).checked_add(&NistP256::ORDER))
-                .ok_or(FastCryptoError::InvalidSignature)?
-                .to_be_byte_array(),
-            false => r.to_bytes(),
-        };
+        let mut x = U256::from(r.as_ref());
+        if v.is_x_reduced() {
+            // The signer reduced x(R) >= n to r = x(R) - n, so restore x(R) = r + n.
+            // Per SEC 1 v2.0, sec. 4.1.6, step 1.3, this must be < p.
+            x = Option::<U256>::from(x.checked_add(&NistP256::ORDER))
+                .filter(|&x| x < FIELD_MODULUS)
+                .ok_or(FastCryptoError::InvalidSignature)?;
+        }
+        let r_bytes = x.to_be_byte_array();
 
         // Reconstruct y-coordinate from x-coordinate using the given recovery id.
         let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));
