@@ -223,10 +223,10 @@ impl Secp256r1RecoverableSignature {
         let mut x = U256::from(r.as_ref());
         if v.is_x_reduced() {
             // The signer reduced x(R) >= n to r = x(R) - n, so restore x(R) = r + n.
-            // Per SEC 1 v2.0, sec. 4.1.6, step 1.3, this must be < p.
             x = if legacy {
                 x.wrapping_add(&NistP256::ORDER)
             } else {
+                // Per SEC 1 v2.0, sec. 4.1.6, step 1.3, this must be < p.
                 Option::<U256>::from(x.checked_add(&NistP256::ORDER))
                     .filter(|&x| x < FIELD_MODULUS)
                     .ok_or(FastCryptoError::InvalidSignature)?
