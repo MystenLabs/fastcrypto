@@ -381,6 +381,33 @@ fn legacy_recovery_accepts_wrapped_r() {
         .is_err());
 }
 
+// Lets put r + n in [p, 2^256): it fits in 256 bits but is no field element. Strict recovery
+// rejects it at the bound check, legacy recovery when decompression fails.
+#[test]
+fn recovery_rejects_x_at_or_above_p() {
+    let kp = keys().pop().unwrap();
+    let msg = b"Hello, world!";
+    let honest = kp.sign_recoverable(msg);
+
+    let mut bytes = [0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH];
+    bytes.copy_from_slice(honest.as_ref());
+    let p = U256::from_be_hex("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff");
+    // r = (p - n) + (r mod 2^223) keeps r < n and r + n < p + 2^223 < 2^256.
+    let low =
+        U256::from_be_slice(&bytes[..32]) & (U256::ONE.shl_vartime(223).wrapping_sub(&U256::ONE));
+    let shifted = p.wrapping_sub(&NistP256::ORDER).wrapping_add(&low);
+    assert!(shifted < NistP256::ORDER);
+    bytes[..32].copy_from_slice(&shifted.to_be_byte_array());
+    bytes[64] |= 2;
+    let sig = <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&bytes).unwrap();
+
+    assert_eq!(
+        sig.recover(msg).unwrap_err(),
+        FastCryptoError::InvalidSignature
+    );
+    assert!(sig.recover_with_hash_legacy::<Sha256>(msg).is_err());
+}
+
 fn map_result(t: TestResult) -> TestResult {
     match t {
         TestResult::Valid => TestResult::Valid,
