@@ -52,15 +52,13 @@ impl<const Q: u32> SubAssign for Zq32<Q> {
 
 impl<const Q: u32> RejectionSample for Zq32<Q> {
     /// Samples little-endian u32s and rejects values that are not below `Q`.
-    fn sample<R: std::io::Read>(reader: &mut R) -> Self {
+    fn sample<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         loop {
             let mut bytes = [0u8; 4];
-            reader
-                .read_exact(&mut bytes)
-                .expect("Reader should not run out of bytes");
+            reader.read_exact(&mut bytes)?;
             let value = u32::from_le_bytes(bytes);
             if value < Q {
-                return Self(value);
+                return Ok(Self(value));
             }
         }
     }

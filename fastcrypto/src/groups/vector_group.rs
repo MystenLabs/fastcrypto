@@ -52,7 +52,9 @@ impl<T: RejectionSample, const N: usize> HashToGroupElement for VectorGroup<T, N
         xof.update(msg);
         let mut reader = xof.finalize_xof();
         Self {
-            elements: std::array::from_fn(|_| T::sample(&mut reader)),
+            elements: std::array::from_fn(|_| {
+                T::sample(&mut reader).expect("SHAKE256 output is unbounded")
+            }),
         }
     }
 }
