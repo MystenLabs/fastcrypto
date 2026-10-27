@@ -67,6 +67,12 @@ pub(crate) fn power_vector(x: RistrettoScalar, n: usize) -> Vec<RistrettoScalar>
     v
 }
 
+/// `x^p` for any integer `p`, given `x_inv = x^{-1}`.
+pub(crate) fn pow(x: RistrettoScalar, x_inv: RistrettoScalar, p: i32) -> RistrettoScalar {
+    let (base, e) = if p < 0 { (x_inv, -p) } else { (x, p) };
+    (0..e).fold(one(), |acc, _| acc * base)
+}
+
 /// Even-indexed elements `(v_0, v_2, v_4, ...)`.
 pub(crate) fn even_elements<T: Copy>(v: &[T]) -> Vec<T> {
     v.iter().step_by(2).copied().collect()
@@ -160,6 +166,15 @@ mod tests {
     fn test_power_vector() {
         assert_eq!(power_vector(s(3), 4), vec![s(1), s(3), s(9), s(27)]);
         assert!(power_vector(s(3), 0).is_empty());
+    }
+
+    #[test]
+    fn test_pow() {
+        let x = s(3);
+        let x_inv = x.inverse().unwrap();
+        assert_eq!(pow(x, x_inv, 0), one());
+        assert_eq!(pow(x, x_inv, 3), s(27));
+        assert_eq!(pow(x, x_inv, -2) * s(9), one());
     }
 
     #[test]

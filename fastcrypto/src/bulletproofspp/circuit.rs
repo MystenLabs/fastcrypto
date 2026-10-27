@@ -24,9 +24,13 @@ use crate::bulletproofspp::util::*;
 
 type S = RistrettoScalar;
 
-/// tau-powers of the blinding constraint entries `hat_c_r`,
+/// tau-powers `a_j` of the blinding constraint entries `hat_c_r`,
 /// slots 1..7. The gap at 4 keeps `C_S` out of the value row.
 const CR_POWERS: [i32; H_LEN - 1] = [-1, 1, 2, 3, 5, 6, 7];
+
+/// The value row: the coefficient of `f(T)` at this power aggregates every
+/// circuit row, so it must vanish for a valid witness alone.
+const VALUE_ROW: i32 = 3;
 
 /// Circuit proof: the four commitments plus the norm-linear proof.
 /// For 1x64: 4 + 6 group elements + 3 scalars = 416 bytes.
@@ -255,6 +259,58 @@ impl Blocks {
     }
 }
 
+/// The prover's messages and the aggregate input, as they enter the
+/// combined commitment
+///   `C(T) = P(T) + T^{-1}*C_S + delta*C_O + T*C_L + T^2*C_R + T^3*hat_V`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Entry {
+    S,
+    O,
+    L,
+    R,
+    V,
+}
+
+impl Entry {
+    /// The power of `T` at which this entry enters `C(T)`.
+    fn power(self) -> i32 {
+        match self {
+            Entry::S => -1,
+            Entry::O => 0,
+            Entry::L => 1,
+            Entry::R => 2,
+            Entry::V => VALUE_ROW,
+        }
+    }
+
+    /// The challenge weight of this entry in `C(T)`.
+    fn weight(self, delta: S) -> S {
+        if self == Entry::O {
+            delta
+        } else {
+            one()
+        }
+    }
+
+    /// The coefficient of this entry's commitment in `C(tau)`.
+    fn coefficient(self, tau: S, tau_inv: S, delta: S) -> S {
+        self.weight(delta) * pow(tau, tau_inv, self.power())
+    }
+
+    /// Whether blinding slot `slot` of a commitment entering at this power
+    /// may be nonzero. Slot 0 reaches `f(T)` through `sigma` at `T^e`, slot
+    /// `j >= 1` through `beta*T^{a_j}` in `<c(T), l(T)>` at `T^{e+a_j}`. A slot
+    /// is free iff its row is one that `r_S` cancels (see [solve_r_s]): slot 0
+    /// of `r_S` cancels row `T^{-1}`, slot `j` row `T^{a_j - 1}`. This excludes
+    /// the value row `T^3` and every row above `T^6` (spec Eq. (22)).
+    fn is_free_slot(self, slot: usize) -> bool {
+        let a = if slot == 0 { 0 } else { CR_POWERS[slot - 1] };
+        let row = self.power() + a;
+        let s = Entry::S.power();
+        row == s || CR_POWERS.iter().any(|&a_j| s + a_j == row)
+    }
+}
+
 /// Norm-linear commitment `C_X = r[0]*G + <r[1..8] || l, H> + <n, G_vec>`.
 /// `H_0..H_6` carry the blinding slots 1..7, `H_7` the linear witness.
 fn commit(gens: &Generators, r: &[S], l: S, n: &[S]) -> FastCryptoResult<RistrettoPoint> {
@@ -269,20 +325,15 @@ fn commit(gens: &Generators, r: &[S], l: S, n: &[S]) -> FastCryptoResult<Ristret
     )
 }
 
-/// A blinding vector of length `H_LEN` with zeros at specific positions and
-/// random values otherwise. Slot `p` of a commitment entering `C(T)` at
-/// `T^e` reaches the error polynomial at row `e + CR_POWERS[p-1]`, so the
-/// slots hitting the value row `T^3`, or rows above `T^6` that no `r_S` slot
-/// cancels, must be zero. Hence, with entry powers 0, 1, 2 for `C_O`, `C_L`,
-/// `C_R`: `r_O` zeros slots `[4, 7]` (rows 3, 7), `r_L` slots `[3, 6, 7]`
-/// (rows 3, 7, 8) and `r_R` slots `[2, 5, 6, 7]` (rows 3, 7, 8, 9).
-fn blinding_vector(rng: &mut impl AllowedRng, zeros: &[usize]) -> Vec<S> {
+/// A random blinding vector for a commitment entering `C(T)` as `entry`,
+/// zero at the slots that must not carry blinding.
+fn blinding_vector(rng: &mut impl AllowedRng, entry: Entry) -> Vec<S> {
     (0..H_LEN)
-        .map(|i| {
-            if zeros.contains(&i) {
-                S::zero()
-            } else {
+        .map(|slot| {
+            if entry.is_free_slot(slot) {
                 S::rand(rng)
+            } else {
+                S::zero()
             }
         })
         .collect()
@@ -334,36 +385,38 @@ fn solve_r_s(
     // T^q meets beta*T^{a_j} at T^{a_j+q}, and the constant shape entry
     // cl_v[j] at T^q itself. Index p+2; sized for the largest reachable
     // power a_7 + 3 = 10.
+    let idx = |p: i32| (p + 2) as usize;
     let mut known = [S::zero(); 13];
     for slot in 1..H_LEN {
         let committed = [
-            (0i32, delta * r.r_o[slot]),
-            (1, r.r_l[slot]),
-            (2, r.r_r[slot]),
-            (3, r.r_v[slot]),
+            (Entry::O.power(), delta * r.r_o[slot]),
+            (Entry::L.power(), r.r_l[slot]),
+            (Entry::R.power(), r.r_r[slot]),
+            (Entry::V.power(), r.r_v[slot]),
         ];
         let a = CR_POWERS[slot - 1];
         for &(q, coefficient) in &committed {
-            known[(a + q + 2) as usize] += beta * coefficient;
-            known[(q + 2) as usize] += blocks.cl_v[slot - 1] * coefficient;
+            known[idx(a + q)] += beta * coefficient;
+            known[idx(q)] += blocks.cl_v[slot - 1] * coefficient;
         }
     }
-    known[2] -= delta * r.r_o[0];
-    known[3] -= r.r_l[0];
-    known[4] -= r.r_r[0];
+    known[idx(Entry::O.power())] -= delta * r.r_o[0];
+    known[idx(Entry::L.power())] -= r.r_l[0];
+    known[idx(Entry::R.power())] -= r.r_r[0];
 
     // Diagonal solve: r_S[j] cancels the error row at T^{a_j - 1}; slot 0
     // last, with factor -1 (not divided by beta), absorbing the T^{-1}
     // contributions (row index 1) of the already-solved r_S[2..8] and l_S
     // through the constant shape entries.
+    let p_s = Entry::S.power();
     let beta_inv = beta.inverse()?;
     let mut r_s = vec![S::zero(); H_LEN];
     for slot in 1..H_LEN {
-        let p = CR_POWERS[slot - 1] - 1;
-        r_s[slot] = (fh[(p + 2) as usize] - known[(p + 2) as usize]) * beta_inv;
+        let p = p_s + CR_POWERS[slot - 1];
+        r_s[slot] = (fh[idx(p)] - known[idx(p)]) * beta_inv;
     }
     let shape_sum = (2..H_LEN).fold(S::zero(), |acc, j| acc + blocks.cl_v[j - 1] * r_s[j]);
-    r_s[0] = -(fh[1] - known[1] - shape_sum - blocks.cl_v[H_LEN - 1] * l_s);
+    r_s[0] = -(fh[idx(p_s)] - known[idx(p_s)] - shape_sum - blocks.cl_v[H_LEN - 1] * l_s);
     Ok(r_s)
 }
 
@@ -445,8 +498,8 @@ pub(crate) fn prove(
         .map(|&m| S::from(m))
         .collect();
     n_o.resize(params.nm, S::zero());
-    let r_o = blinding_vector(rng, &[4, 7]);
-    let r_l = blinding_vector(rng, &[3, 6, 7]);
+    let r_o = blinding_vector(rng, Entry::O);
+    let r_l = blinding_vector(rng, Entry::L);
     let c_l = commit(gens, &r_l, S::zero(), &n_l)?;
     let c_o = commit(gens, &r_o, S::zero(), &n_o)?;
     transcript.append_point(b"C_L", &c_l);
@@ -465,7 +518,7 @@ pub(crate) fn prove(
             .collect::<Vec<_>>(),
     )?;
     let n_r = pad_to(&recips, params.nm);
-    let r_r = blinding_vector(rng, &[2, 5, 6, 7]);
+    let r_r = blinding_vector(rng, Entry::R);
     let c_r = commit(gens, &r_r, S::zero(), &n_r)?;
     transcript.append_point(b"C_R", &c_r);
 
@@ -576,31 +629,29 @@ pub(crate) fn verify(
     transcript.append_point(b"C_S", &proof.c_s);
     let tau = transcript.challenge_scalar(b"tau");
     let tau_inv = tau.inverse()?;
-    let t2 = tau * tau;
-    let t3 = t2 * tau;
 
     let blocks = compute_blocks(params, alpha, mu, lambda)?;
     let pn_tau = blocks.pn_at(tau, delta_inv);
     // p_s(tau) = |p_n(tau)|^2_mu + 2*(lambda_al + mu_am)*tau^3, evaluated
     // directly on pn_tau rather than via the coefficients of p_s(T).
-    let ps_tau =
-        weighted_norm(&pn_tau, mu) + S::from(2u64) * (blocks.lambda_al + blocks.mu_am) * t3;
+    let ps_tau = weighted_norm(&pn_tau, mu)
+        + S::from(2u64) * (blocks.lambda_al + blocks.mu_am) * pow(tau, tau_inv, VALUE_ROW);
     let c_tau = blocks.c_at(tau, tau_inv, beta);
 
     // Combined commitment, decomposed so it joins the norm-linear verifier's
     // single MSM (g_vec is touched only there):
-    //   C(tau) = <p_n(tau), G_vec> + p_s(tau)*G
-    //          + tau^{-1}*C_S + delta*C_O + tau*C_L + tau^2*C_R + tau^3*hat_V
+    //   C(tau) = <p_n(tau), G_vec> + p_s(tau)*G + sum_X weight_X tau^{power(X)} C_X
     // with hat_V = 2*sum_i lambda^{i-1} V_i.
-    let two_t3 = S::from(2u64) * t3;
+    let coefficient = |entry: Entry| entry.coefficient(tau, tau_inv, delta);
     let mut extra = vec![
-        (tau_inv, proof.c_s),
-        (delta, proof.c_o),
-        (tau, proof.c_l),
-        (t2, proof.c_r),
+        (coefficient(Entry::S), proof.c_s),
+        (coefficient(Entry::O), proof.c_o),
+        (coefficient(Entry::L), proof.c_l),
+        (coefficient(Entry::R), proof.c_r),
     ];
-    for (i, v_i) in v_commitments.iter().enumerate() {
-        extra.push((two_t3 * blocks.lambdas[i], *v_i));
+    let v_weight = S::from(2u64) * coefficient(Entry::V);
+    for (lambda_pow, v_i) in blocks.lambdas.iter().zip(v_commitments) {
+        extra.push((v_weight * lambda_pow, *v_i));
     }
 
     norm_linear::verify(
@@ -776,6 +827,20 @@ mod tests {
         assert!(verify(&mut t, &gens, &params, &proof, &v_commitments).is_err());
     }
 
+    /// The blinding zero patterns derived from the entry powers are the
+    /// spec's Eq. (22).
+    #[test]
+    fn test_blinding_zero_patterns() {
+        let zeros = |entry: Entry| {
+            (0..H_LEN)
+                .filter(|&slot| !entry.is_free_slot(slot))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(zeros(Entry::O), [4, 7]);
+        assert_eq!(zeros(Entry::L), [3, 6, 7]);
+        assert_eq!(zeros(Entry::R), [2, 5, 6, 7]);
+    }
+
     /// A junk direction outside the (G, H_0)-plane of the statement
     /// commitment.
     enum Junk {
@@ -871,8 +936,8 @@ mod tests {
         transcript.append_points(b"V", &v_commitments);
 
         let (n_l, n_o) = (cheat.n_l.clone(), cheat.n_o.clone());
-        let r_o = blinding_vector(rng, &[4, 7]);
-        let mut r_l = blinding_vector(rng, &[3, 6, 7]);
+        let r_o = blinding_vector(rng, Entry::O);
+        let mut r_l = blinding_vector(rng, Entry::L);
         for &slot in &cheat.r_l_nonzero {
             r_l[slot] = S::rand(rng);
         }
@@ -897,7 +962,7 @@ mod tests {
         if let Some(padding) = &cheat.n_r_padding {
             n_r[params.n_d..].copy_from_slice(&padding[params.n_d..]);
         }
-        let r_r = blinding_vector(rng, &[2, 5, 6, 7]);
+        let r_r = blinding_vector(rng, Entry::R);
         let c_r = commit(gens, &r_r, S::zero(), &n_r)?;
         transcript.append_point(b"C_R", &c_r);
 
