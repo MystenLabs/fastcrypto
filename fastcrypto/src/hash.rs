@@ -257,10 +257,6 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
 
 /// A multiset hash computed as the sum of the hashes of the items in a group. The digest is the
 /// Sha256 hash of the bincode serialization of the sum.
-///
-/// The digest is at most as collision resistant as Sha256, which gives about 128 bits of security
-/// against classical attacks, even if the sum itself is more collision resistant. The digest is not
-/// homomorphic, so hashes must be combined with [MultisetHash::union] before computing a digest.
 #[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HomomorphicMultisetHash<T> {
     accumulator: T,
