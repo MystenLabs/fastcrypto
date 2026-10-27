@@ -5,7 +5,6 @@
 
 use crate::error::FastCryptoError;
 use crate::groups::RejectionSample;
-use digest::XofReader;
 use serde::{Deserialize, Serialize};
 use std::ops::{AddAssign, SubAssign};
 
@@ -53,10 +52,10 @@ impl<const Q: u32> SubAssign for Zq32<Q> {
 
 impl<const Q: u32> RejectionSample for Zq32<Q> {
     /// Samples little-endian u32s and rejects values that are not below `Q`.
-    fn sample<R: XofReader>(reader: &mut R) -> Self {
+    fn sample<R: rand::RngCore>(rng: &mut R) -> Self {
         loop {
             let mut bytes = [0u8; 4];
-            reader.read(&mut bytes);
+            rng.fill_bytes(&mut bytes);
             let value = u32::from_le_bytes(bytes);
             if value < Q {
                 return Self(value);

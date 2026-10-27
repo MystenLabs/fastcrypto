@@ -4,6 +4,8 @@
 //! Vectors of group elements with element-wise addition.
 
 use crate::groups::{HashToGroupElement, RejectionSample};
+use digest::XofReader;
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::ops::{AddAssign, SubAssign};
@@ -50,9 +52,35 @@ impl<T: RejectionSample, const N: usize> HashToGroupElement for VectorGroup<T, N
 
         let mut xof = sha3::Shake256::default();
         xof.update(msg);
-        let mut reader = xof.finalize_xof();
+        let mut rng = XofRng(xof.finalize_xof());
         Self {
-            elements: std::array::from_fn(|_| T::sample(&mut reader)),
+            elements: std::array::from_fn(|_| T::sample(&mut rng)),
         }
+    }
+}
+
+/// Adapter that lets [RejectionSample] read bytes from an extendable-output function.
+struct XofRng<R>(R);
+
+impl<R: XofReader> RngCore for XofRng<R> {
+    fn next_u32(&mut self) -> u32 {
+        let mut bytes = [0u8; 4];
+        self.fill_bytes(&mut bytes);
+        u32::from_le_bytes(bytes)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        let mut bytes = [0u8; 8];
+        self.fill_bytes(&mut bytes);
+        u64::from_le_bytes(bytes)
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        self.0.read(dest);
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
+        self.fill_bytes(dest);
+        Ok(())
     }
 }
