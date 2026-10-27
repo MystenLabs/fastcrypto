@@ -34,8 +34,7 @@ impl<const Q: u32> AddAssign for Zq32<Q> {
     /// Both inputs are below `Q`, so the sum is below 2Q and at most one subtraction of `Q` is
     /// needed.
     fn add_assign(&mut self, other: Self) {
-        // TODO: This match is about 20% slower than `if overflow || s >= Q { s.wrapping_sub(Q) }
-        // else { s }`, which compiles to branch-free code. Use that form if performance matters.
+        // TODO: Combining the last two arms into `(s, _) => s.wrapping_sub(Q)` is a bit faster.
         self.0 = match self.0.overflowing_add(other.0) {
             (s, false) if s < Q => s,
             (s, false) => s - Q,
