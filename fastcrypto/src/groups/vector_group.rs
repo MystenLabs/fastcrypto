@@ -43,12 +43,18 @@ impl<T: SubAssign, const N: usize> SubAssign for VectorGroup<T, N> {
     }
 }
 
+/// Domain separation tag for [VectorGroup::hash_to_group_element].
+const DST: &[u8] = b"FASTCRYPTO_VECTOR_GROUP_SHAKE256";
+
 impl<T: RejectionSample, const N: usize> HashToGroupElement for VectorGroup<T, N> {
-    /// Elements are sampled one at a time from SHAKE256.
+    /// Elements are sampled one at a time from SHAKE256 of the domain separation tag, the length
+    /// `N` as a little-endian u64 and the message.
     fn hash_to_group_element(msg: &[u8]) -> Self {
         use sha3::digest::{ExtendableOutput, Update};
 
         let mut xof = sha3::Shake256::default();
+        xof.update(DST);
+        xof.update(&(N as u64).to_le_bytes());
         xof.update(msg);
         let mut reader = xof.finalize_xof();
         Self {
