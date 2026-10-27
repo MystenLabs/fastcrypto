@@ -128,11 +128,11 @@ pub trait HashToGroupElement {
     fn hash_to_group_element(msg: &[u8]) -> Self;
 }
 
-/// Trait for types that can be sampled from a source of random bytes, rejecting samples until one is
-/// valid.
+/// Trait for types that can be sampled from the output of an extendable-output function, rejecting
+/// samples until one is valid.
 pub trait RejectionSample {
-    /// Samples an element using bytes from the given source.
-    fn sample<R: rand::RngCore>(rng: &mut R) -> Self;
+    /// Samples an element from the given reader.
+    fn sample<R: digest::XofReader>(reader: &mut R) -> Self;
 }
 
 /// Trait for groups that support multi-scalar multiplication.
