@@ -36,7 +36,7 @@ impl<G, S, const CACHE_SIZE: usize, const SLIDING_WINDOW_WIDTH: usize>
     WindowedScalarMultiplier<G, S, CACHE_SIZE, SLIDING_WINDOW_WIDTH>
 {
     /// The number of bits in the window. This is equal to the floor of the log2 of the cache size.
-    const WINDOW_WIDTH: usize = integer_utils::log2(CACHE_SIZE);
+    const WINDOW_WIDTH: usize = CACHE_SIZE.ilog2() as usize;
 }
 
 impl<
@@ -140,7 +140,7 @@ pub fn multi_scalar_mul<
                     "The size of a precomputed table must be a power of two."
                 );
                 all_precomputed_multiples.push(precomputed_multiples);
-                window_sizes[i] = integer_utils::log2(all_precomputed_multiples[i].len()) + 1;
+                window_sizes[i] = all_precomputed_multiples[i].len().ilog2() as usize + 1;
             }
             None => {
                 all_precomputed_multiples.push(&missing_precomputations[&i]);
