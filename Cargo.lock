@@ -1447,6 +1447,7 @@ dependencies = [
  "proptest",
  "radix64",
  "rand 0.8.8",
+ "rand_core 0.6.4",
  "readonly",
  "rfc6979 0.4.0",
  "rsa",

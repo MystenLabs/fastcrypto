@@ -6,6 +6,7 @@
 use crate::groups::{HashToGroupElement, RejectionSample};
 use digest::XofReader;
 use rand::RngCore;
+use rand_core::impls;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::ops::{AddAssign, SubAssign};
@@ -64,15 +65,11 @@ struct XofRng<R>(R);
 
 impl<R: XofReader> RngCore for XofRng<R> {
     fn next_u32(&mut self) -> u32 {
-        let mut bytes = [0u8; 4];
-        self.fill_bytes(&mut bytes);
-        u32::from_le_bytes(bytes)
+        impls::next_u32_via_fill(self)
     }
 
     fn next_u64(&mut self) -> u64 {
-        let mut bytes = [0u8; 8];
-        self.fill_bytes(&mut bytes);
-        u64::from_le_bytes(bytes)
+        impls::next_u64_via_fill(self)
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
