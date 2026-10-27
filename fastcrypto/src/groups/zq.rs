@@ -51,7 +51,17 @@ impl<const Q: u32> SubAssign for Zq32<Q> {
     }
 }
 
+impl<const Q: u32> Zq32<Q> {
+    const TAG: [u8; 8] = {
+        let q = Q.to_le_bytes();
+        [b'Z', b'Q', b'3', b'2', q[0], q[1], q[2], q[3]]
+    };
+}
+
 impl<const Q: u32> RejectionSample for Zq32<Q> {
+    /// The bytes `ZQ32` followed by `Q` as a little-endian u32.
+    const DST: &'static [u8] = &Self::TAG;
+
     /// Samples little-endian u32s and rejects values that are not below `Q`.
     fn sample<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         loop {
