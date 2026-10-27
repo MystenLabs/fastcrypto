@@ -100,7 +100,7 @@ impl<
 ///
 /// The precomputed tables for an element <i>g</i> should contain the multiples <i>2<sup>w-1</sup> g
 /// , ..., (2<sup>w</sup> - 1) g</i> for some integer <i>w > 1</i> which is the window width for the
-/// given element.
+/// given element. Panics if a precomputed table is empty or its size is not a power of two.
 ///
 /// The `default_window_width` is the window width for the elements that does not have a precomputation
 /// table and may be set to any value >= 1. As rule-of-thumb, this should be set to approximately
@@ -135,6 +135,10 @@ pub fn multi_scalar_mul<
     for i in 0..N {
         match precomputed_multiples.get(&i) {
             Some(precomputed_multiples) => {
+                assert!(
+                    is_power_of_2(precomputed_multiples.len()),
+                    "The size of a precomputed table must be a power of two."
+                );
                 all_precomputed_multiples.push(precomputed_multiples);
                 window_sizes[i] = integer_utils::log2(all_precomputed_multiples[i].len()) + 1;
             }
@@ -344,5 +348,41 @@ mod tests {
         let expected = RistrettoPoint::generator() * a + other_point * b;
         let actual = multiplier.two_scalar_mul(&a, &other_point, &b);
         assert_eq!(expected, actual);
+    }
+
+    fn multi_scalar_mul_with_table_size(size: usize) -> RistrettoPoint {
+        let g = RistrettoPoint::generator();
+        let table = (0..size)
+            .map(|i| g * RistrettoScalar::from((size + i) as u64))
+            .collect::<Vec<_>>();
+        multi_scalar_mul(
+            &[RistrettoScalar::from(1234u64)],
+            &[g],
+            &HashMap::from([(0, table)]),
+            4,
+            RistrettoPoint::zero(),
+        )
+    }
+
+    #[test]
+    fn test_multi_scalar_mul_precomputed_table_sizes() {
+        for size in [2, 4, 8] {
+            assert_eq!(
+                RistrettoPoint::generator() * RistrettoScalar::from(1234u64),
+                multi_scalar_mul_with_table_size(size)
+            );
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "power of two")]
+    fn test_multi_scalar_mul_empty_table() {
+        multi_scalar_mul_with_table_size(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "power of two")]
+    fn test_multi_scalar_mul_table_size_not_power_of_two() {
+        multi_scalar_mul_with_table_size(3);
     }
 }

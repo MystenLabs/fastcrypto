@@ -103,9 +103,9 @@ pub fn test_bit(bytes: &[u8], index: usize) -> bool {
     shifted & 1 != 0
 }
 
-/// Compute the floor of the base-2 logarithm of <i>x</i>.
+/// Compute the floor of the base-2 logarithm of <i>x</i>. Panics if <i>x = 0</i>.
 pub const fn log2(x: usize) -> usize {
-    (usize::BITS - x.leading_zeros() - 1) as usize
+    x.ilog2() as usize
 }
 
 /// Return true iff the given number is a power of 2.
@@ -128,6 +128,21 @@ impl ToLittleEndianBytes for BigUint {
 mod tests {
     use super::*;
     use std::assert_eq;
+
+    #[test]
+    fn test_log2() {
+        assert_eq!(0, log2(1));
+        assert_eq!(1, log2(2));
+        assert_eq!(1, log2(3));
+        assert_eq!(8, log2(256));
+        assert_eq!(usize::BITS as usize - 1, log2(usize::MAX));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_log2_zero() {
+        log2(0);
+    }
 
     #[test]
     fn test_lendian_from_substring() {
