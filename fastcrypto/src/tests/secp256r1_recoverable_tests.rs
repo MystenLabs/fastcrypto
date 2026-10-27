@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use p256::ecdsa::Signature;
+use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::scalar::IsHigh;
-use p256::Scalar;
+use p256::elliptic_curve::Curve;
+use p256::{NistP256, Scalar, U256};
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::constants::SECRET_KEY_SIZE;
@@ -13,6 +15,7 @@ use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
 use wycheproof::TestResult;
 
 use crate::encoding::{Base64, Encoding};
+use crate::error::FastCryptoError;
 use crate::hash::Blake2b256;
 use crate::secp256r1::{
     Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature,
@@ -343,6 +346,39 @@ fn wycheproof_test() {
             assert_eq!(map_result(test.result), res, "{}", test.comment);
         }
     }
+}
+
+// Shift r by 2^256 - n and set the x-reduced bit: r + n wraps back to x(R), so legacy
+// recovery returns a key for the wrong r. Current recovery rejects it.
+#[test]
+fn legacy_recovery_accepts_wrapped_r() {
+    let kp = keys().pop().unwrap();
+    let msg = b"Hello, world!";
+    let honest = kp.sign_recoverable(msg);
+
+    let mut bytes = [0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH];
+    bytes.copy_from_slice(honest.as_ref());
+    let r = U256::from_be_slice(&bytes[..32]);
+    let shifted = r.wrapping_add(&U256::ZERO.wrapping_sub(&NistP256::ORDER));
+    assert!(shifted > r && shifted < NistP256::ORDER);
+    bytes[..32].copy_from_slice(&shifted.to_be_byte_array());
+    bytes[64] |= 2;
+    let wrapped = <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&bytes).unwrap();
+
+    assert_eq!(
+        &honest.recover_with_hash_legacy::<Sha256>(msg).unwrap(),
+        kp.public()
+    );
+
+    assert_eq!(
+        wrapped.recover(msg).unwrap_err(),
+        FastCryptoError::InvalidSignature
+    );
+    let legacy_pk = wrapped.recover_with_hash_legacy::<Sha256>(msg).unwrap();
+    assert_ne!(&legacy_pk, kp.public());
+    assert!(legacy_pk
+        .verify(msg, &Secp256r1Signature::from(&wrapped))
+        .is_err());
 }
 
 fn map_result(t: TestResult) -> TestResult {
