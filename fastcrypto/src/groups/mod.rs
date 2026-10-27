@@ -12,7 +12,8 @@ use std::ops::{AddAssign, SubAssign};
 pub mod bls12381;
 pub mod ristretto255;
 pub mod secp256r1;
-pub mod zq_vector_u32;
+pub mod vector_group;
+pub mod zq;
 
 pub mod multiplier;
 pub mod secp256k1;
@@ -125,6 +126,13 @@ pub trait FiatShamirChallenge {
 pub trait HashToGroupElement {
     /// Hashes the given message and maps the result to a group element.
     fn hash_to_group_element(msg: &[u8]) -> Self;
+}
+
+/// Trait for types that can be sampled from the output of an extendable-output function, rejecting
+/// samples until one is valid.
+pub trait RejectionSample {
+    /// Samples an element from the given reader.
+    fn sample<R: digest::XofReader>(reader: &mut R) -> Self;
 }
 
 /// Trait for groups that support multi-scalar multiplication.

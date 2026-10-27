@@ -26,7 +26,8 @@ use std::ops::{AddAssign, SubAssign};
 
 use crate::encoding::{Base64, Encoding};
 use crate::groups::ristretto255::RistrettoPoint;
-use crate::groups::zq_vector_u32::ZqVectorU32;
+use crate::groups::vector_group::VectorGroup;
+use crate::groups::zq::Zq32;
 use crate::groups::HashToGroupElement;
 
 /// Represents a digest of `DIGEST_LEN` bytes.
@@ -306,7 +307,7 @@ impl Debug for EllipticCurveMultisetHash {
 /// because [Ding et al.](https://eprint.iacr.org/2026/2083) break power-of-two moduli and recommend
 /// large primes. Collision resistance only holds for small multiplicities, so callers should hash
 /// sets.
-pub type LtHash32 = HomomorphicMultisetHash<ZqVectorU32<1024, 0xFFFF_FFFB>>;
+pub type LtHash32 = HomomorphicMultisetHash<VectorGroup<Zq32<0xFFFF_FFFB>, 1024>>;
 
 impl Debug for LtHash32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
