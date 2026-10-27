@@ -302,15 +302,15 @@ impl Debug for EllipticCurveMultisetHash {
     }
 }
 
-/// `LtHash32` is a lattice-based multiset hash ([Lewi et al.](https://eprint.iacr.org/2019/227)) over
+/// `LtHashQ32` is a lattice-based multiset hash ([Lewi et al.](https://eprint.iacr.org/2019/227)) over
 /// vectors of 1024 integers modulo 2^32 - 5, the largest prime below 2^32. The modulus is prime
 /// because [Ding et al.](https://eprint.iacr.org/2026/2083) break power-of-two moduli and recommend
 /// large primes. Collision resistance only holds for small multiplicities, so callers should hash
 /// sets.
-pub type LtHash32 = HomomorphicMultisetHash<VectorGroup<Zq32<0xFFFF_FFFB>, 1024>>;
+pub type LtHashQ32 = HomomorphicMultisetHash<VectorGroup<Zq32<0xFFFF_FFFB>, 1024>>;
 
-impl Debug for LtHash32 {
+impl Debug for LtHashQ32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LtHash32").finish()
+        f.debug_struct("LtHashQ32").finish()
     }
 }
