@@ -194,18 +194,7 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         &self,
         msg: &[u8],
     ) -> Result<Secp256r1PublicKey, FastCryptoError> {
-        let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
-        let (r, _) = self.sig.split_scalars();
-
-        let mut x = U256::from(r.as_ref());
-        if v.is_x_reduced() {
-            // The signer reduced x(R) >= n to r = x(R) - n, so restore x(R) = r + n.
-            // Per SEC 1 v2.0, sec. 4.1.6, step 1.3, this must be < p.
-            x = Option::<U256>::from(x.checked_add(&NistP256::ORDER))
-                .filter(|&x| x < FIELD_MODULUS)
-                .ok_or(FastCryptoError::InvalidSignature)?;
-        }
-        self.recover_from_x::<H>(x, v, msg)
+        self.recover_impl::<H>(msg, false)
     }
 }
 
@@ -216,27 +205,33 @@ impl Secp256r1RecoverableSignature {
         &self,
         msg: &[u8],
     ) -> Result<Secp256r1PublicKey, FastCryptoError> {
-        let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
-        let (r, _) = self.sig.split_scalars();
-
-        let x = match v.is_x_reduced() {
-            true => U256::from(r.as_ref()).wrapping_add(&NistP256::ORDER),
-            false => U256::from(r.as_ref()),
-        };
-        self.recover_from_x::<H>(x, v, msg)
+        self.recover_impl::<H>(msg, true)
     }
 
-    fn recover_from_x<H: HashFunction<32>>(
+    fn recover_impl<H: HashFunction<32>>(
         &self,
-        x: U256,
-        v: RecoveryId,
         msg: &[u8],
+        legacy: bool,
     ) -> Result<Secp256r1PublicKey, FastCryptoError> {
         // This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate with a few alterations.
 
         // Split signature into scalars. Note that this panics if r or s are zero, which is handled
         // in Secp256r1RecoverableSignature::from_bytes.
         let (r, s) = self.sig.split_scalars();
+        let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
+
+        let mut x = U256::from(r.as_ref());
+        if v.is_x_reduced() {
+            // The signer reduced x(R) >= n to r = x(R) - n, so restore x(R) = r + n.
+            // Per SEC 1 v2.0, sec. 4.1.6, step 1.3, this must be < p.
+            x = if legacy {
+                x.wrapping_add(&NistP256::ORDER)
+            } else {
+                Option::<U256>::from(x.checked_add(&NistP256::ORDER))
+                    .filter(|&x| x < FIELD_MODULUS)
+                    .ok_or(FastCryptoError::InvalidSignature)?
+            };
+        }
         let r_bytes = x.to_be_byte_array();
 
         // Reconstruct y-coordinate from x-coordinate using the given recovery id.
