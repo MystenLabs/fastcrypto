@@ -815,6 +815,9 @@ fn test_sk_zeroization_on_drop() {
 
 #[test]
 fn wycheproof_test() {
+    use curve25519_dalek::edwards::CompressedEdwardsY;
+    use wycheproof::eddsa::TestFlag;
+
     let test_set = TestSet::load(wycheproof::eddsa::TestName::Ed25519).unwrap();
     for test_group in test_set.test_groups {
         let pk = Ed25519PublicKey::from_bytes(&test_group.key.pk).unwrap();
@@ -827,8 +830,20 @@ fn wycheproof_test() {
                 }
             };
             match pk.verify(&test.msg, &sig) {
-                Ok(_) => assert_eq!(test.result, TestResult::Valid),
-                Err(_) => assert_eq!(test.result, TestResult::Invalid),
+                Ok(_) if test.result == TestResult::Valid => {}
+                Ok(_) => {
+                    // ZIP-215 does not require R to be canonically encoded, where RFC 8032
+                    // rejects it. Accepting such a case is by design; anything else is a bug.
+                    let r = CompressedEdwardsY::from_slice(&test.sig[..32]).unwrap();
+                    let non_canonical = r.decompress().is_some_and(|p| p.compress() != r);
+                    assert!(
+                        test.flags == [TestFlag::InvalidEncoding] && non_canonical,
+                        "tc {}: accepted an invalid signature: {}",
+                        test.tc_id,
+                        test.comment
+                    );
+                }
+                Err(_) => assert_eq!(test.result, TestResult::Invalid, "tc {}", test.tc_id),
             }
         }
     }

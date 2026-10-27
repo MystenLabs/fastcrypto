@@ -43,10 +43,15 @@ use ecdsa::elliptic_curve::subtle::Choice;
 use ecdsa::RecoveryId;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{Signature as ExternalSignature, VerifyingKey};
-use p256::elliptic_curve::bigint::ArrayEncoding;
+use p256::elliptic_curve::bigint::{ArrayEncoding, CheckedAdd};
 use p256::elliptic_curve::point::DecompressPoint;
 use p256::elliptic_curve::Curve;
 use p256::{AffinePoint, NistP256, U256};
+
+/// The prime p of the secp256r1 field (SEC 2 v2.0, sec. 2.4.2). The p256 crate keeps its
+/// own copy private.
+const FIELD_MODULUS: U256 =
+    U256::from_be_hex("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff");
 use std::fmt::{self, Debug};
 
 pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + 1;
@@ -189,6 +194,25 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         &self,
         msg: &[u8],
     ) -> Result<Secp256r1PublicKey, FastCryptoError> {
+        self.recover_impl::<H>(msg, false)
+    }
+}
+
+impl Secp256r1RecoverableSignature {
+    /// Pre-fix recovery: x(R) = r + n wraps at 2^256 instead of being rejected. Only for Sui to
+    /// replay transactions from before its protocol flag.
+    pub fn recover_with_hash_legacy<H: HashFunction<32>>(
+        &self,
+        msg: &[u8],
+    ) -> Result<Secp256r1PublicKey, FastCryptoError> {
+        self.recover_impl::<H>(msg, true)
+    }
+
+    fn recover_impl<H: HashFunction<32>>(
+        &self,
+        msg: &[u8],
+        legacy: bool,
+    ) -> Result<Secp256r1PublicKey, FastCryptoError> {
         // This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate with a few alterations.
 
         // Split signature into scalars. Note that this panics if r or s are zero, which is handled
@@ -196,14 +220,19 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         let (r, s) = self.sig.split_scalars();
         let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
 
-        // If the x-coordinate of kR overflowed the curve order, we reconstruct it here. Note that
-        // this does not seem to be done in the k256 implementation.
-        let r_bytes = match v.is_x_reduced() {
-            true => U256::from(r.as_ref())
-                .wrapping_add(&NistP256::ORDER)
-                .to_be_byte_array(),
-            false => r.to_bytes(),
-        };
+        let mut x = U256::from(r.as_ref());
+        if v.is_x_reduced() {
+            // The signer reduced x(R) >= n to r = x(R) - n, so restore x(R) = r + n.
+            x = if legacy {
+                x.wrapping_add(&NistP256::ORDER)
+            } else {
+                // Per SEC 1 v2.0, sec. 4.1.6, step 1.3, this must be < p.
+                Option::<U256>::from(x.checked_add(&NistP256::ORDER))
+                    .filter(|&x| x < FIELD_MODULUS)
+                    .ok_or(FastCryptoError::InvalidSignature)?
+            };
+        }
+        let r_bytes = x.to_be_byte_array();
 
         // Reconstruct y-coordinate from x-coordinate using the given recovery id.
         let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));

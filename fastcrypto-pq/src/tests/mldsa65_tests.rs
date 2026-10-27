@@ -456,3 +456,93 @@ fn slip10_slips1968_vectors() {
         );
     }
 }
+
+/// Wycheproof's ML-DSA-65 verify set through the trait layer, which fixes the context to
+/// empty: a case verifies here only if it is valid and carries no context. The wrapper
+/// crate runs the same set with explicit contexts; this checks the fastcrypto parsing and
+/// error mapping on top of it.
+#[test]
+fn wycheproof_verify_vectors() {
+    use wycheproof::mldsa_verify::{TestName, TestSet};
+    use wycheproof::TestResult;
+
+    let set = TestSet::load(TestName::MlDsa65Verify).unwrap();
+    assert_eq!(set.number_of_tests, 210, "the vector set changed shape");
+    let mut accepted = 0;
+
+    for group in &set.test_groups {
+        let Ok(public) = MLDSA65PublicKey::from_bytes(&group.pubkey) else {
+            // Only wrong-length keys may fail to parse, and every case under them is invalid.
+            assert_ne!(group.pubkey.len(), MLDSA65_PUBLIC_KEY_LENGTH);
+            assert!(group.tests.iter().all(|t| t.result == TestResult::Invalid));
+            continue;
+        };
+        for t in &group.tests {
+            let label = format!("tc {} ({})", t.tc_id, t.comment);
+            let Ok(sig) = MLDSA65Signature::from_bytes(&t.sig) else {
+                assert_ne!(t.sig.len(), MLDSA65_SIGNATURE_LENGTH, "{label}: parse");
+                assert_eq!(t.result, TestResult::Invalid, "{label}: parse");
+                continue;
+            };
+            let no_ctx = t.ctx.as_ref().is_none_or(|c| c.is_empty());
+            let expect_ok = t.result == TestResult::Valid && no_ctx;
+            let got = public.verify(&t.msg, &sig);
+            assert_eq!(got.is_ok(), expect_ok, "{label}: {:?} -> {got:?}", t.flags);
+            if !expect_ok {
+                assert_eq!(got, Err(FastCryptoError::InvalidSignature), "{label}");
+            }
+            accepted += usize::from(expect_ok);
+        }
+    }
+    assert_eq!(
+        accepted, 77,
+        "valid empty-context cases changed; re-check the set"
+    );
+}
+
+/// Wycheproof's ML-DSA-65 sign-from-seed set: the seed is the private key here, so every
+/// group checks seed -> public key, and every valid empty-context signature verifies.
+/// Byte-exact signing is covered in the wrapper crate, which takes the vector's rnd.
+#[test]
+fn wycheproof_sign_seed_vectors() {
+    use wycheproof::mldsa_sign::{TestName, TestSet};
+    use wycheproof::TestResult;
+
+    let set = TestSet::load(TestName::MlDsa65SignSeed).unwrap();
+    assert_eq!(set.number_of_tests, 105, "the vector set changed shape");
+    let (mut keys, mut verified) = (0, 0);
+
+    for group in &set.test_groups {
+        let seed = group.privseed.as_ref().expect("seed set");
+        let Ok(private) = MLDSA65PrivateKey::from_bytes(seed) else {
+            assert_ne!(seed.len(), MLDSA65_PRIVATE_KEY_LENGTH);
+            assert!(group.tests.iter().all(|t| t.result == TestResult::Invalid));
+            continue;
+        };
+        let public = MLDSA65PublicKey::from(&private);
+        assert_eq!(
+            public.as_ref(),
+            &group.pubkey.as_ref().expect("seed set")[..]
+        );
+        keys += 1;
+
+        for t in &group.tests {
+            // Skip mu-only (`Internal`) cases and anything signed under a context.
+            let (Some(msg), true) = (&t.msg, t.ctx.as_ref().is_none_or(|c| c.is_empty())) else {
+                continue;
+            };
+            if t.result != TestResult::Valid {
+                continue;
+            }
+            let sig = MLDSA65Signature::from_bytes(&t.sig).unwrap();
+            assert!(
+                public.verify(msg, &sig).is_ok(),
+                "tc {} ({}): vector signature rejected",
+                t.tc_id,
+                t.comment
+            );
+            verified += 1;
+        }
+    }
+    assert_eq!((keys, verified), (39, 81), "the vector set changed shape");
+}
