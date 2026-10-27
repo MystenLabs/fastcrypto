@@ -131,7 +131,8 @@ pub trait HashToGroupElement {
 /// Trait for types that can be sampled from a source of random bytes, rejecting samples until one is
 /// valid.
 pub trait RejectionSample: Sized {
-    /// Samples an element from the given reader. Returns an error if the reader runs out of bytes.
+    /// Samples an element from the given reader. The sample is only uniformly distributed if the
+    /// reader outputs uniformly random bytes. Returns an error if the reader runs out of bytes.
     fn sample<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self>;
 }
 
