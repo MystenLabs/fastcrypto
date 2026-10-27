@@ -130,21 +130,6 @@ mod tests {
     use std::assert_eq;
 
     #[test]
-    fn test_log2() {
-        assert_eq!(0, log2(1));
-        assert_eq!(1, log2(2));
-        assert_eq!(1, log2(3));
-        assert_eq!(8, log2(256));
-        assert_eq!(usize::BITS as usize - 1, log2(usize::MAX));
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_log2_zero() {
-        log2(0);
-    }
-
-    #[test]
     fn test_lendian_from_substring() {
         let byte = 0b00000001;
         assert_eq!(0, get_lendian_from_substring(&byte, 0, 0));

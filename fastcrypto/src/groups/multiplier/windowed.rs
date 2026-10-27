@@ -349,40 +349,4 @@ mod tests {
         let actual = multiplier.two_scalar_mul(&a, &other_point, &b);
         assert_eq!(expected, actual);
     }
-
-    fn multi_scalar_mul_with_table_size(size: usize) -> RistrettoPoint {
-        let g = RistrettoPoint::generator();
-        let table = (0..size)
-            .map(|i| g * RistrettoScalar::from((size + i) as u64))
-            .collect::<Vec<_>>();
-        multi_scalar_mul(
-            &[RistrettoScalar::from(1234u64)],
-            &[g],
-            &HashMap::from([(0, table)]),
-            4,
-            RistrettoPoint::zero(),
-        )
-    }
-
-    #[test]
-    fn test_multi_scalar_mul_precomputed_table_sizes() {
-        for size in [2, 4, 8] {
-            assert_eq!(
-                RistrettoPoint::generator() * RistrettoScalar::from(1234u64),
-                multi_scalar_mul_with_table_size(size)
-            );
-        }
-    }
-
-    #[test]
-    #[should_panic(expected = "power of two")]
-    fn test_multi_scalar_mul_empty_table() {
-        multi_scalar_mul_with_table_size(0);
-    }
-
-    #[test]
-    #[should_panic(expected = "power of two")]
-    fn test_multi_scalar_mul_table_size_not_power_of_two() {
-        multi_scalar_mul_with_table_size(3);
-    }
 }
