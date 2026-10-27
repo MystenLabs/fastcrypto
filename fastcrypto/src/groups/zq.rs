@@ -34,11 +34,13 @@ impl<const Q: u32> AddAssign for Zq32<Q> {
     /// Both inputs are below `Q`, so the sum is below 2Q and at most one subtraction of `Q` is
     /// needed.
     fn add_assign(&mut self, other: Self) {
-        self.0 = match self.0.overflowing_add(other.0) {
-            (s, false) if s < Q => s,
-            // Without overflow, s >= Q and the result is s - Q. With overflow, the sum is s + 2^32
-            // and s < Q, so s.wrapping_sub(Q) gives s + 2^32 - Q.
-            (s, _) => s.wrapping_sub(Q),
+        let (s, overflow) = self.0.overflowing_add(other.0);
+        // Without overflow, the result is s - Q if s >= Q. With overflow, the sum is s + 2^32 and
+        // s < Q, so s.wrapping_sub(Q) gives s + 2^32 - Q.
+        self.0 = if overflow || s >= Q {
+            s.wrapping_sub(Q)
+        } else {
+            s
         };
     }
 }
