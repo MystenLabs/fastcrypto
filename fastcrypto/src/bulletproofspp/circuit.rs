@@ -210,27 +210,6 @@ fn compute_blocks(params: &CircuitParams, alpha: S, mu: S, lambda: S) -> FastCry
 }
 
 impl Blocks {
-    /// Coefficients of `p_s(T) = |p_n(T)|^2_mu + 2*(lambda_al + mu_am)*T^3`
-    /// at powers `T^0..T^6`, where
-    /// `p_n(T) = cn_v + T*cn_r + T^2*cn_l + T^3*delta^{-1}*cn_o`.
-    /// Reference formulation kept for the test provers; production code
-    /// evaluates `p_s(tau)` directly and cancels `|p_n|^2` inside `hat_f`.
-    #[cfg(test)]
-    fn ps_coefficients(&self, delta_inv: S) -> [S; 7] {
-        let pn3 = vec_scalar_mul(delta_inv, &self.cn_o);
-        let pn = [&self.cn_v, &self.cn_r, &self.cn_l, &pn3];
-        let pn_weighted: Vec<Vec<S>> = pn.iter().map(|v| hadamard(v, &self.bar_mu)).collect();
-        let mut ps = [S::zero(); 7];
-        for i in 0..pn.len() {
-            for j in i..pn.len() {
-                let ip = inner_product(&pn_weighted[i], pn[j]);
-                ps[i + j] += if i == j { ip } else { ip + ip };
-            }
-        }
-        ps[3] += S::from(2u64) * (self.lambda_al + self.mu_am);
-        ps
-    }
-
     /// `p_n(tau)` as a vector (verifier side).
     fn pn_at(&self, tau: S, delta_inv: S) -> Vec<S> {
         let t2 = tau * tau;
@@ -359,6 +338,85 @@ fn multiplicities(digits: &[u64]) -> Vec<u64> {
     m
 }
 
+/// The honest reciprocals `(alpha + d_k)^{-1}` of the digits `n_l` on the
+/// real digit slots, zero on the padding.
+fn reciprocals(params: &CircuitParams, n_l: &[S], alpha: S) -> FastCryptoResult<Vec<S>> {
+    let denominators: Vec<S> = n_l[..params.n_d].iter().map(|d| alpha + d).collect();
+    Ok(pad_to(&batch_invert(&denominators)?, params.nm))
+}
+
+/// Everything the prover fixes before the first challenge: the input
+/// openings, the committed digits and multiplicities, the blinding of `C_O`,
+/// `C_L`, `C_R` and the masks of `C_S`. The reciprocals depend on `alpha`
+/// and are derived mid-protocol; the blinding `r_S` of `C_S` is solved.
+///
+/// [Witness::new] builds the honest witness; the soundness tests alter it.
+struct Witness {
+    /// Input openings `V_i = u_i*G + s_i*H_0`: the values `u_i`...
+    values: Vec<S>,
+    /// ...and the blindings `s_i`.
+    blindings: Vec<S>,
+    /// Entry `i`, if present, adds coordinates outside the `(G, H_0)`-plane
+    /// to `V_i`: on `G_vec`, and on `H_7`. Empty for honest inputs.
+    off_plane: Vec<(Vec<S>, S)>,
+    /// Digits; slot `d*(i-1)+t` holds digit `t` of value `i`, zero beyond `n_d`.
+    n_l: Vec<S>,
+    /// Shared multiplicities `m_1..m_15`, zero-padded.
+    n_o: Vec<S>,
+    r_o: Vec<S>,
+    r_l: Vec<S>,
+    r_r: Vec<S>,
+    /// Masks of `C_S`.
+    n_s: Vec<S>,
+    l_s: S,
+}
+
+impl Witness {
+    /// The honest witness for `values` under `blindings`, with fresh
+    /// blinding and masks.
+    fn new(
+        params: &CircuitParams,
+        rng: &mut impl AllowedRng,
+        values: &[u64],
+        blindings: &[S],
+    ) -> Self {
+        let scalars = |v: &[u64]| v.iter().map(|&x| S::from(x)).collect::<Vec<_>>();
+        let digits: Vec<u64> = values
+            .iter()
+            .flat_map(|&v| decompose(v, params.d))
+            .collect();
+        Witness {
+            values: scalars(values),
+            blindings: blindings.to_vec(),
+            off_plane: vec![],
+            n_l: pad_to(&scalars(&digits), params.nm),
+            n_o: pad_to(&scalars(&multiplicities(&digits)), params.nm),
+            r_o: blinding_vector(rng, Entry::O),
+            r_l: blinding_vector(rng, Entry::L),
+            r_r: blinding_vector(rng, Entry::R),
+            n_s: (0..params.nm).map(|_| S::rand(rng)).collect(),
+            l_s: S::rand(rng),
+        }
+    }
+
+    /// The input commitments `V_i`.
+    fn input_commitments(&self, gens: &Generators) -> FastCryptoResult<Vec<RistrettoPoint>> {
+        (0..self.values.len())
+            .map(|i| {
+                let mut scalars = vec![self.values[i], self.blindings[i]];
+                let mut points = vec![gens.g, gens.h_vec[0]];
+                if let Some((n, l)) = self.off_plane.get(i) {
+                    scalars.extend(n);
+                    points.extend(&gens.g_vec);
+                    scalars.push(*l);
+                    points.push(gens.h_vec[H_LEN - 1]);
+                }
+                RistrettoPoint::multi_scalar_mul(&scalars, &points)
+            })
+            .collect()
+    }
+}
+
 /// Blinding vectors of the committed material: per H slot, the coefficients
 /// of `r(T) = T^{-1} r_S + delta r_O + T r_L + T^2 r_R + T^3 r_V` other than
 /// `r_S`, which is solved from them.
@@ -367,6 +425,8 @@ struct Blindings {
     r_l: Vec<S>,
     r_r: Vec<S>,
     r_v: Vec<S>,
+    /// The `H_7` coordinate of `hat_V`, zero for honest inputs.
+    l_v: S,
 }
 
 /// Solve the blinding `r_S` of `C_S` (spec "Choosing r_S") for the error
@@ -421,8 +481,8 @@ fn solve_r_s(
 }
 
 /// The opening `(l(tau), n(tau))` of `C(tau)`: `r(tau)` on the slots 1..7
-/// followed by `tau^{-1} l_S` on `H_7`, and `n_poly` (coefficients at
-/// `T^{-1}..T^3`) evaluated at `tau`.
+/// followed by `tau^{-1} l_S + tau^3 l_hat_V` on `H_7`, and `n_poly`
+/// (coefficients at `T^{-1}..T^3`) evaluated at `tau`.
 fn evaluate_opening(
     tau: S,
     tau_inv: S,
@@ -439,7 +499,7 @@ fn evaluate_opening(
             tau_inv * r_s[i] + delta * r.r_o[i] + tau * r.r_l[i] + t2 * r.r_r[i] + t3 * r.r_v[i]
         })
         .collect();
-    l_tau.push(tau_inv * l_s);
+    l_tau.push(tau_inv * l_s + t3 * r.l_v);
     let n_tau = (0..n_poly[0].len())
         .map(|k| {
             tau_inv * n_poly[0][k]
@@ -470,38 +530,31 @@ pub(crate) fn prove(
     {
         return Err(FastCryptoError::InvalidInput);
     }
+    let witness = Witness::new(params, rng, values, blindings);
+    prove_witness(transcript, gens, params, &witness, |alpha| {
+        reciprocals(params, &witness.n_l, alpha)
+    })
+}
+
+/// Run the protocol on `witness`, with `reciprocals` deriving the
+/// reciprocals committed in `C_R` from `alpha`. Performs no well-formedness
+/// checks: for a malformed witness it produces a proof the verifier must
+/// reject.
+fn prove_witness(
+    transcript: &mut BpppTranscript,
+    gens: &Generators,
+    params: &CircuitParams,
+    witness: &Witness,
+    reciprocals: impl FnOnce(S) -> FastCryptoResult<Vec<S>>,
+) -> FastCryptoResult<(CircuitProof, Vec<RistrettoPoint>)> {
     let two = S::from(2u64);
-
-    let v_commitments: Vec<RistrettoPoint> = values
-        .iter()
-        .zip(blindings)
-        .map(|(&v, s)| {
-            RistrettoPoint::multi_scalar_mul(&[S::from(v), *s], &[gens.g, gens.h_vec[0]])
-        })
-        .collect::<FastCryptoResult<_>>()?;
-
+    let v_commitments = witness.input_commitments(gens)?;
     transcript.domain_sep(b"bppp_circuit");
     transcript.append_points(b"V", &v_commitments);
 
-    // Step 1: commit digits (C_L) and shared multiplicities (C_O). Slot
-    // d*(i-1)+t holds digit t of value i; slots beyond n_d are zero.
-    let digits: Vec<u64> = values
-        .iter()
-        .flat_map(|&v| decompose(v, params.d))
-        .collect();
-    let n_l = pad_to(
-        &digits.iter().map(|&d| S::from(d)).collect::<Vec<_>>(),
-        params.nm,
-    );
-    let mut n_o: Vec<S> = multiplicities(&digits)
-        .iter()
-        .map(|&m| S::from(m))
-        .collect();
-    n_o.resize(params.nm, S::zero());
-    let r_o = blinding_vector(rng, Entry::O);
-    let r_l = blinding_vector(rng, Entry::L);
-    let c_l = commit(gens, &r_l, S::zero(), &n_l)?;
-    let c_o = commit(gens, &r_o, S::zero(), &n_o)?;
+    // Step 1: commit digits (C_L) and shared multiplicities (C_O).
+    let c_l = commit(gens, &witness.r_l, S::zero(), &witness.n_l)?;
+    let c_o = commit(gens, &witness.r_o, S::zero(), &witness.n_o)?;
     transcript.append_point(b"C_L", &c_l);
     transcript.append_point(b"C_O", &c_o);
 
@@ -509,17 +562,9 @@ pub(crate) fn prove(
     // multiplicities are committed.
     let alpha = transcript.challenge_scalar(b"alpha");
 
-    // Step 3: reciprocals r_k = (alpha + d_k)^{-1} for the real digit slots
-    // (C_R); padding slots stay zero.
-    let recips = batch_invert(
-        &digits
-            .iter()
-            .map(|&d| alpha + S::from(d))
-            .collect::<Vec<_>>(),
-    )?;
-    let n_r = pad_to(&recips, params.nm);
-    let r_r = blinding_vector(rng, Entry::R);
-    let c_r = commit(gens, &r_r, S::zero(), &n_r)?;
+    // Step 3: commit the reciprocals (C_R).
+    let n_r = reciprocals(alpha)?;
+    let c_r = commit(gens, &witness.r_r, S::zero(), &n_r)?;
     transcript.append_point(b"C_R", &c_r);
 
     // Step 4: constraint challenges.
@@ -531,30 +576,34 @@ pub(crate) fn prove(
     let delta_inv = delta.inverse()?;
     let blocks = compute_blocks(params, alpha, mu, lambda)?;
 
-    // Step 5: masks, then solve the blinding r_S of C_S.
-    let n_s: Vec<S> = (0..params.nm).map(|_| S::rand(rng)).collect();
-    let l_s = S::rand(rng);
-    // Rescaled aggregate input hat_V = 2*sum_i lambda^{i-1} V_i:
-    // hat_v = 2*sum lambda^{i-1} v_i, r_V = (0, 2*sum lambda^{i-1} s_i, 0, ...).
-    let v_hat = two
-        * values.iter().enumerate().fold(S::zero(), |acc, (i, &v)| {
-            acc + blocks.lambdas[i] * S::from(v)
-        });
+    // Step 5: solve the blinding r_S of C_S. The rescaled aggregate input
+    // hat_V = 2*sum_i lambda^{i-1} V_i opens to hat_v on G,
+    // r_V = (0, 2*sum lambda^{i-1} s_i, 0, ...) and the off-plane
+    // coordinates n_hat_V, l_hat_V (zero for honest inputs).
+    let weights: Vec<S> = blocks.lambdas[..params.m].iter().map(|l| two * l).collect();
+    let v_hat = inner_product(&weights, &witness.values);
     let mut r_v = vec![S::zero(); H_LEN];
-    r_v[1] = two
-        * blindings
-            .iter()
-            .enumerate()
-            .fold(S::zero(), |acc, (i, s)| acc + blocks.lambdas[i] * s);
-    let r = Blindings { r_o, r_l, r_r, r_v };
+    r_v[1] = inner_product(&weights, &witness.blindings);
+    let mut n_v_hat = vec![S::zero(); params.nm];
+    let mut l_v_hat = S::zero();
+    for ((n_i, l_i), w) in witness.off_plane.iter().zip(&weights) {
+        n_v_hat = vec_add(&n_v_hat, &vec_scalar_mul(*w, n_i));
+        l_v_hat += *w * l_i;
+    }
+    let r = Blindings {
+        r_o: witness.r_o.clone(),
+        r_l: witness.r_l.clone(),
+        r_r: witness.r_r.clone(),
+        r_v,
+        l_v: l_v_hat,
+    };
 
     // Vector coefficients of n(T) = w(T) + p_n(T) at powers T^{-1}..T^3,
-    // split into the witness part w and the public part p_n (the honest
-    // n_hat_V = 0, so T^3 carries only the public block).
-    let delta_n_o = vec_scalar_mul(delta, &n_o);
+    // split into the witness part w and the public part p_n.
+    let delta_n_o = vec_scalar_mul(delta, &witness.n_o);
     let pn_3 = vec_scalar_mul(delta_inv, &blocks.cn_o);
     let zero = vec![S::zero(); params.nm];
-    let w = [&n_s, &delta_n_o, &n_l, &n_r, &zero];
+    let w = [&witness.n_s, &delta_n_o, &witness.n_l, &n_r, &n_v_hat];
     let pn = [&zero, &blocks.cn_v, &blocks.cn_r, &blocks.cn_l, &pn_3];
     let n_poly: [Vec<S>; 5] = from_fn(|i| vec_add(w[i], pn[i]));
 
@@ -562,8 +611,8 @@ pub(crate) fn prove(
     // coefficients at T^{-2}..T^6 stored at index p+2. The public square
     // |p_n(T)|^2 inside p_s cancels against |n(T)|^2, leaving
     //   hat_f = (hat_v + 2*(lambda_al + mu_am))*T^3 - <w(T), n(T) + p_n(T)>_mu
-    // so only the 4x5 witness-side products are computed.
-    let w_weighted: [Vec<S>; 4] = from_fn(|i| hadamard(w[i], &blocks.bar_mu));
+    // so only the witness-side products are computed.
+    let w_weighted: [Vec<S>; 5] = from_fn(|i| hadamard(w[i], &blocks.bar_mu));
     let n_plus_pn: [Vec<S>; 5] = from_fn(|i| vec_add(&n_poly[i], pn[i]));
     let mut fh = [S::zero(); 9];
     fh[3 + 2] = v_hat + two * (blocks.lambda_al + blocks.mu_am);
@@ -573,12 +622,9 @@ pub(crate) fn prove(
             fh[i + j] -= inner_product(w_i, s_j);
         }
     }
-    // Value row: zero for a valid witness. This checks every block formula
-    // at once.
-    debug_assert_eq!(fh[3 + 2], S::zero(), "value row not zero");
 
-    let r_s = solve_r_s(&blocks, &fh, &r, l_s, beta, delta)?;
-    let c_s = commit(gens, &r_s, l_s, &n_s)?;
+    let r_s = solve_r_s(&blocks, &fh, &r, witness.l_s, beta, delta)?;
+    let c_s = commit(gens, &r_s, witness.l_s, &witness.n_s)?;
     transcript.append_point(b"C_S", &c_s);
 
     // Step 6: evaluation point, drawn after every commitment.
@@ -586,7 +632,7 @@ pub(crate) fn prove(
 
     // Step 7: evaluate the opening at tau and run the norm-linear argument.
     let tau_inv = tau.inverse()?;
-    let (l_tau, n_tau) = evaluate_opening(tau, tau_inv, delta, &r, &r_s, l_s, &n_poly);
+    let (l_tau, n_tau) = evaluate_opening(tau, tau_inv, delta, &r, &r_s, witness.l_s, &n_poly);
     let c_tau = blocks.c_at(tau, tau_inv, beta);
 
     let nl_proof = norm_linear::prove(transcript, gens, &c_tau, rho, &l_tau, &n_tau)?;
@@ -841,217 +887,43 @@ mod tests {
         assert_eq!(zeros(Entry::R), [2, 5, 6, 7]);
     }
 
-    /// A junk direction outside the (G, H_0)-plane of the statement
-    /// commitment.
-    enum Junk {
-        /// A component on `G_vec[slot]`.
-        Norm(usize),
-        /// A component on `H_7` (the linear-witness base).
-        Linear,
-    }
-
-    /// A freely chosen witness for the cheating prover below. The honest
-    /// prover derives all of these from `values`; a cheater may pick any of
-    /// them, so soundness must come from the circuit and not from the
-    /// prover's own well-formedness checks.
-    struct Cheat {
-        /// Committed values, as arbitrary field elements (not just `u64`).
-        values: Vec<S>,
-        /// Digits committed in `C_L`, length `nm`.
-        n_l: Vec<S>,
-        /// Multiplicities committed in `C_O`, length `nm`.
-        n_o: Vec<S>,
-        /// Reciprocals committed in `C_R`. `None` derives the honest
-        /// `(alpha + n_l[k])^{-1}` on the real digit slots, zero on padding.
-        n_r: Option<Vec<S>>,
-        /// Values forced into the padding slots (`k >= n_d`) of `C_R` after
-        /// the honest reciprocals are derived, leaving the real digit slots
-        /// correct. `alpha` is drawn mid-protocol, so this is the only way to
-        /// keep the real slots honest while cheating on the padding.
-        n_r_padding: Option<Vec<S>>,
-        /// Slots of `r_L` forced nonzero, breaking the spec's zero pattern.
-        r_l_nonzero: Vec<usize>,
-        /// A component outside the `(G, H_0)`-plane added to the first
-        /// statement commitment `V_0`, i.e. a forged `V_0' = v*G + s*H_0 + junk`.
-        junk: Option<Junk>,
-    }
-
-    /// The witness an honest prover would build for `values`.
-    fn honest_witness(params: &CircuitParams, values: &[u64]) -> Cheat {
-        let digits: Vec<u64> = values
-            .iter()
-            .flat_map(|&v| decompose(v, params.d))
-            .collect();
-        let scalars = |v: &[u64]| v.iter().map(|&x| S::from(x)).collect::<Vec<_>>();
-        Cheat {
-            values: scalars(values),
-            n_l: pad_to(&scalars(&digits), params.nm),
-            n_o: pad_to(&scalars(&multiplicities(&digits)), params.nm),
-            n_r: None,
-            n_r_padding: None,
-            r_l_nonzero: vec![],
-            junk: None,
-        }
-    }
-
-    /// The honest prover with the witness-derivation steps replaced by the
-    /// caller's choices. The `r_S` solve is left intact, so the cheater still
-    /// cancels every blinded error row it is able to; a rejection therefore
-    /// comes from the circuit constraints, which are aggregated into the
-    /// `T^3` row that no `r_S` slot can reach. A `junk` component of `V_0`
-    /// is opened honestly at `T^3`: the unconstrained protocol accepts that,
-    /// the shape blocks pair it into the value row.
-    fn prove_cheating(
-        transcript: &mut BpppTranscript,
-        gens: &Generators,
-        params: &CircuitParams,
-        rng: &mut impl AllowedRng,
-        blindings: &[S],
-        cheat: &Cheat,
-    ) -> FastCryptoResult<(CircuitProof, Vec<RistrettoPoint>)> {
-        let two = S::from(2u64);
-        let mut v_commitments: Vec<RistrettoPoint> = cheat
-            .values
-            .iter()
-            .zip(blindings)
-            .map(|(v, s)| RistrettoPoint::multi_scalar_mul(&[*v, *s], &[gens.g, gens.h_vec[0]]))
-            .collect::<FastCryptoResult<_>>()?;
-        // Coordinates of hat_V = 2*sum_i lambda^{i-1} V_i outside the
-        // (G, H_0)-plane; the junk sits on V_0, so its weight is 2.
-        let mut n_v_hat = vec![S::zero(); params.nm];
-        let mut l_v_hat = S::zero();
-        match cheat.junk {
-            Some(Junk::Norm(slot)) => {
-                v_commitments[0] += gens.g_vec[slot];
-                n_v_hat[slot] = two;
-            }
-            Some(Junk::Linear) => {
-                v_commitments[0] += gens.h_vec[H_LEN - 1];
-                l_v_hat = two;
-            }
-            None => {}
-        }
-
-        transcript.domain_sep(b"bppp_circuit");
-        transcript.append_points(b"V", &v_commitments);
-
-        let (n_l, n_o) = (cheat.n_l.clone(), cheat.n_o.clone());
-        let r_o = blinding_vector(rng, Entry::O);
-        let mut r_l = blinding_vector(rng, Entry::L);
-        for &slot in &cheat.r_l_nonzero {
-            r_l[slot] = S::rand(rng);
-        }
-        let c_l = commit(gens, &r_l, S::zero(), &n_l)?;
-        let c_o = commit(gens, &r_o, S::zero(), &n_o)?;
-        transcript.append_point(b"C_L", &c_l);
-        transcript.append_point(b"C_O", &c_o);
-        let alpha = transcript.challenge_scalar(b"alpha");
-
-        let mut n_r = match &cheat.n_r {
-            Some(v) => v.clone(),
-            None => pad_to(
-                &batch_invert(
-                    &n_l[..params.n_d]
-                        .iter()
-                        .map(|d| alpha + d)
-                        .collect::<Vec<_>>(),
-                )?,
-                params.nm,
-            ),
-        };
-        if let Some(padding) = &cheat.n_r_padding {
-            n_r[params.n_d..].copy_from_slice(&padding[params.n_d..]);
-        }
-        let r_r = blinding_vector(rng, Entry::R);
-        let c_r = commit(gens, &r_r, S::zero(), &n_r)?;
-        transcript.append_point(b"C_R", &c_r);
-
-        let rho = transcript.challenge_scalar(b"rho");
-        let lambda = transcript.challenge_scalar(b"lambda");
-        let beta = transcript.challenge_scalar(b"beta");
-        let delta = transcript.challenge_scalar(b"delta");
-        let mu = rho * rho;
-        let delta_inv = delta.inverse()?;
-        let blocks = compute_blocks(params, alpha, mu, lambda)?;
-        let ps = blocks.ps_coefficients(delta_inv);
-
-        let n_s: Vec<S> = (0..params.nm).map(|_| S::rand(rng)).collect();
-        let l_s = S::rand(rng);
-        let v_hat = two
-            * cheat
-                .values
-                .iter()
-                .enumerate()
-                .fold(S::zero(), |acc, (i, v)| acc + blocks.lambdas[i] * v);
-        let mut r_v = vec![S::zero(); H_LEN];
-        r_v[1] = two
-            * blindings
-                .iter()
-                .enumerate()
-                .fold(S::zero(), |acc, (i, s)| acc + blocks.lambdas[i] * s);
-        let r = Blindings { r_o, r_l, r_r, r_v };
-
-        // n(T) with the junk opening at T^3 alongside the public block.
-        let n_poly: [Vec<S>; 5] = [
-            n_s.clone(),
-            vec_add(&vec_scalar_mul(delta, &n_o), &blocks.cn_v),
-            vec_add(&n_l, &blocks.cn_r),
-            vec_add(&n_r, &blocks.cn_l),
-            vec_add(&vec_scalar_mul(delta_inv, &blocks.cn_o), &n_v_hat),
-        ];
-
-        let n_weighted: Vec<Vec<S>> = n_poly.iter().map(|v| hadamard(v, &blocks.bar_mu)).collect();
-        let mut fh = [S::zero(); 9];
-        for (p, &c) in ps.iter().enumerate() {
-            fh[p + 2] += c;
-        }
-        fh[3 + 2] += v_hat;
-        for i in 0..n_poly.len() {
-            for j in i..n_poly.len() {
-                let ip = inner_product(&n_weighted[i], &n_poly[j]);
-                fh[i + j] -= if i == j { ip } else { ip + ip };
-            }
-        }
-        // No value-row assertion: for an invalid witness it is nonzero, which
-        // is exactly what the verifier must catch.
-
-        let r_s = solve_r_s(&blocks, &fh, &r, l_s, beta, delta)?;
-        let c_s = commit(gens, &r_s, l_s, &n_s)?;
-        transcript.append_point(b"C_S", &c_s);
-        let tau = transcript.challenge_scalar(b"tau");
-
-        let tau_inv = tau.inverse()?;
-        let (mut l_tau, n_tau) = evaluate_opening(tau, tau_inv, delta, &r, &r_s, l_s, &n_poly);
-        // The junk on H_7 is opened at T^3 alongside the honest l_S.
-        *l_tau.last_mut().unwrap() += tau * tau * tau * l_v_hat;
-        let c_tau = blocks.c_at(tau, tau_inv, beta);
-
-        let nl_proof = norm_linear::prove(transcript, gens, &c_tau, rho, &l_tau, &n_tau)?;
-        Ok((
-            CircuitProof {
-                c_l,
-                c_o,
-                c_r,
-                c_s,
-                nl_proof,
-            },
-            v_commitments,
-        ))
-    }
-
-    /// Run the cheating prover and verify its output. `Ok(())` means the
-    /// cheat was accepted.
-    fn run_cheat(range: Range, cheat: &Cheat) -> FastCryptoResult<()> {
+    /// The honest witness for `values`, with random input blindings. The
+    /// soundness tests below alter it into a cheating one: a cheater may
+    /// pick every component freely, so soundness must come from the circuit
+    /// and not from the prover's own well-formedness checks.
+    fn honest_witness(params: &CircuitParams, values: &[u64]) -> Witness {
         let mut rng = rand::thread_rng();
-        let m = cheat.values.len();
+        let blindings: Vec<S> = (0..values.len()).map(|_| S::rand(&mut rng)).collect();
+        Witness::new(params, &mut rng, values, &blindings)
+    }
+
+    /// Run the prover on `witness`, deriving the committed reciprocals with
+    /// `reciprocals`, and verify its output. `Ok(())` means the witness was
+    /// accepted. The `r_S` solve is left intact, so a cheater still cancels
+    /// every blinded error row it is able to; a rejection therefore comes
+    /// from the circuit constraints, which are aggregated into the `T^3` row
+    /// that no `r_S` slot can reach.
+    fn run_cheat_with(
+        range: Range,
+        witness: &Witness,
+        reciprocals: impl FnOnce(S) -> FastCryptoResult<Vec<S>>,
+    ) -> FastCryptoResult<()> {
+        let m = witness.values.len();
         let gens = Generators::new(range, m).unwrap();
         let params = CircuitParams::new(range, m).unwrap();
-        let blindings: Vec<S> = (0..m).map(|_| S::rand(&mut rng)).collect();
         let mut t = BpppTranscript::new(b"test");
         let (proof, v_commitments) =
-            prove_cheating(&mut t, &gens, &params, &mut rng, &blindings, cheat).unwrap();
+            prove_witness(&mut t, &gens, &params, witness, reciprocals).unwrap();
         let mut t = BpppTranscript::new(b"test");
         verify(&mut t, &gens, &params, &proof, &v_commitments)
+    }
+
+    /// [run_cheat_with] with the honest reciprocals of the committed digits.
+    fn run_cheat(range: Range, witness: &Witness) -> FastCryptoResult<()> {
+        let params = CircuitParams::new(range, witness.values.len()).unwrap();
+        run_cheat_with(range, witness, |alpha| {
+            reciprocals(&params, &witness.n_l, alpha)
+        })
     }
 
     /// Control: with the honest witness the cheating prover is the honest
@@ -1121,8 +993,8 @@ mod tests {
         let params = CircuitParams::new(Range::Bits64, 1).unwrap();
 
         let mut negative = honest_witness(&params, &[0]);
-        negative.values = vec![S::zero() - one()];
-        negative.n_l[0] = S::zero() - one(); // d_0 = -1, so sum d_t*16^t = -1
+        negative.values = vec![-one()];
+        negative.n_l[0] = -one(); // d_0 = -1, so sum d_t*16^t = -1
         assert!(run_cheat(Range::Bits64, &negative).is_err());
 
         // Half the group order: not representable by 16 base-16 digits.
@@ -1140,6 +1012,7 @@ mod tests {
     #[test]
     fn test_malformed_witness_rejected() {
         let params = CircuitParams::new(Range::Bits16, 1).unwrap();
+        let mut rng = rand::thread_rng();
 
         // Digits of a different (in-range) value than the one committed.
         let mut wrong_digits = honest_witness(&params, &[100]);
@@ -1152,15 +1025,13 @@ mod tests {
         assert!(run_cheat(Range::Bits16, &wrong_mult).is_err());
 
         // Reciprocals unrelated to the digits.
-        let mut rng = rand::thread_rng();
-        let mut wrong_recip = honest_witness(&params, &[0x1234]);
-        wrong_recip.n_r = Some((0..params.nm).map(|_| S::rand(&mut rng)).collect());
-        assert!(run_cheat(Range::Bits16, &wrong_recip).is_err());
+        let honest = honest_witness(&params, &[0x1234]);
+        let random: Vec<S> = (0..params.nm).map(|_| S::rand(&mut rng)).collect();
+        assert!(run_cheat_with(Range::Bits16, &honest, |_| Ok(random)).is_err());
 
         // Reciprocals of zero, the one value that is never a valid inverse.
-        let mut zero_recip = honest_witness(&params, &[0x1234]);
-        zero_recip.n_r = Some(vec![S::zero(); params.nm]);
-        assert!(run_cheat(Range::Bits16, &zero_recip).is_err());
+        let zeros = vec![S::zero(); params.nm];
+        assert!(run_cheat_with(Range::Bits16, &honest, |_| Ok(zeros)).is_err());
 
         // Digits permuted within the value: the positional 16^t weighting of
         // the value link must catch it (0x1234 vs 0x1243).
@@ -1171,12 +1042,12 @@ mod tests {
         // Blinding outside the spec's zero pattern: r_L[6] feeds a row above
         // T^6 that no r_S slot can cancel.
         let mut bad_blinding = honest_witness(&params, &[0x1234]);
-        bad_blinding.r_l_nonzero = vec![6];
+        bad_blinding.r_l[6] = S::rand(&mut rng);
         assert!(run_cheat(Range::Bits16, &bad_blinding).is_err());
 
         // r_L[3] would land directly in the value row.
         let mut value_row_blinding = honest_witness(&params, &[0x1234]);
-        value_row_blinding.r_l_nonzero = vec![3];
+        value_row_blinding.r_l[3] = S::rand(&mut rng);
         assert!(run_cheat(Range::Bits16, &value_row_blinding).is_err());
     }
 
@@ -1237,40 +1108,47 @@ mod tests {
     fn test_padding_pair_reaches_the_value_row() {
         let params = CircuitParams::new(Range::Bits16, 1).unwrap();
         let mut rng = rand::thread_rng();
+        let mut random_padding =
+            || -> Vec<S> { (params.n_d..params.nm).map(|_| S::rand(&mut rng)).collect() };
+        // Honest reciprocals on the real digit slots, `padding` beyond them.
+        let with_padding = |witness: &Witness, padding: Vec<S>| {
+            let n_l = witness.n_l.clone();
+            move |alpha| {
+                let mut n_r = reciprocals(&params, &n_l, alpha)?;
+                n_r[params.n_d..].copy_from_slice(&padding);
+                Ok(n_r)
+            }
+        };
+
         for _ in 0..8 {
             // Padding pairs cannot rescue an out-of-range value.
             let mut cheat = honest_witness(&params, &[0]);
             cheat.values = vec![S::from(1u64 << 16)];
-            let mut n_r = vec![S::zero(); params.nm];
-            for (digit, recip) in cheat.n_l[params.n_d..]
-                .iter_mut()
-                .zip(&mut n_r[params.n_d..])
-            {
-                *digit = S::rand(&mut rng);
-                *recip = S::rand(&mut rng);
-            }
-            cheat.n_r_padding = Some(n_r);
-            assert!(run_cheat(Range::Bits16, &cheat).is_err());
+            cheat.n_l[params.n_d..].copy_from_slice(&random_padding());
+            let padding = random_padding();
+            let recips = with_padding(&cheat, padding.clone());
+            assert!(run_cheat_with(Range::Bits16, &cheat, recips).is_err());
 
             // Nor are they free for an honest value: the pair perturbs the
             // value row, which no `r_S` slot can absorb.
             cheat.values = vec![S::zero()];
-            assert!(run_cheat(Range::Bits16, &cheat).is_err());
+            let recips = with_padding(&cheat, padding);
+            assert!(run_cheat_with(Range::Bits16, &cheat, recips).is_err());
         }
 
         // Zeroing either half of every pair restores acceptance, confirming
         // that it is the product and not the slot that matters.
+        let zeros = vec![S::zero(); params.nm - params.n_d];
         for zero_digits in [true, false] {
             let mut cheat = honest_witness(&params, &[1234]);
-            let mut n_r = vec![S::zero(); params.nm];
-            for (digit, recip) in cheat.n_l[params.n_d..]
-                .iter_mut()
-                .zip(&mut n_r[params.n_d..])
-            {
-                *(if zero_digits { recip } else { digit }) = S::rand(&mut rng);
-            }
-            cheat.n_r_padding = Some(n_r);
-            assert!(run_cheat(Range::Bits16, &cheat).is_ok());
+            let padding = if zero_digits {
+                random_padding()
+            } else {
+                cheat.n_l[params.n_d..].copy_from_slice(&random_padding());
+                zeros.clone()
+            };
+            let recips = with_padding(&cheat, padding);
+            assert!(run_cheat_with(Range::Bits16, &cheat, recips).is_ok());
         }
     }
 
@@ -1281,12 +1159,18 @@ mod tests {
     #[test]
     fn test_forged_commitment_rejected() {
         let params = CircuitParams::new(Range::Bits64, 1).unwrap();
-        let forged = |junk| Cheat {
-            junk: Some(junk),
+        let forged = |n_junk: Vec<S>, l_junk: S| Witness {
+            off_plane: vec![(n_junk, l_junk)],
             ..honest_witness(&params, &[42])
         };
-        assert!(run_cheat(Range::Bits64, &forged(Junk::Norm(15))).is_err());
-        assert!(run_cheat(Range::Bits64, &forged(Junk::Norm(0))).is_err());
-        assert!(run_cheat(Range::Bits64, &forged(Junk::Linear)).is_err());
+        let unit = |slot: usize| {
+            let mut v = vec![S::zero(); params.nm];
+            v[slot] = one();
+            v
+        };
+        let zero_n = vec![S::zero(); params.nm];
+        assert!(run_cheat(Range::Bits64, &forged(unit(15), S::zero())).is_err());
+        assert!(run_cheat(Range::Bits64, &forged(unit(0), S::zero())).is_err());
+        assert!(run_cheat(Range::Bits64, &forged(zero_n, one())).is_err());
     }
 }
