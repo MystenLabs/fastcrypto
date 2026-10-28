@@ -170,7 +170,7 @@ enum BasePoints<'a> {
     },
 }
 
-/// The current round's generators `H'`, `G'`, folded lazily: folds are kept
+/// The current round's bases `H`, `G_vec`, folded lazily: folds are kept
 /// as weights and materialised every [FOLD_BATCH_ROUNDS] rounds.
 struct LazyBases<'a> {
     points: BasePoints<'a>,
@@ -187,7 +187,7 @@ impl<'a> LazyBases<'a> {
 
     /// The bases for the next, half-length round: each new base combines
     /// two adjacent current ones, `H'_j = H_{2j} + gamma*H_{2j+1}` and
-    /// `G'_j = rho*G_{2j} + gamma*G_{2j+1}`.
+    /// `G_vec'_j = rho*G_vec_{2j} + gamma*G_vec_{2j+1}`.
     fn fold(self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
         LazyBases {
             weights: (
@@ -217,7 +217,7 @@ impl<'a> LazyBases<'a> {
         (h_vec.len(), g_vec.len())
     }
 
-    /// `v*G + <h_coeffs, H'> + <g_coeffs, G'>` over the current bases.
+    /// `v*G + <h_coeffs, H> + <g_coeffs, G_vec>` over the current bases.
     fn msm(
         &mut self,
         v: RistrettoScalar,
@@ -369,8 +369,8 @@ fn prove_rec(
     let vr = weighted_norm(&n1, mu2) + inner_product(&c1, &l1);
 
     // X carries the cross terms and R the odd-odd terms:
-    //   X = vx*G + <l1, H'_even> + <l0, H'_odd> + rho*<n1, G'_even> + rho^{-1}*<n0, G'_odd>
-    //   R = vr*G + <l1, H'_odd> + <n1, G'_odd>
+    //   X = vx*G + <l1, H_even> + <l0, H_odd> + rho*<n1, G_vec_even> + rho^{-1}*<n0, G_vec_odd>
+    //   R = vr*G + <l1, H_odd> + <n1, G_vec_odd>
     let x_point = bases.msm(
         vx,
         &from_halves(&l1, &l0),
