@@ -126,13 +126,7 @@ impl TensorProduct {
 
     /// The weights `(f0, f1) ⊗ w`.
     fn push(&self, f0: RistrettoScalar, f1: RistrettoScalar) -> Self {
-        let w = &self.0;
-        TensorProduct(
-            w.iter()
-                .map(|wt| *wt * f0)
-                .chain(w.iter().map(|wt| *wt * f1))
-                .collect(),
-        )
+        TensorProduct(self.tensor(&[f0, f1]).collect())
     }
 
     fn len(&self) -> usize {
