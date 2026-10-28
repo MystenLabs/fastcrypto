@@ -167,8 +167,8 @@ fn apply_weights(
 /// than the equivalent chain of per-round 2-term combinations.
 const FOLD_BATCH_ROUNDS: u32 = 3;
 
-/// The points the pending fold weights of [Bases] apply to.
-enum Points<'a> {
+/// The points the pending fold weights of [LazyBases] apply to.
+enum BasePoints<'a> {
     Crs(&'a Generators),
     Folded {
         g: RistrettoPoint,
@@ -178,15 +178,15 @@ enum Points<'a> {
 
 /// The current round's generators `H'`, `G'`, folded lazily: folds are kept
 /// as weights and materialised every [FOLD_BATCH_ROUNDS] rounds.
-struct Bases<'a> {
-    points: Points<'a>,
+struct LazyBases<'a> {
+    points: BasePoints<'a>,
     weights: (Vec<RistrettoScalar>, Vec<RistrettoScalar>),
 }
 
-impl<'a> Bases<'a> {
+impl<'a> LazyBases<'a> {
     fn new(gens: &'a Generators) -> Self {
-        Bases {
-            points: Points::Crs(gens),
+        LazyBases {
+            points: BasePoints::Crs(gens),
             weights: (vec![one()], vec![one()]),
         }
     }
@@ -195,7 +195,7 @@ impl<'a> Bases<'a> {
     /// two adjacent current ones, `H'_j = H_{2j} + gamma*H_{2j+1}` and
     /// `G'_j = rho*G_{2j} + gamma*G_{2j+1}`.
     fn fold(self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
-        Bases {
+        LazyBases {
             weights: (
                 tensor_grow(&self.weights.0, one(), gamma),
                 tensor_grow(&self.weights.1, rho, gamma),
@@ -208,8 +208,8 @@ impl<'a> Bases<'a> {
     /// apply to.
     fn points(&self) -> (RistrettoPoint, (&[RistrettoPoint], &[RistrettoPoint])) {
         match &self.points {
-            Points::Crs(gens) => (gens.g, (&gens.h_vec, &gens.g_vec)),
-            Points::Folded {
+            BasePoints::Crs(gens) => (gens.g, (&gens.h_vec, &gens.g_vec)),
+            BasePoints::Folded {
                 g,
                 folded: (h_vec, g_vec),
             } => (*g, (h_vec, g_vec)),
@@ -237,7 +237,7 @@ impl<'a> Bases<'a> {
                 apply_weights(h_vec, &self.weights.0)?,
                 apply_weights(g_vec, &self.weights.1)?,
             );
-            self.points = Points::Folded { g, folded };
+            self.points = BasePoints::Folded { g, folded };
             self.weights = (vec![one()], vec![one()]);
         }
 
@@ -245,8 +245,8 @@ impl<'a> Bases<'a> {
         let h_scalars = expand(&self.weights.0, h_coeffs, h_len);
         let g_scalars = expand(&self.weights.1, g_coeffs, g_len);
         match &self.points {
-            Points::Crs(gens) => gens.msm(v, h_scalars, g_scalars, &[], &[]),
-            Points::Folded {
+            BasePoints::Crs(gens) => gens.msm(v, h_scalars, g_scalars, &[], &[]),
+            BasePoints::Folded {
                 g,
                 folded: (h_vec, g_vec),
             } => {
@@ -310,7 +310,7 @@ pub(crate) fn prove(
     transcript.domain_sep(b"norm_linear");
     prove_rec(
         transcript,
-        Bases::new(gens),
+        LazyBases::new(gens),
         c.to_vec(),
         rho,
         l.to_vec(),
@@ -324,7 +324,7 @@ pub(crate) fn prove(
 /// [FOLD_THRESHOLD] scalars remain the opening is sent in the clear.
 fn prove_rec(
     transcript: &mut BpppTranscript,
-    mut bases: Bases<'_>,
+    mut bases: LazyBases<'_>,
     mut c: Vec<RistrettoScalar>,
     rho: RistrettoScalar,
     mut l: Vec<RistrettoScalar>,
@@ -378,7 +378,7 @@ fn prove_rec(
     let gamma = transcript.challenge_scalar(b"gamma");
 
     // Fold: l' = l0 + gamma*l1, n' = rho^{-1}*n0 + gamma*n1,
-    // c' = c0 + gamma*c1, and the bases as in [Bases::fold].
+    // c' = c0 + gamma*c1, and the bases as in [LazyBases::fold].
     let mut proof = prove_rec(
         transcript,
         bases.fold(rho, gamma),
