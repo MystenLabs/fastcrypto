@@ -13,6 +13,7 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
 use crate::serde_helpers::ToFromByteArray;
+use itertools::Itertools;
 
 use crate::bulletproofspp::crs::{Generators, BASE, H_LEN};
 use crate::bulletproofspp::transcript::BpppTranscript;
@@ -143,9 +144,8 @@ fn fold_points(
     f0: RistrettoScalar,
     f1: RistrettoScalar,
 ) -> Vec<RistrettoPoint> {
-    even_elements(p)
-        .iter()
-        .zip(odd_elements(p))
+    p.iter()
+        .tuples()
         .map(|(p0, p1)| *p0 * f0 + p1 * f1)
         .collect()
 }
@@ -287,10 +287,17 @@ fn sparse_mul(a: RistrettoScalar, b: RistrettoScalar) -> RistrettoScalar {
     }
 }
 
-/// `(a_0, b_0, a_1, b_1, ...)`.
-fn interleave(a: &[RistrettoScalar], b: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
-    debug_assert_eq!(a.len(), b.len());
-    a.iter().zip(b).flat_map(|(x, y)| [*x, *y]).collect()
+/// The even- and odd-indexed halves of `v`, padded to even length with a
+/// zero.
+fn halves(mut v: Vec<RistrettoScalar>) -> (Vec<RistrettoScalar>, Vec<RistrettoScalar>) {
+    pad_even_scalar(&mut v);
+    v.into_iter().tuples().unzip()
+}
+
+/// The vector with even-indexed half `even` and odd-indexed half `odd`.
+fn from_halves(even: &[RistrettoScalar], odd: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
+    debug_assert_eq!(even.len(), odd.len());
+    even.iter().zip(odd).flat_map(|(x, y)| [*x, *y]).collect()
 }
 
 /// Prove the norm-linear relation for the opening `(l, n)` of a commitment
@@ -325,10 +332,10 @@ pub(crate) fn prove(
 fn prove_rec(
     transcript: &mut BpppTranscript,
     mut bases: LazyBases<'_>,
-    mut c: Vec<RistrettoScalar>,
+    c: Vec<RistrettoScalar>,
     rho: RistrettoScalar,
-    mut l: Vec<RistrettoScalar>,
-    mut n: Vec<RistrettoScalar>,
+    l: Vec<RistrettoScalar>,
+    n: Vec<RistrettoScalar>,
 ) -> FastCryptoResult<NormLinearProof> {
     if l.len() <= 1 && l.len() + n.len() < FOLD_THRESHOLD {
         transcript.append_scalars(b"l_final", &l);
@@ -341,12 +348,9 @@ fn prove_rec(
         });
     }
 
-    pad_even_scalar(&mut l);
-    pad_even_scalar(&mut n);
-    pad_even_scalar(&mut c);
-    let (l0, l1) = (even_elements(&l), odd_elements(&l));
-    let (n0, n1) = (even_elements(&n), odd_elements(&n));
-    let (c0, c1) = (even_elements(&c), odd_elements(&c));
+    let (l0, l1) = halves(l);
+    let (n0, n1) = halves(n);
+    let (c0, c1) = halves(c);
 
     let mu = rho * rho;
     let mu2 = mu * mu;
@@ -368,10 +372,10 @@ fn prove_rec(
     let zero_n = vec![RistrettoScalar::zero(); n1.len()];
     let x_point = bases.msm(
         vx,
-        &interleave(&l1, &l0),
-        &interleave(&vec_scalar_mul(rho, &n1), &vec_scalar_mul(rho_inv, &n0)),
+        &from_halves(&l1, &l0),
+        &from_halves(&vec_scalar_mul(rho, &n1), &vec_scalar_mul(rho_inv, &n0)),
     )?;
-    let r_point = bases.msm(vr, &interleave(&zero_l, &l1), &interleave(&zero_n, &n1))?;
+    let r_point = bases.msm(vr, &from_halves(&zero_l, &l1), &from_halves(&zero_n, &n1))?;
 
     transcript.append_point(b"X", &x_point);
     transcript.append_point(b"R", &r_point);
@@ -455,11 +459,8 @@ pub(crate) fn verify(
         w_g = tensor_grow(&w_g, rho, gamma);
 
         // Fold only the (cheap) scalar constraint vector.
-        pad_even_scalar(&mut c);
-        c = vec_add(
-            &even_elements(&c),
-            &vec_scalar_mul(gamma, &odd_elements(&c)),
-        );
+        let (c0, c1) = halves(c);
+        c = vec_add(&c0, &vec_scalar_mul(gamma, &c1));
 
         rho = mu;
         mu = mu * mu;

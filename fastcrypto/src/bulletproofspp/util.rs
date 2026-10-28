@@ -67,16 +67,6 @@ pub(crate) fn power_vector(x: RistrettoScalar, n: usize) -> Vec<RistrettoScalar>
     v
 }
 
-/// Even-indexed elements `(v_0, v_2, v_4, ...)`.
-pub(crate) fn even_elements<T: Copy>(v: &[T]) -> Vec<T> {
-    v.iter().step_by(2).copied().collect()
-}
-
-/// Odd-indexed elements `(v_1, v_3, v_5, ...)`.
-pub(crate) fn odd_elements<T: Copy>(v: &[T]) -> Vec<T> {
-    v.iter().skip(1).step_by(2).copied().collect()
-}
-
 /// Component-wise sum `a + b`.
 pub(crate) fn vec_add(a: &[RistrettoScalar], b: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
     debug_assert_eq!(a.len(), b.len());
@@ -160,13 +150,6 @@ mod tests {
     fn test_power_vector() {
         assert_eq!(power_vector(s(3), 4), vec![s(1), s(3), s(9), s(27)]);
         assert!(power_vector(s(3), 0).is_empty());
-    }
-
-    #[test]
-    fn test_even_odd_split() {
-        let v = vec![s(0), s(1), s(2), s(3), s(4)];
-        assert_eq!(even_elements(&v), vec![s(0), s(2), s(4)]);
-        assert_eq!(odd_elements(&v), vec![s(1), s(3)]);
     }
 
     #[test]
