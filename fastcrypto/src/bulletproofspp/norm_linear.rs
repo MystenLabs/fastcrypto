@@ -244,10 +244,12 @@ impl<'a> Bases<'a> {
         let g_scalars = expand(&self.weights.1, g_coeffs, g_len);
         match &self.points {
             Points::Crs(gens) => gens.msm(v, h_scalars, g_scalars, &[], &[]),
-            Points::Folded { .. } => {
-                let (g, (h_vec, g_vec)) = self.points();
+            Points::Folded {
+                g,
+                folded: (h_vec, g_vec),
+            } => {
                 let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) =
-                    std::iter::once((v, g))
+                    std::iter::once((v, *g))
                         .chain(h_scalars.zip(h_vec.iter().copied()))
                         .chain(g_scalars.zip(g_vec.iter().copied()))
                         .filter(|(s, _)| *s != RistrettoScalar::zero())
