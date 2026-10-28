@@ -332,6 +332,8 @@ pub(crate) fn prove(
 /// folded relation, fold `(c, l, n)` and the bases with the challenge, and
 /// recurse on the half-size instance with weight `mu^2`. Once fewer than
 /// [FOLD_THRESHOLD] scalars remain the opening is sent in the clear.
+///
+/// Errors only if `rho` is zero and at least one round is needed.
 fn prove_rec(
     transcript: &mut BpppTranscript,
     mut bases: LazyBases<'_>,
