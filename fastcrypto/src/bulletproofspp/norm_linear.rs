@@ -222,8 +222,7 @@ impl<'a> Bases<'a> {
         h_coeffs: &[RistrettoScalar],
         g_coeffs: &[RistrettoScalar],
     ) -> FastCryptoResult<RistrettoPoint> {
-        // Materialise pending folds here rather than in `fold`, so the fold
-        // after the last round is never paid for.
+        // Materialise the pending folds.
         if self.weights.0.len() == 1 << FOLD_BATCH_ROUNDS {
             let (g, h_vec, g_vec) = self.points();
             let folded = (
