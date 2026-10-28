@@ -230,6 +230,7 @@ impl<'a> Bases<'a> {
         h_coeffs: &[RistrettoScalar],
         g_coeffs: &[RistrettoScalar],
     ) -> FastCryptoResult<RistrettoPoint> {
+        // Fold the points every few rounds to keep the MSMs small.
         if self.weights.0.len() == 1 << FOLD_BATCH_ROUNDS {
             let (g, (h_vec, g_vec)) = self.points();
             let folded = (
