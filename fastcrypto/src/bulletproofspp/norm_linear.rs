@@ -168,10 +168,7 @@ const FOLD_BATCH_ROUNDS: u32 = 3;
 
 /// The points the pending fold weights of [Bases] apply to.
 enum Points<'a> {
-    /// The CRS generators, with their precomputed MSM tables.
     Crs(&'a Generators),
-    /// A batch fold of the CRS: the base `g`, which is never folded, and the
-    /// folded `(h, g)` vectors.
     Folded {
         g: RistrettoPoint,
         folded: (Vec<RistrettoPoint>, Vec<RistrettoPoint>),
