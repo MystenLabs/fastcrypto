@@ -152,7 +152,7 @@ fn fold_points(
 
 /// Execute deferred folds at once, collapsing the lazily folded generators
 /// into real points: `out[j] = sum_t w[t] * base[j*|w| + t]`.
-fn batch_fold(
+fn apply_weights(
     base: &[RistrettoPoint],
     w: &[RistrettoScalar],
 ) -> FastCryptoResult<Vec<RistrettoPoint>> {
@@ -232,8 +232,8 @@ impl<'a> Bases<'a> {
         if self.weights.0.len() == 1 << FOLD_BATCH_ROUNDS {
             let (g, (h_vec, g_vec)) = self.points();
             let folded = (
-                batch_fold(h_vec, &self.weights.0)?,
-                batch_fold(g_vec, &self.weights.1)?,
+                apply_weights(h_vec, &self.weights.0)?,
+                apply_weights(g_vec, &self.weights.1)?,
             );
             self.points = Points::Folded { g, folded };
             self.weights = (vec![one()], vec![one()]);
