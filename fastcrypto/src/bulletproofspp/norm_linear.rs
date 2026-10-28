@@ -203,14 +203,15 @@ impl<'a> Bases<'a> {
         }
     }
 
-    /// The base `G` and the `(h, g)` vectors the weights currently apply to.
+    /// The base `G` and the `(h_vec, g_vec)` vectors the weights currently
+    /// apply to.
     fn points(&self) -> (RistrettoPoint, &[RistrettoPoint], &[RistrettoPoint]) {
         match &self.points {
             Points::Crs(gens) => (gens.g, &gens.h_vec, &gens.g_vec),
             Points::Folded {
                 g,
-                folded: (h, g_vec),
-            } => (*g, h, g_vec),
+                folded: (h_vec, g_vec),
+            } => (*g, h_vec, g_vec),
         }
     }
 
@@ -224,24 +225,24 @@ impl<'a> Bases<'a> {
         // Materialise pending folds here rather than in `fold`, so the fold
         // after the last round is never paid for.
         if self.weights.0.len() == 1 << FOLD_BATCH_ROUNDS {
-            let (g, h, g_vec) = self.points();
+            let (g, h_vec, g_vec) = self.points();
             let folded = (
-                batch_fold(h, &self.weights.0)?,
+                batch_fold(h_vec, &self.weights.0)?,
                 batch_fold(g_vec, &self.weights.1)?,
             );
             self.points = Points::Folded { g, folded };
             self.weights = (vec![one()], vec![one()]);
         }
 
-        let (g, h, g_vec) = self.points();
-        let h_scalars = expand(&self.weights.0, h_coeffs, h.len());
+        let (g, h_vec, g_vec) = self.points();
+        let h_scalars = expand(&self.weights.0, h_coeffs, h_vec.len());
         let g_scalars = expand(&self.weights.1, g_coeffs, g_vec.len());
         match &self.points {
             Points::Crs(gens) => gens.msm(v, h_scalars, g_scalars, &[], &[]),
             Points::Folded { .. } => {
                 let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) =
                     std::iter::once((v, g))
-                        .chain(h_scalars.zip(h.iter().copied()))
+                        .chain(h_scalars.zip(h_vec.iter().copied()))
                         .chain(g_scalars.zip(g_vec.iter().copied()))
                         .filter(|(s, _)| *s != RistrettoScalar::zero())
                         .unzip();
