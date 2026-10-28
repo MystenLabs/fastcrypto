@@ -215,6 +215,13 @@ impl<'a> Bases<'a> {
         }
     }
 
+    /// The lengths of the `(h_vec, g_vec)` vectors the weights currently
+    /// apply to.
+    fn len(&self) -> (usize, usize) {
+        let (_, (h_vec, g_vec)) = self.points();
+        (h_vec.len(), g_vec.len())
+    }
+
     /// `v*G + <h_coeffs, H'> + <g_coeffs, G'>` over the current bases.
     fn msm(
         &mut self,
@@ -232,12 +239,13 @@ impl<'a> Bases<'a> {
             self.weights = (vec![one()], vec![one()]);
         }
 
-        let (g, (h_vec, g_vec)) = self.points();
-        let h_scalars = expand(&self.weights.0, h_coeffs, h_vec.len());
-        let g_scalars = expand(&self.weights.1, g_coeffs, g_vec.len());
+        let (h_len, g_len) = self.len();
+        let h_scalars = expand(&self.weights.0, h_coeffs, h_len);
+        let g_scalars = expand(&self.weights.1, g_coeffs, g_len);
         match &self.points {
             Points::Crs(gens) => gens.msm(v, h_scalars, g_scalars, &[], &[]),
             Points::Folded { .. } => {
+                let (g, (h_vec, g_vec)) = self.points();
                 let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) =
                     std::iter::once((v, g))
                         .chain(h_scalars.zip(h_vec.iter().copied()))
