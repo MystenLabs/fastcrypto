@@ -114,7 +114,7 @@ fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     (rounds, n_len)
 }
 
-/// After `k` pairs `(f0_i, f1_i)` have been added with [TensorProduct::push],
+/// After `k` pairs `(f0_i, f1_i)` have been added with [TensorProduct::tensor_pair],
 /// this holds the tensor product `w = (f0_k, f1_k) ⊗ ... ⊗ (f0_1, f1_1)`.
 struct TensorProduct(Vec<RistrettoScalar>);
 
@@ -125,7 +125,7 @@ impl TensorProduct {
     }
 
     /// The weights `(f0, f1) ⊗ w`.
-    fn push(&self, f0: RistrettoScalar, f1: RistrettoScalar) -> Self {
+    fn tensor_pair(&self, f0: RistrettoScalar, f1: RistrettoScalar) -> Self {
         TensorProduct(self.tensor(&[f0, f1]).collect())
     }
 
@@ -207,8 +207,8 @@ impl<'a> LazyBases<'a> {
     fn fold(self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
         LazyBases {
             weights: (
-                self.weights.0.push(one(), gamma),
-                self.weights.1.push(rho, gamma),
+                self.weights.0.tensor_pair(one(), gamma),
+                self.weights.1.tensor_pair(rho, gamma),
             ),
             ..self
         }
@@ -454,8 +454,8 @@ pub(crate) fn verify(
         transcript.append_point(b"R", r_point);
         let gamma = transcript.challenge_scalar(b"gamma");
         gammas.push(gamma);
-        w_h = w_h.push(one(), gamma);
-        w_g = w_g.push(rho, gamma);
+        w_h = w_h.tensor_pair(one(), gamma);
+        w_g = w_g.tensor_pair(rho, gamma);
 
         // Fold only the (cheap) scalar constraint vector.
         let (c0, c1) = halves(c);
