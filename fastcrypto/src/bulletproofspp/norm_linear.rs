@@ -95,9 +95,7 @@ impl NormLinearProof {
     }
 }
 
-/// Whether an instance with these vector lengths is opened in the clear
-/// rather than folded. Folding continues until `l` is a single scalar, which
-/// the proof format relies on, and fewer than [FOLD_THRESHOLD] scalars remain.
+/// Whether vectors of these lengths are sent in the clear instead of folded.
 fn is_base_case(l_len: usize, n_len: usize) -> bool {
     l_len <= 1 && l_len + n_len < FOLD_THRESHOLD
 }
