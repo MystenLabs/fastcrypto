@@ -273,15 +273,13 @@ fn expand<'b>(
     (0..len).map(move |i| {
         coeffs
             .get(i / w.len())
-            .map_or(RistrettoScalar::zero(), |c| {
-                mul_skip_zero(*c, w[i % w.len()])
-            })
+            .map_or(RistrettoScalar::zero(), |c| sparse_mul(*c, w[i % w.len()]))
     })
 }
 
 /// `a * b`, skipping the multiplication when `a` is zero.
 #[inline]
-fn mul_skip_zero(a: RistrettoScalar, b: RistrettoScalar) -> RistrettoScalar {
+fn sparse_mul(a: RistrettoScalar, b: RistrettoScalar) -> RistrettoScalar {
     if a == RistrettoScalar::zero() {
         a
     } else {
