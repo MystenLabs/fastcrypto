@@ -150,8 +150,9 @@ fn fold_points(
         .collect()
 }
 
-/// Execute deferred folds at once, collapsing the lazily folded generators
-/// into real points: `out[j] = sum_t w[t] * base[j*|w| + t]`.
+/// Combine each run of `w.len()` consecutive points of `base` into one point,
+/// `out[j] = sum_t w[t] * base[j*|w| + t]`; a shorter final run uses the
+/// leading weights.
 fn apply_weights(
     base: &[RistrettoPoint],
     w: &[RistrettoScalar],
