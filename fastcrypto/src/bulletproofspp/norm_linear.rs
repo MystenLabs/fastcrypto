@@ -198,10 +198,9 @@ impl<'a> Bases<'a> {
 
     /// The points the weights currently apply to.
     fn points(&self) -> (&[RistrettoPoint], &[RistrettoPoint]) {
-        match &self.folded {
-            None => (&self.gens.h_vec, &self.gens.g_vec),
-            Some((h, g_vec)) => (h, g_vec),
-        }
+        self.folded
+            .as_ref()
+            .map_or((&self.gens.h_vec, &self.gens.g_vec), |(h, g)| (h, g))
     }
 
     /// `v*G + <h_coeffs, H'> + <g_coeffs, G'>` over the current bases.
@@ -214,25 +213,25 @@ impl<'a> Bases<'a> {
         // Materialise pending folds here rather than in `fold`, so the fold
         // after the last round is never paid for.
         if self.weights.0.len() == 1 << FOLD_BATCH_ROUNDS {
-            let (h, g_vec) = self.points();
+            let (h, g) = self.points();
             let folded = (
                 batch_fold(h, &self.weights.0)?,
-                batch_fold(g_vec, &self.weights.1)?,
+                batch_fold(g, &self.weights.1)?,
             );
             self.folded = Some(folded);
             self.weights = (vec![one()], vec![one()]);
         }
 
-        let (h, g_vec) = self.points();
+        let (h, g) = self.points();
         let h_scalars = expand(&self.weights.0, h_coeffs, h.len());
-        let g_scalars = expand(&self.weights.1, g_coeffs, g_vec.len());
+        let g_scalars = expand(&self.weights.1, g_coeffs, g.len());
         match &self.folded {
             None => self.gens.msm(v, h_scalars, g_scalars, &[], &[]),
             Some(_) => {
                 let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) =
                     std::iter::once((v, self.gens.g))
                         .chain(h_scalars.zip(h.iter().copied()))
-                        .chain(g_scalars.zip(g_vec.iter().copied()))
+                        .chain(g_scalars.zip(g.iter().copied()))
                         .filter(|(s, _)| *s != RistrettoScalar::zero())
                         .unzip();
                 RistrettoPoint::multi_scalar_mul(&sc, &pts)
