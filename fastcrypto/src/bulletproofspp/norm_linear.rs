@@ -296,6 +296,13 @@ fn from_halves(even: &[RistrettoScalar], odd: &[RistrettoScalar]) -> Vec<Ristret
     even.iter().zip(odd).flat_map(|(x, y)| [*x, *y]).collect()
 }
 
+/// The vector with odd-indexed half `odd` and zeros at the even indices.
+fn from_odd_half(odd: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
+    odd.iter()
+        .flat_map(|y| [RistrettoScalar::zero(), *y])
+        .collect()
+}
+
 /// Prove the norm-linear relation for the opening `(l, n)` of a commitment
 /// under `gens`. Requires `l`, `c`, `gens.h_vec` of equal length and `n`,
 /// `gens.g_vec` of equal length.
@@ -364,14 +371,12 @@ fn prove_rec(
     // X carries the cross terms and R the odd-odd terms:
     //   X = vx*G + <l1, H'_even> + <l0, H'_odd> + rho*<n1, G'_even> + rho^{-1}*<n0, G'_odd>
     //   R = vr*G + <l1, H'_odd> + <n1, G'_odd>
-    let zero_l = vec![RistrettoScalar::zero(); l1.len()];
-    let zero_n = vec![RistrettoScalar::zero(); n1.len()];
     let x_point = bases.msm(
         vx,
         &from_halves(&l1, &l0),
         &from_halves(&vec_scalar_mul(rho, &n1), &vec_scalar_mul(rho_inv, &n0)),
     )?;
-    let r_point = bases.msm(vr, &from_halves(&zero_l, &l1), &from_halves(&zero_n, &n1))?;
+    let r_point = bases.msm(vr, &from_odd_half(&l1), &from_odd_half(&n1))?;
 
     transcript.append_point(b"X", &x_point);
     transcript.append_point(b"R", &r_point);
