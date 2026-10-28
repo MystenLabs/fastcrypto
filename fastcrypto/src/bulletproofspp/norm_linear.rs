@@ -114,19 +114,17 @@ fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     (rounds, n_len)
 }
 
-/// The combined weights of `k` folds, the tensor product
-/// `(f0_k, f1_k) ⊗ ... ⊗ (f0_1, f1_1)` of length `2^k`: after the folds, the
-/// point at index `i` of the unfolded vector sits in folded slot
-/// `i / len()` with weight `w[i % len()]`.
+/// A weight vector `w`: the tensor product `(f0_k, f1_k) ⊗ ... ⊗ (f0_1, f1_1)`
+/// of the `k` pairs passed to [FoldWeights::fold].
 struct FoldWeights(Vec<RistrettoScalar>);
 
 impl FoldWeights {
-    /// No folds yet.
+    /// The weights `w = (1)`.
     fn new() -> Self {
         FoldWeights(vec![one()])
     }
 
-    /// The weights after one more fold `f0*even + f1*odd`.
+    /// The weights `(f0*w || f1*w)`.
     fn fold(&self, f0: RistrettoScalar, f1: RistrettoScalar) -> Self {
         let w = &self.0;
         FoldWeights(
@@ -141,9 +139,8 @@ impl FoldWeights {
         self.0.len()
     }
 
-    /// Coefficients on the folded slots, spread back onto `len` unfolded
-    /// positions: position `i` gets `w[i % len()] * coeffs[i / len()]`, and
-    /// zero where the coefficient is absent (padding).
+    /// The `len` scalars `out[i] = w[i % w.len()] * coeffs[i / w.len()]`, where
+    /// missing entries of `coeffs` count as zero.
     fn expand<'b>(
         &'b self,
         coeffs: &'b [RistrettoScalar],
@@ -158,9 +155,9 @@ impl FoldWeights {
         })
     }
 
-    /// The folded points: `ceil(points.len() / len())` of them, defined by
-    /// `out[j] = sum_t w[t] * points[j*len() + t]`, where absent points count
-    /// as zero.
+    /// The `ceil(points.len() / w.len())` points
+    /// `out[j] = sum_t w[t] * points[j*w.len() + t]`, where missing points
+    /// count as zero.
     fn apply(&self, points: &[RistrettoPoint]) -> FastCryptoResult<Vec<RistrettoPoint>> {
         points
             .chunks(self.len())
