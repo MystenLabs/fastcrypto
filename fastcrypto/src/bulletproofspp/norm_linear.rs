@@ -171,8 +171,7 @@ const FOLD_BATCH_ROUNDS: u32 = 3;
 struct Bases<'a> {
     gens: &'a Generators,
     folded: Option<(Vec<RistrettoPoint>, Vec<RistrettoPoint>)>,
-    w_h: Vec<RistrettoScalar>,
-    w_g: Vec<RistrettoScalar>,
+    weights: (Vec<RistrettoScalar>, Vec<RistrettoScalar>),
 }
 
 impl<'a> Bases<'a> {
@@ -180,8 +179,7 @@ impl<'a> Bases<'a> {
         Bases {
             gens,
             folded: None,
-            w_h: vec![one()],
-            w_g: vec![one()],
+            weights: (vec![one()], vec![one()]),
         }
     }
 
@@ -190,8 +188,10 @@ impl<'a> Bases<'a> {
     /// `G'_j = rho*G_{2j} + gamma*G_{2j+1}`.
     fn fold(self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
         Bases {
-            w_h: tensor_grow(&self.w_h, one(), gamma),
-            w_g: tensor_grow(&self.w_g, rho, gamma),
+            weights: (
+                tensor_grow(&self.weights.0, one(), gamma),
+                tensor_grow(&self.weights.1, rho, gamma),
+            ),
             ..self
         }
     }
@@ -213,17 +213,19 @@ impl<'a> Bases<'a> {
     ) -> FastCryptoResult<RistrettoPoint> {
         // Materialise pending folds here rather than in `fold`, so the fold
         // after the last round is never paid for.
-        if self.w_h.len() == 1 << FOLD_BATCH_ROUNDS {
+        if self.weights.0.len() == 1 << FOLD_BATCH_ROUNDS {
             let (h, g_vec) = self.points();
-            let folded = (batch_fold(h, &self.w_h)?, batch_fold(g_vec, &self.w_g)?);
+            let folded = (
+                batch_fold(h, &self.weights.0)?,
+                batch_fold(g_vec, &self.weights.1)?,
+            );
             self.folded = Some(folded);
-            self.w_h = vec![one()];
-            self.w_g = vec![one()];
+            self.weights = (vec![one()], vec![one()]);
         }
 
         let (h, g_vec) = self.points();
-        let h_scalars = expand(&self.w_h, h_coeffs, h.len());
-        let g_scalars = expand(&self.w_g, g_coeffs, g_vec.len());
+        let h_scalars = expand(&self.weights.0, h_coeffs, h.len());
+        let g_scalars = expand(&self.weights.1, g_coeffs, g_vec.len());
         match &self.folded {
             None => self.gens.msm(v, h_scalars, g_scalars, &[], &[]),
             Some(_) => {
