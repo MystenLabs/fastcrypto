@@ -124,7 +124,7 @@ impl FoldWeights {
         FoldWeights(vec![one()])
     }
 
-    /// The weights `(f0*w || f1*w)`.
+    /// The weights `(f0, f1) ⊗ w`.
     fn fold(&self, f0: RistrettoScalar, f1: RistrettoScalar) -> Self {
         let w = &self.0;
         FoldWeights(
