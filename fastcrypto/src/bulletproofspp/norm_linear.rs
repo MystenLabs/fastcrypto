@@ -139,19 +139,14 @@ impl TensorProduct {
         self.0.len()
     }
 
-    /// The first `len` entries of `coeffs ⊗ w`, padded with zeros.
+    /// `coeffs ⊗ w`.
     fn tensor<'b>(
         &'b self,
         coeffs: &'b [RistrettoScalar],
-        len: usize,
     ) -> impl Iterator<Item = RistrettoScalar> + 'b {
-        (0..len).map(move |i| {
-            coeffs
-                .get(i / self.len())
-                .map_or(RistrettoScalar::zero(), |c| {
-                    sparse_mul(*c, self.0[i % self.len()])
-                })
-        })
+        coeffs
+            .iter()
+            .flat_map(move |c| self.0.iter().map(move |w| sparse_mul(*c, *w)))
     }
 
     /// The `ceil(points.len() / w.len())` points
@@ -263,8 +258,8 @@ impl<'a> LazyBases<'a> {
         }
 
         let (h_len, g_len) = self.len();
-        let h_scalars = self.weights.0.tensor(h_coeffs, h_len);
-        let g_scalars = self.weights.1.tensor(g_coeffs, g_len);
+        let h_scalars = self.weights.0.tensor(h_coeffs).take(h_len);
+        let g_scalars = self.weights.1.tensor(g_coeffs).take(g_len);
         match &self.points {
             BasePoints::Crs(gens) => gens.msm(v, h_scalars, g_scalars, &[], &[]),
             BasePoints::Folded {
@@ -483,9 +478,12 @@ pub(crate) fn verify(
     debug_assert_eq!(c.len(), 1);
     let sigma = c[0] * proof.l_final + weighted_norm(&proof.n_final, mu);
 
-    let l = w_h.tensor(std::slice::from_ref(&proof.l_final), gens.h_vec.len());
+    let l = w_h
+        .tensor(std::slice::from_ref(&proof.l_final))
+        .take(gens.h_vec.len());
     let n = w_g
-        .tensor(&proof.n_final, gens.g_vec.len())
+        .tensor(&proof.n_final)
+        .take(gens.g_vec.len())
         .zip(pn)
         .map(|(w, pn_i)| w - pn_i);
 
