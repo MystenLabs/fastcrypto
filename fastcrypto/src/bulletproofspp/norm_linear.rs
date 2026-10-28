@@ -217,7 +217,7 @@ impl<'a> Bases<'a> {
 
     /// The coefficients on the current bases expanded onto the underlying
     /// `(h_vec, g_vec)`: point `i` gets `w[i % |w|] * coeffs[i / |w|]`, and
-    /// zero where the coefficient is zero or absent (padding).
+    /// zero where the coefficient is absent (padding).
     fn expand<'b>(
         &'b self,
         h_coeffs: &'b [RistrettoScalar],
@@ -227,9 +227,10 @@ impl<'a> Bases<'a> {
         impl Iterator<Item = RistrettoScalar> + 'b,
     ) {
         let spread = |w: &'b [RistrettoScalar], coeffs: &'b [RistrettoScalar], len: usize| {
-            (0..len).map(move |i| match coeffs.get(i / w.len()) {
-                Some(c) if *c != RistrettoScalar::zero() => w[i % w.len()] * c,
-                _ => RistrettoScalar::zero(),
+            (0..len).map(move |i| {
+                coeffs
+                    .get(i / w.len())
+                    .map_or(RistrettoScalar::zero(), |c| w[i % w.len()] * c)
             })
         };
         let (_, (h_vec, g_vec)) = self.points();
