@@ -164,24 +164,21 @@ impl FoldWeights {
     }
 }
 
-#[cfg(test)]
-fn pad_even_point(v: &mut Vec<RistrettoPoint>) {
-    if !v.len().is_multiple_of(2) {
-        v.push(RistrettoPoint::zero());
-    }
-}
-
-/// Element-wise point fold `f0*[p]_0 + f1*[p]_1` of the even/odd halves.
-/// Test-only reference for the lazy folding in [prove].
+/// Element-wise point fold `f0*[p]_0 + f1*[p]_1` of the even/odd halves,
+/// where a missing last odd point counts as the identity. Test-only
+/// reference for the lazy folding in [prove].
 #[cfg(test)]
 fn fold_points(
     p: &[RistrettoPoint],
     f0: RistrettoScalar,
     f1: RistrettoScalar,
 ) -> Vec<RistrettoPoint> {
-    p.iter()
-        .tuples()
-        .map(|(p0, p1)| *p0 * f0 + p1 * f1)
+    p.chunks(2)
+        .map(|pair| match pair {
+            [p0, p1] => *p0 * f0 + p1 * f1,
+            [p0] => *p0 * f0,
+            _ => unreachable!(),
+        })
         .collect()
 }
 
@@ -725,8 +722,6 @@ mod tests {
                 t.append_point(b"X", x);
                 t.append_point(b"R", r);
                 let gamma = t.challenge_scalar(b"gamma");
-                pad_even_point(&mut h_vec);
-                pad_even_point(&mut g_vec);
                 h_vec = fold_points(&h_vec, one(), gamma);
                 g_vec = fold_points(&g_vec, rho, gamma);
                 rho = mu;
