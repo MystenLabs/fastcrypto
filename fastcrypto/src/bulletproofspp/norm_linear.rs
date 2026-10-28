@@ -123,12 +123,6 @@ fn tensor_grow(
     next
 }
 
-fn pad_even_scalar(v: &mut Vec<RistrettoScalar>) {
-    if !v.len().is_multiple_of(2) {
-        v.push(RistrettoScalar::zero());
-    }
-}
-
 #[cfg(test)]
 fn pad_even_point(v: &mut Vec<RistrettoPoint>) {
     if !v.len().is_multiple_of(2) {
@@ -290,7 +284,9 @@ fn sparse_mul(a: RistrettoScalar, b: RistrettoScalar) -> RistrettoScalar {
 /// The even- and odd-indexed halves of `v`, padded to even length with a
 /// zero.
 fn halves(mut v: Vec<RistrettoScalar>) -> (Vec<RistrettoScalar>, Vec<RistrettoScalar>) {
-    pad_even_scalar(&mut v);
+    if !v.len().is_multiple_of(2) {
+        v.push(RistrettoScalar::zero());
+    }
     v.into_iter().tuples().unzip()
 }
 
