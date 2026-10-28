@@ -114,8 +114,8 @@ fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     (rounds, n_len)
 }
 
-/// A weight vector `w`: the tensor product `(f0_k, f1_k) ⊗ ... ⊗ (f0_1, f1_1)`
-/// of the `k` pairs passed to [FoldWeights::fold].
+/// After `k` pairs `(f0_i, f1_i)` have been added with [FoldWeights::fold],
+/// this holds the tensor product `w = (f0_k, f1_k) ⊗ ... ⊗ (f0_1, f1_1)`.
 struct FoldWeights(Vec<RistrettoScalar>);
 
 impl FoldWeights {
