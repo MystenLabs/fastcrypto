@@ -194,22 +194,6 @@ fn fold_points(
 /// than the equivalent chain of per-round 2-term combinations.
 const FOLD_BATCH_ROUNDS: u32 = 3;
 
-/// The fold weights of the `(H, G_vec)` generators: each round folds
-/// `H' = H_even + gamma*H_odd` and `G' = rho*G_even + gamma*G_odd`.
-struct GeneratorWeights(FoldWeights, FoldWeights);
-
-impl GeneratorWeights {
-    /// No folds yet.
-    fn new() -> Self {
-        GeneratorWeights(FoldWeights::new(), FoldWeights::new())
-    }
-
-    /// The weights after one more round.
-    fn fold(&self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
-        GeneratorWeights(self.0.fold(one(), gamma), self.1.fold(rho, gamma))
-    }
-}
-
 /// The points the pending fold weights of [LazyBases] apply to.
 enum BasePoints<'a> {
     Crs(&'a Generators),
@@ -223,14 +207,14 @@ enum BasePoints<'a> {
 /// as weights and materialised every [FOLD_BATCH_ROUNDS] rounds.
 struct LazyBases<'a> {
     points: BasePoints<'a>,
-    weights: GeneratorWeights,
+    weights: (FoldWeights, FoldWeights),
 }
 
 impl<'a> LazyBases<'a> {
     fn new(gens: &'a Generators) -> Self {
         LazyBases {
             points: BasePoints::Crs(gens),
-            weights: GeneratorWeights::new(),
+            weights: (FoldWeights::new(), FoldWeights::new()),
         }
     }
 
@@ -239,7 +223,10 @@ impl<'a> LazyBases<'a> {
     /// `G'_j = rho*G_{2j} + gamma*G_{2j+1}`.
     fn fold(self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
         LazyBases {
-            weights: self.weights.fold(rho, gamma),
+            weights: (
+                self.weights.0.fold(one(), gamma),
+                self.weights.1.fold(rho, gamma),
+            ),
             ..self
         }
     }
@@ -275,7 +262,7 @@ impl<'a> LazyBases<'a> {
             let (g, (h_vec, g_vec)) = self.points();
             let folded = (self.weights.0.apply(h_vec)?, self.weights.1.apply(g_vec)?);
             self.points = BasePoints::Folded { g, folded };
-            self.weights = GeneratorWeights::new();
+            self.weights = (FoldWeights::new(), FoldWeights::new());
         }
 
         let (h_len, g_len) = self.len();
@@ -471,7 +458,8 @@ pub(crate) fn verify(
     let mut mu = rho * rho;
     let mut gammas = Vec::with_capacity(k);
     // The combined weights of all folds, grown round by round as the prover's.
-    let mut weights = GeneratorWeights::new();
+    let mut w_h = FoldWeights::new();
+    let mut w_g = FoldWeights::new();
 
     transcript.domain_sep(b"norm_linear");
 
@@ -480,7 +468,8 @@ pub(crate) fn verify(
         transcript.append_point(b"R", r_point);
         let gamma = transcript.challenge_scalar(b"gamma");
         gammas.push(gamma);
-        weights = weights.fold(rho, gamma);
+        w_h = w_h.fold(one(), gamma);
+        w_g = w_g.fold(rho, gamma);
 
         // Fold only the (cheap) scalar constraint vector.
         let (c0, c1) = halves(c);
@@ -497,11 +486,8 @@ pub(crate) fn verify(
     debug_assert_eq!(c.len(), 1);
     let sigma = c[0] * proof.l_final + weighted_norm(&proof.n_final, mu);
 
-    let l = weights
-        .0
-        .expand(std::slice::from_ref(&proof.l_final), gens.h_vec.len());
-    let n = weights
-        .1
+    let l = w_h.expand(std::slice::from_ref(&proof.l_final), gens.h_vec.len());
+    let n = w_g
         .expand(&proof.n_final, gens.g_vec.len())
         .zip(pn)
         .map(|(w, pn_i)| w - pn_i);
