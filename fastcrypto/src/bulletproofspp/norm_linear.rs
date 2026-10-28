@@ -150,9 +150,9 @@ fn fold_points(
         .collect()
 }
 
-/// Combine each run of `w.len()` consecutive points of `base` into one point,
-/// `out[j] = sum_t w[t] * base[j*|w| + t]`; a shorter final run uses the
-/// leading weights.
+/// Return `ceil(base.len() / w.len())` points defined by
+/// `out[j] = sum_t w[t] * base[j*w.len() + t]`, where absent points of `base`
+/// count as zero.
 fn apply_weights(
     base: &[RistrettoPoint],
     w: &[RistrettoScalar],
