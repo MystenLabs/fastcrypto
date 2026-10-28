@@ -205,13 +205,13 @@ impl<'a> Bases<'a> {
 
     /// The base `G` and the `(h_vec, g_vec)` vectors the weights currently
     /// apply to.
-    fn points(&self) -> (RistrettoPoint, &[RistrettoPoint], &[RistrettoPoint]) {
+    fn points(&self) -> (RistrettoPoint, (&[RistrettoPoint], &[RistrettoPoint])) {
         match &self.points {
-            Points::Crs(gens) => (gens.g, &gens.h_vec, &gens.g_vec),
+            Points::Crs(gens) => (gens.g, (&gens.h_vec, &gens.g_vec)),
             Points::Folded {
                 g,
                 folded: (h_vec, g_vec),
-            } => (*g, h_vec, g_vec),
+            } => (*g, (h_vec, g_vec)),
         }
     }
 
@@ -223,7 +223,7 @@ impl<'a> Bases<'a> {
         g_coeffs: &[RistrettoScalar],
     ) -> FastCryptoResult<RistrettoPoint> {
         if self.weights.0.len() == 1 << FOLD_BATCH_ROUNDS {
-            let (g, h_vec, g_vec) = self.points();
+            let (g, (h_vec, g_vec)) = self.points();
             let folded = (
                 batch_fold(h_vec, &self.weights.0)?,
                 batch_fold(g_vec, &self.weights.1)?,
@@ -232,7 +232,7 @@ impl<'a> Bases<'a> {
             self.weights = (vec![one()], vec![one()]);
         }
 
-        let (g, h_vec, g_vec) = self.points();
+        let (g, (h_vec, g_vec)) = self.points();
         let h_scalars = expand(&self.weights.0, h_coeffs, h_vec.len());
         let g_scalars = expand(&self.weights.1, g_coeffs, g_vec.len());
         match &self.points {
