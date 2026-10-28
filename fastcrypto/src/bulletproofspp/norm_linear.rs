@@ -226,7 +226,7 @@ impl<'a> Bases<'a> {
         impl Iterator<Item = RistrettoScalar> + 'b,
         impl Iterator<Item = RistrettoScalar> + 'b,
     ) {
-        let expand = |w: &'b [RistrettoScalar], coeffs: &'b [RistrettoScalar], len: usize| {
+        let spread = |w: &'b [RistrettoScalar], coeffs: &'b [RistrettoScalar], len: usize| {
             (0..len).map(move |i| match coeffs.get(i / w.len()) {
                 Some(c) if *c != RistrettoScalar::zero() => w[i % w.len()] * c,
                 _ => RistrettoScalar::zero(),
@@ -234,8 +234,8 @@ impl<'a> Bases<'a> {
         };
         let (_, (h_vec, g_vec)) = self.points();
         (
-            expand(&self.weights.0, h_coeffs, h_vec.len()),
-            expand(&self.weights.1, g_coeffs, g_vec.len()),
+            spread(&self.weights.0, h_coeffs, h_vec.len()),
+            spread(&self.weights.1, g_coeffs, g_vec.len()),
         )
     }
 
