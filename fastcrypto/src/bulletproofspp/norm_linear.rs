@@ -139,8 +139,7 @@ impl FoldWeights {
         self.0.len()
     }
 
-    /// The `len` scalars `out[i] = w[i % w.len()] * coeffs[i / w.len()]`, where
-    /// missing entries of `coeffs` count as zero.
+    /// The first `len` entries of `coeffs ⊗ w`, padded with zeros.
     fn expand<'b>(
         &'b self,
         coeffs: &'b [RistrettoScalar],
