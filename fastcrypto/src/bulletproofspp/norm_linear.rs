@@ -166,16 +166,10 @@ fn batch_fold(
 /// than the equivalent chain of per-round 2-term combinations.
 const FOLD_BATCH_ROUNDS: u32 = 3;
 
-/// The current round's generators, held lazily: after the folds recorded in
-/// the weights, base `j` is `H'_j = sum_t w_h[t] * h[j*|w_h| + t]` (and
-/// likewise `G'_j` with `w_g`) over the points `h`, `g_vec`. Those points are
-/// the CRS generators until the weights span [FOLD_BATCH_ROUNDS] folds, when
-/// they are materialised in one batch; absent points read as the identity,
-/// reproducing the odd-length padding.
+/// The current round's generators `H'`, `G'`, folded lazily: folds are kept
+/// as weights and materialised every [FOLD_BATCH_ROUNDS] rounds.
 struct Bases<'a> {
     gens: &'a Generators,
-    /// Materialised folds of the CRS generators, or `None` while the bases
-    /// are still the CRS itself (whose precomputed MSM tables then apply).
     folded: Option<(Vec<RistrettoPoint>, Vec<RistrettoPoint>)>,
     w_h: Vec<RistrettoScalar>,
     w_g: Vec<RistrettoScalar>,
@@ -191,9 +185,9 @@ impl<'a> Bases<'a> {
         }
     }
 
-    /// The bases after one more fold, `H' = H0 + gamma*H1` and
-    /// `G' = rho*G0 + gamma*G1`, recorded in the weights (newest round in
-    /// the top bit).
+    /// The bases for the next, half-length round: each new base combines
+    /// two adjacent current ones, `H'_j = H_{2j} + gamma*H_{2j+1}` and
+    /// `G'_j = rho*G_{2j} + gamma*G_{2j+1}`.
     fn fold(self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
         Bases {
             w_h: tensor_grow(&self.w_h, one(), gamma),
@@ -210,17 +204,15 @@ impl<'a> Bases<'a> {
         }
     }
 
-    /// `v*G + <h_coeffs, H'> + <g_coeffs, G'>` over the current bases, as one
-    /// MSM over the underlying points with weight-expanded coefficients.
-    /// Materialises the pending folds first once they span
-    /// [FOLD_BATCH_ROUNDS] rounds; this happens here rather than in [fold]
-    /// so that the fold after the last round is never paid for.
+    /// `v*G + <h_coeffs, H'> + <g_coeffs, G'>` over the current bases.
     fn msm(
         &mut self,
         v: RistrettoScalar,
         h_coeffs: &[RistrettoScalar],
         g_coeffs: &[RistrettoScalar],
     ) -> FastCryptoResult<RistrettoPoint> {
+        // Materialise pending folds here rather than in `fold`, so the fold
+        // after the last round is never paid for.
         if self.w_h.len() == 1 << FOLD_BATCH_ROUNDS {
             let (h, g_vec) = self.points();
             let folded = (batch_fold(h, &self.w_h)?, batch_fold(g_vec, &self.w_g)?);
@@ -233,10 +225,7 @@ impl<'a> Bases<'a> {
         let h_scalars = expand(&self.w_h, h_coeffs, h.len());
         let g_scalars = expand(&self.w_g, g_coeffs, g_vec.len());
         match &self.folded {
-            // Still the CRS: use the precomputed tables.
             None => self.gens.msm(v, h_scalars, g_scalars, &[], &[]),
-            // A dynamic MSM over the folded points, skipping zero
-            // coefficients (R's even positions, padding).
             Some(_) => {
                 let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) =
                     std::iter::once((v, self.gens.g))
