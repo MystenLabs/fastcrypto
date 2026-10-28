@@ -109,18 +109,59 @@ fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     (rounds, n_len)
 }
 
-/// Grow a fold tensor by one level, the new round in the top bit:
-/// `[w*f0.., w*f1..]`, i.e. entry `t + b*|w|` is `w[t]` times `f1` if `b`
-/// else `f0`.
-fn tensor_grow(
-    w: &[RistrettoScalar],
-    f0: RistrettoScalar,
-    f1: RistrettoScalar,
-) -> Vec<RistrettoScalar> {
-    let mut next = Vec::with_capacity(2 * w.len());
-    next.extend(w.iter().map(|wt| *wt * f0));
-    next.extend(w.iter().map(|wt| *wt * f1));
-    next
+/// The combined weights of `k` folds, the tensor product
+/// `(f0_k, f1_k) ⊗ ... ⊗ (f0_1, f1_1)` of length `2^k`: after the folds, the
+/// point at index `i` of the unfolded vector sits in folded slot
+/// `i / len()` with weight `w[i % len()]`.
+struct FoldWeights(Vec<RistrettoScalar>);
+
+impl FoldWeights {
+    /// No folds yet.
+    fn new() -> Self {
+        FoldWeights(vec![one()])
+    }
+
+    /// The weights after one more fold `f0*even + f1*odd`.
+    fn fold(&self, f0: RistrettoScalar, f1: RistrettoScalar) -> Self {
+        let w = &self.0;
+        FoldWeights(
+            w.iter()
+                .map(|wt| *wt * f0)
+                .chain(w.iter().map(|wt| *wt * f1))
+                .collect(),
+        )
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Coefficients on the folded slots, spread back onto `len` unfolded
+    /// positions: position `i` gets `w[i % len()] * coeffs[i / len()]`, and
+    /// zero where the coefficient is absent (padding).
+    fn expand<'b>(
+        &'b self,
+        coeffs: &'b [RistrettoScalar],
+        len: usize,
+    ) -> impl Iterator<Item = RistrettoScalar> + 'b {
+        (0..len).map(move |i| {
+            coeffs
+                .get(i / self.len())
+                .map_or(RistrettoScalar::zero(), |c| {
+                    sparse_mul(*c, self.0[i % self.len()])
+                })
+        })
+    }
+
+    /// The folded points: `ceil(points.len() / len())` of them, defined by
+    /// `out[j] = sum_t w[t] * points[j*len() + t]`, where absent points count
+    /// as zero.
+    fn apply(&self, points: &[RistrettoPoint]) -> FastCryptoResult<Vec<RistrettoPoint>> {
+        points
+            .chunks(self.len())
+            .map(|chunk| RistrettoPoint::multi_scalar_mul(&self.0[..chunk.len()], chunk))
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -144,18 +185,6 @@ fn fold_points(
         .collect()
 }
 
-/// Return `ceil(base.len() / w.len())` points defined by
-/// `out[j] = sum_t w[t] * base[j*w.len() + t]`, where absent points of `base`
-/// count as zero.
-fn apply_weights(
-    base: &[RistrettoPoint],
-    w: &[RistrettoScalar],
-) -> FastCryptoResult<Vec<RistrettoPoint>> {
-    base.chunks(w.len())
-        .map(|chunk| RistrettoPoint::multi_scalar_mul(&w[..chunk.len()], chunk))
-        .collect()
-}
-
 /// Batch-fold the base generators every this many rounds: one
 /// `2^FOLD_BATCH_ROUNDS`-term MSM per surviving generator is ~4x cheaper
 /// than the equivalent chain of per-round 2-term combinations.
@@ -174,14 +203,14 @@ enum BasePoints<'a> {
 /// as weights and materialised every [FOLD_BATCH_ROUNDS] rounds.
 struct LazyBases<'a> {
     points: BasePoints<'a>,
-    weights: (Vec<RistrettoScalar>, Vec<RistrettoScalar>),
+    weights: (FoldWeights, FoldWeights),
 }
 
 impl<'a> LazyBases<'a> {
     fn new(gens: &'a Generators) -> Self {
         LazyBases {
             points: BasePoints::Crs(gens),
-            weights: (vec![one()], vec![one()]),
+            weights: (FoldWeights::new(), FoldWeights::new()),
         }
     }
 
@@ -191,8 +220,8 @@ impl<'a> LazyBases<'a> {
     fn fold(self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
         LazyBases {
             weights: (
-                tensor_grow(&self.weights.0, one(), gamma),
-                tensor_grow(&self.weights.1, rho, gamma),
+                self.weights.0.fold(one(), gamma),
+                self.weights.1.fold(rho, gamma),
             ),
             ..self
         }
@@ -227,17 +256,14 @@ impl<'a> LazyBases<'a> {
         // Fold the points every few rounds to keep the MSMs small.
         if self.weights.0.len() == 1 << FOLD_BATCH_ROUNDS {
             let (g, (h_vec, g_vec)) = self.points();
-            let folded = (
-                apply_weights(h_vec, &self.weights.0)?,
-                apply_weights(g_vec, &self.weights.1)?,
-            );
+            let folded = (self.weights.0.apply(h_vec)?, self.weights.1.apply(g_vec)?);
             self.points = BasePoints::Folded { g, folded };
-            self.weights = (vec![one()], vec![one()]);
+            self.weights = (FoldWeights::new(), FoldWeights::new());
         }
 
         let (h_len, g_len) = self.len();
-        let h_scalars = expand(&self.weights.0, h_coeffs, h_len);
-        let g_scalars = expand(&self.weights.1, g_coeffs, g_len);
+        let h_scalars = self.weights.0.expand(h_coeffs, h_len);
+        let g_scalars = self.weights.1.expand(g_coeffs, g_len);
         match &self.points {
             BasePoints::Crs(gens) => gens.msm(v, h_scalars, g_scalars, &[], &[]),
             BasePoints::Folded {
@@ -254,21 +280,6 @@ impl<'a> LazyBases<'a> {
             }
         }
     }
-}
-
-/// Expand coefficients on the folded positions onto the underlying points:
-/// point `i` gets `w[i % |w|] * coeffs[i / |w|]`, and zero where the
-/// coefficient is absent (padding).
-fn expand<'b>(
-    w: &'b [RistrettoScalar],
-    coeffs: &'b [RistrettoScalar],
-    len: usize,
-) -> impl Iterator<Item = RistrettoScalar> + 'b {
-    (0..len).map(move |i| {
-        coeffs
-            .get(i / w.len())
-            .map_or(RistrettoScalar::zero(), |c| sparse_mul(*c, w[i % w.len()]))
-    })
 }
 
 /// `a * b`, skipping the multiplication when `a` is zero.
@@ -405,13 +416,11 @@ fn prove_rec(
 /// `g_vec` and `extra` the remaining `(scalar, point)` terms, i.e. the
 /// commitment equals `ps*G + <pn, g_vec> + sum extra`.
 ///
-/// Instead of folding the generator vectors round by round, each base
-/// generator's final coefficient is computed from the bits of its index:
-/// position `i` survives the `k` rounds at final slot `i >> k`, picking up
-/// per round `r` a factor `gamma_r` when bit `r` of `i` is set, else
-/// `rho_r = rho^{2^r}` on the `g_vec` side and `1` on the `h_vec` side.
-/// The per-round identity padding never hosts a base generator, so the
-/// per-bit product is exact, and the base-case check becomes
+/// Instead of folding the generator vectors round by round, the final `l`
+/// and `n` are spread back onto the original generators through the
+/// combined weights of all folds ([FoldWeights::expand]), the same weights
+/// the prover folds with. The per-round identity padding never hosts a base
+/// generator, so this is exact, and the base-case check becomes
 ///   (sigma - ps)*G + <w_h ⊙ l, H> + <w_g ⊙ n - pn, G_vec>
 ///     - sum extra - sum_r (gamma_r*X_r + (gamma_r^2 - 1)*R_r) == 0.
 ///
@@ -444,12 +453,9 @@ pub(crate) fn verify(
     let mut rho = rho;
     let mut mu = rho * rho;
     let mut gammas = Vec::with_capacity(k);
-    // Challenge-product weights via tensor tables (all 2^k products in
-    // 2^{k+1} muls), grown round by round exactly as the prover's:
-    // w_h[t] = prod_r (gamma_r if bit_r(t) else 1),
-    // w_g[t] = prod_r (gamma_r if bit_r(t) else rho_r).
-    let mut w_h = vec![one()];
-    let mut w_g = vec![one()];
+    // The combined weights of all folds, grown round by round as the prover's.
+    let mut w_h = FoldWeights::new();
+    let mut w_g = FoldWeights::new();
 
     transcript.domain_sep(b"norm_linear");
 
@@ -458,8 +464,8 @@ pub(crate) fn verify(
         transcript.append_point(b"R", r_point);
         let gamma = transcript.challenge_scalar(b"gamma");
         gammas.push(gamma);
-        w_h = tensor_grow(&w_h, one(), gamma);
-        w_g = tensor_grow(&w_g, rho, gamma);
+        w_h = w_h.fold(one(), gamma);
+        w_g = w_g.fold(rho, gamma);
 
         // Fold only the (cheap) scalar constraint vector.
         let (c0, c1) = halves(c);
@@ -476,13 +482,11 @@ pub(crate) fn verify(
     debug_assert_eq!(c.len(), 1);
     let sigma = c[0] * proof.l_final + weighted_norm(&proof.n_final, mu);
 
-    let mask = (1usize << k) - 1;
-
-    let l = (0..gens.h_vec.len()).map(|i| w_h[i & mask] * proof.l_final);
-    let n = pn
-        .iter()
-        .enumerate()
-        .map(|(i, pn_i)| w_g[i & mask] * proof.n_final[i >> k] - *pn_i);
+    let l = w_h.expand(std::slice::from_ref(&proof.l_final), gens.h_vec.len());
+    let n = w_g
+        .expand(&proof.n_final, gens.g_vec.len())
+        .zip(pn)
+        .map(|(w, pn_i)| w - pn_i);
 
     let mut dynamic_scalars = Vec::with_capacity(extra.len() + 2 * k);
     let mut dynamic_points = Vec::with_capacity(extra.len() + 2 * k);
