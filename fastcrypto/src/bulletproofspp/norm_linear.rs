@@ -369,8 +369,8 @@ fn prove_rec(
     let vr = weighted_norm(&n1, mu2) + inner_product(&c1, &l1);
 
     // X carries the cross terms and R the odd-odd terms:
-    //   X = vx*G + <l1, H_even> + <l0, H_odd> + rho*<n1, G_vec_even> + rho^{-1}*<n0, G_vec_odd>
-    //   R = vr*G + <l1, H_odd> + <n1, G_vec_odd>
+    //   X = vx*G + <l1, H_even> + <l0, H_odd> + rho*<n1, G_even> + rho^{-1}*<n0, G_odd>
+    //   R = vr*G + <l1, H_odd> + <n1, G_odd>
     let x_point = bases.msm(
         vx,
         &from_halves(&l1, &l0),
