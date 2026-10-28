@@ -215,11 +215,28 @@ impl<'a> Bases<'a> {
         }
     }
 
-    /// The lengths of the `(h_vec, g_vec)` vectors the weights currently
-    /// apply to.
-    fn len(&self) -> (usize, usize) {
+    /// The coefficients on the current bases expanded onto the underlying
+    /// `(h_vec, g_vec)`: point `i` gets `w[i % |w|] * coeffs[i / |w|]`, and
+    /// zero where the coefficient is zero or absent (padding).
+    fn expand<'b>(
+        &'b self,
+        h_coeffs: &'b [RistrettoScalar],
+        g_coeffs: &'b [RistrettoScalar],
+    ) -> (
+        impl Iterator<Item = RistrettoScalar> + 'b,
+        impl Iterator<Item = RistrettoScalar> + 'b,
+    ) {
+        let expand = |w: &'b [RistrettoScalar], coeffs: &'b [RistrettoScalar], len: usize| {
+            (0..len).map(move |i| match coeffs.get(i / w.len()) {
+                Some(c) if *c != RistrettoScalar::zero() => w[i % w.len()] * c,
+                _ => RistrettoScalar::zero(),
+            })
+        };
         let (_, (h_vec, g_vec)) = self.points();
-        (h_vec.len(), g_vec.len())
+        (
+            expand(&self.weights.0, h_coeffs, h_vec.len()),
+            expand(&self.weights.1, g_coeffs, g_vec.len()),
+        )
     }
 
     /// `v*G + <h_coeffs, H'> + <g_coeffs, G'>` over the current bases.
@@ -239,9 +256,7 @@ impl<'a> Bases<'a> {
             self.weights = (vec![one()], vec![one()]);
         }
 
-        let (h_len, g_len) = self.len();
-        let h_scalars = expand(&self.weights.0, h_coeffs, h_len);
-        let g_scalars = expand(&self.weights.1, g_coeffs, g_len);
+        let (h_scalars, g_scalars) = self.expand(h_coeffs, g_coeffs);
         match &self.points {
             Points::Crs(gens) => gens.msm(v, h_scalars, g_scalars, &[], &[]),
             Points::Folded { .. } => {
@@ -256,20 +271,6 @@ impl<'a> Bases<'a> {
             }
         }
     }
-}
-
-/// Expand coefficients on the folded positions onto the underlying points:
-/// point `i` gets `w[i % |w|] * coeffs[i / |w|]`, and zero where the
-/// coefficient is zero or absent (padding).
-fn expand<'b>(
-    w: &'b [RistrettoScalar],
-    coeffs: &'b [RistrettoScalar],
-    len: usize,
-) -> impl Iterator<Item = RistrettoScalar> + 'b {
-    (0..len).map(move |i| match coeffs.get(i / w.len()) {
-        Some(c) if *c != RistrettoScalar::zero() => w[i % w.len()] * c,
-        _ => RistrettoScalar::zero(),
-    })
 }
 
 /// `(a_0, b_0, a_1, b_1, ...)`.
