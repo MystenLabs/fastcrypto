@@ -187,7 +187,7 @@ impl<'a> LazyBases<'a> {
 
     /// The bases for the next, half-length round: each new base combines
     /// two adjacent current ones, `H'_j = H_{2j} + gamma*H_{2j+1}` and
-    /// `G_vec'_j = rho*G_vec_{2j} + gamma*G_vec_{2j+1}`.
+    /// `G'_j = rho*G_{2j} + gamma*G_{2j+1}`.
     fn fold(self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
         LazyBases {
             weights: (
