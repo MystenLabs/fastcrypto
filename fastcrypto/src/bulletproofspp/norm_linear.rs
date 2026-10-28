@@ -95,13 +95,20 @@ impl NormLinearProof {
     }
 }
 
+/// Whether an instance with these vector lengths is opened in the clear
+/// rather than folded. Folding continues until `l` is a single scalar, which
+/// the proof format relies on, and fewer than [FOLD_THRESHOLD] scalars remain.
+fn is_base_case(l_len: usize, n_len: usize) -> bool {
+    l_len <= 1 && l_len + n_len < FOLD_THRESHOLD
+}
+
 /// The shape of a proof for initial sizes `(l_len, n_len)`: the number of
 /// rounds and the final `n` length. Each round pads to even length and
 /// halves, and folding continues until `l` is a single scalar, so the final
 /// `l` length is always 1 and is not reported.
 fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     let mut rounds = 0;
-    while l_len > 1 || l_len + n_len >= FOLD_THRESHOLD {
+    while !is_base_case(l_len, n_len) {
         l_len = l_len.div_ceil(2);
         n_len = n_len.div_ceil(2);
         rounds += 1;
@@ -187,6 +194,22 @@ fn fold_points(
 /// than the equivalent chain of per-round 2-term combinations.
 const FOLD_BATCH_ROUNDS: u32 = 3;
 
+/// The fold weights of the `(H, G_vec)` generators: each round folds
+/// `H' = H_even + gamma*H_odd` and `G' = rho*G_even + gamma*G_odd`.
+struct GeneratorWeights(FoldWeights, FoldWeights);
+
+impl GeneratorWeights {
+    /// No folds yet.
+    fn new() -> Self {
+        GeneratorWeights(FoldWeights::new(), FoldWeights::new())
+    }
+
+    /// The weights after one more round.
+    fn fold(&self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
+        GeneratorWeights(self.0.fold(one(), gamma), self.1.fold(rho, gamma))
+    }
+}
+
 /// The points the pending fold weights of [LazyBases] apply to.
 enum BasePoints<'a> {
     Crs(&'a Generators),
@@ -200,14 +223,14 @@ enum BasePoints<'a> {
 /// as weights and materialised every [FOLD_BATCH_ROUNDS] rounds.
 struct LazyBases<'a> {
     points: BasePoints<'a>,
-    weights: (FoldWeights, FoldWeights),
+    weights: GeneratorWeights,
 }
 
 impl<'a> LazyBases<'a> {
     fn new(gens: &'a Generators) -> Self {
         LazyBases {
             points: BasePoints::Crs(gens),
-            weights: (FoldWeights::new(), FoldWeights::new()),
+            weights: GeneratorWeights::new(),
         }
     }
 
@@ -216,10 +239,7 @@ impl<'a> LazyBases<'a> {
     /// `G'_j = rho*G_{2j} + gamma*G_{2j+1}`.
     fn fold(self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
         LazyBases {
-            weights: (
-                self.weights.0.fold(one(), gamma),
-                self.weights.1.fold(rho, gamma),
-            ),
+            weights: self.weights.fold(rho, gamma),
             ..self
         }
     }
@@ -255,7 +275,7 @@ impl<'a> LazyBases<'a> {
             let (g, (h_vec, g_vec)) = self.points();
             let folded = (self.weights.0.apply(h_vec)?, self.weights.1.apply(g_vec)?);
             self.points = BasePoints::Folded { g, folded };
-            self.weights = (FoldWeights::new(), FoldWeights::new());
+            self.weights = GeneratorWeights::new();
         }
 
         let (h_len, g_len) = self.len();
@@ -350,7 +370,7 @@ fn prove_rec(
     l: Vec<RistrettoScalar>,
     n: Vec<RistrettoScalar>,
 ) -> FastCryptoResult<NormLinearProof> {
-    if l.len() <= 1 && l.len() + n.len() < FOLD_THRESHOLD {
+    if is_base_case(l.len(), n.len()) {
         transcript.append_scalars(b"l_final", &l);
         transcript.append_scalars(b"n_final", &n);
         debug_assert_eq!(l.len(), 1);
@@ -451,8 +471,7 @@ pub(crate) fn verify(
     let mut mu = rho * rho;
     let mut gammas = Vec::with_capacity(k);
     // The combined weights of all folds, grown round by round as the prover's.
-    let mut w_h = FoldWeights::new();
-    let mut w_g = FoldWeights::new();
+    let mut weights = GeneratorWeights::new();
 
     transcript.domain_sep(b"norm_linear");
 
@@ -461,8 +480,7 @@ pub(crate) fn verify(
         transcript.append_point(b"R", r_point);
         let gamma = transcript.challenge_scalar(b"gamma");
         gammas.push(gamma);
-        w_h = w_h.fold(one(), gamma);
-        w_g = w_g.fold(rho, gamma);
+        weights = weights.fold(rho, gamma);
 
         // Fold only the (cheap) scalar constraint vector.
         let (c0, c1) = halves(c);
@@ -479,8 +497,11 @@ pub(crate) fn verify(
     debug_assert_eq!(c.len(), 1);
     let sigma = c[0] * proof.l_final + weighted_norm(&proof.n_final, mu);
 
-    let l = w_h.expand(std::slice::from_ref(&proof.l_final), gens.h_vec.len());
-    let n = w_g
+    let l = weights
+        .0
+        .expand(std::slice::from_ref(&proof.l_final), gens.h_vec.len());
+    let n = weights
+        .1
         .expand(&proof.n_final, gens.g_vec.len())
         .zip(pn)
         .map(|(w, pn_i)| w - pn_i);
