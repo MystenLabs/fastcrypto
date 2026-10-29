@@ -288,12 +288,7 @@ fn reciprocals(params: &CircuitParams, n_l: &[S], alpha: S) -> FastCryptoResult<
     Ok(pad_to(&batch_invert(&denominators)?, params.nm))
 }
 
-/// Everything the prover fixes before the first challenge: the input
-/// openings, the committed digits and multiplicities, the blinding of `C_O`,
-/// `C_L`, `C_R` and the masks of `C_S`. The reciprocals depend on `alpha`
-/// and are derived mid-protocol; the blinding `r_S` of `C_S` is solved.
-///
-/// [Witness::new] builds the honest witness; the soundness tests alter it.
+/// The prover's witness and randomness, chosen before the first challenge.
 struct Witness {
     /// Input openings `V_i = u_i*G + s_i*H_0`: the values `u_i`...
     values: Vec<S>,
