@@ -66,25 +66,45 @@ pub const MLDSA65_KEYPAIR_LENGTH: usize = MLDSA65_PRIVATE_KEY_LENGTH;
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MLDSA65PublicKey(mldsa::VerifyingKey);
 
-/// ML-DSA-65 private key: the 32-byte FIPS 204 seed, next to a cache for the expanded
-/// signing key derived from it.
+/// ML-DSA-65 private key: the 32-byte FIPS 204 seed, plus the keys KeyGen expands it into.
+///
+/// Expansion runs on first use, not on parse, and once per key: signing and public key share
+/// one cell, so the call order and concurrent callers do not matter.
 #[derive(SilentDebug, SilentDisplay)]
 pub struct MLDSA65PrivateKey {
     seed: mldsa::SigningKeySeed,
-    signing_key: OnceCell<mldsa::SigningKey>,
+    expanded: OnceCell<(mldsa::SigningKey, MLDSA65PublicKey)>,
+}
+
+// Seed expansions on this thread; tests pin the once-per-key contract with it.
+#[cfg(test)]
+thread_local! {
+    pub(crate) static EXPANSIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 impl MLDSA65PrivateKey {
     fn from_seed(seed: mldsa::SigningKeySeed) -> Self {
         MLDSA65PrivateKey {
             seed,
-            signing_key: OnceCell::new(),
+            expanded: OnceCell::new(),
         }
     }
 
-    /// The expanded signing key, expanding and caching it on first use.
+    fn expanded(&self) -> &(mldsa::SigningKey, MLDSA65PublicKey) {
+        self.expanded.get_or_init(|| {
+            #[cfg(test)]
+            EXPANSIONS.with(|n| n.set(n.get() + 1));
+            let (signing_key, verifying_key) = self.seed.expand();
+            (signing_key, MLDSA65PublicKey(verifying_key))
+        })
+    }
+
     fn signing_key(&self) -> &mldsa::SigningKey {
-        self.signing_key.get_or_init(|| self.seed.expand().0)
+        &self.expanded().0
+    }
+
+    fn public_key(&self) -> &MLDSA65PublicKey {
+        &self.expanded().1
     }
 }
 
@@ -98,10 +118,9 @@ impl Eq for MLDSA65PrivateKey {}
 
 impl ZeroizeOnDrop for MLDSA65PrivateKey {}
 
-/// ML-DSA-65 key pair.
+/// ML-DSA-65 key pair. The public key lives in the private key's expansion cache.
 #[derive(Debug, PartialEq, Eq)]
 pub struct MLDSA65KeyPair {
-    public: MLDSA65PublicKey,
     private: MLDSA65PrivateKey,
 }
 
@@ -139,24 +158,14 @@ serialize_deserialize_with_to_from_bytes!(MLDSA65PrivateKey, MLDSA65_PRIVATE_KEY
 //
 
 impl MLDSA65KeyPair {
-    /// Build the pair with a single key expansion
     fn from_seed(seed: mldsa::SigningKeySeed) -> Self {
-        let (signing_key, verifying_key) = seed.expand();
-        MLDSA65KeyPair {
-            public: MLDSA65PublicKey(verifying_key),
-            private: MLDSA65PrivateKey {
-                seed,
-                signing_key: OnceCell::with_value(signing_key),
-            },
-        }
+        MLDSA65PrivateKey::from_seed(seed).into()
     }
 }
 
-/// Recovers the public key from a standalone private key by expanding its seed.
 impl From<MLDSA65PrivateKey> for MLDSA65KeyPair {
     fn from(private: MLDSA65PrivateKey) -> Self {
-        let public = MLDSA65PublicKey::from(&private);
-        MLDSA65KeyPair { public, private }
+        MLDSA65KeyPair { private }
     }
 }
 
@@ -182,7 +191,7 @@ impl KeyPair for MLDSA65KeyPair {
     type Sig = MLDSA65Signature;
 
     fn public(&'_ self) -> &'_ Self::PubKey {
-        &self.public
+        self.private.public_key()
     }
 
     fn private(self) -> Self::PrivKey {
@@ -191,13 +200,11 @@ impl KeyPair for MLDSA65KeyPair {
 
     // Not cfg-gated on copy_key; this crate always enables fastcrypto/copy_key
     fn copy(&self) -> Self {
-        MLDSA65KeyPair {
-            public: self.public.clone(),
-            private: MLDSA65PrivateKey::from_seed(
-                mldsa::SigningKeySeed::from_bytes(self.private.seed.as_ref())
-                    .expect("a seed has the seed length"),
-            ),
-        }
+        // The expanded signing key is not Clone (it zeroizes on drop), so the copy re-expands.
+        MLDSA65KeyPair::from_seed(
+            mldsa::SigningKeySeed::from_bytes(self.private.seed.as_ref())
+                .expect("a seed has the seed length"),
+        )
     }
 
     fn generate<R: AllowedRng>(rng: &mut R) -> Self {
@@ -276,11 +283,7 @@ impl Debug for MLDSA65Signature {
 
 impl<'a> From<&'a MLDSA65PrivateKey> for MLDSA65PublicKey {
     fn from(private: &'a MLDSA65PrivateKey) -> Self {
-        // The public key is a byproduct of expansion and is not cached here, so callers that
-        // need it repeatedly should hold a MLDSA65KeyPair.
-        let (signing_key, public) = private.seed.expand();
-        let _ = private.signing_key.set(signing_key);
-        MLDSA65PublicKey(public)
+        private.public_key().clone()
     }
 }
 
