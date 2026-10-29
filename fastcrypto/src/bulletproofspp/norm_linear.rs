@@ -146,9 +146,10 @@ impl Weights {
             .flat_map(move |c| self.0.iter().map(move |w| sparse_mul(*c, *w)))
     }
 
-    /// `(<w, p_0>, <w, p_1>, ...)`, where `points = p_0 || p_1 || ...` is split
-    /// into chunks of length `w.len()` and a shorter last chunk is padded with
-    /// zeros.
+    /// The tensor contraction `(<w, p_0>, <w, p_1>, ...)`, where
+    /// `points = p_0 || p_1 || ...` is split into chunks of length `w.len()`
+    /// and a shorter last chunk is padded with zeros. It is the transpose of
+    /// [Weights::tensor]: `<coeffs ⊗ w, points> = <coeffs, contract(points)>`.
     fn contract(&self, points: &[RistrettoPoint]) -> FastCryptoResult<Vec<RistrettoPoint>> {
         points
             .chunks(self.len())
