@@ -142,6 +142,11 @@ impl Weights {
             .flat_map(move |c| self.0.iter().map(move |w| sparse_mul(*c, *w)))
     }
 
+    /// `s * w`.
+    fn scale(&self, s: RistrettoScalar) -> impl Iterator<Item = RistrettoScalar> + '_ {
+        self.0.iter().map(move |w| s * w)
+    }
+
     /// The tensor contraction
     /// `(<w, points[0..w.len()]>, <w, points[w.len()..2*w.len()]>, ...)`. It is
     /// the transpose of [Weights::tensor]:
@@ -470,9 +475,7 @@ pub(crate) fn verify(
     debug_assert_eq!(c.len(), 1);
     let sigma = c[0] * proof.l_final + weighted_norm(&proof.n_final, mu);
 
-    let l = w_h
-        .tensor(std::slice::from_ref(&proof.l_final))
-        .take(gens.h_vec.len());
+    let l = w_h.scale(proof.l_final).take(gens.h_vec.len());
     let n = w_g
         .tensor(&proof.n_final)
         .take(gens.g_vec.len())
