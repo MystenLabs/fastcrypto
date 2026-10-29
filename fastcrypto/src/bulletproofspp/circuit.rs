@@ -294,9 +294,13 @@ fn decompose(value: u64, d: usize) -> Vec<u64> {
 /// Shared multiplicities `m_j = |{(i,t) : d_{i,t} = j}|` for `j = 1..15`
 /// (`m_0` implicit).
 fn multiplicities(digits: &[u64]) -> Vec<u64> {
-    (1..BASE)
-        .map(|j| digits.iter().filter(|&&d| d == j).count() as u64)
-        .collect()
+    let mut m = vec![0u64; (BASE - 1) as usize];
+    for &d in digits {
+        if d > 0 {
+            m[(d - 1) as usize] += 1;
+        }
+    }
+    m
 }
 
 /// Blinding vectors of the committed material: per H slot, the coefficients
