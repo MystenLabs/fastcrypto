@@ -36,7 +36,7 @@
 <a href=#36 id=36 data-nosnippet>36</a>    WindowedScalarMultiplier&lt;G, S, CACHE_SIZE, SLIDING_WINDOW_WIDTH&gt;
 <a href=#37 id=37 data-nosnippet>37</a>{
 <a href=#38 id=38 data-nosnippet>38</a>    <span class="doccomment">/// The number of bits in the window. This is equal to the floor of the log2 of the cache size.
-<a href=#39 id=39 data-nosnippet>39</a>    </span><span class="kw">const </span>WINDOW_WIDTH: usize = integer_utils::log2(CACHE_SIZE);
+<a href=#39 id=39 data-nosnippet>39</a>    </span><span class="kw">const </span>WINDOW_WIDTH: usize = CACHE_SIZE.ilog2() <span class="kw">as </span>usize;
 <a href=#40 id=40 data-nosnippet>40</a>}
 <a href=#41 id=41 data-nosnippet>41</a>
 <a href=#42 id=42 data-nosnippet>42</a><span class="kw">impl</span>&lt;
@@ -100,7 +100,7 @@
 <a href=#100 id=100 data-nosnippet>100</a>///
 <a href=#101 id=101 data-nosnippet>101</a>/// The precomputed tables for an element &lt;i&gt;g&lt;/i&gt; should contain the multiples &lt;i&gt;2&lt;sup&gt;w-1&lt;/sup&gt; g
 <a href=#102 id=102 data-nosnippet>102</a>/// , ..., (2&lt;sup&gt;w&lt;/sup&gt; - 1) g&lt;/i&gt; for some integer &lt;i&gt;w &gt; 1&lt;/i&gt; which is the window width for the
-<a href=#103 id=103 data-nosnippet>103</a>/// given element.
+<a href=#103 id=103 data-nosnippet>103</a>/// given element. Panics if a precomputed table is empty or its size is not a power of two.
 <a href=#104 id=104 data-nosnippet>104</a>///
 <a href=#105 id=105 data-nosnippet>105</a>/// The `default_window_width` is the window width for the elements that does not have a precomputation
 <a href=#106 id=106 data-nosnippet>106</a>/// table and may be set to any value &gt;= 1. As rule-of-thumb, this should be set to approximately
@@ -135,215 +135,219 @@
 <a href=#135 id=135 data-nosnippet>135</a>    <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..N {
 <a href=#136 id=136 data-nosnippet>136</a>        <span class="kw">match </span>precomputed_multiples.get(<span class="kw-2">&amp;</span>i) {
 <a href=#137 id=137 data-nosnippet>137</a>            <span class="prelude-val">Some</span>(precomputed_multiples) =&gt; {
-<a href=#138 id=138 data-nosnippet>138</a>                all_precomputed_multiples.push(precomputed_multiples);
-<a href=#139 id=139 data-nosnippet>139</a>                window_sizes[i] = integer_utils::log2(all_precomputed_multiples[i].len()) + <span class="number">1</span>;
-<a href=#140 id=140 data-nosnippet>140</a>            }
-<a href=#141 id=141 data-nosnippet>141</a>            <span class="prelude-val">None </span>=&gt; {
-<a href=#142 id=142 data-nosnippet>142</a>                all_precomputed_multiples.push(<span class="kw-2">&amp;</span>missing_precomputations[<span class="kw-2">&amp;</span>i]);
-<a href=#143 id=143 data-nosnippet>143</a>                window_sizes[i] = default_window_width;
+<a href=#138 id=138 data-nosnippet>138</a>                <span class="macro">assert!</span>(
+<a href=#139 id=139 data-nosnippet>139</a>                    is_power_of_2(precomputed_multiples.len()),
+<a href=#140 id=140 data-nosnippet>140</a>                    <span class="string">"The size of a precomputed table must be a power of two."
+<a href=#141 id=141 data-nosnippet>141</a>                </span>);
+<a href=#142 id=142 data-nosnippet>142</a>                all_precomputed_multiples.push(precomputed_multiples);
+<a href=#143 id=143 data-nosnippet>143</a>                window_sizes[i] = all_precomputed_multiples[i].len().ilog2() <span class="kw">as </span>usize + <span class="number">1</span>;
 <a href=#144 id=144 data-nosnippet>144</a>            }
-<a href=#145 id=145 data-nosnippet>145</a>        }
-<a href=#146 id=146 data-nosnippet>146</a>    }
-<a href=#147 id=147 data-nosnippet>147</a>
-<a href=#148 id=148 data-nosnippet>148</a>    <span class="comment">// Compute little-endian byte representations of scalars.
-<a href=#149 id=149 data-nosnippet>149</a>    </span><span class="kw">let </span>scalar_bytes = scalars
-<a href=#150 id=150 data-nosnippet>150</a>        .iter()
-<a href=#151 id=151 data-nosnippet>151</a>        .map(|s| s.to_le_bytes())
-<a href=#152 id=152 data-nosnippet>152</a>        .collect::&lt;Vec&lt;Vec&lt;u8&gt;&gt;&gt;();
-<a href=#153 id=153 data-nosnippet>153</a>
-<a href=#154 id=154 data-nosnippet>154</a>    <span class="kw">let </span>scalar_size = scalar_bytes
-<a href=#155 id=155 data-nosnippet>155</a>        .iter()
-<a href=#156 id=156 data-nosnippet>156</a>        .map(|b| b.len())
-<a href=#157 id=157 data-nosnippet>157</a>        .max()
-<a href=#158 id=158 data-nosnippet>158</a>        .expect(<span class="string">"No scalars given."</span>);
-<a href=#159 id=159 data-nosnippet>159</a>
-<a href=#160 id=160 data-nosnippet>160</a>    <span class="comment">// We iterate from the top bit and down for all scalars until we reach a set bit. This marks the
-<a href=#161 id=161 data-nosnippet>161</a>    // beginning of a window, and we continue the iteration. When the iterations exists the window,
-<a href=#162 id=162 data-nosnippet>162</a>    // we add the corresponding precomputed value and keeps iterating until the next one bit is found
-<a href=#163 id=163 data-nosnippet>163</a>    // which marks the beginning of the next window.
-<a href=#164 id=164 data-nosnippet>164</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>is_in_window = [<span class="bool-val">false</span>; N];
-<a href=#165 id=165 data-nosnippet>165</a>    <span class="kw">let </span><span class="kw-2">mut </span>index_in_window = [<span class="number">0usize</span>; N]; <span class="comment">// Counter for the current window
-<a href=#166 id=166 data-nosnippet>166</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>precomputed_multiple_index = [<span class="number">0usize</span>; N];
-<a href=#167 id=167 data-nosnippet>167</a>
-<a href=#168 id=168 data-nosnippet>168</a>    <span class="comment">// We may skip doubling until result is non-zero.
-<a href=#169 id=169 data-nosnippet>169</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>is_zero = <span class="bool-val">true</span>;
-<a href=#170 id=170 data-nosnippet>170</a>    <span class="kw">let </span><span class="kw-2">mut </span>result = zero;
+<a href=#145 id=145 data-nosnippet>145</a>            <span class="prelude-val">None </span>=&gt; {
+<a href=#146 id=146 data-nosnippet>146</a>                all_precomputed_multiples.push(<span class="kw-2">&amp;</span>missing_precomputations[<span class="kw-2">&amp;</span>i]);
+<a href=#147 id=147 data-nosnippet>147</a>                window_sizes[i] = default_window_width;
+<a href=#148 id=148 data-nosnippet>148</a>            }
+<a href=#149 id=149 data-nosnippet>149</a>        }
+<a href=#150 id=150 data-nosnippet>150</a>    }
+<a href=#151 id=151 data-nosnippet>151</a>
+<a href=#152 id=152 data-nosnippet>152</a>    <span class="comment">// Compute little-endian byte representations of scalars.
+<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="kw">let </span>scalar_bytes = scalars
+<a href=#154 id=154 data-nosnippet>154</a>        .iter()
+<a href=#155 id=155 data-nosnippet>155</a>        .map(|s| s.to_le_bytes())
+<a href=#156 id=156 data-nosnippet>156</a>        .collect::&lt;Vec&lt;Vec&lt;u8&gt;&gt;&gt;();
+<a href=#157 id=157 data-nosnippet>157</a>
+<a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">let </span>scalar_size = scalar_bytes
+<a href=#159 id=159 data-nosnippet>159</a>        .iter()
+<a href=#160 id=160 data-nosnippet>160</a>        .map(|b| b.len())
+<a href=#161 id=161 data-nosnippet>161</a>        .max()
+<a href=#162 id=162 data-nosnippet>162</a>        .expect(<span class="string">"No scalars given."</span>);
+<a href=#163 id=163 data-nosnippet>163</a>
+<a href=#164 id=164 data-nosnippet>164</a>    <span class="comment">// We iterate from the top bit and down for all scalars until we reach a set bit. This marks the
+<a href=#165 id=165 data-nosnippet>165</a>    // beginning of a window, and we continue the iteration. When the iterations exists the window,
+<a href=#166 id=166 data-nosnippet>166</a>    // we add the corresponding precomputed value and keeps iterating until the next one bit is found
+<a href=#167 id=167 data-nosnippet>167</a>    // which marks the beginning of the next window.
+<a href=#168 id=168 data-nosnippet>168</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>is_in_window = [<span class="bool-val">false</span>; N];
+<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">let </span><span class="kw-2">mut </span>index_in_window = [<span class="number">0usize</span>; N]; <span class="comment">// Counter for the current window
+<a href=#170 id=170 data-nosnippet>170</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>precomputed_multiple_index = [<span class="number">0usize</span>; N];
 <a href=#171 id=171 data-nosnippet>171</a>
-<a href=#172 id=172 data-nosnippet>172</a>    <span class="comment">// Iterate through all bits of the scalars from the top.
-<a href=#173 id=173 data-nosnippet>173</a>    </span><span class="kw">for </span>bit <span class="kw">in </span>(<span class="number">0</span>..scalar_size * <span class="number">8</span>).rev() {
-<a href=#174 id=174 data-nosnippet>174</a>        <span class="kw">if </span>!is_zero {
-<a href=#175 id=175 data-nosnippet>175</a>            result = result.double();
-<a href=#176 id=176 data-nosnippet>176</a>        }
-<a href=#177 id=177 data-nosnippet>177</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..N {
-<a href=#178 id=178 data-nosnippet>178</a>            <span class="kw">if </span>is_in_window[i] {
-<a href=#179 id=179 data-nosnippet>179</a>                <span class="comment">// A window has been set for this scalar. Keep iterating until the window is finished.
-<a href=#180 id=180 data-nosnippet>180</a>                </span>index_in_window[i] += <span class="number">1</span>;
-<a href=#181 id=181 data-nosnippet>181</a>                <span class="kw">if </span>index_in_window[i] == window_sizes[i] {
-<a href=#182 id=182 data-nosnippet>182</a>                    <span class="comment">// This window is finished. Add the right precomputed value and indicate that we are ready for a new window.
-<a href=#183 id=183 data-nosnippet>183</a>                    </span>result = <span class="kw">if </span>is_zero {
-<a href=#184 id=184 data-nosnippet>184</a>                        is_zero = <span class="bool-val">false</span>;
-<a href=#185 id=185 data-nosnippet>185</a>                        all_precomputed_multiples[i][precomputed_multiple_index[i]].clone()
-<a href=#186 id=186 data-nosnippet>186</a>                    } <span class="kw">else </span>{
-<a href=#187 id=187 data-nosnippet>187</a>                        result + <span class="kw-2">&amp;</span>all_precomputed_multiples[i][precomputed_multiple_index[i]]
-<a href=#188 id=188 data-nosnippet>188</a>                    };
-<a href=#189 id=189 data-nosnippet>189</a>                    is_in_window[i] = <span class="bool-val">false</span>;
-<a href=#190 id=190 data-nosnippet>190</a>                }
-<a href=#191 id=191 data-nosnippet>191</a>            } <span class="kw">else if </span>test_bit(<span class="kw-2">&amp;</span>scalar_bytes[i], bit) {
-<a href=#192 id=192 data-nosnippet>192</a>                <span class="comment">// The iteration has reached a set bit for the i'th scalar.
-<a href=#193 id=193 data-nosnippet>193</a>                </span><span class="kw">if </span>bit &gt;= window_sizes[i] - <span class="number">1 </span>{
-<a href=#194 id=194 data-nosnippet>194</a>                    <span class="comment">// There is enough room for a window. Set indicator and reset window index.
-<a href=#195 id=195 data-nosnippet>195</a>                    </span>is_in_window[i] = <span class="bool-val">true</span>;
-<a href=#196 id=196 data-nosnippet>196</a>                    index_in_window[i] = <span class="number">1</span>;
-<a href=#197 id=197 data-nosnippet>197</a>                    precomputed_multiple_index[i] = get_bits_from_bytes(
-<a href=#198 id=198 data-nosnippet>198</a>                        <span class="kw-2">&amp;</span>scalar_bytes[i],
-<a href=#199 id=199 data-nosnippet>199</a>                        bit + <span class="number">1 </span>- window_sizes[i],
-<a href=#200 id=200 data-nosnippet>200</a>                        bit, <span class="comment">// The last bit is always one, so we ignore it and only precompute the upper half of the first 2^window_sizes multiples.
-<a href=#201 id=201 data-nosnippet>201</a>                    </span>);
-<a href=#202 id=202 data-nosnippet>202</a>                } <span class="kw">else </span>{
-<a href=#203 id=203 data-nosnippet>203</a>                    <span class="comment">// There is not enough room left for a window. Continue with regular double-and-add.
-<a href=#204 id=204 data-nosnippet>204</a>                    </span>result = <span class="kw">if </span>is_zero {
-<a href=#205 id=205 data-nosnippet>205</a>                        is_zero = <span class="bool-val">false</span>;
-<a href=#206 id=206 data-nosnippet>206</a>                        elements[i].clone()
-<a href=#207 id=207 data-nosnippet>207</a>                    } <span class="kw">else </span>{
-<a href=#208 id=208 data-nosnippet>208</a>                        result + <span class="kw-2">&amp;</span>elements[i]
-<a href=#209 id=209 data-nosnippet>209</a>                    };
-<a href=#210 id=210 data-nosnippet>210</a>                }
-<a href=#211 id=211 data-nosnippet>211</a>            }
-<a href=#212 id=212 data-nosnippet>212</a>        }
-<a href=#213 id=213 data-nosnippet>213</a>    }
-<a href=#214 id=214 data-nosnippet>214</a>    result
-<a href=#215 id=215 data-nosnippet>215</a>}
-<a href=#216 id=216 data-nosnippet>216</a>
-<a href=#217 id=217 data-nosnippet>217</a><span class="doccomment">/// Compute multiples &lt;i&gt;2&lt;sup&gt;w-1&lt;/sup&gt; base_element, (2&lt;sup&gt;w-1&lt;/sup&gt; + 1) base_element, ..., (2&lt;sup&gt;w&lt;/sup&gt; - 1) base_element&lt;/i&gt;.
-<a href=#218 id=218 data-nosnippet>218</a></span><span class="kw">fn </span>compute_multiples&lt;G: Doubling + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Add&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>G, Output = G&gt; + Clone + Debug&gt;(
-<a href=#219 id=219 data-nosnippet>219</a>    base_element: <span class="kw-2">&amp;</span>G,
-<a href=#220 id=220 data-nosnippet>220</a>    window_size: usize,
-<a href=#221 id=221 data-nosnippet>221</a>) -&gt; Vec&lt;G&gt; {
-<a href=#222 id=222 data-nosnippet>222</a>    <span class="macro">assert!</span>(window_size &gt; <span class="number">0</span>, <span class="string">"Window size must be strictly positive."</span>);
-<a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">let </span><span class="kw-2">mut </span>smallest_multiple = base_element.clone();
-<a href=#224 id=224 data-nosnippet>224</a>    <span class="kw">for _ in </span><span class="number">1</span>..window_size {
-<a href=#225 id=225 data-nosnippet>225</a>        smallest_multiple = smallest_multiple.double();
-<a href=#226 id=226 data-nosnippet>226</a>    }
-<a href=#227 id=227 data-nosnippet>227</a>    successors(<span class="prelude-val">Some</span>(smallest_multiple), |g| <span class="prelude-val">Some</span>(g.clone() + base_element))
-<a href=#228 id=228 data-nosnippet>228</a>        .take(<span class="number">1 </span>&lt;&lt; (window_size - <span class="number">1</span>))
-<a href=#229 id=229 data-nosnippet>229</a>        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
-<a href=#230 id=230 data-nosnippet>230</a>}
-<a href=#231 id=231 data-nosnippet>231</a>
-<a href=#232 id=232 data-nosnippet>232</a><span class="attr">#[cfg(test)]
-<a href=#233 id=233 data-nosnippet>233</a></span><span class="kw">mod </span>tests {
-<a href=#234 id=234 data-nosnippet>234</a>    <span class="kw">use </span>ark_ff::{BigInteger, PrimeField};
-<a href=#235 id=235 data-nosnippet>235</a>    <span class="kw">use </span>ark_secp256r1::Fr;
-<a href=#236 id=236 data-nosnippet>236</a>    <span class="kw">use </span>rand::thread_rng;
-<a href=#237 id=237 data-nosnippet>237</a>
-<a href=#238 id=238 data-nosnippet>238</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-<a href=#239 id=239 data-nosnippet>239</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::secp256r1::{ProjectivePoint, Scalar};
-<a href=#240 id=240 data-nosnippet>240</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::GroupElement;
-<a href=#241 id=241 data-nosnippet>241</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::Scalar <span class="kw">as </span>ScalarTrait;
-<a href=#242 id=242 data-nosnippet>242</a>    <span class="kw">use </span><span class="kw">crate</span>::ristretto255_tests::GROUP_ORDER_MINUS_ONE;
-<a href=#243 id=243 data-nosnippet>243</a>    <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::ToFromByteArray;
-<a href=#244 id=244 data-nosnippet>244</a>
-<a href=#245 id=245 data-nosnippet>245</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#246 id=246 data-nosnippet>246</a>
-<a href=#247 id=247 data-nosnippet>247</a>    <span class="kw">impl </span>ToLittleEndianBytes <span class="kw">for </span>RistrettoScalar {
-<a href=#248 id=248 data-nosnippet>248</a>        <span class="kw">fn </span>to_le_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-<a href=#249 id=249 data-nosnippet>249</a>            <span class="self">self</span>.to_byte_array().to_vec()
-<a href=#250 id=250 data-nosnippet>250</a>        }
-<a href=#251 id=251 data-nosnippet>251</a>    }
-<a href=#252 id=252 data-nosnippet>252</a>
-<a href=#253 id=253 data-nosnippet>253</a>    <span class="attr">#[test]
-<a href=#254 id=254 data-nosnippet>254</a>    </span><span class="kw">fn </span>test_scalar_multiplication_ristretto() {
-<a href=#255 id=255 data-nosnippet>255</a>        <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;RistrettoPoint, RistrettoScalar, <span class="number">16</span>, <span class="number">4</span>&gt;::new(
-<a href=#256 id=256 data-nosnippet>256</a>            RistrettoPoint::generator(),
-<a href=#257 id=257 data-nosnippet>257</a>            RistrettoPoint::zero(),
-<a href=#258 id=258 data-nosnippet>258</a>        );
-<a href=#259 id=259 data-nosnippet>259</a>
-<a href=#260 id=260 data-nosnippet>260</a>        <span class="kw">let </span>scalars = [
-<a href=#261 id=261 data-nosnippet>261</a>            RistrettoScalar::from(<span class="number">0u64</span>),
-<a href=#262 id=262 data-nosnippet>262</a>            RistrettoScalar::from(<span class="number">1u64</span>),
-<a href=#263 id=263 data-nosnippet>263</a>            RistrettoScalar::from(<span class="number">2u64</span>),
-<a href=#264 id=264 data-nosnippet>264</a>            RistrettoScalar::from(<span class="number">1234u64</span>),
-<a href=#265 id=265 data-nosnippet>265</a>            RistrettoScalar::from(<span class="number">123456u64</span>),
-<a href=#266 id=266 data-nosnippet>266</a>            RistrettoScalar::from(<span class="number">123456789u64</span>),
-<a href=#267 id=267 data-nosnippet>267</a>            RistrettoScalar::from(<span class="number">0xffffffffffffffffu64</span>),
-<a href=#268 id=268 data-nosnippet>268</a>            RistrettoScalar::from_byte_array(<span class="kw-2">&amp;</span>GROUP_ORDER_MINUS_ONE).unwrap(),
-<a href=#269 id=269 data-nosnippet>269</a>        ];
-<a href=#270 id=270 data-nosnippet>270</a>
-<a href=#271 id=271 data-nosnippet>271</a>        <span class="kw">for </span>scalar <span class="kw">in </span>scalars {
-<a href=#272 id=272 data-nosnippet>272</a>            <span class="kw">let </span>expected = RistrettoPoint::generator() * scalar;
-<a href=#273 id=273 data-nosnippet>273</a>            <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
-<a href=#274 id=274 data-nosnippet>274</a>            <span class="macro">assert_eq!</span>(expected, actual);
-<a href=#275 id=275 data-nosnippet>275</a>        }
-<a href=#276 id=276 data-nosnippet>276</a>    }
-<a href=#277 id=277 data-nosnippet>277</a>
-<a href=#278 id=278 data-nosnippet>278</a>    <span class="attr">#[test]
-<a href=#279 id=279 data-nosnippet>279</a>    </span><span class="kw">fn </span>test_scalar_multiplication_secp256r1() {
-<a href=#280 id=280 data-nosnippet>280</a>        <span class="kw">let </span><span class="kw-2">mut </span>modulus_minus_one = Fr::MODULUS_MINUS_ONE_DIV_TWO;
-<a href=#281 id=281 data-nosnippet>281</a>        modulus_minus_one.mul2();
-<a href=#282 id=282 data-nosnippet>282</a>        <span class="kw">let </span>scalars = [
-<a href=#283 id=283 data-nosnippet>283</a>            Scalar::from(<span class="number">0</span>),
-<a href=#284 id=284 data-nosnippet>284</a>            Scalar::from(<span class="number">1</span>),
-<a href=#285 id=285 data-nosnippet>285</a>            Scalar::from(<span class="number">2</span>),
-<a href=#286 id=286 data-nosnippet>286</a>            Scalar::from(<span class="number">1234</span>),
-<a href=#287 id=287 data-nosnippet>287</a>            Scalar::from(<span class="number">123456</span>),
-<a href=#288 id=288 data-nosnippet>288</a>            Scalar::from(<span class="number">123456789</span>),
-<a href=#289 id=289 data-nosnippet>289</a>            Scalar::from(<span class="number">0xffffffffffffffff</span>),
-<a href=#290 id=290 data-nosnippet>290</a>            Scalar(Fr::from(modulus_minus_one)),
-<a href=#291 id=291 data-nosnippet>291</a>        ];
-<a href=#292 id=292 data-nosnippet>292</a>
-<a href=#293 id=293 data-nosnippet>293</a>        <span class="kw">for </span>scalar <span class="kw">in </span>scalars {
-<a href=#294 id=294 data-nosnippet>294</a>            <span class="kw">let </span>expected = ProjectivePoint::generator() * scalar;
-<a href=#295 id=295 data-nosnippet>295</a>
-<a href=#296 id=296 data-nosnippet>296</a>            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">2</span>, <span class="number">4</span>&gt;::new(
-<a href=#297 id=297 data-nosnippet>297</a>                ProjectivePoint::generator(),
-<a href=#298 id=298 data-nosnippet>298</a>                ProjectivePoint::zero(),
-<a href=#299 id=299 data-nosnippet>299</a>            );
-<a href=#300 id=300 data-nosnippet>300</a>            <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
-<a href=#301 id=301 data-nosnippet>301</a>            <span class="macro">assert_eq!</span>(expected, actual);
-<a href=#302 id=302 data-nosnippet>302</a>
-<a href=#303 id=303 data-nosnippet>303</a>            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">16</span>, <span class="number">4</span>&gt;::new(
-<a href=#304 id=304 data-nosnippet>304</a>                ProjectivePoint::generator(),
-<a href=#305 id=305 data-nosnippet>305</a>                ProjectivePoint::zero(),
-<a href=#306 id=306 data-nosnippet>306</a>            );
-<a href=#307 id=307 data-nosnippet>307</a>            <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
-<a href=#308 id=308 data-nosnippet>308</a>            <span class="macro">assert_eq!</span>(expected, actual);
-<a href=#309 id=309 data-nosnippet>309</a>
-<a href=#310 id=310 data-nosnippet>310</a>            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">32</span>, <span class="number">4</span>&gt;::new(
-<a href=#311 id=311 data-nosnippet>311</a>                ProjectivePoint::generator(),
-<a href=#312 id=312 data-nosnippet>312</a>                ProjectivePoint::zero(),
-<a href=#313 id=313 data-nosnippet>313</a>            );
-<a href=#314 id=314 data-nosnippet>314</a>            <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
-<a href=#315 id=315 data-nosnippet>315</a>            <span class="macro">assert_eq!</span>(expected, actual);
-<a href=#316 id=316 data-nosnippet>316</a>
-<a href=#317 id=317 data-nosnippet>317</a>            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">64</span>, <span class="number">4</span>&gt;::new(
-<a href=#318 id=318 data-nosnippet>318</a>                ProjectivePoint::generator(),
-<a href=#319 id=319 data-nosnippet>319</a>                ProjectivePoint::zero(),
-<a href=#320 id=320 data-nosnippet>320</a>            );
-<a href=#321 id=321 data-nosnippet>321</a>            <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
-<a href=#322 id=322 data-nosnippet>322</a>            <span class="macro">assert_eq!</span>(expected, actual);
-<a href=#323 id=323 data-nosnippet>323</a>
-<a href=#324 id=324 data-nosnippet>324</a>            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">512</span>, <span class="number">4</span>&gt;::new(
-<a href=#325 id=325 data-nosnippet>325</a>                ProjectivePoint::generator(),
-<a href=#326 id=326 data-nosnippet>326</a>                ProjectivePoint::zero(),
-<a href=#327 id=327 data-nosnippet>327</a>            );
-<a href=#328 id=328 data-nosnippet>328</a>            <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
-<a href=#329 id=329 data-nosnippet>329</a>            <span class="macro">assert_eq!</span>(expected, actual);
-<a href=#330 id=330 data-nosnippet>330</a>        }
-<a href=#331 id=331 data-nosnippet>331</a>    }
-<a href=#332 id=332 data-nosnippet>332</a>
-<a href=#333 id=333 data-nosnippet>333</a>    <span class="attr">#[test]
-<a href=#334 id=334 data-nosnippet>334</a>    </span><span class="kw">fn </span>test_double_mul_ristretto() {
-<a href=#335 id=335 data-nosnippet>335</a>        <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;RistrettoPoint, RistrettoScalar, <span class="number">16</span>, <span class="number">5</span>&gt;::new(
-<a href=#336 id=336 data-nosnippet>336</a>            RistrettoPoint::generator(),
-<a href=#337 id=337 data-nosnippet>337</a>            RistrettoPoint::zero(),
-<a href=#338 id=338 data-nosnippet>338</a>        );
-<a href=#339 id=339 data-nosnippet>339</a>
-<a href=#340 id=340 data-nosnippet>340</a>        <span class="kw">let </span>other_point = RistrettoPoint::generator() * RistrettoScalar::from(<span class="number">3u64</span>);
-<a href=#341 id=341 data-nosnippet>341</a>
-<a href=#342 id=342 data-nosnippet>342</a>        <span class="kw">let </span>a = RistrettoScalar::rand(<span class="kw-2">&amp;mut </span>thread_rng());
-<a href=#343 id=343 data-nosnippet>343</a>        <span class="kw">let </span>b = RistrettoScalar::rand(<span class="kw-2">&amp;mut </span>thread_rng());
-<a href=#344 id=344 data-nosnippet>344</a>        <span class="kw">let </span>expected = RistrettoPoint::generator() * a + other_point * b;
-<a href=#345 id=345 data-nosnippet>345</a>        <span class="kw">let </span>actual = multiplier.two_scalar_mul(<span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>other_point, <span class="kw-2">&amp;</span>b);
-<a href=#346 id=346 data-nosnippet>346</a>        <span class="macro">assert_eq!</span>(expected, actual);
-<a href=#347 id=347 data-nosnippet>347</a>    }
-<a href=#348 id=348 data-nosnippet>348</a>}
+<a href=#172 id=172 data-nosnippet>172</a>    <span class="comment">// We may skip doubling until result is non-zero.
+<a href=#173 id=173 data-nosnippet>173</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>is_zero = <span class="bool-val">true</span>;
+<a href=#174 id=174 data-nosnippet>174</a>    <span class="kw">let </span><span class="kw-2">mut </span>result = zero;
+<a href=#175 id=175 data-nosnippet>175</a>
+<a href=#176 id=176 data-nosnippet>176</a>    <span class="comment">// Iterate through all bits of the scalars from the top.
+<a href=#177 id=177 data-nosnippet>177</a>    </span><span class="kw">for </span>bit <span class="kw">in </span>(<span class="number">0</span>..scalar_size * <span class="number">8</span>).rev() {
+<a href=#178 id=178 data-nosnippet>178</a>        <span class="kw">if </span>!is_zero {
+<a href=#179 id=179 data-nosnippet>179</a>            result = result.double();
+<a href=#180 id=180 data-nosnippet>180</a>        }
+<a href=#181 id=181 data-nosnippet>181</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..N {
+<a href=#182 id=182 data-nosnippet>182</a>            <span class="kw">if </span>is_in_window[i] {
+<a href=#183 id=183 data-nosnippet>183</a>                <span class="comment">// A window has been set for this scalar. Keep iterating until the window is finished.
+<a href=#184 id=184 data-nosnippet>184</a>                </span>index_in_window[i] += <span class="number">1</span>;
+<a href=#185 id=185 data-nosnippet>185</a>                <span class="kw">if </span>index_in_window[i] == window_sizes[i] {
+<a href=#186 id=186 data-nosnippet>186</a>                    <span class="comment">// This window is finished. Add the right precomputed value and indicate that we are ready for a new window.
+<a href=#187 id=187 data-nosnippet>187</a>                    </span>result = <span class="kw">if </span>is_zero {
+<a href=#188 id=188 data-nosnippet>188</a>                        is_zero = <span class="bool-val">false</span>;
+<a href=#189 id=189 data-nosnippet>189</a>                        all_precomputed_multiples[i][precomputed_multiple_index[i]].clone()
+<a href=#190 id=190 data-nosnippet>190</a>                    } <span class="kw">else </span>{
+<a href=#191 id=191 data-nosnippet>191</a>                        result + <span class="kw-2">&amp;</span>all_precomputed_multiples[i][precomputed_multiple_index[i]]
+<a href=#192 id=192 data-nosnippet>192</a>                    };
+<a href=#193 id=193 data-nosnippet>193</a>                    is_in_window[i] = <span class="bool-val">false</span>;
+<a href=#194 id=194 data-nosnippet>194</a>                }
+<a href=#195 id=195 data-nosnippet>195</a>            } <span class="kw">else if </span>test_bit(<span class="kw-2">&amp;</span>scalar_bytes[i], bit) {
+<a href=#196 id=196 data-nosnippet>196</a>                <span class="comment">// The iteration has reached a set bit for the i'th scalar.
+<a href=#197 id=197 data-nosnippet>197</a>                </span><span class="kw">if </span>bit &gt;= window_sizes[i] - <span class="number">1 </span>{
+<a href=#198 id=198 data-nosnippet>198</a>                    <span class="comment">// There is enough room for a window. Set indicator and reset window index.
+<a href=#199 id=199 data-nosnippet>199</a>                    </span>is_in_window[i] = <span class="bool-val">true</span>;
+<a href=#200 id=200 data-nosnippet>200</a>                    index_in_window[i] = <span class="number">1</span>;
+<a href=#201 id=201 data-nosnippet>201</a>                    precomputed_multiple_index[i] = get_bits_from_bytes(
+<a href=#202 id=202 data-nosnippet>202</a>                        <span class="kw-2">&amp;</span>scalar_bytes[i],
+<a href=#203 id=203 data-nosnippet>203</a>                        bit + <span class="number">1 </span>- window_sizes[i],
+<a href=#204 id=204 data-nosnippet>204</a>                        bit, <span class="comment">// The last bit is always one, so we ignore it and only precompute the upper half of the first 2^window_sizes multiples.
+<a href=#205 id=205 data-nosnippet>205</a>                    </span>);
+<a href=#206 id=206 data-nosnippet>206</a>                } <span class="kw">else </span>{
+<a href=#207 id=207 data-nosnippet>207</a>                    <span class="comment">// There is not enough room left for a window. Continue with regular double-and-add.
+<a href=#208 id=208 data-nosnippet>208</a>                    </span>result = <span class="kw">if </span>is_zero {
+<a href=#209 id=209 data-nosnippet>209</a>                        is_zero = <span class="bool-val">false</span>;
+<a href=#210 id=210 data-nosnippet>210</a>                        elements[i].clone()
+<a href=#211 id=211 data-nosnippet>211</a>                    } <span class="kw">else </span>{
+<a href=#212 id=212 data-nosnippet>212</a>                        result + <span class="kw-2">&amp;</span>elements[i]
+<a href=#213 id=213 data-nosnippet>213</a>                    };
+<a href=#214 id=214 data-nosnippet>214</a>                }
+<a href=#215 id=215 data-nosnippet>215</a>            }
+<a href=#216 id=216 data-nosnippet>216</a>        }
+<a href=#217 id=217 data-nosnippet>217</a>    }
+<a href=#218 id=218 data-nosnippet>218</a>    result
+<a href=#219 id=219 data-nosnippet>219</a>}
+<a href=#220 id=220 data-nosnippet>220</a>
+<a href=#221 id=221 data-nosnippet>221</a><span class="doccomment">/// Compute multiples &lt;i&gt;2&lt;sup&gt;w-1&lt;/sup&gt; base_element, (2&lt;sup&gt;w-1&lt;/sup&gt; + 1) base_element, ..., (2&lt;sup&gt;w&lt;/sup&gt; - 1) base_element&lt;/i&gt;.
+<a href=#222 id=222 data-nosnippet>222</a></span><span class="kw">fn </span>compute_multiples&lt;G: Doubling + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Add&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>G, Output = G&gt; + Clone + Debug&gt;(
+<a href=#223 id=223 data-nosnippet>223</a>    base_element: <span class="kw-2">&amp;</span>G,
+<a href=#224 id=224 data-nosnippet>224</a>    window_size: usize,
+<a href=#225 id=225 data-nosnippet>225</a>) -&gt; Vec&lt;G&gt; {
+<a href=#226 id=226 data-nosnippet>226</a>    <span class="macro">assert!</span>(window_size &gt; <span class="number">0</span>, <span class="string">"Window size must be strictly positive."</span>);
+<a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">let </span><span class="kw-2">mut </span>smallest_multiple = base_element.clone();
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">for _ in </span><span class="number">1</span>..window_size {
+<a href=#229 id=229 data-nosnippet>229</a>        smallest_multiple = smallest_multiple.double();
+<a href=#230 id=230 data-nosnippet>230</a>    }
+<a href=#231 id=231 data-nosnippet>231</a>    successors(<span class="prelude-val">Some</span>(smallest_multiple), |g| <span class="prelude-val">Some</span>(g.clone() + base_element))
+<a href=#232 id=232 data-nosnippet>232</a>        .take(<span class="number">1 </span>&lt;&lt; (window_size - <span class="number">1</span>))
+<a href=#233 id=233 data-nosnippet>233</a>        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+<a href=#234 id=234 data-nosnippet>234</a>}
+<a href=#235 id=235 data-nosnippet>235</a>
+<a href=#236 id=236 data-nosnippet>236</a><span class="attr">#[cfg(test)]
+<a href=#237 id=237 data-nosnippet>237</a></span><span class="kw">mod </span>tests {
+<a href=#238 id=238 data-nosnippet>238</a>    <span class="kw">use </span>ark_ff::{BigInteger, PrimeField};
+<a href=#239 id=239 data-nosnippet>239</a>    <span class="kw">use </span>ark_secp256r1::Fr;
+<a href=#240 id=240 data-nosnippet>240</a>    <span class="kw">use </span>rand::thread_rng;
+<a href=#241 id=241 data-nosnippet>241</a>
+<a href=#242 id=242 data-nosnippet>242</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
+<a href=#243 id=243 data-nosnippet>243</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::secp256r1::{ProjectivePoint, Scalar};
+<a href=#244 id=244 data-nosnippet>244</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::GroupElement;
+<a href=#245 id=245 data-nosnippet>245</a>    <span class="kw">use </span><span class="kw">crate</span>::groups::Scalar <span class="kw">as </span>ScalarTrait;
+<a href=#246 id=246 data-nosnippet>246</a>    <span class="kw">use </span><span class="kw">crate</span>::ristretto255_tests::GROUP_ORDER_MINUS_ONE;
+<a href=#247 id=247 data-nosnippet>247</a>    <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::ToFromByteArray;
+<a href=#248 id=248 data-nosnippet>248</a>
+<a href=#249 id=249 data-nosnippet>249</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#250 id=250 data-nosnippet>250</a>
+<a href=#251 id=251 data-nosnippet>251</a>    <span class="kw">impl </span>ToLittleEndianBytes <span class="kw">for </span>RistrettoScalar {
+<a href=#252 id=252 data-nosnippet>252</a>        <span class="kw">fn </span>to_le_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
+<a href=#253 id=253 data-nosnippet>253</a>            <span class="self">self</span>.to_byte_array().to_vec()
+<a href=#254 id=254 data-nosnippet>254</a>        }
+<a href=#255 id=255 data-nosnippet>255</a>    }
+<a href=#256 id=256 data-nosnippet>256</a>
+<a href=#257 id=257 data-nosnippet>257</a>    <span class="attr">#[test]
+<a href=#258 id=258 data-nosnippet>258</a>    </span><span class="kw">fn </span>test_scalar_multiplication_ristretto() {
+<a href=#259 id=259 data-nosnippet>259</a>        <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;RistrettoPoint, RistrettoScalar, <span class="number">16</span>, <span class="number">4</span>&gt;::new(
+<a href=#260 id=260 data-nosnippet>260</a>            RistrettoPoint::generator(),
+<a href=#261 id=261 data-nosnippet>261</a>            RistrettoPoint::zero(),
+<a href=#262 id=262 data-nosnippet>262</a>        );
+<a href=#263 id=263 data-nosnippet>263</a>
+<a href=#264 id=264 data-nosnippet>264</a>        <span class="kw">let </span>scalars = [
+<a href=#265 id=265 data-nosnippet>265</a>            RistrettoScalar::from(<span class="number">0u64</span>),
+<a href=#266 id=266 data-nosnippet>266</a>            RistrettoScalar::from(<span class="number">1u64</span>),
+<a href=#267 id=267 data-nosnippet>267</a>            RistrettoScalar::from(<span class="number">2u64</span>),
+<a href=#268 id=268 data-nosnippet>268</a>            RistrettoScalar::from(<span class="number">1234u64</span>),
+<a href=#269 id=269 data-nosnippet>269</a>            RistrettoScalar::from(<span class="number">123456u64</span>),
+<a href=#270 id=270 data-nosnippet>270</a>            RistrettoScalar::from(<span class="number">123456789u64</span>),
+<a href=#271 id=271 data-nosnippet>271</a>            RistrettoScalar::from(<span class="number">0xffffffffffffffffu64</span>),
+<a href=#272 id=272 data-nosnippet>272</a>            RistrettoScalar::from_byte_array(<span class="kw-2">&amp;</span>GROUP_ORDER_MINUS_ONE).unwrap(),
+<a href=#273 id=273 data-nosnippet>273</a>        ];
+<a href=#274 id=274 data-nosnippet>274</a>
+<a href=#275 id=275 data-nosnippet>275</a>        <span class="kw">for </span>scalar <span class="kw">in </span>scalars {
+<a href=#276 id=276 data-nosnippet>276</a>            <span class="kw">let </span>expected = RistrettoPoint::generator() * scalar;
+<a href=#277 id=277 data-nosnippet>277</a>            <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
+<a href=#278 id=278 data-nosnippet>278</a>            <span class="macro">assert_eq!</span>(expected, actual);
+<a href=#279 id=279 data-nosnippet>279</a>        }
+<a href=#280 id=280 data-nosnippet>280</a>    }
+<a href=#281 id=281 data-nosnippet>281</a>
+<a href=#282 id=282 data-nosnippet>282</a>    <span class="attr">#[test]
+<a href=#283 id=283 data-nosnippet>283</a>    </span><span class="kw">fn </span>test_scalar_multiplication_secp256r1() {
+<a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">let </span><span class="kw-2">mut </span>modulus_minus_one = Fr::MODULUS_MINUS_ONE_DIV_TWO;
+<a href=#285 id=285 data-nosnippet>285</a>        modulus_minus_one.mul2();
+<a href=#286 id=286 data-nosnippet>286</a>        <span class="kw">let </span>scalars = [
+<a href=#287 id=287 data-nosnippet>287</a>            Scalar::from(<span class="number">0</span>),
+<a href=#288 id=288 data-nosnippet>288</a>            Scalar::from(<span class="number">1</span>),
+<a href=#289 id=289 data-nosnippet>289</a>            Scalar::from(<span class="number">2</span>),
+<a href=#290 id=290 data-nosnippet>290</a>            Scalar::from(<span class="number">1234</span>),
+<a href=#291 id=291 data-nosnippet>291</a>            Scalar::from(<span class="number">123456</span>),
+<a href=#292 id=292 data-nosnippet>292</a>            Scalar::from(<span class="number">123456789</span>),
+<a href=#293 id=293 data-nosnippet>293</a>            Scalar::from(<span class="number">0xffffffffffffffff</span>),
+<a href=#294 id=294 data-nosnippet>294</a>            Scalar(Fr::from(modulus_minus_one)),
+<a href=#295 id=295 data-nosnippet>295</a>        ];
+<a href=#296 id=296 data-nosnippet>296</a>
+<a href=#297 id=297 data-nosnippet>297</a>        <span class="kw">for </span>scalar <span class="kw">in </span>scalars {
+<a href=#298 id=298 data-nosnippet>298</a>            <span class="kw">let </span>expected = ProjectivePoint::generator() * scalar;
+<a href=#299 id=299 data-nosnippet>299</a>
+<a href=#300 id=300 data-nosnippet>300</a>            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">2</span>, <span class="number">4</span>&gt;::new(
+<a href=#301 id=301 data-nosnippet>301</a>                ProjectivePoint::generator(),
+<a href=#302 id=302 data-nosnippet>302</a>                ProjectivePoint::zero(),
+<a href=#303 id=303 data-nosnippet>303</a>            );
+<a href=#304 id=304 data-nosnippet>304</a>            <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
+<a href=#305 id=305 data-nosnippet>305</a>            <span class="macro">assert_eq!</span>(expected, actual);
+<a href=#306 id=306 data-nosnippet>306</a>
+<a href=#307 id=307 data-nosnippet>307</a>            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">16</span>, <span class="number">4</span>&gt;::new(
+<a href=#308 id=308 data-nosnippet>308</a>                ProjectivePoint::generator(),
+<a href=#309 id=309 data-nosnippet>309</a>                ProjectivePoint::zero(),
+<a href=#310 id=310 data-nosnippet>310</a>            );
+<a href=#311 id=311 data-nosnippet>311</a>            <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
+<a href=#312 id=312 data-nosnippet>312</a>            <span class="macro">assert_eq!</span>(expected, actual);
+<a href=#313 id=313 data-nosnippet>313</a>
+<a href=#314 id=314 data-nosnippet>314</a>            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">32</span>, <span class="number">4</span>&gt;::new(
+<a href=#315 id=315 data-nosnippet>315</a>                ProjectivePoint::generator(),
+<a href=#316 id=316 data-nosnippet>316</a>                ProjectivePoint::zero(),
+<a href=#317 id=317 data-nosnippet>317</a>            );
+<a href=#318 id=318 data-nosnippet>318</a>            <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
+<a href=#319 id=319 data-nosnippet>319</a>            <span class="macro">assert_eq!</span>(expected, actual);
+<a href=#320 id=320 data-nosnippet>320</a>
+<a href=#321 id=321 data-nosnippet>321</a>            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">64</span>, <span class="number">4</span>&gt;::new(
+<a href=#322 id=322 data-nosnippet>322</a>                ProjectivePoint::generator(),
+<a href=#323 id=323 data-nosnippet>323</a>                ProjectivePoint::zero(),
+<a href=#324 id=324 data-nosnippet>324</a>            );
+<a href=#325 id=325 data-nosnippet>325</a>            <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
+<a href=#326 id=326 data-nosnippet>326</a>            <span class="macro">assert_eq!</span>(expected, actual);
+<a href=#327 id=327 data-nosnippet>327</a>
+<a href=#328 id=328 data-nosnippet>328</a>            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">512</span>, <span class="number">4</span>&gt;::new(
+<a href=#329 id=329 data-nosnippet>329</a>                ProjectivePoint::generator(),
+<a href=#330 id=330 data-nosnippet>330</a>                ProjectivePoint::zero(),
+<a href=#331 id=331 data-nosnippet>331</a>            );
+<a href=#332 id=332 data-nosnippet>332</a>            <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
+<a href=#333 id=333 data-nosnippet>333</a>            <span class="macro">assert_eq!</span>(expected, actual);
+<a href=#334 id=334 data-nosnippet>334</a>        }
+<a href=#335 id=335 data-nosnippet>335</a>    }
+<a href=#336 id=336 data-nosnippet>336</a>
+<a href=#337 id=337 data-nosnippet>337</a>    <span class="attr">#[test]
+<a href=#338 id=338 data-nosnippet>338</a>    </span><span class="kw">fn </span>test_double_mul_ristretto() {
+<a href=#339 id=339 data-nosnippet>339</a>        <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;RistrettoPoint, RistrettoScalar, <span class="number">16</span>, <span class="number">5</span>&gt;::new(
+<a href=#340 id=340 data-nosnippet>340</a>            RistrettoPoint::generator(),
+<a href=#341 id=341 data-nosnippet>341</a>            RistrettoPoint::zero(),
+<a href=#342 id=342 data-nosnippet>342</a>        );
+<a href=#343 id=343 data-nosnippet>343</a>
+<a href=#344 id=344 data-nosnippet>344</a>        <span class="kw">let </span>other_point = RistrettoPoint::generator() * RistrettoScalar::from(<span class="number">3u64</span>);
+<a href=#345 id=345 data-nosnippet>345</a>
+<a href=#346 id=346 data-nosnippet>346</a>        <span class="kw">let </span>a = RistrettoScalar::rand(<span class="kw-2">&amp;mut </span>thread_rng());
+<a href=#347 id=347 data-nosnippet>347</a>        <span class="kw">let </span>b = RistrettoScalar::rand(<span class="kw-2">&amp;mut </span>thread_rng());
+<a href=#348 id=348 data-nosnippet>348</a>        <span class="kw">let </span>expected = RistrettoPoint::generator() * a + other_point * b;
+<a href=#349 id=349 data-nosnippet>349</a>        <span class="kw">let </span>actual = multiplier.two_scalar_mul(<span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>other_point, <span class="kw-2">&amp;</span>b);
+<a href=#350 id=350 data-nosnippet>350</a>        <span class="macro">assert_eq!</span>(expected, actual);
+<a href=#351 id=351 data-nosnippet>351</a>    }
+<a href=#352 id=352 data-nosnippet>352</a>}
 </code></pre></div></section></main></body></html>
