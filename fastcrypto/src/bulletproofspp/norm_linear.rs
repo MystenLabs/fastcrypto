@@ -190,14 +190,16 @@ enum BasePoints<'a> {
 /// as weights and materialised every [FOLD_BATCH_ROUNDS] rounds.
 struct LazyBases<'a> {
     points: BasePoints<'a>,
-    weights: (Weights, Weights),
+    w_h: Weights,
+    w_g: Weights,
 }
 
 impl<'a> LazyBases<'a> {
     fn new(gens: &'a Generators) -> Self {
         LazyBases {
             points: BasePoints::Crs(gens),
-            weights: (Weights::new(), Weights::new()),
+            w_h: Weights::new(),
+            w_g: Weights::new(),
         }
     }
 
@@ -206,10 +208,8 @@ impl<'a> LazyBases<'a> {
     /// `G'_j = rho*G_{2j} + gamma*G_{2j+1}`.
     fn fold(self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
         LazyBases {
-            weights: (
-                self.weights.0.tensor_pair(one(), gamma),
-                self.weights.1.tensor_pair(rho, gamma),
-            ),
+            w_h: self.w_h.tensor_pair(one(), gamma),
+            w_g: self.w_g.tensor_pair(rho, gamma),
             ..self
         }
     }
@@ -241,19 +241,17 @@ impl<'a> LazyBases<'a> {
         g_coeffs: &[RistrettoScalar],
     ) -> FastCryptoResult<RistrettoPoint> {
         // Fold the points every few rounds to keep the MSMs small.
-        if self.weights.0.len() == 1 << FOLD_BATCH_ROUNDS {
+        if self.w_h.len() == 1 << FOLD_BATCH_ROUNDS {
             let (g, (h_vec, g_vec)) = self.points();
-            let folded = (
-                self.weights.0.contract(h_vec)?,
-                self.weights.1.contract(g_vec)?,
-            );
+            let folded = (self.w_h.contract(h_vec)?, self.w_g.contract(g_vec)?);
             self.points = BasePoints::Folded { g, folded };
-            self.weights = (Weights::new(), Weights::new());
+            self.w_h = Weights::new();
+            self.w_g = Weights::new();
         }
 
         let (h_len, g_len) = self.len();
-        let h_scalars = self.weights.0.tensor(h_coeffs).take(h_len);
-        let g_scalars = self.weights.1.tensor(g_coeffs).take(g_len);
+        let h_scalars = self.w_h.tensor(h_coeffs).take(h_len);
+        let g_scalars = self.w_g.tensor(g_coeffs).take(g_len);
         match &self.points {
             BasePoints::Crs(gens) => gens.msm(v, h_scalars, g_scalars, &[], &[]),
             BasePoints::Folded {
