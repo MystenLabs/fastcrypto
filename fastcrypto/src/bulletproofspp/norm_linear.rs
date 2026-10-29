@@ -144,7 +144,7 @@ impl Weights {
 
     /// `s * w`.
     fn scale(&self, s: RistrettoScalar) -> impl Iterator<Item = RistrettoScalar> + '_ {
-        self.0.iter().map(move |w| s * w)
+        self.0.iter().map(move |w| sparse_mul(s, *w))
     }
 
     /// The tensor contraction
