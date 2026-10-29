@@ -11,8 +11,8 @@
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use crate::groups::{GroupElement, MultiScalarMul, Scalar};
-use crate::pedersen::Range;
+use crate::groups::{GroupElement, Scalar};
+use crate::pedersen::{self, Blinding, PedersenCommitment, Range};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use std::array::from_fn;
@@ -414,13 +414,14 @@ pub(crate) fn prove(
     }
     let two = S::from(2u64);
 
+    // The inputs are Pedersen commitments, which open under this CRS because
+    // its value and blinding bases are the Pedersen ones.
+    debug_assert!(gens.g == *pedersen::H && gens.h_vec[0] == *pedersen::G);
     let v_commitments: Vec<RistrettoPoint> = values
         .iter()
         .zip(blindings)
-        .map(|(&v, s)| {
-            RistrettoPoint::multi_scalar_mul(&[S::from(v), *s], &[gens.g, gens.h_vec[0]])
-        })
-        .collect::<FastCryptoResult<_>>()?;
+        .map(|(&v, s)| PedersenCommitment::new(&S::from(v), &Blinding(*s)).0)
+        .collect();
 
     transcript.domain_sep(b"bppp_circuit");
     transcript.append_points(b"V", &v_commitments);
@@ -844,8 +845,8 @@ mod tests {
             .values
             .iter()
             .zip(blindings)
-            .map(|(v, s)| RistrettoPoint::multi_scalar_mul(&[*v, *s], &[gens.g, gens.h_vec[0]]))
-            .collect::<FastCryptoResult<_>>()?;
+            .map(|(v, s)| PedersenCommitment::new(v, &Blinding(*s)).0)
+            .collect();
         // Coordinates of hat_V = 2*sum_i lambda^{i-1} V_i outside the
         // (G, H_0)-plane; the junk sits on V_0, so its weight is 2.
         let mut n_v_hat = vec![S::zero(); params.nm];
