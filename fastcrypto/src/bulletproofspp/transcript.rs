@@ -4,6 +4,7 @@
 //! Merlin-based Fiat-Shamir transcript for BP++.
 
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
+use crate::pedersen::PedersenCommitment;
 use crate::serde_helpers::ToFromByteArray;
 use merlin::Transcript;
 
@@ -33,6 +34,13 @@ impl BpppTranscript {
     /// Append a point in its canonical 32-byte encoding.
     pub(crate) fn append_point(&mut self, label: &'static [u8], point: &RistrettoPoint) {
         self.inner.append_message(label, &point.to_byte_array());
+    }
+
+    /// Append each commitment's point under the same label, in order.
+    pub(crate) fn append_commits(&mut self, label: &'static [u8], commits: &[PedersenCommitment]) {
+        for commit in commits {
+            self.append_point(label, &commit.0);
+        }
     }
 
     /// Append a scalar in its canonical 32-byte little-endian encoding.

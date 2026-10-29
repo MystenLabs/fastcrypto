@@ -393,13 +393,6 @@ fn evaluate_opening(
     (l_tau, n_tau)
 }
 
-/// Absorb the input commitments into the transcript.
-fn append_inputs(transcript: &mut BpppTranscript, inputs: &[PedersenCommitment]) {
-    for input in inputs {
-        transcript.append_point(b"V", &input.0);
-    }
-}
-
 /// Prove that every `values[i]` lies in `[0, 2^n_bits)` under the Pedersen
 /// commitments `V_i = values[i]*G + blindings[i]*H_0`, which are computed
 /// here, absorbed into the transcript, and returned alongside the proof.
@@ -430,7 +423,7 @@ pub(crate) fn prove(
         .collect();
 
     transcript.domain_sep(b"bppp_circuit");
-    append_inputs(transcript, &v_commitments);
+    transcript.append_commits(b"V", &v_commitments);
 
     // Step 1: commit digits (C_L) and shared multiplicities (C_O). Slot
     // d*(i-1)+t holds digit t of value i; slots beyond n_d are zero.
@@ -564,7 +557,7 @@ pub(crate) fn verify(
         return Err(FastCryptoError::InvalidInput);
     }
     transcript.domain_sep(b"bppp_circuit");
-    append_inputs(transcript, v_commitments);
+    transcript.append_commits(b"V", v_commitments);
     transcript.append_point(b"C_L", &proof.c_l);
     transcript.append_point(b"C_O", &proof.c_o);
     let alpha = transcript.challenge_scalar(b"alpha");
@@ -870,7 +863,7 @@ mod tests {
         }
 
         transcript.domain_sep(b"bppp_circuit");
-        append_inputs(transcript, &v_commitments);
+        transcript.append_commits(b"V", &v_commitments);
 
         let (n_l, n_o) = (cheat.n_l.clone(), cheat.n_o.clone());
         let r_o = blinding_vector(rng, &[4, 7]);
