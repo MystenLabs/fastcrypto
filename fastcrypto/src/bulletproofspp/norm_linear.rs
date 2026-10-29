@@ -114,19 +114,19 @@ fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     (rounds, n_len)
 }
 
-/// After `k` pairs `(f0_i, f1_i)` have been added with [TensorProduct::tensor_pair],
+/// After `k` pairs `(f0_i, f1_i)` have been added with [Weights::tensor_pair],
 /// this holds the tensor product `w = (f0_k, f1_k) ⊗ ... ⊗ (f0_1, f1_1)`.
-struct TensorProduct(Vec<RistrettoScalar>);
+struct Weights(Vec<RistrettoScalar>);
 
-impl TensorProduct {
+impl Weights {
     /// The weights `w = (1)`.
     fn new() -> Self {
-        TensorProduct(vec![one()])
+        Weights(vec![one()])
     }
 
     /// The weights `(f0, f1) ⊗ w`.
     fn tensor_pair(&self, f0: RistrettoScalar, f1: RistrettoScalar) -> Self {
-        TensorProduct(self.tensor(&[f0, f1]).collect())
+        Weights(self.tensor(&[f0, f1]).collect())
     }
 
     fn len(&self) -> usize {
@@ -190,14 +190,14 @@ enum BasePoints<'a> {
 /// as weights and materialised every [FOLD_BATCH_ROUNDS] rounds.
 struct LazyBases<'a> {
     points: BasePoints<'a>,
-    weights: (TensorProduct, TensorProduct),
+    weights: (Weights, Weights),
 }
 
 impl<'a> LazyBases<'a> {
     fn new(gens: &'a Generators) -> Self {
         LazyBases {
             points: BasePoints::Crs(gens),
-            weights: (TensorProduct::new(), TensorProduct::new()),
+            weights: (Weights::new(), Weights::new()),
         }
     }
 
@@ -248,7 +248,7 @@ impl<'a> LazyBases<'a> {
                 self.weights.1.contract(g_vec)?,
             );
             self.points = BasePoints::Folded { g, folded };
-            self.weights = (TensorProduct::new(), TensorProduct::new());
+            self.weights = (Weights::new(), Weights::new());
         }
 
         let (h_len, g_len) = self.len();
@@ -408,7 +408,7 @@ fn prove_rec(
 ///
 /// Instead of folding the generator vectors round by round, the final `l`
 /// and `n` are spread back onto the original generators through the
-/// combined weights of all folds ([TensorProduct::tensor]), the same weights
+/// combined weights of all folds ([Weights::tensor]), the same weights
 /// the prover folds with. The per-round identity padding never hosts a base
 /// generator, so this is exact, and the base-case check becomes
 ///   (sigma - ps)*G + <w_h ⊙ l, H> + <w_g ⊙ n - pn, G_vec>
@@ -444,8 +444,8 @@ pub(crate) fn verify(
     let mut mu = rho * rho;
     let mut gammas = Vec::with_capacity(k);
     // The combined weights of all folds, grown round by round as the prover's.
-    let mut w_h = TensorProduct::new();
-    let mut w_g = TensorProduct::new();
+    let mut w_h = Weights::new();
+    let mut w_g = Weights::new();
 
     transcript.domain_sep(b"norm_linear");
 
