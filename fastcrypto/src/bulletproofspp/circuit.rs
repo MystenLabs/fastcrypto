@@ -318,17 +318,16 @@ impl Witness {
         values: &[u64],
         blindings: &[S],
     ) -> Self {
-        let scalars = |v: &[u64]| v.iter().map(|&x| S::from(x)).collect::<Vec<_>>();
         let digits: Vec<u64> = values
             .iter()
             .flat_map(|&v| decompose(v, params.d))
             .collect();
         Witness {
-            values: scalars(values),
+            values: to_scalars(values),
             blindings: blindings.to_vec(),
             off_plane: vec![],
-            n_l: pad_to(&scalars(&digits), params.nm),
-            n_o: pad_to(&scalars(&multiplicities(&digits)), params.nm),
+            n_l: pad_to(&to_scalars(&digits), params.nm),
+            n_o: pad_to(&to_scalars(&multiplicities(&digits)), params.nm),
             r_o: blinding_vector(rng, &[4, 7]),
             r_l: blinding_vector(rng, &[3, 6, 7]),
             r_r: blinding_vector(rng, &[2, 5, 6, 7]),
