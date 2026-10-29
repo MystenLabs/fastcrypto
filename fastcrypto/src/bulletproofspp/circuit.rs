@@ -393,6 +393,13 @@ fn evaluate_opening(
     (l_tau, n_tau)
 }
 
+/// Absorb the input commitments into the transcript.
+fn append_inputs(transcript: &mut BpppTranscript, inputs: &[PedersenCommitment]) {
+    for input in inputs {
+        transcript.append_point(b"V", &input.0);
+    }
+}
+
 /// Prove that every `values[i]` lies in `[0, 2^n_bits)` under the Pedersen
 /// commitments `V_i = values[i]*G + blindings[i]*H_0`, which are computed
 /// here, absorbed into the transcript, and returned alongside the proof.
@@ -403,7 +410,7 @@ pub(crate) fn prove(
     rng: &mut impl AllowedRng,
     values: &[u64],
     blindings: &[S],
-) -> FastCryptoResult<(CircuitProof, Vec<RistrettoPoint>)> {
+) -> FastCryptoResult<(CircuitProof, Vec<PedersenCommitment>)> {
     if values.len() != params.m
         || blindings.len() != params.m
         || gens.g_vec.len() != params.nm
@@ -416,14 +423,14 @@ pub(crate) fn prove(
     // The inputs are Pedersen commitments, which open under this CRS because
     // its value and blinding bases are the Pedersen ones.
     debug_assert!(gens.g == *pedersen::H && gens.h_vec[0] == *pedersen::G);
-    let v_commitments: Vec<RistrettoPoint> = values
+    let v_commitments: Vec<PedersenCommitment> = values
         .iter()
         .zip(blindings)
-        .map(|(&v, s)| PedersenCommitment::new(&S::from(v), &Blinding(*s)).0)
+        .map(|(&v, s)| PedersenCommitment::new(&S::from(v), &Blinding(*s)))
         .collect();
 
     transcript.domain_sep(b"bppp_circuit");
-    transcript.append_points(b"V", &v_commitments);
+    append_inputs(transcript, &v_commitments);
 
     // Step 1: commit digits (C_L) and shared multiplicities (C_O). Slot
     // d*(i-1)+t holds digit t of value i; slots beyond n_d are zero.
@@ -551,13 +558,13 @@ pub(crate) fn verify(
     gens: &Generators,
     params: &CircuitParams,
     proof: &CircuitProof,
-    v_commitments: &[RistrettoPoint],
+    v_commitments: &[PedersenCommitment],
 ) -> FastCryptoResult<()> {
     if v_commitments.len() != params.m || gens.g_vec.len() != params.nm {
         return Err(FastCryptoError::InvalidInput);
     }
     transcript.domain_sep(b"bppp_circuit");
-    transcript.append_points(b"V", v_commitments);
+    append_inputs(transcript, v_commitments);
     transcript.append_point(b"C_L", &proof.c_l);
     transcript.append_point(b"C_O", &proof.c_o);
     let alpha = transcript.challenge_scalar(b"alpha");
@@ -595,7 +602,7 @@ pub(crate) fn verify(
         (t2, proof.c_r),
     ];
     for (i, v_i) in v_commitments.iter().enumerate() {
-        extra.push((two_t3 * blocks.lambdas[i], *v_i));
+        extra.push((two_t3 * blocks.lambdas[i], v_i.0));
     }
 
     norm_linear::verify(
@@ -622,7 +629,7 @@ mod tests {
         Arc<Generators>,
         CircuitParams,
         CircuitProof,
-        Vec<RistrettoPoint>,
+        Vec<PedersenCommitment>,
     ) {
         let mut rng = rand::thread_rng();
         let gens = Generators::new(range, values.len()).unwrap();
@@ -638,7 +645,7 @@ mod tests {
         gens: &Generators,
         params: &CircuitParams,
         proof: &CircuitProof,
-        v_commitments: &[RistrettoPoint],
+        v_commitments: &[PedersenCommitment],
     ) -> FastCryptoResult<()> {
         let mut t = BpppTranscript::new(b"test");
         verify(&mut t, gens, params, proof, v_commitments)
@@ -738,7 +745,7 @@ mod tests {
         // Wrong commitment: to another value, or shifted off the
         // (G, H_0)-plane.
         for shift in [gens.g, gens.g_vec[15], gens.h_vec[H_LEN - 1]] {
-            let bad = vec![v_commitments[0] + shift];
+            let bad = vec![PedersenCommitment(v_commitments[0].0 + shift)];
             assert!(verify_batch(&gens, &params, &proof, &bad).is_err());
         }
 
@@ -838,13 +845,13 @@ mod tests {
         rng: &mut impl AllowedRng,
         blindings: &[S],
         cheat: &Cheat,
-    ) -> FastCryptoResult<(CircuitProof, Vec<RistrettoPoint>)> {
+    ) -> FastCryptoResult<(CircuitProof, Vec<PedersenCommitment>)> {
         let two = S::from(2u64);
-        let mut v_commitments: Vec<RistrettoPoint> = cheat
+        let mut v_commitments: Vec<PedersenCommitment> = cheat
             .values
             .iter()
             .zip(blindings)
-            .map(|(v, s)| PedersenCommitment::new(v, &Blinding(*s)).0)
+            .map(|(v, s)| PedersenCommitment::new(v, &Blinding(*s)))
             .collect();
         // Coordinates of hat_V = 2*sum_i lambda^{i-1} V_i outside the
         // (G, H_0)-plane; the junk sits on V_0, so its weight is 2.
@@ -852,18 +859,18 @@ mod tests {
         let mut l_v_hat = S::zero();
         match cheat.junk {
             Some(Junk::Norm(slot)) => {
-                v_commitments[0] += gens.g_vec[slot];
+                v_commitments[0].0 += gens.g_vec[slot];
                 n_v_hat[slot] = two;
             }
             Some(Junk::Linear) => {
-                v_commitments[0] += gens.h_vec[H_LEN - 1];
+                v_commitments[0].0 += gens.h_vec[H_LEN - 1];
                 l_v_hat = two;
             }
             None => {}
         }
 
         transcript.domain_sep(b"bppp_circuit");
-        transcript.append_points(b"V", &v_commitments);
+        append_inputs(transcript, &v_commitments);
 
         let (n_l, n_o) = (cheat.n_l.clone(), cheat.n_o.clone());
         let r_o = blinding_vector(rng, &[4, 7]);
