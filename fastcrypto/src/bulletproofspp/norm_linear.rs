@@ -99,24 +99,18 @@ impl NormLinearProof {
     }
 }
 
-/// The norm-linear commitment `C = r[0]*G + <r[1..8] || l, H> + <n, G_vec>`:
-/// `H_0..H_6` carry the blinding slots 1..7 of `r`, `H_7` the linear witness
-/// `l`, and `G_vec` the norm witness `n`.
-pub(crate) fn commit(
-    gens: &Generators,
-    r: &[RistrettoScalar],
-    l: RistrettoScalar,
-    n: &[RistrettoScalar],
-) -> FastCryptoResult<RistrettoPoint> {
-    debug_assert_eq!(r.len(), H_LEN);
-    debug_assert_eq!(n.len(), gens.g_vec.len());
-    gens.msm(
-        r[0],
-        r[1..].iter().copied().chain(std::iter::once(l)),
-        n.iter().copied(),
-        &[],
-        &[],
-    )
+impl Generators {
+    /// The norm-linear commitment `sigma*G + <l, H> + <n, G_vec>`.
+    pub(crate) fn commit(
+        &self,
+        sigma: RistrettoScalar,
+        l: &[RistrettoScalar],
+        n: &[RistrettoScalar],
+    ) -> FastCryptoResult<RistrettoPoint> {
+        debug_assert_eq!(l.len(), self.h_vec.len());
+        debug_assert_eq!(n.len(), self.g_vec.len());
+        self.msm(sigma, l.iter().copied(), n.iter().copied(), &[], &[])
+    }
 }
 
 /// Prove the norm-linear relation for the opening `(l, n)` of a commitment
@@ -560,13 +554,7 @@ mod tests {
         let mu = rho * rho;
 
         let sigma = inner_product(&c, &l) + weighted_norm(&n, mu);
-        let mut scalars = vec![sigma];
-        let mut points = vec![gens.g];
-        scalars.extend(&l);
-        points.extend(&gens.h_vec);
-        scalars.extend(&n);
-        points.extend(&gens.g_vec);
-        let commitment = RistrettoPoint::multi_scalar_mul(&scalars, &points).unwrap();
+        let commitment = gens.commit(sigma, &l, &n).unwrap();
 
         Instance {
             gens,
@@ -616,6 +604,24 @@ mod tests {
         }
         let inst = random_instance(8, 16);
         assert_eq!(prove_instance(&inst).rounds.len(), 3);
+    }
+
+    /// A proof for a commitment made with [Generators::commit] verifies, and
+    /// the same proof is rejected for a commitment to another valid opening.
+    #[test]
+    fn test_commit_prove_verify() {
+        let inst = random_instance(8, 16);
+        let proof = prove_instance(&inst);
+        assert!(verify_instance(&inst, &proof).is_ok());
+
+        let mut l = inst.l.clone();
+        l[0] += one();
+        let sigma = inner_product(&inst.c, &l) + weighted_norm(&inst.n, inst.rho * inst.rho);
+        let other = Instance {
+            commitment: inst.gens.commit(sigma, &l, &inst.n).unwrap(),
+            ..inst.clone()
+        };
+        assert!(verify_instance(&other, &proof).is_err());
     }
 
     #[test]
