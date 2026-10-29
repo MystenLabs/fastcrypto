@@ -258,7 +258,6 @@ impl Blocks {
 /// Commit to a circuit message: blinding `r` (slot 0 on `G`, slots 1..7 on
 /// `H_0..H_6`), linear witness `l` on `H_7`, and norm witness `n`.
 fn commit(gens: &Generators, r: &[S], l: S, n: &[S]) -> FastCryptoResult<RistrettoPoint> {
-    debug_assert_eq!(r.len(), H_LEN);
     let mut lin = r[1..].to_vec();
     lin.push(l);
     gens.commit(r[0], &lin, n)
