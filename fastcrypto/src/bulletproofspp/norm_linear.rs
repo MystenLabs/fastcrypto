@@ -6,100 +6,52 @@
 //! Proves knowledge of an opening `(sigma, l, n)` of
 //! `C = sigma*G + <l, H> + <n, G_vec>` satisfying
 //! `sigma = <c, l> + |n|^2_mu` with `mu = rho^2`, for public `c` and `rho`.
-//! Each round halves `l` and `n` by a symmetric even/odd fold until fewer
-//! than 6 scalars remain, which are then sent in the clear.
+//! Each round halves `l` and `n` by a symmetric even/odd fold until `l` is
+//! a single scalar and fewer than 6 remain in all, which are then sent in
+//! the clear.
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
-use crate::serde_helpers::ToFromByteArray;
 
-use crate::bulletproofspp::crs::{Generators, BASE, H_LEN};
+use crate::bulletproofspp::crs::{Generators, H_LEN};
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
+use generic_array::{ArrayLength, GenericArray};
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use std::fmt::Debug;
+use typenum::{
+    Unsigned, U10, U1024, U11, U128, U16, U2, U2048, U256, U3, U32, U4, U4096, U5, U512, U6, U64,
+    U7, U8, U8192, U9,
+};
 
 /// Fold until fewer than this many scalars remain; the remaining opening is
 /// sent in the clear. 6 balances rounds (2 points each) against final scalars.
 const FOLD_THRESHOLD: usize = 6;
 
-/// Largest `log2(n_len)` a decoded proof may claim; bounds the shape search
-/// in [NormLinearProof::proof_shape_for_serialized_len] far above any
-/// practical statement (2^32 norm slots is 2^28 values of 64 bits).
-const MAX_LOG_N_LEN: u32 = 32;
-
 /// Norm-linear proof: one `(X, R)` pair per fold round, then the final
 /// opening `(l, n)` in the clear (`sigma` is implied by the relation).
-/// Folding runs until `l` is a single scalar, so only `rounds` and
-/// `n_final` are variable-length.
-#[derive(Clone, Debug)]
-pub(crate) struct NormLinearProof {
-    pub(crate) rounds: Vec<(RistrettoPoint, RistrettoPoint)>,
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub(crate) struct NormLinearProof<N: NormLength> {
+    pub(crate) rounds: GenericArray<(RistrettoPoint, RistrettoPoint), N::Rounds>,
     pub(crate) l_final: RistrettoScalar,
-    pub(crate) n_final: Vec<RistrettoScalar>,
+    pub(crate) n_final: GenericArray<RistrettoScalar, N::NFinal>,
 }
 
-impl NormLinearProof {
-    /// Serialized size of a proof for initial vector lengths `(l_len, n_len)`.
-    fn serialized_len_for(l_len: usize, n_len: usize) -> usize {
-        let (rounds, n_len) = proof_shape(l_len, n_len);
-        32 * (2 * rounds + 1 + n_len)
-    }
-
-    /// The shape of a proof with this serialized size: `l_len = H_LEN`, `n_len` a power of two `>= BASE`.
-    fn proof_shape_for_serialized_len(len: usize) -> FastCryptoResult<(usize, usize)> {
-        (BASE.ilog2()..=MAX_LOG_N_LEN)
-            .map(|k| 1usize << k)
-            .find(|&n_len| Self::serialized_len_for(H_LEN, n_len) == len)
-            .map(|n_len| proof_shape(H_LEN, n_len))
-            .ok_or(FastCryptoError::InvalidInput)
-    }
-
-    pub(crate) fn serialized_len(&self) -> usize {
-        32 * (2 * self.rounds.len() + 1 + self.n_final.len())
-    }
-
-    /// Serialize: the per-round `(X, R)` pairs, then `l_final`, then
-    /// `n_final`, 32 bytes each.
-    pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(self.serialized_len());
-        for (x, r) in &self.rounds {
-            bytes.extend(x.to_byte_array());
-            bytes.extend(r.to_byte_array());
-        }
-        bytes.extend(self.l_final.to_byte_array());
-        for scalar in &self.n_final {
-            bytes.extend(scalar.to_byte_array());
-        }
-        bytes
-    }
-
-    /// Deserialize. The byte length alone selects the proof shape, see
-    /// [Self::proof_shape_for_serialized_len]; consistency with the statement
-    /// is checked at verification.
-    pub(crate) fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
-        let (rounds, n_len) = Self::proof_shape_for_serialized_len(bytes.len())?;
-        let mut chunks = bytes.chunks_exact(32);
-        let rounds = (0..rounds)
-            .map(|_| Ok((decode_next(&mut chunks)?, decode_next(&mut chunks)?)))
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        let l_final = decode_next(&mut chunks)?;
-        let n_final = (0..n_len)
-            .map(|_| decode_next(&mut chunks))
-            .collect::<FastCryptoResult<Vec<_>>>()?;
-        Ok(NormLinearProof {
-            rounds,
-            l_final,
-            n_final,
-        })
-    }
+/// A norm length a proof can be made for, and the dimensions it implies.
+pub(crate) trait NormLength: Unsigned {
+    /// Number of fold rounds, each contributing an `(X, R)` pair.
+    type Rounds: ArrayLength<(RistrettoPoint, RistrettoPoint)> + Debug;
+    /// Length of the final `n` opening.
+    type NFinal: ArrayLength<RistrettoScalar> + Debug;
 }
 
-/// The shape of a proof for initial sizes `(l_len, n_len)`: the number of
-/// rounds and the final `n` length. Each round pads to even length and
-/// halves, and folding continues until `l` is a single scalar, so the final
-/// `l` length is always 1 and is not reported.
-fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
+/// Rounds and final `n` length for base lengths `(l_len, n_len)`; the final
+/// `l` length is always 1. This is the fold [prove] runs, and every row of
+/// the table below is checked against it at compile time.
+const fn fold_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     let mut rounds = 0;
     while l_len > 1 || l_len + n_len >= FOLD_THRESHOLD {
         l_len = l_len.div_ceil(2);
@@ -107,6 +59,47 @@ fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
         rounds += 1;
     }
     (rounds, n_len)
+}
+
+macro_rules! norm_lengths {
+    ($($n:ty => ($rounds:ty, $n_final:ty)),* $(,)?) => {
+        $(
+            impl NormLength for $n {
+                type Rounds = $rounds;
+                type NFinal = $n_final;
+            }
+
+            const _: () = {
+                let (rounds, n_final) = fold_shape(H_LEN, <$n>::USIZE);
+                assert!(rounds == <$rounds>::USIZE && n_final == <$n_final>::USIZE);
+                // `verify` reads `w_h[i & (2^rounds - 1)]` for `i < H_LEN`
+                // and `n_final[i >> rounds]` for `i < N`, so both indices
+                // must stay in bounds for this row.
+                assert!(1usize << rounds >= H_LEN);
+                assert!((<$n>::USIZE - 1) >> rounds < n_final);
+            };
+        )*
+    };
+}
+
+// Norm lengths a statement can actually have: powers of two from BASE up.
+norm_lengths! {
+    U16 => (U3, U2),
+    U32 => (U3, U4),
+    U64 => (U4, U4),
+    U128 => (U5, U4),
+    U256 => (U6, U4),
+    U512 => (U7, U4),
+    U1024 => (U8, U4),
+    U2048 => (U9, U4),
+    U4096 => (U10, U4),
+    U8192 => (U11, U4),
+}
+
+#[cfg(test)]
+norm_lengths! {
+    typenum::U15 => (U3, U2),
+    typenum::U31 => (U3, U4),
 }
 
 /// Grow a fold tensor by one level, the new round in the top bit:
@@ -179,14 +172,14 @@ const FOLD_BATCH_ROUNDS: u32 = 3;
 /// reproducing the odd-length padding), so each round's X and R are single
 /// MSMs over the base generators with tensor-expanded coefficients — over
 /// the precomputed tables while the base is still the original CRS.
-pub(crate) fn prove(
+pub(crate) fn prove<N: NormLength>(
     transcript: &mut BpppTranscript,
     gens: &Generators,
     c: &[RistrettoScalar],
     rho: RistrettoScalar,
     l: &[RistrettoScalar],
     n: &[RistrettoScalar],
-) -> FastCryptoResult<NormLinearProof> {
+) -> FastCryptoResult<NormLinearProof<N>> {
     debug_assert_eq!(l.len(), c.len());
     debug_assert_eq!(l.len(), gens.h_vec.len());
     debug_assert_eq!(n.len(), gens.g_vec.len());
@@ -318,14 +311,14 @@ pub(crate) fn prove(
         mu = mu2;
     }
 
-    transcript.append_scalars(b"l_final", &l);
+    transcript.append_scalar(b"l_final", &l[0]);
     transcript.append_scalars(b"n_final", &n);
 
     debug_assert_eq!(l.len(), 1);
-    Ok(NormLinearProof {
-        rounds,
+    Ok(NormLinearProof::<N> {
+        rounds: GenericArray::from_exact_iter(rounds).ok_or(FastCryptoError::InvalidInput)?,
         l_final: l[0],
-        n_final: n,
+        n_final: GenericArray::from_exact_iter(n).ok_or(FastCryptoError::InvalidInput)?,
     })
 }
 
@@ -350,7 +343,7 @@ pub(crate) fn prove(
 /// Errors with `InvalidProof` on any mismatch, including a proof whose shape
 /// differs from the one implied by the base lengths.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn verify(
+pub(crate) fn verify<N: NormLength>(
     transcript: &mut BpppTranscript,
     gens: &Generators,
     c: &[RistrettoScalar],
@@ -358,19 +351,13 @@ pub(crate) fn verify(
     pn: &[RistrettoScalar],
     extra: &[(RistrettoScalar, RistrettoPoint)],
     rho: RistrettoScalar,
-    proof: &NormLinearProof,
+    proof: &NormLinearProof<N>,
 ) -> FastCryptoResult<()> {
-    if c.len() != gens.h_vec.len() || pn.len() != gens.g_vec.len() {
+    if c.len() != gens.h_vec.len() || pn.len() != gens.g_vec.len() || gens.g_vec.len() != N::USIZE {
         return Err(FastCryptoError::InvalidInput);
     }
-    // The prover's fold count and final lengths are determined by the base
-    // lengths; reject any other shape.
-    let (rounds, n_len) = proof_shape(gens.h_vec.len(), gens.g_vec.len());
-    if proof.rounds.len() != rounds || proof.n_final.len() != n_len {
-        return Err(FastCryptoError::InvalidProof);
-    }
 
-    let k = rounds;
+    let k = proof.rounds.len();
     let mut c = c.to_vec();
     let mut rho = rho;
     let mut mu = rho * rho;
@@ -403,7 +390,7 @@ pub(crate) fn verify(
         mu = mu * mu;
     }
 
-    transcript.append_scalars(b"l_final", std::slice::from_ref(&proof.l_final));
+    transcript.append_scalar(b"l_final", &proof.l_final);
     transcript.append_scalars(b"n_final", &proof.n_final);
 
     // `c` folds exactly as `l` did, so it is a single scalar here too.
@@ -444,6 +431,7 @@ pub(crate) fn verify(
 mod tests {
     use super::*;
     use std::sync::Arc;
+    use typenum::{U15, U31};
 
     /// A random valid instance: a CRS sliced to the requested lengths,
     /// random `(c, rho, l, n)`, and the commitment to `(sigma, l, n)`.
@@ -496,12 +484,15 @@ mod tests {
         }
     }
 
-    fn prove_instance(inst: &Instance) -> NormLinearProof {
+    fn prove_instance<N: NormLength>(inst: &Instance) -> NormLinearProof<N> {
         let mut t = BpppTranscript::new(b"test");
         prove(&mut t, &inst.gens, &inst.c, inst.rho, &inst.l, &inst.n).unwrap()
     }
 
-    fn verify_instance(inst: &Instance, proof: &NormLinearProof) -> FastCryptoResult<()> {
+    fn verify_instance<N: NormLength>(
+        inst: &Instance,
+        proof: &NormLinearProof<N>,
+    ) -> FastCryptoResult<()> {
         let mut t = BpppTranscript::new(b"test");
         verify(
             &mut t,
@@ -515,31 +506,35 @@ mod tests {
         )
     }
 
+    /// A random instance at the base lengths `N` implies.
+    fn instance_for<N: NormLength>() -> Instance {
+        random_instance(H_LEN, N::USIZE)
+    }
+
     #[test]
     fn test_roundtrip_sizes() {
-        // (8, 16) is the 64-bit range-proof shape: 3 rounds, l plus 2
-        // scalars. (8, 15) is the 16/32-bit shape, (8, 64) the aggregated
-        // 32-bit x 8 shape (4 rounds, 4 final n). Small and odd sizes
-        // exercise padding and the shortest fold.
-        for (l_len, n_len) in [(8, 16), (8, 15), (8, 64), (1, 2), (2, 4), (3, 5), (4, 1)] {
-            let inst = random_instance(l_len, n_len);
-            let proof = prove_instance(&inst);
-            let (rounds, fn_) = proof_shape(l_len, n_len);
-            assert_eq!(proof.rounds.len(), rounds);
-            assert_eq!(proof.n_final.len(), fn_);
+        // U16 is the 64-bit range-proof shape: 3 rounds, l plus 2 scalars.
+        // U15 is an odd length exercising padding, U64 the aggregated
+        // 32-bit x 8 shape (4 rounds, 4 final n).
+        fn roundtrip<N: NormLength>() {
+            let inst = instance_for::<N>();
+            let proof = prove_instance::<N>(&inst);
             assert!(
                 verify_instance(&inst, &proof).is_ok(),
-                "roundtrip failed for ({l_len}, {n_len})"
+                "roundtrip failed for norm length {}",
+                N::USIZE
             );
         }
-        let inst = random_instance(8, 16);
-        assert_eq!(prove_instance(&inst).rounds.len(), 3);
+        roundtrip::<U15>();
+        roundtrip::<U16>();
+        roundtrip::<U32>();
+        roundtrip::<U64>();
     }
 
     #[test]
     fn test_tampered_proof_fails() {
-        let inst = random_instance(8, 16);
-        let proof = prove_instance(&inst);
+        let inst = instance_for::<U16>();
+        let proof = prove_instance::<U16>(&inst);
 
         let mut bad = proof.clone();
         bad.n_final[0] += RistrettoScalar::generator();
@@ -556,8 +551,8 @@ mod tests {
 
     #[test]
     fn test_wrong_statement_fails() {
-        let inst = random_instance(8, 16);
-        let proof = prove_instance(&inst);
+        let inst = instance_for::<U16>();
+        let proof = prove_instance::<U16>(&inst);
 
         // Wrong commitment.
         let mut wrong_commitment = inst.clone();
@@ -580,16 +575,20 @@ mod tests {
     /// though the prover opens `(l, n)` honestly.
     #[test]
     fn test_wrong_sigma_rejected() {
-        for (l_len, n_len) in [(8, 16), (8, 15), (1, 2), (3, 5)] {
-            let inst = random_instance(l_len, n_len);
-            let proof = prove_instance(&inst);
+        fn check<N: NormLength>() {
+            let inst = instance_for::<N>();
+            let proof = prove_instance::<N>(&inst);
             let mut shifted = inst.clone();
             shifted.commitment = inst.commitment + inst.gens.g;
             assert!(
                 verify_instance(&shifted, &proof).is_err(),
-                "sigma shift accepted for ({l_len}, {n_len})"
+                "sigma shift accepted for norm length {}",
+                N::USIZE
             );
         }
+        check::<U15>();
+        check::<U16>();
+        check::<U32>();
     }
 
     /// Every final scalar is bound, including the slots that exist only
@@ -598,23 +597,24 @@ mod tests {
     /// rounds and must still bind each coordinate.
     #[test]
     fn test_every_final_scalar_is_bound() {
-        for (l_len, n_len) in [(8, 16), (8, 15), (8, 64), (3, 5), (2, 4)] {
-            let inst = random_instance(l_len, n_len);
-            let proof = prove_instance(&inst);
+        fn check<N: NormLength>() {
+            let n_len = N::USIZE;
+            let inst = instance_for::<N>();
+            let proof = prove_instance::<N>(&inst);
             assert!(verify_instance(&inst, &proof).is_ok());
 
             let mut bad = proof.clone();
             bad.l_final += RistrettoScalar::generator();
             assert!(
                 verify_instance(&inst, &bad).is_err(),
-                "l_final unbound for ({l_len}, {n_len})"
+                "l_final unbound for norm length {n_len}"
             );
             for i in 0..proof.n_final.len() {
                 let mut bad = proof.clone();
                 bad.n_final[i] += RistrettoScalar::generator();
                 assert!(
                     verify_instance(&inst, &bad).is_err(),
-                    "n_final[{i}] unbound for ({l_len}, {n_len})"
+                    "n_final[{i}] unbound for norm length {n_len}"
                 );
             }
             for i in 0..proof.rounds.len() {
@@ -628,11 +628,14 @@ mod tests {
                     *p += inst.gens.g;
                     assert!(
                         verify_instance(&inst, &bad).is_err(),
-                        "round {i} point {which} unbound for ({l_len}, {n_len})"
+                        "round {i} point {which} unbound for norm length {n_len}"
                     );
                 }
             }
         }
+        check::<U15>();
+        check::<U16>();
+        check::<U64>();
     }
 
     /// No folded generator may collapse to the identity: the odd-length
@@ -640,14 +643,16 @@ mod tests {
     /// corresponding witness slot would be unconstrained.
     #[test]
     fn test_folded_generators_are_nondegenerate() {
-        for (l_len, n_len) in [(8, 15), (8, 16), (3, 5), (7, 13), (5, 31)] {
-            let inst = random_instance(l_len, n_len);
+        fn check<N: NormLength>() {
+            let n_len = N::USIZE;
+            let inst = instance_for::<N>();
             let mut t = BpppTranscript::new(b"test");
             let mut h_vec = inst.gens.h_vec.clone();
             let mut g_vec = inst.gens.g_vec.clone();
             let mut rho = inst.rho;
             let mut mu = rho * rho;
-            let proof = prove(&mut t, &inst.gens, &inst.c, inst.rho, &inst.l, &inst.n).unwrap();
+            let proof: NormLinearProof<N> =
+                prove(&mut t, &inst.gens, &inst.c, inst.rho, &inst.l, &inst.n).unwrap();
 
             let mut t = BpppTranscript::new(b"test");
             t.domain_sep(b"norm_linear");
@@ -665,46 +670,51 @@ mod tests {
                     assert_ne!(
                         *p,
                         RistrettoPoint::zero(),
-                        "folded generator {i} is the identity for ({l_len}, {n_len})"
+                        "folded generator {i} is the identity for norm length {n_len}"
                     );
                 }
             }
         }
+        check::<U15>();
+        check::<U16>();
+        check::<U31>();
+        check::<U64>();
     }
 
     #[test]
-    fn test_to_from_bytes() {
-        for (l_len, n_len) in [(H_LEN, 16), (H_LEN, 32), (H_LEN, 64)] {
-            let inst = random_instance(l_len, n_len);
-            let proof = prove_instance(&inst);
-            let bytes = proof.to_bytes();
+    fn test_serde_roundtrip() {
+        fn roundtrip<N: NormLength>() {
+            let inst = instance_for::<N>();
+            let proof = prove_instance::<N>(&inst);
+            let bytes = bcs::to_bytes(&proof).unwrap();
+            // 32 bytes per group element and scalar, and nothing else.
             assert_eq!(
                 bytes.len(),
-                NormLinearProof::serialized_len_for(l_len, n_len)
+                32 * (2 * N::Rounds::USIZE + 1 + N::NFinal::USIZE)
             );
-            let recovered = NormLinearProof::from_bytes(&bytes).unwrap();
+
+            let recovered: NormLinearProof<N> = bcs::from_bytes(&bytes).unwrap();
             assert!(verify_instance(&inst, &recovered).is_ok());
-            assert!(NormLinearProof::from_bytes(&bytes[..bytes.len() - 32]).is_err());
+
+            // Truncated and trailing-byte encodings are rejected.
+            assert!(bcs::from_bytes::<NormLinearProof<N>>(&bytes[..bytes.len() - 32]).is_err());
+            let mut extended = bytes.clone();
+            extended.push(0);
+            assert!(bcs::from_bytes::<NormLinearProof<N>>(&extended).is_err());
         }
+        roundtrip::<U15>();
+        roundtrip::<U16>();
+        roundtrip::<U32>();
+        roundtrip::<U64>();
     }
 
     #[test]
-    fn test_wrong_shape_fails() {
-        let inst = random_instance(8, 16);
-        let proof = prove_instance(&inst);
-
-        let mut truncated = proof.clone();
-        truncated.rounds.pop();
+    fn test_wrong_norm_length_fails() {
+        let proof = prove_instance::<U16>(&instance_for::<U16>());
+        let wider = instance_for::<U32>();
         assert_eq!(
-            verify_instance(&inst, &truncated),
-            Err(FastCryptoError::InvalidProof)
-        );
-
-        let mut padded = proof.clone();
-        padded.n_final.push(RistrettoScalar::zero());
-        assert_eq!(
-            verify_instance(&inst, &padded),
-            Err(FastCryptoError::InvalidProof)
+            verify_instance(&wider, &proof),
+            Err(FastCryptoError::InvalidInput)
         );
     }
 }

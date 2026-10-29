@@ -13,12 +13,12 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
 use crate::pedersen::Range;
-use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
+use serde::{Deserialize, Serialize};
 use std::array::from_fn;
 
 use crate::bulletproofspp::crs::{dims, Generators, BASE, H_LEN};
-use crate::bulletproofspp::norm_linear::{self, NormLinearProof};
+use crate::bulletproofspp::norm_linear::{self, NormLength, NormLinearProof};
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
 
@@ -30,40 +30,14 @@ const CR_POWERS: [i32; H_LEN - 1] = [-1, 1, 2, 3, 5, 6, 7];
 
 /// Circuit proof: the four commitments plus the norm-linear proof.
 /// For 1x64: 4 + 6 group elements + 3 scalars = 416 bytes.
-#[derive(Clone, Debug)]
-pub(crate) struct CircuitProof {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub(crate) struct CircuitProof<N: NormLength> {
     pub(crate) c_l: RistrettoPoint,
     pub(crate) c_o: RistrettoPoint,
     pub(crate) c_r: RistrettoPoint,
     pub(crate) c_s: RistrettoPoint,
-    pub(crate) nl_proof: NormLinearProof,
-}
-
-impl CircuitProof {
-    /// Serialize: `C_L, C_O, C_R, C_S`, then the norm-linear proof.
-    pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(4 * 32 + self.nl_proof.serialized_len());
-        for point in [&self.c_l, &self.c_o, &self.c_r, &self.c_s] {
-            bytes.extend(point.to_byte_array());
-        }
-        bytes.extend(self.nl_proof.to_bytes());
-        bytes
-    }
-
-    pub(crate) fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
-        if bytes.len() < 4 * 32 {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        let (head, tail) = bytes.split_at(4 * 32);
-        let mut chunks = head.chunks_exact(32);
-        Ok(CircuitProof {
-            c_l: decode_next(&mut chunks)?,
-            c_o: decode_next(&mut chunks)?,
-            c_r: decode_next(&mut chunks)?,
-            c_s: decode_next(&mut chunks)?,
-            nl_proof: NormLinearProof::from_bytes(tail)?,
-        })
-    }
+    pub(crate) nl_proof: NormLinearProof<N>,
 }
 
 /// Dimensions of a batched instance: `m` values in `range`, `d = bits/4`
@@ -79,12 +53,16 @@ pub(crate) struct CircuitParams {
 }
 
 impl CircuitParams {
-    /// `m` must be `>= 1`.
-    pub(crate) fn new(range: Range, m: usize) -> FastCryptoResult<Self> {
+    /// `m` must be `>= 1`, and `N` must be the norm length `(range, m)`
+    /// implies; both are caller input, so both give `InvalidInput`.
+    pub(crate) fn new<N: NormLength>(range: Range, m: usize) -> FastCryptoResult<Self> {
         if m == 0 {
             return Err(FastCryptoError::InvalidInput);
         }
         let (d, n_d, nm) = dims(range, m);
+        if nm != N::USIZE {
+            return Err(FastCryptoError::InvalidInput);
+        }
         Ok(CircuitParams {
             range,
             m,
@@ -402,14 +380,14 @@ fn evaluate_opening(
 /// Prove that every `values[i]` lies in `[0, 2^n_bits)` under the Pedersen
 /// commitments `V_i = values[i]*G + blindings[i]*H_0`, which are computed
 /// here, absorbed into the transcript, and returned alongside the proof.
-pub(crate) fn prove(
+pub(crate) fn prove<N: NormLength>(
     transcript: &mut BpppTranscript,
     gens: &Generators,
     params: &CircuitParams,
     rng: &mut impl AllowedRng,
     values: &[u64],
     blindings: &[S],
-) -> FastCryptoResult<(CircuitProof, Vec<RistrettoPoint>)> {
+) -> FastCryptoResult<(CircuitProof<N>, Vec<RistrettoPoint>)> {
     if values.len() != params.m
         || blindings.len() != params.m
         || gens.g_vec.len() != params.nm
@@ -551,11 +529,11 @@ pub(crate) fn prove(
 }
 
 /// Verify a circuit proof against the Pedersen commitments `v_commitments`.
-pub(crate) fn verify(
+pub(crate) fn verify<N: NormLength>(
     transcript: &mut BpppTranscript,
     gens: &Generators,
     params: &CircuitParams,
-    proof: &CircuitProof,
+    proof: &CircuitProof<N>,
     v_commitments: &[RistrettoPoint],
 ) -> FastCryptoResult<()> {
     if v_commitments.len() != params.m || gens.g_vec.len() != params.nm {
@@ -619,19 +597,20 @@ pub(crate) fn verify(
 mod tests {
     use super::*;
     use std::sync::Arc;
+    use typenum::{U16, U32, U64};
 
-    fn prove_batch(
+    fn prove_batch<N: NormLength>(
         range: Range,
         values: &[u64],
     ) -> (
         Arc<Generators>,
         CircuitParams,
-        CircuitProof,
+        CircuitProof<N>,
         Vec<RistrettoPoint>,
     ) {
         let mut rng = rand::thread_rng();
         let gens = Generators::new(range, values.len()).unwrap();
-        let params = CircuitParams::new(range, values.len()).unwrap();
+        let params = CircuitParams::new::<N>(range, values.len()).unwrap();
         let blindings: Vec<S> = (0..values.len()).map(|_| S::rand(&mut rng)).collect();
         let mut t = BpppTranscript::new(b"test");
         let (proof, v_commitments) =
@@ -639,10 +618,10 @@ mod tests {
         (gens, params, proof, v_commitments)
     }
 
-    fn verify_batch(
+    fn verify_batch<N: NormLength>(
         gens: &Generators,
         params: &CircuitParams,
-        proof: &CircuitProof,
+        proof: &CircuitProof<N>,
         v_commitments: &[RistrettoPoint],
     ) -> FastCryptoResult<()> {
         let mut t = BpppTranscript::new(b"test");
@@ -665,7 +644,7 @@ mod tests {
     fn test_roundtrip_single_64() {
         let mut rng = rand::thread_rng();
         for value in [0, 1, 0xdeadbeef, u64::MAX, rand::Rng::gen(&mut rng)] {
-            let (gens, params, proof, v_commitments) = prove_batch(Range::Bits64, &[value]);
+            let (gens, params, proof, v_commitments) = prove_batch::<U16>(Range::Bits64, &[value]);
             assert!(
                 verify_batch(&gens, &params, &proof, &v_commitments).is_ok(),
                 "roundtrip failed for {value}"
@@ -678,19 +657,8 @@ mod tests {
     /// there (8-bit, 64-bit x M).
     #[test]
     fn test_roundtrip_batched_configs() {
-        let mut rng = rand::thread_rng();
-        let configs: [(Range, usize, usize, usize); 8] = [
-            (Range::Bits16, 2, 3, 2), // 416 bytes
-            (Range::Bits16, 4, 3, 2), // 416 bytes
-            (Range::Bits16, 8, 3, 4), // 480 bytes
-            (Range::Bits32, 8, 4, 4), // 544 bytes
-            (Range::Bits8, 1, 3, 2),
-            (Range::Bits8, 4, 3, 2),
-            (Range::Bits16, 5, 3, 4), // non-power-of-two digit count
-            (Range::Bits64, 4, 4, 4),
-        ];
-        for (range, m, rounds, n_final) in configs {
-            let n_bits = range.bits();
+        fn check<N: NormLength>(range: Range, m: usize) {
+            let mut rng = rand::thread_rng();
             let max = range.max_value();
             let values: Vec<u64> = (0..m as u64)
                 .map(|i| match i {
@@ -699,24 +667,26 @@ mod tests {
                     _ => rand::Rng::gen::<u64>(&mut rng) & max,
                 })
                 .collect();
-            let (gens, params, proof, v_commitments) = prove_batch(range, &values);
-            assert_eq!(
-                (proof.nl_proof.rounds.len(), proof.nl_proof.n_final.len()),
-                (rounds, n_final),
-                "unexpected shape for {n_bits}x{m}"
-            );
+            let (gens, params, proof, v_commitments) = prove_batch::<N>(range, &values);
             assert!(
                 verify_batch(&gens, &params, &proof, &v_commitments).is_ok(),
-                "roundtrip failed for {n_bits}x{m}"
+                "roundtrip failed for {}x{m}",
+                range.bits()
             );
         }
+        check::<U16>(Range::Bits16, 4);
+        check::<U32>(Range::Bits16, 8);
+        check::<U64>(Range::Bits32, 8);
+        check::<U16>(Range::Bits8, 1);
+        check::<U16>(Range::Bits8, 4);
+        check::<U32>(Range::Bits16, 5); // non-power-of-two digit count
+        check::<U64>(Range::Bits64, 4);
     }
 
-    /// Per-value binding of the lambda^{i-1} weighting: the same commitments
-    /// in a different order must not verify.
     #[test]
     fn test_swapped_commitments_fail() {
-        let (gens, params, proof, mut v_commitments) = prove_batch(Range::Bits16, &[1, 2, 3, 4]);
+        let (gens, params, proof, mut v_commitments) =
+            prove_batch::<U16>(Range::Bits16, &[1, 2, 3, 4]);
         assert!(verify_batch(&gens, &params, &proof, &v_commitments).is_ok());
         v_commitments.swap(0, 1);
         assert!(verify_batch(&gens, &params, &proof, &v_commitments).is_err());
@@ -726,18 +696,18 @@ mod tests {
     fn test_out_of_range_rejected() {
         let mut rng = rand::thread_rng();
         let gens = Generators::new(Range::Bits16, 2).unwrap();
-        let params = CircuitParams::new(Range::Bits16, 2).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits16, 2).unwrap();
         let blindings = vec![S::rand(&mut rng), S::rand(&mut rng)];
         let mut t = BpppTranscript::new(b"test");
         assert_eq!(
-            prove(&mut t, &gens, &params, &mut rng, &[1, 1 << 16], &blindings).unwrap_err(),
+            prove::<U16>(&mut t, &gens, &params, &mut rng, &[1, 1 << 16], &blindings).unwrap_err(),
             FastCryptoError::InvalidInput
         );
     }
 
     #[test]
     fn test_tampered_proof_fails() {
-        let (gens, params, proof, v_commitments) = prove_batch(Range::Bits64, &[42]);
+        let (gens, params, proof, v_commitments) = prove_batch::<U16>(Range::Bits64, &[42]);
         assert!(verify_batch(&gens, &params, &proof, &v_commitments).is_ok());
 
         // Wrong commitment: to another value, or shifted off the
@@ -771,7 +741,7 @@ mod tests {
 
     #[test]
     fn test_transcript_binding() {
-        let (gens, params, proof, v_commitments) = prove_batch(Range::Bits64, &[42]);
+        let (gens, params, proof, v_commitments) = prove_batch::<U16>(Range::Bits64, &[42]);
         let mut t = BpppTranscript::new(b"other");
         assert!(verify(&mut t, &gens, &params, &proof, &v_commitments).is_err());
     }
@@ -836,14 +806,14 @@ mod tests {
     /// `T^3` row that no `r_S` slot can reach. A `junk` component of `V_0`
     /// is opened honestly at `T^3`: the unconstrained protocol accepts that,
     /// the shape blocks pair it into the value row.
-    fn prove_cheating(
+    fn prove_cheating<N: NormLength>(
         transcript: &mut BpppTranscript,
         gens: &Generators,
         params: &CircuitParams,
         rng: &mut impl AllowedRng,
         blindings: &[S],
         cheat: &Cheat,
-    ) -> FastCryptoResult<(CircuitProof, Vec<RistrettoPoint>)> {
+    ) -> FastCryptoResult<(CircuitProof<N>, Vec<RistrettoPoint>)> {
         let two = S::from(2u64);
         let mut v_commitments: Vec<RistrettoPoint> = cheat
             .values
@@ -976,15 +946,15 @@ mod tests {
 
     /// Run the cheating prover and verify its output. `Ok(())` means the
     /// cheat was accepted.
-    fn run_cheat(range: Range, cheat: &Cheat) -> FastCryptoResult<()> {
+    fn run_cheat<N: NormLength>(range: Range, cheat: &Cheat) -> FastCryptoResult<()> {
         let mut rng = rand::thread_rng();
         let m = cheat.values.len();
         let gens = Generators::new(range, m).unwrap();
-        let params = CircuitParams::new(range, m).unwrap();
+        let params = CircuitParams::new::<N>(range, m).unwrap();
         let blindings: Vec<S> = (0..m).map(|_| S::rand(&mut rng)).collect();
         let mut t = BpppTranscript::new(b"test");
         let (proof, v_commitments) =
-            prove_cheating(&mut t, &gens, &params, &mut rng, &blindings, cheat).unwrap();
+            prove_cheating::<N>(&mut t, &gens, &params, &mut rng, &blindings, cheat).unwrap();
         let mut t = BpppTranscript::new(b"test");
         verify(&mut t, &gens, &params, &proof, &v_commitments)
     }
@@ -993,20 +963,19 @@ mod tests {
     /// prover. Without this, every rejection below would be vacuous.
     #[test]
     fn test_cheating_prover_control() {
-        for (range, values) in [
-            (Range::Bits16, vec![1234u64]),
-            (Range::Bits16, vec![0, 65535, 42, 7, 999]),
-            (Range::Bits64, vec![u64::MAX, 0]),
-            (Range::Bits8, vec![255]),
-        ] {
-            let params = CircuitParams::new(range, values.len()).unwrap();
+        fn control<N: NormLength>(range: Range, values: &[u64]) {
+            let params = CircuitParams::new::<N>(range, values.len()).unwrap();
             assert!(
-                run_cheat(range, &honest_witness(&params, &values)).is_ok(),
+                run_cheat::<N>(range, &honest_witness(&params, values)).is_ok(),
                 "control failed for {}x{}",
                 range.bits(),
                 values.len()
             );
         }
+        control::<U16>(Range::Bits16, &[1234]);
+        control::<U32>(Range::Bits16, &[0, 65535, 42, 7, 999]);
+        control::<U32>(Range::Bits64, &[u64::MAX, 0]);
+        control::<U16>(Range::Bits8, &[255]);
     }
 
     /// Soundness of the range claim: a prover committing to a value outside
@@ -1016,7 +985,7 @@ mod tests {
     /// membership argument must catch.
     #[test]
     fn test_out_of_range_value_cannot_be_proven() {
-        let params = CircuitParams::new(Range::Bits16, 1).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits16, 1).unwrap();
         let s = |x: u64| S::from(x);
 
         // The value link `sum_t d_t*16^t = v` holds for each of these; only
@@ -1024,7 +993,7 @@ mod tests {
         let mut carry_digit = honest_witness(&params, &[0]);
         carry_digit.values = vec![s(1 << 16)];
         carry_digit.n_l[3] = s(16); // 16 * 16^3 = 2^16
-        assert!(run_cheat(Range::Bits16, &carry_digit).is_err());
+        assert!(run_cheat::<U16>(Range::Bits16, &carry_digit).is_err());
 
         // The same, with the cheater also claiming a multiplicity for the
         // out-of-base digit in the highest available slot (digit 15).
@@ -1032,20 +1001,20 @@ mod tests {
         with_mult.values = vec![s(1 << 16)];
         with_mult.n_l[3] = s(16);
         with_mult.n_o[14] = s(1);
-        assert!(run_cheat(Range::Bits16, &with_mult).is_err());
+        assert!(run_cheat::<U16>(Range::Bits16, &with_mult).is_err());
 
         // One oversized low digit rather than a carry out of the top.
         let mut big_digit = honest_witness(&params, &[0]);
         big_digit.values = vec![s(1 << 16)];
         big_digit.n_l[0] = s(1 << 16);
-        assert!(run_cheat(Range::Bits16, &big_digit).is_err());
+        assert!(run_cheat::<U16>(Range::Bits16, &big_digit).is_err());
 
         // Digits placed in the padding slots (k >= n_d) carry no weight in
         // the value link, so they cannot represent the extra magnitude.
         let mut padding = honest_witness(&params, &[0]);
         padding.values = vec![s(1 << 16)];
         padding.n_l[4] = s(1);
-        assert!(run_cheat(Range::Bits16, &padding).is_err());
+        assert!(run_cheat::<U16>(Range::Bits16, &padding).is_err());
     }
 
     /// At 64 bits every `u64` is in range, so the meaningful attack is a
@@ -1053,19 +1022,19 @@ mod tests {
     /// negative digit, which the set membership argument must reject.
     #[test]
     fn test_negative_field_value_cannot_be_proven() {
-        let params = CircuitParams::new(Range::Bits64, 1).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits64, 1).unwrap();
 
         let mut negative = honest_witness(&params, &[0]);
         negative.values = vec![S::zero() - one()];
         negative.n_l[0] = S::zero() - one(); // d_0 = -1, so sum d_t*16^t = -1
-        assert!(run_cheat(Range::Bits64, &negative).is_err());
+        assert!(run_cheat::<U16>(Range::Bits64, &negative).is_err());
 
         // Half the group order: not representable by 16 base-16 digits.
         let mut half = honest_witness(&params, &[0]);
         let inv_two = S::from(2u64).inverse().unwrap();
         half.values = vec![inv_two];
         half.n_l[0] = inv_two;
-        assert!(run_cheat(Range::Bits64, &half).is_err());
+        assert!(run_cheat::<U16>(Range::Bits64, &half).is_err());
     }
 
     /// The remaining witness components are equally unconstrained for a
@@ -1074,45 +1043,45 @@ mod tests {
     /// blinding vector that breaks the spec's zero pattern.
     #[test]
     fn test_malformed_witness_rejected() {
-        let params = CircuitParams::new(Range::Bits16, 1).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits16, 1).unwrap();
 
         // Digits of a different (in-range) value than the one committed.
         let mut wrong_digits = honest_witness(&params, &[100]);
         wrong_digits.n_l = honest_witness(&params, &[50]).n_l;
-        assert!(run_cheat(Range::Bits16, &wrong_digits).is_err());
+        assert!(run_cheat::<U16>(Range::Bits16, &wrong_digits).is_err());
 
         // Multiplicities that do not count the digits.
         let mut wrong_mult = honest_witness(&params, &[0x1234]);
         wrong_mult.n_o[0] += one();
-        assert!(run_cheat(Range::Bits16, &wrong_mult).is_err());
+        assert!(run_cheat::<U16>(Range::Bits16, &wrong_mult).is_err());
 
         // Reciprocals unrelated to the digits.
         let mut rng = rand::thread_rng();
         let mut wrong_recip = honest_witness(&params, &[0x1234]);
         wrong_recip.n_r = Some((0..params.nm).map(|_| S::rand(&mut rng)).collect());
-        assert!(run_cheat(Range::Bits16, &wrong_recip).is_err());
+        assert!(run_cheat::<U16>(Range::Bits16, &wrong_recip).is_err());
 
         // Reciprocals of zero, the one value that is never a valid inverse.
         let mut zero_recip = honest_witness(&params, &[0x1234]);
         zero_recip.n_r = Some(vec![S::zero(); params.nm]);
-        assert!(run_cheat(Range::Bits16, &zero_recip).is_err());
+        assert!(run_cheat::<U16>(Range::Bits16, &zero_recip).is_err());
 
         // Digits permuted within the value: the positional 16^t weighting of
         // the value link must catch it (0x1234 vs 0x1243).
         let mut permuted = honest_witness(&params, &[0x1234]);
         permuted.n_l.swap(0, 1);
-        assert!(run_cheat(Range::Bits16, &permuted).is_err());
+        assert!(run_cheat::<U16>(Range::Bits16, &permuted).is_err());
 
         // Blinding outside the spec's zero pattern: r_L[6] feeds a row above
         // T^6 that no r_S slot can cancel.
         let mut bad_blinding = honest_witness(&params, &[0x1234]);
         bad_blinding.r_l_nonzero = vec![6];
-        assert!(run_cheat(Range::Bits16, &bad_blinding).is_err());
+        assert!(run_cheat::<U16>(Range::Bits16, &bad_blinding).is_err());
 
         // r_L[3] would land directly in the value row.
         let mut value_row_blinding = honest_witness(&params, &[0x1234]);
         value_row_blinding.r_l_nonzero = vec![3];
-        assert!(run_cheat(Range::Bits16, &value_row_blinding).is_err());
+        assert!(run_cheat::<U16>(Range::Bits16, &value_row_blinding).is_err());
     }
 
     /// Batched soundness: one out-of-range value hidden among valid ones, at
@@ -1121,13 +1090,13 @@ mod tests {
     #[test]
     fn test_out_of_range_value_in_batch_rejected() {
         let m = 4;
-        let params = CircuitParams::new(Range::Bits16, m).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits16, m).unwrap();
         for bad in 0..m {
             let mut cheat = honest_witness(&params, &[1, 2, 3, 4]);
             cheat.values[bad] = S::from(1u64 << 16);
             cheat.n_l[bad * params.d + 3] += S::from(16u64);
             assert!(
-                run_cheat(Range::Bits16, &cheat).is_err(),
+                run_cheat::<U16>(Range::Bits16, &cheat).is_err(),
                 "out-of-range value at position {bad} accepted"
             );
         }
@@ -1143,7 +1112,7 @@ mod tests {
     /// unnoticed.
     #[test]
     fn test_unused_slots_are_unconstrained() {
-        let params = CircuitParams::new(Range::Bits16, 1).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits16, 1).unwrap();
         let mut rng = rand::thread_rng();
 
         // Junk digits in the padding slots, with the matching reciprocal
@@ -1152,12 +1121,12 @@ mod tests {
         for digit in junk_digits.n_l[params.n_d..].iter_mut() {
             *digit = S::rand(&mut rng);
         }
-        assert!(run_cheat(Range::Bits16, &junk_digits).is_ok());
+        assert!(run_cheat::<U16>(Range::Bits16, &junk_digits).is_ok());
 
         // Junk in the multiplicity slots above 14, where `cn_o` is zero.
         let mut junk_mult = honest_witness(&params, &[1234]);
         junk_mult.n_o[15] = S::rand(&mut rng);
-        assert!(run_cheat(Range::Bits16, &junk_mult).is_ok());
+        assert!(run_cheat::<U16>(Range::Bits16, &junk_mult).is_ok());
     }
 
     /// The one way an unused slot does reach the value row is a nonzero
@@ -1170,7 +1139,7 @@ mod tests {
     /// only to slots where one half of the pair is zero.
     #[test]
     fn test_padding_pair_reaches_the_value_row() {
-        let params = CircuitParams::new(Range::Bits16, 1).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits16, 1).unwrap();
         let mut rng = rand::thread_rng();
         for _ in 0..8 {
             // Padding pairs cannot rescue an out-of-range value.
@@ -1185,12 +1154,12 @@ mod tests {
                 *recip = S::rand(&mut rng);
             }
             cheat.n_r_padding = Some(n_r);
-            assert!(run_cheat(Range::Bits16, &cheat).is_err());
+            assert!(run_cheat::<U16>(Range::Bits16, &cheat).is_err());
 
             // Nor are they free for an honest value: the pair perturbs the
             // value row, which no `r_S` slot can absorb.
             cheat.values = vec![S::zero()];
-            assert!(run_cheat(Range::Bits16, &cheat).is_err());
+            assert!(run_cheat::<U16>(Range::Bits16, &cheat).is_err());
         }
 
         // Zeroing either half of every pair restores acceptance, confirming
@@ -1205,7 +1174,7 @@ mod tests {
                 *(if zero_digits { recip } else { digit }) = S::rand(&mut rng);
             }
             cheat.n_r_padding = Some(n_r);
-            assert!(run_cheat(Range::Bits16, &cheat).is_ok());
+            assert!(run_cheat::<U16>(Range::Bits16, &cheat).is_ok());
         }
     }
 
@@ -1215,13 +1184,13 @@ mod tests {
     /// The junk-free control is `test_cheating_prover_control`.
     #[test]
     fn test_forged_commitment_rejected() {
-        let params = CircuitParams::new(Range::Bits64, 1).unwrap();
+        let params = CircuitParams::new::<U16>(Range::Bits64, 1).unwrap();
         let forged = |junk| Cheat {
             junk: Some(junk),
             ..honest_witness(&params, &[42])
         };
-        assert!(run_cheat(Range::Bits64, &forged(Junk::Norm(15))).is_err());
-        assert!(run_cheat(Range::Bits64, &forged(Junk::Norm(0))).is_err());
-        assert!(run_cheat(Range::Bits64, &forged(Junk::Linear)).is_err());
+        assert!(run_cheat::<U16>(Range::Bits64, &forged(Junk::Norm(15))).is_err());
+        assert!(run_cheat::<U16>(Range::Bits64, &forged(Junk::Norm(0))).is_err());
+        assert!(run_cheat::<U16>(Range::Bits64, &forged(Junk::Linear)).is_err());
     }
 }
