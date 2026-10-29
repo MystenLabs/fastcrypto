@@ -307,19 +307,6 @@ struct Witness {
     /// Masks of `C_S`.
     n_s: Vec<S>,
     l_s: S,
-    /// Reciprocals committed in place of the honest ones, for the soundness
-    /// tests.
-    #[cfg(test)]
-    bad_reciprocals: Option<BadReciprocals>,
-}
-
-/// Reciprocals a cheating prover commits in place of the honest ones.
-#[cfg(test)]
-enum BadReciprocals {
-    /// These values in every slot.
-    All(Vec<S>),
-    /// The honest values on the digit slots and these on the padding slots.
-    Padding(Vec<S>),
 }
 
 impl Witness {
@@ -346,8 +333,6 @@ impl Witness {
             r_r: blinding_vector(rng, &[2, 5, 6, 7]),
             n_s: (0..params.nm).map(|_| S::rand(rng)).collect(),
             l_s: S::rand(rng),
-            #[cfg(test)]
-            bad_reciprocals: None,
         }
     }
 
@@ -488,16 +473,20 @@ pub(crate) fn prove(
         return Err(FastCryptoError::InvalidInput);
     }
     let witness = Witness::new(params, rng, values, blindings);
-    prove_witness(transcript, gens, params, &witness)
+    prove_witness(transcript, gens, params, &witness, None)
 }
 
-/// Run the protocol on `witness`. Performs no well-formedness checks: for a
-/// malformed witness it produces a proof the verifier must reject.
+/// Run the protocol on `witness`. The reciprocals committed in `C_R` are
+/// derived from the digits once `alpha` is drawn, unless `bad_reciprocals`
+/// computes them instead (soundness tests only). Performs no well-formedness
+/// checks: for a malformed witness it produces a proof the verifier must
+/// reject.
 fn prove_witness(
     transcript: &mut BpppTranscript,
     gens: &Generators,
     params: &CircuitParams,
     witness: &Witness,
+    bad_reciprocals: Option<&dyn Fn(S) -> FastCryptoResult<Vec<S>>>,
 ) -> FastCryptoResult<(CircuitProof, Vec<PedersenCommitment>)> {
     let two = S::from(2u64);
     let v_commitments = witness.input_commitments(gens)?;
@@ -515,14 +504,10 @@ fn prove_witness(
     let alpha = transcript.challenge_scalar(b"alpha");
 
     // Step 3: commit the reciprocals (C_R).
-    #[allow(unused_mut)]
-    let mut n_r = reciprocals(params, &witness.n_l, alpha)?;
-    #[cfg(test)]
-    match &witness.bad_reciprocals {
-        Some(BadReciprocals::All(bad)) => n_r = bad.clone(),
-        Some(BadReciprocals::Padding(bad)) => n_r[params.n_d..].copy_from_slice(bad),
-        None => {}
-    }
+    let n_r = match bad_reciprocals {
+        Some(bad_reciprocals) => bad_reciprocals(alpha)?,
+        None => reciprocals(params, &witness.n_l, alpha)?,
+    };
     let c_r = commit(gens, &witness.r_r, S::zero(), &n_r)?;
     transcript.append_point(b"C_R", &c_r);
 
@@ -844,19 +829,30 @@ mod tests {
         Witness::new(params, &mut rng, values, &blindings)
     }
 
-    /// Run the prover on `witness` and verify its output. `Ok(())` means the
+    /// Run the prover on `witness`, with `bad_reciprocals` in place of the
+    /// honest reciprocals if given, and verify its output. `Ok(())` means the
     /// witness was accepted. The `r_S` solve is left intact, so a cheater
     /// still cancels every blinded error row it is able to; a rejection
     /// therefore comes from the circuit constraints, which are aggregated into
     /// the `T^3` row that no `r_S` slot can reach.
-    fn run_cheat(range: Range, witness: &Witness) -> FastCryptoResult<()> {
+    fn run_cheat_with(
+        range: Range,
+        witness: &Witness,
+        bad_reciprocals: Option<&dyn Fn(S) -> FastCryptoResult<Vec<S>>>,
+    ) -> FastCryptoResult<()> {
         let m = witness.values.len();
         let gens = Generators::new(range, m).unwrap();
         let params = CircuitParams::new(range, m).unwrap();
         let mut t = BpppTranscript::new(b"test");
-        let (proof, v_commitments) = prove_witness(&mut t, &gens, &params, witness).unwrap();
+        let (proof, v_commitments) =
+            prove_witness(&mut t, &gens, &params, witness, bad_reciprocals).unwrap();
         let mut t = BpppTranscript::new(b"test");
         verify(&mut t, &gens, &params, &proof, &v_commitments)
+    }
+
+    /// [run_cheat_with] with the honest reciprocals of the committed digits.
+    fn run_cheat(range: Range, witness: &Witness) -> FastCryptoResult<()> {
+        run_cheat_with(range, witness, None)
     }
 
     /// Control: with the honest witness the cheating prover is the honest
@@ -958,15 +954,13 @@ mod tests {
         assert!(run_cheat(Range::Bits16, &wrong_mult).is_err());
 
         // Reciprocals unrelated to the digits.
-        let mut wrong_recip = honest_witness(&params, &[0x1234]);
+        let honest = honest_witness(&params, &[0x1234]);
         let random: Vec<S> = (0..params.nm).map(|_| S::rand(&mut rng)).collect();
-        wrong_recip.bad_reciprocals = Some(BadReciprocals::All(random));
-        assert!(run_cheat(Range::Bits16, &wrong_recip).is_err());
+        assert!(run_cheat_with(Range::Bits16, &honest, Some(&|_| Ok(random.clone()))).is_err());
 
         // Reciprocals of zero, the one value that is never a valid inverse.
-        let mut zero_recip = honest_witness(&params, &[0x1234]);
-        zero_recip.bad_reciprocals = Some(BadReciprocals::All(vec![S::zero(); params.nm]));
-        assert!(run_cheat(Range::Bits16, &zero_recip).is_err());
+        let zeros = vec![S::zero(); params.nm];
+        assert!(run_cheat_with(Range::Bits16, &honest, Some(&|_| Ok(zeros.clone()))).is_err());
 
         // Digits permuted within the value: the positional 16^t weighting of
         // the value link must catch it (0x1234 vs 0x1243).
@@ -1045,6 +1039,15 @@ mod tests {
         let mut rng = rand::thread_rng();
         let mut random_padding =
             || -> Vec<S> { (params.n_d..params.nm).map(|_| S::rand(&mut rng)).collect() };
+        // Honest reciprocals on the real digit slots, `padding` beyond them.
+        let with_padding = |witness: &Witness, padding: Vec<S>| {
+            let n_l = witness.n_l.clone();
+            move |alpha| {
+                let mut n_r = reciprocals(&params, &n_l, alpha)?;
+                n_r[params.n_d..].copy_from_slice(&padding);
+                Ok(n_r)
+            }
+        };
 
         for _ in 0..8 {
             // Padding pairs cannot rescue an out-of-range value.
@@ -1052,14 +1055,14 @@ mod tests {
             cheat.values = vec![S::from(1u64 << 16)];
             cheat.n_l[params.n_d..].copy_from_slice(&random_padding());
             let padding = random_padding();
-            cheat.bad_reciprocals = Some(BadReciprocals::Padding(padding.clone()));
-            assert!(run_cheat(Range::Bits16, &cheat).is_err());
+            let recips = with_padding(&cheat, padding.clone());
+            assert!(run_cheat_with(Range::Bits16, &cheat, Some(&recips)).is_err());
 
             // Nor are they free for an honest value: the pair perturbs the
             // value row, which no `r_S` slot can absorb.
             cheat.values = vec![S::zero()];
-            cheat.bad_reciprocals = Some(BadReciprocals::Padding(padding));
-            assert!(run_cheat(Range::Bits16, &cheat).is_err());
+            let recips = with_padding(&cheat, padding);
+            assert!(run_cheat_with(Range::Bits16, &cheat, Some(&recips)).is_err());
         }
 
         // Zeroing either half of every pair restores acceptance, confirming
@@ -1073,8 +1076,8 @@ mod tests {
                 cheat.n_l[params.n_d..].copy_from_slice(&random_padding());
                 zeros.clone()
             };
-            cheat.bad_reciprocals = Some(BadReciprocals::Padding(padding));
-            assert!(run_cheat(Range::Bits16, &cheat).is_ok());
+            let recips = with_padding(&cheat, padding);
+            assert!(run_cheat_with(Range::Bits16, &cheat, Some(&recips)).is_ok());
         }
     }
 
