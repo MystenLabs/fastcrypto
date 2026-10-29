@@ -99,6 +99,26 @@ impl NormLinearProof {
     }
 }
 
+/// The norm-linear commitment `C = r[0]*G + <r[1..8] || l, H> + <n, G_vec>`:
+/// `H_0..H_6` carry the blinding slots 1..7 of `r`, `H_7` the linear witness
+/// `l`, and `G_vec` the norm witness `n`.
+pub(crate) fn commit(
+    gens: &Generators,
+    r: &[RistrettoScalar],
+    l: RistrettoScalar,
+    n: &[RistrettoScalar],
+) -> FastCryptoResult<RistrettoPoint> {
+    debug_assert_eq!(r.len(), H_LEN);
+    debug_assert_eq!(n.len(), gens.g_vec.len());
+    gens.msm(
+        r[0],
+        r[1..].iter().copied().chain(std::iter::once(l)),
+        n.iter().copied(),
+        &[],
+        &[],
+    )
+}
+
 /// Prove the norm-linear relation for the opening `(l, n)` of a commitment
 /// under `gens`. Requires `l`, `c`, `gens.h_vec` of equal length and `n`,
 /// `gens.g_vec` of equal length.

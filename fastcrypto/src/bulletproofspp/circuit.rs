@@ -18,7 +18,7 @@ use crate::traits::AllowedRng;
 use std::array::from_fn;
 
 use crate::bulletproofspp::crs::{dims, Generators, BASE, H_LEN};
-use crate::bulletproofspp::norm_linear::{self, NormLinearProof};
+use crate::bulletproofspp::norm_linear::{self, commit, NormLinearProof};
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
 
@@ -253,20 +253,6 @@ impl Blocks {
         c.push(self.cl_v[H_LEN - 1]);
         c
     }
-}
-
-/// Norm-linear commitment `C_X = r[0]*G + <r[1..8] || l, H> + <n, G_vec>`.
-/// `H_0..H_6` carry the blinding slots 1..7, `H_7` the linear witness.
-fn commit(gens: &Generators, r: &[S], l: S, n: &[S]) -> FastCryptoResult<RistrettoPoint> {
-    debug_assert_eq!(r.len(), H_LEN);
-    debug_assert_eq!(n.len(), gens.g_vec.len());
-    gens.msm(
-        r[0],
-        r[1..].iter().copied().chain(std::iter::once(l)),
-        n.iter().copied(),
-        &[],
-        &[],
-    )
 }
 
 /// A blinding vector of length `H_LEN` with zeros at specific positions and
