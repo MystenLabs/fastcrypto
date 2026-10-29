@@ -114,11 +114,7 @@ fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     (rounds, n_len)
 }
 
-/// The combined weights of `k` folds `v -> f0_i*v_even + f1_i*v_odd`:
-/// applying the folds to a vector in order `i = 1, ..., k` equals
-/// [Weights::contract] with the Kronecker product
-/// `w = (f0_k, f1_k) ⊗ ... ⊗ (f0_1, f1_1)`, built pair by pair with
-/// [Weights::tensor_pair].
+/// The combined weights `w = (f0_k, f1_k) ⊗ ... ⊗ (f0_1, f1_1)` of `k` folds.
 struct Weights(Vec<RistrettoScalar>);
 
 impl Weights {
