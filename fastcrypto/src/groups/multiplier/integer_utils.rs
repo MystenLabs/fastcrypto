@@ -103,11 +103,6 @@ pub fn test_bit(bytes: &[u8], index: usize) -> bool {
     shifted & 1 != 0
 }
 
-/// Compute the floor of the base-2 logarithm of <i>x</i>.
-pub const fn log2(x: usize) -> usize {
-    (usize::BITS - x.leading_zeros() - 1) as usize
-}
-
 /// Return true iff the given number is a power of 2.
 pub fn is_power_of_2(x: usize) -> bool {
     if x == 0 {
