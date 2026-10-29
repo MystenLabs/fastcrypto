@@ -95,13 +95,18 @@ impl NormLinearProof {
     }
 }
 
+/// Whether vectors of these lengths are sent in the clear instead of folded.
+fn is_base_case(l_len: usize, n_len: usize) -> bool {
+    l_len <= 1 && l_len + n_len < FOLD_THRESHOLD
+}
+
 /// The shape of a proof for initial sizes `(l_len, n_len)`: the number of
 /// rounds and the final `n` length. Each round pads to even length and
 /// halves, and folding continues until `l` is a single scalar, so the final
 /// `l` length is always 1 and is not reported.
 fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     let mut rounds = 0;
-    while l_len > 1 || l_len + n_len >= FOLD_THRESHOLD {
+    while !is_base_case(l_len, n_len) {
         l_len = l_len.div_ceil(2);
         n_len = n_len.div_ceil(2);
         rounds += 1;
@@ -109,50 +114,66 @@ fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     (rounds, n_len)
 }
 
-/// Grow a fold tensor by one level, the new round in the top bit:
-/// `[w*f0.., w*f1..]`, i.e. entry `t + b*|w|` is `w[t]` times `f1` if `b`
-/// else `f0`.
-fn tensor_grow(
-    w: &[RistrettoScalar],
-    f0: RistrettoScalar,
-    f1: RistrettoScalar,
-) -> Vec<RistrettoScalar> {
-    let mut next = Vec::with_capacity(2 * w.len());
-    next.extend(w.iter().map(|wt| *wt * f0));
-    next.extend(w.iter().map(|wt| *wt * f1));
-    next
-}
+/// The combined weights `w = (f0_k, f1_k) ⊗ ... ⊗ (f0_1, f1_1)` of `k` folds.
+struct Weights(Vec<RistrettoScalar>);
 
-#[cfg(test)]
-fn pad_even_point(v: &mut Vec<RistrettoPoint>) {
-    if !v.len().is_multiple_of(2) {
-        v.push(RistrettoPoint::zero());
+impl Weights {
+    /// The weights `w = (1)`.
+    fn new() -> Self {
+        Weights(vec![one()])
+    }
+
+    /// The weights `(f0, f1) ⊗ w`.
+    fn tensor_pair(&self, f0: RistrettoScalar, f1: RistrettoScalar) -> Self {
+        Weights(self.tensor(&[f0, f1]).collect())
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// `coeffs ⊗ w`.
+    fn tensor<'b>(
+        &'b self,
+        coeffs: &'b [RistrettoScalar],
+    ) -> impl Iterator<Item = RistrettoScalar> + 'b {
+        coeffs
+            .iter()
+            .flat_map(move |c| self.0.iter().map(move |w| sparse_mul(*c, *w)))
+    }
+
+    /// `s * w`.
+    fn scale(&self, s: RistrettoScalar) -> impl Iterator<Item = RistrettoScalar> + '_ {
+        self.0.iter().map(move |w| sparse_mul(s, *w))
+    }
+
+    /// The tensor contraction
+    /// `(<w, points[0..w.len()]>, <w, points[w.len()..2*w.len()]>, ...)`. It is
+    /// the transpose of [Weights::tensor]:
+    /// `<coeffs ⊗ w, points> = <coeffs, contract(points)>`.
+    fn contract(&self, points: &[RistrettoPoint]) -> FastCryptoResult<Vec<RistrettoPoint>> {
+        points
+            .chunks(self.len())
+            .map(|chunk| RistrettoPoint::multi_scalar_mul(&self.0[..chunk.len()], chunk))
+            .collect()
     }
 }
 
-/// Element-wise point fold `f0*[p]_0 + f1*[p]_1` of the even/odd halves.
-/// Test-only reference for the lazy folding in [prove].
+/// Element-wise point fold `f0*[p]_0 + f1*[p]_1` of the even/odd halves,
+/// where a missing last odd point counts as the identity. Test-only
+/// reference for the lazy folding in [prove].
 #[cfg(test)]
 fn fold_points(
     p: &[RistrettoPoint],
     f0: RistrettoScalar,
     f1: RistrettoScalar,
 ) -> Vec<RistrettoPoint> {
-    p.iter()
-        .tuples()
-        .map(|(p0, p1)| *p0 * f0 + p1 * f1)
-        .collect()
-}
-
-/// Return `ceil(base.len() / w.len())` points defined by
-/// `out[j] = sum_t w[t] * base[j*w.len() + t]`, where absent points of `base`
-/// count as zero.
-fn apply_weights(
-    base: &[RistrettoPoint],
-    w: &[RistrettoScalar],
-) -> FastCryptoResult<Vec<RistrettoPoint>> {
-    base.chunks(w.len())
-        .map(|chunk| RistrettoPoint::multi_scalar_mul(&w[..chunk.len()], chunk))
+    p.chunks(2)
+        .map(|pair| match pair {
+            [p0, p1] => *p0 * f0 + p1 * f1,
+            [p0] => *p0 * f0,
+            _ => unreachable!(),
+        })
         .collect()
 }
 
@@ -174,14 +195,16 @@ enum BasePoints<'a> {
 /// as weights and materialised every [FOLD_BATCH_ROUNDS] rounds.
 struct LazyBases<'a> {
     points: BasePoints<'a>,
-    weights: (Vec<RistrettoScalar>, Vec<RistrettoScalar>),
+    w_h: Weights,
+    w_g: Weights,
 }
 
 impl<'a> LazyBases<'a> {
     fn new(gens: &'a Generators) -> Self {
         LazyBases {
             points: BasePoints::Crs(gens),
-            weights: (vec![one()], vec![one()]),
+            w_h: Weights::new(),
+            w_g: Weights::new(),
         }
     }
 
@@ -190,10 +213,8 @@ impl<'a> LazyBases<'a> {
     /// `G'_j = rho*G_{2j} + gamma*G_{2j+1}`.
     fn fold(self, rho: RistrettoScalar, gamma: RistrettoScalar) -> Self {
         LazyBases {
-            weights: (
-                tensor_grow(&self.weights.0, one(), gamma),
-                tensor_grow(&self.weights.1, rho, gamma),
-            ),
+            w_h: self.w_h.tensor_pair(one(), gamma),
+            w_g: self.w_g.tensor_pair(rho, gamma),
             ..self
         }
     }
@@ -225,19 +246,17 @@ impl<'a> LazyBases<'a> {
         g_coeffs: &[RistrettoScalar],
     ) -> FastCryptoResult<RistrettoPoint> {
         // Fold the points every few rounds to keep the MSMs small.
-        if self.weights.0.len() == 1 << FOLD_BATCH_ROUNDS {
+        if self.w_h.len() == 1 << FOLD_BATCH_ROUNDS {
             let (g, (h_vec, g_vec)) = self.points();
-            let folded = (
-                apply_weights(h_vec, &self.weights.0)?,
-                apply_weights(g_vec, &self.weights.1)?,
-            );
+            let folded = (self.w_h.contract(h_vec)?, self.w_g.contract(g_vec)?);
             self.points = BasePoints::Folded { g, folded };
-            self.weights = (vec![one()], vec![one()]);
+            self.w_h = Weights::new();
+            self.w_g = Weights::new();
         }
 
         let (h_len, g_len) = self.len();
-        let h_scalars = expand(&self.weights.0, h_coeffs, h_len);
-        let g_scalars = expand(&self.weights.1, g_coeffs, g_len);
+        let h_scalars = self.w_h.tensor(h_coeffs).take(h_len);
+        let g_scalars = self.w_g.tensor(g_coeffs).take(g_len);
         match &self.points {
             BasePoints::Crs(gens) => gens.msm(v, h_scalars, g_scalars, &[], &[]),
             BasePoints::Folded {
@@ -254,21 +273,6 @@ impl<'a> LazyBases<'a> {
             }
         }
     }
-}
-
-/// Expand coefficients on the folded positions onto the underlying points:
-/// point `i` gets `w[i % |w|] * coeffs[i / |w|]`, and zero where the
-/// coefficient is absent (padding).
-fn expand<'b>(
-    w: &'b [RistrettoScalar],
-    coeffs: &'b [RistrettoScalar],
-    len: usize,
-) -> impl Iterator<Item = RistrettoScalar> + 'b {
-    (0..len).map(move |i| {
-        coeffs
-            .get(i / w.len())
-            .map_or(RistrettoScalar::zero(), |c| sparse_mul(*c, w[i % w.len()]))
-    })
 }
 
 /// `a * b`, skipping the multiplication when `a` is zero.
@@ -342,7 +346,7 @@ fn prove_rec(
     l: Vec<RistrettoScalar>,
     n: Vec<RistrettoScalar>,
 ) -> FastCryptoResult<NormLinearProof> {
-    if l.len() <= 1 && l.len() + n.len() < FOLD_THRESHOLD {
+    if is_base_case(l.len(), n.len()) {
         transcript.append_scalars(b"l_final", &l);
         transcript.append_scalars(b"n_final", &n);
         debug_assert_eq!(l.len(), 1);
@@ -405,13 +409,11 @@ fn prove_rec(
 /// `g_vec` and `extra` the remaining `(scalar, point)` terms, i.e. the
 /// commitment equals `ps*G + <pn, g_vec> + sum extra`.
 ///
-/// Instead of folding the generator vectors round by round, each base
-/// generator's final coefficient is computed from the bits of its index:
-/// position `i` survives the `k` rounds at final slot `i >> k`, picking up
-/// per round `r` a factor `gamma_r` when bit `r` of `i` is set, else
-/// `rho_r = rho^{2^r}` on the `g_vec` side and `1` on the `h_vec` side.
-/// The per-round identity padding never hosts a base generator, so the
-/// per-bit product is exact, and the base-case check becomes
+/// Instead of folding the generator vectors round by round, the final `l`
+/// and `n` are spread back onto the original generators through the
+/// combined weights of all folds ([Weights::tensor]), the same weights
+/// the prover folds with. The per-round identity padding never hosts a base
+/// generator, so this is exact, and the base-case check becomes
 ///   (sigma - ps)*G + <w_h ⊙ l, H> + <w_g ⊙ n - pn, G_vec>
 ///     - sum extra - sum_r (gamma_r*X_r + (gamma_r^2 - 1)*R_r) == 0.
 ///
@@ -444,12 +446,9 @@ pub(crate) fn verify(
     let mut rho = rho;
     let mut mu = rho * rho;
     let mut gammas = Vec::with_capacity(k);
-    // Challenge-product weights via tensor tables (all 2^k products in
-    // 2^{k+1} muls), grown round by round exactly as the prover's:
-    // w_h[t] = prod_r (gamma_r if bit_r(t) else 1),
-    // w_g[t] = prod_r (gamma_r if bit_r(t) else rho_r).
-    let mut w_h = vec![one()];
-    let mut w_g = vec![one()];
+    // The combined weights of all folds, grown round by round as the prover's.
+    let mut w_h = Weights::new();
+    let mut w_g = Weights::new();
 
     transcript.domain_sep(b"norm_linear");
 
@@ -458,8 +457,8 @@ pub(crate) fn verify(
         transcript.append_point(b"R", r_point);
         let gamma = transcript.challenge_scalar(b"gamma");
         gammas.push(gamma);
-        w_h = tensor_grow(&w_h, one(), gamma);
-        w_g = tensor_grow(&w_g, rho, gamma);
+        w_h = w_h.tensor_pair(one(), gamma);
+        w_g = w_g.tensor_pair(rho, gamma);
 
         // Fold only the (cheap) scalar constraint vector.
         let (c0, c1) = halves(c);
@@ -476,13 +475,12 @@ pub(crate) fn verify(
     debug_assert_eq!(c.len(), 1);
     let sigma = c[0] * proof.l_final + weighted_norm(&proof.n_final, mu);
 
-    let mask = (1usize << k) - 1;
-
-    let l = (0..gens.h_vec.len()).map(|i| w_h[i & mask] * proof.l_final);
-    let n = pn
-        .iter()
-        .enumerate()
-        .map(|(i, pn_i)| w_g[i & mask] * proof.n_final[i >> k] - *pn_i);
+    let l = w_h.scale(proof.l_final).take(gens.h_vec.len());
+    let n = w_g
+        .tensor(&proof.n_final)
+        .take(gens.g_vec.len())
+        .zip(pn)
+        .map(|(w, pn_i)| w - pn_i);
 
     let mut dynamic_scalars = Vec::with_capacity(extra.len() + 2 * k);
     let mut dynamic_points = Vec::with_capacity(extra.len() + 2 * k);
@@ -721,8 +719,6 @@ mod tests {
                 t.append_point(b"X", x);
                 t.append_point(b"R", r);
                 let gamma = t.challenge_scalar(b"gamma");
-                pad_even_point(&mut h_vec);
-                pad_even_point(&mut g_vec);
                 h_vec = fold_points(&h_vec, one(), gamma);
                 g_vec = fold_points(&g_vec, rho, gamma);
                 rho = mu;
