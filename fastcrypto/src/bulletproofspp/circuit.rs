@@ -827,8 +827,8 @@ mod tests {
         Witness::new(params, &mut rng, values, &blindings)
     }
 
-    /// Run the prover with `witness`, with `bad_reciprocals` in place of the
-    /// honest reciprocals if given, and verify its output. `Ok(())` means the
+    /// Run the prover with `witness` (and `bad_reciprocals` in place of the
+    /// honest reciprocals, if given), and verify its output. `Ok(())` means the
     /// witness was accepted. The `r_S` solve is left intact, so a cheater
     /// still cancels every blinded error row it is able to; a rejection
     /// therefore comes from the circuit constraints, which are aggregated into
