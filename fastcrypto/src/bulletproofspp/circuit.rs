@@ -504,6 +504,7 @@ fn prove_witness(
     let alpha = transcript.challenge_scalar(b"alpha");
 
     // Step 3: commit the reciprocals (C_R).
+    debug_assert!(cfg!(test) || bad_reciprocals.is_none());
     let n_r = bad_reciprocals.unwrap_or(&|alpha| reciprocals(params, &witness.n_l, alpha))(alpha)?;
     let c_r = commit(gens, &witness.r_r, S::zero(), &n_r)?;
     transcript.append_point(b"C_R", &c_r);
