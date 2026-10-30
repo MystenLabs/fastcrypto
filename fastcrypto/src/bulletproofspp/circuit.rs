@@ -476,7 +476,7 @@ pub(crate) fn prove(
     prove_witness(transcript, gens, params, &witness, None)
 }
 
-/// Run the protocol on `witness`. The reciprocals committed in `C_R` are
+/// Run the protocol with `witness`. The reciprocals committed in `C_R` are
 /// derived from the digits once `alpha` is drawn, unless `bad_reciprocals`
 /// computes them instead (soundness tests only). Performs no well-formedness
 /// checks: for a malformed witness it produces a proof the verifier must
@@ -827,7 +827,7 @@ mod tests {
         Witness::new(params, &mut rng, values, &blindings)
     }
 
-    /// Run the prover on `witness`, with `bad_reciprocals` in place of the
+    /// Run the prover with `witness`, with `bad_reciprocals` in place of the
     /// honest reciprocals if given, and verify its output. `Ok(())` means the
     /// witness was accepted. The `r_S` solve is left intact, so a cheater
     /// still cancels every blinded error row it is able to; a rejection
