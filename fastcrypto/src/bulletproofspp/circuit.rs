@@ -12,12 +12,14 @@
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
-use crate::pedersen::{self, Blinding, PedersenCommitment, Range};
+use crate::pedersen::{Blinding, PedersenCommitment, Range};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use std::array::from_fn;
 
-use crate::bulletproofspp::crs::{dims, Generators, BASE, H_LEN};
+use crate::bulletproofspp::crs::{
+    compatible_with_pedersen_commitments, dims, Generators, BASE, H_LEN,
+};
 use crate::bulletproofspp::norm_linear::{self, NormLinearProof};
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
@@ -339,9 +341,7 @@ impl Witness {
     /// The input commitments `V_i`: Pedersen commitments to the values, plus
     /// any coordinates outside the `(G, H_0)`-plane.
     fn input_commitments(&self, gens: &Generators) -> FastCryptoResult<Vec<PedersenCommitment>> {
-        // The values are Pedersen commitments, which open under this CRS
-        // because its value and blinding bases are the Pedersen ones.
-        debug_assert!(gens.g == *pedersen::H && gens.h_vec[0] == *pedersen::G);
+        debug_assert!(compatible_with_pedersen_commitments(gens));
         self.values
             .iter()
             .zip(&self.blindings)
