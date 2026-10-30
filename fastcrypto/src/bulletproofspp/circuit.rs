@@ -476,11 +476,9 @@ pub(crate) fn prove(
     prove_witness(transcript, gens, params, &witness, None)
 }
 
-/// Run the protocol with `witness`. The reciprocals committed in `C_R` are
-/// derived from the digits once `alpha` is drawn, unless `bad_reciprocals`
-/// computes them instead (soundness tests only). Performs no well-formedness
-/// checks: for a malformed witness it produces a proof the verifier must
-/// reject.
+/// Run the protocol with `witness`, without checking that it is well formed.
+///
+/// `bad_reciprocals` replaces the reciprocals and is only used in tests.
 fn prove_witness(
     transcript: &mut BpppTranscript,
     gens: &Generators,
