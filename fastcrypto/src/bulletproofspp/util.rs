@@ -56,6 +56,11 @@ pub(crate) fn weighted_norm(n: &[RistrettoScalar], mu: RistrettoScalar) -> Ristr
     weighted_inner_product(n, n, mu)
 }
 
+/// The scalars `(x_0, x_1, ...)` of the integers `xs`.
+pub(crate) fn to_scalars(xs: &[u64]) -> Vec<RistrettoScalar> {
+    xs.iter().map(|&x| RistrettoScalar::from(x)).collect()
+}
+
 /// Power vector `(1, x, x^2, ..., x^{n-1})`.
 pub(crate) fn power_vector(x: RistrettoScalar, n: usize) -> Vec<RistrettoScalar> {
     let mut v = Vec::with_capacity(n);

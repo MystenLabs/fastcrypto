@@ -140,6 +140,12 @@ impl Generators {
     }
 }
 
+/// Whether `gens` uses the Pedersen value and blinding bases, so that
+/// commitments from [`crate::pedersen`] open under it.
+pub(crate) fn compatible_with_pedersen_commitments(gens: &Generators) -> bool {
+    gens.g == *pedersen::H && gens.h_vec[0] == *pedersen::G
+}
+
 fn hash_to_generator(dst: &[u8], index: usize) -> RistrettoPoint {
     RistrettoPoint::hash_to_ristretto255_with_dst(&[&(index as u64).to_le_bytes()], dst)
 }
@@ -179,8 +185,7 @@ mod tests {
     fn test_generators_pedersen_interop_and_distinctness() {
         let gens = Generators::new(Range::Bits64, 2).unwrap();
         // Value base and blinding base are the fastcrypto Pedersen bases.
-        assert_eq!(gens.g, *pedersen::H);
-        assert_eq!(gens.h_vec[0], *pedersen::G);
+        assert!(compatible_with_pedersen_commitments(&gens));
 
         // Derivation is deterministic and a prefix of any larger CRS.
         let again = Generators::new(Range::Bits64, 1).unwrap();
