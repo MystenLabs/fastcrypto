@@ -9,7 +9,7 @@ use crate::bn254::zk_login::fetch_jwks;
 use crate::bn254::{
     utils::{gen_address_seed, get_proof},
     zk_login::{JwkId, OIDCProvider, ZkLoginInputs, JWK},
-    zk_login_api::{verify_zk_login, ZkLoginCircuitMode, ZkLoginEnv},
+    zk_login_api::{verify_zk_login, ZkLoginEnv},
 };
 use ark_std::rand::{rngs::StdRng, SeedableRng};
 use fastcrypto::jwt_utils::parse_and_validate_jwt;
@@ -21,6 +21,12 @@ use test_strategy::proptest;
 use test_strategy::Arbitrary;
 
 const PROVER_DEV_SERVER_URL: &str = "https://prover-dev.mystenlabs.com/v1";
+
+#[tokio::test]
+#[ignore = "TODO: update after the V2 prover is deployed"]
+async fn test_end_to_end_v2_prover() {
+    // TODO: Fetch and verify a proof from the live V2 prover.
+}
 
 #[tokio::test]
 async fn test_end_to_end_twitch() {
@@ -46,7 +52,6 @@ async fn test_end_to_end_twitch() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
     );
     assert!(res.is_ok());
 
@@ -57,7 +62,6 @@ async fn test_end_to_end_twitch() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
-        ZkLoginCircuitMode::V1Only,
     );
     assert!(res_prod.is_err());
 }
@@ -90,7 +94,6 @@ async fn test_end_to_end_kakao() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
     );
     assert!(res.is_ok());
 
@@ -101,7 +104,6 @@ async fn test_end_to_end_kakao() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
-        ZkLoginCircuitMode::V1Only,
     );
     assert!(res_prod.is_err());
 }
@@ -133,7 +135,6 @@ async fn test_end_to_end_apple() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
     );
     assert!(res.is_ok());
 
@@ -144,7 +145,6 @@ async fn test_end_to_end_apple() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
-        ZkLoginCircuitMode::V1Only,
     );
     assert!(res_prod.is_err());
 }
@@ -176,7 +176,6 @@ async fn test_end_to_end_slack() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
     );
     assert!(res.is_ok());
 
@@ -187,7 +186,6 @@ async fn test_end_to_end_slack() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
-        ZkLoginCircuitMode::V1Only,
     );
     assert!(res_prod.is_err());
 }
@@ -237,7 +235,6 @@ async fn test_end_to_end_all_providers() {
             &eph_pubkey,
             &map,
             &ZkLoginEnv::Test,
-            ZkLoginCircuitMode::V1Only,
         );
         assert!(res.is_ok());
 
@@ -248,7 +245,6 @@ async fn test_end_to_end_all_providers() {
             &eph_pubkey,
             &map,
             &ZkLoginEnv::Prod,
-            ZkLoginCircuitMode::V1Only,
         );
         assert!(res_prod.is_err());
     }
@@ -373,7 +369,6 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
             &eph_pk_bytes,
             &map,
             &ZkLoginEnv::Test,
-            ZkLoginCircuitMode::V1Only,
         );
         assert!(res.is_ok());
     }
