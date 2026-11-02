@@ -40,9 +40,9 @@ impl<C: Coefficient> Laurent<C> {
             .unwrap_or_else(|| self.coeffs[0].zero_like())
     }
 
-    /// One more than the highest power.
-    fn end(&self) -> i32 {
-        self.low + self.coeffs.len() as i32
+    /// The highest power.
+    fn degree(&self) -> i32 {
+        self.low + self.coeffs.len() as i32 - 1
     }
 
     /// `s` times this polynomial.
@@ -68,7 +68,7 @@ impl<C: Coefficient> Add for Laurent<C> {
 
     fn add(self, other: Self) -> Self {
         let low = self.low.min(other.low);
-        let coeffs = (low..self.end().max(other.end()))
+        let coeffs = (low..=self.degree().max(other.degree()))
             .map(|p| self.coeff(p).plus(&other.coeff(p)))
             .collect();
         Self::new(low, coeffs)
