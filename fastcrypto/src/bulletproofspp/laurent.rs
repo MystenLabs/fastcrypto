@@ -12,42 +12,6 @@ use std::ops::{Add, Sub};
 
 type S = RistrettoScalar;
 
-/// A coefficient of a [Laurent] polynomial: a scalar or a vector of scalars.
-pub(crate) trait Coefficient: Clone {
-    /// The zero of the same shape as `self`.
-    fn zero_like(&self) -> Self;
-    fn plus(&self, other: &Self) -> Self;
-    fn scaled(&self, s: S) -> Self;
-}
-
-impl Coefficient for S {
-    fn zero_like(&self) -> Self {
-        S::zero()
-    }
-
-    fn plus(&self, other: &Self) -> Self {
-        *self + other
-    }
-
-    fn scaled(&self, s: S) -> Self {
-        *self * s
-    }
-}
-
-impl Coefficient for Vec<S> {
-    fn zero_like(&self) -> Self {
-        vec![S::zero(); self.len()]
-    }
-
-    fn plus(&self, other: &Self) -> Self {
-        vec_add(self, other)
-    }
-
-    fn scaled(&self, s: S) -> Self {
-        vec_scalar_mul(s, self)
-    }
-}
-
 /// The Laurent polynomial `sum_i coeffs[i]*T^{low+i}`.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Laurent<C> {
@@ -148,6 +112,42 @@ impl Laurent<Vec<S>> {
             self.coeffs.iter().map(|a| hadamard(a, weights)).collect(),
         );
         weighted.inner_product(other)
+    }
+}
+
+/// A coefficient of a [Laurent] polynomial: a scalar or a vector of scalars.
+pub(crate) trait Coefficient: Clone {
+    /// The zero of the same shape as `self`.
+    fn zero_like(&self) -> Self;
+    fn plus(&self, other: &Self) -> Self;
+    fn scaled(&self, s: S) -> Self;
+}
+
+impl Coefficient for S {
+    fn zero_like(&self) -> Self {
+        S::zero()
+    }
+
+    fn plus(&self, other: &Self) -> Self {
+        *self + other
+    }
+
+    fn scaled(&self, s: S) -> Self {
+        *self * s
+    }
+}
+
+impl Coefficient for Vec<S> {
+    fn zero_like(&self) -> Self {
+        vec![S::zero(); self.len()]
+    }
+
+    fn plus(&self, other: &Self) -> Self {
+        vec_add(self, other)
+    }
+
+    fn scaled(&self, s: S) -> Self {
+        vec_scalar_mul(s, self)
     }
 }
 
