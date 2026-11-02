@@ -80,13 +80,8 @@ impl RangeProof {
         }
         let (n_bits, m) = (range.bits(), values.len());
 
-        // Past the input checks, proving can only fail on the dimension checks
-        // (unreachable for a `Range` and a non-empty batch) or on a challenge
-        // that degenerates a scalar inversion. The latter has negligible
-        // probability but depends on the witness, so report both opaquely.
-        let opaque = |_| FastCryptoError::GeneralOpaqueError;
-        let gens = Generators::new(*range, m).map_err(opaque)?;
-        let params = CircuitParams::new(*range, m).map_err(opaque)?;
+        let gens = Generators::new(*range, m)?;
+        let params = CircuitParams::new(*range, m)?;
         let blinding_scalars: Vec<RistrettoScalar> = blindings.iter().map(|b| b.0).collect();
         let (proof, _) = circuit::prove(
             &mut transcript(dst, n_bits, m),
@@ -96,7 +91,8 @@ impl RangeProof {
             values,
             &blinding_scalars,
         )
-        .map_err(opaque)?;
+        // Fails only on a degenerate challenge, which depends on the witness.
+        .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
         Ok(RangeProof { proof })
     }
 
