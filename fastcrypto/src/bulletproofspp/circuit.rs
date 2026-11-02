@@ -242,7 +242,8 @@ fn commit(gens: &Generators, r: &[S], l: S, n: &[S]) -> FastCryptoResult<Ristret
     gens.commit(r[0], &h_coordinates(r, l), n)
 }
 
-/// The `H` coordinates `(r_1, ..., r_7, l)` of a circuit message.
+/// The `H` coordinates `(r_1, ..., r_7, l)` of a circuit message with
+/// blinding `r` (slot 0 is on `G`) and linear witness `l` (on `H_7`).
 fn h_coordinates(r: &[S], l: S) -> Vec<S> {
     let mut h = r[1..].to_vec();
     h.push(l);
