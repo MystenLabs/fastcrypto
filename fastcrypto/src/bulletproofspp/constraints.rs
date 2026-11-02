@@ -44,6 +44,7 @@ use crate::bulletproofspp::util::*;
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::RistrettoScalar;
 use crate::groups::{GroupElement, Scalar};
+use std::iter::successors;
 
 type S = RistrettoScalar;
 
@@ -91,12 +92,9 @@ impl Constraints {
         // families directly: `shape[j-1] = lambda^{m*j+1}`, stepping by lambda^m.
         let lambdas = power_vector(lambda, m + 1);
         let lam_m = lambdas[m];
-        let mut shape = Vec::with_capacity(nm + H_LEN - 1);
-        let mut shape_pow = lambda;
-        for _ in 0..nm + H_LEN - 1 {
-            shape_pow *= lam_m;
-            shape.push(shape_pow);
-        }
+        let shape: Vec<S> = successors(Some(lambda * lam_m), |x| Some(*x * lam_m))
+            .take(nm + H_LEN - 1)
+            .collect();
         let base = S::from(BASE);
 
         let mut bar_mu = Vec::with_capacity(nm);
