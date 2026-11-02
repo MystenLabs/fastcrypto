@@ -14,6 +14,7 @@ Knowledge soundness holds under the discrete-logarithm assumption in the random-
 | `range_proof.rs` | Public API (`Range`, `RangeProof::{prove,verify}(_batch)`), serialization |
 | `circuit.rs` | Range circuit: constraint blocks, blinding, error-row cancellation |
 | `norm_linear.rs` | Weighted norm-linear argument (prover with lazy generator folding, single-MSM verifier) |
+| `laurent.rs` | Laurent polynomials with scalar or vector coefficients |
 | `crs.rs` | Generators: hash-to-curve derivation, per-size process-wide cache, precomputed MSM tables |
 | `transcript.rs` | Merlin transcript wrapper |
 | `util.rs` | Scalar-vector helpers, batch inversion |
