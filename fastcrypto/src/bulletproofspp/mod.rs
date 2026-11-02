@@ -6,6 +6,7 @@ pub mod range_proof;
 
 mod circuit;
 mod crs;
+mod laurent;
 mod norm_linear;
 mod transcript;
 mod util;
