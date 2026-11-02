@@ -67,10 +67,23 @@ impl<C> From<Vec<C>> for Poly<C> {
 
 impl<C: GroupElement> AddAssign<&Self> for Poly<C> {
     fn add_assign(&mut self, other: &Self) {
-        self.0.iter_mut().zip(&other.0).for_each(|(a, b)| *a += *b);
+        self.add_in_place(other);
+    }
+}
+
+impl<C: GroupElement> Poly<C> {
+    /// Adds `other` to `self`, coefficient by coefficient.
+    pub fn add_in_place(&mut self, other: &Self) {
+        let coeffs = &mut self.0;
+        let other_coeffs = &other.0;
+        let mut k = 0;
+        while k < coeffs.len() && k < other_coeffs.len() {
+            coeffs[k] += other_coeffs[k];
+            k += 1;
+        }
         // if we have a smaller degree we can copy the rest
-        if self.0.len() < other.0.len() {
-            self.0.extend_from_slice(&other.0[self.0.len()..]);
+        if coeffs.len() < other_coeffs.len() {
+            coeffs.extend_from_slice(&other_coeffs[coeffs.len()..]);
         }
     }
 }
