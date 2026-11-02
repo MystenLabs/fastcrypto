@@ -31,11 +31,13 @@ impl<C: Coefficient> Laurent<C> {
         Self::new(power, vec![c])
     }
 
-    /// The coefficient of `T^power`, if it is in range.
-    fn get(&self, power: i32) -> Option<&C> {
+    /// The coefficient of `T^power`, zero if out of range.
+    pub(crate) fn coeff(&self, power: i32) -> C {
         usize::try_from(power - self.low)
             .ok()
             .and_then(|i| self.coeffs.get(i))
+            .cloned()
+            .unwrap_or_else(|| self.coeffs[0].zero_like())
     }
 
     /// One more than the highest power.
@@ -65,14 +67,9 @@ impl<C: Coefficient> Add for Laurent<C> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        let zero = self.coeffs[0].zero_like();
         let low = self.low.min(other.low);
         let coeffs = (low..self.end().max(other.end()))
-            .map(|p| match (self.get(p), other.get(p)) {
-                (Some(a), Some(b)) => a.plus(b),
-                (Some(c), None) | (None, Some(c)) => c.clone(),
-                (None, None) => zero.clone(),
-            })
+            .map(|p| self.coeff(p).plus(&other.coeff(p)))
             .collect();
         Self::new(low, coeffs)
     }
@@ -83,13 +80,6 @@ impl<C: Coefficient> Sub for Laurent<C> {
 
     fn sub(self, other: Self) -> Self {
         self + other.scaled(-one())
-    }
-}
-
-impl Laurent<S> {
-    /// The coefficient of `T^power`, zero if out of range.
-    pub(crate) fn coeff(&self, power: i32) -> S {
-        self.get(power).copied().unwrap_or_else(S::zero)
     }
 }
 
