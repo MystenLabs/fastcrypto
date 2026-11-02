@@ -234,42 +234,106 @@ impl<C: GroupElement> Poly<C> {
         indices: impl Iterator<Item = impl Borrow<ShareIndex>>,
     ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {
         let indices = indices.map(|i| i.borrow().get() as u128).collect_vec();
-        if !indices.iter().all_unique() || indices.len() != t as usize || indices.contains(&x) {
+        Self::lagrange_coefficients_from_slice(x, t, &indices)
+    }
+
+    /// Same as [Self::get_lagrange_coefficients_for], but takes the indices as a slice.
+    fn lagrange_coefficients_from_slice(
+        x: u128,
+        t: u16,
+        indices: &[u128],
+    ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {
+        if indices.len() != t as usize || !Self::indices_are_valid(indices, x) {
             return Err(FastCryptoError::InvalidInput);
         }
-
         let x_as_scalar = C::ScalarType::from(x);
-        let full_numerator = C::ScalarType::product(
-            indices
-                .iter()
-                .map(|i| C::ScalarType::from(*i) - x_as_scalar),
-        );
+        let numerator = Self::lagrange_numerator(indices, x_as_scalar);
+        let inverse_denominators = Self::lagrange_inverse_denominators(indices, x_as_scalar);
+        Ok((numerator, inverse_denominators))
+    }
 
-        Ok((
-            full_numerator,
-            indices
-                .iter()
-                .map(|i| {
-                    let mut negative = false;
-                    let mut denominator = Self::fast_product(
-                        C::ScalarType::from(*i) - x_as_scalar,
-                        indices.iter().filter(|j| *j != i).map(|j| {
-                            if i > j {
-                                negative = !negative;
-                                i - j
-                            } else {
-                                // i < j (but not equal)
-                                j - i
-                            }
-                        }),
-                    );
-                    if negative {
-                        denominator = -denominator;
-                    }
-                    denominator.inverse().expect("safe since i != j")
-                })
-                .collect(),
-        ))
+    /// Computes \prod_i (i - x), where i runs over `indices`.
+    fn lagrange_numerator(indices: &[u128], x_as_scalar: C::ScalarType) -> C::ScalarType {
+        let mut numerator = C::ScalarType::generator();
+        let mut k = 0;
+        while k < indices.len() {
+            numerator = numerator * (C::ScalarType::from(indices[k]) - x_as_scalar);
+            k += 1;
+        }
+        numerator
+    }
+
+    /// Returns the inverse of [Self::lagrange_denominator] for each index.
+    fn lagrange_inverse_denominators(
+        indices: &[u128],
+        x_as_scalar: C::ScalarType,
+    ) -> Vec<C::ScalarType> {
+        let mut inverses = Vec::with_capacity(indices.len());
+        let mut k = 0;
+        while k < indices.len() {
+            let denominator = Self::lagrange_denominator(indices, indices[k], x_as_scalar);
+            let inverse = denominator.inverse();
+            inverses.push(inverse.expect("safe since i != j"));
+            k += 1;
+        }
+        inverses
+    }
+
+    /// Returns true if the indices are unique and do not contain x.
+    fn indices_are_valid(indices: &[u128], x: u128) -> bool {
+        let mut valid = true;
+        let mut k = 0;
+        while valid && k < indices.len() {
+            valid = indices[k] != x && !Self::contains_from(indices, k + 1, indices[k]);
+            k += 1;
+        }
+        valid
+    }
+
+    /// Returns true if `value` is in `indices[start..]`.
+    fn contains_from(indices: &[u128], start: usize, value: u128) -> bool {
+        let mut found = false;
+        let mut j = start;
+        while !found && j < indices.len() {
+            found = indices[j] == value;
+            j += 1;
+        }
+        found
+    }
+
+    /// Computes (i - x) * \prod_{j != i} (j - i), where j runs over `indices`.
+    fn lagrange_denominator(
+        indices: &[u128],
+        i: u128,
+        x_as_scalar: C::ScalarType,
+    ) -> C::ScalarType {
+        let mut negative = false;
+        // The product is acc_scalar * acc_small. Aeneas crashes on a tuple loop variable.
+        let mut acc_scalar = C::ScalarType::from(i) - x_as_scalar;
+        let mut acc_small = 1u128;
+        let mut j = 0;
+        while j < indices.len() {
+            let other = indices[j];
+            if other != i {
+                let factor = if i > other {
+                    negative = !negative;
+                    i - other
+                } else {
+                    // i < other (but not equal)
+                    other - i
+                };
+                let product = Self::fast_mult((acc_scalar, acc_small), factor);
+                acc_scalar = product.0;
+                acc_small = product.1;
+            }
+            j += 1;
+        }
+        let denominator = acc_scalar * C::ScalarType::from(acc_small);
+        if negative {
+            -denominator
+        } else {
+            denominator
+        }
     }
 
     /// Given exactly `t` polynomial evaluations, it will recover the polynomial's constant term.
@@ -278,14 +342,48 @@ impl<C: GroupElement> Poly<C> {
         t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
     ) -> FastCryptoResult<C> {
-        let coeffs =
-            Self::get_lagrange_coefficients_for_c0(t, shares.clone().map(|s| s.borrow().index))?;
-        Ok(C::sum(
-            shares
-                .map(|s| s.borrow().value)
-                .zip(coeffs.1)
-                .map(|(c, s)| c * s),
-        ) * coeffs.0)
+        let shares = shares.map(|s| s.borrow().clone()).collect_vec();
+        Self::recover_c0_from_slice(t, &shares)
+    }
+
+    /// Same as [Self::recover_c0], but takes the shares as a slice.
+    pub fn recover_c0_from_slice(t: u16, shares: &[Eval<C>]) -> FastCryptoResult<C> {
+        let indices = Self::share_indices(shares);
+        // Aeneas crashes on the hidden temporaries of `?`, so this code uses `match`.
+        let lagrange = Self::lagrange_coefficients_from_slice(0, t, &indices);
+        match lagrange {
+            Ok(coefficients) => {
+                let numerator = coefficients.0;
+                let weights = &coefficients.1;
+                let sum = Self::weighted_sum(shares, weights);
+                Ok(sum * numerator)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Returns the index of each share as a u128.
+    fn share_indices(shares: &[Eval<C>]) -> Vec<u128> {
+        let mut indices = Vec::with_capacity(shares.len());
+        let mut k = 0;
+        while k < shares.len() {
+            let share = &shares[k];
+            indices.push(share.index.get() as u128);
+            k += 1;
+        }
+        indices
+    }
+
+    /// Computes \sum_k shares[k].value * weights[k].
+    fn weighted_sum(shares: &[Eval<C>], weights: &[C::ScalarType]) -> C {
+        let mut sum = C::zero();
+        let mut k = 0;
+        while k < shares.len() {
+            let share = &shares[k];
+            sum += share.value * weights[k];
+            k += 1;
+        }
+        sum
     }
 
     /// Checks if a given share is valid.
