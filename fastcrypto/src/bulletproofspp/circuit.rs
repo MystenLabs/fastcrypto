@@ -373,8 +373,8 @@ impl Witness {
 /// polynomial of `C(T)` vanishes at every power of `T` except the value row
 /// `T^3`.
 ///
-/// `rest` is the error polynomial of `C(T)` without `C_S`. Since `C_S` enters
-/// `C(T)` at `T^{-1}`, it adds `T^{-1}*(r_S[0] - <c(T), h>)` to it.
+/// `rest` is the error polynomial of `C(T) - T^{-1}*C_S`. The term
+/// `T^{-1}*C_S` adds `T^{-1}*(r_S[0] - <c(T), h>)` to it.
 fn solve_r_s(blocks: &Blocks, rest: &Laurent<S>, l_s: S, beta: S) -> FastCryptoResult<(S, Vec<S>)> {
     // With c(T) = beta*sum_j e_j*T^{CR_POWERS[j]} + cl_v, the contribution
     // of C_S is
