@@ -222,18 +222,17 @@ impl Blocks {
         )
     }
 
-    /// The linear constraint vector `c(T)`: `beta*T^{CR_POWERS[j]}` on slot
-    /// `j`, plus the constant H-side shape block `cl_v` (slot 8 carries only
-    /// the shape entry).
+    /// The linear constraint vector
+    /// `c(T) = cl_v + beta*sum_j e_j*T^{CR_POWERS[j]}`, with `e_j` the `j`-th
+    /// unit vector (slot 8 carries only the shape entry).
     fn c(&self, beta: S) -> Laurent<Vec<S>> {
-        CR_POWERS
-            .iter()
-            .enumerate()
-            .fold(Laurent::monomial(0, self.cl_v.clone()), |c, (j, &a)| {
-                let mut slot = vec![S::zero(); H_LEN];
-                slot[j] = beta;
-                c + Laurent::monomial(a, slot)
-            })
+        let mut c = Laurent::monomial(0, self.cl_v.clone());
+        for (j, &a) in CR_POWERS.iter().enumerate() {
+            let mut beta_e_j = vec![S::zero(); H_LEN];
+            beta_e_j[j] = beta;
+            c = c + Laurent::monomial(a, beta_e_j);
+        }
+        c
     }
 }
 
