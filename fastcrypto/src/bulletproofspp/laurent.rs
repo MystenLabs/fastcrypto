@@ -31,6 +31,16 @@ impl<C: Coefficient> Laurent<C> {
         Self::new(power, vec![c])
     }
 
+    /// The sum `sum_i c_i*T^{p_i}` of the `terms` `(p_i, c_i)`. Panics if
+    /// there are none.
+    pub(crate) fn from_terms(terms: impl IntoIterator<Item = (i32, C)>) -> Self {
+        terms
+            .into_iter()
+            .map(|(power, c)| Self::monomial(power, c))
+            .reduce(Add::add)
+            .expect("at least one term")
+    }
+
     /// The coefficient of `T^power`, zero if out of range.
     pub(crate) fn coeff(&self, power: i32) -> C {
         usize::try_from(power - self.low)
@@ -147,6 +157,13 @@ mod tests {
         assert!(p.eval(s(0)).is_err());
         // No negative powers: T = 0 is fine.
         assert_eq!(Laurent::monomial(0, s(7)).eval(s(0)).unwrap(), s(7));
+    }
+
+    #[test]
+    fn test_from_terms() {
+        // Repeated powers add up; gaps are zero.
+        let p = Laurent::from_terms([(2, s(1)), (-1, s(2)), (2, s(3))]);
+        assert_eq!(p, Laurent::new(-1, vec![s(2), s(0), s(0), s(4)]));
     }
 
     #[test]

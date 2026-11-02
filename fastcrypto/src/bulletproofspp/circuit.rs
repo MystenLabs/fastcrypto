@@ -15,6 +15,7 @@ use crate::groups::{GroupElement, MultiScalarMul, Scalar};
 use crate::pedersen::{Blinding, PedersenCommitment, Range};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
+use std::iter::once;
 
 use crate::bulletproofspp::crs::{
     compatible_with_pedersen_commitments, dims, Generators, BASE, H_LEN,
@@ -226,13 +227,12 @@ impl Blocks {
     /// `c(T) = cl_v + beta*sum_j e_j*T^{CR_POWERS[j]}`, with `e_j` the `j`-th
     /// unit vector (slot 8 carries only the shape entry).
     fn c(&self, beta: S) -> Laurent<Vec<S>> {
-        let mut c = Laurent::monomial(0, self.cl_v.clone());
-        for (j, &a) in CR_POWERS.iter().enumerate() {
+        let beta_terms = CR_POWERS.iter().enumerate().map(|(j, &a)| {
             let mut beta_e_j = vec![S::zero(); H_LEN];
             beta_e_j[j] = beta;
-            c = c + Laurent::monomial(a, beta_e_j);
-        }
-        c
+            (a, beta_e_j)
+        });
+        Laurent::from_terms(once((0, self.cl_v.clone())).chain(beta_terms))
     }
 }
 
