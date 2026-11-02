@@ -4,7 +4,7 @@
 //! High-level BP++ range proof API.
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
+use crate::groups::ristretto255::RistrettoScalar;
 use crate::pedersen::{Blinding, PedersenCommitment};
 use crate::traits::AllowedRng;
 
@@ -113,13 +113,12 @@ impl RangeProof {
         let (n_bits, m) = (range.bits(), commitments.len());
         let gens = Generators::new(*range, m)?;
         let params = CircuitParams::new(*range, m)?;
-        let points: Vec<RistrettoPoint> = commitments.iter().map(|c| c.0).collect();
         circuit::verify(
             &mut transcript(dst, n_bits, m),
             &gens,
             &params,
             &self.proof,
-            &points,
+            commitments,
         )
         .map_err(|_| FastCryptoError::InvalidProof)
     }
@@ -141,6 +140,7 @@ impl RangeProof {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::groups::ristretto255::RistrettoPoint;
     use crate::groups::GroupElement;
     use crate::serde_helpers::ToFromByteArray;
 
