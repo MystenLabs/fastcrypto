@@ -368,13 +368,29 @@ impl Witness {
     }
 }
 
+/// The error polynomial `e(T) = sigma(T) - <c(T), l(T)> - |n(T)|^2_mu` of
+/// the combined commitment `C(T) = sigma(T)*G + <l(T), H> + <n(T), G_vec>`.
+/// `C(tau)` satisfies the norm-linear relation iff `e(tau) = 0`. The `T^3`
+/// coefficient is zero iff the circuit constraints hold, and `r_S` is chosen
+/// to make every other coefficient zero.
+fn error_polynomial(
+    sigma: &Laurent<S>,
+    c: &Laurent<Vec<S>>,
+    l: &Laurent<Vec<S>>,
+    n: &Laurent<Vec<S>>,
+    bar_mu: &[S],
+) -> Laurent<S> {
+    sigma.clone() - c.inner_product(l) - n.weighted_inner_product(n, bar_mu)
+}
+
 /// The blinding of `C_S` (spec "Choosing r_S"): its `G` coordinate `r_S[0]`
-/// and its `H` coordinates `h = (r_S[1..], l_S)`, such that the error
-/// polynomial of `C(T)` vanishes at every power of `T` except the value row
+/// and its `H` coordinates `h = (r_S[1..], l_S)`, such that the
+/// [error_polynomial] vanishes at every power of `T` except the value row
 /// `T^3`.
 ///
-/// `rest` is the error polynomial of `C(T) - T^{-1}*C_S`. The term
-/// `T^{-1}*C_S` adds `T^{-1}*(r_S[0] - <c(T), h>)` to it.
+/// `rest` is the error polynomial with `r_S = 0` and `l_S = 0`. The term
+/// `T^{-1}*(r_S[0]*G + <h, H>)` of `C(T)` adds `T^{-1}*(r_S[0] - <c(T), h>)`
+/// to it.
 fn solve_r_s(blocks: &Blocks, rest: &Laurent<S>, l_s: S, beta: S) -> FastCryptoResult<(S, Vec<S>)> {
     // With c(T) = beta*sum_j e_j*T^{CR_POWERS[j]} + cl_v, the contribution
     // of C_S is
@@ -471,9 +487,10 @@ fn prove_witness(
     v_hat_h[0] = inner_product(&weights, &witness.blindings);
     v_hat_h[H_LEN - 1] = l_v_hat;
 
-    // n(T) = w(T) + p_n(T), the G_vec coordinates of C(T), split into the
-    // witness part w and the public part p_n.
-    let w = Laurent::new(
+    // The G_vec coordinates n(T) = w(T) + p_n(T) of C(T): the witness part w
+    // and the public part p_n.
+    let p_n = blocks.p_n(delta_inv);
+    let n = Laurent::new(
         -1,
         vec![
             witness.n_s.clone(),
@@ -482,22 +499,16 @@ fn prove_witness(
             n_r,
             n_v_hat,
         ],
-    );
-    let p_n = blocks.p_n(delta_inv);
-    let n = w.clone() + p_n.clone();
+    ) + p_n.clone();
 
-    // Error polynomial hat_f(T) = p_s(T) + hat_v*T^3 - |n(T)|^2_mu. The public
-    // square |p_n(T)|^2 inside p_s cancels against |n(T)|^2, leaving
-    //   hat_f = (hat_v + 2*(lambda_al + mu_am))*T^3 - <w(T), n(T) + p_n(T)>_mu
-    // so only the witness-side products are computed.
-    let f_hat = Laurent::monomial(3, v_hat + two * (blocks.lambda_al + blocks.mu_am))
-        - w.weighted_inner_product(&(n.clone() + p_n), &blocks.bar_mu);
-
-    // The G coordinate r_0(T) and the H coordinates l(T) of C(T) without C_S.
-    let r_0 = Laurent::new(
+    // The G coordinate sigma(T) = r_0(T) + p_s(T) + hat_v*T^3 and the H
+    // coordinates l(T) of C(T), with r_S = 0 and l_S = 0, where
+    // p_s(T) = |p_n(T)|^2_mu + 2*(lambda_al + mu_am)*T^3 is public.
+    let sigma = Laurent::new(
         0,
         vec![delta * witness.r_o[0], witness.r_l[0], witness.r_r[0]],
-    );
+    ) + p_n.weighted_inner_product(&p_n, &blocks.bar_mu)
+        + Laurent::monomial(3, v_hat + two * (blocks.lambda_al + blocks.mu_am));
     let l = Laurent::new(
         0,
         vec![
@@ -508,7 +519,7 @@ fn prove_witness(
         ],
     );
     let c = blocks.c(beta);
-    let rest = f_hat - c.inner_product(&l) + r_0;
+    let rest = error_polynomial(&sigma, &c, &l, &n, &blocks.bar_mu);
     let (g_s, h_s) = solve_r_s(&blocks, &rest, witness.l_s, beta)?;
     let c_s = gens.commit(g_s, &h_s, &witness.n_s)?;
     transcript.append_point(b"C_S", &c_s);
