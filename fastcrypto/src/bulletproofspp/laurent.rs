@@ -73,6 +73,14 @@ impl<C: Coefficient> Laurent<C> {
     }
 }
 
+#[cfg(test)]
+impl<C: Coefficient + PartialEq> Laurent<C> {
+    /// Whether every coefficient is zero.
+    pub(crate) fn is_zero(&self) -> bool {
+        self.coeffs.iter().all(|c| *c == c.scale(S::zero()))
+    }
+}
+
 impl<C: Coefficient> Add for Laurent<C> {
     type Output = Self;
 
@@ -175,6 +183,8 @@ mod tests {
             Laurent::new(-2, vec![s(1), s(2), s(0), s(4)])
         );
         assert_eq!((p.clone() + q.clone() - q).coeff(1), s(0));
+        assert!((p.clone() - p.clone()).is_zero());
+        assert!(!p.is_zero());
         assert_eq!(p.coeff(-3), s(0));
         assert_eq!(p.coeff(-1), s(2));
     }

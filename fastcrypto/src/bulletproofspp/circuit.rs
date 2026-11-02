@@ -409,69 +409,22 @@ fn solve_r_s(blocks: &Blocks, rest: &Laurent<S>, l_s: S, beta: S) -> FastCryptoR
     Ok((inner_product(&blocks.cl_v, &h) - rest.coeff(-1), h))
 }
 
-/// Prove that every `values[i]` lies in `[0, 2^n_bits)` under the Pedersen
-/// commitments `V_i = values[i]*G + blindings[i]*H_0`, which are computed
-/// here, absorbed into the transcript, and returned alongside the proof.
-pub(crate) fn prove(
-    transcript: &mut BpppTranscript,
-    gens: &Generators,
+/// The coordinates `(sigma(T), l(T), n(T))` on `G`, `H` and `G_vec` of the
+/// combined commitment
+/// `C(T) = T^{-1}*C_S + delta*C_O + T*C_L + T^2*C_R + T^3*hat_V
+///       + p_s(T)*G + <p_n(T), G_vec>`,
+/// with the blinding `r_S` and linear witness `l_S` of `C_S` set to zero.
+/// `n_r` are the committed reciprocals.
+fn coordinates_without_c_s(
     params: &CircuitParams,
-    rng: &mut impl AllowedRng,
-    values: &[u64],
-    blindings: &[S],
-) -> FastCryptoResult<(CircuitProof, Vec<PedersenCommitment>)> {
-    if values.len() != params.m
-        || blindings.len() != params.m
-        || gens.g_vec.len() != params.nm
-        || values.iter().any(|&v| !params.range.is_in_range(v))
-    {
-        return Err(FastCryptoError::InvalidInput);
-    }
-    let witness = Witness::new(params, rng, values, blindings);
-    prove_witness(transcript, gens, params, &witness, None)
-}
-
-/// Run the protocol with `witness`, without checking that it is well formed.
-///
-/// `bad_reciprocals` replaces the reciprocals and is only used in tests.
-fn prove_witness(
-    transcript: &mut BpppTranscript,
-    gens: &Generators,
-    params: &CircuitParams,
+    blocks: &Blocks,
     witness: &Witness,
-    bad_reciprocals: Option<&dyn Fn(S) -> FastCryptoResult<Vec<S>>>,
-) -> FastCryptoResult<(CircuitProof, Vec<PedersenCommitment>)> {
+    n_r: Vec<S>,
+    delta: S,
+    delta_inv: S,
+) -> (Laurent<S>, Laurent<Vec<S>>, Laurent<Vec<S>>) {
     let two = S::from(2u64);
-    let v_commitments = witness.input_commitments(gens)?;
-    transcript.domain_sep(b"bppp_circuit");
-    transcript.append_commits(b"V", &v_commitments);
-
-    // Step 1: commit digits (C_L) and shared multiplicities (C_O).
-    let c_l = commit(gens, &witness.r_l, &witness.n_l)?;
-    let c_o = commit(gens, &witness.r_o, &witness.n_o)?;
-    transcript.append_point(b"C_L", &c_l);
-    transcript.append_point(b"C_O", &c_o);
-
-    // Step 2: reciprocal challenge, drawn after the digits and
-    // multiplicities are committed.
-    let alpha = transcript.challenge_scalar(b"alpha");
-
-    // Step 3: commit the reciprocals (C_R).
-    debug_assert!(cfg!(test) || bad_reciprocals.is_none());
-    let n_r = bad_reciprocals.unwrap_or(&|alpha| reciprocals(params, &witness.n_l, alpha))(alpha)?;
-    let c_r = commit(gens, &witness.r_r, &n_r)?;
-    transcript.append_point(b"C_R", &c_r);
-
-    // Step 4: constraint challenges.
-    let rho = transcript.challenge_scalar(b"rho");
-    let lambda = transcript.challenge_scalar(b"lambda");
-    let beta = transcript.challenge_scalar(b"beta");
-    let delta = transcript.challenge_scalar(b"delta");
-    let mu = rho * rho;
-    let delta_inv = delta.inverse()?;
-    let blocks = compute_blocks(params, alpha, mu, lambda)?;
-
-    // Step 5: solve the blinding r_S of C_S. The rescaled aggregate input
+    // The rescaled aggregate input
     // hat_V = 2*sum_i lambda^{i-1} V_i opens to hat_v on G,
     // 2*sum_i lambda^{i-1} s_i on H_0 and the off-plane coordinates n_hat_V,
     // l_hat_V (zero for honest inputs).
@@ -518,6 +471,72 @@ fn prove_witness(
             v_hat_h,
         ],
     );
+    (sigma, l, n)
+}
+
+/// Prove that every `values[i]` lies in `[0, 2^n_bits)` under the Pedersen
+/// commitments `V_i = values[i]*G + blindings[i]*H_0`, which are computed
+/// here, absorbed into the transcript, and returned alongside the proof.
+pub(crate) fn prove(
+    transcript: &mut BpppTranscript,
+    gens: &Generators,
+    params: &CircuitParams,
+    rng: &mut impl AllowedRng,
+    values: &[u64],
+    blindings: &[S],
+) -> FastCryptoResult<(CircuitProof, Vec<PedersenCommitment>)> {
+    if values.len() != params.m
+        || blindings.len() != params.m
+        || gens.g_vec.len() != params.nm
+        || values.iter().any(|&v| !params.range.is_in_range(v))
+    {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    let witness = Witness::new(params, rng, values, blindings);
+    prove_witness(transcript, gens, params, &witness, None)
+}
+
+/// Run the protocol with `witness`, without checking that it is well formed.
+///
+/// `bad_reciprocals` replaces the reciprocals and is only used in tests.
+fn prove_witness(
+    transcript: &mut BpppTranscript,
+    gens: &Generators,
+    params: &CircuitParams,
+    witness: &Witness,
+    bad_reciprocals: Option<&dyn Fn(S) -> FastCryptoResult<Vec<S>>>,
+) -> FastCryptoResult<(CircuitProof, Vec<PedersenCommitment>)> {
+    let v_commitments = witness.input_commitments(gens)?;
+    transcript.domain_sep(b"bppp_circuit");
+    transcript.append_commits(b"V", &v_commitments);
+
+    // Step 1: commit digits (C_L) and shared multiplicities (C_O).
+    let c_l = commit(gens, &witness.r_l, &witness.n_l)?;
+    let c_o = commit(gens, &witness.r_o, &witness.n_o)?;
+    transcript.append_point(b"C_L", &c_l);
+    transcript.append_point(b"C_O", &c_o);
+
+    // Step 2: reciprocal challenge, drawn after the digits and
+    // multiplicities are committed.
+    let alpha = transcript.challenge_scalar(b"alpha");
+
+    // Step 3: commit the reciprocals (C_R).
+    debug_assert!(cfg!(test) || bad_reciprocals.is_none());
+    let n_r = bad_reciprocals.unwrap_or(&|alpha| reciprocals(params, &witness.n_l, alpha))(alpha)?;
+    let c_r = commit(gens, &witness.r_r, &n_r)?;
+    transcript.append_point(b"C_R", &c_r);
+
+    // Step 4: constraint challenges.
+    let rho = transcript.challenge_scalar(b"rho");
+    let lambda = transcript.challenge_scalar(b"lambda");
+    let beta = transcript.challenge_scalar(b"beta");
+    let delta = transcript.challenge_scalar(b"delta");
+    let mu = rho * rho;
+    let delta_inv = delta.inverse()?;
+    let blocks = compute_blocks(params, alpha, mu, lambda)?;
+
+    // Step 5: solve the blinding r_S of C_S.
+    let (sigma, l, n) = coordinates_without_c_s(params, &blocks, witness, n_r, delta, delta_inv);
     let c = blocks.c(beta);
     let rest = error_polynomial(&sigma, &c, &l, &n, &blocks.bar_mu);
     let (g_s, h_s) = solve_r_s(&blocks, &rest, witness.l_s, beta)?;
@@ -612,6 +631,7 @@ pub(crate) fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::array::from_fn;
     use std::sync::Arc;
 
     fn prove_batch(
@@ -670,6 +690,35 @@ mod tests {
     /// The spec's batched configurations, with their expected norm-linear
     /// proof shapes (rounds, final n), plus the widths not instantiated
     /// there (8-bit, 64-bit x M).
+    #[test]
+    fn test_honest_error_polynomial_is_zero() {
+        // For an honest witness, the error polynomial of C(T) with the
+        // solved r_S vanishes identically: off T^3 by the choice of r_S, and
+        // at T^3 because the constraints hold.
+        let mut rng = rand::thread_rng();
+        for (range, m) in [(Range::Bits64, 1), (Range::Bits16, 4), (Range::Bits8, 3)] {
+            let params = CircuitParams::new(range, m).unwrap();
+            let values: Vec<u64> = (0..m)
+                .map(|_| rand::Rng::gen::<u64>(&mut rng) & range.max_value())
+                .collect();
+            let witness = honest_witness(&params, &values);
+            let [alpha, mu, lambda, beta, delta] = from_fn(|_| S::rand(&mut rng));
+            let blocks = compute_blocks(&params, alpha, mu, lambda).unwrap();
+            let n_r = reciprocals(&params, &witness.n_l, alpha).unwrap();
+            let delta_inv = delta.inverse().unwrap();
+            let (sigma, l, n) =
+                coordinates_without_c_s(&params, &blocks, &witness, n_r, delta, delta_inv);
+            let c = blocks.c(beta);
+            let rest = error_polynomial(&sigma, &c, &l, &n, &blocks.bar_mu);
+            assert!(!rest.is_zero());
+
+            let (g_s, h_s) = solve_r_s(&blocks, &rest, witness.l_s, beta).unwrap();
+            let sigma = sigma + Laurent::monomial(-1, g_s);
+            let l = l + Laurent::monomial(-1, h_s);
+            assert!(error_polynomial(&sigma, &c, &l, &n, &blocks.bar_mu).is_zero());
+        }
+    }
+
     #[test]
     fn test_roundtrip_batched_configs() {
         let mut rng = rand::thread_rng();
