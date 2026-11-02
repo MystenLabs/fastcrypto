@@ -161,7 +161,7 @@ impl<C: GroupElement> Poly<C> {
         let mut k = coeffs.len();
         while k > 0 {
             k -= 1;
-            res = res * xi + &coeffs[k];
+            res = res * xi + coeffs[k];
         }
 
         Eval {
