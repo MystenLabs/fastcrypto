@@ -368,17 +368,28 @@ impl Witness {
     }
 }
 
-/// Solve the blinding `r_S` of `C_S` (spec "Choosing r_S") so that it cancels
-/// `rest`, the error polynomial without `C_S`, outside the value row. Returns
-/// the `G` coordinate `r_S[0]` and the `H` coordinates `(r_S[1..], l_S)`.
+/// The blinding of `C_S` (spec "Choosing r_S"): its `G` coordinate `r_S[0]`
+/// and its `H` coordinates `h = (r_S[1..], l_S)`, such that the error
+/// polynomial of `C(T)` vanishes at every power of `T` except the value row
+/// `T^3`.
+///
+/// `rest` is the error polynomial of `C(T)` without `C_S`. Since `C_S` enters
+/// `C(T)` at `T^{-1}`, it adds `T^{-1}*(r_S[0] - <c(T), h>)` to it.
 fn solve_r_s(blocks: &Blocks, rest: &Laurent<S>, l_s: S, beta: S) -> FastCryptoResult<(S, Vec<S>)> {
+    // With c(T) = beta*sum_j e_j*T^{CR_POWERS[j]} + cl_v, the contribution
+    // of C_S is
+    //   T^{-1}*(r_S[0] - <cl_v, h>) - beta*sum_j h_j*T^{CR_POWERS[j]-1}.
+    // The powers CR_POWERS[j]-1 are distinct and avoid -1 and 3 (there is no
+    // 0 or 4 in CR_POWERS), so each h_j cancels row CR_POWERS[j]-1 on its
+    // own: h_j = rest_{CR_POWERS[j]-1} / beta. The last coordinate l_S has no
+    // beta term and is chosen freely. Row T^{-1} is cancelled by r_S[0],
+    // which must also offset <cl_v, h>, so h is solved first.
     let beta_inv = beta.inverse()?;
     let h: Vec<S> = CR_POWERS
         .iter()
         .map(|&a| rest.coeff(a - 1) * beta_inv)
         .chain(once(l_s))
         .collect();
-    // The G coordinate also absorbs the shape entries against h.
     Ok((inner_product(&blocks.cl_v, &h) - rest.coeff(-1), h))
 }
 
