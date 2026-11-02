@@ -44,7 +44,7 @@ use crate::bulletproofspp::util::*;
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::RistrettoScalar;
 use crate::groups::{GroupElement, Scalar};
-use std::iter::successors;
+use itertools::iterate;
 
 type S = RistrettoScalar;
 
@@ -89,7 +89,7 @@ impl Constraints {
         // shape-row powers `shape[j-1] = lambda^{m*j+1}`, `j = 1..=nm+7`.
         let lambdas = power_vector(lambda, m + 1);
         let lam_m = lambdas[m];
-        let shape: Vec<S> = successors(Some(lambda * lam_m), |x| Some(*x * lam_m))
+        let shape: Vec<S> = iterate(lambda * lam_m, |x| x * lam_m)
             .take(nm + H_LEN - 1)
             .collect();
         let base = S::from(BASE);
