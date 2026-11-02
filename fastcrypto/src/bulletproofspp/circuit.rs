@@ -483,7 +483,6 @@ fn prove_witness(
         - w.weighted_inner_product(&(n.clone() + p_n), &blocks.bar_mu);
 
     // The G coordinate r_0(T) and the H coordinates l(T) of C(T) without C_S.
-    let h = |r: &[S]| h_coordinates(r, S::zero());
     let r_0 = Laurent::new(
         0,
         vec![delta * witness.r_o[0], witness.r_l[0], witness.r_r[0]],
@@ -491,9 +490,9 @@ fn prove_witness(
     let l = Laurent::new(
         0,
         vec![
-            vec_scalar_mul(delta, &h(&witness.r_o)),
-            h(&witness.r_l),
-            h(&witness.r_r),
+            vec_scalar_mul(delta, &h_coordinates(&witness.r_o, S::zero())),
+            h_coordinates(&witness.r_l, S::zero()),
+            h_coordinates(&witness.r_r, S::zero()),
             v_hat_h,
         ],
     );
