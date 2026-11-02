@@ -47,7 +47,7 @@ impl<C: Coefficient> Laurent<C> {
             .ok()
             .and_then(|i| self.coeffs.get(i))
             .cloned()
-            .unwrap_or_else(|| self.coeffs[0].scaled(S::zero()))
+            .unwrap_or_else(|| self.coeffs[0].scale(S::zero()))
     }
 
     /// The highest power.
@@ -56,18 +56,18 @@ impl<C: Coefficient> Laurent<C> {
     }
 
     /// `s` times this polynomial.
-    pub(crate) fn scaled(&self, s: S) -> Self {
-        Self::new(self.low, self.coeffs.iter().map(|c| c.scaled(s)).collect())
+    pub(crate) fn scale(&self, s: S) -> Self {
+        Self::new(self.low, self.coeffs.iter().map(|c| c.scale(s)).collect())
     }
 
     /// The value at `T = x`. Fails if `x` is zero and there are negative powers.
     pub(crate) fn eval(&self, x: S) -> FastCryptoResult<C> {
         let base = if self.low < 0 { x.inverse()? } else { x };
         let mut x_pow = (0..self.low.unsigned_abs()).fold(one(), |acc, _| acc * base);
-        let mut result = self.coeffs[0].scaled(x_pow);
+        let mut result = self.coeffs[0].scale(x_pow);
         for c in &self.coeffs[1..] {
             x_pow *= x;
-            result = result.add(&c.scaled(x_pow));
+            result = result.add(&c.scale(x_pow));
         }
         Ok(result)
     }
@@ -89,7 +89,7 @@ impl<C: Coefficient> Sub for Laurent<C> {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
-        self + other.scaled(-one())
+        self + other.scale(-one())
     }
 }
 
@@ -118,7 +118,7 @@ impl Laurent<Vec<S>> {
 /// A coefficient of a [Laurent] polynomial: a scalar or a vector of scalars.
 pub(crate) trait Coefficient: Clone {
     fn add(&self, other: &Self) -> Self;
-    fn scaled(&self, s: S) -> Self;
+    fn scale(&self, s: S) -> Self;
 }
 
 impl Coefficient for S {
@@ -126,7 +126,7 @@ impl Coefficient for S {
         *self + other
     }
 
-    fn scaled(&self, s: S) -> Self {
+    fn scale(&self, s: S) -> Self {
         *self * s
     }
 }
@@ -136,7 +136,7 @@ impl Coefficient for Vec<S> {
         vec_add(self, other)
     }
 
-    fn scaled(&self, s: S) -> Self {
+    fn scale(&self, s: S) -> Self {
         vec_scalar_mul(s, self)
     }
 }
