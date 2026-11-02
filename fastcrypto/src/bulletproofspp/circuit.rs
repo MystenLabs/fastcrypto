@@ -237,17 +237,17 @@ impl Blocks {
     }
 }
 
-/// Commit to a circuit message: blinding `r` (slot 0 on `G`, slots 1..7 on
-/// `H_0..H_6`), linear witness `l` on `H_7`, and norm witness `n`.
-fn commit(gens: &Generators, r: &[S], l: S, n: &[S]) -> FastCryptoResult<RistrettoPoint> {
-    gens.commit(r[0], &h_coordinates(r, l), n)
+/// Commit to a circuit message with blinding `r` (slot 0 on `G`, slots 1..7
+/// on `H_0..H_6`), no linear witness, and norm witness `n`.
+fn commit(gens: &Generators, r: &[S], n: &[S]) -> FastCryptoResult<RistrettoPoint> {
+    gens.commit(r[0], &h_coordinates(r), n)
 }
 
-/// The `H` coordinates `(r_1, ..., r_7, l)` of a circuit message with
-/// blinding `r` (slot 0 is on `G`) and linear witness `l` (on `H_7`).
-fn h_coordinates(r: &[S], l: S) -> Vec<S> {
+/// The `H` coordinates `(r_1, ..., r_7, 0)` of a circuit message with
+/// blinding `r` (slot 0 is on `G`) and no linear witness.
+fn h_coordinates(r: &[S]) -> Vec<S> {
     let mut h = r[1..].to_vec();
-    h.push(l);
+    h.push(S::zero());
     h
 }
 
@@ -420,8 +420,8 @@ fn prove_witness(
     transcript.append_commits(b"V", &v_commitments);
 
     // Step 1: commit digits (C_L) and shared multiplicities (C_O).
-    let c_l = commit(gens, &witness.r_l, S::zero(), &witness.n_l)?;
-    let c_o = commit(gens, &witness.r_o, S::zero(), &witness.n_o)?;
+    let c_l = commit(gens, &witness.r_l, &witness.n_l)?;
+    let c_o = commit(gens, &witness.r_o, &witness.n_o)?;
     transcript.append_point(b"C_L", &c_l);
     transcript.append_point(b"C_O", &c_o);
 
@@ -432,7 +432,7 @@ fn prove_witness(
     // Step 3: commit the reciprocals (C_R).
     debug_assert!(cfg!(test) || bad_reciprocals.is_none());
     let n_r = bad_reciprocals.unwrap_or(&|alpha| reciprocals(params, &witness.n_l, alpha))(alpha)?;
-    let c_r = commit(gens, &witness.r_r, S::zero(), &n_r)?;
+    let c_r = commit(gens, &witness.r_r, &n_r)?;
     transcript.append_point(b"C_R", &c_r);
 
     // Step 4: constraint challenges.
@@ -490,9 +490,9 @@ fn prove_witness(
     let l = Laurent::new(
         0,
         vec![
-            vec_scalar_mul(delta, &h_coordinates(&witness.r_o, S::zero())),
-            h_coordinates(&witness.r_l, S::zero()),
-            h_coordinates(&witness.r_r, S::zero()),
+            vec_scalar_mul(delta, &h_coordinates(&witness.r_o)),
+            h_coordinates(&witness.r_l),
+            h_coordinates(&witness.r_r),
             v_hat_h,
         ],
     );
