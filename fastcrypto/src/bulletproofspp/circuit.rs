@@ -227,12 +227,13 @@ impl Blocks {
     /// `c(T) = cl_v + beta*sum_j e_j*T^{CR_POWERS[j]}`, with `e_j` the `j`-th
     /// unit vector (slot 8 carries only the shape entry).
     fn c(&self, beta: S) -> Laurent<Vec<S>> {
-        let beta_terms = CR_POWERS.iter().enumerate().map(|(j, &a)| {
-            let mut beta_e_j = vec![S::zero(); H_LEN];
-            beta_e_j[j] = beta;
-            (a, beta_e_j)
-        });
-        Laurent::from_terms(once((0, self.cl_v.clone())).chain(beta_terms))
+        Laurent::from_terms(
+            once((0, self.cl_v.clone())).chain(CR_POWERS.iter().enumerate().map(|(j, &a)| {
+                let mut beta_e_j = vec![S::zero(); H_LEN];
+                beta_e_j[j] = beta;
+                (a, beta_e_j)
+            })),
+        )
     }
 }
 
