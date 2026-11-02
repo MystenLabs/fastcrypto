@@ -184,7 +184,8 @@ impl Constraints {
 
 /// The value row (29) for inputs on the `(G, H_0)`-plane and blinding with
 /// the zero pattern (22), computed directly from (30): `values` are the `u_i`,
-/// `n_l`, `n_r`, `n_o` the norm vectors.
+/// `n_l`, `n_r`, `n_o` the norm vectors. Written for readability, not speed:
+/// it only serves to test that [Constraints::new] matches the paper.
 #[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn value_row(
