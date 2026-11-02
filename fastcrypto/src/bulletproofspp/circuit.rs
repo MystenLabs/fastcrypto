@@ -368,20 +368,18 @@ impl Witness {
     }
 }
 
-/// Solve the blinding `r_S` of `C_S` (spec "Choosing r_S"). `rest` is the
-/// error polynomial less the contribution of the other commitments, and
-/// `T^{-1}` times the message of `C_S` must cancel it on the rows
-/// `T^{a-1}`, `a` in `CR_POWERS` (slot `j` by `beta*T^{CR_POWERS[j-1]}`), and
-/// on `T^{-1}` (slot 0, which also absorbs the shape entries `cl_v` against
-/// the `H` coordinates of `C_S`).
+/// Solve the blinding `r_S` of `C_S` (spec "Choosing r_S") so that it cancels
+/// `rest`, the error polynomial without `C_S`, outside the value row.
 fn solve_r_s(blocks: &Blocks, rest: &Laurent<S>, l_s: S, beta: S) -> FastCryptoResult<Vec<S>> {
     let beta_inv = beta.inverse()?;
-    let mut r_s = vec![S::zero(); H_LEN];
-    for (j, &a) in CR_POWERS.iter().enumerate() {
-        r_s[j + 1] = rest.coeff(a - 1) * beta_inv;
-    }
-    r_s[0] = inner_product(&blocks.cl_v, &h_coordinates(&r_s, l_s)) - rest.coeff(-1);
-    Ok(r_s)
+    // Slots 1..7 first: slot 0 depends on them through the shape entries.
+    let slots: Vec<S> = CR_POWERS
+        .iter()
+        .map(|&a| rest.coeff(a - 1) * beta_inv)
+        .collect();
+    let h = slots.iter().copied().chain(once(l_s)).collect::<Vec<_>>();
+    let r_s_0 = inner_product(&blocks.cl_v, &h) - rest.coeff(-1);
+    Ok(once(r_s_0).chain(slots).collect())
 }
 
 /// Prove that every `values[i]` lies in `[0, 2^n_bits)` under the Pedersen
