@@ -67,7 +67,7 @@ impl<C: Coefficient> Laurent<C> {
         let mut result = self.coeffs[0].scaled(x_pow);
         for c in &self.coeffs[1..] {
             x_pow *= x;
-            result = result.plus(&c.scaled(x_pow));
+            result = result.add(&c.scaled(x_pow));
         }
         Ok(result)
     }
@@ -79,7 +79,7 @@ impl<C: Coefficient> Add for Laurent<C> {
     fn add(self, other: Self) -> Self {
         let low = self.low.min(other.low);
         let coeffs = (low..=self.degree().max(other.degree()))
-            .map(|p| self.coeff(p).plus(&other.coeff(p)))
+            .map(|p| self.coeff(p).add(&other.coeff(p)))
             .collect();
         Self::new(low, coeffs)
     }
@@ -117,12 +117,12 @@ impl Laurent<Vec<S>> {
 
 /// A coefficient of a [Laurent] polynomial: a scalar or a vector of scalars.
 pub(crate) trait Coefficient: Clone {
-    fn plus(&self, other: &Self) -> Self;
+    fn add(&self, other: &Self) -> Self;
     fn scaled(&self, s: S) -> Self;
 }
 
 impl Coefficient for S {
-    fn plus(&self, other: &Self) -> Self {
+    fn add(&self, other: &Self) -> Self {
         *self + other
     }
 
@@ -132,7 +132,7 @@ impl Coefficient for S {
 }
 
 impl Coefficient for Vec<S> {
-    fn plus(&self, other: &Self) -> Self {
+    fn add(&self, other: &Self) -> Self {
         vec_add(self, other)
     }
 
