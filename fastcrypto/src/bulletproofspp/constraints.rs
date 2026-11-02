@@ -2,40 +2,41 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The constraints of the range circuit, folded with the challenges into the
-//! public parts of the combined commitment.
+//! public parts of the combined commitment. Notation and equation numbers
+//! follow §4.3 and §5.1 of [ePrint 2026/2648](https://eprint.iacr.org/2026/2648),
+//! with `M = params.m`, `D = params.d`, `N_d = params.n_d`, `n_m = params.nm`.
+//! Inputs are indexed `i = 1..M` as in the paper; the code uses `i - 1`.
 //!
-//! # Witness
+//! # Witness (22)
 //!
-//! For `m` inputs `V_i = v_i*G + s_i*H_0`, `i = 0..m`, with `d` base-16 digits
-//! each, the prover commits norm vectors of length `nm >= n_d = m*d`:
-//! - digits `d_k`: slot `k = d*i + t` holds digit `t` of `v_i`, zero padding
-//!   for `k >= n_d`;
-//! - reciprocals `r_k`: honestly `(alpha + d_k)^{-1}` for `k < n_d` and zero
-//!   padding;
-//! - multiplicities `m_j`, `j = 1..15`, in slot `j - 1`: honestly the number
-//!   of digits equal to `j` (`m_0` is implicit).
+//! For inputs `V_i = v_i*G + s_i*H_0` with digits `v_i = sum_t d_{i,t}*16^t`:
+//! - `n_L[D(i-1)+t] = d_{i,t}`, zero for slots `>= N_d`;
+//! - `n_R[D(i-1)+t] = r_{i,t} = (alpha + d_{i,t})^{-1}`, zero for slots `>= N_d`;
+//! - `n_O[j-1] = m_j = |{(i,t) : d_{i,t} = j}|` for `j = 1..15` (`m_0` is
+//!   implicit).
 //!
-//! # Constraints
+//! # Constraints (4)–(7)
 //!
-//! Each of these rows must be zero:
-//! - value link, for each input `i`: `v_i - sum_t 16^t*d_{d*i+t}`;
-//! - set membership: `sum_{k<n_d} r_k + sum_{j=1}^{15} j*m_j/(alpha*(alpha+j))
-//!   - n_d/alpha`, that is `sum_k 1/(alpha+d_k) = sum_{j=0}^{15} m_j/(alpha+j)`
-//!   with `m_0 = n_d - sum_{j>=1} m_j`;
-//! - Hadamard, for each slot `k`: `d_k*r_k + alpha*r_k - 1` if `k < n_d`, and
-//!   `d_k*r_k` on the padding;
-//! - shape, for each input `i`: every coordinate of `V_i` other than those on
-//!   `G` and `H_0`.
+//! - Hadamard (4), for each slot `k < N_d`: `n_L[k]*n_R[k] = 1 - alpha*n_R[k]`,
+//!   and `n_L[k]*n_R[k] = 0` on the padding;
+//! - value link (5), for each input: `sum_t 16^t*n_L[D(i-1)+t] = u_i`, the
+//!   `G`-coordinate of `V_i` (21);
+//! - set membership (6): `sum_{k<N_d} n_R[k] + sum_{j=1}^{15}
+//!   j/(alpha(alpha+j))*m_j = N_d/alpha`;
+//! - shape (7), for each input: every coordinate of `V_i` other than `u_i` on
+//!   `G` and `h_{i,0}` on `H_0` is zero.
 //!
-//! The value link, set membership and Hadamard rows are folded into
+//! # Value row (29)
+//!
+//! The `T^3` coefficient of the error polynomial is
 //! ```text
-//! F = sum_i lambda^i*(value link i) - lambda^m*(set membership)
-//!     - sum_k mu^{k+1}*(Hadamard k)
+//! f[T^3] = sum_i lambda^{i-1}*L_i + E_0 + lambda^M*S
+//!          - 4*sum_{k,i} lambda^{M(k+1)+1+(i-1)}*n_{V_i,k}
+//!          - 2*sum_{m=1..7,i} lambda^{g_m+(i-1)}*h_{i,m}
 //! ```
-//! and for inputs on the `(G, H_0)`-plane, `F` is half the `T^3` coefficient of
-//! the error polynomial. The shape row for coordinate `G_vec[k]` of `V_i` is
-//! folded at `lambda^{m(k+1)+1+i}`, and for coordinate `H_p`, `p = 1..7`, at
-//! `lambda^{m(nm+p)+1+i}`.
+//! with `L_i`, `E_0`, `S` as in (30). Each family of rows is folded at its own
+//! powers of `lambda` and `mu`, so `f[T^3] = 0` for random challenges only if
+//! every row holds.
 
 use crate::bulletproofspp::circuit::CircuitParams;
 use crate::bulletproofspp::crs::{BASE, H_LEN};
@@ -48,31 +49,27 @@ use itertools::iterate;
 
 type S = RistrettoScalar;
 
-/// The public vectors of the folded constraints, computed from the challenges
-/// alone.
+/// The public data (23), computed from the challenges alone.
 pub(crate) struct Constraints {
-    /// Norm weights `(mu, mu^2, ..., mu^nm)`.
+    /// Norm weights `(mu, mu^2, ..., mu^{n_m})`.
     bar_mu: Vec<S>,
-    /// Value links: slot `k = d*i+t` holds `lambda^i * 16^t / mu^{k+1}`; zero
-    /// at the padding slots `k >= n_d`.
+    /// `c_{n,L}[D(i-1)+t] = lambda^{i-1}*16^t / mu^{D(i-1)+t+1}`; zero for
+    /// slots `>= N_d`.
     cn_l: Vec<S>,
-    /// Set membership + Hadamard: `cn_r[k] = lambda^m / mu^{k+1} + alpha`;
-    /// zero at the padding slots.
+    /// `c_{n,R}[k] = lambda^M / mu^{k+1} + alpha`; zero for slots `>= N_d`.
     cn_r: Vec<S>,
-    /// Multiplicities: `cn_o[k] = (k+1)*lambda^m / (alpha*(alpha+k+1)*mu^{k+1})`
-    /// for `k <= 14`; zero above (`m_0` is implicit).
+    /// `c_{n,O}[k] = (k+1)*lambda^M / (alpha(alpha+k+1)*mu^{k+1})` for
+    /// `k <= 14`; zero above.
     cn_o: Vec<S>,
-    /// G_vec shape rows: `cn_v[k] = lambda^{m(k+1)+1} / mu^{k+1}`, all slots
-    /// (padding included).
+    /// `c_{n,V}[k] = lambda^{M(k+1)+1} / mu^{k+1}`.
     cn_v: Vec<S>,
-    /// H shape rows: `cl_v[p] = lambda^{m(nm+p)+1}` for `p = 1..7`, zero first
-    /// entry exempting the honest blinding on `H_0`.
+    /// `c_{l,V} = (0, lambda^{g_1}, ..., lambda^{g_7})`, `g_m = M(n_m+m)+1`.
     cl_v: Vec<S>,
-    /// Constant terms: `lambda_al = n_d * lambda^m / alpha` (set membership)
-    /// and `mu_am = sum_{k<n_d} mu^{k+1}` (Hadamard).
+    /// `lambda_al = N_d*lambda^M / alpha`.
     lambda_al: S,
+    /// `mu_am = sum_{k=1}^{N_d} mu^k`.
     mu_am: S,
-    /// `(1, lambda, ..., lambda^m)`.
+    /// `(1, lambda, ..., lambda^M)`.
     lambdas: Vec<S>,
 }
 
@@ -85,8 +82,8 @@ impl Constraints {
     ) -> FastCryptoResult<Self> {
         let &CircuitParams { m, d, n_d, nm, .. } = params;
         let mu_inv = mu.inverse()?;
-        // Only the lambda-powers that are used: `lambda^0..lambda^m` and the
-        // shape-row powers `shape[j-1] = lambda^{m*j+1}`, `j = 1..=nm+7`.
+        // Only the lambda-powers that are used: `lambda^0..lambda^M` and the
+        // shape-row powers `shape[j-1] = lambda^{M*j+1}`, `j = 1..=n_m+7`.
         let lambdas = power_vector(lambda, m + 1);
         let lam_m = lambdas[m];
         let shape: Vec<S> = iterate(lambda * lam_m, |x| x * lam_m)
@@ -150,23 +147,22 @@ impl Constraints {
         })
     }
 
-    /// The norm weights `(mu, mu^2, ..., mu^nm)`.
+    /// The norm weights `(mu, mu^2, ..., mu^{n_m})`.
     pub(crate) fn norm_weights(&self) -> &[S] {
         &self.bar_mu
     }
 
-    /// The weights `(1, lambda, ..., lambda^{m-1})` of the inputs.
+    /// The weights `lambda^{i-1}`, `i = 1..M`, of the inputs (21).
     pub(crate) fn input_weights(&self) -> &[S] {
         &self.lambdas[..self.lambdas.len() - 1]
     }
 
-    /// The H shape rows: the constant part of the linear constraint vector.
+    /// `c_{l,V}`, the constant part of `c(T)` (24).
     pub(crate) fn shape_h(&self) -> &[S] {
         &self.cl_v
     }
 
-    /// The public part of the norm vector `n(T)`:
-    /// `p_n(T) = cn_v + T*cn_r + T^2*cn_l + T^3*delta^{-1}*cn_o`.
+    /// `p_n(T) = c_{n,V} + T*c_{n,R} + T^2*c_{n,L} + delta^{-1}*T^3*c_{n,O}` (24).
     pub(crate) fn p_n(&self, delta_inv: S) -> Laurent<Vec<S>> {
         Laurent::new(
             0,
@@ -179,55 +175,61 @@ impl Constraints {
         )
     }
 
-    /// The constant `2*(lambda_al + mu_am)` in the public part of the `G`
-    /// coordinate, `p_s(T) = |p_n(T)|^2_mu + p_s_constant()*T^3`.
+    /// The constant `2(lambda_al + mu_am)` in
+    /// `p_s(T) = |p_n(T)|^2_mu + 2(lambda_al + mu_am)*T^3` (24).
     pub(crate) fn p_s_constant(&self) -> S {
         S::from(2u64) * (self.lambda_al + self.mu_am)
     }
 }
 
-/// `F` from the module doc, folded directly from the rows: `values` are the
-/// `v_i`, `digits`, `reciprocals` and `multiplicities` the norm vectors.
+/// The value row (29) for inputs on the `(G, H_0)`-plane and blinding with
+/// the zero pattern (22), computed directly from (30): `values` are the `u_i`,
+/// `n_l`, `n_r`, `n_o` the norm vectors.
 #[cfg(test)]
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn fold(
+pub(crate) fn value_row(
     params: &CircuitParams,
     alpha: S,
     mu: S,
     lambda: S,
     values: &[S],
-    digits: &[S],
-    reciprocals: &[S],
-    multiplicities: &[S],
+    n_l: &[S],
+    n_r: &[S],
+    n_o: &[S],
 ) -> S {
     let &CircuitParams { m, d, n_d, nm, .. } = params;
     let pow = |x: S, e: usize| (0..e).fold(one(), |acc, _| acc * x);
+    fn sum(it: impl Iterator<Item = S>) -> S {
+        it.fold(S::zero(), |acc, x| acc + x)
+    }
+    let two = S::from(2u64);
 
-    let value_links = (0..m).map(|i| {
-        let digit_sum = (0..d).fold(S::zero(), |acc, t| {
-            acc + pow(S::from(BASE), t) * digits[d * i + t]
-        });
-        pow(lambda, i) * (values[i] - digit_sum)
-    });
+    // L_i = 2u_i - 2*sum_t 16^t*n_L[D(i-1)+t], weighted by lambda^{i-1}.
+    let l = sum((0..m).map(|i| {
+        let digits = sum((0..d).map(|t| pow(S::from(BASE), t) * n_l[d * i + t]));
+        pow(lambda, i) * two * (values[i] - digits)
+    }));
 
-    let set_membership = reciprocals[..n_d].iter().fold(S::zero(), |acc, r| acc + r)
-        + (1..BASE as usize).fold(S::zero(), |acc, j| {
-            let j_s = S::from(j as u64);
-            acc + j_s * multiplicities[j - 1] * (alpha * (alpha + j_s)).inverse().unwrap()
-        })
-        - S::from(n_d as u64) * alpha.inverse().unwrap();
-
-    let hadamard = (0..nm).map(|k| {
-        let row = digits[k] * reciprocals[k]
+    // E_0 = -2*sum_{k<N_d} mu^{k+1}(n_L n_R + alpha n_R - 1)
+    //       - 2*sum_{k>=N_d} mu^{k+1} n_L n_R.
+    let e_0 = -sum((0..nm).map(|k| {
+        let row = n_l[k] * n_r[k]
             + if k < n_d {
-                alpha * reciprocals[k] - one()
+                alpha * n_r[k] - one()
             } else {
                 S::zero()
             };
-        pow(mu, k + 1) * row
-    });
+        two * pow(mu, k + 1) * row
+    }));
 
-    value_links.fold(S::zero(), |acc, x| acc + x)
-        - pow(lambda, m) * set_membership
-        - hadamard.fold(S::zero(), |acc, x| acc + x)
+    // S = 2(N_d/alpha - sum_{k<N_d} n_R[k] - sum_j j/(alpha(alpha+j))*n_O[j-1]).
+    let s = two
+        * (S::from(n_d as u64) * alpha.inverse().unwrap()
+            - sum(n_r[..n_d].iter().copied())
+            - sum((1..BASE as usize).map(|j| {
+                let j_s = S::from(j as u64);
+                j_s * n_o[j - 1] * (alpha * (alpha + j_s)).inverse().unwrap()
+            })));
+
+    l + e_0 + pow(lambda, m) * s
 }

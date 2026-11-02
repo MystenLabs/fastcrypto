@@ -515,7 +515,7 @@ pub(crate) fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bulletproofspp::constraints::fold;
+    use crate::bulletproofspp::constraints::value_row;
     use std::array::from_fn;
     use std::sync::Arc;
 
@@ -605,10 +605,9 @@ mod tests {
     }
 
     #[test]
-    fn test_value_row_is_the_folded_constraints() {
+    fn test_value_row_matches_the_paper() {
         // For any witness with inputs on the (G, H_0)-plane, the T^3
-        // coefficient of the error polynomial is twice the constraints folded
-        // directly from the rows in the constraints module doc.
+        // coefficient of the error polynomial is the value row (29)-(30).
         let mut rng = rand::thread_rng();
         for (range, m) in [(Range::Bits64, 1), (Range::Bits16, 4), (Range::Bits8, 3)] {
             let params = CircuitParams::new(range, m).unwrap();
@@ -637,7 +636,7 @@ mod tests {
                 &n,
                 constraints.norm_weights(),
             );
-            let f = fold(
+            let f = value_row(
                 &params,
                 alpha,
                 mu,
@@ -647,7 +646,7 @@ mod tests {
                 &n_r,
                 &witness.n_o,
             );
-            assert_eq!(rest.coeff(3), S::from(2u64) * f);
+            assert_eq!(rest.coeff(3), f);
         }
     }
 
