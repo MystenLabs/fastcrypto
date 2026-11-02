@@ -143,11 +143,13 @@ impl<C: GroupElement> Poly<C> {
     pub fn eval(&self, i: ShareIndex) -> Eval<C> {
         // Use Horner's Method to evaluate the polynomial.
         let xi: C::ScalarType = to_scalar(i);
-        let res = self
-            .0
-            .iter()
-            .rev()
-            .fold(C::zero(), |sum, coeff| sum * xi + coeff);
+        let coeffs = &self.0;
+        let mut res = C::zero();
+        let mut k = coeffs.len();
+        while k > 0 {
+            k -= 1;
+            res = res * xi + &coeffs[k];
+        }
 
         Eval {
             index: i,
