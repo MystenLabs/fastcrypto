@@ -369,17 +369,17 @@ impl Witness {
 }
 
 /// Solve the blinding `r_S` of `C_S` (spec "Choosing r_S") so that it cancels
-/// `rest`, the error polynomial without `C_S`, outside the value row.
-fn solve_r_s(blocks: &Blocks, rest: &Laurent<S>, l_s: S, beta: S) -> FastCryptoResult<Vec<S>> {
+/// `rest`, the error polynomial without `C_S`, outside the value row. Returns
+/// the `G` coordinate `r_S[0]` and the `H` coordinates `(r_S[1..], l_S)`.
+fn solve_r_s(blocks: &Blocks, rest: &Laurent<S>, l_s: S, beta: S) -> FastCryptoResult<(S, Vec<S>)> {
     let beta_inv = beta.inverse()?;
-    // Slots 1..7 first: slot 0 depends on them through the shape entries.
-    let slots: Vec<S> = CR_POWERS
+    let h: Vec<S> = CR_POWERS
         .iter()
         .map(|&a| rest.coeff(a - 1) * beta_inv)
+        .chain(once(l_s))
         .collect();
-    let h = slots.iter().copied().chain(once(l_s)).collect::<Vec<_>>();
-    let r_s_0 = inner_product(&blocks.cl_v, &h) - rest.coeff(-1);
-    Ok(once(r_s_0).chain(slots).collect())
+    // The G coordinate also absorbs the shape entries against h.
+    Ok((inner_product(&blocks.cl_v, &h) - rest.coeff(-1), h))
 }
 
 /// Prove that every `values[i]` lies in `[0, 2^n_bits)` under the Pedersen
@@ -498,15 +498,15 @@ fn prove_witness(
     );
     let c = blocks.c(beta);
     let rest = f_hat - c.inner_product(&l) + r_0;
-    let r_s = solve_r_s(&blocks, &rest, witness.l_s, beta)?;
-    let c_s = commit(gens, &r_s, witness.l_s, &witness.n_s)?;
+    let (g_s, h_s) = solve_r_s(&blocks, &rest, witness.l_s, beta)?;
+    let c_s = gens.commit(g_s, &h_s, &witness.n_s)?;
     transcript.append_point(b"C_S", &c_s);
 
     // Step 6: evaluation point, drawn after every commitment.
     let tau = transcript.challenge_scalar(b"tau");
 
     // Step 7: evaluate the opening of C(tau) and run the norm-linear argument.
-    let l = l + Laurent::monomial(-1, h_coordinates(&r_s, witness.l_s));
+    let l = l + Laurent::monomial(-1, h_s);
     let (c_tau, l_tau, n_tau) = (c.eval(tau)?, l.eval(tau)?, n.eval(tau)?);
     let nl_proof = norm_linear::prove(transcript, gens, &c_tau, rho, &l_tau, &n_tau)?;
 
