@@ -85,11 +85,8 @@ impl Constraints {
     ) -> FastCryptoResult<Self> {
         let &CircuitParams { m, d, n_d, nm, .. } = params;
         let mu_inv = mu.inverse()?;
-        // Only two families of lambda-powers are ever read: the per-value weights
-        // `lambda^0..lambda^m`, and the shape-row powers `lambda^{m*j+1}` for
-        // `j = 1..=nm+7`. The dense vector up to `lambda^{m(nm+8)}` that spans
-        // both is quadratic in the batch size and ~99% unread, so build the two
-        // families directly: `shape[j-1] = lambda^{m*j+1}`, stepping by lambda^m.
+        // Only the lambda-powers that are used: `lambda^0..lambda^m` and the
+        // shape-row powers `shape[j-1] = lambda^{m*j+1}`, `j = 1..=nm+7`.
         let lambdas = power_vector(lambda, m + 1);
         let lam_m = lambdas[m];
         let shape: Vec<S> = successors(Some(lambda * lam_m), |x| Some(*x * lam_m))
