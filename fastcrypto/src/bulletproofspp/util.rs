@@ -133,8 +133,8 @@ pub(crate) fn to_digits(value: u64, d: usize) -> Vec<u64> {
         .collect()
 }
 
-/// Shared multiplicities `m_j = |{(i,t) : d_{i,t} = j}|` for `j = 1..15`
-/// (`m_0` implicit).
+/// Shared multiplicities `m_j = |{(i,t) : d_{i,t} = j}|` of the digits for
+/// `j = 1, ..., BASE - 1` (`m_0` implicit), with [BASE] the digit base.
 pub(crate) fn multiplicities(digits: &[u64]) -> Vec<u64> {
     let mut m = vec![0u64; (BASE - 1) as usize];
     for &d in digits {
