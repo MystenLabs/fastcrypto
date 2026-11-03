@@ -25,7 +25,10 @@
 //! their random oracles from the session id alone.
 //!
 //! It is also assumed that all messages between parties are sent over authenticated channels, so
-//! that the receiver of a message knows who sent it and that it was not modified.
+//! that the receiver of a message knows who sent it and that it was not modified, and that every
+//! message between honest parties is eventually delivered. The DKG also assumes a total-order
+//! broadcast (TOB) channel for certificates: all honest parties read prefixes of the same log.
+//! The set of Byzantine parties is fixed for the whole protocol (static corruption).
 //!
 //! The thresholds are defined as follows:
 //! * <i>W</i> = total weight of all parties
@@ -119,7 +122,8 @@ enum Extensions {
 
 /// This represents a certificate over a payload that a subset of the parties have signed.
 /// Here, the implementation is abstract, and it is up to the caller to implement the actual
-/// verification functionality.
+/// verification functionality. Signatures must be unforgeable, so that `verify` succeeds only if
+/// every party in `signers` signed the payload.
 pub trait Certificate {
     type Payload;
 
