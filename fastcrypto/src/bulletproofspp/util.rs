@@ -125,7 +125,7 @@ pub(crate) fn batch_invert(inputs: &[RistrettoScalar]) -> FastCryptoResult<Vec<R
 }
 
 /// Little-endian base-16 digits of `value`, `d` of them.
-pub(crate) fn decompose(value: u64, d: usize) -> Vec<u64> {
+pub(crate) fn to_digits(value: u64, d: usize) -> Vec<u64> {
     let bits = BASE.ilog2();
     (0..d as u32)
         .map(|t| (value >> (bits * t)) & (BASE - 1))
@@ -194,9 +194,9 @@ mod tests {
     }
 
     #[test]
-    fn test_decompose_and_multiplicities() {
-        assert_eq!(decompose(0, 16), vec![0; 16]);
-        let digits = decompose(0x1234, 4);
+    fn test_to_digits_and_multiplicities() {
+        assert_eq!(to_digits(0, 16), vec![0; 16]);
+        let digits = to_digits(0x1234, 4);
         assert_eq!(digits, vec![4, 3, 2, 1]);
 
         let m = multiplicities(&digits);

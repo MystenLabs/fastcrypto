@@ -182,7 +182,7 @@ impl Witness {
     ) -> Self {
         let digits: Vec<u64> = values
             .iter()
-            .flat_map(|&v| decompose(v, params.d))
+            .flat_map(|&v| to_digits(v, params.d))
             .collect();
         Witness {
             values: to_scalars(values),
