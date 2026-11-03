@@ -1,8 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Scalar-vector helpers shared by the BP++ modules.
+//! Scalar-vector and digit helpers shared by the BP++ modules.
 
+use crate::bulletproofspp::crs::BASE;
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::RistrettoScalar;
 use crate::groups::{GroupElement, Scalar};
@@ -123,6 +124,26 @@ pub(crate) fn batch_invert(inputs: &[RistrettoScalar]) -> FastCryptoResult<Vec<R
     Ok(out)
 }
 
+/// Little-endian base-16 digits of `value`, `d` of them.
+pub(crate) fn decompose(value: u64, d: usize) -> Vec<u64> {
+    let bits = BASE.ilog2();
+    (0..d as u32)
+        .map(|t| (value >> (bits * t)) & (BASE - 1))
+        .collect()
+}
+
+/// Shared multiplicities `m_j = |{(i,t) : d_{i,t} = j}|` for `j = 1..15`
+/// (`m_0` implicit).
+pub(crate) fn multiplicities(digits: &[u64]) -> Vec<u64> {
+    let mut m = vec![0u64; (BASE - 1) as usize];
+    for &d in digits {
+        if d > 0 {
+            m[(d - 1) as usize] += 1;
+        }
+    }
+    m
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,5 +191,17 @@ mod tests {
 
         let with_zero = vec![s(1), s(0), s(2)];
         assert!(batch_invert(&with_zero).is_err());
+    }
+
+    #[test]
+    fn test_decompose_and_multiplicities() {
+        assert_eq!(decompose(0, 16), vec![0; 16]);
+        let digits = decompose(0x1234, 4);
+        assert_eq!(digits, vec![4, 3, 2, 1]);
+
+        let m = multiplicities(&digits);
+        assert_eq!(m[0], 1); // digit 1
+        assert_eq!(m[3], 1); // digit 4
+        assert_eq!(m.iter().sum::<u64>(), 4);
     }
 }
