@@ -97,6 +97,10 @@ impl RangeProof {
     }
 
     /// Verify that all `commitments` open to values in `range`.
+    ///
+    /// The generators for a new batch size `commitments.len()` are derived and
+    /// cached for the lifetime of the process, so callers must bound the batch
+    /// size when it comes from untrusted input.
     pub fn verify_batch(
         &self,
         commitments: &[PedersenCommitment],
