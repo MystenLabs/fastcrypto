@@ -5,6 +5,7 @@
 pub mod range_proof;
 
 mod circuit;
+mod constraints;
 mod crs;
 mod laurent;
 mod norm_linear;
