@@ -124,7 +124,8 @@ pub(crate) fn batch_invert(inputs: &[RistrettoScalar]) -> FastCryptoResult<Vec<R
     Ok(out)
 }
 
-/// Little-endian base-16 digits of `value`, `d` of them.
+/// The `d` least significant digits of `value` in base [BASE], little-endian.
+/// [BASE] must be a power of 2.
 pub(crate) fn to_digits(value: u64, d: usize) -> Vec<u64> {
     let bits = BASE.ilog2();
     (0..d as u32)
