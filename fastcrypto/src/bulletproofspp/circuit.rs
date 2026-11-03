@@ -18,9 +18,7 @@ use crate::traits::AllowedRng;
 use std::iter::once;
 
 use crate::bulletproofspp::constraints::Constraints;
-use crate::bulletproofspp::crs::{
-    compatible_with_pedersen_commitments, dims, Generators, BASE, H_LEN,
-};
+use crate::bulletproofspp::crs::{compatible_with_pedersen_commitments, dims, Generators, H_LEN};
 use crate::bulletproofspp::laurent::Laurent;
 use crate::bulletproofspp::norm_linear::{self, NormLinearProof};
 use crate::bulletproofspp::transcript::BpppTranscript;
@@ -145,26 +143,6 @@ fn blinding_vector(rng: &mut impl AllowedRng, zeros: &[usize]) -> Vec<S> {
         .collect()
 }
 
-/// Little-endian base-16 digits of `value`, `d` of them.
-fn decompose(value: u64, d: usize) -> Vec<u64> {
-    let bits = BASE.ilog2();
-    (0..d as u32)
-        .map(|t| (value >> (bits * t)) & (BASE - 1))
-        .collect()
-}
-
-/// Shared multiplicities `m_j = |{(i,t) : d_{i,t} = j}|` for `j = 1..15`
-/// (`m_0` implicit).
-fn multiplicities(digits: &[u64]) -> Vec<u64> {
-    let mut m = vec![0u64; (BASE - 1) as usize];
-    for &d in digits {
-        if d > 0 {
-            m[(d - 1) as usize] += 1;
-        }
-    }
-    m
-}
-
 /// The honest reciprocals `(alpha + d_k)^{-1}` of the digits `n_l` on the
 /// real digit slots, zero on the padding.
 fn reciprocals(params: &CircuitParams, n_l: &[S], alpha: S) -> FastCryptoResult<Vec<S>> {
@@ -204,7 +182,7 @@ impl Witness {
     ) -> Self {
         let digits: Vec<u64> = values
             .iter()
-            .flat_map(|&v| decompose(v, params.d))
+            .flat_map(|&v| to_digits(v, params.d))
             .collect();
         Witness {
             values: to_scalars(values),
@@ -546,18 +524,6 @@ mod tests {
     ) -> FastCryptoResult<()> {
         let mut t = BpppTranscript::new(b"test");
         verify(&mut t, gens, params, proof, v_commitments)
-    }
-
-    #[test]
-    fn test_decompose_and_multiplicities() {
-        assert_eq!(decompose(0, 16), vec![0; 16]);
-        let digits = decompose(0x1234, 4);
-        assert_eq!(digits, vec![4, 3, 2, 1]);
-
-        let m = multiplicities(&digits);
-        assert_eq!(m[0], 1); // digit 1
-        assert_eq!(m[3], 1); // digit 4
-        assert_eq!(m.iter().sum::<u64>(), 4);
     }
 
     #[test]
