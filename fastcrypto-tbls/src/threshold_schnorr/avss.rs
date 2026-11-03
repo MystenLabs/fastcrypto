@@ -490,7 +490,7 @@ impl Receiver {
     /// Verify a [ComplaintResponse] received from `responder_id` against the dealer's `message`,
     /// binding the verified shares to the responder.
     ///
-    /// The caller keeps at most one verified response per responder, since [Self::recover] rejects
+    /// A receiver keeps at most one verified response per responder, since [Self::recover] rejects
     /// duplicates, and persists them until [Self::recover] succeeds.
     pub fn verify_complaint_response(
         &self,
