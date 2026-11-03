@@ -101,7 +101,7 @@ impl CircuitParams {
 /// `c(T) = cl_v + beta*sum_j e_j*T^{CR_POWERS[j]}`, with `cl_v` the H shape
 /// rows and `e_j` the `j`-th unit vector (slot 8 carries only the shape entry).
 fn c(constraints: &Constraints, beta: S) -> Laurent<Vec<S>> {
-    Laurent::from_terms(once((0, constraints.shape_h().to_vec())).chain(
+    Laurent::from_terms(once((0, constraints.cl_v.clone())).chain(
         CR_POWERS.iter().enumerate().map(|(j, &a)| {
             let mut beta_e_j = vec![S::zero(); H_LEN];
             beta_e_j[j] = beta;
@@ -264,7 +264,7 @@ fn solve_r_s(
         .map(|&a| rest.coeff(a - 1) * beta_inv)
         .chain(once(l_s))
         .collect();
-    Ok((inner_product(constraints.shape_h(), &h) - rest.coeff(-1), h))
+    Ok((inner_product(&constraints.cl_v, &h) - rest.coeff(-1), h))
 }
 
 /// The coordinates `(sigma(T), l(T), n(T))` on `G`, `H` and `G_vec` of the
@@ -286,8 +286,7 @@ fn coordinates_without_c_s(
     // hat_V = 2*sum_i lambda^{i-1} V_i opens to hat_v on G,
     // 2*sum_i lambda^{i-1} s_i on H_0 and the off-plane coordinates n_hat_V,
     // l_hat_V (zero for honest inputs).
-    let weights: Vec<S> = constraints
-        .input_weights()
+    let weights: Vec<S> = constraints.lambdas[..params.m]
         .iter()
         .map(|l| two * l)
         .collect();
@@ -323,7 +322,7 @@ fn coordinates_without_c_s(
         0,
         vec![delta * witness.r_o[0], witness.r_l[0], witness.r_r[0]],
     ) + p_n.weighted_inner_product(&p_n, constraints.norm_weights())
-        + Laurent::monomial(3, v_hat + constraints.p_s_constant());
+        + Laurent::monomial(3, v_hat + two * (constraints.lambda_al + constraints.mu_am));
     let l = Laurent::new(
         0,
         vec![
@@ -459,7 +458,8 @@ pub(crate) fn verify(
     let pn_tau = constraints.p_n(delta_inv).eval(tau)?;
     // p_s(tau) = |p_n(tau)|^2_mu + 2*(lambda_al + mu_am)*tau^3, evaluated
     // directly on pn_tau rather than via the coefficients of p_s(T).
-    let ps_tau = weighted_norm(&pn_tau, mu) + constraints.p_s_constant() * t3;
+    let ps_tau = weighted_norm(&pn_tau, mu)
+        + S::from(2u64) * (constraints.lambda_al + constraints.mu_am) * t3;
     let c_tau = c(&constraints, beta).eval(tau)?;
 
     // Combined commitment, decomposed so it joins the norm-linear verifier's
@@ -475,7 +475,7 @@ pub(crate) fn verify(
         (t2, proof.c_r),
     ];
     for (i, v_i) in v_commitments.iter().enumerate() {
-        extra.push((two_t3 * constraints.input_weights()[i], v_i.0));
+        extra.push((two_t3 * constraints.lambdas[i], v_i.0));
     }
 
     norm_linear::verify(

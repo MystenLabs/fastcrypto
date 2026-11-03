@@ -64,13 +64,13 @@ pub(crate) struct Constraints {
     /// `c_{n,V}[k] = lambda^{M(k+1)+1} / mu^{k+1}`.
     cn_v: Vec<S>,
     /// `c_{l,V} = (0, lambda^{g_1}, ..., lambda^{g_7})`, `g_m = M(n_m+m)+1`.
-    cl_v: Vec<S>,
+    pub(crate) cl_v: Vec<S>,
     /// `lambda_al = N_d*lambda^M / alpha`.
-    lambda_al: S,
+    pub(crate) lambda_al: S,
     /// `mu_am = sum_{k=1}^{N_d} mu^k`.
-    mu_am: S,
+    pub(crate) mu_am: S,
     /// `(1, lambda, ..., lambda^M)`.
-    lambdas: Vec<S>,
+    pub(crate) lambdas: Vec<S>,
 }
 
 impl Constraints {
@@ -152,16 +152,6 @@ impl Constraints {
         &self.bar_mu
     }
 
-    /// The weights `lambda^{i-1}`, `i = 1..M`, of the inputs (21).
-    pub(crate) fn input_weights(&self) -> &[S] {
-        &self.lambdas[..self.lambdas.len() - 1]
-    }
-
-    /// `c_{l,V}`, the constant part of `c(T)` (24).
-    pub(crate) fn shape_h(&self) -> &[S] {
-        &self.cl_v
-    }
-
     /// `p_n(T) = c_{n,V} + T*c_{n,R} + T^2*c_{n,L} + delta^{-1}*T^3*c_{n,O}` (24).
     pub(crate) fn p_n(&self, delta_inv: S) -> Laurent<Vec<S>> {
         Laurent::new(
@@ -173,12 +163,6 @@ impl Constraints {
                 vec_scalar_mul(delta_inv, &self.cn_o),
             ],
         )
-    }
-
-    /// The constant `2(lambda_al + mu_am)` in
-    /// `p_s(T) = |p_n(T)|^2_mu + 2(lambda_al + mu_am)*T^3` (24).
-    pub(crate) fn p_s_constant(&self) -> S {
-        S::from(2u64) * (self.lambda_al + self.mu_am)
     }
 }
 
