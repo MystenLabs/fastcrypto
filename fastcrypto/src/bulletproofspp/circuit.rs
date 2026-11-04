@@ -269,7 +269,7 @@ fn solve_r_s(
 
 /// The coordinates `(sigma(T), l(T), n(T))` on `G`, `H` and `G_vec` of the
 /// combined commitment
-/// `C(T) = T^{-1}*C_S + delta*C_O + T*C_L + T^2*C_R + T^3*hat_V
+/// `C(T) = T^{-1}*C_S + C_O + T*C_L + T^2*C_R + T^3*hat_V
 ///       + p_s(T)*G + <p_n(T), G_vec>`,
 /// with the blinding `r_S` and linear witness `l_S` of `C_S` set to zero.
 /// `n_r` are the committed reciprocals.
@@ -278,8 +278,6 @@ fn coordinates_without_c_s(
     constraints: &Constraints,
     witness: &Witness,
     n_r: Vec<S>,
-    delta: S,
-    delta_inv: S,
 ) -> (Laurent<S>, Laurent<Vec<S>>, Laurent<Vec<S>>) {
     let two = S::from(2u64);
     // The rescaled aggregate input
@@ -303,12 +301,12 @@ fn coordinates_without_c_s(
 
     // The G_vec coordinates n(T) = w(T) + p_n(T) of C(T): the witness part w
     // and the public part p_n.
-    let p_n = constraints.p_n(delta_inv);
+    let p_n = constraints.p_n();
     let n = Laurent::new(
         -1,
         vec![
             witness.n_s.clone(),
-            vec_scalar_mul(delta, &witness.n_o),
+            witness.n_o.clone(),
             witness.n_l.clone(),
             n_r,
             n_v_hat,
@@ -318,15 +316,13 @@ fn coordinates_without_c_s(
     // The G coordinate sigma(T) = r_0(T) + p_s(T) + hat_v*T^3 and the H
     // coordinates l(T) of C(T), with r_S = 0 and l_S = 0, where
     // p_s(T) = |p_n(T)|^2_mu + 2*(lambda_al + mu_am)*T^3 is public.
-    let sigma = Laurent::new(
-        0,
-        vec![delta * witness.r_o[0], witness.r_l[0], witness.r_r[0]],
-    ) + p_n.weighted_inner_product(&p_n, constraints.norm_weights())
+    let sigma = Laurent::new(0, vec![witness.r_o[0], witness.r_l[0], witness.r_r[0]])
+        + p_n.weighted_inner_product(&p_n, constraints.norm_weights())
         + Laurent::monomial(3, v_hat + two * (constraints.lambda_al + constraints.mu_am));
     let l = Laurent::new(
         0,
         vec![
-            vec_scalar_mul(delta, &h_coordinates(&witness.r_o)),
+            h_coordinates(&witness.r_o),
             h_coordinates(&witness.r_l),
             h_coordinates(&witness.r_r),
             v_hat_h,
@@ -387,18 +383,17 @@ fn prove_witness(
     let c_r = commit(gens, &witness.r_r, &n_r)?;
     transcript.append_point(b"C_R", &c_r);
 
-    // Step 4: constraint challenges.
+    // Step 4: constraint challenges. The paper's `delta`, which scales C_O,
+    // is fixed to 1: the shape rows already force the input coordinates it
+    // separates C_O from to zero.
     let rho = transcript.challenge_scalar(b"rho");
     let lambda = transcript.challenge_scalar(b"lambda");
     let beta = transcript.challenge_scalar(b"beta");
-    let delta = transcript.challenge_scalar(b"delta");
     let mu = rho * rho;
-    let delta_inv = delta.inverse()?;
     let constraints = Constraints::new(params, alpha, mu, lambda)?;
 
     // Step 5: solve the blinding r_S of C_S.
-    let (sigma, l, n) =
-        coordinates_without_c_s(params, &constraints, witness, n_r, delta, delta_inv);
+    let (sigma, l, n) = coordinates_without_c_s(params, &constraints, witness, n_r);
     let c = c(&constraints, beta);
     let rest = error_polynomial(&sigma, &c, &l, &n, constraints.norm_weights());
     let (g_s, h_s) = solve_r_s(&constraints, &rest, witness.l_s, beta)?;
@@ -445,9 +440,7 @@ pub(crate) fn verify(
     let rho = transcript.challenge_scalar(b"rho");
     let lambda = transcript.challenge_scalar(b"lambda");
     let beta = transcript.challenge_scalar(b"beta");
-    let delta = transcript.challenge_scalar(b"delta");
     let mu = rho * rho;
-    let delta_inv = delta.inverse()?;
     transcript.append_point(b"C_S", &proof.c_s);
     let tau = transcript.challenge_scalar(b"tau");
     let tau_inv = tau.inverse()?;
@@ -455,7 +448,7 @@ pub(crate) fn verify(
     let t3 = t2 * tau;
 
     let constraints = Constraints::new(params, alpha, mu, lambda)?;
-    let pn_tau = constraints.p_n(delta_inv).eval(tau)?;
+    let pn_tau = constraints.p_n().eval(tau)?;
     // p_s(tau) = |p_n(tau)|^2_mu + 2*(lambda_al + mu_am)*tau^3, evaluated
     // directly on pn_tau rather than via the coefficients of p_s(T).
     let ps_tau = weighted_norm(&pn_tau, mu)
@@ -465,12 +458,12 @@ pub(crate) fn verify(
     // Combined commitment, decomposed so it joins the norm-linear verifier's
     // single MSM (g_vec is touched only there):
     //   C(tau) = <p_n(tau), G_vec> + p_s(tau)*G
-    //          + tau^{-1}*C_S + delta*C_O + tau*C_L + tau^2*C_R + tau^3*hat_V
+    //          + tau^{-1}*C_S + C_O + tau*C_L + tau^2*C_R + tau^3*hat_V
     // with hat_V = 2*sum_i lambda^{i-1} V_i.
     let two_t3 = S::from(2u64) * t3;
     let mut extra = vec![
         (tau_inv, proof.c_s),
-        (delta, proof.c_o),
+        (one(), proof.c_o),
         (tau, proof.c_l),
         (t2, proof.c_r),
     ];
@@ -553,12 +546,10 @@ mod tests {
                 .map(|_| rand::Rng::gen::<u64>(&mut rng) & range.max_value())
                 .collect();
             let witness = honest_witness(&params, &values);
-            let [alpha, mu, lambda, beta, delta] = from_fn(|_| S::rand(&mut rng));
+            let [alpha, mu, lambda, beta] = from_fn(|_| S::rand(&mut rng));
             let constraints = Constraints::new(&params, alpha, mu, lambda).unwrap();
             let n_r = reciprocals(&params, &witness.n_l, alpha).unwrap();
-            let delta_inv = delta.inverse().unwrap();
-            let (sigma, l, n) =
-                coordinates_without_c_s(&params, &constraints, &witness, n_r, delta, delta_inv);
+            let (sigma, l, n) = coordinates_without_c_s(&params, &constraints, &witness, n_r);
             let c = c(&constraints, beta);
             let rest = error_polynomial(&sigma, &c, &l, &n, constraints.norm_weights());
             assert!(!rest.is_zero());
@@ -577,7 +568,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         for (range, m) in [(Range::Bits64, 1), (Range::Bits16, 4), (Range::Bits8, 3)] {
             let params = CircuitParams::new(range, m).unwrap();
-            let [alpha, mu, lambda, beta, delta] = from_fn(|_| S::rand(&mut rng));
+            let [alpha, mu, lambda, beta] = from_fn(|_| S::rand(&mut rng));
             let mut random = |len: usize| (0..len).map(|_| S::rand(&mut rng)).collect::<Vec<S>>();
             let mut witness = honest_witness(&params, &vec![0; m]);
             witness.values = random(m);
@@ -586,15 +577,8 @@ mod tests {
             let n_r = random(params.nm);
 
             let constraints = Constraints::new(&params, alpha, mu, lambda).unwrap();
-            let delta_inv = delta.inverse().unwrap();
-            let (sigma, l, n) = coordinates_without_c_s(
-                &params,
-                &constraints,
-                &witness,
-                n_r.clone(),
-                delta,
-                delta_inv,
-            );
+            let (sigma, l, n) =
+                coordinates_without_c_s(&params, &constraints, &witness, n_r.clone());
             let rest = error_polynomial(
                 &sigma,
                 &c(&constraints, beta),
