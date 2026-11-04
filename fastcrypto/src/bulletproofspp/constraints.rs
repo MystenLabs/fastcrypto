@@ -152,15 +152,16 @@ impl Constraints {
         &self.bar_mu
     }
 
-    /// `p_n(T) = c_{n,V} + T*c_{n,R} + T^2*c_{n,L} + delta^{-1}*T^3*c_{n,O}` (24).
-    pub(crate) fn p_n(&self, delta_inv: S) -> Laurent<Vec<S>> {
+    /// `p_n(T) = c_{n,V} + T*c_{n,R} + T^2*c_{n,L} + T^3*c_{n,O}` (24), with
+    /// the paper's `delta` set to 1.
+    pub(crate) fn p_n(&self) -> Laurent<Vec<S>> {
         Laurent::new(
             0,
             vec![
                 self.cn_v.clone(),
                 self.cn_r.clone(),
                 self.cn_l.clone(),
-                vec_scalar_mul(delta_inv, &self.cn_o),
+                self.cn_o.clone(),
             ],
         )
     }
