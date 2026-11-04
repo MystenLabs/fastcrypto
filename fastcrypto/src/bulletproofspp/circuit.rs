@@ -238,11 +238,12 @@ fn error_polynomial(
 
 /// The blinding of `C_S` (spec "Choosing r_S"): its `G` coordinate `r_S[0]`
 /// and its `H` coordinates `h = (r_S[1..], l_S)`, such that the
-/// [error_polynomial] vanishes at every power of `T` except `T^3`.
+/// [error_polynomial] `e(T)` vanishes at every power of `T` except `T^3`.
 ///
-/// `rest` is the error polynomial with `r_S = 0` and `l_S = 0`. With
-/// `a_j = CR_POWERS[j]`, setting the coefficients of `T^{a_j - 1}` and `T^{-1}`
-/// to zero gives the linear equations
+/// `rest(T)` is `e(T)` with `r_S = 0` and `l_S = 0`, so
+///   `e(T) = rest(T) + T^{-1}*(r_S[0] - <c(T), h>)`.
+/// With `a_j = CR_POWERS[j]`, setting the coefficients of `T^{a_j - 1}` and
+/// `T^{-1}` of `e(T)` to zero gives the linear equations
 ///   `beta*h_j = rest_{a_j - 1}`  for `j = 0..6`,
 ///   `r_S[0] = <cl_v, h> - rest_{-1}`,
 /// solved in this order. `l_S = h_7` is free.
