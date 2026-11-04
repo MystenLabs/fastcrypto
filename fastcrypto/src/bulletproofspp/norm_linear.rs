@@ -116,6 +116,13 @@ impl Generators {
 /// Prove the norm-linear relation for the opening `(l, n)` of a commitment
 /// under `gens`. Requires `l`, `c`, `gens.h_vec` of equal length and `n`,
 /// `gens.g_vec` of equal length.
+///
+/// Each round commits to the cross terms (`X`) and odd-odd terms (`R`) of
+/// the folded relation, then folds `(c, l, n)` and the bases with the
+/// challenge, leaving a half-size instance with weight `mu^2`. Once fewer
+/// than [FOLD_THRESHOLD] scalars remain the opening is sent in the clear.
+///
+/// Errors only if `rho` is zero and at least one round is needed.
 pub(crate) fn prove(
     transcript: &mut BpppTranscript,
     gens: &Generators,
@@ -128,14 +135,52 @@ pub(crate) fn prove(
     debug_assert_eq!(l.len(), gens.h_vec.len());
     debug_assert_eq!(n.len(), gens.g_vec.len());
     transcript.domain_sep(b"norm_linear");
-    prove_rec(
-        transcript,
-        LazyBases::new(gens),
-        c.to_vec(),
-        rho,
-        l.to_vec(),
-        n.to_vec(),
-    )
+    let mut bases = LazyBases::new(gens);
+    let (mut c, mut rho, mut l, mut n) = (c.to_vec(), rho, l.to_vec(), n.to_vec());
+    let mut rounds = Vec::new();
+    while !is_base_case(l.len(), n.len()) {
+        let (l0, l1) = split_even_odd(l);
+        let (n0, n1) = split_even_odd(n);
+        let (c0, c1) = split_even_odd(c);
+
+        let mu = rho * rho;
+        let mu2 = mu * mu;
+        let rho_inv = rho.inverse()?;
+        let two = RistrettoScalar::from(2u64);
+
+        // gamma^1 and (gamma^2 - 1) coefficients of the folded opening.
+        let vx = two * rho_inv * weighted_inner_product(&n0, &n1, mu2)
+            + inner_product(&c0, &l1)
+            + inner_product(&c1, &l0);
+        let vr = weighted_norm(&n1, mu2) + inner_product(&c1, &l1);
+
+        // X carries the cross terms and R the odd-odd terms.
+        let x_point = bases.msm(
+            vx,
+            &interleave(&l1, &l0),
+            &interleave(&vec_scalar_mul(rho, &n1), &vec_scalar_mul(rho_inv, &n0)),
+        )?;
+        let r_point = bases.msm(vr, &odd_only(&l1), &odd_only(&n1))?;
+
+        transcript.append_point(b"X", &x_point);
+        transcript.append_point(b"R", &r_point);
+        let gamma = transcript.challenge_scalar(b"gamma");
+
+        bases = bases.fold(rho, gamma);
+        c = vec_add(&c0, &vec_scalar_mul(gamma, &c1));
+        l = vec_add(&l0, &vec_scalar_mul(gamma, &l1));
+        n = vec_add(&vec_scalar_mul(rho_inv, &n0), &vec_scalar_mul(gamma, &n1));
+        rho = mu;
+        rounds.push((x_point, r_point));
+    }
+    transcript.append_scalars(b"l_final", &l);
+    transcript.append_scalars(b"n_final", &n);
+    debug_assert_eq!(l.len(), 1);
+    Ok(NormLinearProof {
+        rounds,
+        l_final: l[0],
+        n_final: n,
+    })
 }
 
 /// Verify a norm-linear proof in a single multi-scalar multiplication.
@@ -238,76 +283,6 @@ pub(crate) fn verify(
     } else {
         Err(FastCryptoError::InvalidProof)
     }
-}
-
-/// One round: commit to the cross terms (`X`) and odd-odd terms (`R`) of the
-/// folded relation, fold `(c, l, n)` and the bases with the challenge, and
-/// recurse on the half-size instance with weight `mu^2`. Once fewer than
-/// [FOLD_THRESHOLD] scalars remain the opening is sent in the clear.
-///
-/// Errors only if `rho` is zero and at least one round is needed.
-fn prove_rec(
-    transcript: &mut BpppTranscript,
-    mut bases: LazyBases<'_>,
-    c: Vec<RistrettoScalar>,
-    rho: RistrettoScalar,
-    l: Vec<RistrettoScalar>,
-    n: Vec<RistrettoScalar>,
-) -> FastCryptoResult<NormLinearProof> {
-    if is_base_case(l.len(), n.len()) {
-        transcript.append_scalars(b"l_final", &l);
-        transcript.append_scalars(b"n_final", &n);
-        debug_assert_eq!(l.len(), 1);
-        return Ok(NormLinearProof {
-            rounds: vec![],
-            l_final: l[0],
-            n_final: n,
-        });
-    }
-
-    let (l0, l1) = split_even_odd(l);
-    let (n0, n1) = split_even_odd(n);
-    let (c0, c1) = split_even_odd(c);
-
-    let mu = rho * rho;
-    let mu2 = mu * mu;
-    let rho_inv = rho.inverse()?;
-    let two = RistrettoScalar::from(2u64);
-
-    // gamma^1 and (gamma^2 - 1) coefficients of the folded opening:
-    //   vx = 2*rho^{-1}*<n0, n1>_{mu^2} + <c0, l1> + <c1, l0>
-    //   vr = |n1|^2_{mu^2} + <c1, l1>
-    let vx = two * rho_inv * weighted_inner_product(&n0, &n1, mu2)
-        + inner_product(&c0, &l1)
-        + inner_product(&c1, &l0);
-    let vr = weighted_norm(&n1, mu2) + inner_product(&c1, &l1);
-
-    // X carries the cross terms and R the odd-odd terms:
-    //   X = vx*G + <l1, H_even> + <l0, H_odd> + rho*<n1, G_even> + rho^{-1}*<n0, G_odd>
-    //   R = vr*G + <l1, H_odd> + <n1, G_odd>
-    let x_point = bases.msm(
-        vx,
-        &interleave(&l1, &l0),
-        &interleave(&vec_scalar_mul(rho, &n1), &vec_scalar_mul(rho_inv, &n0)),
-    )?;
-    let r_point = bases.msm(vr, &odd_only(&l1), &odd_only(&n1))?;
-
-    transcript.append_point(b"X", &x_point);
-    transcript.append_point(b"R", &r_point);
-    let gamma = transcript.challenge_scalar(b"gamma");
-
-    // Fold: l' = l0 + gamma*l1, n' = rho^{-1}*n0 + gamma*n1,
-    // c' = c0 + gamma*c1, and the bases as in [LazyBases::fold].
-    let mut proof = prove_rec(
-        transcript,
-        bases.fold(rho, gamma),
-        vec_add(&c0, &vec_scalar_mul(gamma, &c1)),
-        mu,
-        vec_add(&l0, &vec_scalar_mul(gamma, &l1)),
-        vec_add(&vec_scalar_mul(rho_inv, &n0), &vec_scalar_mul(gamma, &n1)),
-    )?;
-    proof.rounds.insert(0, (x_point, r_point));
-    Ok(proof)
 }
 
 /// The current round's bases `H`, `G_vec`, folded lazily: folds are kept
