@@ -141,19 +141,19 @@ pub(crate) fn prove(
 /// Verify a norm-linear proof in a single multi-scalar multiplication.
 ///
 /// The commitment is supplied in decomposed form so it joins the same MSM:
-/// `ps` is its public coefficient on `G`, `pn` its public coefficients over
+/// `p_s` is its public coefficient on `G`, `p_n` its public coefficients over
 /// `g_vec` and `extra` the remaining `(scalar, point)` terms, i.e. the
-/// commitment equals `ps*G + <pn, g_vec> + sum extra`.
+/// commitment equals `p_s*G + <p_n, g_vec> + sum extra`.
 ///
 /// Instead of folding the generator vectors round by round, the final `l`
 /// and `n` are spread back onto the original generators through the
 /// combined weights of all folds ([Weights::tensor]), the same weights
 /// the prover folds with. The per-round identity padding never hosts a base
 /// generator, so this is exact, and the base-case check becomes
-///   (sigma - ps)*G + <w_h ⊙ l, H> + <w_g ⊙ n - pn, G_vec>
+///   (sigma - p_s)*G + <w_h ⊙ l, H> + <w_g ⊙ n - p_n, G_vec>
 ///     - sum extra - sum_r (gamma_r*X_r + (gamma_r^2 - 1)*R_r) == 0.
 ///
-/// `c` and `pn` must have the lengths of `gens.h_vec` and `gens.g_vec`.
+/// `c` and `p_n` must have the lengths of `gens.h_vec` and `gens.g_vec`.
 /// Errors with `InvalidProof` on any mismatch, including a proof whose shape
 /// differs from the one implied by the base lengths.
 #[allow(clippy::too_many_arguments)]
@@ -161,13 +161,13 @@ pub(crate) fn verify(
     transcript: &mut BpppTranscript,
     gens: &Generators,
     c: &[RistrettoScalar],
-    ps: RistrettoScalar,
-    pn: &[RistrettoScalar],
+    p_s: RistrettoScalar,
+    p_n: &[RistrettoScalar],
     extra: &[(RistrettoScalar, RistrettoPoint)],
     rho: RistrettoScalar,
     proof: &NormLinearProof,
 ) -> FastCryptoResult<()> {
-    if c.len() != gens.h_vec.len() || pn.len() != gens.g_vec.len() {
+    if c.len() != gens.h_vec.len() || p_n.len() != gens.g_vec.len() {
         return Err(FastCryptoError::InvalidInput);
     }
     // The prover's fold count and final lengths are determined by the base
@@ -215,8 +215,8 @@ pub(crate) fn verify(
     let n = w_g
         .tensor(&proof.n_final)
         .take(gens.g_vec.len())
-        .zip(pn)
-        .map(|(w, pn_i)| w - pn_i);
+        .zip(p_n)
+        .map(|(w, p_n_i)| w - p_n_i);
 
     let mut dynamic_scalars = Vec::with_capacity(extra.len() + 2 * k);
     let mut dynamic_points = Vec::with_capacity(extra.len() + 2 * k);
@@ -231,7 +231,7 @@ pub(crate) fn verify(
         dynamic_points.push(*r_point);
     }
 
-    let result = gens.msm(sigma - ps, l, n, &dynamic_scalars, &dynamic_points)?;
+    let result = gens.msm(sigma - p_s, l, n, &dynamic_scalars, &dynamic_points)?;
 
     if result == RistrettoPoint::zero() {
         Ok(())
@@ -357,12 +357,12 @@ impl<'a> LazyBases<'a> {
         (h_vec.len(), g_vec.len())
     }
 
-    /// `v*G + <h_coeffs, H> + <g_coeffs, G_vec>` over the current bases.
+    /// `sigma*G + <l, H> + <n, G_vec>` over the current bases.
     fn msm(
         &mut self,
-        v: RistrettoScalar,
-        h_coeffs: &[RistrettoScalar],
-        g_coeffs: &[RistrettoScalar],
+        sigma: RistrettoScalar,
+        l: &[RistrettoScalar],
+        n: &[RistrettoScalar],
     ) -> FastCryptoResult<RistrettoPoint> {
         // Fold the points every few rounds to keep the MSMs small.
         if self.w_h.len() == 1 << FOLD_BATCH_ROUNDS {
@@ -374,16 +374,16 @@ impl<'a> LazyBases<'a> {
         }
 
         let (h_len, g_len) = self.len();
-        let h_scalars = self.w_h.tensor(h_coeffs).take(h_len);
-        let g_scalars = self.w_g.tensor(g_coeffs).take(g_len);
+        let h_scalars = self.w_h.tensor(l).take(h_len);
+        let g_scalars = self.w_g.tensor(n).take(g_len);
         match &self.points {
-            BasePoints::Crs(gens) => gens.msm(v, h_scalars, g_scalars, &[], &[]),
+            BasePoints::Crs(gens) => gens.msm(sigma, h_scalars, g_scalars, &[], &[]),
             BasePoints::Folded {
                 g,
                 folded: (h_vec, g_vec),
             } => {
                 let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) =
-                    std::iter::once((v, *g))
+                    std::iter::once((sigma, *g))
                         .chain(h_scalars.zip(h_vec.iter().copied()))
                         .chain(g_scalars.zip(g_vec.iter().copied()))
                         .filter(|(s, _)| *s != RistrettoScalar::zero())

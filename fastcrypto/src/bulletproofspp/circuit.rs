@@ -26,8 +26,8 @@ use crate::bulletproofspp::util::*;
 
 type S = RistrettoScalar;
 
-/// The powers of `T` of the entries `1..7` of `c(T)` other than the shape
-/// rows. The gap at 4 keeps `C_S` out of the value row.
+/// The exponents `a_j` of `c_r_hat(T)`, see [c]. The gap at 4 keeps `C_S`
+/// out of the value row.
 const CR_POWERS: [i32; H_LEN - 1] = [-1, 1, 2, 3, 5, 6, 7];
 
 /// Circuit proof: the four commitments plus the norm-linear proof.
@@ -97,9 +97,10 @@ impl CircuitParams {
     }
 }
 
-/// The linear constraint vector
-/// `c(T) = cl_v + beta*sum_j e_j*T^{CR_POWERS[j]}`, with `cl_v` the H shape
-/// rows and `e_j` the `j`-th unit vector (slot 8 carries only the shape entry).
+/// The linear constraint vector `c(T) = c_r_hat(T) + cl_v`, with
+/// `c_r_hat(T) = beta*sum_j e_j*T^{a_j}`, `a_j = CR_POWERS[j]`, `e_j` the
+/// `j`-th unit vector and `cl_v` the H shape rows (slot 8 carries only the
+/// shape entry).
 fn c(constraints: &Constraints, beta: S) -> Laurent<Vec<S>> {
     Laurent::from_terms(once((0, constraints.cl_v.clone())).chain(
         CR_POWERS.iter().enumerate().map(|(j, &a)| {
@@ -146,7 +147,10 @@ fn blinding_vector(rng: &mut impl AllowedRng, zeros: &[usize]) -> Vec<S> {
 /// The honest reciprocals `(alpha + d_k)^{-1}` of the digits `n_l` on the
 /// real digit slots, zero on the padding.
 fn reciprocals(params: &CircuitParams, n_l: &[S], alpha: S) -> FastCryptoResult<Vec<S>> {
-    let denominators: Vec<S> = n_l[..params.n_d].iter().map(|d| alpha + d).collect();
+    let denominators: Vec<S> = n_l[..params.n_d]
+        .iter()
+        .map(|digit| alpha + digit)
+        .collect();
     Ok(pad_to(&batch_invert(&denominators)?, params.nm))
 }
 
@@ -454,10 +458,10 @@ pub(crate) fn verify(
     let t3 = t2 * tau;
 
     let constraints = Constraints::new(params, alpha, mu, lambda)?;
-    let pn_tau = constraints.p_n(delta_inv).eval(tau)?;
+    let p_n_tau = constraints.p_n(delta_inv).eval(tau)?;
     // p_s(tau) = |p_n(tau)|^2_mu + 2*(lambda_al + mu_am)*tau^3, evaluated
-    // directly on pn_tau rather than via the coefficients of p_s(T).
-    let ps_tau = weighted_norm(&pn_tau, mu)
+    // directly on p_n_tau rather than via the coefficients of p_s(T).
+    let p_s_tau = weighted_norm(&p_n_tau, mu)
         + S::from(2u64) * (constraints.lambda_al + constraints.mu_am) * t3;
     let c_tau = c(&constraints, beta).eval(tau)?;
 
@@ -481,8 +485,8 @@ pub(crate) fn verify(
         transcript,
         gens,
         &c_tau,
-        ps_tau,
-        &pn_tau,
+        p_s_tau,
+        &p_n_tau,
         &extra,
         rho,
         &proof.nl_proof,

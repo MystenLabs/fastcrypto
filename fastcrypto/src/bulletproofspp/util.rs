@@ -137,9 +137,9 @@ pub(crate) fn to_digits(value: u64, d: usize) -> Vec<u64> {
 /// `j = 1, ..., BASE - 1` (`m_0` implicit), with [BASE] the digit base.
 pub(crate) fn multiplicities(digits: &[u64]) -> Vec<u64> {
     let mut m = vec![0u64; (BASE - 1) as usize];
-    for &d in digits {
-        if d > 0 {
-            m[(d - 1) as usize] += 1;
+    for &digit in digits {
+        if digit > 0 {
+            m[(digit - 1) as usize] += 1;
         }
     }
     m

@@ -25,13 +25,13 @@ pub(crate) const H_LEN: usize = 8;
 const DST_H: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_fastcrypto-bppp-gen-h-01";
 const DST_G: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_fastcrypto-bppp-gen-g-01";
 
-/// Digit-count dimensions for a batch of `k` values in `range`: `d` digits
-/// per value, `n_d = k*d` digits overall, and the norm-vector length
+/// Digit-count dimensions for a batch of `m` values in `range`: `d` digits
+/// per value, `n_d = m*d` digits overall, and the norm-vector length
 /// `nm = max(n_d, BASE)` rounded up to a power of two (the BASE-1
 /// multiplicity slots set the floor; slots beyond `n_d` are zero-padded).
-pub(crate) fn dims(range: Range, k: usize) -> (usize, usize, usize) {
+pub(crate) fn dims(range: Range, m: usize) -> (usize, usize, usize) {
     let d = range.bits() / BASE.ilog2() as usize;
-    let n_d = k * d;
+    let n_d = m * d;
     (d, n_d, n_d.max(BASE as usize).next_power_of_two())
 }
 
@@ -62,17 +62,17 @@ static CRS_CACHE: Lazy<RwLock<HashMap<usize, Arc<Generators>>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
 impl Generators {
-    /// Create the CRS for proofs over `k >= 1` values in `range`.
+    /// Create the CRS for proofs over `m >= 1` values in `range`.
     ///
     /// A cache miss is expensive (one hash-to-curve per generator plus the
     /// precomputed MSM table build, both linear in `nm`) and the entry is
     /// retained for the lifetime of the process, so the dimensions must not
     /// be taken from untrusted input.
-    pub(crate) fn new(range: Range, k: usize) -> FastCryptoResult<Arc<Self>> {
-        if k == 0 {
+    pub(crate) fn new(range: Range, m: usize) -> FastCryptoResult<Arc<Self>> {
+        if m == 0 {
             return Err(FastCryptoError::InvalidInput);
         }
-        let (_, _, nm) = dims(range, k);
+        let (_, _, nm) = dims(range, m);
 
         if let Some(gens) = CRS_CACHE
             .read()
