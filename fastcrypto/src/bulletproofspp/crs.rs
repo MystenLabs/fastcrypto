@@ -6,7 +6,7 @@
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoPrecomputation, RistrettoScalar};
 use crate::groups::{MixedMultiScalarMul, PrecomputableMultiScalarMul};
-use crate::pedersen::{self, Range};
+use crate::pedersen;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::{Arc, PoisonError, RwLock};
@@ -24,16 +24,6 @@ pub(crate) const H_LEN: usize = 8;
 // TODO: discuss DST strings.
 const DST_H: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_fastcrypto-bppp-gen-h-01";
 const DST_G: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_fastcrypto-bppp-gen-g-01";
-
-/// Digit-count dimensions for a batch of `m` values in `range`: `d` digits
-/// per value, `n_d = m*d` digits overall, and the norm-vector length
-/// `nm = max(n_d, BASE)` rounded up to a power of two (the BASE-1
-/// multiplicity slots set the floor; slots beyond `n_d` are zero-padded).
-pub(crate) fn dims(range: Range, m: usize) -> (usize, usize, usize) {
-    let d = range.bits() / BASE.ilog2() as usize;
-    let n_d = m * d;
-    (d, n_d, n_d.max(BASE as usize).next_power_of_two())
-}
 
 /// Common reference string for BP++ over Ristretto255.
 ///
@@ -62,17 +52,16 @@ static CRS_CACHE: Lazy<RwLock<HashMap<usize, Arc<Generators>>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
 impl Generators {
-    /// Create the CRS for proofs over `m >= 1` values in `range`.
+    /// Create the CRS with `nm` norm generators, a power of two `>= BASE`.
     ///
     /// A cache miss is expensive (one hash-to-curve per generator plus the
     /// precomputed MSM table build, both linear in `nm`) and the entry is
     /// retained for the lifetime of the process, so the dimensions must not
     /// be taken from untrusted input.
-    pub(crate) fn new(range: Range, m: usize) -> FastCryptoResult<Arc<Self>> {
-        if m == 0 {
+    pub(crate) fn new(nm: usize) -> FastCryptoResult<Arc<Self>> {
+        if !nm.is_power_of_two() || nm < BASE as usize {
             return Err(FastCryptoError::InvalidInput);
         }
-        let (_, _, nm) = dims(range, m);
 
         if let Some(gens) = CRS_CACHE
             .read()
@@ -155,40 +144,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_dims() {
-        assert_eq!(dims(Range::Bits64, 1), (16, 16, 16));
-        // Fewer digits than the multiplicity floor: nm stays at 16.
-        assert_eq!(dims(Range::Bits16, 1), (4, 4, 16));
-        assert_eq!(dims(Range::Bits32, 1), (8, 8, 16));
-        assert_eq!(dims(Range::Bits8, 1), (2, 2, 16));
-        // Batches, including non-power-of-two digit counts.
-        assert_eq!(dims(Range::Bits16, 2), (4, 8, 16));
-        assert_eq!(dims(Range::Bits16, 4), (4, 16, 16));
-        assert_eq!(dims(Range::Bits16, 5), (4, 20, 32));
-        assert_eq!(dims(Range::Bits16, 8), (4, 32, 32));
-        assert_eq!(dims(Range::Bits32, 8), (8, 64, 64));
-        assert_eq!(dims(Range::Bits64, 16), (16, 256, 256));
-    }
-
-    #[test]
     fn test_generators_sizes_and_validation() {
-        let gens = Generators::new(Range::Bits64, 1).unwrap();
+        let gens = Generators::new(16).unwrap();
         assert_eq!(gens.h_vec.len(), H_LEN);
         assert_eq!(gens.g_vec.len(), 16);
-        assert_eq!(Generators::new(Range::Bits16, 1).unwrap().g_vec.len(), 16);
-        assert_eq!(Generators::new(Range::Bits32, 8).unwrap().g_vec.len(), 64);
+        assert_eq!(Generators::new(64).unwrap().g_vec.len(), 64);
 
-        assert!(Generators::new(Range::Bits64, 0).is_err());
+        assert!(Generators::new(0).is_err());
+        assert!(Generators::new(8).is_err());
+        assert!(Generators::new(24).is_err());
     }
 
     #[test]
     fn test_generators_pedersen_interop_and_distinctness() {
-        let gens = Generators::new(Range::Bits64, 2).unwrap();
+        let gens = Generators::new(32).unwrap();
         // Value base and blinding base are the fastcrypto Pedersen bases.
         assert!(compatible_with_pedersen_commitments(&gens));
 
         // Derivation is deterministic and a prefix of any larger CRS.
-        let again = Generators::new(Range::Bits64, 1).unwrap();
+        let again = Generators::new(16).unwrap();
         assert_eq!(gens.h_vec, again.h_vec);
         assert_eq!(&gens.g_vec[..16], &again.g_vec[..]);
 

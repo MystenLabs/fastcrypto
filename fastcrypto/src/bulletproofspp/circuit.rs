@@ -18,7 +18,7 @@ use crate::traits::AllowedRng;
 use std::iter::once;
 
 use crate::bulletproofspp::constraints::Constraints;
-use crate::bulletproofspp::crs::{compatible_with_pedersen_commitments, dims, Generators, H_LEN};
+use crate::bulletproofspp::crs::{compatible_with_pedersen_commitments, Generators, BASE, H_LEN};
 use crate::bulletproofspp::laurent::Laurent;
 use crate::bulletproofspp::norm_linear::{self, NormLinearProof};
 use crate::bulletproofspp::transcript::BpppTranscript;
@@ -86,7 +86,10 @@ impl CircuitParams {
         if m == 0 {
             return Err(FastCryptoError::InvalidInput);
         }
-        let (d, n_d, nm) = dims(range, m);
+        let d = range.bits() / BASE.ilog2() as usize;
+        let n_d = m * d;
+        // The BASE - 1 multiplicity slots set the floor.
+        let nm = n_d.max(BASE as usize).next_power_of_two();
         Ok(CircuitParams {
             range,
             m,
@@ -496,6 +499,27 @@ pub(crate) fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_params_dimensions() {
+        let dims = |range, m| {
+            let p = CircuitParams::new(range, m).unwrap();
+            (p.d, p.n_d, p.nm)
+        };
+        assert_eq!(dims(Range::Bits64, 1), (16, 16, 16));
+        // Fewer digits than the multiplicity floor: nm stays at 16.
+        assert_eq!(dims(Range::Bits16, 1), (4, 4, 16));
+        assert_eq!(dims(Range::Bits32, 1), (8, 8, 16));
+        assert_eq!(dims(Range::Bits8, 1), (2, 2, 16));
+        // Batches, including non-power-of-two digit counts.
+        assert_eq!(dims(Range::Bits16, 2), (4, 8, 16));
+        assert_eq!(dims(Range::Bits16, 4), (4, 16, 16));
+        assert_eq!(dims(Range::Bits16, 5), (4, 20, 32));
+        assert_eq!(dims(Range::Bits16, 8), (4, 32, 32));
+        assert_eq!(dims(Range::Bits32, 8), (8, 64, 64));
+        assert_eq!(dims(Range::Bits64, 16), (16, 256, 256));
+        assert!(CircuitParams::new(Range::Bits64, 0).is_err());
+    }
     use crate::bulletproofspp::constraints::value_row;
     use std::array::from_fn;
     use std::sync::Arc;
@@ -510,8 +534,8 @@ mod tests {
         Vec<PedersenCommitment>,
     ) {
         let mut rng = rand::thread_rng();
-        let gens = Generators::new(range, values.len()).unwrap();
         let params = CircuitParams::new(range, values.len()).unwrap();
+        let gens = Generators::new(params.nm).unwrap();
         let blindings: Vec<S> = (0..values.len()).map(|_| S::rand(&mut rng)).collect();
         let mut t = BpppTranscript::new(b"test");
         let (proof, v_commitments) =
@@ -667,8 +691,8 @@ mod tests {
     #[test]
     fn test_out_of_range_rejected() {
         let mut rng = rand::thread_rng();
-        let gens = Generators::new(Range::Bits16, 2).unwrap();
         let params = CircuitParams::new(Range::Bits16, 2).unwrap();
+        let gens = Generators::new(params.nm).unwrap();
         let blindings = vec![S::rand(&mut rng), S::rand(&mut rng)];
         let mut t = BpppTranscript::new(b"test");
         assert_eq!(
@@ -740,8 +764,8 @@ mod tests {
         bad_reciprocals: Option<&dyn Fn(S) -> FastCryptoResult<Vec<S>>>,
     ) -> FastCryptoResult<()> {
         let m = witness.values.len();
-        let gens = Generators::new(range, m).unwrap();
         let params = CircuitParams::new(range, m).unwrap();
+        let gens = Generators::new(params.nm).unwrap();
         let mut t = BpppTranscript::new(b"test");
         let (proof, v_commitments) =
             prove_witness(&mut t, &gens, &params, witness, bad_reciprocals).unwrap();

@@ -535,7 +535,7 @@ mod tests {
 
     fn random_instance(l_len: usize, n_len: usize) -> Instance {
         let mut rng = rand::thread_rng();
-        let full = Generators::new(crate::pedersen::Range::Bits64, 4).unwrap();
+        let full = Generators::new(64).unwrap();
         let gens = Arc::new(
             Generators::from_parts(
                 full.g,
