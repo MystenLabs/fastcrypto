@@ -363,18 +363,21 @@ pub(crate) fn prove(
         return Err(FastCryptoError::InvalidInput);
     }
     let witness = Witness::new(params, rng, values, blindings);
-    prove_witness(transcript, gens, params, &witness, None)
+    prove_witness(transcript, gens, params, &witness, &|alpha| {
+        reciprocals(params, &witness.n_l, alpha)
+    })
 }
 
 /// Run the protocol with `witness`, without checking that it is well formed.
 ///
-/// `bad_reciprocals` replaces the reciprocals and is only used in tests.
+/// `reciprocals_of(alpha)` gives the committed reciprocals: [prove] passes
+/// the honest [reciprocals], and tests pass others.
 fn prove_witness(
     transcript: &mut BpppTranscript,
     gens: &Generators,
     params: &CircuitParams,
     witness: &Witness,
-    bad_reciprocals: Option<&dyn Fn(S) -> FastCryptoResult<Vec<S>>>,
+    reciprocals_of: &dyn Fn(S) -> FastCryptoResult<Vec<S>>,
 ) -> FastCryptoResult<(CircuitProof, Vec<PedersenCommitment>)> {
     let v_commitments = witness.input_commitments(gens)?;
     transcript.domain_sep(b"bppp_circuit");
@@ -391,8 +394,7 @@ fn prove_witness(
     let alpha = transcript.challenge_scalar(b"alpha");
 
     // Step 3: commit the reciprocals (C_R).
-    debug_assert!(cfg!(test) || bad_reciprocals.is_none());
-    let n_r = bad_reciprocals.unwrap_or(&|alpha| reciprocals(params, &witness.n_l, alpha))(alpha)?;
+    let n_r = reciprocals_of(alpha)?;
     let c_r = commit_message(gens, &witness.r_r, &n_r)?;
     transcript.append_point(b"C_R", &c_r);
 
@@ -782,8 +784,15 @@ mod tests {
         let params = CircuitParams::new(range, m).unwrap();
         let gens = Generators::new(params.nm).unwrap();
         let mut t = BpppTranscript::new(b"test");
-        let (proof, v_commitments) =
-            prove_witness(&mut t, &gens, &params, witness, bad_reciprocals).unwrap();
+        let honest = |alpha| reciprocals(&params, &witness.n_l, alpha);
+        let (proof, v_commitments) = prove_witness(
+            &mut t,
+            &gens,
+            &params,
+            witness,
+            bad_reciprocals.unwrap_or(&honest),
+        )
+        .unwrap();
         let mut t = BpppTranscript::new(b"test");
         verify(&mut t, &gens, &params, &proof, &v_commitments)
     }
