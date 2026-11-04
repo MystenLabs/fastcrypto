@@ -266,13 +266,14 @@ fn solve_r_s(
     Ok((inner_product(&constraints.cl_v, &h) - f_bar.coeff(-1), h))
 }
 
-/// The coordinates `(sigma(T), l(T), n(T))` on `G`, `H` and `G_vec` of the
+/// The opening `(sigma(T), l(T), n(T))` on `G`, `H` and `G_vec` of the
 /// combined commitment
 /// `C(T) = T^{-1}*C_S + delta*C_O + T*C_L + T^2*C_R + T^3*V_hat
 ///       + p_s(T)*G + <p_n(T), G_vec>`,
-/// with the blinding `r_S` and linear witness `l_S` of `C_S` set to zero.
-/// `n_r` are the committed reciprocals.
-fn coordinates_without_c_s(
+/// with the blinding `r_S` and linear witness `l_S` of `C_S` set to zero, so
+/// that [f] of it is the residual `f_bar(T)` of [solve_r_s]. The mask `n_S` of
+/// `C_S` is included. `n_r` are the committed reciprocals.
+fn opening_without_r_s(
     params: &CircuitParams,
     constraints: &Constraints,
     witness: &Witness,
@@ -400,8 +401,7 @@ fn prove_witness(
     let constraints = Constraints::new(params, alpha, mu, lambda)?;
 
     // Step 5: solve the blinding r_S of C_S.
-    let (sigma, l, n) =
-        coordinates_without_c_s(params, &constraints, witness, n_r, delta, delta_inv);
+    let (sigma, l, n) = opening_without_r_s(params, &constraints, witness, n_r, delta, delta_inv);
     let c = c(&constraints, beta);
     let f_bar = f(&sigma, &c, &l, &n, &constraints.norm_weights);
     let (r_s0, h) = solve_r_s(&constraints, &f_bar, witness.l_s, beta)?;
@@ -560,7 +560,7 @@ mod tests {
             let n_r = reciprocals(&params, &witness.n_l, alpha).unwrap();
             let delta_inv = delta.inverse().unwrap();
             let (sigma, l, n) =
-                coordinates_without_c_s(&params, &constraints, &witness, n_r, delta, delta_inv);
+                opening_without_r_s(&params, &constraints, &witness, n_r, delta, delta_inv);
             let c = c(&constraints, beta);
             let f_bar = f(&sigma, &c, &l, &n, &constraints.norm_weights);
             assert!(!f_bar.is_zero());
@@ -589,7 +589,7 @@ mod tests {
 
             let constraints = Constraints::new(&params, alpha, mu, lambda).unwrap();
             let delta_inv = delta.inverse().unwrap();
-            let (sigma, l, n) = coordinates_without_c_s(
+            let (sigma, l, n) = opening_without_r_s(
                 &params,
                 &constraints,
                 &witness,
