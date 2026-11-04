@@ -28,7 +28,7 @@
 //!
 //! # Value row (29)
 //!
-//! The `T^3` coefficient of the error polynomial is
+//! The `T^3` coefficient of the polynomial `f(T)` of the combined commitment is
 //! ```text
 //! f[T^3] = sum_i lambda^{i-1}*L_i + E_0 + lambda^M*S
 //!          - 4*sum_{k,i} lambda^{M(k+1)+1+(i-1)}*n_{V_i,k}

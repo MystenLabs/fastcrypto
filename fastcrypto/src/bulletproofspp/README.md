@@ -12,7 +12,7 @@ Knowledge soundness holds under the discrete-logarithm assumption in the random-
 | File | Contents |
 | --- | --- |
 | `range_proof.rs` | Public API (`Range`, `RangeProof::{prove,verify}(_batch)`), serialization |
-| `circuit.rs` | Range circuit: witness, blinding, error polynomial, prover and verifier |
+| `circuit.rs` | Range circuit: witness, blinding, the polynomial `f(T)`, prover and verifier |
 | `constraints.rs` | The circuit constraints and their folding into public vectors |
 | `norm_linear.rs` | Weighted norm-linear argument (prover with lazy generator folding, single-MSM verifier) |
 | `laurent.rs` | Laurent polynomials with scalar or vector coefficients |

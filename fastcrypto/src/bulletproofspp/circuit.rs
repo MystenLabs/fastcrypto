@@ -126,7 +126,7 @@ fn h_coordinates(r: &[S]) -> Vec<S> {
 
 /// A blinding vector of length `H_LEN` with zeros at specific positions and
 /// random values otherwise. Slot `p` of a commitment entering `C(T)` at
-/// `T^e` reaches the error polynomial at row `e + CR_POWERS[p-1]`, so the
+/// `T^e` reaches `f(T)` at row `e + CR_POWERS[p-1]`, so the
 /// slots hitting the value row `T^3`, or rows above `T^6` that no `r_S` slot
 /// cancels, must be zero. Hence, with entry powers 0, 1, 2 for `C_O`, `C_L`,
 /// `C_R`: `r_O` zeros slots `[4, 7]` (rows 3, 7), `r_L` slots `[3, 6, 7]`
@@ -221,12 +221,12 @@ impl Witness {
     }
 }
 
-/// The error polynomial `f(T) = sigma(T) - <c(T), l(T)> - |n(T)|^2_mu` of
+/// The polynomial `f(T) = sigma(T) - <c(T), l(T)> - |n(T)|^2_mu` of
 /// the combined commitment `C(T) = sigma(T)*G + <l(T), H> + <n(T), G_vec>`.
 /// `C(tau)` satisfies the norm-linear relation iff `f(tau) = 0`. The `T^3`
 /// coefficient is zero iff the circuit constraints hold, and `r_S` is chosen
 /// to make every other coefficient zero.
-fn error_polynomial(
+fn f(
     sigma: &Laurent<S>,
     c: &Laurent<Vec<S>>,
     l: &Laurent<Vec<S>>,
@@ -238,7 +238,7 @@ fn error_polynomial(
 
 /// The blinding of `C_S` (spec "Choosing r_S"): its `G` coordinate `r_S[0]`
 /// and its `H` coordinates `h = (r_S[1..], l_S)`, such that the
-/// [error_polynomial] `f(T)` vanishes at every power of `T` except `T^3`.
+/// polynomial [f] vanishes at every power of `T` except `T^3`.
 ///
 /// The residual `f_bar(T)` is `f(T)` with `r_S = 0` and `l_S = 0`, so
 ///   `f(T) = f_bar(T) + T^{-1}*(r_S[0] - <c(T), h>)`.
@@ -399,7 +399,7 @@ fn prove_witness(
     let (sigma, l, n) =
         coordinates_without_c_s(params, &constraints, witness, n_r, delta, delta_inv);
     let c = c(&constraints, beta);
-    let f_bar = error_polynomial(&sigma, &c, &l, &n, &constraints.norm_weights);
+    let f_bar = f(&sigma, &c, &l, &n, &constraints.norm_weights);
     let (r_s0, h) = solve_r_s(&constraints, &f_bar, witness.l_s, beta)?;
     let c_s = gens.commit(r_s0, &h, &witness.n_s)?;
     transcript.append_point(b"C_S", &c_s);
@@ -541,9 +541,8 @@ mod tests {
     /// proof shapes (rounds, final n), plus the widths not instantiated
     /// there (8-bit, 64-bit x M).
     #[test]
-    fn test_honest_error_polynomial_is_zero() {
-        // For an honest witness, the error polynomial of C(T) with the
-        // solved r_S vanishes identically: off T^3 by the choice of r_S, and
+    fn test_honest_f_is_zero() {
+        // For an honest witness, f(T) with the solved r_S vanishes identically: off T^3 by the choice of r_S, and
         // at T^3 because the constraints hold.
         let mut rng = rand::thread_rng();
         for (range, m) in [(Range::Bits64, 1), (Range::Bits16, 4), (Range::Bits8, 3)] {
@@ -559,20 +558,20 @@ mod tests {
             let (sigma, l, n) =
                 coordinates_without_c_s(&params, &constraints, &witness, n_r, delta, delta_inv);
             let c = c(&constraints, beta);
-            let f_bar = error_polynomial(&sigma, &c, &l, &n, &constraints.norm_weights);
+            let f_bar = f(&sigma, &c, &l, &n, &constraints.norm_weights);
             assert!(!f_bar.is_zero());
 
             let (r_s0, h) = solve_r_s(&constraints, &f_bar, witness.l_s, beta).unwrap();
             let sigma = sigma + Laurent::monomial(-1, r_s0);
             let l = l + Laurent::monomial(-1, h);
-            assert!(error_polynomial(&sigma, &c, &l, &n, &constraints.norm_weights).is_zero());
+            assert!(f(&sigma, &c, &l, &n, &constraints.norm_weights).is_zero());
         }
     }
 
     #[test]
     fn test_value_row_matches_the_paper() {
         // For any witness with inputs on the (G, H_0)-plane, the T^3
-        // coefficient of the error polynomial is the value row (29)-(30).
+        // coefficient of f(T) is the value row (29)-(30).
         let mut rng = rand::thread_rng();
         for (range, m) in [(Range::Bits64, 1), (Range::Bits16, 4), (Range::Bits8, 3)] {
             let params = CircuitParams::new(range, m).unwrap();
@@ -594,14 +593,14 @@ mod tests {
                 delta,
                 delta_inv,
             );
-            let f_bar = error_polynomial(
+            let f_bar = f(
                 &sigma,
                 &c(&constraints, beta),
                 &l,
                 &n,
                 &constraints.norm_weights,
             );
-            let f = value_row(
+            let value_row = value_row(
                 &params,
                 alpha,
                 mu,
@@ -611,7 +610,7 @@ mod tests {
                 &n_r,
                 &witness.n_o,
             );
-            assert_eq!(f_bar.coeff(3), f);
+            assert_eq!(f_bar.coeff(3), value_row);
         }
     }
 
