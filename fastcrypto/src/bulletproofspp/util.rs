@@ -165,11 +165,11 @@ mod tests {
         assert_eq!(weighted_norm(&a, mu), s(2 + 4 * 4 + 9 * 8));
 
         // Pre-weighting identity used throughout the protocol:
-        // <a, b>_mu = <a ∘ bar_mu, b> with bar_mu = (mu, mu^2, ...).
-        let bar_mu = vec_scalar_mul(mu, &power_vector(mu, a.len()));
+        // <a, b>_mu = <a ∘ norm_weights, b> with norm_weights = (mu, mu^2, ...).
+        let norm_weights = vec_scalar_mul(mu, &power_vector(mu, a.len()));
         assert_eq!(
             weighted_inner_product(&a, &b, mu),
-            inner_product(&hadamard(&a, &bar_mu), &b)
+            inner_product(&hadamard(&a, &norm_weights), &b)
         );
     }
 
