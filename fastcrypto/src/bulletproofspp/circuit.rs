@@ -19,8 +19,8 @@ use std::iter::once;
 
 use crate::bulletproofspp::constraints::Constraints;
 use crate::bulletproofspp::crs::{compatible_with_pedersen_commitments, Generators, BASE, H_LEN};
-use crate::bulletproofspp::laurent::Laurent;
-use crate::bulletproofspp::norm_linear::{self, NormLinearProof};
+use crate::bulletproofspp::laurent::{Coefficient, Laurent};
+use crate::bulletproofspp::norm_linear::{self, NormLinearProof, Opening};
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
 
@@ -29,6 +29,14 @@ type S = RistrettoScalar;
 /// The exponents `a_j` of `c_r_hat(T)`, see [c]. The gap at 4 keeps `C_S`
 /// out of the value row.
 const CR_POWERS: [i32; H_LEN - 1] = [-1, 1, 2, 3, 5, 6, 7];
+
+/// The powers of `T` of the commitments in
+/// `C(T) = T^{-1}*C_S + delta*C_O + T*C_L + T^2*C_R + T^3*V_hat + P(T)`.
+const C_S_POWER: i32 = -1;
+const C_O_POWER: i32 = 0;
+const C_L_POWER: i32 = 1;
+const C_R_POWER: i32 = 2;
+const V_HAT_POWER: i32 = 3;
 
 /// Circuit proof: the four commitments plus the norm-linear proof.
 /// For 1x64: 4 + 6 group elements + 3 scalars = 416 bytes.
@@ -114,26 +122,20 @@ fn c(constraints: &Constraints, beta: S) -> Laurent<Vec<S>> {
     ))
 }
 
-/// Commit to a circuit message with blinding `r` (slot 0 on `G`, slots 1..7
-/// on `H_0..H_6`), no linear witness, and norm witness `n`.
-fn commit_message(gens: &Generators, r: &[S], n: &[S]) -> FastCryptoResult<RistrettoPoint> {
-    gens.commit(r[0], &h_coordinates(r), n)
-}
-
-/// The `H` coordinates `(r_1, ..., r_7, 0)` of a circuit message with
-/// blinding `r` (slot 0 is on `G`) and no linear witness.
-fn h_coordinates(r: &[S]) -> Vec<S> {
-    let mut h = r[1..].to_vec();
-    h.push(S::zero());
-    h
+/// The opening `(r[0], (r[1], ..., r[7], 0), n)` of a circuit message with
+/// blinding `r` and norm witness `n`.
+fn message_opening(r: &[S], n: Vec<S>) -> Opening {
+    let mut l = r[1..].to_vec();
+    l.push(S::zero());
+    Opening { sigma: r[0], l, n }
 }
 
 /// The vector `r` of length `H_LEN` with `r[p] = 0` if `p >= 1` and
 /// `e + CR_POWERS[p-1]` is not in `{-1} ∪ {CR_POWERS[j] - 1 : j = 0..6}`,
 /// and `r[p]` uniformly random otherwise.
 ///
-/// `e` is the power of `T` of the commitment in `C(T)`: 0 for `C_O`, 1 for
-/// `C_L` and 2 for `C_R`. For `p >= 1`, `f(T)` has the term
+/// `e` is the power of `T` of the commitment in `C(T)`: [C_O_POWER],
+/// [C_L_POWER] or [C_R_POWER]. For `p >= 1`, `f(T)` has the term
 /// `-beta*r[p]*T^{e + CR_POWERS[p-1]}`, and [solve_r_s] sets only the
 /// coefficients of `T^{-1}` and `T^{CR_POWERS[j] - 1}` of `f(T)` to zero.
 fn blinding_vector(rng: &mut impl AllowedRng, e: i32) -> Vec<S> {
@@ -199,9 +201,9 @@ impl Witness {
             off_plane: vec![],
             n_l: pad_to(&to_scalars(&digits), params.nm),
             n_o: pad_to(&to_scalars(&multiplicities(&digits)), params.nm),
-            r_o: blinding_vector(rng, 0),
-            r_l: blinding_vector(rng, 1),
-            r_r: blinding_vector(rng, 2),
+            r_o: blinding_vector(rng, C_O_POWER),
+            r_l: blinding_vector(rng, C_L_POWER),
+            r_r: blinding_vector(rng, C_R_POWER),
             n_s: (0..params.nm).map(|_| S::rand(rng)).collect(),
             l_s: S::rand(rng),
         }
@@ -230,19 +232,16 @@ impl Witness {
     }
 }
 
-/// The polynomial `f(T) = sigma(T) - <c(T), l(T)> - |n(T)|^2_mu` of
-/// the combined commitment `C(T) = sigma(T)*G + <l(T), H> + <n(T), G_vec>`.
+/// The polynomial `f(T) = sigma(T) - <c(T), l(T)> - |n(T)|^2_mu` for the
+/// opening `(sigma(T), l(T), n(T))` of the combined commitment `C(T)`.
 /// `C(tau)` satisfies the norm-linear relation iff `f(tau) = 0`. The `T^3`
 /// coefficient is zero iff the circuit constraints hold, and `r_S` is chosen
 /// to make every other coefficient zero.
-fn f(
-    sigma: &Laurent<S>,
-    c: &Laurent<Vec<S>>,
-    l: &Laurent<Vec<S>>,
-    n: &Laurent<Vec<S>>,
-    norm_weights: &[S],
-) -> Laurent<S> {
-    sigma.clone() - c.inner_product(l) - n.weighted_inner_product(n, norm_weights)
+fn f(opening: &Laurent<Opening>, c: &Laurent<Vec<S>>, norm_weights: &[S]) -> Laurent<S> {
+    let sigma = opening.map(|o| o.sigma);
+    let l = opening.map(|o| o.l.clone());
+    let n = opening.map(|o| o.n.clone());
+    sigma - c.inner_product(&l) - n.weighted_inner_product(&n, norm_weights)
 }
 
 /// The blinding of `C_S` (spec "Choosing r_S"): its `G` coordinate `r_S[0]`
@@ -271,13 +270,12 @@ fn solve_r_s(
     Ok((inner_product(&constraints.cl_v, &h) - f_bar.coeff(-1), h))
 }
 
-/// The opening `(sigma(T), l(T), n(T))` on `G`, `H` and `G_vec` of the
-/// combined commitment
-/// `C(T) = T^{-1}*C_S + delta*C_O + T*C_L + T^2*C_R + T^3*V_hat
-///       + p_s(T)*G + <p_n(T), G_vec>`,
-/// with the blinding `r_S` and linear witness `l_S` of `C_S` set to zero, so
-/// that [f] of it is the residual `f_bar(T)` of [solve_r_s]. The mask `n_S` of
-/// `C_S` is included. `n_r` are the committed reciprocals.
+/// The opening of the combined commitment
+/// `C(T) = T^{-1}*C_S + delta*C_O + T*C_L + T^2*C_R + T^3*V_hat + P(T)`,
+/// with `P(T) = p_s(T)*G + <p_n(T), G_vec>`, and with the blinding `r_S` and
+/// linear witness `l_S` of `C_S` set to zero, so that [f] of it is the
+/// residual `f_bar(T)` of [solve_r_s]. The mask `n_S` of `C_S` is included.
+/// `n_r` are the committed reciprocals.
 fn opening_without_r_s(
     params: &CircuitParams,
     constraints: &Constraints,
@@ -285,8 +283,11 @@ fn opening_without_r_s(
     n_r: Vec<S>,
     delta: S,
     delta_inv: S,
-) -> (Laurent<S>, Laurent<Vec<S>>, Laurent<Vec<S>>) {
+) -> Laurent<Opening> {
     let two = S::from(2u64);
+    let zero_l = vec![S::zero(); H_LEN];
+    let zero_n = vec![S::zero(); params.nm];
+
     // The rescaled aggregate input
     // V_hat = 2*sum_i lambda^{i-1} V_i opens to v_hat on G,
     // 2*sum_i lambda^{i-1} s_i on H_0 and the off-plane coordinates n_V_hat,
@@ -296,52 +297,58 @@ fn opening_without_r_s(
         .map(|l| two * l)
         .collect();
     let v_hat = inner_product(&weights, &witness.values);
-    let mut n_v_hat = vec![S::zero(); params.nm];
+    let mut n_v_hat = zero_n.clone();
     let mut l_v_hat = S::zero();
     for ((n_i, l_i), w) in witness.off_plane.iter().zip(&weights) {
         n_v_hat = vec_add(&n_v_hat, &vec_scalar_mul(*w, n_i));
         l_v_hat += *w * l_i;
     }
-    let mut h_v_hat = vec![S::zero(); H_LEN];
+    let mut h_v_hat = zero_l.clone();
     h_v_hat[0] = inner_product(&weights, &witness.blindings);
     h_v_hat[H_LEN - 1] = l_v_hat;
 
-    // The G_vec coordinates n(T) = w(T) + p_n(T) of C(T): the witness part w
-    // and the public part p_n.
+    // The public part P(T), with
+    // p_s(T) = |p_n(T)|^2_mu + 2*(lambda_al + mu_am)*T^3.
     let p_n = constraints.p_n(delta_inv);
-    let n = Laurent::new(
-        -1,
-        vec![
-            witness.n_s.clone(),
-            vec_scalar_mul(delta, &witness.n_o),
-            witness.n_l.clone(),
-            n_r,
-            n_v_hat,
-        ],
-    ) + p_n.clone();
+    let p_s = p_n.weighted_inner_product(&p_n, &constraints.norm_weights)
+        + Laurent::monomial(3, two * (constraints.lambda_al + constraints.mu_am));
+    let public = p_s.map(|&sigma| Opening {
+        sigma,
+        l: zero_l.clone(),
+        n: zero_n.clone(),
+    }) + p_n.map(|n| Opening {
+        sigma: S::zero(),
+        l: zero_l.clone(),
+        n: n.clone(),
+    });
 
-    // The G coordinate sigma(T) = r_0(T) + p_s(T) + v_hat*T^3 and the H
-    // coordinates l(T) of C(T), with r_S = 0 and l_S = 0, where
-    // r_0(T) = delta*r_O[0] + T*r_L[0] + T^2*r_R[0] are the G coordinates of
-    // the blindings and
-    // p_s(T) = |p_n(T)|^2_mu + 2*(lambda_al + mu_am)*T^3 is public.
-    let r_0 = Laurent::new(
-        0,
-        vec![delta * witness.r_o[0], witness.r_l[0], witness.r_r[0]],
-    );
-    let sigma = r_0
-        + p_n.weighted_inner_product(&p_n, &constraints.norm_weights)
-        + Laurent::monomial(3, v_hat + two * (constraints.lambda_al + constraints.mu_am));
-    let l = Laurent::new(
-        0,
-        vec![
-            vec_scalar_mul(delta, &h_coordinates(&witness.r_o)),
-            h_coordinates(&witness.r_l),
-            h_coordinates(&witness.r_r),
-            h_v_hat,
-        ],
-    );
-    (sigma, l, n)
+    Laurent::from_terms([
+        (
+            C_S_POWER,
+            Opening {
+                sigma: S::zero(),
+                l: zero_l.clone(),
+                n: witness.n_s.clone(),
+            },
+        ),
+        (
+            C_O_POWER,
+            message_opening(&witness.r_o, witness.n_o.clone()).scale(delta),
+        ),
+        (
+            C_L_POWER,
+            message_opening(&witness.r_l, witness.n_l.clone()),
+        ),
+        (C_R_POWER, message_opening(&witness.r_r, n_r)),
+        (
+            V_HAT_POWER,
+            Opening {
+                sigma: v_hat,
+                l: h_v_hat,
+                n: n_v_hat,
+            },
+        ),
+    ]) + public
 }
 
 /// Prove that every `values[i]` lies in `[0, 2^n_bits)` under the Pedersen
@@ -384,8 +391,8 @@ fn prove_witness(
     transcript.append_commits(b"V", &v_commitments);
 
     // Step 1: commit digits (C_L) and shared multiplicities (C_O).
-    let c_l = commit_message(gens, &witness.r_l, &witness.n_l)?;
-    let c_o = commit_message(gens, &witness.r_o, &witness.n_o)?;
+    let c_l = gens.commit(&message_opening(&witness.r_l, witness.n_l.clone()))?;
+    let c_o = gens.commit(&message_opening(&witness.r_o, witness.n_o.clone()))?;
     transcript.append_point(b"C_L", &c_l);
     transcript.append_point(b"C_O", &c_o);
 
@@ -395,7 +402,7 @@ fn prove_witness(
 
     // Step 3: commit the reciprocals (C_R).
     let n_r = reciprocals_of(alpha)?;
-    let c_r = commit_message(gens, &witness.r_r, &n_r)?;
+    let c_r = gens.commit(&message_opening(&witness.r_r, n_r.clone()))?;
     transcript.append_point(b"C_R", &c_r);
 
     // Step 4: constraint challenges.
@@ -408,20 +415,27 @@ fn prove_witness(
     let constraints = Constraints::new(params, alpha, mu, lambda)?;
 
     // Step 5: solve the blinding r_S of C_S.
-    let (sigma, l, n) = opening_without_r_s(params, &constraints, witness, n_r, delta, delta_inv);
+    let opening = opening_without_r_s(params, &constraints, witness, n_r, delta, delta_inv);
     let c = c(&constraints, beta);
-    let f_bar = f(&sigma, &c, &l, &n, &constraints.norm_weights);
+    let f_bar = f(&opening, &c, &constraints.norm_weights);
     let (r_s0, h) = solve_r_s(&constraints, &f_bar, witness.l_s, beta)?;
-    let c_s = gens.commit(r_s0, &h, &witness.n_s)?;
+    let r_s = Opening {
+        sigma: r_s0,
+        l: h,
+        n: vec![S::zero(); params.nm],
+    };
+    let c_s = gens.commit(&Opening {
+        n: witness.n_s.clone(),
+        ..r_s.clone()
+    })?;
     transcript.append_point(b"C_S", &c_s);
 
     // Step 6: evaluation point, drawn after every commitment.
     let tau = transcript.challenge_scalar(b"tau");
 
     // Step 7: evaluate the opening of C(tau) and run the norm-linear argument.
-    let l = l + Laurent::monomial(-1, h);
-    let (c_tau, l_tau, n_tau) = (c.eval(tau)?, l.eval(tau)?, n.eval(tau)?);
-    let nl_proof = norm_linear::prove(transcript, gens, &c_tau, rho, &l_tau, &n_tau)?;
+    let opening = opening + Laurent::monomial(C_S_POWER, r_s);
+    let nl_proof = norm_linear::prove(transcript, gens, &c.eval(tau)?, rho, &opening.eval(tau)?)?;
 
     Ok((
         CircuitProof {
@@ -460,9 +474,8 @@ pub(crate) fn verify(
     let delta_inv = delta.inverse()?;
     transcript.append_point(b"C_S", &proof.c_s);
     let tau = transcript.challenge_scalar(b"tau");
-    let tau_inv = tau.inverse()?;
-    let t2 = tau * tau;
-    let t3 = t2 * tau;
+    let tau_pow = |power: i32| Laurent::monomial(power, one()).eval(tau);
+    let t3 = tau * tau * tau;
 
     let constraints = Constraints::new(params, alpha, mu, lambda)?;
     let p_n_tau = constraints.p_n(delta_inv).eval(tau)?;
@@ -477,15 +490,15 @@ pub(crate) fn verify(
     //   C(tau) = <p_n(tau), G_vec> + p_s(tau)*G
     //          + tau^{-1}*C_S + delta*C_O + tau*C_L + tau^2*C_R + tau^3*V_hat
     // with V_hat = 2*sum_i lambda^{i-1} V_i.
-    let two_t3 = S::from(2u64) * t3;
     let mut extra = vec![
-        (tau_inv, proof.c_s),
-        (delta, proof.c_o),
-        (tau, proof.c_l),
-        (t2, proof.c_r),
+        (tau_pow(C_S_POWER)?, proof.c_s),
+        (delta * tau_pow(C_O_POWER)?, proof.c_o),
+        (tau_pow(C_L_POWER)?, proof.c_l),
+        (tau_pow(C_R_POWER)?, proof.c_r),
     ];
+    let v_hat_weight = S::from(2u64) * tau_pow(V_HAT_POWER)?;
     for (i, v_i) in v_commitments.iter().enumerate() {
-        extra.push((two_t3 * constraints.lambdas[i], v_i.0));
+        extra.push((v_hat_weight * constraints.lambdas[i], v_i.0));
     }
 
     norm_linear::verify(
@@ -600,16 +613,20 @@ mod tests {
             let constraints = Constraints::new(&params, alpha, mu, lambda).unwrap();
             let n_r = reciprocals(&params, &witness.n_l, alpha).unwrap();
             let delta_inv = delta.inverse().unwrap();
-            let (sigma, l, n) =
+            let opening =
                 opening_without_r_s(&params, &constraints, &witness, n_r, delta, delta_inv);
             let c = c(&constraints, beta);
-            let f_bar = f(&sigma, &c, &l, &n, &constraints.norm_weights);
+            let f_bar = f(&opening, &c, &constraints.norm_weights);
             assert!(!f_bar.is_zero());
 
             let (r_s0, h) = solve_r_s(&constraints, &f_bar, witness.l_s, beta).unwrap();
-            let sigma = sigma + Laurent::monomial(-1, r_s0);
-            let l = l + Laurent::monomial(-1, h);
-            assert!(f(&sigma, &c, &l, &n, &constraints.norm_weights).is_zero());
+            let r_s = Opening {
+                sigma: r_s0,
+                l: h,
+                n: vec![S::zero(); params.nm],
+            };
+            let opening = opening + Laurent::monomial(C_S_POWER, r_s);
+            assert!(f(&opening, &c, &constraints.norm_weights).is_zero());
         }
     }
 
@@ -630,7 +647,7 @@ mod tests {
 
             let constraints = Constraints::new(&params, alpha, mu, lambda).unwrap();
             let delta_inv = delta.inverse().unwrap();
-            let (sigma, l, n) = opening_without_r_s(
+            let opening = opening_without_r_s(
                 &params,
                 &constraints,
                 &witness,
@@ -638,13 +655,7 @@ mod tests {
                 delta,
                 delta_inv,
             );
-            let f_bar = f(
-                &sigma,
-                &c(&constraints, beta),
-                &l,
-                &n,
-                &constraints.norm_weights,
-            );
+            let f_bar = f(&opening, &c(&constraints, beta), &constraints.norm_weights);
             let value_row = value_row(
                 &params,
                 alpha,
