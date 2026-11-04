@@ -74,6 +74,24 @@ To reproduce both tables run `cargo bench -p fastcrypto --features experimental 
 | 64-bit x16 | 8.53 | 1.92 | 4.4x |
 | 64-bit x32 | 15.94 | 3.55 | 4.5x |
 
+### Larger batches
+
+The batch size is not bounded, so callers that take it from untrusted input should choose their own limit.
+Cost depends only on `nm`, so another bit width with the same `nm` costs the same, and it grows linearly: about 60 µs per slot to prove and 6 µs to verify.
+The first proof or verification for a new `nm` also derives the generators, which are then cached for the lifetime of the process.
+Up to about 600 generators this includes the precomputed MSM tables, which is why the one-time cost drops above `nm = 512`.
+These numbers are from an Apple M1 Pro, about 15% slower than the machine above; the first-use column is a single measurement.
+
+| 64-bit values | `nm` | Prove (ms) | Verify (ms) | First use of `nm` (ms) |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 16 | 1.5 | 0.39 | 7 |
+| 16 | 256 | 15.5 | 2.2 | 65 |
+| 32 | 512 | 30.7 | 4.1 | 123 |
+| 64 | 1024 | 60.0 | 7.2 | 9 |
+| 128 | 2048 | 108 | 12.7 | 18 |
+| 256 | 4096 | 208 | 24.1 | 39 |
+| 512 | 8192 | 471 | 47.3 | 49 |
+
 ## Implementation notes
 
 - Verification is one multi-scalar multiplication. Generator folding is never
