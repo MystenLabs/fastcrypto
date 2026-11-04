@@ -128,23 +128,25 @@ fn h_coordinates(r: &[S]) -> Vec<S> {
     h
 }
 
-/// A blinding vector of length `H_LEN` with zeros at specific positions and
-/// random values otherwise. Slot `p` of a commitment entering `C(T)` at
-/// `T^e` reaches `f(T)` at row `e + CR_POWERS[p-1]`, so the
-/// slots hitting the value row `T^3`, or rows above `T^6` that no `r_S` slot
-/// cancels, must be zero. Hence, with entry powers 0, 1, 2 for `C_O`, `C_L`,
-/// `C_R`: `r_O` zeros slots `[4, 7]` (rows 3, 7), `r_L` slots `[3, 6, 7]`
-/// (rows 3, 7, 8) and `r_R` slots `[2, 5, 6, 7]` (rows 3, 7, 8, 9).
-fn blinding_vector(rng: &mut impl AllowedRng, zeros: &[usize]) -> Vec<S> {
-    (0..H_LEN)
-        .map(|i| {
-            if zeros.contains(&i) {
-                S::zero()
-            } else {
-                S::rand(rng)
-            }
-        })
-        .collect()
+/// The vector `r` of length `H_LEN` with `r[p] = 0` if `p >= 1` and
+/// `e + CR_POWERS[p-1]` is not in `{-1} ∪ {CR_POWERS[j] - 1 : j = 0..6}`,
+/// and `r[p]` uniformly random otherwise.
+///
+/// `e` is the power of `T` of the commitment in `C(T)`: 0 for `C_O`, 1 for
+/// `C_L` and 2 for `C_R`. For `p >= 1`, `f(T)` has the term
+/// `-beta*r[p]*T^{e + CR_POWERS[p-1]}`, and [solve_r_s] sets only the
+/// coefficients of `T^{-1}` and `T^{CR_POWERS[j] - 1}` of `f(T)` to zero.
+fn blinding_vector(rng: &mut impl AllowedRng, e: i32) -> Vec<S> {
+    let mut r = vec![S::rand(rng)];
+    for a in CR_POWERS {
+        let power = e + a;
+        if power == -1 || CR_POWERS.contains(&(power + 1)) {
+            r.push(S::rand(rng));
+        } else {
+            r.push(S::zero());
+        }
+    }
+    r
 }
 
 /// The honest reciprocals `(alpha + d_k)^{-1}` of the digits `n_l` on the
@@ -197,9 +199,9 @@ impl Witness {
             off_plane: vec![],
             n_l: pad_to(&to_scalars(&digits), params.nm),
             n_o: pad_to(&to_scalars(&multiplicities(&digits)), params.nm),
-            r_o: blinding_vector(rng, &[4, 7]),
-            r_l: blinding_vector(rng, &[3, 6, 7]),
-            r_r: blinding_vector(rng, &[2, 5, 6, 7]),
+            r_o: blinding_vector(rng, 0),
+            r_l: blinding_vector(rng, 1),
+            r_r: blinding_vector(rng, 2),
             n_s: (0..params.nm).map(|_| S::rand(rng)).collect(),
             l_s: S::rand(rng),
         }
@@ -499,6 +501,19 @@ pub(crate) fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_blinding_zero_patterns() {
+        // C_O, C_L and C_R enter C(T) at T^0, T^1 and T^2.
+        let mut rng = rand::thread_rng();
+        let mut zeros = |e| -> Vec<usize> {
+            let r = blinding_vector(&mut rng, e);
+            (0..H_LEN).filter(|&i| r[i] == S::zero()).collect()
+        };
+        assert_eq!(zeros(0), [4, 7]);
+        assert_eq!(zeros(1), [3, 6, 7]);
+        assert_eq!(zeros(2), [2, 5, 6, 7]);
+    }
 
     #[test]
     fn test_params_dimensions() {
