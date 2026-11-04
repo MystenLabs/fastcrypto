@@ -113,7 +113,7 @@ fn c(constraints: &Constraints, beta: S) -> Laurent<Vec<S>> {
 
 /// Commit to a circuit message with blinding `r` (slot 0 on `G`, slots 1..7
 /// on `H_0..H_6`), no linear witness, and norm witness `n`.
-fn commit(gens: &Generators, r: &[S], n: &[S]) -> FastCryptoResult<RistrettoPoint> {
+fn commit_message(gens: &Generators, r: &[S], n: &[S]) -> FastCryptoResult<RistrettoPoint> {
     gens.commit(r[0], &h_coordinates(r), n)
 }
 
@@ -376,8 +376,8 @@ fn prove_witness(
     transcript.append_commits(b"V", &v_commitments);
 
     // Step 1: commit digits (C_L) and shared multiplicities (C_O).
-    let c_l = commit(gens, &witness.r_l, &witness.n_l)?;
-    let c_o = commit(gens, &witness.r_o, &witness.n_o)?;
+    let c_l = commit_message(gens, &witness.r_l, &witness.n_l)?;
+    let c_o = commit_message(gens, &witness.r_o, &witness.n_o)?;
     transcript.append_point(b"C_L", &c_l);
     transcript.append_point(b"C_O", &c_o);
 
@@ -388,7 +388,7 @@ fn prove_witness(
     // Step 3: commit the reciprocals (C_R).
     debug_assert!(cfg!(test) || bad_reciprocals.is_none());
     let n_r = bad_reciprocals.unwrap_or(&|alpha| reciprocals(params, &witness.n_l, alpha))(alpha)?;
-    let c_r = commit(gens, &witness.r_r, &n_r)?;
+    let c_r = commit_message(gens, &witness.r_r, &n_r)?;
     transcript.append_point(b"C_R", &c_r);
 
     // Step 4: constraint challenges.

@@ -197,7 +197,7 @@ pub(crate) fn verify(
         w_g = w_g.tensor_pair(rho, gamma);
 
         // Fold only the (cheap) scalar constraint vector.
-        let (c0, c1) = halves(c);
+        let (c0, c1) = split_even_odd(c);
         c = vec_add(&c0, &vec_scalar_mul(gamma, &c1));
 
         rho = mu;
@@ -265,9 +265,9 @@ fn prove_rec(
         });
     }
 
-    let (l0, l1) = halves(l);
-    let (n0, n1) = halves(n);
-    let (c0, c1) = halves(c);
+    let (l0, l1) = split_even_odd(l);
+    let (n0, n1) = split_even_odd(n);
+    let (c0, c1) = split_even_odd(c);
 
     let mu = rho * rho;
     let mu2 = mu * mu;
@@ -287,10 +287,10 @@ fn prove_rec(
     //   R = vr*G + <l1, H_odd> + <n1, G_odd>
     let x_point = bases.msm(
         vx,
-        &from_halves(&l1, &l0),
-        &from_halves(&vec_scalar_mul(rho, &n1), &vec_scalar_mul(rho_inv, &n0)),
+        &interleave(&l1, &l0),
+        &interleave(&vec_scalar_mul(rho, &n1), &vec_scalar_mul(rho_inv, &n0)),
     )?;
-    let r_point = bases.msm(vr, &from_odd_half(&l1), &from_odd_half(&n1))?;
+    let r_point = bases.msm(vr, &odd_only(&l1), &odd_only(&n1))?;
 
     transcript.append_point(b"X", &x_point);
     transcript.append_point(b"R", &r_point);
@@ -467,23 +467,23 @@ fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     (rounds, n_len)
 }
 
-/// The even- and odd-indexed halves of `v`, padded to even length with a
+/// The even- and odd-indexed entries of `v`, padded to even length with a
 /// zero.
-fn halves(mut v: Vec<RistrettoScalar>) -> (Vec<RistrettoScalar>, Vec<RistrettoScalar>) {
+fn split_even_odd(mut v: Vec<RistrettoScalar>) -> (Vec<RistrettoScalar>, Vec<RistrettoScalar>) {
     if !v.len().is_multiple_of(2) {
         v.push(RistrettoScalar::zero());
     }
     v.into_iter().tuples().unzip()
 }
 
-/// The vector with even-indexed half `even` and odd-indexed half `odd`.
-fn from_halves(even: &[RistrettoScalar], odd: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
+/// The vector with even-indexed entries `even` and odd-indexed entries `odd`.
+fn interleave(even: &[RistrettoScalar], odd: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
     debug_assert_eq!(even.len(), odd.len());
     even.iter().zip(odd).flat_map(|(x, y)| [*x, *y]).collect()
 }
 
-/// The vector with odd-indexed half `odd` and zeros at the even indices.
-fn from_odd_half(odd: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
+/// The vector with odd-indexed entries `odd` and zeros at the even indices.
+fn odd_only(odd: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
     odd.iter()
         .flat_map(|y| [RistrettoScalar::zero(), *y])
         .collect()
