@@ -369,6 +369,32 @@ fn opening_without_r_s(
     }
 }
 
+/// Commit to `C_S` (spec "Choosing r_S"): choose its blinding `r_S` so that
+/// [f] of the opening of `C(T)` is zero at every power of `T` except `T^3`.
+/// Returns `C_S` and the opening of `C(T)`.
+#[allow(clippy::too_many_arguments)]
+fn commit_c_s(
+    gens: &Generators,
+    params: &CircuitParams,
+    constraints: &Constraints,
+    witness: &Witness,
+    n_r: Vec<S>,
+    c: &Laurent<Vec<S>>,
+    beta: S,
+    delta: S,
+    delta_inv: S,
+) -> FastCryptoResult<(RistrettoPoint, CombinedOpening)> {
+    let opening = opening_without_r_s(params, constraints, witness, n_r, delta, delta_inv);
+    let f_bar = f(&opening, c, &constraints.norm_weights);
+    let (r_s0, h) = solve_r_s(constraints, &f_bar, witness.l_s, beta)?;
+    let c_s = gens.commit(&Opening {
+        sigma: r_s0,
+        l: h.clone(),
+        n: witness.n_s.clone(),
+    })?;
+    Ok((c_s, opening.with_r_s(r_s0, h)))
+}
+
 /// Prove that every `values[i]` lies in `[0, 2^n_bits)` under the Pedersen
 /// commitments `V_i = values[i]*G + blindings[i]*H_0`, which are computed
 /// here, absorbed into the transcript, and returned alongside the proof.
@@ -432,23 +458,25 @@ fn prove_witness(
     let delta_inv = delta.inverse()?;
     let constraints = Constraints::new(params, alpha, mu, lambda)?;
 
-    // Step 5: solve the blinding r_S of C_S.
-    let opening = opening_without_r_s(params, &constraints, witness, n_r, delta, delta_inv);
+    // Step 5: commit to C_S.
     let c = c(&constraints, beta);
-    let f_bar = f(&opening, &c, &constraints.norm_weights);
-    let (r_s0, h) = solve_r_s(&constraints, &f_bar, witness.l_s, beta)?;
-    let c_s = gens.commit(&Opening {
-        sigma: r_s0,
-        l: h.clone(),
-        n: witness.n_s.clone(),
-    })?;
+    let (c_s, opening) = commit_c_s(
+        gens,
+        params,
+        &constraints,
+        witness,
+        n_r,
+        &c,
+        beta,
+        delta,
+        delta_inv,
+    )?;
     transcript.append_point(b"C_S", &c_s);
 
     // Step 6: evaluation point, drawn after every commitment.
     let tau = transcript.challenge_scalar(b"tau");
 
     // Step 7: evaluate the opening of C(tau) and run the norm-linear argument.
-    let opening = opening.with_r_s(r_s0, h);
     let nl_proof = norm_linear::prove(transcript, gens, &c.eval(tau)?, rho, &opening.eval(tau)?)?;
 
     Ok((
@@ -627,14 +655,30 @@ mod tests {
             let constraints = Constraints::new(&params, alpha, mu, lambda).unwrap();
             let n_r = reciprocals(&params, &witness.n_l, alpha).unwrap();
             let delta_inv = delta.inverse().unwrap();
-            let opening =
-                opening_without_r_s(&params, &constraints, &witness, n_r, delta, delta_inv);
             let c = c(&constraints, beta);
-            let f_bar = f(&opening, &c, &constraints.norm_weights);
-            assert!(!f_bar.is_zero());
+            let opening_without_r_s = opening_without_r_s(
+                &params,
+                &constraints,
+                &witness,
+                n_r.clone(),
+                delta,
+                delta_inv,
+            );
+            assert!(!f(&opening_without_r_s, &c, &constraints.norm_weights).is_zero());
 
-            let (r_s0, h) = solve_r_s(&constraints, &f_bar, witness.l_s, beta).unwrap();
-            let opening = opening.with_r_s(r_s0, h);
+            let gens = Generators::new(params.nm).unwrap();
+            let (_, opening) = commit_c_s(
+                &gens,
+                &params,
+                &constraints,
+                &witness,
+                n_r,
+                &c,
+                beta,
+                delta,
+                delta_inv,
+            )
+            .unwrap();
             assert!(f(&opening, &c, &constraints.norm_weights).is_zero());
         }
     }
