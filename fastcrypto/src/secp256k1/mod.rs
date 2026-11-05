@@ -212,6 +212,27 @@ impl AsRef<[u8]> for Secp256k1PrivateKey {
 
 impl zeroize::ZeroizeOnDrop for Secp256k1PrivateKey {}
 
+impl Secp256k1PrivateKey {
+    /// Create a new signature using the given hash function to hash the message.
+    pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256k1Signature {
+        let message = Message::from_slice(H::digest(msg).as_ref()).unwrap();
+
+        // Creates a 64-bytes signature of shape [r, s].
+        // Pseudo-random deterministic nonce generation is used according to RFC6979.
+        Secp256k1Signature {
+            sig: Secp256k1::signing_only().sign_ecdsa(&message, &self.privkey),
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
+impl Signer<Secp256k1Signature> for Secp256k1PrivateKey {
+    fn sign(&self, msg: &[u8]) -> Secp256k1Signature {
+        // Sha256 is used by default
+        self.sign_with_hash::<DefaultHash>(msg)
+    }
+}
+
 impl Drop for Secp256k1PrivateKey {
     fn drop(&mut self) {
         // bytes is zeroized on drop indirectly via OnceCell
@@ -282,14 +303,14 @@ impl From<&Secp256k1RecoverableSignature> for Secp256k1Signature {
 /// Secp256k1 public/private key pair.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Secp256k1KeyPair {
-    pub public: Secp256k1PublicKey,
-    pub secret: Secp256k1PrivateKey,
+    public: Secp256k1PublicKey,
+    private: Secp256k1PrivateKey,
 }
 
 /// The bytes form of the keypair always only contain the private key bytes
 impl ToFromBytes for Secp256k1KeyPair {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        Secp256k1PrivateKey::from_bytes(bytes).map(|secret| secret.into())
+        Secp256k1PrivateKey::from_bytes(bytes).map(|private| private.into())
     }
 }
 
@@ -297,7 +318,7 @@ serialize_deserialize_with_to_from_bytes!(Secp256k1KeyPair, SECP256K1_KEYPAIR_LE
 
 impl AsRef<[u8]> for Secp256k1KeyPair {
     fn as_ref(&self) -> &[u8] {
-        self.secret.as_ref()
+        self.private.as_ref()
     }
 }
 
@@ -311,14 +332,18 @@ impl KeyPair for Secp256k1KeyPair {
     }
 
     fn private(self) -> Self::PrivKey {
-        Secp256k1PrivateKey::from_bytes(self.secret.as_ref()).unwrap()
+        self.private
     }
 
     #[cfg(feature = "copy_key")]
     fn copy(&self) -> Self {
+        // Note: The copy_key feature explicitly allows copying private keys for specific use cases.
+        // This reconstructs the private key from bytes, which should never fail for a valid keypair.
+        let private_bytes = self.private.as_ref();
         Secp256k1KeyPair {
             public: self.public.clone(),
-            secret: Secp256k1PrivateKey::from_bytes(self.secret.as_ref()).unwrap(),
+            private: Secp256k1PrivateKey::from_bytes(private_bytes)
+                .expect("KeyPair should always contain valid private key bytes"),
         }
     }
 
@@ -330,7 +355,7 @@ impl KeyPair for Secp256k1KeyPair {
                 pubkey,
                 bytes: OnceCell::new(),
             },
-            secret: Secp256k1PrivateKey {
+            private: Secp256k1PrivateKey {
                 privkey,
                 bytes: OnceCell::new(),
             },
@@ -368,8 +393,8 @@ impl Signer<Secp256k1Signature> for Secp256k1KeyPair {
 }
 
 impl From<Secp256k1PrivateKey> for Secp256k1KeyPair {
-    fn from(secret: Secp256k1PrivateKey) -> Self {
-        let public = Secp256k1PublicKey::from(&secret);
-        Secp256k1KeyPair { public, secret }
+    fn from(private: Secp256k1PrivateKey) -> Self {
+        let public = Secp256k1PublicKey::from(&private);
+        Secp256k1KeyPair { public, private }
     }
 }
