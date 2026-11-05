@@ -17,9 +17,16 @@ use fastcrypto::traits::{
 };
 
 use crate::mldsa65::{
-    MLDSA65KeyPair, MLDSA65PrivateKey, MLDSA65PublicKey, MLDSA65Signature,
+    MLDSA65KeyPair, MLDSA65PrivateKey, MLDSA65PublicKey, MLDSA65Signature, EXPANSIONS,
     MLDSA65_PRIVATE_KEY_LENGTH, MLDSA65_PUBLIC_KEY_LENGTH, MLDSA65_SIGNATURE_LENGTH,
 };
+
+/// Seed expansions performed by `f` on the calling thread.
+fn expansions_in(f: impl FnOnce()) -> usize {
+    let before = EXPANSIONS.with(|n| n.get());
+    f();
+    EXPANSIONS.with(|n| n.get()) - before
+}
 
 const MSG: &[u8] = b"Hello, world!";
 
@@ -119,6 +126,78 @@ fn keypair_bytes_are_only_the_private_key() {
     let restored = MLDSA65KeyPair::from_bytes(keypair.as_ref()).unwrap();
     assert_eq!(restored.public(), keypair.public());
     assert!(restored.public().verify(MSG, &restored.sign(MSG)).is_ok());
+}
+
+#[test]
+fn keypair_equality_ignores_expansion_state() {
+    let seed = [3u8; MLDSA65_PRIVATE_KEY_LENGTH];
+    let expanded = MLDSA65KeyPair::from_bytes(&seed).unwrap();
+    let signature = expanded.sign(MSG);
+    let fresh = MLDSA65KeyPair::from_bytes(&seed).unwrap();
+    assert_eq!(fresh, expanded);
+    assert_eq!(fresh.copy(), expanded);
+    assert_eq!(fresh.public(), expanded.public());
+    assert!(fresh.public().verify(MSG, &signature).is_ok());
+}
+
+#[test]
+fn parsing_and_generating_do_not_expand() {
+    let seed = [4u8; MLDSA65_PRIVATE_KEY_LENGTH];
+    let mut rng = StdRng::from_seed([1u8; 32]);
+    assert_eq!(
+        expansions_in(|| {
+            let _ = MLDSA65KeyPair::from_bytes(&seed).unwrap();
+            let _ = MLDSA65PrivateKey::from_bytes(&seed).unwrap();
+            let _: MLDSA65KeyPair = bincode::deserialize(&seed).unwrap();
+            let _ = MLDSA65KeyPair::generate(&mut rng);
+        }),
+        0
+    );
+}
+
+#[test]
+fn keypair_expands_once_in_either_order() {
+    let seed = [5u8; MLDSA65_PRIVATE_KEY_LENGTH];
+    let sign_first = MLDSA65KeyPair::from_bytes(&seed).unwrap();
+    assert_eq!(
+        expansions_in(|| {
+            let sig = sign_first.sign(MSG);
+            assert!(sign_first.public().verify(MSG, &sig).is_ok());
+            let _ = sign_first.sign(MSG);
+            let _ = sign_first.public();
+        }),
+        1
+    );
+    let public_first = MLDSA65KeyPair::from_bytes(&seed).unwrap();
+    assert_eq!(
+        expansions_in(|| {
+            let _ = public_first.public();
+            let sig = public_first.sign(MSG);
+            assert!(public_first.public().verify(MSG, &sig).is_ok());
+            let _ = MLDSA65PublicKey::from(&public_first.copy().private());
+        }),
+        // One for the pair, one for the copy, which starts from the seed again.
+        2
+    );
+}
+
+#[test]
+fn concurrent_sign_and_public_expand_once() {
+    let keypair = MLDSA65KeyPair::from_bytes(&[6u8; MLDSA65_PRIVATE_KEY_LENGTH]).unwrap();
+    let (a, b) = std::thread::scope(|s| {
+        let signer = s.spawn(|| {
+            expansions_in(|| {
+                let _ = keypair.sign(MSG);
+            })
+        });
+        let reader = s.spawn(|| {
+            expansions_in(|| {
+                let _ = keypair.public();
+            })
+        });
+        (signer.join().unwrap(), reader.join().unwrap())
+    });
+    assert_eq!(a + b, 1);
 }
 
 #[test]
