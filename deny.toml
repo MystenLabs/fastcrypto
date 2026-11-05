@@ -38,10 +38,7 @@ ignore = [
     # The fix is only available in crypto-bigint 0.7, which requires upgrading
     # the RustCrypto elliptic curve crates. Exploitability is limited and depends
     # on compiler and target CPU, so we accept it until that upgrade.
-    "RUSTSEC-2026-0387",
-    # Unmaintained pin-utils 0.1.0, a transitive dependency via hyper (used by
-    # reqwest in fastcrypto-zkp)
-    "RUSTSEC-2026-0441"
+    "RUSTSEC-2026-0387"
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
