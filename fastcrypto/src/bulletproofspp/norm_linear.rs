@@ -99,22 +99,33 @@ impl NormLinearProof {
     }
 }
 
+/// An opening `(sigma, l, n)` of the commitment
+/// `sigma*G + <l, H> + <n, G_vec>`.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Opening {
+    pub(crate) sigma: RistrettoScalar,
+    pub(crate) l: Vec<RistrettoScalar>,
+    pub(crate) n: Vec<RistrettoScalar>,
+}
+
 impl Generators {
-    /// The norm-linear commitment `sigma*G + <l, H> + <n, G_vec>`.
-    pub(crate) fn commit(
-        &self,
-        sigma: RistrettoScalar,
-        l: &[RistrettoScalar],
-        n: &[RistrettoScalar],
-    ) -> FastCryptoResult<RistrettoPoint> {
-        debug_assert_eq!(l.len(), self.h_vec.len());
-        debug_assert_eq!(n.len(), self.g_vec.len());
-        self.msm(sigma, l.iter().copied(), n.iter().copied(), &[], &[])
+    /// The commitment `sigma*G + <l, H> + <n, G_vec>` with opening
+    /// `(sigma, l, n)`.
+    pub(crate) fn commit(&self, opening: &Opening) -> FastCryptoResult<RistrettoPoint> {
+        debug_assert_eq!(opening.l.len(), self.h_vec.len());
+        debug_assert_eq!(opening.n.len(), self.g_vec.len());
+        self.msm(
+            opening.sigma,
+            opening.l.iter().copied(),
+            opening.n.iter().copied(),
+            &[],
+            &[],
+        )
     }
 }
 
-/// Prove the norm-linear relation for the opening `(l, n)` of a commitment
-/// under `gens`. Requires `l`, `c`, `gens.h_vec` of equal length and `n`,
+/// Prove that `opening` satisfies `sigma = <c, l> + |n|^2_mu` with
+/// `mu = rho^2`. Requires `l`, `c`, `gens.h_vec` of equal length and `n`,
 /// `gens.g_vec` of equal length.
 ///
 /// Each round commits to the cross terms (`X`) and odd-odd terms (`R`) of
@@ -128,9 +139,9 @@ pub(crate) fn prove(
     gens: &Generators,
     c: &[RistrettoScalar],
     rho: RistrettoScalar,
-    l: &[RistrettoScalar],
-    n: &[RistrettoScalar],
+    opening: &Opening,
 ) -> FastCryptoResult<NormLinearProof> {
+    let Opening { l, n, .. } = opening;
     debug_assert_eq!(l.len(), c.len());
     debug_assert_eq!(l.len(), gens.h_vec.len());
     debug_assert_eq!(n.len(), gens.g_vec.len());
@@ -503,8 +514,7 @@ mod tests {
         gens: Arc<Generators>,
         c: Vec<RistrettoScalar>,
         rho: RistrettoScalar,
-        l: Vec<RistrettoScalar>,
-        n: Vec<RistrettoScalar>,
+        opening: Opening,
         commitment: RistrettoPoint,
     }
 
@@ -529,21 +539,21 @@ mod tests {
         let mu = rho * rho;
 
         let sigma = inner_product(&c, &l) + weighted_norm(&n, mu);
-        let commitment = gens.commit(sigma, &l, &n).unwrap();
+        let opening = Opening { sigma, l, n };
+        let commitment = gens.commit(&opening).unwrap();
 
         Instance {
             gens,
             c,
             rho,
-            l,
-            n,
+            opening,
             commitment,
         }
     }
 
     fn prove_instance(inst: &Instance) -> NormLinearProof {
         let mut t = BpppTranscript::new(b"test");
-        prove(&mut t, &inst.gens, &inst.c, inst.rho, &inst.l, &inst.n).unwrap()
+        prove(&mut t, &inst.gens, &inst.c, inst.rho, &inst.opening).unwrap()
     }
 
     fn verify_instance(inst: &Instance, proof: &NormLinearProof) -> FastCryptoResult<()> {
@@ -589,11 +599,12 @@ mod tests {
         let proof = prove_instance(&inst);
         assert!(verify_instance(&inst, &proof).is_ok());
 
-        let mut l = inst.l.clone();
+        let mut l = inst.opening.l.clone();
         l[0] += one();
-        let sigma = inner_product(&inst.c, &l) + weighted_norm(&inst.n, inst.rho * inst.rho);
+        let n = inst.opening.n.clone();
+        let sigma = inner_product(&inst.c, &l) + weighted_norm(&n, inst.rho * inst.rho);
         let other = Instance {
-            commitment: inst.gens.commit(sigma, &l, &inst.n).unwrap(),
+            commitment: inst.gens.commit(&Opening { sigma, l, n }).unwrap(),
             ..inst.clone()
         };
         assert!(verify_instance(&other, &proof).is_err());
@@ -710,7 +721,7 @@ mod tests {
             let mut g_vec = inst.gens.g_vec.clone();
             let mut rho = inst.rho;
             let mut mu = rho * rho;
-            let proof = prove(&mut t, &inst.gens, &inst.c, inst.rho, &inst.l, &inst.n).unwrap();
+            let proof = prove(&mut t, &inst.gens, &inst.c, inst.rho, &inst.opening).unwrap();
 
             let mut t = BpppTranscript::new(b"test");
             t.domain_sep(b"norm_linear");
