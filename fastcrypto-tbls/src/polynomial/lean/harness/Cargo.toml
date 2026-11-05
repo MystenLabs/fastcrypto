@@ -1,0 +1,22 @@
+[package]
+name = "shamir-lean-harness"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Property tests comparing fastcrypto_tbls::polynomial with its Lean model."
+
+# Not a member of the fastcrypto workspace: building it needs a Lean toolchain.
+[workspace]
+
+[dependencies]
+fastcrypto = { path = "../../../../../fastcrypto" }
+fastcrypto-tbls = { path = "../../../.." }
+lean-rs = "0.9.4"
+
+[dev-dependencies]
+proptest = "1.1.0"
+rand = "0.8.5"
+hex = "0.4.3"
+
+[build-dependencies]
+lean-toolchain = "0.9.4"
