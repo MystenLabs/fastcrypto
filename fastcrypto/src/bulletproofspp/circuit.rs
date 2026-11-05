@@ -273,8 +273,7 @@ impl CombinedOpening {
 /// The polynomial `f(T) = sigma(T) - <c(T), l(T)> - |n(T)|^2_mu` for the
 /// opening `(sigma(T), l(T), n(T))` of `C(T)`. `C(tau)` satisfies the
 /// norm-linear relation iff `f(tau) = 0`. The `T^3` coefficient is zero iff
-/// the circuit constraints hold, and `r_S` is chosen to make every other
-/// coefficient zero.
+/// the circuit constraints hold.
 fn f(opening: &CombinedOpening, c: &Laurent<Vec<S>>, norm_weights: &[S]) -> Laurent<S> {
     let CombinedOpening { sigma, l, n } = opening;
     sigma.clone() - c.inner_product(l) - n.weighted_inner_product(n, norm_weights)
@@ -357,8 +356,6 @@ fn opening_without_r_s(
         (V_HAT_POWER, v_hat),
     ]);
 
-    // The mask n_S of C_S, and the public part P(T) with
-    // p_s(T) = |p_n(T)|^2_mu + 2*(lambda_al + mu_am)*T^3.
     let p_n = constraints.p_n(delta_inv);
     let p_s = p_n.weighted_inner_product(&p_n, &constraints.norm_weights)
         + Laurent::monomial(3, two * (constraints.lambda_al + constraints.mu_am));
