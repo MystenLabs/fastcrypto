@@ -234,16 +234,16 @@ impl Witness {
 
 /// The opening `(sigma(T), l(T), n(T))` of the combined commitment
 /// `C(T) = sigma(T)*G + <l(T), H> + <n(T), G_vec>`.
-struct OpeningPoly {
+struct CombinedOpening {
     sigma: Laurent<S>,
     l: Laurent<Vec<S>>,
     n: Laurent<Vec<S>>,
 }
 
-impl OpeningPoly {
+impl CombinedOpening {
     /// The opening `sum_i T^{p_i}*o_i` of the `terms` `(p_i, o_i)`.
     fn from_terms(terms: &[(i32, Opening)]) -> Self {
-        OpeningPoly {
+        CombinedOpening {
             sigma: Laurent::from_terms(terms.iter().map(|(p, o)| (*p, o.sigma))),
             l: Laurent::from_terms(terms.iter().map(|(p, o)| (*p, o.l.clone()))),
             n: Laurent::from_terms(terms.iter().map(|(p, o)| (*p, o.n.clone()))),
@@ -253,7 +253,7 @@ impl OpeningPoly {
     /// This opening with the blinding `r_S[0]` and `H` coordinates `h` of
     /// `C_S` added at `T^{C_S_POWER}`.
     fn with_r_s(self, r_s0: S, h: Vec<S>) -> Self {
-        OpeningPoly {
+        CombinedOpening {
             sigma: self.sigma + Laurent::monomial(C_S_POWER, r_s0),
             l: self.l + Laurent::monomial(C_S_POWER, h),
             ..self
@@ -275,8 +275,8 @@ impl OpeningPoly {
 /// norm-linear relation iff `f(tau) = 0`. The `T^3` coefficient is zero iff
 /// the circuit constraints hold, and `r_S` is chosen to make every other
 /// coefficient zero.
-fn f(opening: &OpeningPoly, c: &Laurent<Vec<S>>, norm_weights: &[S]) -> Laurent<S> {
-    let OpeningPoly { sigma, l, n } = opening;
+fn f(opening: &CombinedOpening, c: &Laurent<Vec<S>>, norm_weights: &[S]) -> Laurent<S> {
+    let CombinedOpening { sigma, l, n } = opening;
     sigma.clone() - c.inner_product(l) - n.weighted_inner_product(n, norm_weights)
 }
 
@@ -319,7 +319,7 @@ fn opening_without_r_s(
     n_r: Vec<S>,
     delta: S,
     delta_inv: S,
-) -> OpeningPoly {
+) -> CombinedOpening {
     let two = S::from(2u64);
 
     // The rescaled aggregate input
@@ -347,7 +347,7 @@ fn opening_without_r_s(
         l: vec_scalar_mul(delta, &o.l),
         n: vec_scalar_mul(delta, &o.n),
     };
-    let OpeningPoly { sigma, l, n } = OpeningPoly::from_terms(&[
+    let CombinedOpening { sigma, l, n } = CombinedOpening::from_terms(&[
         (C_O_POWER, delta_o),
         (
             C_L_POWER,
@@ -362,7 +362,7 @@ fn opening_without_r_s(
     let p_n = constraints.p_n(delta_inv);
     let p_s = p_n.weighted_inner_product(&p_n, &constraints.norm_weights)
         + Laurent::monomial(3, two * (constraints.lambda_al + constraints.mu_am));
-    OpeningPoly {
+    CombinedOpening {
         sigma: sigma + p_s,
         l,
         n: n + Laurent::monomial(C_S_POWER, witness.n_s.clone()) + p_n,
