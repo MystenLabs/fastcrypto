@@ -1,10 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Laurent polynomials `sum_i a_i*T^i` in a formal variable `T`, with scalar,
-//! vector or [Opening] coefficients.
+//! Laurent polynomials `sum_i a_i*T^i` in a formal variable `T`, with scalar
+//! or vector coefficients.
 
-use crate::bulletproofspp::norm_linear::Opening;
 use crate::bulletproofspp::util::{hadamard, inner_product, one, vec_add, vec_scalar_mul};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::RistrettoScalar;
@@ -59,11 +58,6 @@ impl<C: Coefficient> Laurent<C> {
     /// `s` times this polynomial.
     pub(crate) fn scale(&self, s: S) -> Self {
         Self::new(self.low, self.coeffs.iter().map(|c| c.scale(s)).collect())
-    }
-
-    /// The polynomial `sum_i g(a_i)*T^i` for this polynomial `sum_i a_i*T^i`.
-    pub(crate) fn map<D: Coefficient>(&self, g: impl Fn(&C) -> D) -> Laurent<D> {
-        Laurent::new(self.low, self.coeffs.iter().map(g).collect())
     }
 
     /// The value at `T = x`. Fails if `x` is zero and there are negative powers.
@@ -129,8 +123,7 @@ impl Laurent<Vec<S>> {
     }
 }
 
-/// A coefficient of a [Laurent] polynomial: a scalar, a vector of scalars or
-/// an [Opening].
+/// A coefficient of a [Laurent] polynomial: a scalar or a vector of scalars.
 pub(crate) trait Coefficient: Clone {
     fn add(&self, other: &Self) -> Self;
     fn scale(&self, s: S) -> Self;
@@ -153,24 +146,6 @@ impl Coefficient for Vec<S> {
 
     fn scale(&self, s: S) -> Self {
         vec_scalar_mul(s, self)
-    }
-}
-
-impl Coefficient for Opening {
-    fn add(&self, other: &Self) -> Self {
-        Opening {
-            sigma: self.sigma + other.sigma,
-            l: vec_add(&self.l, &other.l),
-            n: vec_add(&self.n, &other.n),
-        }
-    }
-
-    fn scale(&self, s: S) -> Self {
-        Opening {
-            sigma: self.sigma * s,
-            l: vec_scalar_mul(s, &self.l),
-            n: vec_scalar_mul(s, &self.n),
-        }
     }
 }
 

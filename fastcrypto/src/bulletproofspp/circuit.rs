@@ -19,7 +19,7 @@ use std::iter::once;
 
 use crate::bulletproofspp::constraints::Constraints;
 use crate::bulletproofspp::crs::{compatible_with_pedersen_commitments, Generators, BASE, H_LEN};
-use crate::bulletproofspp::laurent::{Coefficient, Laurent};
+use crate::bulletproofspp::laurent::Laurent;
 use crate::bulletproofspp::norm_linear::{self, NormLinearProof, Opening};
 use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
@@ -232,16 +232,52 @@ impl Witness {
     }
 }
 
+/// The opening `(sigma(T), l(T), n(T))` of the combined commitment
+/// `C(T) = sigma(T)*G + <l(T), H> + <n(T), G_vec>`.
+struct OpeningPoly {
+    sigma: Laurent<S>,
+    l: Laurent<Vec<S>>,
+    n: Laurent<Vec<S>>,
+}
+
+impl OpeningPoly {
+    /// The opening `sum_i T^{p_i}*o_i` of the `terms` `(p_i, o_i)`.
+    fn from_terms(terms: &[(i32, Opening)]) -> Self {
+        OpeningPoly {
+            sigma: Laurent::from_terms(terms.iter().map(|(p, o)| (*p, o.sigma))),
+            l: Laurent::from_terms(terms.iter().map(|(p, o)| (*p, o.l.clone()))),
+            n: Laurent::from_terms(terms.iter().map(|(p, o)| (*p, o.n.clone()))),
+        }
+    }
+
+    /// This opening with the blinding `r_S[0]` and `H` coordinates `h` of
+    /// `C_S` added at `T^{C_S_POWER}`.
+    fn with_r_s(self, r_s0: S, h: Vec<S>) -> Self {
+        OpeningPoly {
+            sigma: self.sigma + Laurent::monomial(C_S_POWER, r_s0),
+            l: self.l + Laurent::monomial(C_S_POWER, h),
+            ..self
+        }
+    }
+
+    /// The opening of `C(tau)`.
+    fn eval(&self, tau: S) -> FastCryptoResult<Opening> {
+        Ok(Opening {
+            sigma: self.sigma.eval(tau)?,
+            l: self.l.eval(tau)?,
+            n: self.n.eval(tau)?,
+        })
+    }
+}
+
 /// The polynomial `f(T) = sigma(T) - <c(T), l(T)> - |n(T)|^2_mu` for the
-/// opening `(sigma(T), l(T), n(T))` of the combined commitment `C(T)`.
-/// `C(tau)` satisfies the norm-linear relation iff `f(tau) = 0`. The `T^3`
-/// coefficient is zero iff the circuit constraints hold, and `r_S` is chosen
-/// to make every other coefficient zero.
-fn f(opening: &Laurent<Opening>, c: &Laurent<Vec<S>>, norm_weights: &[S]) -> Laurent<S> {
-    let sigma = opening.map(|o| o.sigma);
-    let l = opening.map(|o| o.l.clone());
-    let n = opening.map(|o| o.n.clone());
-    sigma - c.inner_product(&l) - n.weighted_inner_product(&n, norm_weights)
+/// opening `(sigma(T), l(T), n(T))` of `C(T)`. `C(tau)` satisfies the
+/// norm-linear relation iff `f(tau) = 0`. The `T^3` coefficient is zero iff
+/// the circuit constraints hold, and `r_S` is chosen to make every other
+/// coefficient zero.
+fn f(opening: &OpeningPoly, c: &Laurent<Vec<S>>, norm_weights: &[S]) -> Laurent<S> {
+    let OpeningPoly { sigma, l, n } = opening;
+    sigma.clone() - c.inner_product(l) - n.weighted_inner_product(n, norm_weights)
 }
 
 /// The blinding of `C_S` (spec "Choosing r_S"): its `G` coordinate `r_S[0]`
@@ -283,10 +319,8 @@ fn opening_without_r_s(
     n_r: Vec<S>,
     delta: S,
     delta_inv: S,
-) -> Laurent<Opening> {
+) -> OpeningPoly {
     let two = S::from(2u64);
-    let zero_l = vec![S::zero(); H_LEN];
-    let zero_n = vec![S::zero(); params.nm];
 
     // The rescaled aggregate input
     // V_hat = 2*sum_i lambda^{i-1} V_i opens to v_hat on G,
@@ -296,59 +330,43 @@ fn opening_without_r_s(
         .iter()
         .map(|l| two * l)
         .collect();
-    let v_hat = inner_product(&weights, &witness.values);
-    let mut n_v_hat = zero_n.clone();
-    let mut l_v_hat = S::zero();
+    let mut v_hat = Opening {
+        sigma: inner_product(&weights, &witness.values),
+        l: vec![S::zero(); H_LEN],
+        n: vec![S::zero(); params.nm],
+    };
+    v_hat.l[0] = inner_product(&weights, &witness.blindings);
     for ((n_i, l_i), w) in witness.off_plane.iter().zip(&weights) {
-        n_v_hat = vec_add(&n_v_hat, &vec_scalar_mul(*w, n_i));
-        l_v_hat += *w * l_i;
+        v_hat.n = vec_add(&v_hat.n, &vec_scalar_mul(*w, n_i));
+        v_hat.l[H_LEN - 1] += *w * l_i;
     }
-    let mut h_v_hat = zero_l.clone();
-    h_v_hat[0] = inner_product(&weights, &witness.blindings);
-    h_v_hat[H_LEN - 1] = l_v_hat;
 
-    // The public part P(T), with
-    // p_s(T) = |p_n(T)|^2_mu + 2*(lambda_al + mu_am)*T^3.
-    let p_n = constraints.p_n(delta_inv);
-    let p_s = p_n.weighted_inner_product(&p_n, &constraints.norm_weights)
-        + Laurent::monomial(3, two * (constraints.lambda_al + constraints.mu_am));
-    let public = p_s.map(|&sigma| Opening {
-        sigma,
-        l: zero_l.clone(),
-        n: zero_n.clone(),
-    }) + p_n.map(|n| Opening {
-        sigma: S::zero(),
-        l: zero_l.clone(),
-        n: n.clone(),
-    });
-
-    Laurent::from_terms([
-        (
-            C_S_POWER,
-            Opening {
-                sigma: S::zero(),
-                l: zero_l.clone(),
-                n: witness.n_s.clone(),
-            },
-        ),
-        (
-            C_O_POWER,
-            message_opening(&witness.r_o, witness.n_o.clone()).scale(delta),
-        ),
+    let o = message_opening(&witness.r_o, witness.n_o.clone());
+    let delta_o = Opening {
+        sigma: delta * o.sigma,
+        l: vec_scalar_mul(delta, &o.l),
+        n: vec_scalar_mul(delta, &o.n),
+    };
+    let OpeningPoly { sigma, l, n } = OpeningPoly::from_terms(&[
+        (C_O_POWER, delta_o),
         (
             C_L_POWER,
             message_opening(&witness.r_l, witness.n_l.clone()),
         ),
         (C_R_POWER, message_opening(&witness.r_r, n_r)),
-        (
-            V_HAT_POWER,
-            Opening {
-                sigma: v_hat,
-                l: h_v_hat,
-                n: n_v_hat,
-            },
-        ),
-    ]) + public
+        (V_HAT_POWER, v_hat),
+    ]);
+
+    // The mask n_S of C_S, and the public part P(T) with
+    // p_s(T) = |p_n(T)|^2_mu + 2*(lambda_al + mu_am)*T^3.
+    let p_n = constraints.p_n(delta_inv);
+    let p_s = p_n.weighted_inner_product(&p_n, &constraints.norm_weights)
+        + Laurent::monomial(3, two * (constraints.lambda_al + constraints.mu_am));
+    OpeningPoly {
+        sigma: sigma + p_s,
+        l,
+        n: n + Laurent::monomial(C_S_POWER, witness.n_s.clone()) + p_n,
+    }
 }
 
 /// Prove that every `values[i]` lies in `[0, 2^n_bits)` under the Pedersen
@@ -419,14 +437,10 @@ fn prove_witness(
     let c = c(&constraints, beta);
     let f_bar = f(&opening, &c, &constraints.norm_weights);
     let (r_s0, h) = solve_r_s(&constraints, &f_bar, witness.l_s, beta)?;
-    let r_s = Opening {
-        sigma: r_s0,
-        l: h,
-        n: vec![S::zero(); params.nm],
-    };
     let c_s = gens.commit(&Opening {
+        sigma: r_s0,
+        l: h.clone(),
         n: witness.n_s.clone(),
-        ..r_s.clone()
     })?;
     transcript.append_point(b"C_S", &c_s);
 
@@ -434,7 +448,7 @@ fn prove_witness(
     let tau = transcript.challenge_scalar(b"tau");
 
     // Step 7: evaluate the opening of C(tau) and run the norm-linear argument.
-    let opening = opening + Laurent::monomial(C_S_POWER, r_s);
+    let opening = opening.with_r_s(r_s0, h);
     let nl_proof = norm_linear::prove(transcript, gens, &c.eval(tau)?, rho, &opening.eval(tau)?)?;
 
     Ok((
@@ -620,12 +634,7 @@ mod tests {
             assert!(!f_bar.is_zero());
 
             let (r_s0, h) = solve_r_s(&constraints, &f_bar, witness.l_s, beta).unwrap();
-            let r_s = Opening {
-                sigma: r_s0,
-                l: h,
-                n: vec![S::zero(); params.nm],
-            };
-            let opening = opening + Laurent::monomial(C_S_POWER, r_s);
+            let opening = opening.with_r_s(r_s0, h);
             assert!(f(&opening, &c, &constraints.norm_weights).is_zero());
         }
     }
