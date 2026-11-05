@@ -517,14 +517,13 @@ pub(crate) fn verify(
     transcript.append_point(b"C_S", &proof.c_s);
     let tau = transcript.challenge_scalar(b"tau");
     let tau_pow = |power: i32| Laurent::monomial(power, one()).eval(tau);
-    let t3 = tau * tau * tau;
 
     let constraints = Constraints::new(params, alpha, mu, lambda)?;
     let p_n_tau = constraints.p_n(delta_inv).eval(tau)?;
     // p_s(tau) = |p_n(tau)|^2_mu + 2*(lambda_al + mu_am)*tau^3, evaluated
     // directly on p_n_tau rather than via the coefficients of p_s(T).
     let p_s_tau = weighted_norm(&p_n_tau, mu)
-        + S::from(2u64) * (constraints.lambda_al + constraints.mu_am) * t3;
+        + S::from(2u64) * (constraints.lambda_al + constraints.mu_am) * tau_pow(3)?;
     let c_tau = c(&constraints, beta).eval(tau)?;
 
     // Combined commitment, decomposed so it joins the norm-linear verifier's
