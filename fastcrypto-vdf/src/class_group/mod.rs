@@ -91,7 +91,7 @@ impl QuadraticForm {
             .get_or_init(|| self.discriminant().abs().nth_root(4))
     }
 
-    /// Compute the discriminant of this quadratic form, eg. b^2 - 4ac.
+    /// Compute the discriminant of this quadratic form, e.g., b^2 - 4ac.
     pub fn discriminant(&self) -> BigInt {
         self.b.pow(2) - ((&self.a * &self.c) << 2)
     }
