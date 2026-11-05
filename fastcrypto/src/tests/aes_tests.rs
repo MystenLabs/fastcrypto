@@ -221,3 +221,34 @@ fn test_sk_zeroization_on_drop() {
         }
     }
 }
+
+#[test]
+    fn test_aes_decrypt_on_chain_valid() {
+        let plaintext = b"Hello, on-chain!";
+        let key = AesKey::<typenum::U32>::generate(&mut thread_rng());
+        let iv = InitializationVector::<typenum::U16>::generate(&mut thread_rng());
+
+        let cipher = Aes256Ctr::new(key.clone());
+        let ciphertext = cipher.encrypt(&iv, plaintext);
+
+        let decrypted = aes_decrypt_on_chain(
+            &key.as_bytes(),
+            &iv.as_bytes(),
+            &ciphertext,
+            "AES256_CTR",
+        )
+        .unwrap();
+
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_aes_decrypt_on_chain_invalid_mode() {
+        let key = [0u8; 16];
+        let iv = [0u8; 16];
+        let ciphertext = vec![0x1f, 0x2e, 0x3d];
+
+        let result = aes_decrypt_on_chain(&key, &iv, &ciphertext, "INVALID_MODE");
+
+        assert!(result.is_err());
+    }
