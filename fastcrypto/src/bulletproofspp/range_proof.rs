@@ -80,8 +80,8 @@ impl RangeProof {
         }
         let (n_bits, m) = (range.bits(), values.len());
 
-        let gens = Generators::new(*range, m)?;
         let params = CircuitParams::new(*range, m)?;
+        let gens = Generators::new(params.nm)?;
         let blinding_scalars: Vec<RistrettoScalar> = blindings.iter().map(|b| b.0).collect();
         let (proof, _) = circuit::prove(
             &mut transcript(dst, n_bits, m),
@@ -111,8 +111,8 @@ impl RangeProof {
             return Err(FastCryptoError::InvalidInput);
         }
         let (n_bits, m) = (range.bits(), commitments.len());
-        let gens = Generators::new(*range, m)?;
         let params = CircuitParams::new(*range, m)?;
+        let gens = Generators::new(params.nm)?;
         circuit::verify(
             &mut transcript(dst, n_bits, m),
             &gens,
