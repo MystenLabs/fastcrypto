@@ -341,6 +341,7 @@ fn opening_without_r_s(
     }
 
     let o = message_opening(&witness.r_o, witness.n_o.clone());
+    // TODO: Remove if delta is redundant (#1128).
     let delta_o = Opening {
         sigma: delta * o.sigma,
         l: vec_scalar_mul(delta, &o.l),
