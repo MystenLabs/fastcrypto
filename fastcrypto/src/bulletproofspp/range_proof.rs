@@ -7,6 +7,7 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::RistrettoScalar;
 use crate::pedersen::{Blinding, PedersenCommitment};
 use crate::traits::AllowedRng;
+use std::sync::Arc;
 
 use crate::bulletproofspp::circuit::{self, CircuitParams, CircuitProof};
 use crate::bulletproofspp::crs::Generators;
@@ -33,6 +34,18 @@ fn transcript(dst: &[u8], n_bits: usize, m: usize) -> BpppTranscript {
     t.append_u64(b"n_bits", n_bits as u64);
     t.append_u64(b"m", m as u64);
     t
+}
+
+/// The circuit dimensions, generators and transcript for a batch of `m`
+/// values in `range`.
+fn setup(
+    range: Range,
+    m: usize,
+    dst: &[u8],
+) -> FastCryptoResult<(CircuitParams, Arc<Generators>, BpppTranscript)> {
+    let params = CircuitParams::new(range, m)?;
+    let gens = Generators::new(params.nm)?;
+    Ok((params, gens, transcript(dst, range.bits(), m)))
 }
 
 impl RangeProof {
@@ -78,13 +91,10 @@ impl RangeProof {
         {
             return Err(FastCryptoError::InvalidInput);
         }
-        let (n_bits, m) = (range.bits(), values.len());
-
-        let params = CircuitParams::new(*range, m)?;
-        let gens = Generators::new(params.nm)?;
+        let (params, gens, mut transcript) = setup(*range, values.len(), dst)?;
         let blinding_scalars: Vec<RistrettoScalar> = blindings.iter().map(|b| b.0).collect();
         let (proof, _) = circuit::prove(
-            &mut transcript(dst, n_bits, m),
+            &mut transcript,
             &gens,
             &params,
             rng,
@@ -110,17 +120,9 @@ impl RangeProof {
         if commitments.is_empty() {
             return Err(FastCryptoError::InvalidInput);
         }
-        let (n_bits, m) = (range.bits(), commitments.len());
-        let params = CircuitParams::new(*range, m)?;
-        let gens = Generators::new(params.nm)?;
-        circuit::verify(
-            &mut transcript(dst, n_bits, m),
-            &gens,
-            &params,
-            &self.proof,
-            commitments,
-        )
-        .map_err(|_| FastCryptoError::InvalidProof)
+        let (params, gens, mut transcript) = setup(*range, commitments.len(), dst)?;
+        circuit::verify(&mut transcript, &gens, &params, &self.proof, commitments)
+            .map_err(|_| FastCryptoError::InvalidProof)
     }
 
     /// Serialize: the four circuit commitments, the per-round `(X, R)`

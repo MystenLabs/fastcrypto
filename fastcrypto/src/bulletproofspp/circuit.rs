@@ -128,23 +128,25 @@ fn h_coordinates(r: &[S]) -> Vec<S> {
     h
 }
 
-/// A blinding vector of length `H_LEN` with zeros at specific positions and
-/// random values otherwise. Slot `p` of a commitment entering `C(T)` at
-/// `T^e` reaches `f(T)` at row `e + CR_POWERS[p-1]`, so the
-/// slots hitting the value row `T^3`, or rows above `T^6` that no `r_S` slot
-/// cancels, must be zero. Hence, with entry powers 0, 1, 2 for `C_O`, `C_L`,
-/// `C_R`: `r_O` zeros slots `[4, 7]` (rows 3, 7), `r_L` slots `[3, 6, 7]`
-/// (rows 3, 7, 8) and `r_R` slots `[2, 5, 6, 7]` (rows 3, 7, 8, 9).
-fn blinding_vector(rng: &mut impl AllowedRng, zeros: &[usize]) -> Vec<S> {
-    (0..H_LEN)
-        .map(|i| {
-            if zeros.contains(&i) {
-                S::zero()
-            } else {
-                S::rand(rng)
-            }
-        })
-        .collect()
+/// The vector `r` of length `H_LEN` with `r[p] = 0` if `p >= 1` and
+/// `e + CR_POWERS[p-1]` is not in `{-1} ∪ {CR_POWERS[j] - 1 : j = 0..6}`,
+/// and `r[p]` uniformly random otherwise.
+///
+/// `e` is the power of `T` of the commitment in `C(T)`: 0 for `C_O`, 1 for
+/// `C_L` and 2 for `C_R`. For `p >= 1`, `f(T)` has the term
+/// `-beta*r[p]*T^{e + CR_POWERS[p-1]}`, and [solve_r_s] sets only the
+/// coefficients of `T^{-1}` and `T^{CR_POWERS[j] - 1}` of `f(T)` to zero.
+fn blinding_vector(rng: &mut impl AllowedRng, e: i32) -> Vec<S> {
+    let mut r = vec![S::rand(rng)];
+    for a in CR_POWERS {
+        let power = e + a;
+        if power == -1 || CR_POWERS.contains(&(power + 1)) {
+            r.push(S::rand(rng));
+        } else {
+            r.push(S::zero());
+        }
+    }
+    r
 }
 
 /// The honest reciprocals `(alpha + d_k)^{-1}` of the digits `n_l` on the
@@ -197,9 +199,9 @@ impl Witness {
             off_plane: vec![],
             n_l: pad_to(&to_scalars(&digits), params.nm),
             n_o: pad_to(&to_scalars(&multiplicities(&digits)), params.nm),
-            r_o: blinding_vector(rng, &[4, 7]),
-            r_l: blinding_vector(rng, &[3, 6, 7]),
-            r_r: blinding_vector(rng, &[2, 5, 6, 7]),
+            r_o: blinding_vector(rng, 0),
+            r_l: blinding_vector(rng, 1),
+            r_r: blinding_vector(rng, 2),
             n_s: (0..params.nm).map(|_| S::rand(rng)).collect(),
             l_s: S::rand(rng),
         }
@@ -361,18 +363,21 @@ pub(crate) fn prove(
         return Err(FastCryptoError::InvalidInput);
     }
     let witness = Witness::new(params, rng, values, blindings);
-    prove_witness(transcript, gens, params, &witness, None)
+    prove_witness(transcript, gens, params, &witness, &|alpha| {
+        reciprocals(params, &witness.n_l, alpha)
+    })
 }
 
 /// Run the protocol with `witness`, without checking that it is well formed.
 ///
-/// `bad_reciprocals` replaces the reciprocals and is only used in tests.
+/// `reciprocals_of(alpha)` gives the committed reciprocals: [prove] passes
+/// the honest [reciprocals], and tests pass others.
 fn prove_witness(
     transcript: &mut BpppTranscript,
     gens: &Generators,
     params: &CircuitParams,
     witness: &Witness,
-    bad_reciprocals: Option<&dyn Fn(S) -> FastCryptoResult<Vec<S>>>,
+    reciprocals_of: &dyn Fn(S) -> FastCryptoResult<Vec<S>>,
 ) -> FastCryptoResult<(CircuitProof, Vec<PedersenCommitment>)> {
     let v_commitments = witness.input_commitments(gens)?;
     transcript.domain_sep(b"bppp_circuit");
@@ -389,8 +394,7 @@ fn prove_witness(
     let alpha = transcript.challenge_scalar(b"alpha");
 
     // Step 3: commit the reciprocals (C_R).
-    debug_assert!(cfg!(test) || bad_reciprocals.is_none());
-    let n_r = bad_reciprocals.unwrap_or(&|alpha| reciprocals(params, &witness.n_l, alpha))(alpha)?;
+    let n_r = reciprocals_of(alpha)?;
     let c_r = commit_message(gens, &witness.r_r, &n_r)?;
     transcript.append_point(b"C_R", &c_r);
 
@@ -499,6 +503,19 @@ pub(crate) fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_blinding_zero_patterns() {
+        // C_O, C_L and C_R enter C(T) at T^0, T^1 and T^2.
+        let mut rng = rand::thread_rng();
+        let mut zeros = |e| -> Vec<usize> {
+            let r = blinding_vector(&mut rng, e);
+            (0..H_LEN).filter(|&i| r[i] == S::zero()).collect()
+        };
+        assert_eq!(zeros(0), [4, 7]);
+        assert_eq!(zeros(1), [3, 6, 7]);
+        assert_eq!(zeros(2), [2, 5, 6, 7]);
+    }
 
     #[test]
     fn test_params_dimensions() {
@@ -767,8 +784,15 @@ mod tests {
         let params = CircuitParams::new(range, m).unwrap();
         let gens = Generators::new(params.nm).unwrap();
         let mut t = BpppTranscript::new(b"test");
-        let (proof, v_commitments) =
-            prove_witness(&mut t, &gens, &params, witness, bad_reciprocals).unwrap();
+        let honest = |alpha| reciprocals(&params, &witness.n_l, alpha);
+        let (proof, v_commitments) = prove_witness(
+            &mut t,
+            &gens,
+            &params,
+            witness,
+            bad_reciprocals.unwrap_or(&honest),
+        )
+        .unwrap();
         let mut t = BpppTranscript::new(b"test");
         verify(&mut t, &gens, &params, &proof, &v_commitments)
     }
