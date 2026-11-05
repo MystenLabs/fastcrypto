@@ -137,9 +137,9 @@ pub(crate) fn to_digits(value: u64, d: usize) -> Vec<u64> {
 /// `j = 1, ..., BASE - 1` (`m_0` implicit), with [BASE] the digit base.
 pub(crate) fn multiplicities(digits: &[u64]) -> Vec<u64> {
     let mut m = vec![0u64; (BASE - 1) as usize];
-    for &d in digits {
-        if d > 0 {
-            m[(d - 1) as usize] += 1;
+    for &digit in digits {
+        if digit > 0 {
+            m[(digit - 1) as usize] += 1;
         }
     }
     m
@@ -165,11 +165,11 @@ mod tests {
         assert_eq!(weighted_norm(&a, mu), s(2 + 4 * 4 + 9 * 8));
 
         // Pre-weighting identity used throughout the protocol:
-        // <a, b>_mu = <a ∘ bar_mu, b> with bar_mu = (mu, mu^2, ...).
-        let bar_mu = vec_scalar_mul(mu, &power_vector(mu, a.len()));
+        // <a, b>_mu = <a ∘ norm_weights, b> with norm_weights = (mu, mu^2, ...).
+        let norm_weights = vec_scalar_mul(mu, &power_vector(mu, a.len()));
         assert_eq!(
             weighted_inner_product(&a, &b, mu),
-            inner_product(&hadamard(&a, &bar_mu), &b)
+            inner_product(&hadamard(&a, &norm_weights), &b)
         );
     }
 

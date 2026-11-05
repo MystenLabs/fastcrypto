@@ -4,7 +4,7 @@
 //! The constraints of the range circuit, folded with the challenges into the
 //! public parts of the combined commitment. Notation and equation numbers
 //! follow §4.3 and §5.1 of [ePrint 2026/2648](https://eprint.iacr.org/2026/2648),
-//! with `M = params.m`, `D = params.d`, `N_d = params.n_d`, `n_m = params.nm`.
+//! with `M = params.m`, `D = params.d`, `N_d = params.n_d`, `nm = params.nm`.
 //! Inputs are indexed `i = 1..M` as in the paper; the code uses `i - 1`.
 //!
 //! # Witness (22)
@@ -28,7 +28,7 @@
 //!
 //! # Value row (29)
 //!
-//! The `T^3` coefficient of the error polynomial is
+//! The `T^3` coefficient of the polynomial `f(T)` of the combined commitment is
 //! ```text
 //! f[T^3] = sum_i lambda^{i-1}*L_i + E_0 + lambda^M*S
 //!          - 4*sum_{k,i} lambda^{M(k+1)+1+(i-1)}*n_{V_i,k}
@@ -51,8 +51,8 @@ type S = RistrettoScalar;
 
 /// The public data (23), computed from the challenges alone.
 pub(crate) struct Constraints {
-    /// Norm weights `(mu, mu^2, ..., mu^{n_m})`.
-    bar_mu: Vec<S>,
+    /// Norm weights `(mu, mu^2, ..., mu^{nm})`.
+    pub(crate) norm_weights: Vec<S>,
     /// `c_{n,L}[D(i-1)+t] = lambda^{i-1}*16^t / mu^{D(i-1)+t+1}`; zero for
     /// slots `>= N_d`.
     cn_l: Vec<S>,
@@ -63,7 +63,7 @@ pub(crate) struct Constraints {
     cn_o: Vec<S>,
     /// `c_{n,V}[k] = lambda^{M(k+1)+1} / mu^{k+1}`.
     cn_v: Vec<S>,
-    /// `c_{l,V} = (0, lambda^{g_1}, ..., lambda^{g_7})`, `g_m = M(n_m+m)+1`.
+    /// `c_{l,V} = (0, lambda^{g_1}, ..., lambda^{g_7})`, `g_m = M(nm+m)+1`.
     pub(crate) cl_v: Vec<S>,
     /// `lambda_al = N_d*lambda^M / alpha`.
     pub(crate) lambda_al: S,
@@ -83,7 +83,7 @@ impl Constraints {
         let &CircuitParams { m, d, n_d, nm, .. } = params;
         let mu_inv = mu.inverse()?;
         // Only the lambda-powers that are used: `lambda^0..lambda^M` and the
-        // shape-row powers `shape[j-1] = lambda^{M*j+1}`, `j = 1..=n_m+7`.
+        // shape-row powers `shape[j-1] = lambda^{M*j+1}`, `j = 1..=nm+7`.
         let lambdas = power_vector(lambda, m + 1);
         let lam_m = lambdas[m];
         let shape: Vec<S> = iterate(lambda * lam_m, |x| x * lam_m)
@@ -91,7 +91,7 @@ impl Constraints {
             .collect();
         let base = S::from(BASE);
 
-        let mut bar_mu = Vec::with_capacity(nm);
+        let mut norm_weights = Vec::with_capacity(nm);
         let mut cn_l = Vec::with_capacity(nm);
         let mut cn_r = Vec::with_capacity(nm);
         let mut cn_v = Vec::with_capacity(nm);
@@ -102,7 +102,7 @@ impl Constraints {
         for k in 0..nm {
             mu_pow *= mu;
             mu_inv_pow *= mu_inv;
-            bar_mu.push(mu_pow);
+            norm_weights.push(mu_pow);
             if k < n_d {
                 mu_am += mu_pow;
                 if k % d == 0 {
@@ -121,7 +121,7 @@ impl Constraints {
         // cn_o via one batch inversion of the denominators alpha*(alpha+j)*mu^j.
         let bm1 = (BASE - 1) as usize;
         let denominators: Vec<S> = (0..bm1)
-            .map(|k| alpha * (alpha + S::from(k as u64 + 1)) * bar_mu[k])
+            .map(|k| alpha * (alpha + S::from(k as u64 + 1)) * norm_weights[k])
             .collect();
         let inverses = batch_invert(&denominators)?;
         let mut cn_o: Vec<S> = (0..bm1)
@@ -135,7 +135,7 @@ impl Constraints {
         cl_v.extend((1..H_LEN).map(|p| shape[nm + p - 1]));
 
         Ok(Self {
-            bar_mu,
+            norm_weights,
             cn_l,
             cn_r,
             cn_o,
@@ -145,11 +145,6 @@ impl Constraints {
             mu_am,
             lambdas,
         })
-    }
-
-    /// The norm weights `(mu, mu^2, ..., mu^{n_m})`.
-    pub(crate) fn norm_weights(&self) -> &[S] {
-        &self.bar_mu
     }
 
     /// `p_n(T) = c_{n,V} + T*c_{n,R} + T^2*c_{n,L} + delta^{-1}*T^3*c_{n,O}` (24).

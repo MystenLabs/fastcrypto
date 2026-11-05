@@ -141,19 +141,19 @@ pub(crate) fn prove(
 /// Verify a norm-linear proof in a single multi-scalar multiplication.
 ///
 /// The commitment is supplied in decomposed form so it joins the same MSM:
-/// `ps` is its public coefficient on `G`, `pn` its public coefficients over
+/// `p_s` is its public coefficient on `G`, `p_n` its public coefficients over
 /// `g_vec` and `extra` the remaining `(scalar, point)` terms, i.e. the
-/// commitment equals `ps*G + <pn, g_vec> + sum extra`.
+/// commitment equals `p_s*G + <p_n, g_vec> + sum extra`.
 ///
 /// Instead of folding the generator vectors round by round, the final `l`
 /// and `n` are spread back onto the original generators through the
 /// combined weights of all folds ([Weights::tensor]), the same weights
 /// the prover folds with. The per-round identity padding never hosts a base
 /// generator, so this is exact, and the base-case check becomes
-///   (sigma - ps)*G + <w_h ⊙ l, H> + <w_g ⊙ n - pn, G_vec>
+///   (sigma - p_s)*G + <w_h ⊙ l, H> + <w_g ⊙ n - p_n, G_vec>
 ///     - sum extra - sum_r (gamma_r*X_r + (gamma_r^2 - 1)*R_r) == 0.
 ///
-/// `c` and `pn` must have the lengths of `gens.h_vec` and `gens.g_vec`.
+/// `c` and `p_n` must have the lengths of `gens.h_vec` and `gens.g_vec`.
 /// Errors with `InvalidProof` on any mismatch, including a proof whose shape
 /// differs from the one implied by the base lengths.
 #[allow(clippy::too_many_arguments)]
@@ -161,13 +161,13 @@ pub(crate) fn verify(
     transcript: &mut BpppTranscript,
     gens: &Generators,
     c: &[RistrettoScalar],
-    ps: RistrettoScalar,
-    pn: &[RistrettoScalar],
+    p_s: RistrettoScalar,
+    p_n: &[RistrettoScalar],
     extra: &[(RistrettoScalar, RistrettoPoint)],
     rho: RistrettoScalar,
     proof: &NormLinearProof,
 ) -> FastCryptoResult<()> {
-    if c.len() != gens.h_vec.len() || pn.len() != gens.g_vec.len() {
+    if c.len() != gens.h_vec.len() || p_n.len() != gens.g_vec.len() {
         return Err(FastCryptoError::InvalidInput);
     }
     // The prover's fold count and final lengths are determined by the base
@@ -197,7 +197,7 @@ pub(crate) fn verify(
         w_g = w_g.tensor_pair(rho, gamma);
 
         // Fold only the (cheap) scalar constraint vector.
-        let (c0, c1) = halves(c);
+        let (c0, c1) = split_even_odd(c);
         c = vec_add(&c0, &vec_scalar_mul(gamma, &c1));
 
         rho = mu;
@@ -215,8 +215,8 @@ pub(crate) fn verify(
     let n = w_g
         .tensor(&proof.n_final)
         .take(gens.g_vec.len())
-        .zip(pn)
-        .map(|(w, pn_i)| w - pn_i);
+        .zip(p_n)
+        .map(|(w, p_n_i)| w - p_n_i);
 
     let mut dynamic_scalars = Vec::with_capacity(extra.len() + 2 * k);
     let mut dynamic_points = Vec::with_capacity(extra.len() + 2 * k);
@@ -231,7 +231,7 @@ pub(crate) fn verify(
         dynamic_points.push(*r_point);
     }
 
-    let result = gens.msm(sigma - ps, l, n, &dynamic_scalars, &dynamic_points)?;
+    let result = gens.msm(sigma - p_s, l, n, &dynamic_scalars, &dynamic_points)?;
 
     if result == RistrettoPoint::zero() {
         Ok(())
@@ -265,9 +265,9 @@ fn prove_rec(
         });
     }
 
-    let (l0, l1) = halves(l);
-    let (n0, n1) = halves(n);
-    let (c0, c1) = halves(c);
+    let (l0, l1) = split_even_odd(l);
+    let (n0, n1) = split_even_odd(n);
+    let (c0, c1) = split_even_odd(c);
 
     let mu = rho * rho;
     let mu2 = mu * mu;
@@ -287,10 +287,10 @@ fn prove_rec(
     //   R = vr*G + <l1, H_odd> + <n1, G_odd>
     let x_point = bases.msm(
         vx,
-        &from_halves(&l1, &l0),
-        &from_halves(&vec_scalar_mul(rho, &n1), &vec_scalar_mul(rho_inv, &n0)),
+        &interleave(&l1, &l0),
+        &interleave(&vec_scalar_mul(rho, &n1), &vec_scalar_mul(rho_inv, &n0)),
     )?;
-    let r_point = bases.msm(vr, &from_odd_half(&l1), &from_odd_half(&n1))?;
+    let r_point = bases.msm(vr, &odd_only(&l1), &odd_only(&n1))?;
 
     transcript.append_point(b"X", &x_point);
     transcript.append_point(b"R", &r_point);
@@ -357,12 +357,12 @@ impl<'a> LazyBases<'a> {
         (h_vec.len(), g_vec.len())
     }
 
-    /// `v*G + <h_coeffs, H> + <g_coeffs, G_vec>` over the current bases.
+    /// `sigma*G + <l, H> + <n, G_vec>` over the current bases.
     fn msm(
         &mut self,
-        v: RistrettoScalar,
-        h_coeffs: &[RistrettoScalar],
-        g_coeffs: &[RistrettoScalar],
+        sigma: RistrettoScalar,
+        l: &[RistrettoScalar],
+        n: &[RistrettoScalar],
     ) -> FastCryptoResult<RistrettoPoint> {
         // Fold the points every few rounds to keep the MSMs small.
         if self.w_h.len() == 1 << FOLD_BATCH_ROUNDS {
@@ -374,16 +374,16 @@ impl<'a> LazyBases<'a> {
         }
 
         let (h_len, g_len) = self.len();
-        let h_scalars = self.w_h.tensor(h_coeffs).take(h_len);
-        let g_scalars = self.w_g.tensor(g_coeffs).take(g_len);
+        let h_scalars = self.w_h.tensor(l).take(h_len);
+        let g_scalars = self.w_g.tensor(n).take(g_len);
         match &self.points {
-            BasePoints::Crs(gens) => gens.msm(v, h_scalars, g_scalars, &[], &[]),
+            BasePoints::Crs(gens) => gens.msm(sigma, h_scalars, g_scalars, &[], &[]),
             BasePoints::Folded {
                 g,
                 folded: (h_vec, g_vec),
             } => {
                 let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) =
-                    std::iter::once((v, *g))
+                    std::iter::once((sigma, *g))
                         .chain(h_scalars.zip(h_vec.iter().copied()))
                         .chain(g_scalars.zip(g_vec.iter().copied()))
                         .filter(|(s, _)| *s != RistrettoScalar::zero())
@@ -467,23 +467,23 @@ fn proof_shape(mut l_len: usize, mut n_len: usize) -> (usize, usize) {
     (rounds, n_len)
 }
 
-/// The even- and odd-indexed halves of `v`, padded to even length with a
+/// The even- and odd-indexed entries of `v`, padded to even length with a
 /// zero.
-fn halves(mut v: Vec<RistrettoScalar>) -> (Vec<RistrettoScalar>, Vec<RistrettoScalar>) {
+fn split_even_odd(mut v: Vec<RistrettoScalar>) -> (Vec<RistrettoScalar>, Vec<RistrettoScalar>) {
     if !v.len().is_multiple_of(2) {
         v.push(RistrettoScalar::zero());
     }
     v.into_iter().tuples().unzip()
 }
 
-/// The vector with even-indexed half `even` and odd-indexed half `odd`.
-fn from_halves(even: &[RistrettoScalar], odd: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
+/// The vector with even-indexed entries `even` and odd-indexed entries `odd`.
+fn interleave(even: &[RistrettoScalar], odd: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
     debug_assert_eq!(even.len(), odd.len());
     even.iter().zip(odd).flat_map(|(x, y)| [*x, *y]).collect()
 }
 
-/// The vector with odd-indexed half `odd` and zeros at the even indices.
-fn from_odd_half(odd: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
+/// The vector with odd-indexed entries `odd` and zeros at the even indices.
+fn odd_only(odd: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
     odd.iter()
         .flat_map(|y| [RistrettoScalar::zero(), *y])
         .collect()
