@@ -122,8 +122,10 @@ fn c(constraints: &Constraints, beta: S) -> Laurent<Vec<S>> {
     ))
 }
 
-/// The opening `(r[0], (r[1], ..., r[7], 0), n)` of a circuit message with
-/// blinding `r` and norm witness `n`.
+/// The opening `(sigma, l, n) = (r[0], (r[1], ..., r[7], 0), n)` of the
+/// commitment `r[0]*G + r[1]*H_0 + ... + r[7]*H_6 + <n, G_vec>` to the norm
+/// vector `n` with blinding `r`, as for `C_O`, `C_L` and `C_R`. The
+/// coefficient of `H_7`, the linear witness, is zero.
 fn message_opening(r: &[S], n: Vec<S>) -> Opening {
     let mut l = r[1..].to_vec();
     l.push(S::zero());
