@@ -16,7 +16,9 @@ cd harness && cargo test
 ```
 
 The harness is not a member of the fastcrypto workspace, so the rest of the repository builds without
-Lean.
+Lean. Its generic parts (opening a model, `same`, hex encoding, export signatures for `build.rs`)
+live in [`fastcrypto-lean-testing`](../../../../fastcrypto-lean-testing), for models of other parts
+of fastcrypto.
 
 ## How the pieces fit
 

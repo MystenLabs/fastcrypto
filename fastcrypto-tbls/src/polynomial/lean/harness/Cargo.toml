@@ -11,12 +11,11 @@ description = "Property tests comparing fastcrypto_tbls::polynomial with its Lea
 [dependencies]
 fastcrypto = { path = "../../../../../fastcrypto" }
 fastcrypto-tbls = { path = "../../../.." }
-lean-rs = "0.9.4"
+fastcrypto-lean-testing = { path = "../../../../../fastcrypto-lean-testing" }
 
 [dev-dependencies]
 proptest = "1.1.0"
 rand = "0.8.5"
-hex = "0.4.3"
 
 [build-dependencies]
-lean-toolchain = "0.9.4"
+fastcrypto-lean-testing = { path = "../../../../../fastcrypto-lean-testing", default-features = false, features = ["build"] }

@@ -6,24 +6,14 @@
 
 use fastcrypto::groups::bls12381::Scalar;
 use fastcrypto::groups::Scalar as _;
-use fastcrypto::serde_helpers::ToFromByteArray;
+use fastcrypto_lean_testing::{hex, hex_all, same};
 use fastcrypto_tbls::polynomial::{Eval, Poly};
 use fastcrypto_tbls::types::ShareIndex;
-use lean_rs::{LeanBuiltCapability, LeanCapability, LeanRuntime};
 use proptest::collection::vec;
 use proptest::prelude::*;
-use proptest::test_runner::TestRunner;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use shamir_lean_harness::MANIFEST;
-
-fn hex(s: &Scalar) -> String {
-    hex::encode(s.to_byte_array())
-}
-
-fn hex_poly(coeffs: &[Scalar]) -> Vec<String> {
-    coeffs.iter().map(hex).collect()
-}
+use shamir_lean_harness::open;
 
 fn coefficients(p: &Poly<Scalar>) -> Vec<Scalar> {
     (0..=p.degree_bound()).map(|i| *p.coefficient(i)).collect()
@@ -37,31 +27,6 @@ fn scalar() -> impl Strategy<Value = Scalar> {
     ]
 }
 
-fn open() -> LeanCapability<'static> {
-    let runtime = LeanRuntime::init().expect("Lean runtime");
-    LeanCapability::from_build_manifest(
-        runtime,
-        LeanBuiltCapability::manifest_path(MANIFEST)
-            .manifest_env_var("LEAN_RS_CAPABILITY_SHAMIR_MODEL_MANIFEST"),
-    )
-    .expect("Lean model")
-}
-
-/// Checks that `rust` and `lean` return the same value on inputs drawn from `inputs`.
-fn same<S, T>(inputs: S, rust: impl Fn(&S::Value) -> T, lean: impl Fn(&S::Value) -> T)
-where
-    S: Strategy,
-    S::Value: Clone,
-    T: PartialEq + std::fmt::Debug,
-{
-    TestRunner::default()
-        .run(&inputs, |input| {
-            prop_assert_eq!(rust(&input), lean(&input));
-            Ok(())
-        })
-        .unwrap();
-}
-
 #[test]
 fn c0() {
     let lean = open();
@@ -71,7 +36,7 @@ fn c0() {
     same(
         vec(scalar(), 0..12),
         |coeffs| Ok(hex(&Poly::from(coeffs.clone()).c0())),
-        |coeffs| c0.call(hex_poly(coeffs)).unwrap(),
+        |coeffs| c0.call(hex_all(coeffs)).unwrap(),
     );
 }
 
@@ -84,7 +49,7 @@ fn degree_bound() {
     same(
         vec(scalar(), 0..12),
         |coeffs| Ok(Poly::from(coeffs.clone()).degree_bound() as u64),
-        |coeffs| degree_bound.call(hex_poly(coeffs)).unwrap(),
+        |coeffs| degree_bound.call(hex_all(coeffs)).unwrap(),
     );
 }
 
@@ -102,7 +67,7 @@ fn eval() {
                 .value;
             Ok(hex(&value))
         },
-        |(coeffs, i)| eval.call(hex_poly(coeffs), *i as u64).unwrap(),
+        |(coeffs, i)| eval.call(hex_all(coeffs), *i as u64).unwrap(),
     );
 }
 
@@ -116,9 +81,9 @@ fn add() {
         (vec(scalar(), 1..12), vec(scalar(), 1..12)),
         |(a, b)| {
             let sum = Poly::from(a.clone()) + &Poly::from(b.clone());
-            Ok(hex_poly(&coefficients(&sum)))
+            Ok(hex_all(&coefficients(&sum)))
         },
-        |(a, b)| add.call(hex_poly(a), hex_poly(b)).unwrap(),
+        |(a, b)| add.call(hex_all(a), hex_all(b)).unwrap(),
     );
 }
 

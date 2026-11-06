@@ -1020,6 +1020,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastcrypto-lean-testing"
+version = "0.1.0"
+dependencies = [
+ "fastcrypto",
+ "hex",
+ "lean-rs",
+ "lean-toolchain",
+ "proptest",
+]
+
+[[package]]
 name = "fastcrypto-tbls"
 version = "0.1.0"
 dependencies = [
@@ -2114,10 +2125,8 @@ name = "shamir-lean-harness"
 version = "0.1.0"
 dependencies = [
  "fastcrypto",
+ "fastcrypto-lean-testing",
  "fastcrypto-tbls",
- "hex",
- "lean-rs",
- "lean-toolchain",
  "proptest",
  "rand 0.8.8",
 ]
