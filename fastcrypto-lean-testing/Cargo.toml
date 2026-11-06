@@ -1,0 +1,23 @@
+[package]
+name = "fastcrypto-lean-testing"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Shared helpers for property tests that compare fastcrypto code with a Lean model."
+
+# Not a member of the fastcrypto workspace: using it needs a Lean toolchain.
+[workspace]
+
+[features]
+default = ["runtime"]
+# Calling a Lean model and comparing it with Rust code, for tests.
+runtime = ["dep:lean-rs", "dep:proptest", "dep:fastcrypto", "dep:hex"]
+# Declaring the exports of a Lean model, for `build.rs`.
+build = ["dep:lean-toolchain"]
+
+[dependencies]
+fastcrypto = { path = "../fastcrypto", optional = true }
+hex = { version = "0.4.3", optional = true }
+lean-rs = { version = "0.9.4", optional = true }
+lean-toolchain = { version = "0.9.4", optional = true }
+proptest = { version = "1.1.0", optional = true }
