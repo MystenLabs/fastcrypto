@@ -18,15 +18,13 @@ instance : NeZero r := ⟨by decide⟩
 abbrev Scalar := Fin r
 
 /-- `x^e` by square-and-multiply. -/
-def pow (x : Scalar) (e : Nat) : Scalar := Id.run do
-  let mut acc : Scalar := 1
-  let mut base := x
-  let mut e := e
-  while e > 0 do
-    if e % 2 = 1 then acc := acc * base
-    base := base * base
-    e := e / 2
-  return acc
+def pow (x : Scalar) (e : Nat) : Scalar :=
+  if e = 0 then 1
+  else
+    let y := pow (x * x) (e / 2)
+    if e % 2 = 1 then x * y else y
+termination_by e
+decreasing_by omega
 
 /-- `Scalar::inverse`: `x^(r - 2)` (Fermat), and an error for zero. -/
 def inverse (x : Scalar) : Except String Scalar :=
@@ -55,20 +53,19 @@ def eval (p : Poly) (i : Nat) : Eval :=
 def add (p q : Poly) : Poly :=
   (p.zipWith (· + ·) q) ++ (if p.size < q.size then q.extract p.size q.size else p.extract q.size p.size)
 
+/-- The Lagrange coefficient `λ_i = ∏_{j ≠ i} j / (j - i)` at zero, for the indices `idx`. -/
+def lagrange (idx : List Nat) (i : Nat) : Except String Scalar := do
+  let others := (idx.filter (· ≠ i)).map (Fin.ofNat r)
+  let den ← inverse ((others.map (· - Fin.ofNat r i)).foldr (· * ·) 1)
+  return others.foldr (· * ·) 1 * den
+
 /-- `Poly::recover_c0`: Lagrange interpolation at zero from exactly `t` shares with distinct
 indices. -/
 def recover_c0 (t : Nat) (shares : List Eval) : Except String Scalar := do
   let idx := shares.map (·.index)
   if !idx.Nodup || idx.length ≠ t || idx.contains 0 then throw "InvalidInput"
-  let s : Nat → Scalar := Fin.ofNat r
-  -- λ_i = ∏_{j ≠ i} j / (j - i)
-  let mut acc : Scalar := 0
-  for share in shares do
-    let i := share.index
-    let num := (idx.filter (· ≠ i)).foldl (fun a j => a * s j) 1
-    let den ← inverse ((idx.filter (· ≠ i)).foldl (fun a j => a * (s j - s i)) 1)
-    acc := acc + share.value * num * den
-  return acc
+  let terms ← shares.mapM fun share => return share.value * (← lagrange idx share.index)
+  return terms.foldr (· + ·) 0
 
 /-! ## Encoding -/
 

@@ -4,7 +4,7 @@
 | --- | --- |
 | `model/` | `ShamirModel.lean`: `Poly::{degree_bound, c0, eval, add, recover_c0}` over BLS12-381 scalars, in core Lean only, with `@[export]` wrappers. |
 | `harness/` | A Rust crate whose property tests call the model through [`lean-rs`](https://github.com/jcreinhold/lean-rs) and compare it with `fastcrypto_tbls::polynomial::Poly`. |
-| `specs/` | The Shamir specs from `fastcrypto-specs`: the functions as black boxes, the contracts we expect of them, and recovery, privacy and additivity, proved from those contracts. Needs Mathlib. |
+| `specs/` | Theorems about the model, with Mathlib: `recover_c0` is Lagrange interpolation at zero (`Interpolation.lean`), and recovery, privacy and additivity of Shamir sharing. |
 
 ## Running the tests
 
@@ -18,12 +18,18 @@ cd harness && cargo test
 The harness is not a member of the fastcrypto workspace, so the rest of the repository builds without
 Lean.
 
-## Why the model avoids Mathlib
+## How the pieces fit
+
+The property tests check that the Rust code and the model agree on random inputs; the specs prove
+theorems about the model. Together they say that the theorems hold for the Rust code on the tested
+inputs.
 
 `lean-rs` loads the model as native code, and a native Lean library includes every module it
-imports. Scalars are therefore `Fin r` with core Lean's arithmetic. In Mathlib `ZMod r` is
-definitionally `Fin r`, so the specs can state facts about the model without a translation.
+imports, so the model uses core Lean only. Scalars are `Fin r`, which Mathlib's `ZMod r` is by
+definition, so the specs reason about the model directly. They assume that `r` is prime
+(`[Fact r.Prime]`).
 
-## Not yet done
+`rand_fixed_c0` is the one function not in the model: the specs describe its output as
+`deal d s c`, for coefficients `c` that it draws uniformly.
 
-The specs and the model are not connected: nothing proves that the model satisfies `Contracts`.
+Build the specs with `cd specs && lake build`.
