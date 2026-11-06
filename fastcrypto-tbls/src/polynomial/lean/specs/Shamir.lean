@@ -1,4 +1,4 @@
 import Shamir.Steps
 import Shamir.Recovery
 import Shamir.Privacy
-import Shamir.Dkg
+import Shamir.Additivity

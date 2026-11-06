@@ -4,7 +4,7 @@
 | --- | --- |
 | `model/` | `ShamirModel.lean`: `Poly::{degree_bound, c0, eval, add, recover_c0}` over BLS12-381 scalars, in core Lean only, with `@[export]` wrappers. |
 | `harness/` | A Rust crate whose property tests call the model through [`lean-rs`](https://github.com/jcreinhold/lean-rs) and compare it with `fastcrypto_tbls::polynomial::Poly`. |
-| `specs/` | The Shamir specs from `fastcrypto-specs`: the functions as black boxes, the contracts we expect of them, and recovery, privacy and DKG summation from those contracts. Needs Mathlib. |
+| `specs/` | The Shamir specs from `fastcrypto-specs`: the functions as black boxes, the contracts we expect of them, and recovery, privacy and additivity, proved from those contracts. Needs Mathlib. |
 
 ## Running the tests
 
