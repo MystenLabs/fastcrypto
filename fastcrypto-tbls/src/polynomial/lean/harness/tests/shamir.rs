@@ -47,24 +47,45 @@ fn open() -> LeanCapability<'static> {
     .expect("Lean model")
 }
 
-#[test]
-fn c0_and_degree_bound() {
-    let lean = open();
-    let c0 = lean.exported::<(Vec<String>,), Result<String, String>>("shamir_model_c0").unwrap();
-    let degree_bound = lean
-        .exported::<(Vec<String>,), Result<u64, String>>("shamir_model_degree_bound")
-        .unwrap();
+/// Checks that `rust` and `lean` return the same value on inputs drawn from `inputs`.
+fn same<S, T>(inputs: S, rust: impl Fn(&S::Value) -> T, lean: impl Fn(&S::Value) -> T)
+where
+    S: Strategy,
+    S::Value: Clone,
+    T: PartialEq + std::fmt::Debug,
+{
     TestRunner::default()
-        .run(&vec(scalar(), 0..12), |coeffs| {
-            let p = Poly::from(coeffs.clone());
-            prop_assert_eq!(c0.call(hex_poly(&coeffs)).unwrap(), Ok(hex(&p.c0())));
-            prop_assert_eq!(
-                degree_bound.call(hex_poly(&coeffs)).unwrap(),
-                Ok(p.degree_bound() as u64)
-            );
+        .run(&inputs, |input| {
+            prop_assert_eq!(rust(&input), lean(&input));
             Ok(())
         })
         .unwrap();
+}
+
+#[test]
+fn c0() {
+    let lean = open();
+    let c0 = lean
+        .exported::<(Vec<String>,), Result<String, String>>("shamir_model_c0")
+        .unwrap();
+    same(
+        vec(scalar(), 0..12),
+        |coeffs| Ok(hex(&Poly::from(coeffs.clone()).c0())),
+        |coeffs| c0.call(hex_poly(coeffs)).unwrap(),
+    );
+}
+
+#[test]
+fn degree_bound() {
+    let lean = open();
+    let degree_bound = lean
+        .exported::<(Vec<String>,), Result<u64, String>>("shamir_model_degree_bound")
+        .unwrap();
+    same(
+        vec(scalar(), 0..12),
+        |coeffs| Ok(Poly::from(coeffs.clone()).degree_bound() as u64),
+        |coeffs| degree_bound.call(hex_poly(coeffs)).unwrap(),
+    );
 }
 
 #[test]
@@ -73,14 +94,16 @@ fn eval() {
     let eval = lean
         .exported::<(Vec<String>, u64), Result<String, String>>("shamir_model_eval")
         .unwrap();
-    TestRunner::default()
-        .run(&(vec(scalar(), 0..12), 1u16..), |(coeffs, i)| {
-            let p = Poly::from(coeffs.clone());
-            let value = p.eval(ShareIndex::new(i).unwrap()).value;
-            prop_assert_eq!(eval.call(hex_poly(&coeffs), i as u64).unwrap(), Ok(hex(&value)));
-            Ok(())
-        })
-        .unwrap();
+    same(
+        (vec(scalar(), 0..12), 1u16..),
+        |(coeffs, i)| {
+            let value = Poly::from(coeffs.clone())
+                .eval(ShareIndex::new(*i).unwrap())
+                .value;
+            Ok(hex(&value))
+        },
+        |(coeffs, i)| eval.call(hex_poly(coeffs), *i as u64).unwrap(),
+    );
 }
 
 #[test]
@@ -89,16 +112,14 @@ fn add() {
     let add = lean
         .exported::<(Vec<String>, Vec<String>), Result<Vec<String>, String>>("shamir_model_add")
         .unwrap();
-    TestRunner::default()
-        .run(&(vec(scalar(), 1..12), vec(scalar(), 1..12)), |(a, b)| {
+    same(
+        (vec(scalar(), 1..12), vec(scalar(), 1..12)),
+        |(a, b)| {
             let sum = Poly::from(a.clone()) + &Poly::from(b.clone());
-            prop_assert_eq!(
-                add.call(hex_poly(&a), hex_poly(&b)).unwrap(),
-                Ok(hex_poly(&coefficients(&sum)))
-            );
-            Ok(())
-        })
-        .unwrap();
+            Ok(hex_poly(&coefficients(&sum)))
+        },
+        |(a, b)| add.call(hex_poly(a), hex_poly(b)).unwrap(),
+    );
 }
 
 /// Shares of a random polynomial at random indices, with `t` sometimes off by one and indices
@@ -107,32 +128,34 @@ fn add() {
 fn recover_c0() {
     let lean = open();
     let recover = lean
-        .exported::<(u64, Vec<u64>, Vec<String>), Result<String, String>>(
-            "shamir_model_recover_c0",
-        )
+        .exported::<(u64, Vec<u64>, Vec<String>), Result<String, String>>("shamir_model_recover_c0")
         .unwrap();
-    let inputs = (vec(scalar(), 1..8), vec(1u16..40, 0..10), -1i64..=1);
-    TestRunner::default()
-        .run(&inputs, |(coeffs, indices, dt)| {
-            let p = Poly::from(coeffs.clone());
-            let shares: Vec<Eval<Scalar>> = indices
-                .iter()
-                .map(|&i| p.eval(ShareIndex::new(i).unwrap()))
-                .collect();
-            let t = (shares.len() as i64 + dt).max(0) as u16;
-            let rust = Poly::<Scalar>::recover_c0(t, shares.iter()).map(|c| hex(&c));
-            let lean = recover
+    let shares = |coeffs: &Vec<Scalar>, indices: &Vec<u16>| -> Vec<Eval<Scalar>> {
+        let p = Poly::from(coeffs.clone());
+        indices
+            .iter()
+            .map(|&i| p.eval(ShareIndex::new(i).unwrap()))
+            .collect()
+    };
+    let threshold = |indices: &Vec<u16>, dt: i64| (indices.len() as i64 + dt).max(0) as u16;
+    same(
+        (vec(scalar(), 1..8), vec(1u16..40, 0..10), -1i64..=1),
+        |(coeffs, indices, dt)| {
+            let shares = shares(coeffs, indices);
+            Poly::<Scalar>::recover_c0(threshold(indices, *dt), shares.iter())
+                .map(|c| hex(&c))
+                .map_err(|_| ())
+        },
+        |(coeffs, indices, dt)| {
+            let shares = shares(coeffs, indices);
+            recover
                 .call(
-                    t as u64,
+                    threshold(indices, *dt) as u64,
                     indices.iter().map(|&i| i as u64).collect(),
                     shares.iter().map(|s| hex(&s.value)).collect(),
                 )
-                .unwrap();
-            prop_assert_eq!(lean.is_ok(), rust.is_ok());
-            if let Ok(c) = rust {
-                prop_assert_eq!(lean, Ok(c));
-            }
-            Ok(())
-        })
-        .unwrap();
+                .unwrap()
+                .map_err(|_| ())
+        },
+    );
 }

@@ -21,7 +21,11 @@ fn export(name: &str, args: Vec<Arg>) -> LeanExportSignature {
     LeanExportSignature::function(
         name,
         args,
-        LeanExportReturnAbi::new(Repr::LeanObject, Own::Owned, LeanExportResultConvention::Pure),
+        LeanExportReturnAbi::new(
+            Repr::LeanObject,
+            Own::Owned,
+            LeanExportResultConvention::Pure,
+        ),
     )
 }
 
