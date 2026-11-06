@@ -1,6 +1,6 @@
 [package]
 name = "fastcrypto-tbls"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
@@ -9,7 +9,7 @@ description = "Threshold BLS and DKG protocols"
 repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
-fastcrypto = { path = "../fastcrypto", features = ["aes"] }
+fastcrypto = { path = "../fastcrypto", version = "0.1.12", features = ["aes"] }
 
 rand.workspace = true
 serde.workspace = true

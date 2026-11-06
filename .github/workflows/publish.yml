@@ -8,6 +8,8 @@ on:
       - 'fastcrypto-derive/Cargo.toml'
       - 'fastcrypto/Cargo.toml'
       - 'fastcrypto-zkp/Cargo.toml'
+      - 'fastcrypto-tbls/Cargo.toml'
+      - 'fastcrypto-vdf/Cargo.toml'
   workflow_dispatch:
 env:
   CARGO_TERM_COLOR: always
@@ -59,6 +61,8 @@ jobs:
             fastcrypto-derive
             fastcrypto
             fastcrypto-zkp
+            fastcrypto-tbls
+            fastcrypto-vdf
           )
 
           ensure_tag() {
