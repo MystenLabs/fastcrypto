@@ -8,7 +8,7 @@ on:
       - 'fastcrypto-derive/Cargo.toml'
       - 'fastcrypto/Cargo.toml'
       - 'fastcrypto-zkp/Cargo.toml'
-      - 'fastcrypto-tbls/Cargo.toml'
+      - 'fastcrypto-threshold/Cargo.toml'
       - 'fastcrypto-vdf/Cargo.toml'
   workflow_dispatch:
 env:
@@ -61,7 +61,7 @@ jobs:
             fastcrypto-derive
             fastcrypto
             fastcrypto-zkp
-            fastcrypto-tbls
+            fastcrypto-threshold
             fastcrypto-vdf
           )
 

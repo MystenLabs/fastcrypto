@@ -1516,7 +1516,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fastcrypto-tbls"
+name = "fastcrypto-threshold"
 version = "0.1.1"
 dependencies = [
  "bcs",

@@ -11,7 +11,7 @@
  <img width="300" src="images/fastcrypto_logo_800.png">
 </p>
 
-`fastcrypto` is a common cryptography library used in software at Mysten Labs. It is a Cargo workspace containing the crates `fastcrypto`, `fastcrypto-derive`, `fastcrypto-tbls`, `fastcrypto-zkp`, `fastcrypto-vdf`, `fastcrypto-pq` and `fastcrypto-cli`. Most of them are published as independent crates to encourage reusability across different applications and domains; `fastcrypto-pq` is not yet published.
+`fastcrypto` is a common cryptography library used in software at Mysten Labs. It is a Cargo workspace containing the crates `fastcrypto`, `fastcrypto-derive`, `fastcrypto-threshold`, `fastcrypto-zkp`, `fastcrypto-vdf`, `fastcrypto-pq` and `fastcrypto-cli`. Most of them are published as independent crates to encourage reusability across different applications and domains; `fastcrypto-pq` is not yet published.
 
 `fastcrypto` is a wrapper library around several carefully selected crates with the following considerations:
 
@@ -86,7 +86,7 @@ The `fastcrypto` crate contains:
 
 The `fastcrypto-zkp` crate contains APIs to verify a Groth16 proof along with its prepared verifying key and public inputs. BN254 and BLS12381 curves are supported. The verifier is backed by [Arkworks](https://github.com/arkworks-rs/) and [`blst`](https://github.com/supranational/blst) libraries. It also contains the zkLogin verifier used by Sui, including parsing and validation of zkLogin proofs and address derivation, and a Poseidon hash implementation over the BN254 scalar field.
 
-The `fastcrypto-tbls` crate implements threshold BLS signatures and distributed key generation. It contains Shamir secret sharing over polynomials, ECIES encryption, a weighted node set with knapsack-based weight reduction, a random oracle, the discrete-log NIZKs used by the protocols, and a threshold Schnorr protocol built on asynchronous verifiable secret sharing with presigning and signing.
+The `fastcrypto-threshold` crate implements threshold BLS signatures and distributed key generation. It contains Shamir secret sharing over polynomials, ECIES encryption, a weighted node set with knapsack-based weight reduction, a random oracle, the discrete-log NIZKs used by the protocols, and a threshold Schnorr protocol built on asynchronous verifiable secret sharing with presigning and signing.
 
 The `fastcrypto-vdf` crate implements verifiable delay functions. It contains the Wesolowski and Pietrzak VDF constructions, imaginary class groups and RSA groups as the underlying groups of unknown order, hash-to-group and discriminant generation, and the supporting number-theoretic routines. The entire crate is gated behind its own `experimental` feature flag and has not been audited.
 

@@ -10,7 +10,7 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-fastcrypto = { path = "../fastcrypto", version = "0.1.12" }
+fastcrypto.workspace = true
 num-bigint = { version = "0.4.4", features = ["serde", "rand"] }
 num-traits = "0.2.16"
 num-integer = "0.1.45"

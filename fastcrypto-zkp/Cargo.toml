@@ -31,7 +31,7 @@ ark-serialize = "0.4.1"
 ark-snark = "0.4.0"
 bcs.workspace = true
 byte-slice-cast = "1.2.2"
-fastcrypto = { path = "../fastcrypto", version = "0.1.12" }
+fastcrypto.workspace = true
 derive_more = "0.99.16"
 num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
 schemars = "0.8.10"
