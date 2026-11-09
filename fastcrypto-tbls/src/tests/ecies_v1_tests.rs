@@ -131,17 +131,19 @@ fn test_blskeypair_to_group() {
 
 #[test]
 fn test_zeroization_on_drop() {
-    let ptr: *const u8;
-    {
-        let sk = PrivateKey::<G2Element>::new(&mut thread_rng());
-        ptr = std::ptr::addr_of!(sk.0) as *const u8;
-    }
-
-    unsafe {
-        for i in 0..SCALAR_LENGTH {
-            assert_eq!(*ptr.add(i), 0);
-        }
-    }
+    let mut sk = std::mem::ManuallyDrop::new(PrivateKey::<G2Element>::new(&mut thread_rng()));
+    let offset = std::ptr::addr_of!(sk.0) as usize - std::ptr::addr_of!(sk) as usize;
+    // SAFETY: `sk` is not used as a `PrivateKey` after being dropped. `ManuallyDrop` keeps its
+    // storage allocated, so the bytes can still be read below without touching freed memory.
+    unsafe { std::mem::ManuallyDrop::drop(&mut sk) };
+    let after_drop = unsafe {
+        // SAFETY: the scalar lies within `sk`'s storage and was zeroized (initialized) on drop.
+        std::slice::from_raw_parts(
+            std::ptr::addr_of!(sk).cast::<u8>().add(offset),
+            SCALAR_LENGTH,
+        )
+    };
+    assert!(after_drop.iter().all(|&b| b == 0));
 }
 
 #[test]
