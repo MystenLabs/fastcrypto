@@ -19,6 +19,7 @@ digest.workspace = true
 bcs.workspace = true
 tracing.workspace = true
 zeroize.workspace = true
+fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.4" }
 
 itertools.workspace = true
 hex = "0.4.3"
