@@ -6,6 +6,7 @@ use crate::secp256k1::{
     Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
 };
 use crate::test_helpers::verify_serialization;
+use crate::test_helpers::{bytes_after_drop, field_offset};
 use crate::traits::{RecoverableSignature, RecoverableSigner, Signer, VerifyRecoverable};
 use crate::{
     hash::{HashFunction, Keccak256, Sha256},
@@ -288,37 +289,25 @@ async fn signature_service() {
 
 #[test]
 fn test_sk_zeroization_on_drop() {
-    let ptr: *const u8;
-    let bytes_ptr: *const u8;
+    let mut rng = StdRng::from_seed([9; 32]);
+    let sk = Secp256k1KeyPair::generate(&mut rng).private();
+    let sk_bytes = sk.as_ref().to_vec();
+    let privkey_offset = field_offset(&sk, &sk.privkey);
+    let bytes_offset = field_offset(&sk, sk.as_ref());
 
-    let mut sk_bytes = Vec::new();
-
-    {
-        let mut rng = StdRng::from_seed([9; 32]);
-        let kp = Secp256k1KeyPair::generate(&mut rng);
-        let sk = kp.private();
-        sk_bytes.extend_from_slice(sk.as_ref());
-
-        ptr = std::ptr::addr_of!(sk.privkey) as *const u8;
-        bytes_ptr = &sk.as_ref()[0] as *const u8;
-
-        let sk_memory: &[u8] =
-            unsafe { std::slice::from_raw_parts(bytes_ptr, constants::SECRET_KEY_SIZE) };
-        // Assert that this is equal to sk_bytes before deletion
-        assert_eq!(sk_memory, &sk_bytes[..]);
-    }
+    let after_drop = bytes_after_drop(
+        sk,
+        &[
+            (privkey_offset, constants::SECRET_KEY_SIZE),
+            (bytes_offset, constants::SECRET_KEY_SIZE),
+        ],
+    );
 
     // Check that self.privkey is set to 1 (see DUMMY_KEYPAIR)
-    unsafe {
-        for i in 0..constants::SECRET_KEY_SIZE {
-            assert_eq!(*ptr.add(i), 1);
-        }
-    }
+    assert!(after_drop[0].iter().all(|&b| b == 1));
 
     // Check that self.bytes is zeroized
-    let sk_memory: &[u8] =
-        unsafe { std::slice::from_raw_parts(bytes_ptr, constants::SECRET_KEY_SIZE) };
-    assert_ne!(sk_memory, &sk_bytes[..]);
+    assert_ne!(after_drop[1], sk_bytes);
 }
 
 proptest::proptest! {

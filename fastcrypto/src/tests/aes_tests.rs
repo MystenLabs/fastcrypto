@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use crate::aes::{Aes256GcmSiv, AuthenticatedCipher, Cipher};
+use crate::test_helpers::{bytes_after_drop, field_offset};
 use crate::{
     aes::{
         Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes192Ctr, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
@@ -198,26 +199,16 @@ fn wycheproof_test() {
 
 #[test]
 fn test_sk_zeroization_on_drop() {
-    let ptr: *const u8;
-    let mut sk_bytes = Vec::new();
-    {
-        let mut rng = StdRng::from_seed([9; 32]);
+    let mut rng = StdRng::from_seed([9; 32]);
 
-        // Both keys and nonces are GenericByteArrays
-        let sk = GenericByteArray::<U32>::generate(&mut rng);
-        sk_bytes.extend_from_slice(sk.as_ref());
+    // Both keys and nonces are GenericByteArrays
+    let sk = GenericByteArray::<U32>::generate(&mut rng);
+    let sk_bytes = sk.as_ref().to_vec();
+    let offset = field_offset(&sk, sk.as_ref());
 
-        ptr = std::ptr::addr_of!(sk) as *const u8;
-
-        let sk_memory: &[u8] = unsafe { std::slice::from_raw_parts(ptr, 32) };
-        // Assert that this is equal to sk_bytes before deletion
-        assert_eq!(sk_memory, &sk_bytes[..]);
-    }
+    let after_drop = bytes_after_drop(sk, &[(offset, 32)]);
 
     // Check that sk is zeroized
-    unsafe {
-        for i in 0..32 {
-            assert_eq!(*ptr.add(i), 0);
-        }
-    }
+    assert!(after_drop[0].iter().all(|&b| b == 0));
+    assert_ne!(after_drop[0], sk_bytes);
 }

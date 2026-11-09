@@ -4,6 +4,7 @@
 
 use crate::encoding::Encoding;
 use crate::test_helpers::verify_serialization;
+use crate::test_helpers::{bytes_after_drop, field_offset};
 use crate::traits::{InsecureDefault, Signer};
 use crate::{
     ed25519::{
@@ -766,51 +767,47 @@ async fn signature_service() {
 // Checks if the private keys zeroed out
 #[test]
 fn test_sk_zeroization_on_drop() {
-    let ptr: *const u8;
-    let bytes_ptr: *const u8;
+    let mut rng = StdRng::from_seed([9; 32]);
+    let sk = Ed25519KeyPair::generate(&mut rng).private();
+    let sk_bytes = sk.as_ref().to_vec();
 
-    let mut sk_bytes = Vec::new();
-
-    {
-        let mut rng = StdRng::from_seed([9; 32]);
-        let kp = Ed25519KeyPair::generate(&mut rng);
-        let sk = kp.private();
-        sk_bytes.extend_from_slice(sk.as_ref());
-
-        ptr = std::ptr::addr_of!(sk.0) as *const u8;
-        bytes_ptr = &sk.as_ref()[0] as *const u8;
-
-        // SigningKey.zeroize() zeroizes seed and s value in the struct,
-        // (the rest does not contain private key material), hence shifting the bytes by 192.
-        // pub struct SigningKey {
-        //     seed: [u8; 32],
-        //     s: Scalar,
-        //     prefix: [u8; 32],
-        //     vk: VerificationKey,
-        // }
-        // Starting at index 192 is precisely the 32 bytes of the private key.
+    // SigningKey.zeroize() zeroizes seed and s value in the struct,
+    // (the rest does not contain private key material), hence shifting the bytes by 192.
+    // pub struct SigningKey {
+    //     seed: [u8; 32],
+    //     s: Scalar,
+    //     prefix: [u8; 32],
+    //     vk: VerificationKey,
+    // }
+    // Starting at index 192 is precisely the 32 bytes of the private key.
+    let key_offset = field_offset(&sk, &sk.0) + 192;
+    let bytes_offset = field_offset(&sk, sk.as_ref());
+    assert_eq!(
         unsafe {
-            for (i, &byte) in sk_bytes.iter().enumerate().take(ED25519_PRIVATE_KEY_LENGTH) {
-                assert_eq!(*ptr.add(i + 192), byte);
-            }
-        }
+            // SAFETY: the range lies within `sk`, which is alive and initialized here.
+            std::slice::from_raw_parts(
+                (&sk as *const Ed25519PrivateKey)
+                    .cast::<u8>()
+                    .add(key_offset),
+                ED25519_PRIVATE_KEY_LENGTH,
+            )
+        },
+        &sk_bytes[..]
+    );
 
-        let sk_memory: &[u8] =
-            unsafe { std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
-        assert_eq!(sk_memory, &sk_bytes[..]);
-    }
+    let after_drop = bytes_after_drop(
+        sk,
+        &[
+            (key_offset, ED25519_PRIVATE_KEY_LENGTH),
+            (bytes_offset, ED25519_PRIVATE_KEY_LENGTH),
+        ],
+    );
 
     // Starting at index 192 where the 32 bytes of the private key lives, is zeroized.
-    unsafe {
-        for i in 0..ED25519_PRIVATE_KEY_LENGTH {
-            assert_eq!(*ptr.add(i + 192), 0);
-        }
-    }
+    assert!(after_drop[0].iter().all(|&b| b == 0));
 
     // Check that self.bytes is taken by the OnceCell default value.
-    let sk_memory: &[u8] =
-        unsafe { std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
-    assert_ne!(sk_memory, &sk_bytes[..]);
+    assert_ne!(after_drop[1], sk_bytes);
 }
 
 #[test]

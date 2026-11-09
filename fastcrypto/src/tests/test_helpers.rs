@@ -75,3 +75,43 @@ pub fn signature_test_inputs_different_msg<KP: KeyPair>() -> DifferentMsgsSignat
         signatures,
     }
 }
+
+/// Runs the destructor of `value` in place and returns the bytes it leaves behind in each
+/// `(offset, len)` range of its storage. Offsets are relative to the start of `T`; use
+/// [`field_offset`] to compute them.
+///
+/// This lets zeroization tests inspect what `Drop` leaves in memory without reading freed
+/// memory: `value` is moved into a [`std::mem::ManuallyDrop`], whose storage stays allocated
+/// after the destructor runs. Only ask for ranges that hold initialized bytes after the drop,
+/// such as byte arrays that the destructor zeroizes.
+pub fn bytes_after_drop<T>(value: T, ranges: &[(usize, usize)]) -> Vec<Vec<u8>> {
+    for &(offset, len) in ranges {
+        assert!(
+            offset + len <= std::mem::size_of::<T>(),
+            "range is outside of the value"
+        );
+    }
+    let mut value = std::mem::ManuallyDrop::new(value);
+    // SAFETY: `value` is not used as a `T` after being dropped; only raw bytes are read below.
+    unsafe { std::mem::ManuallyDrop::drop(&mut value) };
+    let base = std::ptr::addr_of!(value).cast::<u8>();
+    ranges
+        .iter()
+        .map(|&(offset, len)| {
+            // SAFETY: the range lies within `value`'s storage, which is still allocated, and the
+            // caller guarantees these bytes are initialized after the drop.
+            unsafe { std::slice::from_raw_parts(base.add(offset), len) }.to_vec()
+        })
+        .collect()
+}
+
+/// Returns the offset in bytes of `field`, which must lie inside `base`, from the start of `base`.
+pub fn field_offset<T, U: ?Sized>(base: &T, field: &U) -> usize {
+    let start = base as *const T as usize;
+    let field = field as *const U as *const u8 as usize;
+    assert!(
+        field >= start && field < start + std::mem::size_of::<T>(),
+        "field is not inside base"
+    );
+    field - start
+}
