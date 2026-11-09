@@ -1,6 +1,6 @@
 [package]
 name = "fastcrypto-zkp"
-version = "0.1.4"
+version = "0.1.5"
 license = "Apache-2.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
 edition = "2021"
@@ -31,7 +31,7 @@ ark-serialize = "0.4.1"
 ark-snark = "0.4.0"
 bcs.workspace = true
 byte-slice-cast = "1.2.2"
-fastcrypto = { path = "../fastcrypto", version = "0.1.11" }
+fastcrypto.workspace = true
 derive_more = "0.99.16"
 num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
 schemars = "0.8.10"
