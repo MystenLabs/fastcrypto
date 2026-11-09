@@ -21,10 +21,20 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 /// The encryption uses AES Counter mode and is not CCA secure as is.
 ///
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ZeroizeOnDrop)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, ZeroizeOnDrop)]
 pub struct PrivateKey<G: GroupElement>(pub(crate) G::ScalarType)
 where
     G::ScalarType: Zeroize;
+
+// Debug is elided so that the secret scalar never ends up in logs.
+impl<G: GroupElement> std::fmt::Debug for PrivateKey<G>
+where
+    G::ScalarType: Zeroize,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<elided secret for PrivateKey>")
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicKey<G: GroupElement>(pub(crate) G);

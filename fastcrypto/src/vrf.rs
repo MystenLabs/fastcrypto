@@ -70,6 +70,7 @@ pub mod ecvrf {
     use crate::serde_helpers::ToFromByteArray;
     use crate::traits::AllowedRng;
     use crate::vrf::{VRFKeyPair, VRFPrivateKey, VRFProof, VRFPublicKey};
+    use fastcrypto_derive::SilentDebug;
     use serde::{Deserialize, Serialize};
     use zeroize::ZeroizeOnDrop;
 
@@ -114,7 +115,7 @@ pub mod ecvrf {
         }
     }
 
-    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, ZeroizeOnDrop)]
+    #[derive(Serialize, Deserialize, PartialEq, Eq, SilentDebug, ZeroizeOnDrop)]
     pub struct ECVRFPrivateKey(RistrettoScalar);
 
     impl VRFPrivateKey for ECVRFPrivateKey {

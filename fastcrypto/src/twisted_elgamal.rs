@@ -10,15 +10,17 @@ use crate::pedersen::{Blinding, PedersenCommitment, G, H};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use derive_more::{Add, Mul, Sub};
+use fastcrypto_derive::SilentDebug;
 use itertools::{iterate, Itertools};
 use serde::{Deserialize, Serialize};
 use std::array::from_fn;
 use std::collections::HashMap;
+use zeroize::ZeroizeOnDrop;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PublicKey(RistrettoPoint);
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(SilentDebug, Serialize, Deserialize, ZeroizeOnDrop)]
 pub struct PrivateKey(RistrettoScalar);
 
 #[derive(Debug, Clone, Add, Sub, Mul, Serialize, Deserialize)]
@@ -974,4 +976,12 @@ fn test_fiat_shamir_regression() {
         ),
         expected
     );
+}
+
+#[test]
+fn test_private_key_debug_is_redacted() {
+    let sk = PrivateKey::new(RistrettoScalar::from(42u64));
+    let printed = format!("{:?}", sk);
+    assert_eq!(printed, "<elided secret for PrivateKey>");
+    assert!(!printed.contains(&format!("{:?}", RistrettoScalar::from(42u64))));
 }
