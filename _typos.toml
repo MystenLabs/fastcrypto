@@ -4,7 +4,7 @@
 extend-exclude = [
     # Test vectors and data files.
     "*.json",
-    "fastcrypto-tbls/src/weight_reduction/data/",
+    "fastcrypto-threshold/src/weight_reduction/data/",
 ]
 
 [default]

@@ -3,7 +3,7 @@
 
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::bls12381;
-use fastcrypto_tbls::polynomial::Poly;
+use fastcrypto_threshold::polynomial::Poly;
 use rand::thread_rng;
 use std::num::NonZeroU16;
 
