@@ -86,7 +86,7 @@ impl<G1: Pairing> PreparedVerifyingKey<G1> {
 
     /// Verify Groth16 proof using the prepared verifying key (see more at
     /// [`crate::bn254::verifier::PreparedVerifyingKey`]), a prepared public input (see
-    /// [`prepare_inputs`]) and the proof.
+    /// `prepare_inputs`) and the proof.
     pub fn verify_with_prepared_inputs(
         &self,
         prepared_inputs: &G1,
@@ -106,7 +106,7 @@ impl<G1: Pairing> PreparedVerifyingKey<G1> {
         }
     }
 
-    /// Prepare the public inputs for use in [`verify_with_prepared_inputs`].
+    /// Prepare the public inputs for use in `verify_with_prepared_inputs`.
     pub fn prepare_inputs(&self, public_inputs: &[G1::ScalarType]) -> FastCryptoResult<G1>
     where
         G1: MultiScalarMul,

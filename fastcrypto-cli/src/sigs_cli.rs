@@ -31,7 +31,7 @@ enum Command {
     Sign(SigningArguments),
 
     /// Verify the signature against the message and public key using the signature scheme.
-    Verify(VerifiyingArguments),
+    Verify(VerifyingArguments),
 }
 
 #[derive(Parser, Clone)]
@@ -86,7 +86,7 @@ struct SigningArguments {
 }
 
 #[derive(Parser, Clone)]
-struct VerifiyingArguments {
+struct VerifyingArguments {
     /// The raw message signed.
     #[clap(short, long)]
     msg: String,
@@ -289,7 +289,7 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{execute, Command, KeygenArguments, SigningArguments, VerifiyingArguments};
+    use crate::{execute, Command, KeygenArguments, SigningArguments, VerifyingArguments};
     use fastcrypto::error::FastCryptoError;
     use fastcrypto_cli::sigs_cli_test_vectors::{MSG, SEED, TEST_CASES};
 
@@ -352,7 +352,7 @@ mod tests {
         signature: &str,
         public_key: &str,
     ) -> Result<(), FastCryptoError> {
-        execute(Command::Verify(VerifiyingArguments {
+        execute(Command::Verify(VerifyingArguments {
             msg: msg.to_string(),
             signature: signature.to_string(),
             public_key: public_key.to_string(),

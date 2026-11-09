@@ -264,7 +264,7 @@ impl FiatShamirChallenge for Scalar {
 
 serialize_deserialize_with_to_from_byte_array!(Scalar);
 
-/// A Schnorr signature scheme as defined in BIP-0340 (https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki).
+/// A Schnorr signature scheme as defined in BIP-0340 (<https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki>).
 pub mod schnorr {
     use crate::error::{FastCryptoError, FastCryptoResult};
     use crate::groups::secp256k1::schnorr::Tag::{Aux, Challenge, Nonce};

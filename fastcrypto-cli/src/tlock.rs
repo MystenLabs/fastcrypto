@@ -55,7 +55,7 @@ struct VerifyArguments {
     signature: String,
 }
 
-/// An encryption of 32 bytes message following https://eprint.iacr.org/2023/189.pdf.
+/// An encryption of 32 bytes message following <https://eprint.iacr.org/2023/189.pdf>.
 #[derive(Serialize, Deserialize, Debug)]
 struct Encryption {
     u: bls12381::G2Element,

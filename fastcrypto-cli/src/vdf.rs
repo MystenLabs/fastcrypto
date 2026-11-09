@@ -9,8 +9,8 @@ use fastcrypto_vdf::vdf::wesolowski::DefaultVDF;
 use fastcrypto_vdf::vdf::VDF;
 use std::io::{Error, ErrorKind};
 
-/// This discriminant size is based on a lower bound from "Trustless unkown-order groups" by Dobson et al.
-/// (https://inria.hal.science/hal-02882161/file/unknown-order.pdf)
+/// This discriminant size is based on a lower bound from "Trustless unknown-order groups" by Dobson et al.
+/// (<https://inria.hal.science/hal-02882161/file/unknown-order.pdf>)
 ///
 /// A discriminant size of 3072 bits ensures that the computational hardness of computing the group order of a group
 /// with a randomly chosen discriminant is at least 128 bits with probability at least 1 - 2^{-40}.

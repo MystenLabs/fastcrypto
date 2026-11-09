@@ -32,7 +32,7 @@ where
 
 /// Verify Groth16 proof using the serialized form of the four components in a prepared verifying key
 /// (see more at [`PreparedVerifyingKey`]), serialized proof public input, which should
-/// be concatenated serialized field elements of the scalar field of [`crate::conversions::SCALAR_SIZE`]
+/// be concatenated serialized field elements of the scalar field of `crate::conversions::SCALAR_SIZE`
 /// bytes each in little-endian format, and serialized proof points.
 pub fn verify_groth16_in_bytes<
     G1,

@@ -10,7 +10,7 @@ use std::borrow::Borrow;
 use std::num::NonZeroU16;
 use std::ops::Add;
 
-/// Implementation of [ThresholdBls] for BLS12-381-min-sig. A variant for BLS12-381-min-pk can be
+/// Implementation of `ThresholdBls` for BLS12-381-min-sig. A variant for BLS12-381-min-pk can be
 /// defined in a similar way if needed in the future.
 pub struct ThresholdBls12381MinSig {}
 

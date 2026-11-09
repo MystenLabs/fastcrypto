@@ -71,7 +71,7 @@ pub struct Confirmation<EG: GroupElement> {
 pub const DKG_MESSAGES_MAX_SIZE: usize = 400_000; // 400 KB
 
 /// [Output] is the final output of the DKG protocol in case it runs
-/// successfully. It can be used later with [ThresholdBls], see examples in tests.
+/// successfully. It can be used later with `ThresholdBls`, see examples in tests.
 ///
 /// If shares is None, the object can only be used for verifying (partial and full) signatures.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -373,7 +373,7 @@ where
     ///    We split this function into two parts: process_message and merge, so that the caller can
     ///    process messages concurrently and then merge the results.
     ///
-    ///    [process_message] processes a message and returns an intermediate object ProcessedMessage.
+    ///    `process_message` processes a message and returns an intermediate object ProcessedMessage.
     ///
     ///    Returns error InvalidMessage if the message is invalid and should be ignored (note that we
     ///    could count it as part of the f+1 messages we wait for, but it's also safe to ignore it

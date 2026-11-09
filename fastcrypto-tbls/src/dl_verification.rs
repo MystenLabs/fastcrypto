@@ -140,7 +140,7 @@ pub fn verify_triplets<G: GroupElement + MultiScalarMul, R: AllowedRng>(
 }
 
 /// Check that partial public keys form a polynomial of the right degree using the protocol of
-/// https://eprint.iacr.org/2017/216.pdf. deg_f should be n-k-2 if the polynomial is of degree k.
+/// <https://eprint.iacr.org/2017/216.pdf>. deg_f should be n-k-2 if the polynomial is of degree k.
 pub fn verify_deg_t_poly<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     deg_f: u16,
     values: &[G],

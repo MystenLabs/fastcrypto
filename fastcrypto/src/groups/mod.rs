@@ -34,7 +34,7 @@ pub trait GroupElement:
     + for<'a> Mul<&'a Self::ScalarType, Output = Self>
     + Sized
 {
-    /// Type of scalars used in the [Self::mul] multiplication method.
+    /// Type of scalars used in the `Self::mul` multiplication method.
     type ScalarType: Scalar;
 
     /// Return an instance of the identity element in this group.

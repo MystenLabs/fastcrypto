@@ -29,14 +29,14 @@ use lazy_static::lazy_static;
 use merlin::Transcript;
 use std::borrow::Cow;
 
-/// Batches up to this size are served from [GENS].
+/// Batches up to this size are served from `GENS`.
 pub const CACHED_BATCH_SIZE: usize = 128;
 
 lazy_static! {
     static ref GENS: BulletproofGens = BulletproofGens::new(64, CACHED_BATCH_SIZE);
 }
 
-/// Build [GENS] eagerly, instead of inside the first proof or verification in the process.
+/// Build `GENS` eagerly, instead of inside the first proof or verification in the process.
 pub fn initialize_generators() {
     lazy_static::initialize(&GENS);
 }
@@ -141,7 +141,7 @@ impl RangeProof {
     }
 
     /// Serialize a range proof. The output will be serialized Risretto255 group elements and scalars.
-    /// It follows the format used in https://github.com/dalek-cryptography/bulletproofs/blob/be67b6d5f5ad1c1f54d5511b52e6d645a1313d07/src/range_proof/mod.rs#L59-L76.
+    /// It follows the format used in <https://github.com/dalek-cryptography/bulletproofs/blob/be67b6d5f5ad1c1f54d5511b52e6d645a1313d07/src/range_proof/mod.rs#L59-L76>.
     pub fn to_bytes(&self) -> Vec<u8> {
         self.0.to_bytes()
     }

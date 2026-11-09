@@ -55,7 +55,7 @@ pub(crate) fn hash_prime(seed: &[u8], length_in_bytes: usize, bitmask: &[usize])
 /// Check if the input is a probable prime.
 ///
 /// We use the Baillie-PSW primality test here. This is in accordance with the recommendations of "Prime and
-/// Prejudice: Primality Testing Under Adversarial Conditions" by Albrecht et al. (https://eprint.iacr.org/2018/749)
+/// Prejudice: Primality Testing Under Adversarial Conditions" by Albrecht et al. (<https://eprint.iacr.org/2018/749>)
 /// because this test is also used in use cases where an adversary could influence the input.
 pub fn is_probable_prime(x: &BigUint) -> bool {
     is_prime(x, Some(PrimalityTestConfig::bpsw())).probably()
