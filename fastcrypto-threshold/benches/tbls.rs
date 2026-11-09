@@ -8,9 +8,9 @@ use std::num::NonZeroU16;
 
 mod tbls_benches {
     use super::*;
-    use fastcrypto_tbls::polynomial::Poly;
-    use fastcrypto_tbls::tbls::ThresholdBls;
-    use fastcrypto_tbls::types::ThresholdBls12381MinSig;
+    use fastcrypto_threshold::polynomial::Poly;
+    use fastcrypto_threshold::tbls::ThresholdBls;
+    use fastcrypto_threshold::types::ThresholdBls12381MinSig;
 
     fn tbls(c: &mut Criterion) {
         let msg = b"test";
