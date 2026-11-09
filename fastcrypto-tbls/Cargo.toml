@@ -57,7 +57,3 @@ harness = false
 [features]
 default = []
 experimental = []
-
-[lints.rust]
-# Set by `cargo creusot` when running the proofs in src/knapsack_weight_reduction/verified.rs.
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(creusot)"] }

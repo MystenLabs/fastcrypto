@@ -26,17 +26,25 @@ whether the reducer finds a good reduction, not security.
 
 ## How the proof is tied to the production code
 
-The verified functions live in
-[`src/knapsack_weight_reduction/verified.rs`](../src/knapsack_weight_reduction/verified.rs).
-Their contracts, loop invariants and proof steps are written next to the code, behind
-`cfg(creusot)`, so normal builds compile plain Rust and `fastcrypto-tbls` gains no dependency.
-This crate includes that file as is (`#[path = ...]`), so the proof is about the code that ships:
-there is no copy to keep in sync.
+The production code in
+[`src/knapsack_weight_reduction.rs`](../src/knapsack_weight_reduction.rs) stays plain Rust: the
+verified functions sit between `// BEGIN CREUSOT-VERIFIED` and `// END CREUSOT-VERIFIED` markers,
+with no annotations.
 
-`verify_reduction` in `knapsack_weight_reduction.rs` is a one-line wrapper that unpacks
-`ReducedWeights` and calls the verified function.
+[`src/verified.rs`](src/verified.rs) in this crate holds a copy of that region with the Creusot
+contracts, loop invariants and proof steps added, plus the logic definitions and lemmas the proof
+uses. This crate is outside the workspace and is only built by `cargo creusot`.
 
-Changes to `verified.rs` must keep the proofs passing.
+The test `creusot_copy_matches_production` in fastcrypto-tbls, which runs in normal CI without
+Creusot, removes comments and annotations from the copy and checks that the result is the same
+code as the production region. Only these annotations may be added, each in its own
+statement or attribute: `#[requires]`, `#[ensures]`, `#[invariant]`, `#[variant]`, `proof_assert!`
+and `let x = snapshot!`. `#[trusted]` is rejected.
+
+When you change the production region:
+
+1. Make the same change in `src/verified.rs`; the test fails until you do.
+2. Run `cargo creusot` here and fix the annotations if the proof no longer goes through.
 
 ## Trusted base
 
@@ -45,11 +53,14 @@ Changes to `verified.rs` must keep the proofs passing.
   indexing, `vec!`, `usize::min` and `str::to_owned`.
 - The model of a subset as a sequence of booleans and the definition of `wsum` in `verified.rs`,
   which a reviewer should check matches the intended meaning of `w(S)`.
+- The copy check in `creusot_copy_matches_production`. It doesn't cover the stand-ins at the top
+  of `verified.rs` (`MAX_PARTIES`, `ReducedWeights`). Their exact values don't matter to the
+  soundness proof: the theorem holds for any value of `MAX_PARTIES` up to 65,537.
 
 ## Checking that the proof is meaningful
 
 A proof can pass because its statement is too weak. As a sanity check, each of these mutations of
-`verified.rs` makes the proof fail:
+the copy in `src/verified.rs` makes the proof fail:
 
 - removing the (P) check from `verify_reduction`;
 - keeping the larger instead of the smaller candidate in `knapsack_min_original`.
