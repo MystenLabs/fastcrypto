@@ -1,0 +1,9 @@
+{
+  "profile": [],
+  "proofs": {
+    "Coma": {
+      "vc_len_u16": { "prover": "alt-ergo", "time": 0.012 },
+      "vc_sum_u16": { "prover": "alt-ergo", "time": 0.025 }
+    }
+  }
+}

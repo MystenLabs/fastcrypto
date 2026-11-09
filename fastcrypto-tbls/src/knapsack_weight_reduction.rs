@@ -58,7 +58,9 @@
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 
-const MAX_PARTIES: usize = 1000;
+mod verified;
+use verified::{knapsack_min_original, max_reduced_weight, MAX_PARTIES};
+
 const MAX_WEIGHT: u16 = 10_000;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -198,35 +200,6 @@ fn reduce_weight(w: u16, d: u32, offset: u64) -> u16 {
     ((10_000 * (w as u64) + offset * (d as u64)) / (100 * (d as u64))) as u16
 }
 
-/// The value-space knapsack table `min_original_weight[v] = min { w(S) : w'(S) = v }` for
-/// `v in [0, W']`, computed in `O(n * W')`.
-fn knapsack_min_original(weights: &[u16], reduced: &[u16], reduced_total: u32) -> Vec<u32> {
-    let mut min_original_weight = vec![u32::MAX; reduced_total as usize + 1];
-    min_original_weight[0] = 0;
-    for (&w, &q) in weights.iter().zip(reduced.iter()) {
-        let (w, q) = (w as u32, q as usize);
-        if q == 0 {
-            continue;
-        }
-        for v in (q..min_original_weight.len()).rev() {
-            if min_original_weight[v - q] != u32::MAX {
-                min_original_weight[v] = min_original_weight[v].min(min_original_weight[v - q] + w);
-            }
-        }
-    }
-    min_original_weight
-}
-
-/// `g(weight) = max { w'(S) : w(S) <= weight }`.
-/// In other words, the largest reduced weight a subset can have while its
-/// original weight <= `weight`: w(S) <= weight => w'(S) <= g(weight).
-fn max_reduced_weight(min_original_weight: &[u32], weight: u32) -> u32 {
-    min_original_weight
-        .iter()
-        .rposition(|&x| x <= weight)
-        .expect("min_original_weight[0] = 0 always qualifies") as u32
-}
-
 /// A cheap rejection test that costs `O(n log n)`. It never errs when claiming
 /// infeasibility.
 fn greedy_reject(
@@ -336,6 +309,8 @@ fn check_candidate(
 /// for an arbitrary `(weights', t', f')` in `O(n * W')` time. Returns
 /// `InvalidInput` for malformed inputs and a `GeneralError` naming the first
 /// violated condition otherwise.
+///
+/// Formally verified to be sound with Creusot; see [verified::verify_reduction].
 pub(crate) fn verify_reduction(
     weights: &[u16],
     t: u16,
@@ -343,52 +318,13 @@ pub(crate) fn verify_reduction(
     delta: u16,
     reduction: &ReducedWeights,
 ) -> FastCryptoResult<()> {
-    let w_total = weights.iter().map(|&w| w as u32).sum::<u32>();
-    let reduced_total = reduction.weights.iter().map(|&w| w as u32).sum::<u32>();
-    if weights.len() != reduction.weights.len()
-        || weights.len() > MAX_PARTIES
-        || t == 0
-        || f == 0
-        || (t as u32) > w_total
-        || w_total > u16::MAX as u32
-        || reduced_total > u16::MAX as u32
-        || reduction.t == 0
-        || reduction.f == 0
-    {
-        return Err(FastCryptoError::InvalidInput);
-    }
-    // Same sanity checks as reduce_weights, in both spaces.
-    if f >= t
-        || reduction.f >= reduction.t
-        || (t as u32) + 2 * (f as u32) > w_total
-        || (t as u32) + (f as u32) + (delta as u32) > w_total
-    {
-        return Err(FastCryptoError::InvalidInput);
-    }
-    let min_original_weight_map = knapsack_min_original(weights, &reduction.weights, reduced_total);
-
-    // (P): max { w'(S) : w(S) <= t-1 } <= t' - 1.
-    if max_reduced_weight(&min_original_weight_map, (t - 1) as u32) > (reduction.t - 1) as u32 {
-        return Err(FastCryptoError::GeneralError("P violated".to_string()));
-    }
-
-    // (L2): max { w'(S) : w(S) <= f } <= f'.
-    if max_reduced_weight(&min_original_weight_map, f as u32) > reduction.f as u32 {
-        return Err(FastCryptoError::GeneralError("L2 violated".to_string()));
-    }
-
-    // (L3): min { w'(S) : w(S) >= t + delta } >= t'.
-    let b1 = w_total - (t as u32 + delta as u32);
-    if reduced_total - max_reduced_weight(&min_original_weight_map, b1) < reduction.t as u32 {
-        return Err(FastCryptoError::GeneralError("L3 violated".to_string()));
-    }
-
-    // (L1): min { w'(S) : w(S) >= t + f + delta } >= t' + f'.
-    let b2 = w_total - (t as u32 + f as u32 + delta as u32);
-    if reduced_total - max_reduced_weight(&min_original_weight_map, b2)
-        < reduction.t as u32 + reduction.f as u32
-    {
-        return Err(FastCryptoError::GeneralError("L1 violated".to_string()));
-    }
-    Ok(())
+    verified::verify_reduction(
+        weights,
+        t,
+        f,
+        delta,
+        &reduction.weights,
+        reduction.t,
+        reduction.f,
+    )
 }
