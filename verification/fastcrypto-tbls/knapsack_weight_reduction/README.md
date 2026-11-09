@@ -27,23 +27,27 @@ whether the reducer finds a good reduction, not security.
 ## How the proof is tied to the production code
 
 The production code in
-[`src/knapsack_weight_reduction.rs`](../src/knapsack_weight_reduction.rs) stays plain Rust: the
-verified functions sit between `// BEGIN CREUSOT-VERIFIED` and `// END CREUSOT-VERIFIED` markers,
-with no annotations.
+[`fastcrypto-tbls/src/knapsack_weight_reduction.rs`](../../../fastcrypto-tbls/src/knapsack_weight_reduction.rs)
+stays plain Rust: the verified functions sit between `// BEGIN CREUSOT-VERIFIED` and
+`// END CREUSOT-VERIFIED` markers, with no annotations.
 
-[`src/verified.rs`](src/verified.rs) in this crate holds a copy of that region with the Creusot
-contracts, loop invariants and proof steps added, plus the logic definitions and lemmas the proof
-uses. This crate is outside the workspace and is only built by `cargo creusot`.
+Everything for the proof lives in this directory:
 
-The test `creusot_copy_matches_production` in fastcrypto-tbls, which runs in normal CI without
-Creusot, removes comments and annotations from the copy and checks that the result is the same
-code as the production region. Only these annotations may be added, each in its own
-statement or attribute: `#[requires]`, `#[ensures]`, `#[invariant]`, `#[variant]`, `proof_assert!`
-and `let x = snapshot!`. `#[trusted]` is rejected.
+- [`verified_knapsack_weight_reduction.rs`](verified_knapsack_weight_reduction.rs): a copy of
+  that region with the Creusot contracts, loop invariants and proof steps added, plus the logic
+  definitions and lemmas the proof uses.
+- [`transform_code_test.rs`](transform_code_test.rs): the test `creusot_copy_matches_production`.
+  It removes comments and annotations from the copy and checks that the result is the same code
+  as the production region. It is compiled into the fastcrypto-tbls tests, so it runs in normal
+  CI without Creusot. Only these annotations may be added, each as its own statement or
+  attribute: `#[requires]`, `#[ensures]`, `#[invariant]`, `#[variant]`, `proof_assert!` and
+  `let x = snapshot!`. `#[trusted]` is rejected.
+- `lib.rs`, `Cargo.toml`, `why3find.json`: the crate that `cargo creusot` builds. It is outside
+  the workspace.
 
 When you change the production region:
 
-1. Make the same change in `src/verified.rs`; the test fails until you do.
+1. Make the same change in `verified_knapsack_weight_reduction.rs`; the test fails until you do.
 2. Run `cargo creusot` here and fix the annotations if the proof no longer goes through.
 
 ## Trusted base
@@ -51,16 +55,16 @@ When you change the production region:
 - Creusot, Why3 and the SMT solvers (Alt-Ergo, Z3, CVC5, CVC4).
 - The `creusot-std` specifications of the few standard library items used: slice and `Vec`
   indexing, `vec!`, `usize::min` and `str::to_owned`.
-- The model of a subset as a sequence of booleans and the definition of `wsum` in `verified.rs`,
+- The model of a subset as a sequence of booleans and the definition of `wsum` in `verified_knapsack_weight_reduction.rs`,
   which a reviewer should check matches the intended meaning of `w(S)`.
 - The copy check in `creusot_copy_matches_production`. It doesn't cover the stand-ins at the top
-  of `verified.rs` (`MAX_PARTIES`, `ReducedWeights`). Their exact values don't matter to the
+  of `verified_knapsack_weight_reduction.rs` (`MAX_PARTIES`, `ReducedWeights`). Their exact values don't matter to the
   soundness proof: the theorem holds for any value of `MAX_PARTIES` up to 65,537.
 
 ## Checking that the proof is meaningful
 
 A proof can pass because its statement is too weak. As a sanity check, each of these mutations of
-the copy in `src/verified.rs` makes the proof fail:
+the copy in `verified_knapsack_weight_reduction.rs` makes the proof fail:
 
 - removing the (P) check from `verify_reduction`;
 - keeping the larger instead of the smaller candidate in `knapsack_min_original`.
@@ -76,5 +80,5 @@ cargo creusot
 ```
 
 This compiles the crate with Creusot's pinned nightly toolchain and runs the provers. It takes
-about 30 seconds and should end with `Proved (8 files)`. The proof certificates under `verif/`
-(`proof.json`) let `cargo creusot --replay` re-check them without searching again.
+about 30 seconds and should end with `Proved (8 files)`. Creusot writes its output and proof
+caches to `verif/` (gitignored).

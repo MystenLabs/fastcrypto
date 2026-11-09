@@ -1,15 +1,19 @@
 [package]
-name = "fastcrypto-tbls-verification"
+name = "verify-knapsack-weight-reduction"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
-description = "Creusot proofs for fastcrypto-tbls"
+description = "Creusot proofs for the fastcrypto-tbls weight reduction"
 publish = false
+
+# Flat layout: all sources sit next to this file.
+[lib]
+path = "lib.rs"
 
 [dependencies]
 creusot-std = "0.14.0"
-fastcrypto = { path = "../../fastcrypto" }
+fastcrypto = { path = "../../../fastcrypto" }
 
 # Built with `cargo creusot` and its own nightly toolchain, so not a member of the main workspace.
 [workspace]

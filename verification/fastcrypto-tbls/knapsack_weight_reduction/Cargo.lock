@@ -769,14 +769,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fastcrypto-tbls-verification"
-version = "0.1.0"
-dependencies = [
- "creusot-std",
- "fastcrypto",
-]
-
-[[package]]
 name = "ff"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1851,6 +1843,14 @@ dependencies = [
  "getrandom 0.4.3",
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "verify-knapsack-weight-reduction"
+version = "0.1.0"
+dependencies = [
+ "creusot-std",
+ "fastcrypto",
 ]
 
 [[package]]

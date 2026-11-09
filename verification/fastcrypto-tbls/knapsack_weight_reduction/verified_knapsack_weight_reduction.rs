@@ -5,7 +5,7 @@
 //! (the region between `BEGIN CREUSOT-VERIFIED` and `END CREUSOT-VERIFIED`), with their Creusot
 //! contracts, loop invariants and proof steps. See README.md for what is proved.
 //!
-//! The test `creusot_copy_matches_production` in fastcrypto-tbls checks that this region, with
+//! The test `creusot_copy_matches_production` in transform_code_test.rs checks that this region, with
 //! the annotations and comments removed, is token-for-token the production code. Only these
 //! kinds of annotations may be added, each on its own lines: `#[requires]`, `#[ensures]`,
 //! `#[invariant]`, `#[variant]`, `proof_assert!` statements and `let x = snapshot!` statements.
