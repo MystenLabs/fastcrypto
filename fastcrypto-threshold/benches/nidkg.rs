@@ -4,10 +4,10 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 // use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 // use fastcrypto::groups::bls12381;
-// use fastcrypto_tbls::ecies_v1;
-// use fastcrypto_tbls::nidkg::Party;
-// use fastcrypto_tbls::nodes::Node;
-// use fastcrypto_tbls::random_oracle::RandomOracle;
+// use fastcrypto_threshold::ecies_v1;
+// use fastcrypto_threshold::nidkg::Party;
+// use fastcrypto_threshold::nodes::Node;
+// use fastcrypto_threshold::random_oracle::RandomOracle;
 // use rand::thread_rng;
 
 // type G = bls12381::G1Element;
