@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Tests that `RangeProof` and its Lean model (`../model/BpppHarness.lean`) produce byte-identical
+//! Tests that `RangeProof` and its Lean model (`../bindings/BpppHarness.lean`) produce byte-identical
 //! proofs from the same randomness, and accept and reject the same proofs.
 //!
 //! The Merlin transcript is not modelled in Lean. The tests replay it here and pass the model both

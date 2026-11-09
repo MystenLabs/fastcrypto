@@ -1,15 +1,12 @@
 import Lake
 open Lake DSL
 
-/-! The BP++ model at ristretto255, with the exports the Rust tests call. Core Lean only, since
-`lean-rs` loads it as a native shared library. -/
+/-! The executable model of `fastcrypto::bulletproofspp`. It depends on core Lean only, so that it
+can be compiled and called from Rust. -/
 
-require ristretto_model from "../../../groups/lean/model"
-require bppp_model from "../../../../../../bppp-lean-master/model"
-
-package «bppp_harness» where
+package «bppp_model» where
   leanOptions := #[⟨`autoImplicit, false⟩, ⟨`relaxedAutoImplicit, false⟩]
 
 @[default_target]
-lean_lib «BpppHarness» where
+lean_lib «BpppModel» where
   defaultFacets := #[LeanLib.sharedFacet]
