@@ -728,6 +728,3 @@ pub mod min_sig;
 
 /// Module minimizing the size of public keys.
 pub mod min_pk;
-
-#[cfg(feature = "experimental")]
-pub mod mskr;

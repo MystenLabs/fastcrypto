@@ -89,11 +89,6 @@ name = "groups"
 harness = false
 
 [[bench]]
-name = "mskr"
-harness = false
-required-features = ["experimental"]
-
-[[bench]]
 name = "serialize"
 harness = false
 

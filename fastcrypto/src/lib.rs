@@ -52,10 +52,6 @@ pub mod slip10_tests;
 #[path = "tests/encoding_tests.rs"]
 pub mod encoding_tests;
 
-#[cfg(all(test, feature = "experimental"))]
-#[path = "tests/mskr_tests.rs"]
-pub mod mskr_tests;
-
 #[cfg(test)]
 #[path = "tests/ristretto255_tests.rs"]
 pub mod ristretto255_tests;
