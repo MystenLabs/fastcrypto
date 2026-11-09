@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Checks that the annotated copy Creusot verifies is the production code. Compiled as part of
-//! the fastcrypto-tbls tests (see `fastcrypto-tbls/src/lib.rs`), so it runs in normal CI without
+//! the fastcrypto-threshold tests (see `fastcrypto-threshold/src/lib.rs`), so it runs in normal CI without
 //! Creusot.
 
 /// The annotated copy of the verified functions that Creusot proves
@@ -12,7 +12,7 @@
 #[test]
 fn creusot_copy_matches_production() {
     let production = verified_region(include_str!(
-        "../../../fastcrypto-tbls/src/knapsack_weight_reduction.rs"
+        "../../../fastcrypto-threshold/src/knapsack_weight_reduction.rs"
     ));
     let copy = verified_region(include_str!("verified_knapsack_weight_reduction.rs"));
     assert!(

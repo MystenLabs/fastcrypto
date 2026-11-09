@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Annotated copy of the verified functions in `fastcrypto-tbls/src/knapsack_weight_reduction.rs`
+//! Annotated copy of the verified functions in `fastcrypto-threshold/src/knapsack_weight_reduction.rs`
 //! (the region between `BEGIN CREUSOT-VERIFIED` and `END CREUSOT-VERIFIED`), with their Creusot
 //! contracts, loop invariants and proof steps. See README.md for what is proved.
 //!

@@ -1,7 +1,7 @@
 # Formal verification of weight reduction (Creusot)
 
 This crate runs a machine-checked proof, using [Creusot](https://github.com/creusot-rs/creusot),
-that the weight reduction checker `verify_reduction` in `fastcrypto-tbls` is sound.
+that the weight reduction checker `verify_reduction` in `fastcrypto-threshold` is sound.
 
 ## What is proved
 
@@ -27,7 +27,7 @@ whether the reducer finds a good reduction, not security.
 ## How the proof is tied to the production code
 
 The production code in
-[`fastcrypto-tbls/src/knapsack_weight_reduction.rs`](../../../fastcrypto-tbls/src/knapsack_weight_reduction.rs)
+[`fastcrypto-threshold/src/knapsack_weight_reduction.rs`](../../../fastcrypto-threshold/src/knapsack_weight_reduction.rs)
 stays plain Rust: the verified functions sit between `// BEGIN CREUSOT-VERIFIED` and
 `// END CREUSOT-VERIFIED` markers, with no annotations.
 
@@ -38,7 +38,7 @@ Everything for the proof lives in this directory:
   definitions and lemmas the proof uses.
 - [`transform_code_test.rs`](transform_code_test.rs): the test `creusot_copy_matches_production`.
   It removes comments and annotations from the copy and checks that the result is the same code
-  as the production region. It is compiled into the fastcrypto-tbls tests, so it runs in normal
+  as the production region. It is compiled into the fastcrypto-threshold tests, so it runs in normal
   CI without Creusot. Only these annotations may be added, each as its own statement or
   attribute: `#[requires]`, `#[ensures]`, `#[invariant]`, `#[variant]`, `proof_assert!` and
   `let x = snapshot!`. `#[trusted]` is rejected.

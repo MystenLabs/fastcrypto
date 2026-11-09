@@ -36,10 +36,22 @@ echo >&2 "Crate $CRATE_NAME current version: $CURRENT_VERSION"
 # preceded by and followed by whitespace. We use this fact to avoid matching
 # on substrings of versions.
 CRATE_RESPONSE="$( \
-    curl --fail --silent --show-error --location \
+    curl --silent --show-error --location --write-out '\n%{http_code}' \
         --header "User-Agent: MystenLabs/fastcrypto publish workflow" \
         "https://crates.io/api/v1/crates/$CRATE_NAME" \
 )"
+HTTP_STATUS="${CRATE_RESPONSE##*$'\n'}"
+CRATE_RESPONSE="${CRATE_RESPONSE%$'\n'*}"
+
+# crates.io returns 404 for crates that have never been published; allow their first publication.
+if [[ "$HTTP_STATUS" == "404" ]]; then
+    echo >&2 "Crate $CRATE_NAME is not on crates.io yet"
+    exit 0
+elif [[ "$HTTP_STATUS" != "200" ]]; then
+    echo >&2 "Failed to query crates.io for $CRATE_NAME (HTTP $HTTP_STATUS)"
+    exit 1
+fi
+
 EXISTING_VERSIONS="
 $(jq -r '.versions // [] | .[].num' <<< "$CRATE_RESPONSE")
 "

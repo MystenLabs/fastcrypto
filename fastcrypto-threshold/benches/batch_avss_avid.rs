@@ -3,10 +3,10 @@
 
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::ristretto255;
-use fastcrypto_tbls::ecies_v1;
-use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
-use fastcrypto_tbls::threshold_schnorr::batch_avss_avid as batch_avss;
-use fastcrypto_tbls::threshold_schnorr::Parameters;
+use fastcrypto_threshold::ecies_v1;
+use fastcrypto_threshold::nodes::{Node, Nodes, PartyId};
+use fastcrypto_threshold::threshold_schnorr::batch_avss_avid as batch_avss;
+use fastcrypto_threshold::threshold_schnorr::Parameters;
 use itertools::iproduct;
 use rand::thread_rng;
 
@@ -84,12 +84,12 @@ mod batch_avss_benches {
     use super::*;
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::traits::AllowedRng;
-    use fastcrypto_tbls::threshold_schnorr::batch_avss_avid::{
+    use fastcrypto_threshold::threshold_schnorr::batch_avss_avid::{
         self as batch_avss, AvidMessageBuilder, AvidVote, AvssCommonMessage, AvssMessageBuilder,
         AvssVote, Dealer,
     };
-    use fastcrypto_tbls::threshold_schnorr::presigning::Presignatures;
-    use fastcrypto_tbls::threshold_schnorr::Certificate;
+    use fastcrypto_threshold::threshold_schnorr::presigning::Presignatures;
+    use fastcrypto_threshold::threshold_schnorr::Certificate;
     use itertools::Itertools;
     use serde::{Deserialize, Serialize};
     use std::collections::{BTreeMap, BTreeSet};

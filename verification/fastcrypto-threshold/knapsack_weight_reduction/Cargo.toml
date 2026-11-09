@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
-description = "Creusot proofs for the fastcrypto-tbls weight reduction"
+description = "Creusot proofs for the fastcrypto-threshold weight reduction"
 publish = false
 
 # Flat layout: all sources sit next to this file.

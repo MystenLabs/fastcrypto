@@ -306,7 +306,7 @@ fn check_candidate(
 // BEGIN CREUSOT-VERIFIED
 // The functions between these markers are formally verified with Creusot, which proves that
 // `verify_reduction` is sound and that none of them can panic or overflow. The proof runs on an
-// annotated copy in verification/fastcrypto-tbls/knapsack_weight_reduction, and a test there
+// annotated copy in verification/fastcrypto-threshold/knapsack_weight_reduction, and a test there
 // checks that the copy, minus its annotations, matches the code here. Changes here must be made there too.
 // They use index loops rather than iterator adaptors because Creusot can't reason about most
 // of the latter.
