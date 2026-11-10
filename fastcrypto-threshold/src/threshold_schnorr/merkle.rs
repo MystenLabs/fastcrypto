@@ -85,22 +85,9 @@ impl NestedMerkleProof {
         n_rows: usize,
         n_leaves: usize,
     ) -> FastCryptoResult<()> {
-        if leaf_idx >= n_leaves || !self.row_proof.has_length_for(n_leaves) {
-            return Err(InvalidProof);
-        }
-        let row_root = self.derive_row_root(leaf, leaf_idx)?;
-        self.top_proof.verify_proof(
-            top_root,
-            &bcs::to_bytes(&row_root).map_err(|_| InvalidInput)?,
-            row_idx,
-            n_rows,
-        )
-    }
-
-    /// Whether both parts of this proof have the lengths of a proof in a tree with `n_rows` rows
-    /// of `n_leaves` leaves each.
-    pub fn has_lengths_for(&self, n_rows: usize, n_leaves: usize) -> bool {
-        self.row_proof.has_length_for(n_leaves) && self.top_proof.has_length_for(n_rows)
+        (self.derive_top_root(leaf, row_idx, leaf_idx, n_rows, n_leaves)? == *top_root)
+            .then_some(())
+            .ok_or(InvalidProof)
     }
 
     /// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`),
@@ -113,37 +100,63 @@ impl NestedMerkleProof {
         row_idx: usize,
         leaf_idx: usize,
     ) -> FastCryptoResult<()> {
-        (self.derive_top_root(leaf, row_idx, leaf_idx)? == *top_root)
+        let row_root = self.derive_row_root(leaf, leaf_idx)?;
+        let derived_top_root = self
+            .top_proof
+            .compute_root_with_unchecked_length(
+                &bcs::to_bytes(&row_root).map_err(|_| InvalidInput)?,
+                row_idx,
+            )
+            .ok_or(InvalidMessage)?;
+        (derived_top_root == *top_root)
             .then_some(())
             .ok_or(InvalidProof)
     }
 
     /// Derive the implied row root from this proof's row portion and `leaf` at `leaf_idx`.
     /// Returns [InvalidMessage] if the path is malformed.
+    // TODO: Take the number of leaves and check the proof length here once complaints are
+    // length-checked. Until then this must stay unchecked: it is used when checking a complaint,
+    // and a failure there counts as proof that the complaint is valid.
     pub fn derive_row_root<S: Serialize>(
         &self,
         leaf: &S,
         leaf_idx: usize,
     ) -> FastCryptoResult<Node> {
         self.row_proof
-            .compute_root(&bcs::to_bytes(leaf).map_err(|_| InvalidInput)?, leaf_idx)
+            .compute_root_with_unchecked_length(
+                &bcs::to_bytes(leaf).map_err(|_| InvalidInput)?,
+                leaf_idx,
+            )
             .ok_or(InvalidMessage)
     }
 
-    /// Derive the implied top root from this proof and `leaf` at (`row_idx`, `leaf_idx`): walk
-    /// the row proof from the leaf to an implied row root, then walk the top proof from that row
-    /// root to an implied top root. Returns [InvalidMessage] if either path is malformed.
+    /// Derive the implied top root from this proof and `leaf` at (`row_idx`, `leaf_idx`) of a tree
+    /// with `n_rows` rows of `n_leaves` leaves each: walk the row proof from the leaf to an
+    /// implied row root, then walk the top proof from that row root to an implied top root.
+    /// Returns [InvalidMessage] if either path is malformed or has the wrong length, or if either
+    /// index is outside the tree.
     pub fn derive_top_root<S: Serialize>(
         &self,
         leaf: &S,
         row_idx: usize,
         leaf_idx: usize,
+        n_rows: usize,
+        n_leaves: usize,
     ) -> FastCryptoResult<Node> {
-        let row_root = self.derive_row_root(leaf, leaf_idx)?;
+        let row_root = self
+            .row_proof
+            .compute_root(
+                &bcs::to_bytes(leaf).map_err(|_| InvalidInput)?,
+                leaf_idx,
+                n_leaves,
+            )
+            .ok_or(InvalidMessage)?;
         self.top_proof
             .compute_root(
                 &bcs::to_bytes(&row_root).map_err(|_| InvalidInput)?,
                 row_idx,
+                n_rows,
             )
             .ok_or(InvalidMessage)
     }

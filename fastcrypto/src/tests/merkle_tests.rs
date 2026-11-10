@@ -221,7 +221,7 @@ fn test_serialization_with_blake2b256() {
         .verify_proof_with_trusted_root(&mt.root(), &leaf2_bytes, 1)
         .is_ok());
     assert!(deserialized_inclusion
-        .verify_proof_with_unserialized_leaf(&mt.root(), &leaf2, 1)
+        .verify_proof_with_trusted_root_and_unserialized_leaf(&mt.root(), &leaf2, 1)
         .is_ok());
 
     // Test serialization/deserialization of MerkleNonInclusionProof

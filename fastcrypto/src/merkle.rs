@@ -117,10 +117,10 @@ where
         leaf_index: usize,
         n_leaves: usize,
     ) -> FastCryptoResult<()> {
-        if leaf_index >= n_leaves || !self.has_length_for(n_leaves) {
+        if self.compute_root(leaf, leaf_index, n_leaves).as_ref() != Some(root) {
             return Err(FastCryptoError::InvalidProof);
         }
-        self.verify_proof_with_trusted_root(root, leaf, leaf_index)
+        Ok(())
     }
 
     /// Verifies the proof given a Merkle root and the leaf data, without checking the proof's
@@ -133,13 +133,17 @@ where
         leaf: &[u8],
         leaf_index: usize,
     ) -> FastCryptoResult<()> {
-        if self.compute_root(leaf, leaf_index).as_ref() != Some(root) {
+        if self
+            .compute_root_with_unchecked_length(leaf, leaf_index)
+            .as_ref()
+            != Some(root)
+        {
             return Err(FastCryptoError::InvalidProof);
         }
         Ok(())
     }
 
-    pub fn verify_proof_with_unserialized_leaf<L: Serialize>(
+    pub fn verify_proof_with_trusted_root_and_unserialized_leaf<L: Serialize>(
         &self,
         root: &Node,
         leaf: &L,
@@ -150,16 +154,32 @@ where
     }
 
     /// Whether this proof has the length of a proof in a [`MerkleTree`] with `n_leaves` leaves.
-    pub fn has_length_for(&self, n_leaves: usize) -> bool {
+    fn has_length_for(&self, n_leaves: usize) -> bool {
         n_leaves.checked_sub(1).is_some_and(|last_index| {
             self.path.len() == (usize::BITS - last_index.leading_zeros()) as usize
         })
     }
 
-    /// Recomputes the Merkle root from the proof and the provided leaf data.
+    /// Recomputes the root of a tree with `n_leaves` leaves from the proof and the provided leaf
+    /// data.
+    ///
+    /// Returns `None` if the provided index is outside the tree or the proof has the wrong length.
+    pub fn compute_root(&self, leaf: &[u8], leaf_index: usize, n_leaves: usize) -> Option<Node> {
+        if leaf_index >= n_leaves || !self.has_length_for(n_leaves) {
+            return None;
+        }
+        self.compute_root_with_unchecked_length(leaf, leaf_index)
+    }
+
+    /// Recomputes the Merkle root from the proof and the provided leaf data, without checking the
+    /// proof's length. See [`Self::verify_proof_with_trusted_root`].
     ///
     /// Returns `None` if the provided index is too large.
-    pub fn compute_root(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
+    pub fn compute_root_with_unchecked_length(
+        &self,
+        leaf: &[u8],
+        leaf_index: usize,
+    ) -> Option<Node> {
         if leaf_index
             .checked_shr(self.path.len() as u32)
             .is_none_or(|s| s != 0)
@@ -279,7 +299,7 @@ where
         neighbor_index: usize,
         root: &Node,
     ) -> FastCryptoResult<()> {
-        proof.verify_proof_with_unserialized_leaf(root, neighbor, neighbor_index)
+        proof.verify_proof_with_trusted_root_and_unserialized_leaf(root, neighbor, neighbor_index)
     }
 
     // Proves non-inclusion of a leaf assuming sorted tree.

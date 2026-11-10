@@ -218,16 +218,15 @@ impl Avid {
                     warn!("avid echo: dispersal has wrong shard count for disperser {my_id}");
                     return Err(InvalidMessage);
                 }
-                if !shards
-                    .proof
-                    .has_lengths_for(dispersal.len(), self.nodes.num_nodes())
-                {
-                    warn!("avid echo: dispersal has wrong proof length for disperser {my_id}");
-                    return Err(InvalidMessage);
-                }
                 shards
                     .proof
-                    .derive_top_root(&shards.shards, recipient_idx, my_id as usize)
+                    .derive_top_root(
+                        &shards.shards,
+                        recipient_idx,
+                        my_id as usize,
+                        dispersal.len(),
+                        self.nodes.num_nodes(),
+                    )
                     .tap_err(|err| warn!("avid echo: implied root failed at leaf {my_id}: {err:?}"))
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
