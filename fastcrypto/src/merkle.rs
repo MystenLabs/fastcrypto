@@ -108,8 +108,26 @@ where
         }
     }
 
-    /// Verifies the proof given a Merkle root and the leaf data.
+    /// Verifies the proof for the leaf at `leaf_index` of a tree with `n_leaves` leaves, given a
+    /// Merkle root and the leaf data.
     pub fn verify_proof(
+        &self,
+        root: &Node,
+        leaf: &[u8],
+        leaf_index: usize,
+        n_leaves: usize,
+    ) -> FastCryptoResult<()> {
+        if leaf_index >= n_leaves || !self.has_length_for(n_leaves) {
+            return Err(FastCryptoError::InvalidProof);
+        }
+        self.verify_proof_with_trusted_root(root, leaf, leaf_index)
+    }
+
+    /// Verifies the proof given a Merkle root and the leaf data, without checking the proof's
+    /// length. The root must come from a tree built by [`MerkleTree`]. If whoever built the tree
+    /// is not trusted, use [`Self::verify_proof`] instead, since an unbalanced tree can open one
+    /// index to different leaves at different depths.
+    pub fn verify_proof_with_trusted_root(
         &self,
         root: &Node,
         leaf: &[u8],
@@ -128,7 +146,14 @@ where
         leaf_index: usize,
     ) -> FastCryptoResult<()> {
         let bytes = bcs::to_bytes(leaf).map_err(|_| FastCryptoError::InvalidInput)?;
-        self.verify_proof(root, &bytes, leaf_index)
+        self.verify_proof_with_trusted_root(root, &bytes, leaf_index)
+    }
+
+    /// Whether this proof has the length of a proof in a [`MerkleTree`] with `n_leaves` leaves.
+    pub fn has_length_for(&self, n_leaves: usize) -> bool {
+        n_leaves.checked_sub(1).is_some_and(|last_index| {
+            self.path.len() == (usize::BITS - last_index.leading_zeros()) as usize
+        })
     }
 
     /// Recomputes the Merkle root from the proof and the provided leaf data.

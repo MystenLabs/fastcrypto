@@ -70,7 +70,7 @@ fn test_merkle_path_verify() {
         let mt: MerkleTree = MerkleTree::build_from_serialized(&TEST_INPUT[..i]);
         for (index, leaf_data) in TEST_INPUT[..i].iter().enumerate() {
             let proof = mt.get_proof(index).unwrap();
-            assert!(proof.verify_proof(&mt.root(), leaf_data, index).is_ok());
+            assert!(proof.verify_proof(&mt.root(), leaf_data, index, i).is_ok());
         }
     }
 }
@@ -82,7 +82,7 @@ fn test_merkle_path_verify_fails_for_wrong_index() {
         for (index, leaf_data) in TEST_INPUT[..i].iter().enumerate() {
             let proof = mt.get_proof(index).unwrap();
             assert!(proof
-                .verify_proof(&mt.root(), leaf_data, index + 1)
+                .verify_proof(&mt.root(), leaf_data, index + 1, i)
                 .is_err());
         }
     }
@@ -218,7 +218,7 @@ fn test_serialization_with_blake2b256() {
     // Verify the deserialized inclusion proof still works
     let leaf2_bytes = bcs::to_bytes(&leaf2).unwrap();
     assert!(deserialized_inclusion
-        .verify_proof(&mt.root(), &leaf2_bytes, 1)
+        .verify_proof_with_trusted_root(&mt.root(), &leaf2_bytes, 1)
         .is_ok());
     assert!(deserialized_inclusion
         .verify_proof_with_unserialized_leaf(&mt.root(), &leaf2, 1)
@@ -244,4 +244,34 @@ fn test_serialization_with_blake2b256() {
     assert!(deserialized_non_inclusion
         .verify_proof(&mt.root(), &target_leaf)
         .is_ok());
+}
+
+#[test]
+fn test_verify_proof_checks_length_and_index() {
+    let hash = |prefix: u8, parts: &[&[u8]]| -> Node {
+        let mut h = Blake2b256::default();
+        h.update([prefix]);
+        parts.iter().for_each(|part| h.update(part));
+        Node::from(h.finalize())
+    };
+    // An unbalanced tree in which index 1 opens one leaf at depth 1 and another at depth 2.
+    let a = hash(0, &[b"a"]);
+    let x = hash(0, &[b"x"]);
+    let y = hash(0, &[b"y"]);
+    let l = hash(1, &[&a.bytes(), &y.bytes()]);
+    let root = hash(1, &[&l.bytes(), &x.bytes()]);
+    let short = MerkleProof::<Blake2b256>::new(std::slice::from_ref(&l));
+    let long = MerkleProof::<Blake2b256>::new(&[a.clone(), x.clone()]);
+
+    assert!(short.verify_proof_with_trusted_root(&root, b"x", 1).is_ok());
+    assert!(long.verify_proof_with_trusted_root(&root, b"y", 1).is_ok());
+
+    assert!(short.verify_proof(&root, b"x", 1, 2).is_ok());
+    assert!(long.verify_proof(&root, b"y", 1, 2).is_err());
+    assert!(short.verify_proof(&root, b"x", 1, 3).is_err());
+    assert!(long.verify_proof(&root, b"y", 1, 3).is_ok());
+
+    // An index outside the tree and an empty tree are rejected.
+    assert!(short.verify_proof(&root, b"x", 1, 1).is_err());
+    assert!(short.verify_proof(&root, b"x", 1, 0).is_err());
 }

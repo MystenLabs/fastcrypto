@@ -74,8 +74,39 @@ impl NestedMerkleTree {
 }
 
 impl NestedMerkleProof {
-    /// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`).
+    /// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`) of a
+    /// tree with `n_rows` rows of `n_leaves` leaves each.
     pub fn verify<S: Serialize>(
+        &self,
+        top_root: &Node,
+        leaf: &S,
+        row_idx: usize,
+        leaf_idx: usize,
+        n_rows: usize,
+        n_leaves: usize,
+    ) -> FastCryptoResult<()> {
+        if leaf_idx >= n_leaves || !self.row_proof.has_length_for(n_leaves) {
+            return Err(InvalidProof);
+        }
+        let row_root = self.derive_row_root(leaf, leaf_idx)?;
+        self.top_proof.verify_proof(
+            top_root,
+            &bcs::to_bytes(&row_root).map_err(|_| InvalidInput)?,
+            row_idx,
+            n_rows,
+        )
+    }
+
+    /// Whether both parts of this proof have the lengths of a proof in a tree with `n_rows` rows
+    /// of `n_leaves` leaves each.
+    pub fn has_lengths_for(&self, n_rows: usize, n_leaves: usize) -> bool {
+        self.row_proof.has_length_for(n_leaves) && self.top_proof.has_length_for(n_rows)
+    }
+
+    /// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`),
+    /// without checking the lengths of the proof. See
+    /// [fastcrypto::merkle::MerkleProof::verify_proof_with_trusted_root].
+    pub fn verify_with_trusted_root<S: Serialize>(
         &self,
         top_root: &Node,
         leaf: &S,
