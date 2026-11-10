@@ -6,7 +6,7 @@
 //! This crate contains the `SilentDebug` and `SilentDisplay` derive macros.
 //! which help to avoid accidentally printing sensitive data.
 //! Imported from diem-crypto-derive@0.0.3
-//! https://github.com/diem/diem/blob/release-1.4.3/crypto/crypto-derive/src/lib.rs#L113
+//! <https://github.com/diem/diem/blob/release-1.4.3/crypto/crypto-derive/src/lib.rs#L113>
 
 use proc_macro::TokenStream;
 use quote::quote;

@@ -46,14 +46,14 @@ pub fn keypair_decode_base64<T: KeyPair>(value: &str) -> FastCryptoResult<T> {
 ///   the object (e.g., as defined in RFCs).
 ///
 /// Types that do store a *cached* version of the serialized object should implement [ToFromBytes]
-/// and call [serialize_deserialize_with_to_from_bytes].
+/// and call `serialize_deserialize_with_to_from_bytes`.
 ///
 /// Types that do *not* store a cached version of the serialized object should implement
-/// [ToFromByteArray] and call [serialize_deserialize_with_to_from_byte_array].
+/// [ToFromByteArray] and call `serialize_deserialize_with_to_from_byte_array`.
 ///
 /// Note that in theory internal types should not be exposed via APIs and thus never be serialized
 /// with is_human_readable(). Instead, external types should be used (see
-/// [generate_bytes_representation]).
+/// `generate_bytes_representation`).
 ///
 
 // Serde treats arrays larger than 32 as variable length arrays, and adds the length as a prefix.
@@ -162,7 +162,7 @@ macro_rules! serialize_deserialize_with_to_from_bytes {
 /// [BytesRepresentation] is a basic wrapper for storing bincode serialized objects.
 ///
 /// To be used in external interfaces instead of the internal types.
-/// - Derive by calling [generate_bytes_representation].
+/// - Derive by calling `generate_bytes_representation`.
 /// - Uses Base64 when serialized with a human readable serializer, and raw bytes otherwise.
 ///
 /// Note that in theory external types should not be stored in Sui and only be serialized with

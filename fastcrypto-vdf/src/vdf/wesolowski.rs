@@ -18,7 +18,7 @@ use crate::vdf::VDF;
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
 ///
-/// From Wesolowski (2018), "Efficient verifiable delay functions" (https://eprint.iacr.org/2018/623),
+/// From Wesolowski (2018), "Efficient verifiable delay functions" (<https://eprint.iacr.org/2018/623>),
 /// we get that the challenge must be a random prime among the first 2^{2k} primes where k is the
 /// security parameter in bits. Setting k = 128, and recalling that the prime number theorem states
 /// that the n-th prime number is approximately n * ln(n), we can estimate the number of bits required
@@ -26,7 +26,7 @@ use crate::vdf::VDF;
 /// = 33 bytes. This is also the challenge size used by chiavdf.
 pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 33;
 
-/// An implementation of Wesolowski's VDF construction (https://eprint.iacr.org/2018/623) over a
+/// An implementation of Wesolowski's VDF construction (<https://eprint.iacr.org/2018/623>) over a
 /// group of unknown order.
 pub struct WesolowskisVDF<G: ParameterizedGroupElement, M: ScalarMultiplier<G, BigUint>> {
     group_parameter: G::ParameterType,

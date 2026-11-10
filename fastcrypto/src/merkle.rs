@@ -308,7 +308,7 @@ where
     }
 }
 
-/// Merkle tree using a hash function `T` (default: [`Blake2b256`]) from the [`fastcrypto`] crate.
+/// Merkle tree using a hash function `T` (default: [`Blake2b256`]) from the `fastcrypto` crate.
 ///
 /// The data of the leaves is prefixed with `0x00` before hashing and hashes of inner nodes are
 /// computed over the concatenation of their children prefixed with `0x01`. Hashes of empty

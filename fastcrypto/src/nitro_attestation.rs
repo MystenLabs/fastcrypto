@@ -757,7 +757,7 @@ fn verify_cert_chain(cert_chain: &[&[u8]], now_ms: u64) -> Result<(), NitroAttes
         }
 
         if i != 0 {
-            // all ca certs must have basic contraint, must be critical, ca flag must be true,
+            // all ca certs must have basic constraint, must be critical, ca flag must be true,
             // pathLenConstraint is optional but if present must be checked.
             if let Ok(Some(bc)) = cert.basic_constraints() {
                 if !bc.critical || !bc.value.ca {

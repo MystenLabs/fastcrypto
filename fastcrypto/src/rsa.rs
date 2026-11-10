@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implementation of a verifier following RSASSA-PKCS1-v1_5 using SHA-256 (see https://datatracker.ietf.org/doc/rfc3447/).
+//! Implementation of a verifier following RSASSA-PKCS1-v1_5 using SHA-256 (see <https://datatracker.ietf.org/doc/rfc3447/>).
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::hash::{HashFunction, Sha256};
@@ -53,7 +53,7 @@ impl RSAPublicKey {
 }
 
 impl RSASignature {
-    /// Parse signature from binary representation according to https://datatracker.ietf.org/doc/html/rfc8017#section-8.2.
+    /// Parse signature from binary representation according to <https://datatracker.ietf.org/doc/html/rfc8017#section-8.2>.
     pub fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
         Ok(Self(
             ExternalSignature::try_from(bytes).map_err(|_| FastCryptoError::InvalidInput)?,

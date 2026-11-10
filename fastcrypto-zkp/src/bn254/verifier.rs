@@ -137,7 +137,7 @@ impl From<&PreparedVerifyingKey> for ArkPreparedVerifyingKey<Bn254> {
 
 impl From<&VerifyingKey> for PreparedVerifyingKey {
     /// Takes an input [`ark_groth16::VerifyingKey`] `vk` and returns a `PreparedVerifyingKey`. This is roughly homologous to
-    /// [`ark_groth16::PreparedVerifyingKey::process_vk`].
+    /// `ark_groth16::PreparedVerifyingKey::process_vk`.
     ///
     /// ## Example:
     /// ```
@@ -165,7 +165,7 @@ impl From<&VerifyingKey> for PreparedVerifyingKey {
 }
 
 impl VerifyingKey {
-    /// Deserialize a serialized Groth16 verifying key in compressed format using arkworks' canonical serialisation format: https://docs.rs/ark-serialize/latest/ark_serialize/.
+    /// Deserialize a serialized Groth16 verifying key in compressed format using arkworks' canonical serialisation format: <https://docs.rs/ark-serialize/latest/ark_serialize/>.
     pub fn deserialize(bytes: &[u8]) -> FastCryptoResult<Self> {
         ark_groth16::VerifyingKey::<Bn254>::deserialize_compressed(bytes)
             .map(VerifyingKey)

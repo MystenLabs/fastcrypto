@@ -73,7 +73,7 @@ fn test_over_certificate_expiration() {
     let res = verify_nitro_attestation(&parsed.0, &parsed.1, &parsed.2, now);
     assert!(res.is_ok());
 
-    let now = 1731627987382 - 10 * 60 * 1000; // substract 10 minute, still valid
+    let now = 1731627987382 - 10 * 60 * 1000; // subtract 10 minute, still valid
     let parsed = parse_nitro_attestation(
         &Hex::decode(FIXED_VALID_ATTESTATION).unwrap(),
         true,

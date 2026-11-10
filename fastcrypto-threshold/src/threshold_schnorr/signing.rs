@@ -38,7 +38,7 @@ use tracing::warn;
 /// The signatures produced follow the BIP-0340 standard (<https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki>).
 ///
 /// If a derivation index is provided, a new verifying key is derived for this index (see
-/// [derive_verifying_key]), and the signature is adjusted accordingly.
+/// `derive_verifying_key`), and the signature is adjusted accordingly.
 /// The signature will be valid for the derived verifying key.
 ///
 /// `GeneralOpaqueError` is returned if the generated nonce R is the identity element (should happen only with negligible probability).
@@ -127,7 +127,7 @@ pub enum Blame {
 /// signers used, drawn as described in [generate_partial_signatures].
 ///
 /// If a derivation index is provided, a new verifying key is derived for this index (see
-/// [derive_verifying_key]), and the signature is adjusted accordingly.
+/// `derive_verifying_key`), and the signature is adjusted accordingly.
 /// The signature will be valid for the derived verifying key.
 ///
 /// Only the first `params.t` partial signatures are interpolated, so if any of those is wrong, all

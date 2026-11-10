@@ -95,7 +95,7 @@ impl JwkId {
     /// Create a new JwkId.
     pub fn new(iss: String, kid: String) -> Self {
         // if a Microsoft iss is found, remove the tenant id from it
-        if match_micrsoft_iss_substring(&iss) {
+        if match_microsoft_iss_substring(&iss) {
             return Self {
                 iss: "https://login.microsoftonline.com/v2.0".to_string(),
                 kid,
@@ -127,44 +127,44 @@ impl ProviderConfig {
 /// Supported OIDC providers.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum OIDCProvider {
-    /// See https://accounts.google.com/.well-known/openid-configuration
+    /// See <https://accounts.google.com/.well-known/openid-configuration>
     Google,
-    /// See https://id.twitch.tv/oauth2/.well-known/openid-configuration
+    /// See <https://id.twitch.tv/oauth2/.well-known/openid-configuration>
     Twitch,
-    /// See https://www.facebook.com/.well-known/openid-configuration/
+    /// See <https://www.facebook.com/.well-known/openid-configuration/>
     Facebook,
-    /// See https://kauth.kakao.com/.well-known/openid-configuration
+    /// See <https://kauth.kakao.com/.well-known/openid-configuration>
     Kakao,
-    /// See https://appleid.apple.com/.well-known/openid-configuration
+    /// See <https://appleid.apple.com/.well-known/openid-configuration>
     Apple,
-    /// See https://slack.com/.well-known/openid-configuration
+    /// See <https://slack.com/.well-known/openid-configuration>
     Slack,
     /// This is a test issuer maintained by Mysten that will return a JWT non-interactively.
-    /// See https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration
+    /// See <https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration>
     Microsoft,
-    /// Example: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_LPSLCkC3A/.well-known/jwks.json
+    /// Example: <https://cognito-idp.us-east-1.amazonaws.com/us-east-1_LPSLCkC3A/.well-known/jwks.json>
     AwsTenant((String, String)),
-    /// https://accounts.karrier.one/.well-known/openid-configuration
+    /// <https://accounts.karrier.one/.well-known/openid-configuration>
     KarrierOne,
-    /// https://accounts.credenza3.com/openid-configuration
+    /// <https://accounts.credenza3.com/openid-configuration>
     Credenza3,
     /// This is a test issuer that will return a JWT non-interactively.
     TestIssuer,
     /// Test issuer for key 8192.
     TestIssuerKey8192,
-    /// https://oauth2.playtron.one/.well-known/jwks.json
+    /// <https://oauth2.playtron.one/.well-known/jwks.json>
     Playtron,
-    /// https://auth.3dos.io/.well-known/openid-configuration
+    /// <https://auth.3dos.io/.well-known/openid-configuration>
     Threedos,
-    /// https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/v2.0/.well-known/openid-configuration
+    /// <https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/v2.0/.well-known/openid-configuration>
     Onefc,
-    /// https://accounts.fantv.world/.well-known/openid-configuration
+    /// <https://accounts.fantv.world/.well-known/openid-configuration>
     FanTV,
-    /// https://api.arden.cc/auth/jwks
+    /// <https://api.arden.cc/auth/jwks>
     Arden,
-    /// https://auth.evefrontier.com/.well-known/jwks.json
+    /// <https://auth.evefrontier.com/.well-known/jwks.json>
     EveFrontier,
-    /// https://test.auth.evefrontier.com/.well-known/jwks.json
+    /// <https://test.auth.evefrontier.com/.well-known/jwks.json>
     TestEveFrontier,
 }
 
@@ -343,7 +343,7 @@ impl OIDCProvider {
             "https://oidc.arden.cc" => Ok(Self::Arden),
             "auth.evefrontier.com" => Ok(Self::EveFrontier),
             "test.auth.evefrontier.com" => Ok(Self::TestEveFrontier),
-            iss if match_micrsoft_iss_substring(iss) => Ok(Self::Microsoft),
+            iss if match_microsoft_iss_substring(iss) => Ok(Self::Microsoft),
             _ => match parse_aws_iss_substring(iss) {
                 Ok((region, tenant_id)) => {
                     Ok(Self::AwsTenant((region.to_string(), tenant_id.to_string())))
@@ -355,7 +355,7 @@ impl OIDCProvider {
 }
 
 /// Check if the iss string is formatted as Microsoft's pattern.
-fn match_micrsoft_iss_substring(iss: &str) -> bool {
+fn match_microsoft_iss_substring(iss: &str) -> bool {
     iss.starts_with("https://login.microsoftonline.com/") && iss.ends_with("/v2.0")
 }
 
@@ -380,13 +380,13 @@ fn parse_aws_iss_substring(url: &str) -> Result<(&str, &str), FastCryptoError> {
 /// The JWK is used to verify the JWT token.
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct JWK {
-    /// Key type parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.1
+    /// Key type parameter, <https://datatracker.ietf.org/doc/html/rfc7517#section-4.1>
     pub kty: String,
-    /// RSA public exponent, https://datatracker.ietf.org/doc/html/rfc7517#section-9.3
+    /// RSA public exponent, <https://datatracker.ietf.org/doc/html/rfc7517#section-9.3>
     pub e: String,
-    /// RSA modulus, https://datatracker.ietf.org/doc/html/rfc7517#section-9.3
+    /// RSA modulus, <https://datatracker.ietf.org/doc/html/rfc7517#section-9.3>
     pub n: String,
-    /// Algorithm parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.4
+    /// Algorithm parameter, <https://datatracker.ietf.org/doc/html/rfc7517#section-4.4>
     pub alg: String,
 }
 

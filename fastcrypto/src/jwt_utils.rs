@@ -52,7 +52,7 @@ pub fn parse_and_validate_jwt(token: &str) -> Result<(String, String, String), F
 }
 
 /// Struct that represents a standard JWT header according to
-/// https://openid.net/specs/openid-connect-core-1_0.html
+/// <https://openid.net/specs/openid-connect-core-1_0.html>
 #[derive(Default, Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
 pub struct JWTHeader {
     alg: String,

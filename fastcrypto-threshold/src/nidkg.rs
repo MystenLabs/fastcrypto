@@ -406,13 +406,13 @@ where
         let offset = (complaint.share_id.get() - 1) as usize;
         let encryptions = &msg.encryptions[offset];
         let processed_encs = &msg.processed_encryptions[offset];
-        let reciever_node = self.nodes.share_id_to_node(&complaint.share_id)?;
+        let receiver_node = self.nodes.share_id_to_node(&complaint.share_id)?;
         for i in 0..NUM_OF_ENCRYPTIONS_PER_SHARE {
             if let EncryptionInfo::ForEvaluation { diff: _ } = processed_encs.infos[i] {
                 let ro = self
                     .random_oracle
-                    .extend(format!("-{}-recovery", reciever_node.id).as_str());
-                let descrypted_msg = reciever_node.pk.decrypt_with_recovery_package(
+                    .extend(format!("-{}-recovery", receiver_node.id).as_str());
+                let descrypted_msg = receiver_node.pk.decrypt_with_recovery_package(
                     &complaint.package,
                     &ro,
                     &encryptions.values[i],

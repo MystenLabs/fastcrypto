@@ -13,12 +13,12 @@ use std::mem;
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
 ///
-/// This is based on Pietrzak (2018), "Simple Verifiable Delay Functions" (https://eprint.iacr.org/2018/627.pdf)
+/// This is based on Pietrzak (2018), "Simple Verifiable Delay Functions" (<https://eprint.iacr.org/2018/627.pdf>)
 /// which states that the challenge should be 2^l bits (see section 6), where l is the security
 /// parameter. Soundness is proven in section 6.3 in this paper.
 pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 16;
 
-/// This implements Pietrzak's VDF construction from https://eprint.iacr.org/2018/627.pdf.
+/// This implements Pietrzak's VDF construction from <https://eprint.iacr.org/2018/627.pdf>.
 ///
 /// The VDF is, as in [crate::vdf::wesolowski::WesolowskisVDF], based on the repeated squaring of an
 /// element in a group of unknown order. However, in this construction, proofs are larger and

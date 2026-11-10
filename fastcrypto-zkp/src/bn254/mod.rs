@@ -41,7 +41,7 @@ pub struct Proof(pub(crate) ark_groth16::Proof<Bn254>);
 pub struct VerifyingKey(pub(crate) ark_groth16::VerifyingKey<ark_bn254::Bn254>);
 
 impl Proof {
-    /// Deserialize a serialized Groth16 proof using arkworks' canonical serialisation format: https://docs.rs/ark-serialize/latest/ark_serialize/.
+    /// Deserialize a serialized Groth16 proof using arkworks' canonical serialisation format: <https://docs.rs/ark-serialize/latest/ark_serialize/>.
     pub fn deserialize(proof_points_as_bytes: &[u8]) -> FastCryptoResult<Self> {
         ark_groth16::Proof::<Bn254>::deserialize_compressed(proof_points_as_bytes)
             .map_err(|_| FastCryptoError::InvalidInput)

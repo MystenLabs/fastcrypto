@@ -162,7 +162,7 @@ mod tests {
         assert_eq!(a, a2);
     }
 
-    fn test_arkworks_compatability_for_group<
+    fn test_arkworks_compatibility_for_group<
         const SIZE: usize,
         G: GroupElement + ToFromByteArray<SIZE>,
         A: Group + CanonicalSerialize,
@@ -192,16 +192,16 @@ mod tests {
     }
 
     #[test]
-    fn test_arkworks_compatability() {
-        test_arkworks_compatability_for_group::<G1_ELEMENT_BYTE_LENGTH, _, G1Projective>(
+    fn test_arkworks_compatibility() {
+        test_arkworks_compatibility_for_group::<G1_ELEMENT_BYTE_LENGTH, _, G1Projective>(
             |g| g.to_byte_array(),
             G1Element::from_byte_array,
         );
-        test_arkworks_compatability_for_group::<G2_ELEMENT_BYTE_LENGTH, _, G2Projective>(
+        test_arkworks_compatibility_for_group::<G2_ELEMENT_BYTE_LENGTH, _, G2Projective>(
             |g| g.to_byte_array(),
             G2Element::from_byte_array,
         );
-        test_arkworks_compatability_for_group::<GT_ELEMENT_BYTE_LENGTH, _, PairingOutput<Bls12_381>>(
+        test_arkworks_compatibility_for_group::<GT_ELEMENT_BYTE_LENGTH, _, PairingOutput<Bls12_381>>(
             |g| g.to_arkworks_bytes(),
             GTElement::from_arkworks_bytes,
         );

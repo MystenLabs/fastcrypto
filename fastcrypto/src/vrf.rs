@@ -61,7 +61,7 @@ pub trait VRFProof<const OUTPUT_SIZE: usize> {
 
 /// An implementation of an Elliptic Curve VRF (ECVRF) using the Ristretto255 group.
 /// The implementation follows the specifications in draft-irtf-cfrg-vrf-15
-/// (https://datatracker.ietf.org/doc/draft-irtf-cfrg-vrf/).
+/// (<https://datatracker.ietf.org/doc/draft-irtf-cfrg-vrf/>).
 pub mod ecvrf {
     use crate::error::FastCryptoError;
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};

@@ -116,7 +116,7 @@ pub struct AvssOutput {
 }
 
 /// The output after combining multiple `AvssOutputs`,
-/// either using [AvssOutput::complete_dkg] or [AvssOutput::complete_key_rotation].
+/// either using `AvssOutput::complete_dkg` or `AvssOutput::complete_key_rotation`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DkOutput {
     pub vk: G,                     // The aggregated public key.
