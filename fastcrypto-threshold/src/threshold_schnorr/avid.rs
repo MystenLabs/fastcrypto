@@ -10,6 +10,7 @@
 //! disperser to a recipient an "echo".
 
 use crate::nodes::{Nodes, PartyId};
+use crate::quorum::check_quorum;
 use crate::threshold_schnorr::merkle::{NestedMerkleProof, NestedMerkleTree};
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard, Shards};
 use crate::threshold_schnorr::EG;
@@ -417,41 +418,6 @@ impl DispersalBuilder {
             .collect()
     }
 }
-
-// BEGIN CREUSOT-VERIFIED
-// `decode_or_complain` calls this to check its echoes, and returns its error. It is formally
-// verified with Creusot, on an annotated copy in verification/fastcrypto-threshold/avid_quorum, and
-// a test there checks that the copy, minus its annotations, matches the code here. Changes here
-// must be made there too.
-
-/// Checks that `senders` are distinct parties, with total weight at least `required`.
-/// `weights[i]` is the weight of party `i`.
-pub(crate) fn check_quorum(
-    senders: &[PartyId],
-    weights: &[u16],
-    required: u16,
-) -> FastCryptoResult<()> {
-    if senders.is_empty() || senders.len() > weights.len() {
-        return Err(InvalidInput);
-    }
-    let mut seen = vec![false; weights.len()];
-    let mut total = 0u32;
-    let mut i = 0;
-    while i < senders.len() {
-        let id = senders[i] as usize;
-        if id >= weights.len() || seen[id] {
-            return Err(InvalidInput);
-        }
-        seen[id] = true;
-        total += weights[id] as u32;
-        i += 1;
-    }
-    if total < required as u32 {
-        return Err(NotEnoughWeight(required as usize));
-    }
-    Ok(())
-}
-// END CREUSOT-VERIFIED
 
 #[cfg(test)]
 mod tests {

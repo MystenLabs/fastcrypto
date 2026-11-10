@@ -1,19 +1,20 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Annotated copy of the verified function in
-//! `fastcrypto-threshold/src/threshold_schnorr/avid.rs` (the region between `BEGIN CREUSOT-VERIFIED`
-//! and `END CREUSOT-VERIFIED`), with its Creusot contract and loop invariants. See README.md for
-//! what is proved.
+//! The quorum check of AVID, formally verified with Creusot: `check_quorum` returns `Ok` only if
+//! the senders are nonempty, valid and distinct with enough weight, and it never panics or
+//! overflows. To check the proof, install Creusot 0.14.0 and run `cargo creusot` in this crate.
 //!
-//! The test `creusot_copy_matches_production` in transform_code_test.rs checks that this region,
-//! with the annotations and comments removed, is token-for-token the production code.
+//! Creusot can't compile the rest of this crate, so `lib.rs` leaves the other modules out under
+//! `cfg(creusot)`, and this module can't depend on them.
 
-use creusot_std::prelude::{vec, *};
+#[allow(unused_imports)]
+use creusot_std::prelude::{ensures, invariant, logic, requires, variant};
+#[cfg(creusot)]
+use creusot_std::prelude::{pearlite, vec, Int, Seq};
 use fastcrypto::error::FastCryptoError::{InvalidInput, NotEnoughWeight};
 use fastcrypto::error::FastCryptoResult;
 
-// Stand-in for the production definition.
 type PartyId = u16;
 
 /// The sum of `weights[senders[i]]` for `i < k`.
@@ -41,12 +42,6 @@ pub fn is_quorum(senders: Seq<u16>, weights: Seq<u16>, required: Int) -> bool {
             && required <= sender_weight(senders, weights, senders.len())
     }
 }
-
-// BEGIN CREUSOT-VERIFIED
-// `decode_or_complain` calls this to check its echoes, and returns its error. It is formally
-// verified with Creusot, on an annotated copy in verification/fastcrypto-threshold/avid_quorum, and
-// a test there checks that the copy, minus its annotations, matches the code here. Changes here
-// must be made there too.
 
 /// Checks that `senders` are distinct parties, with total weight at least `required`.
 /// `weights[i]` is the weight of party `i`.
@@ -87,4 +82,3 @@ pub(crate) fn check_quorum(
     }
     Ok(())
 }
-// END CREUSOT-VERIFIED
