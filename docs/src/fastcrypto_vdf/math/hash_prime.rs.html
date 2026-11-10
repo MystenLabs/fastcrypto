@@ -55,7 +55,7 @@
 <a href=#55 id=55 data-nosnippet>55</a><span class="doccomment">/// Check if the input is a probable prime.
 <a href=#56 id=56 data-nosnippet>56</a>///
 <a href=#57 id=57 data-nosnippet>57</a>/// We use the Baillie-PSW primality test here. This is in accordance with the recommendations of "Prime and
-<a href=#58 id=58 data-nosnippet>58</a>/// Prejudice: Primality Testing Under Adversarial Conditions" by Albrecht et al. (https://eprint.iacr.org/2018/749)
+<a href=#58 id=58 data-nosnippet>58</a>/// Prejudice: Primality Testing Under Adversarial Conditions" by Albrecht et al. (&lt;https://eprint.iacr.org/2018/749&gt;)
 <a href=#59 id=59 data-nosnippet>59</a>/// because this test is also used in use cases where an adversary could influence the input.
 <a href=#60 id=60 data-nosnippet>60</a></span><span class="kw">pub fn </span>is_probable_prime(x: <span class="kw-2">&amp;</span>BigUint) -&gt; bool {
 <a href=#61 id=61 data-nosnippet>61</a>    is_prime(x, <span class="prelude-val">Some</span>(PrimalityTestConfig::bpsw())).probably()

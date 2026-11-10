@@ -757,7 +757,7 @@
 <a href=#757 id=757 data-nosnippet>757</a>        }
 <a href=#758 id=758 data-nosnippet>758</a>
 <a href=#759 id=759 data-nosnippet>759</a>        <span class="kw">if </span>i != <span class="number">0 </span>{
-<a href=#760 id=760 data-nosnippet>760</a>            <span class="comment">// all ca certs must have basic contraint, must be critical, ca flag must be true,
+<a href=#760 id=760 data-nosnippet>760</a>            <span class="comment">// all ca certs must have basic constraint, must be critical, ca flag must be true,
 <a href=#761 id=761 data-nosnippet>761</a>            // pathLenConstraint is optional but if present must be checked.
 <a href=#762 id=762 data-nosnippet>762</a>            </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(bc)) = cert.basic_constraints() {
 <a href=#763 id=763 data-nosnippet>763</a>                <span class="kw">if </span>!bc.critical || !bc.value.ca {

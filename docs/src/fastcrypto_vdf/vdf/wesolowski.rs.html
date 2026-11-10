@@ -18,7 +18,7 @@
 <a href=#18 id=18 data-nosnippet>18</a>
 <a href=#19 id=19 data-nosnippet>19</a><span class="doccomment">/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
 <a href=#20 id=20 data-nosnippet>20</a>///
-<a href=#21 id=21 data-nosnippet>21</a>/// From Wesolowski (2018), "Efficient verifiable delay functions" (https://eprint.iacr.org/2018/623),
+<a href=#21 id=21 data-nosnippet>21</a>/// From Wesolowski (2018), "Efficient verifiable delay functions" (&lt;https://eprint.iacr.org/2018/623&gt;),
 <a href=#22 id=22 data-nosnippet>22</a>/// we get that the challenge must be a random prime among the first 2^{2k} primes where k is the
 <a href=#23 id=23 data-nosnippet>23</a>/// security parameter in bits. Setting k = 128, and recalling that the prime number theorem states
 <a href=#24 id=24 data-nosnippet>24</a>/// that the n-th prime number is approximately n * ln(n), we can estimate the number of bits required
@@ -26,7 +26,7 @@
 <a href=#26 id=26 data-nosnippet>26</a>/// = 33 bytes. This is also the challenge size used by chiavdf.
 <a href=#27 id=27 data-nosnippet>27</a></span><span class="kw">pub const </span>DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = <span class="number">33</span>;
 <a href=#28 id=28 data-nosnippet>28</a>
-<a href=#29 id=29 data-nosnippet>29</a><span class="doccomment">/// An implementation of Wesolowski's VDF construction (https://eprint.iacr.org/2018/623) over a
+<a href=#29 id=29 data-nosnippet>29</a><span class="doccomment">/// An implementation of Wesolowski's VDF construction (&lt;https://eprint.iacr.org/2018/623&gt;) over a
 <a href=#30 id=30 data-nosnippet>30</a>/// group of unknown order.
 <a href=#31 id=31 data-nosnippet>31</a></span><span class="kw">pub struct </span>WesolowskisVDF&lt;G: ParameterizedGroupElement, M: ScalarMultiplier&lt;G, BigUint&gt;&gt; {
 <a href=#32 id=32 data-nosnippet>32</a>    group_parameter: G::ParameterType,

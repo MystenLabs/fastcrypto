@@ -32,7 +32,7 @@
 <a href=#32 id=32 data-nosnippet>32</a>    </span>Sign(SigningArguments),
 <a href=#33 id=33 data-nosnippet>33</a>
 <a href=#34 id=34 data-nosnippet>34</a>    <span class="doccomment">/// Verify the signature against the message and public key using the signature scheme.
-<a href=#35 id=35 data-nosnippet>35</a>    </span>Verify(VerifiyingArguments),
+<a href=#35 id=35 data-nosnippet>35</a>    </span>Verify(VerifyingArguments),
 <a href=#36 id=36 data-nosnippet>36</a>}
 <a href=#37 id=37 data-nosnippet>37</a>
 <a href=#38 id=38 data-nosnippet>38</a><span class="attr">#[derive(Parser, Clone)]
@@ -87,7 +87,7 @@
 <a href=#87 id=87 data-nosnippet>87</a>}
 <a href=#88 id=88 data-nosnippet>88</a>
 <a href=#89 id=89 data-nosnippet>89</a><span class="attr">#[derive(Parser, Clone)]
-<a href=#90 id=90 data-nosnippet>90</a></span><span class="kw">struct </span>VerifiyingArguments {
+<a href=#90 id=90 data-nosnippet>90</a></span><span class="kw">struct </span>VerifyingArguments {
 <a href=#91 id=91 data-nosnippet>91</a>    <span class="doccomment">/// The raw message signed.
 <a href=#92 id=92 data-nosnippet>92</a>    </span><span class="attr">#[clap(short, long)]
 <a href=#93 id=93 data-nosnippet>93</a>    </span>msg: String,
@@ -290,7 +290,7 @@
 <a href=#290 id=290 data-nosnippet>290</a>
 <a href=#291 id=291 data-nosnippet>291</a><span class="attr">#[cfg(test)]
 <a href=#292 id=292 data-nosnippet>292</a></span><span class="kw">mod </span>tests {
-<a href=#293 id=293 data-nosnippet>293</a>    <span class="kw">use crate</span>::{execute, Command, KeygenArguments, SigningArguments, VerifiyingArguments};
+<a href=#293 id=293 data-nosnippet>293</a>    <span class="kw">use crate</span>::{execute, Command, KeygenArguments, SigningArguments, VerifyingArguments};
 <a href=#294 id=294 data-nosnippet>294</a>    <span class="kw">use </span>fastcrypto::error::FastCryptoError;
 <a href=#295 id=295 data-nosnippet>295</a>    <span class="kw">use </span>fastcrypto_cli::sigs_cli_test_vectors::{MSG, SEED, TEST_CASES};
 <a href=#296 id=296 data-nosnippet>296</a>
@@ -353,7 +353,7 @@
 <a href=#353 id=353 data-nosnippet>353</a>        signature: <span class="kw-2">&amp;</span>str,
 <a href=#354 id=354 data-nosnippet>354</a>        public_key: <span class="kw-2">&amp;</span>str,
 <a href=#355 id=355 data-nosnippet>355</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-<a href=#356 id=356 data-nosnippet>356</a>        execute(Command::Verify(VerifiyingArguments {
+<a href=#356 id=356 data-nosnippet>356</a>        execute(Command::Verify(VerifyingArguments {
 <a href=#357 id=357 data-nosnippet>357</a>            msg: msg.to_string(),
 <a href=#358 id=358 data-nosnippet>358</a>            signature: signature.to_string(),
 <a href=#359 id=359 data-nosnippet>359</a>            public_key: public_key.to_string(),

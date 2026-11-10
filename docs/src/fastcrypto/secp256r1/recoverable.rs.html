@@ -28,7 +28,7 @@
 <a href=#28 id=28 data-nosnippet>28</a>};
 <a href=#29 id=29 data-nosnippet>29</a><span class="kw">use </span><span class="kw">crate</span>::secp256r1::{
 <a href=#30 id=30 data-nosnippet>30</a>    DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature, MULTIPLIER,
-<a href=#31 id=31 data-nosnippet>31</a>    SECP256R1_SIGNATURE_LENTH,
+<a href=#31 id=31 data-nosnippet>31</a>    SECP256R1_SIGNATURE_LENGTH,
 <a href=#32 id=32 data-nosnippet>32</a>};
 <a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span><span class="kw">crate</span>::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 <a href=#34 id=34 data-nosnippet>34</a><span class="kw">use crate</span>::{
@@ -54,7 +54,7 @@
 <a href=#54 id=54 data-nosnippet>54</a>    U256::from_be_hex(<span class="string">"ffffffff00000001000000000000000000000000ffffffffffffffffffffffff"</span>);
 <a href=#55 id=55 data-nosnippet>55</a><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug};
 <a href=#56 id=56 data-nosnippet>56</a>
-<a href=#57 id=57 data-nosnippet>57</a><span class="kw">pub const </span>SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + <span class="number">1</span>;
+<a href=#57 id=57 data-nosnippet>57</a><span class="kw">pub const </span>SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENGTH + <span class="number">1</span>;
 <a href=#58 id=58 data-nosnippet>58</a>
 <a href=#59 id=59 data-nosnippet>59</a><span class="doccomment">/// Secp256r1 signature.
 <a href=#60 id=60 data-nosnippet>60</a></span><span class="attr">#[readonly::make]

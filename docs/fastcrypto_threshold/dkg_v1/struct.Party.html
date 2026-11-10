@@ -65,7 +65,7 @@ The second message contains the list of complaints on invalid shares. In additio
 returns a set of valid shares (so far).</p>
 <p>We split this function into two parts: process_message and merge, so that the caller can
 process messages concurrently and then merge the results.</p>
-<p>[process_message] processes a message and returns an intermediate object ProcessedMessage.</p>
+<p><code>process_message</code> processes a message and returns an intermediate object ProcessedMessage.</p>
 <p>Returns error InvalidMessage if the message is invalid and should be ignored (note that we
 could count it as part of the f+1 messages we wait for, but it’s also safe to ignore it
 and just wait for f+1 valid messages).</p>

@@ -95,7 +95,7 @@
 <a href=#95 id=95 data-nosnippet>95</a>    <span class="doccomment">/// Create a new JwkId.
 <a href=#96 id=96 data-nosnippet>96</a>    </span><span class="kw">pub fn </span>new(iss: String, kid: String) -&gt; <span class="self">Self </span>{
 <a href=#97 id=97 data-nosnippet>97</a>        <span class="comment">// if a Microsoft iss is found, remove the tenant id from it
-<a href=#98 id=98 data-nosnippet>98</a>        </span><span class="kw">if </span>match_micrsoft_iss_substring(<span class="kw-2">&amp;</span>iss) {
+<a href=#98 id=98 data-nosnippet>98</a>        </span><span class="kw">if </span>match_microsoft_iss_substring(<span class="kw-2">&amp;</span>iss) {
 <a href=#99 id=99 data-nosnippet>99</a>            <span class="kw">return </span><span class="self">Self </span>{
 <a href=#100 id=100 data-nosnippet>100</a>                iss: <span class="string">"https://login.microsoftonline.com/v2.0"</span>.to_string(),
 <a href=#101 id=101 data-nosnippet>101</a>                kid,
@@ -127,44 +127,44 @@
 <a href=#127 id=127 data-nosnippet>127</a><span class="doccomment">/// Supported OIDC providers.
 <a href=#128 id=128 data-nosnippet>128</a></span><span class="attr">#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 <a href=#129 id=129 data-nosnippet>129</a></span><span class="kw">pub enum </span>OIDCProvider {
-<a href=#130 id=130 data-nosnippet>130</a>    <span class="doccomment">/// See https://accounts.google.com/.well-known/openid-configuration
+<a href=#130 id=130 data-nosnippet>130</a>    <span class="doccomment">/// See &lt;https://accounts.google.com/.well-known/openid-configuration&gt;
 <a href=#131 id=131 data-nosnippet>131</a>    </span>Google,
-<a href=#132 id=132 data-nosnippet>132</a>    <span class="doccomment">/// See https://id.twitch.tv/oauth2/.well-known/openid-configuration
+<a href=#132 id=132 data-nosnippet>132</a>    <span class="doccomment">/// See &lt;https://id.twitch.tv/oauth2/.well-known/openid-configuration&gt;
 <a href=#133 id=133 data-nosnippet>133</a>    </span>Twitch,
-<a href=#134 id=134 data-nosnippet>134</a>    <span class="doccomment">/// See https://www.facebook.com/.well-known/openid-configuration/
+<a href=#134 id=134 data-nosnippet>134</a>    <span class="doccomment">/// See &lt;https://www.facebook.com/.well-known/openid-configuration/&gt;
 <a href=#135 id=135 data-nosnippet>135</a>    </span>Facebook,
-<a href=#136 id=136 data-nosnippet>136</a>    <span class="doccomment">/// See https://kauth.kakao.com/.well-known/openid-configuration
+<a href=#136 id=136 data-nosnippet>136</a>    <span class="doccomment">/// See &lt;https://kauth.kakao.com/.well-known/openid-configuration&gt;
 <a href=#137 id=137 data-nosnippet>137</a>    </span>Kakao,
-<a href=#138 id=138 data-nosnippet>138</a>    <span class="doccomment">/// See https://appleid.apple.com/.well-known/openid-configuration
+<a href=#138 id=138 data-nosnippet>138</a>    <span class="doccomment">/// See &lt;https://appleid.apple.com/.well-known/openid-configuration&gt;
 <a href=#139 id=139 data-nosnippet>139</a>    </span>Apple,
-<a href=#140 id=140 data-nosnippet>140</a>    <span class="doccomment">/// See https://slack.com/.well-known/openid-configuration
+<a href=#140 id=140 data-nosnippet>140</a>    <span class="doccomment">/// See &lt;https://slack.com/.well-known/openid-configuration&gt;
 <a href=#141 id=141 data-nosnippet>141</a>    </span>Slack,
 <a href=#142 id=142 data-nosnippet>142</a>    <span class="doccomment">/// This is a test issuer maintained by Mysten that will return a JWT non-interactively.
-<a href=#143 id=143 data-nosnippet>143</a>    /// See https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration
+<a href=#143 id=143 data-nosnippet>143</a>    /// See &lt;https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration&gt;
 <a href=#144 id=144 data-nosnippet>144</a>    </span>Microsoft,
-<a href=#145 id=145 data-nosnippet>145</a>    <span class="doccomment">/// Example: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_LPSLCkC3A/.well-known/jwks.json
+<a href=#145 id=145 data-nosnippet>145</a>    <span class="doccomment">/// Example: &lt;https://cognito-idp.us-east-1.amazonaws.com/us-east-1_LPSLCkC3A/.well-known/jwks.json&gt;
 <a href=#146 id=146 data-nosnippet>146</a>    </span>AwsTenant((String, String)),
-<a href=#147 id=147 data-nosnippet>147</a>    <span class="doccomment">/// https://accounts.karrier.one/.well-known/openid-configuration
+<a href=#147 id=147 data-nosnippet>147</a>    <span class="doccomment">/// &lt;https://accounts.karrier.one/.well-known/openid-configuration&gt;
 <a href=#148 id=148 data-nosnippet>148</a>    </span>KarrierOne,
-<a href=#149 id=149 data-nosnippet>149</a>    <span class="doccomment">/// https://accounts.credenza3.com/openid-configuration
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="doccomment">/// &lt;https://accounts.credenza3.com/openid-configuration&gt;
 <a href=#150 id=150 data-nosnippet>150</a>    </span>Credenza3,
 <a href=#151 id=151 data-nosnippet>151</a>    <span class="doccomment">/// This is a test issuer that will return a JWT non-interactively.
 <a href=#152 id=152 data-nosnippet>152</a>    </span>TestIssuer,
 <a href=#153 id=153 data-nosnippet>153</a>    <span class="doccomment">/// Test issuer for key 8192.
 <a href=#154 id=154 data-nosnippet>154</a>    </span>TestIssuerKey8192,
-<a href=#155 id=155 data-nosnippet>155</a>    <span class="doccomment">/// https://oauth2.playtron.one/.well-known/jwks.json
+<a href=#155 id=155 data-nosnippet>155</a>    <span class="doccomment">/// &lt;https://oauth2.playtron.one/.well-known/jwks.json&gt;
 <a href=#156 id=156 data-nosnippet>156</a>    </span>Playtron,
-<a href=#157 id=157 data-nosnippet>157</a>    <span class="doccomment">/// https://auth.3dos.io/.well-known/openid-configuration
+<a href=#157 id=157 data-nosnippet>157</a>    <span class="doccomment">/// &lt;https://auth.3dos.io/.well-known/openid-configuration&gt;
 <a href=#158 id=158 data-nosnippet>158</a>    </span>Threedos,
-<a href=#159 id=159 data-nosnippet>159</a>    <span class="doccomment">/// https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/v2.0/.well-known/openid-configuration
+<a href=#159 id=159 data-nosnippet>159</a>    <span class="doccomment">/// &lt;https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/v2.0/.well-known/openid-configuration&gt;
 <a href=#160 id=160 data-nosnippet>160</a>    </span>Onefc,
-<a href=#161 id=161 data-nosnippet>161</a>    <span class="doccomment">/// https://accounts.fantv.world/.well-known/openid-configuration
+<a href=#161 id=161 data-nosnippet>161</a>    <span class="doccomment">/// &lt;https://accounts.fantv.world/.well-known/openid-configuration&gt;
 <a href=#162 id=162 data-nosnippet>162</a>    </span>FanTV,
-<a href=#163 id=163 data-nosnippet>163</a>    <span class="doccomment">/// https://api.arden.cc/auth/jwks
+<a href=#163 id=163 data-nosnippet>163</a>    <span class="doccomment">/// &lt;https://api.arden.cc/auth/jwks&gt;
 <a href=#164 id=164 data-nosnippet>164</a>    </span>Arden,
-<a href=#165 id=165 data-nosnippet>165</a>    <span class="doccomment">/// https://auth.evefrontier.com/.well-known/jwks.json
+<a href=#165 id=165 data-nosnippet>165</a>    <span class="doccomment">/// &lt;https://auth.evefrontier.com/.well-known/jwks.json&gt;
 <a href=#166 id=166 data-nosnippet>166</a>    </span>EveFrontier,
-<a href=#167 id=167 data-nosnippet>167</a>    <span class="doccomment">/// https://test.auth.evefrontier.com/.well-known/jwks.json
+<a href=#167 id=167 data-nosnippet>167</a>    <span class="doccomment">/// &lt;https://test.auth.evefrontier.com/.well-known/jwks.json&gt;
 <a href=#168 id=168 data-nosnippet>168</a>    </span>TestEveFrontier,
 <a href=#169 id=169 data-nosnippet>169</a>}
 <a href=#170 id=170 data-nosnippet>170</a>
@@ -343,7 +343,7 @@
 <a href=#343 id=343 data-nosnippet>343</a>            <span class="string">"https://oidc.arden.cc" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Arden),
 <a href=#344 id=344 data-nosnippet>344</a>            <span class="string">"auth.evefrontier.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::EveFrontier),
 <a href=#345 id=345 data-nosnippet>345</a>            <span class="string">"test.auth.evefrontier.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::TestEveFrontier),
-<a href=#346 id=346 data-nosnippet>346</a>            iss <span class="kw">if </span>match_micrsoft_iss_substring(iss) =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Microsoft),
+<a href=#346 id=346 data-nosnippet>346</a>            iss <span class="kw">if </span>match_microsoft_iss_substring(iss) =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Microsoft),
 <a href=#347 id=347 data-nosnippet>347</a>            <span class="kw">_ </span>=&gt; <span class="kw">match </span>parse_aws_iss_substring(iss) {
 <a href=#348 id=348 data-nosnippet>348</a>                <span class="prelude-val">Ok</span>((region, tenant_id)) =&gt; {
 <a href=#349 id=349 data-nosnippet>349</a>                    <span class="prelude-val">Ok</span>(<span class="self">Self</span>::AwsTenant((region.to_string(), tenant_id.to_string())))
@@ -355,7 +355,7 @@
 <a href=#355 id=355 data-nosnippet>355</a>}
 <a href=#356 id=356 data-nosnippet>356</a>
 <a href=#357 id=357 data-nosnippet>357</a><span class="doccomment">/// Check if the iss string is formatted as Microsoft's pattern.
-<a href=#358 id=358 data-nosnippet>358</a></span><span class="kw">fn </span>match_micrsoft_iss_substring(iss: <span class="kw-2">&amp;</span>str) -&gt; bool {
+<a href=#358 id=358 data-nosnippet>358</a></span><span class="kw">fn </span>match_microsoft_iss_substring(iss: <span class="kw-2">&amp;</span>str) -&gt; bool {
 <a href=#359 id=359 data-nosnippet>359</a>    iss.starts_with(<span class="string">"https://login.microsoftonline.com/"</span>) &amp;&amp; iss.ends_with(<span class="string">"/v2.0"</span>)
 <a href=#360 id=360 data-nosnippet>360</a>}
 <a href=#361 id=361 data-nosnippet>361</a>
@@ -380,13 +380,13 @@
 <a href=#380 id=380 data-nosnippet>380</a>/// The JWK is used to verify the JWT token.
 <a href=#381 id=381 data-nosnippet>381</a></span><span class="attr">#[derive(PartialEq, Eq, Hash, Debug, Clone, Serialize, Deserialize, PartialOrd, Ord)]
 <a href=#382 id=382 data-nosnippet>382</a></span><span class="kw">pub struct </span>JWK {
-<a href=#383 id=383 data-nosnippet>383</a>    <span class="doccomment">/// Key type parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.1
+<a href=#383 id=383 data-nosnippet>383</a>    <span class="doccomment">/// Key type parameter, &lt;https://datatracker.ietf.org/doc/html/rfc7517#section-4.1&gt;
 <a href=#384 id=384 data-nosnippet>384</a>    </span><span class="kw">pub </span>kty: String,
-<a href=#385 id=385 data-nosnippet>385</a>    <span class="doccomment">/// RSA public exponent, https://datatracker.ietf.org/doc/html/rfc7517#section-9.3
+<a href=#385 id=385 data-nosnippet>385</a>    <span class="doccomment">/// RSA public exponent, &lt;https://datatracker.ietf.org/doc/html/rfc7517#section-9.3&gt;
 <a href=#386 id=386 data-nosnippet>386</a>    </span><span class="kw">pub </span>e: String,
-<a href=#387 id=387 data-nosnippet>387</a>    <span class="doccomment">/// RSA modulus, https://datatracker.ietf.org/doc/html/rfc7517#section-9.3
+<a href=#387 id=387 data-nosnippet>387</a>    <span class="doccomment">/// RSA modulus, &lt;https://datatracker.ietf.org/doc/html/rfc7517#section-9.3&gt;
 <a href=#388 id=388 data-nosnippet>388</a>    </span><span class="kw">pub </span>n: String,
-<a href=#389 id=389 data-nosnippet>389</a>    <span class="doccomment">/// Algorithm parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.4
+<a href=#389 id=389 data-nosnippet>389</a>    <span class="doccomment">/// Algorithm parameter, &lt;https://datatracker.ietf.org/doc/html/rfc7517#section-4.4&gt;
 <a href=#390 id=390 data-nosnippet>390</a>    </span><span class="kw">pub </span>alg: String,
 <a href=#391 id=391 data-nosnippet>391</a>}
 <a href=#392 id=392 data-nosnippet>392</a>

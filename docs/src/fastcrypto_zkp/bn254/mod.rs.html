@@ -41,7 +41,7 @@
 <a href=#41 id=41 data-nosnippet>41</a></span><span class="kw">pub struct </span>VerifyingKey(<span class="kw">pub</span>(<span class="kw">crate</span>) ark_groth16::VerifyingKey&lt;ark_bn254::Bn254&gt;);
 <a href=#42 id=42 data-nosnippet>42</a>
 <a href=#43 id=43 data-nosnippet>43</a><span class="kw">impl </span>Proof {
-<a href=#44 id=44 data-nosnippet>44</a>    <span class="doccomment">/// Deserialize a serialized Groth16 proof using arkworks' canonical serialisation format: https://docs.rs/ark-serialize/latest/ark_serialize/.
+<a href=#44 id=44 data-nosnippet>44</a>    <span class="doccomment">/// Deserialize a serialized Groth16 proof using arkworks' canonical serialisation format: &lt;https://docs.rs/ark-serialize/latest/ark_serialize/&gt;.
 <a href=#45 id=45 data-nosnippet>45</a>    </span><span class="kw">pub fn </span>deserialize(proof_points_as_bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
 <a href=#46 id=46 data-nosnippet>46</a>        ark_groth16::Proof::&lt;Bn254&gt;::deserialize_compressed(proof_points_as_bytes)
 <a href=#47 id=47 data-nosnippet>47</a>            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)

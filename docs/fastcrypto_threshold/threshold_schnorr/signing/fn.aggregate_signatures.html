@@ -13,7 +13,7 @@ reject any whose share index the sender does not hold. <code>params</code> must 
 validated for this committee, see <a href="../struct.Parameters.html#method.validate" title="method fastcrypto_threshold::threshold_schnorr::Parameters::validate">Parameters::validate</a>. <code>beacon_value</code> must be the one the
 signers used, drawn as described in <a href="fn.generate_partial_signatures.html" title="fn fastcrypto_threshold::threshold_schnorr::signing::generate_partial_signatures">generate_partial_signatures</a>.</p>
 <p>If a derivation index is provided, a new verifying key is derived for this index (see
-[derive_verifying_key]), and the signature is adjusted accordingly.
+<code>derive_verifying_key</code>), and the signature is adjusted accordingly.
 The signature will be valid for the derived verifying key.</p>
 <p>Only the first <code>params.t</code> partial signatures are interpolated, so if any of those is wrong, all
 of them are decoded as a Reed-Solomon code word instead and the share indices the decoding

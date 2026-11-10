@@ -86,7 +86,7 @@
 <a href=#86 id=86 data-nosnippet>86</a>
 <a href=#87 id=87 data-nosnippet>87</a>    <span class="doccomment">/// Verify Groth16 proof using the prepared verifying key (see more at
 <a href=#88 id=88 data-nosnippet>88</a>    /// [`crate::bn254::verifier::PreparedVerifyingKey`]), a prepared public input (see
-<a href=#89 id=89 data-nosnippet>89</a>    /// [`prepare_inputs`]) and the proof.
+<a href=#89 id=89 data-nosnippet>89</a>    /// `prepare_inputs`) and the proof.
 <a href=#90 id=90 data-nosnippet>90</a>    </span><span class="kw">pub fn </span>verify_with_prepared_inputs(
 <a href=#91 id=91 data-nosnippet>91</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#92 id=92 data-nosnippet>92</a>        prepared_inputs: <span class="kw-2">&amp;</span>G1,
@@ -106,7 +106,7 @@
 <a href=#106 id=106 data-nosnippet>106</a>        }
 <a href=#107 id=107 data-nosnippet>107</a>    }
 <a href=#108 id=108 data-nosnippet>108</a>
-<a href=#109 id=109 data-nosnippet>109</a>    <span class="doccomment">/// Prepare the public inputs for use in [`verify_with_prepared_inputs`].
+<a href=#109 id=109 data-nosnippet>109</a>    <span class="doccomment">/// Prepare the public inputs for use in `verify_with_prepared_inputs`.
 <a href=#110 id=110 data-nosnippet>110</a>    </span><span class="kw">pub fn </span>prepare_inputs(<span class="kw-2">&amp;</span><span class="self">self</span>, public_inputs: <span class="kw-2">&amp;</span>[G1::ScalarType]) -&gt; FastCryptoResult&lt;G1&gt;
 <a href=#111 id=111 data-nosnippet>111</a>    <span class="kw">where
 <a href=#112 id=112 data-nosnippet>112</a>        </span>G1: MultiScalarMul,

@@ -13,12 +13,12 @@
 <a href=#13 id=13 data-nosnippet>13</a>
 <a href=#14 id=14 data-nosnippet>14</a><span class="doccomment">/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
 <a href=#15 id=15 data-nosnippet>15</a>///
-<a href=#16 id=16 data-nosnippet>16</a>/// This is based on Pietrzak (2018), "Simple Verifiable Delay Functions" (https://eprint.iacr.org/2018/627.pdf)
+<a href=#16 id=16 data-nosnippet>16</a>/// This is based on Pietrzak (2018), "Simple Verifiable Delay Functions" (&lt;https://eprint.iacr.org/2018/627.pdf&gt;)
 <a href=#17 id=17 data-nosnippet>17</a>/// which states that the challenge should be 2^l bits (see section 6), where l is the security
 <a href=#18 id=18 data-nosnippet>18</a>/// parameter. Soundness is proven in section 6.3 in this paper.
 <a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">pub const </span>DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = <span class="number">16</span>;
 <a href=#20 id=20 data-nosnippet>20</a>
-<a href=#21 id=21 data-nosnippet>21</a><span class="doccomment">/// This implements Pietrzak's VDF construction from https://eprint.iacr.org/2018/627.pdf.
+<a href=#21 id=21 data-nosnippet>21</a><span class="doccomment">/// This implements Pietrzak's VDF construction from &lt;https://eprint.iacr.org/2018/627.pdf&gt;.
 <a href=#22 id=22 data-nosnippet>22</a>///
 <a href=#23 id=23 data-nosnippet>23</a>/// The VDF is, as in [crate::vdf::wesolowski::WesolowskisVDF], based on the repeated squaring of an
 <a href=#24 id=24 data-nosnippet>24</a>/// element in a group of unknown order. However, in this construction, proofs are larger and

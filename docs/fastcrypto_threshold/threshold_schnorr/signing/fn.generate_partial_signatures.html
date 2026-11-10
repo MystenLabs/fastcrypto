@@ -22,7 +22,7 @@ forge signatures. So if a message is moved to a new presigning tuple, e.g., from
 generation, a new beacon value must also be drawn.</p>
 <p>The signatures produced follow the BIP-0340 standard (<a href="https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki">https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki</a>).</p>
 <p>If a derivation index is provided, a new verifying key is derived for this index (see
-[derive_verifying_key]), and the signature is adjusted accordingly.
+<code>derive_verifying_key</code>), and the signature is adjusted accordingly.
 The signature will be valid for the derived verifying key.</p>
 <p><code>GeneralOpaqueError</code> is returned if the generated nonce R is the identity element (should happen only with negligible probability).
 <code>InvalidInput</code> is returned if the verifying key is the identity element.</p>
