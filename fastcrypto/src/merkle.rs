@@ -151,11 +151,9 @@ where
         self.verify_proof_for_trusted_tree(root, &bytes, leaf_index)
     }
 
-    /// Whether this proof has the length of a proof in a [`MerkleTree`] with `n_leaves` leaves.
-    fn has_length_for(&self, n_leaves: usize) -> bool {
-        n_leaves.checked_sub(1).is_some_and(|last_index| {
-            self.path.len() == (usize::BITS - last_index.leading_zeros()) as usize
-        })
+    /// The length of a proof in a [`MerkleTree`] with `n_leaves` leaves.
+    fn expected_proof_length(n_leaves: usize) -> usize {
+        (usize::BITS - n_leaves.saturating_sub(1).leading_zeros()) as usize
     }
 
     /// Recomputes the root of a tree with `n_leaves` leaves from the proof and the provided leaf
@@ -163,7 +161,7 @@ where
     ///
     /// Returns `None` if the provided index is outside the tree or the proof has the wrong length.
     pub fn compute_root(&self, leaf: &[u8], leaf_index: usize, n_leaves: usize) -> Option<Node> {
-        if leaf_index >= n_leaves || !self.has_length_for(n_leaves) {
+        if leaf_index >= n_leaves || self.len() != Self::expected_proof_length(n_leaves) {
             return None;
         }
         self.hash_along_path(leaf, leaf_index)
