@@ -267,17 +267,9 @@ impl Avid {
         echoes: &[VerifiedEcho],
         payload_ok: impl Fn(&[u8]) -> bool,
     ) -> FastCryptoResult<DecodeOutcome> {
-        if echoes.is_empty() || !echoes.iter().map(|e| e.sender).all_unique() {
-            return Err(InvalidInput);
-        }
-        let required = self.required_weight();
-        if self
-            .nodes
-            .total_weight_of(echoes.iter().map(|e| &e.sender))?
-            < required
-        {
-            return Err(NotEnoughWeight(required as usize));
-        }
+        let senders = echoes.iter().map(|e| e.sender).collect_vec();
+        let weights = self.nodes.iter().map(|n| n.weight).collect_vec();
+        check_quorum(&senders, &weights, self.required_weight())?;
         let shards: BTreeMap<PartyId, AuthenticatedShards> = echoes
             .iter()
             .cloned()
@@ -426,6 +418,41 @@ impl DispersalBuilder {
     }
 }
 
+// BEGIN CREUSOT-VERIFIED
+// `decode_or_complain` calls this to check its echoes, and returns its error. It is formally
+// verified with Creusot, on an annotated copy in verification/fastcrypto-threshold/avid_quorum, and
+// a test there checks that the copy, minus its annotations, matches the code here. Changes here
+// must be made there too.
+
+/// Checks that `senders` are distinct parties, with total weight at least `required`.
+/// `weights[i]` is the weight of party `i`.
+pub(crate) fn check_quorum(
+    senders: &[PartyId],
+    weights: &[u16],
+    required: u16,
+) -> FastCryptoResult<()> {
+    if senders.is_empty() || senders.len() > weights.len() {
+        return Err(InvalidInput);
+    }
+    let mut seen = vec![false; weights.len()];
+    let mut total = 0u32;
+    let mut i = 0;
+    while i < senders.len() {
+        let id = senders[i] as usize;
+        if id >= weights.len() || seen[id] {
+            return Err(InvalidInput);
+        }
+        seen[id] = true;
+        total += weights[id] as u32;
+        i += 1;
+    }
+    if total < required as u32 {
+        return Err(NotEnoughWeight(required as usize));
+    }
+    Ok(())
+}
+// END CREUSOT-VERIFIED
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -448,6 +475,22 @@ mod tests {
             })
             .collect();
         Nodes::new(nodes).unwrap()
+    }
+
+    #[test]
+    fn check_quorum_rejects_bad_senders() {
+        let weights = [2, 0, 3];
+        assert!(check_quorum(&[0, 2], &weights, 5).is_ok());
+        assert!(matches!(check_quorum(&[], &weights, 0), Err(InvalidInput)));
+        assert!(matches!(
+            check_quorum(&[0, 0], &weights, 1),
+            Err(InvalidInput)
+        ));
+        assert!(matches!(check_quorum(&[3], &weights, 1), Err(InvalidInput)));
+        assert!(matches!(
+            check_quorum(&[0, 1], &weights, 3),
+            Err(NotEnoughWeight(3))
+        ));
     }
 
     /// End-to-end happy path test

@@ -1,0 +1,22 @@
+[package]
+name = "verify-avid-quorum"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Mysten Labs <build@mystenlabs.com>"]
+description = "Creusot proof of the AVID quorum check in fastcrypto-threshold"
+publish = false
+
+# Flat layout: all sources sit next to this file.
+[lib]
+path = "lib.rs"
+
+[dependencies]
+creusot-std = "0.14.0"
+fastcrypto = { path = "../../../fastcrypto" }
+
+# Built with `cargo creusot` and its own nightly toolchain, so not a member of the main workspace.
+[workspace]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(creusot)"] }
