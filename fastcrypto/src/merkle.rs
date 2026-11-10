@@ -151,7 +151,8 @@ where
         self.verify_proof_for_trusted_tree(root, &bytes, leaf_index)
     }
 
-    /// The length of a proof in a [`MerkleTree`] with `n_leaves` leaves.
+    /// The length of a proof in a [`MerkleTree`] with `n_leaves` leaves: `ceil(log2(n_leaves))`, or
+    /// zero if there are no leaves.
     fn expected_proof_length(n_leaves: usize) -> usize {
         (usize::BITS - n_leaves.saturating_sub(1).leading_zeros()) as usize
     }
