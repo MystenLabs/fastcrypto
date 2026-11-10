@@ -182,7 +182,6 @@ where
     ///
     /// Returns `None` if the index does not fit the depth of the path.
     fn hash_along_path(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
-        // Bits of the index above the path's depth would be ignored, so reject them.
         if leaf_index
             .checked_shr(self.path.len() as u32)
             .is_none_or(|s| s != 0)
