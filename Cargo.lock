@@ -1523,6 +1523,7 @@ dependencies = [
  "criterion",
  "digest 0.10.7",
  "fastcrypto",
+ "fastcrypto-derive",
  "generic-tests",
  "hex",
  "itertools 0.12.1",
