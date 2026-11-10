@@ -8,6 +8,8 @@
 //! to the dealer's broadcast. The set of recipients does not have to be all nodes.
 //! We call the message from the dealer to the recipients a "dispersal", and the message from a
 //! disperser to a recipient an "echo".
+//!
+//! We require the Merkle tree to be a commitment scheme, binding even against a malicious dealer.
 
 use crate::nodes::{Nodes, PartyId};
 use crate::threshold_schnorr::merkle::{NestedMerkleProof, NestedMerkleTree};
