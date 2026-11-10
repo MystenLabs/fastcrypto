@@ -1,14 +1,14 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Property tests: `fastcrypto_tbls::polynomial::Poly` over BLS12-381 scalars and its Lean model
+//! Property tests: `fastcrypto_threshold::polynomial::Poly` over BLS12-381 scalars and its Lean model
 //! (`../model/ShamirModel.lean`) return the same results on the same inputs.
 
 use fastcrypto::groups::bls12381::Scalar;
 use fastcrypto::groups::Scalar as _;
 use fastcrypto_lean_testing::{hex, hex_all, same};
-use fastcrypto_tbls::polynomial::{Eval, Poly};
-use fastcrypto_tbls::types::ShareIndex;
+use fastcrypto_threshold::polynomial::{Eval, Poly};
+use fastcrypto_threshold::types::ShareIndex;
 use proptest::collection::vec;
 use proptest::prelude::*;
 use rand::rngs::StdRng;

@@ -3,7 +3,7 @@
 | Folder | Contents |
 | --- | --- |
 | `model/` | `ShamirModel.lean`: `Poly::{degree_bound, c0, eval, add, recover_c0}` over BLS12-381 scalars, in core Lean only, with `@[export]` wrappers. |
-| `harness/` | A Rust crate whose property tests call the model through [`lean-rs`](https://github.com/jcreinhold/lean-rs) and compare it with `fastcrypto_tbls::polynomial::Poly`. |
+| `harness/` | A Rust crate whose property tests call the model through [`lean-rs`](https://github.com/jcreinhold/lean-rs) and compare it with `fastcrypto_threshold::polynomial::Poly`. |
 | `specs/` | Theorems about the model, with Mathlib: `recover_c0` is Lagrange interpolation at zero (`Interpolation.lean`), and recovery, privacy and additivity of Shamir sharing. |
 
 ## Running the tests

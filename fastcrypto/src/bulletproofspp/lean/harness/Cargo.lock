@@ -825,7 +825,7 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "ark-ec",
  "ark-ff",
@@ -883,7 +883,7 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto-derive"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "quote",
  "syn 2.0.119",

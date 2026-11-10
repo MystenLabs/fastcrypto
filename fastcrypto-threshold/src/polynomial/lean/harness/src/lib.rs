@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Opens the Lean model of `fastcrypto_tbls::polynomial`, built by `build.rs`.
+//! Opens the Lean model of `fastcrypto_threshold::polynomial`, built by `build.rs`.
 
 use fastcrypto_lean_testing::lean_rs::LeanCapability;
 

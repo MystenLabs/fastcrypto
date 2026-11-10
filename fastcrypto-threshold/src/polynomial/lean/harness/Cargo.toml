@@ -3,14 +3,14 @@ name = "shamir-lean-harness"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "Property tests comparing fastcrypto_tbls::polynomial with its Lean model."
+description = "Property tests comparing fastcrypto_threshold::polynomial with its Lean model."
 
 # Not a member of the fastcrypto workspace: building it needs a Lean toolchain.
 [workspace]
 
 [dependencies]
 fastcrypto = { path = "../../../../../fastcrypto" }
-fastcrypto-tbls = { path = "../../../.." }
+fastcrypto-threshold = { path = "../../../.." }
 fastcrypto-lean-testing = { path = "../../../../../fastcrypto-lean-testing" }
 
 [dev-dependencies]

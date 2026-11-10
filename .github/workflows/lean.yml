@@ -24,7 +24,7 @@ jobs:
     strategy:
       matrix:
         directory:
-          - fastcrypto-tbls/src/polynomial/lean/harness
+          - fastcrypto-threshold/src/polynomial/lean/harness
           - fastcrypto/src/groups/lean/harness
           - fastcrypto/src/bulletproofspp/lean/harness
       fail-fast: false
@@ -33,7 +33,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # pin@v1
       - name: Install elan
         run: |
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/v4.1.2/elan-init.sh | sh -s -- -y --default-toolchain "$(cat fastcrypto-tbls/src/polynomial/lean/model/lean-toolchain)"
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/v4.1.2/elan-init.sh | sh -s -- -y --default-toolchain "$(cat fastcrypto-threshold/src/polynomial/lean/model/lean-toolchain)"
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Compare the Rust code with its Lean model
         working-directory: ${{ matrix.directory }}
@@ -48,7 +48,7 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/leanprover/elan/v4.1.2/elan-init.sh | sh -s -- -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Check the Shamir proofs
-        working-directory: fastcrypto-tbls/src/polynomial/lean/specs
+        working-directory: fastcrypto-threshold/src/polynomial/lean/specs
         run: |
           lake exe cache get
           lake build

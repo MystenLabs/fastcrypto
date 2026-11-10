@@ -1,5 +1,5 @@
 /-!
-# A model of `fastcrypto_tbls::polynomial::Poly` over BLS12-381 scalars
+# A model of `fastcrypto_threshold::polynomial::Poly` over BLS12-381 scalars
 
 The functions mirror `polynomial.rs` one by one. Scalars are `Fin r` for the BLS12-381 scalar order
 `r`, so that the arithmetic is core Lean's (in Mathlib, `ZMod r` is definitionally `Fin r`). The
@@ -30,10 +30,10 @@ decreasing_by omega
 def inverse (x : Scalar) : Except String Scalar :=
   if x = 0 then .error "InvalidInput" else .ok (pow x (r - 2))
 
-/-- `fastcrypto_tbls::polynomial::Poly`: the coefficients, constant term first. -/
+/-- `fastcrypto_threshold::polynomial::Poly`: the coefficients, constant term first. -/
 abbrev Poly := Array Scalar
 
-/-- `fastcrypto_tbls::polynomial::Eval`. -/
+/-- `fastcrypto_threshold::polynomial::Eval`. -/
 structure Eval where
   index : Nat
   value : Scalar
