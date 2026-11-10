@@ -100,7 +100,7 @@ impl NestedMerkleProof {
         row_idx: usize,
         leaf_idx: usize,
     ) -> FastCryptoResult<()> {
-        let row_root = self.derive_row_root(leaf, leaf_idx)?;
+        let row_root = self.derive_row_root_with_unchecked_length(leaf, leaf_idx)?;
         let derived_top_root = self
             .top_proof
             .compute_root_with_unchecked_length(
@@ -118,7 +118,7 @@ impl NestedMerkleProof {
     // TODO: Take the number of leaves and check the proof length here once complaints are
     // length-checked. Until then this must stay unchecked: it is used when checking a complaint,
     // and a failure there counts as proof that the complaint is valid.
-    pub fn derive_row_root<S: Serialize>(
+    pub fn derive_row_root_with_unchecked_length<S: Serialize>(
         &self,
         leaf: &S,
         leaf_idx: usize,

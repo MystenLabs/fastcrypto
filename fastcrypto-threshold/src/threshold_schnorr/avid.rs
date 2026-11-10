@@ -323,7 +323,10 @@ impl Avid {
         let (sender, authenticated_shards) = shards.iter().next().ok_or(InvalidInput)?;
         let expected_recipient_root = authenticated_shards
             .proof
-            .derive_row_root(&authenticated_shards.shards, *sender as usize)?;
+            .derive_row_root_with_unchecked_length(
+                &authenticated_shards.shards,
+                *sender as usize,
+            )?;
         if NestedMerkleTree::compute_row_root(&re_encoded)? != expected_recipient_root {
             return Err(InvalidProof);
         }
