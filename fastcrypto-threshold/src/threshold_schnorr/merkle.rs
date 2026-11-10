@@ -91,19 +91,19 @@ impl NestedMerkleProof {
     }
 
     /// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`),
-    /// assuming the tree was built by an honest party. If that cannot be assumed, use
-    /// [Self::verify] instead.
-    pub fn verify_for_honest_tree<S: Serialize>(
+    /// assuming a trusted tree, i.e. one built by [NestedMerkleTree]. If the tree cannot be
+    /// trusted, use [Self::verify] instead.
+    pub fn verify_for_trusted_tree<S: Serialize>(
         &self,
         top_root: &Node,
         leaf: &S,
         row_idx: usize,
         leaf_idx: usize,
     ) -> FastCryptoResult<()> {
-        let row_root = self.derive_row_root_for_honest_tree(leaf, leaf_idx)?;
+        let row_root = self.derive_row_root_for_trusted_tree(leaf, leaf_idx)?;
         let derived_top_root = self
             .top_proof
-            .compute_root_for_honest_tree(
+            .compute_root_for_trusted_tree(
                 &bcs::to_bytes(&row_root).map_err(|_| InvalidInput)?,
                 row_idx,
             )
@@ -114,15 +114,18 @@ impl NestedMerkleProof {
     }
 
     /// Derive the implied row root from this proof's row portion and `leaf` at `leaf_idx`,
-    /// assuming the tree was built by an honest party.
+    /// assuming a trusted tree, i.e. one built by [NestedMerkleTree].
     /// Returns [InvalidMessage] if the path is malformed.
-    pub fn derive_row_root_for_honest_tree<S: Serialize>(
+    pub fn derive_row_root_for_trusted_tree<S: Serialize>(
         &self,
         leaf: &S,
         leaf_idx: usize,
     ) -> FastCryptoResult<Node> {
         self.row_proof
-            .compute_root_for_honest_tree(&bcs::to_bytes(leaf).map_err(|_| InvalidInput)?, leaf_idx)
+            .compute_root_for_trusted_tree(
+                &bcs::to_bytes(leaf).map_err(|_| InvalidInput)?,
+                leaf_idx,
+            )
             .ok_or(InvalidMessage)
     }
 

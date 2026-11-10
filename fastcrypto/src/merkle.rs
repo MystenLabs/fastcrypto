@@ -123,28 +123,32 @@ where
         Ok(())
     }
 
-    /// Verifies the proof given a Merkle root and the leaf data, assuming the tree was built by an
-    /// honest party. If that cannot be assumed, use [`Self::verify_proof`] instead.
-    pub fn verify_proof_for_honest_tree(
+    /// Verifies the proof given a Merkle root and the leaf data, assuming a trusted tree, i.e. one
+    /// built by [`MerkleTree`]. If the tree cannot be trusted, use [`Self::verify_proof`] instead.
+    pub fn verify_proof_for_trusted_tree(
         &self,
         root: &Node,
         leaf: &[u8],
         leaf_index: usize,
     ) -> FastCryptoResult<()> {
-        if self.compute_root_for_honest_tree(leaf, leaf_index).as_ref() != Some(root) {
+        if self
+            .compute_root_for_trusted_tree(leaf, leaf_index)
+            .as_ref()
+            != Some(root)
+        {
             return Err(FastCryptoError::InvalidProof);
         }
         Ok(())
     }
 
-    pub fn verify_proof_for_honest_tree_with_unserialized_leaf<L: Serialize>(
+    pub fn verify_proof_for_trusted_tree_with_unserialized_leaf<L: Serialize>(
         &self,
         root: &Node,
         leaf: &L,
         leaf_index: usize,
     ) -> FastCryptoResult<()> {
         let bytes = bcs::to_bytes(leaf).map_err(|_| FastCryptoError::InvalidInput)?;
-        self.verify_proof_for_honest_tree(root, &bytes, leaf_index)
+        self.verify_proof_for_trusted_tree(root, &bytes, leaf_index)
     }
 
     /// Whether this proof has the length of a proof in a [`MerkleTree`] with `n_leaves` leaves.
@@ -165,11 +169,12 @@ where
         self.hash_along_path(leaf, leaf_index)
     }
 
-    /// Recomputes the Merkle root from the proof and the provided leaf data, assuming the tree was
-    /// built by an honest party. If that cannot be assumed, use [`Self::compute_root`] instead.
+    /// Recomputes the Merkle root from the proof and the provided leaf data, assuming a trusted
+    /// tree, i.e. one built by [`MerkleTree`]. If the tree cannot be trusted, use
+    /// [`Self::compute_root`] instead.
     ///
     /// Returns `None` if the provided index is too large.
-    pub fn compute_root_for_honest_tree(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
+    pub fn compute_root_for_trusted_tree(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
         self.hash_along_path(leaf, leaf_index)
     }
 
@@ -297,16 +302,16 @@ where
         neighbor_index: usize,
         root: &Node,
     ) -> FastCryptoResult<()> {
-        proof.verify_proof_for_honest_tree_with_unserialized_leaf(root, neighbor, neighbor_index)
+        proof.verify_proof_for_trusted_tree_with_unserialized_leaf(root, neighbor, neighbor_index)
     }
 
-    /// Verifies non-inclusion of `target_leaf`, assuming the tree was built by an honest party
-    /// over sorted leaves.
+    /// Verifies non-inclusion of `target_leaf`, assuming a trusted tree, i.e. one built by
+    /// [`MerkleTree`], over sorted leaves.
     // Edge case explanations
     // - Empty tree: no leaves, automatically valid
     // - Target leaf smaller than all: no left neighbor, right neighbor must be at position 0
     // - Target leaf larger than all: left neighbor must be rightmost leaf
-    pub fn verify_proof_for_honest_tree(
+    pub fn verify_proof_for_trusted_tree(
         &self,
         root: &Node,
         target_leaf: &L,

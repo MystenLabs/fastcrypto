@@ -323,7 +323,7 @@ impl Avid {
         let (sender, authenticated_shards) = shards.iter().next().ok_or(InvalidInput)?;
         let expected_recipient_root = authenticated_shards
             .proof
-            .derive_row_root_for_honest_tree(&authenticated_shards.shards, *sender as usize)?;
+            .derive_row_root_for_trusted_tree(&authenticated_shards.shards, *sender as usize)?;
         if NestedMerkleTree::compute_row_root(&re_encoded)? != expected_recipient_root {
             return Err(InvalidProof);
         }
@@ -349,7 +349,7 @@ impl Avid {
             // `decode_consistent`, where a failure counts as proof that the complaint is valid.
             // The proof lengths are not checked here yet, so that a complaint from a node that
             // still runs the previous release stays valid during a rollout.
-            auth.proof.verify_for_honest_tree(
+            auth.proof.verify_for_trusted_tree(
                 &vote.top_root,
                 &auth.shards,
                 accuser_idx,
@@ -725,7 +725,7 @@ mod tests {
         // The short proof opens the other row under the same root, but is rejected.
         assert!(short(2)
             .proof
-            .verify_for_honest_tree(&top_root, &other_row[2], 3, 2)
+            .verify_for_trusted_tree(&top_root, &other_row[2], 3, 2)
             .is_ok());
         let mut forged = dispersal(2);
         forged.insert(target, short(2));
