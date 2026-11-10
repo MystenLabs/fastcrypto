@@ -9,7 +9,6 @@ description = "Threshold BLS, threshold Schnorr and DKG protocols"
 repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
-creusot-std = "0.14.0"
 fastcrypto = { workspace = true, features = ["aes"] }
 
 rand.workspace = true

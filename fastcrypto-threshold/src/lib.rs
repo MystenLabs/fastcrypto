@@ -11,26 +11,16 @@
 //! A crate that implements threshold BLS (tBLS) and distributed key generation (DKG)
 //! protocols.
 
-#[cfg(not(creusot))]
 pub mod dkg_v1;
-#[cfg(not(creusot))]
 pub mod dl_verification;
-#[cfg(not(creusot))]
 pub mod ecies_v1;
-#[cfg(not(creusot))]
 pub mod knapsack_weight_reduction;
-#[cfg(not(creusot))]
 pub mod mocked_dkg;
-#[cfg(not(creusot))]
 pub mod nodes;
-#[cfg(not(creusot))]
 pub mod polynomial;
 mod quorum;
-#[cfg(not(creusot))]
 pub mod tbls;
-#[cfg(not(creusot))]
 pub mod threshold_schnorr;
-#[cfg(not(creusot))]
 pub mod types;
 
 // TODO: needs to use ecies_v1
@@ -70,10 +60,8 @@ pub mod knapsack_weight_reduction_tests;
 // #[path = "tests/nidkg_tests.rs"]
 // pub mod nidkg_tests;
 
-#[cfg(not(creusot))]
 pub mod nizk;
 #[cfg(test)]
 #[path = "tests/nizk_tests.rs"]
 pub mod nizk_tests;
-#[cfg(not(creusot))]
 pub mod random_oracle;
