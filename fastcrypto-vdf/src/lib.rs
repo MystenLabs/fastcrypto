@@ -1,5 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+#![forbid(unsafe_code)]
 
 #[cfg(any(test, feature = "experimental"))]
 pub mod class_group;

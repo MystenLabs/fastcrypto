@@ -1,5 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+#![forbid(unsafe_code)]
 
 //! Fastcrypto-zkp is an experimental crate that offers a faster implementation of the Groth16 zkSNARK
 //! verifier, based on BLST, but following the same API as Arkworks' Groth16 implementation.

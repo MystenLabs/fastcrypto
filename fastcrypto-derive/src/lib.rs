@@ -1,5 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+#![forbid(unsafe_code)]
 #![warn(missing_docs, unreachable_pub)]
 
 //! This crate contains the `SilentDebug` and `SilentDisplay` derive macros.
