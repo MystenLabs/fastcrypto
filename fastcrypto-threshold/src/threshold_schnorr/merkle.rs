@@ -92,18 +92,18 @@ impl NestedMerkleProof {
 
     /// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`),
     /// without checking the lengths of the proof. See
-    /// [fastcrypto::merkle::MerkleProof::verify_proof_with_trusted_root].
-    pub fn verify_with_trusted_root<S: Serialize>(
+    /// [fastcrypto::merkle::MerkleProof::verify_proof_for_honest_tree].
+    pub fn verify_for_honest_tree<S: Serialize>(
         &self,
         top_root: &Node,
         leaf: &S,
         row_idx: usize,
         leaf_idx: usize,
     ) -> FastCryptoResult<()> {
-        let row_root = self.derive_row_root_with_unchecked_length(leaf, leaf_idx)?;
+        let row_root = self.derive_row_root_for_honest_tree(leaf, leaf_idx)?;
         let derived_top_root = self
             .top_proof
-            .compute_root_with_unchecked_length(
+            .compute_root_for_honest_tree(
                 &bcs::to_bytes(&row_root).map_err(|_| InvalidInput)?,
                 row_idx,
             )
@@ -118,16 +118,13 @@ impl NestedMerkleProof {
     // TODO: Take the number of leaves and check the proof length here once complaints are
     // length-checked. Until then this must stay unchecked: it is used when checking a complaint,
     // and a failure there counts as proof that the complaint is valid.
-    pub fn derive_row_root_with_unchecked_length<S: Serialize>(
+    pub fn derive_row_root_for_honest_tree<S: Serialize>(
         &self,
         leaf: &S,
         leaf_idx: usize,
     ) -> FastCryptoResult<Node> {
         self.row_proof
-            .compute_root_with_unchecked_length(
-                &bcs::to_bytes(leaf).map_err(|_| InvalidInput)?,
-                leaf_idx,
-            )
+            .compute_root_for_honest_tree(&bcs::to_bytes(leaf).map_err(|_| InvalidInput)?, leaf_idx)
             .ok_or(InvalidMessage)
     }
 

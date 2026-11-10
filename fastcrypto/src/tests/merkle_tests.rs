@@ -114,10 +114,10 @@ fn test_non_inclusion_empty_tree() {
     assert!(non_inclusion_proof.right_leaf.is_none());
     assert_eq!(non_inclusion_proof.index, 0);
     assert!(non_inclusion_proof
-        .verify_proof(&mt.root(), &"foo".as_bytes())
+        .verify_proof_for_honest_tree(&mt.root(), &"foo".as_bytes())
         .is_ok());
     assert!(non_inclusion_proof
-        .verify_proof(&mt.root(), &"bar".as_bytes())
+        .verify_proof_for_honest_tree(&mt.root(), &"bar".as_bytes())
         .is_ok());
 }
 
@@ -130,10 +130,10 @@ fn test_non_inclusion_single_leaf() {
         .unwrap();
     println!("non_inclusion_proof: {:?}", non_inclusion_proof);
     assert!(non_inclusion_proof
-        .verify_proof(&mt.root(), &"bar".as_bytes())
+        .verify_proof_for_honest_tree(&mt.root(), &"bar".as_bytes())
         .is_ok());
     assert!(non_inclusion_proof
-        .verify_proof(&mt.root(), &"foo".as_bytes())
+        .verify_proof_for_honest_tree(&mt.root(), &"foo".as_bytes())
         .is_err());
 
     let non_inclusion_proof =
@@ -161,7 +161,9 @@ fn test_non_inclusion_multiple_leaves() {
         } else {
             assert!(non_inclusion_proof.is_ok());
             let non_inclusion_proof = non_inclusion_proof.unwrap();
-            assert!(non_inclusion_proof.verify_proof(&mt.root(), &item).is_ok());
+            assert!(non_inclusion_proof
+                .verify_proof_for_honest_tree(&mt.root(), &item)
+                .is_ok());
         }
     }
 }
@@ -176,7 +178,9 @@ fn test_non_inclusion_failure_zero_index_some_left_leaf() {
         right_leaf: Some((leaf, mt.get_proof(0).unwrap())),
     };
     // Make sure that it does not panic
-    assert!(fake_proof.verify_proof(&mt.root(), &leaf).is_err());
+    assert!(fake_proof
+        .verify_proof_for_honest_tree(&mt.root(), &leaf)
+        .is_err());
 }
 
 use serde::{Deserialize, Serialize};
@@ -218,10 +222,10 @@ fn test_serialization_with_blake2b256() {
     // Verify the deserialized inclusion proof still works
     let leaf2_bytes = bcs::to_bytes(&leaf2).unwrap();
     assert!(deserialized_inclusion
-        .verify_proof_with_trusted_root(&mt.root(), &leaf2_bytes, 1)
+        .verify_proof_for_honest_tree(&mt.root(), &leaf2_bytes, 1)
         .is_ok());
     assert!(deserialized_inclusion
-        .verify_proof_with_trusted_root_and_unserialized_leaf(&mt.root(), &leaf2, 1)
+        .verify_proof_for_honest_tree_with_unserialized_leaf(&mt.root(), &leaf2, 1)
         .is_ok());
 
     // Test serialization/deserialization of MerkleNonInclusionProof
@@ -242,7 +246,7 @@ fn test_serialization_with_blake2b256() {
 
     // Verify the deserialized non-inclusion proof still works
     assert!(deserialized_non_inclusion
-        .verify_proof(&mt.root(), &target_leaf)
+        .verify_proof_for_honest_tree(&mt.root(), &target_leaf)
         .is_ok());
 }
 
@@ -263,8 +267,8 @@ fn test_verify_proof_checks_length_and_index() {
     let short = MerkleProof::<Blake2b256>::new(std::slice::from_ref(&l));
     let long = MerkleProof::<Blake2b256>::new(&[a.clone(), x.clone()]);
 
-    assert!(short.verify_proof_with_trusted_root(&root, b"x", 1).is_ok());
-    assert!(long.verify_proof_with_trusted_root(&root, b"y", 1).is_ok());
+    assert!(short.verify_proof_for_honest_tree(&root, b"x", 1).is_ok());
+    assert!(long.verify_proof_for_honest_tree(&root, b"y", 1).is_ok());
 
     assert!(short.verify_proof(&root, b"x", 1, 2).is_ok());
     assert!(long.verify_proof(&root, b"y", 1, 2).is_err());
