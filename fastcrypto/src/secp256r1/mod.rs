@@ -311,7 +311,9 @@ generate_bytes_representation!(
 impl ToFromBytes for Secp256r1Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         if bytes.len() != SECP256R1_SIGNATURE_LENGTH {
-            return Err(FastCryptoError::InputLengthWrong(SECP256R1_SIGNATURE_LENGTH));
+            return Err(FastCryptoError::InputLengthWrong(
+                SECP256R1_SIGNATURE_LENGTH,
+            ));
         }
 
         // This fails if either r or s are zero: https://docs.rs/ecdsa/0.16.6/src/ecdsa/lib.rs.html#209-219.
