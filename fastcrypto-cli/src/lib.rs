@@ -1,5 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+#![forbid(unsafe_code)]
 
 //! This module contains test vectors for all signature schemes supported by the sigs_cli tool.
 pub mod sigs_cli_test_vectors {

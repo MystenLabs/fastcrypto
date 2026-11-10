@@ -1,5 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+#![forbid(unsafe_code)]
 #![warn(
     future_incompatible,
     nonstandard_style,

@@ -1,4 +1,4 @@
-# fastcrypto-tbls
+# fastcrypto-threshold
 
 A crate that implements threshold BLS (tBLS) signatures, distributed key generation (DKG) and
 threshold Schnorr signatures.

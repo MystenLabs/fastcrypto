@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "fastcrypto",
     "fastcrypto-derive",
-    "fastcrypto-tbls",
+    "fastcrypto-threshold",
     "fastcrypto-zkp",
     "fastcrypto-cli",
     "fastcrypto-vdf",
@@ -12,6 +12,9 @@ members = [
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]
+fastcrypto = { path = "fastcrypto", version = "0.1.12" }
+fastcrypto-derive = { path = "fastcrypto-derive", version = "0.1.5" }
+fastcrypto-vdf = { path = "fastcrypto-vdf", version = "0.1.1" }
 rand = { version = "0.8.5", features = ["std"] }
 wycheproof = "0.7.0"
 serde = { version = "1.0.152", features = ["derive"] }

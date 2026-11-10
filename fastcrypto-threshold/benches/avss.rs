@@ -3,10 +3,10 @@
 
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::ristretto255;
-use fastcrypto_tbls::ecies_v1;
-use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
-use fastcrypto_tbls::threshold_schnorr::avss;
-use fastcrypto_tbls::threshold_schnorr::Parameters;
+use fastcrypto_threshold::ecies_v1;
+use fastcrypto_threshold::nodes::{Node, Nodes, PartyId};
+use fastcrypto_threshold::threshold_schnorr::avss;
+use fastcrypto_threshold::threshold_schnorr::Parameters;
 use itertools::iproduct;
 use rand::thread_rng;
 
@@ -76,9 +76,9 @@ pub fn setup_dealer(
 
 mod avss_benches {
     use super::*;
-    use fastcrypto_tbls::threshold_schnorr::avss::ProcessedMessage::Valid;
-    use fastcrypto_tbls::threshold_schnorr::avss::{AvssOutput, DkOutput};
-    use fastcrypto_tbls::types::{IndexedValue, ShareIndex};
+    use fastcrypto_threshold::threshold_schnorr::avss::ProcessedMessage::Valid;
+    use fastcrypto_threshold::threshold_schnorr::avss::{AvssOutput, DkOutput};
+    use fastcrypto_threshold::types::{IndexedValue, ShareIndex};
     use itertools::Itertools;
     use std::collections::HashMap;
 

@@ -5,11 +5,12 @@ use crate::{
     error::FastCryptoError,
     traits::{FromUniformBytes, ToFromBytes},
 };
+use fastcrypto_derive::SilentDebug;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Private key/seed of any/fixed size.
 ///
-#[derive(Debug, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[derive(SilentDebug, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct PrivateSeed<const RECOMMENDED_LENGTH: usize, const FIXED_LENGTH_ONLY: bool> {
     bytes: Vec<u8>,
 }
