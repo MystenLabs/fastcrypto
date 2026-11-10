@@ -164,7 +164,7 @@ where
         if leaf_index >= n_leaves || !self.has_length_for(n_leaves) {
             return None;
         }
-        Some(self.hash_along_path(leaf, leaf_index))
+        self.hash_along_path(leaf, leaf_index)
     }
 
     /// Recomputes the Merkle root from the proof and the provided leaf data, without checking the
@@ -172,17 +172,20 @@ where
     ///
     /// Returns `None` if the provided index is too large.
     pub fn compute_root_for_honest_tree(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
+        self.hash_along_path(leaf, leaf_index)
+    }
+
+    /// Hashes `leaf` with the siblings in the proof, using `leaf_index` to tell left from right.
+    ///
+    /// Returns `None` if the index does not fit the depth of the path.
+    fn hash_along_path(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
+        // Bits of the index above the path's depth would be ignored, so reject them.
         if leaf_index
             .checked_shr(self.path.len() as u32)
             .is_none_or(|s| s != 0)
         {
             return None;
         }
-        Some(self.hash_along_path(leaf, leaf_index))
-    }
-
-    /// Hashes `leaf` with the siblings in the proof, using `leaf_index` to tell left from right.
-    fn hash_along_path(&self, leaf: &[u8], leaf_index: usize) -> Node {
         let mut current_hash = leaf_hash::<T>(leaf);
         let mut level_index = leaf_index;
         for sibling in self.path.iter() {
@@ -197,7 +200,7 @@ where
             // Update to the level index one level up in the tree
             level_index /= 2;
         }
-        current_hash
+        Some(current_hash)
     }
 
     // Check if the proof is for the rightmost leaf in the tree
