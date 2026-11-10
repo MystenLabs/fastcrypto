@@ -4,176 +4,53 @@
 //! Tests that `RangeProof` and its Lean model (`../bindings/BpppHarness.lean`) produce byte-identical
 //! proofs from the same randomness, and accept and reject the same proofs.
 //!
-//! The Merlin transcript is not modelled in Lean. The tests replay it here and pass the model both
-//! the absorbed entries and the challenges. The replay needs no trust: a wrong one gives challenges
-//! under which honest proofs fail, and the model refuses to continue from a log that differs from
-//! the replayed entries.
+//! The Merlin transcript is not modelled in Lean. The tests run the Rust verifier, log its
+//! transcript, and pass the model the entries and the challenges; the model refuses to continue
+//! from a transcript that differs from the entries.
 
 use bppp_lean_harness::open;
+use fastcrypto::bulletproofspp::lean_support::{
+    crs, proof_elements, witness_draws, ProofElements, TranscriptLog,
+};
 use fastcrypto::bulletproofspp::range_proof::{Range, RangeProof};
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use fastcrypto::groups::{GroupElement, Scalar};
 use fastcrypto::pedersen::{self, Blinding, PedersenCommitment};
 use fastcrypto::serde_helpers::ToFromByteArray;
 use fastcrypto_lean_testing::lean_rs::LeanCapability;
-use fastcrypto_lean_testing::same;
-use merlin::Transcript;
+use fastcrypto_lean_testing::{hex, hex_all, same};
 use proptest::collection::vec;
 use proptest::prelude::*;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-type Chunk = [u8; 32];
-
-const BASE: usize = 16;
-const H_LEN: usize = 8;
-const DST_H: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_fastcrypto-bppp-gen-h-01";
-const DST_G: &[u8] = b"ristretto255_XMD:SHA-512_R255MAP_RO_fastcrypto-bppp-gen-g-01";
 const RANGES: [Range; 4] = [Range::Bits8, Range::Bits16, Range::Bits32, Range::Bits64];
 
-fn bits(range: &Range) -> usize {
-    match range {
-        Range::Bits8 => 8,
-        Range::Bits16 => 16,
-        Range::Bits32 => 32,
-        Range::Bits64 => 64,
-    }
-}
-
-fn hexes(chunks: &[Chunk]) -> Vec<String> {
-    chunks.iter().map(hex::encode).collect()
-}
-
-/// `Generators::new(nm)`.
-fn generators(nm: usize) -> (Chunk, Vec<Chunk>, Vec<Chunk>) {
-    let generator = |dst: &[u8], i: usize| {
-        RistrettoPoint::hash_to_ristretto255_with_dst(&[&(i as u64).to_le_bytes()], dst)
-            .to_byte_array()
-    };
-    let mut h_vec = vec![pedersen::G.to_byte_array()];
-    h_vec.extend((1..H_LEN).map(|i| generator(DST_H, i)));
-    let g_vec = (0..nm).map(|i| generator(DST_G, i)).collect();
-    (pedersen::H.to_byte_array(), h_vec, g_vec)
-}
-
-/// The norm length for `m` values of `range_bits` bits.
-fn norm_length(range_bits: usize, m: usize) -> usize {
-    (m * range_bits / 4).max(BASE).next_power_of_two()
-}
-
-/// A serialized proof, split into its elements.
-struct Parts {
-    c: Vec<Chunk>,
-    rounds: Vec<Chunk>,
-    l_final: Chunk,
-    n_final: Vec<Chunk>,
-}
-
-fn proof_shape(mut l: usize, mut n: usize) -> (usize, usize) {
-    let mut rounds = 0;
-    while !(l <= 1 && l + n < 6) {
-        l = l.div_ceil(2);
-        n = n.div_ceil(2);
-        rounds += 1;
-    }
-    (rounds, n)
-}
-
-fn split(proof: &[u8]) -> Parts {
-    let chunks: Vec<Chunk> = proof
-        .chunks_exact(32)
-        .map(|c| c.try_into().unwrap())
+/// The entries in the form of `BpppHarness.entryString`, and the challenges.
+fn transcript_inputs(log: TranscriptLog) -> [Vec<String>; 2] {
+    let label = |label: &[u8]| String::from_utf8(label.to_vec()).unwrap();
+    let entries = log
+        .entries
+        .iter()
+        .map(|(l, data)| match data {
+            Some(data) => format!("a|{}|{}", label(l), ::hex::encode(data)),
+            None => format!("c|{}", label(l)),
+        })
         .collect();
-    let (rounds, n_len) = (4..32)
-        .map(|k| proof_shape(H_LEN, 1 << k))
-        .find(|(r, n)| 4 + 2 * r + 1 + n == chunks.len())
-        .expect("proof shape");
-    Parts {
-        c: chunks[..4].to_vec(),
-        rounds: chunks[4..4 + 2 * rounds].to_vec(),
-        l_final: chunks[4 + 2 * rounds],
-        n_final: chunks[4 + 2 * rounds + 1..][..n_len].to_vec(),
-    }
+    [entries, hex_all(&log.challenges)]
 }
 
-/// A Merlin transcript that records its entries in the form of `BpppHarness.entryString`.
-struct Replay {
-    transcript: Transcript,
-    entries: Vec<String>,
-    challenges: Vec<String>,
+fn points(commitments: &[PedersenCommitment]) -> Vec<RistrettoPoint> {
+    commitments.iter().map(|c| c.0).collect()
 }
 
-fn label_str(label: &[u8]) -> &str {
-    std::str::from_utf8(label).unwrap()
+fn rounds(elements: &ProofElements) -> Vec<RistrettoPoint> {
+    elements.rounds.iter().flat_map(|(x, r)| [*x, *r]).collect()
 }
 
-impl Replay {
-    fn new(label: &'static [u8]) -> Self {
-        Self {
-            transcript: Transcript::new(label),
-            entries: vec![format!("m|dom-sep|{}", hex::encode(label))],
-            challenges: vec![],
-        }
-    }
-
-    fn message(&mut self, label: &'static [u8], data: &[u8]) {
-        self.transcript.append_message(label, data);
-        self.entries
-            .push(format!("m|{}|{}", label_str(label), hex::encode(data)));
-    }
-
-    fn point(&mut self, label: &'static [u8], point: &Chunk) {
-        self.transcript.append_message(label, point);
-        self.entries
-            .push(format!("p|{}|{}", label_str(label), hex::encode(point)));
-    }
-
-    fn scalar(&mut self, label: &'static [u8], scalar: &Chunk) {
-        self.transcript.append_message(label, scalar);
-        self.entries
-            .push(format!("s|{}|{}", label_str(label), hex::encode(scalar)));
-    }
-
-    fn challenge(&mut self, label: &'static [u8]) {
-        let mut bytes = [0; 64];
-        self.transcript.challenge_bytes(label, &mut bytes);
-        self.entries.push(format!("c|{}", label_str(label)));
-        let challenge = RistrettoScalar::from_bytes_mod_order_wide(&bytes);
-        self.challenges.push(hex::encode(challenge.to_byte_array()));
-    }
-}
-
-/// The transcript of `RangeProof::verify_batch`.
-fn replay(range_bits: usize, dst: &[u8], commitments: &[Chunk], parts: &Parts) -> Replay {
-    let mut t = Replay::new(b"fastcrypto-bppp-range-proof-01");
-    t.message(b"dst", dst);
-    t.message(b"n_bits", &(range_bits as u64).to_le_bytes());
-    t.message(b"m", &(commitments.len() as u64).to_le_bytes());
-    t.message(b"dom-sep", b"bppp_circuit");
-    for commitment in commitments {
-        t.point(b"V", commitment);
-    }
-    t.point(b"C_L", &parts.c[0]);
-    t.point(b"C_O", &parts.c[1]);
-    t.challenge(b"alpha");
-    t.point(b"C_R", &parts.c[2]);
-    t.challenge(b"rho");
-    t.challenge(b"lambda");
-    t.challenge(b"beta");
-    t.challenge(b"delta");
-    t.point(b"C_S", &parts.c[3]);
-    t.challenge(b"tau");
-    t.message(b"dom-sep", b"norm_linear");
-    for round in parts.rounds.chunks_exact(2) {
-        t.point(b"X", &round[0]);
-        t.point(b"R", &round[1]);
-        t.challenge(b"gamma");
-    }
-    t.scalar(b"l_final", &parts.l_final);
-    for scalar in &parts.n_final {
-        t.scalar(b"n_final", scalar);
-    }
-    t
+fn values_in(range: &Range, values: &[u64]) -> Vec<u64> {
+    let shift = 64 - range.bits();
+    values.iter().map(|v| v >> shift).collect()
 }
 
 /// A statement and a proof of it, possibly tampered with.
@@ -181,46 +58,42 @@ fn replay(range_bits: usize, dst: &[u8], commitments: &[Chunk], parts: &Parts) -
 struct Instance {
     range: Range,
     dst: Vec<u8>,
-    commitments: Vec<Chunk>,
+    commitments: Vec<PedersenCommitment>,
     proof: Vec<u8>,
 }
 
 impl Instance {
     fn rust(&self) -> bool {
-        let Ok(proof) = RangeProof::from_bytes(&self.proof) else {
-            return false;
-        };
-        let commitments: Vec<PedersenCommitment> = self
-            .commitments
-            .iter()
-            .map(|c| PedersenCommitment(RistrettoPoint::from_byte_array(c).unwrap()))
-            .collect();
-        proof
-            .verify_batch(&commitments, &self.range, &self.dst)
+        RangeProof::from_bytes(&self.proof)
+            .unwrap()
+            .verify_batch(&self.commitments, &self.range, &self.dst)
             .is_ok()
     }
 
     fn lean(&self, lean: &LeanCapability<'static>) -> bool {
-        let range_bits = bits(&self.range);
-        let parts = split(&self.proof);
-        let (g, h_vec, g_vec) = generators(norm_length(range_bits, self.commitments.len()));
-        let t = replay(range_bits, &self.dst, &self.commitments, &parts);
+        let elements = proof_elements(&self.proof).unwrap();
+        let crs = crs(self.range, self.commitments.len()).unwrap();
+        let (_, log) = RangeProof::from_bytes(&self.proof)
+            .unwrap()
+            .verify_batch_logged(&self.commitments, &self.range, &self.dst)
+            .unwrap();
+        let [entries, challenges] = transcript_inputs(log);
         let input = vec![
-            vec![hex::encode(&self.dst)],
-            hexes(&self.commitments),
-            hexes(&[g]),
-            hexes(&h_vec),
-            hexes(&g_vec),
-            hexes(&parts.c),
-            hexes(&parts.rounds),
-            hexes(&[parts.l_final]),
-            hexes(&parts.n_final),
-            t.entries,
-            t.challenges,
+            vec![::hex::encode(&self.dst)],
+            hex_all(&points(&self.commitments)),
+            vec![hex(&crs.g)],
+            hex_all(&crs.h_vec),
+            hex_all(&crs.g_vec),
+            hex_all(&[elements.c_l, elements.c_o, elements.c_r, elements.c_s]),
+            hex_all(&rounds(&elements)),
+            vec![hex(&elements.l_final)],
+            hex_all(&elements.n_final),
+            entries,
+            challenges,
         ];
         lean.exported::<(u64, Vec<Vec<String>>), Result<bool, String>>("bppp_harness_verify_batch")
             .unwrap()
-            .call(range_bits as u64, input)
+            .call(self.range.bits() as u64, input)
             .unwrap()
             .unwrap()
     }
@@ -235,8 +108,7 @@ fn honest() -> impl Strategy<Value = Instance> {
     )
         .prop_map(|(range, values, seed, dst)| {
             let range = RANGES[range];
-            let shift = 64 - bits(&range);
-            let values: Vec<u64> = values.iter().map(|v| v >> shift).collect();
+            let values = values_in(&range, &values);
             let mut rng = StdRng::seed_from_u64(seed);
             let (commitments, blindings): (Vec<PedersenCommitment>, Vec<Blinding>) = values
                 .iter()
@@ -248,7 +120,7 @@ fn honest() -> impl Strategy<Value = Instance> {
             Instance {
                 range,
                 dst,
-                commitments: commitments.iter().map(|c| c.0.to_byte_array()).collect(),
+                commitments,
                 proof,
             }
         })
@@ -264,35 +136,12 @@ struct ProverInput {
     seed: u64,
 }
 
-/// The powers `CR_POWERS` and the powers of `C_O`, `C_L` and `C_R` in `circuit.rs`.
-const CR_POWERS: [i32; 7] = [-1, 1, 2, 3, 5, 6, 7];
-const COMMITMENT_POWERS: [i32; 3] = [0, 1, 2];
-
-/// `blinding_vector`, in the order Rust draws from `rng`. Slots that are not drawn are zero.
-fn blinding_vector(rng: &mut StdRng, e: i32) -> Vec<String> {
-    let mut draw = || hex::encode(RistrettoScalar::rand(rng).to_byte_array());
-    let mut r = vec![draw()];
-    for a in CR_POWERS {
-        let power = e + a;
-        r.push(if power == -1 || CR_POWERS.contains(&(power + 1)) {
-            draw()
-        } else {
-            hex::encode([0u8; 32])
-        });
-    }
-    r
-}
-
 impl ProverInput {
-    fn commitments(&self) -> Vec<Chunk> {
+    fn commitments(&self) -> Vec<PedersenCommitment> {
         self.values
             .iter()
             .zip(&self.blindings)
-            .map(|(v, s)| {
-                PedersenCommitment::new(&RistrettoScalar::from(*v), &Blinding(*s))
-                    .0
-                    .to_byte_array()
-            })
+            .map(|(v, s)| PedersenCommitment::new(&RistrettoScalar::from(*v), &Blinding(*s)))
             .collect()
     }
 
@@ -304,48 +153,41 @@ impl ProverInput {
             .to_bytes()
     }
 
-    /// The proof from the model. The transcript is replayed from the Rust proof `expected`.
+    /// The proof from the model, with the transcript of the Rust proof `expected`.
     fn lean(&self, lean: &LeanCapability<'static>, expected: &[u8]) -> Vec<u8> {
-        let range_bits = bits(&self.range);
-        let nm = norm_length(range_bits, self.values.len());
-        let (g, h_vec, g_vec) = generators(nm);
-        let t = replay(range_bits, &self.dst, &self.commitments(), &split(expected));
+        let crs = crs(self.range, self.values.len()).unwrap();
+        let (_, log) = RangeProof::from_bytes(expected)
+            .unwrap()
+            .verify_batch_logged(&self.commitments(), &self.range, &self.dst)
+            .unwrap();
+        let [entries, challenges] = transcript_inputs(log);
         let mut rng = StdRng::seed_from_u64(self.seed);
-        let [r_o, r_l, r_r] = COMMITMENT_POWERS.map(|e| blinding_vector(&mut rng, e));
-        let n_s = (0..nm)
-            .map(|_| hex::encode(RistrettoScalar::rand(&mut rng).to_byte_array()))
-            .collect();
-        let l_s = vec![hex::encode(RistrettoScalar::rand(&mut rng).to_byte_array())];
-        let scalars = |xs: &[RistrettoScalar]| {
-            xs.iter()
-                .map(|x| hex::encode(x.to_byte_array()))
-                .collect::<Vec<_>>()
-        };
+        let draws = witness_draws(self.range, &self.values, &self.blindings, &mut rng).unwrap();
         let input = vec![
-            vec![hex::encode(&self.dst)],
+            vec![::hex::encode(&self.dst)],
             self.values.iter().map(u64::to_string).collect(),
-            scalars(&self.blindings),
-            hexes(&[g]),
-            hexes(&h_vec),
-            hexes(&g_vec),
-            hexes(&[pedersen::G.to_byte_array(), pedersen::H.to_byte_array()]),
-            r_o,
-            r_l,
-            r_r,
-            n_s,
-            l_s,
-            t.entries,
-            t.challenges,
+            hex_all(&self.blindings),
+            vec![hex(&crs.g)],
+            hex_all(&crs.h_vec),
+            hex_all(&crs.g_vec),
+            hex_all(&[*pedersen::G, *pedersen::H]),
+            hex_all(&draws.r_o),
+            hex_all(&draws.r_l),
+            hex_all(&draws.r_r),
+            hex_all(&draws.n_s),
+            vec![hex(&draws.l_s)],
+            entries,
+            challenges,
         ];
         lean.exported::<(u64, Vec<Vec<String>>), Result<Vec<String>, String>>(
             "bppp_harness_prove_batch",
         )
         .unwrap()
-        .call(range_bits as u64, input)
+        .call(self.range.bits() as u64, input)
         .unwrap()
         .unwrap()
         .iter()
-        .flat_map(|chunk| hex::decode(chunk).unwrap())
+        .flat_map(|chunk| ::hex::decode(chunk).unwrap())
         .collect()
     }
 }
@@ -360,8 +202,7 @@ fn prover_input() -> impl Strategy<Value = ProverInput> {
     )
         .prop_map(|(range, values, seed, blinding_seed, dst)| {
             let range = RANGES[range];
-            let shift = 64 - bits(&range);
-            let values: Vec<u64> = values.iter().map(|v| v >> shift).collect();
+            let values = values_in(&range, &values);
             let mut rng = StdRng::seed_from_u64(blinding_seed);
             let blindings = values
                 .iter()
@@ -388,51 +229,48 @@ enum Tamper {
     Range(usize),
 }
 
-fn shifted(point: &Chunk) -> Chunk {
-    let point = RistrettoPoint::from_byte_array(point).unwrap();
-    (point + RistrettoPoint::generator()).to_byte_array()
-}
-
 impl Instance {
+    fn element(&self, i: usize) -> [u8; 32] {
+        self.proof[32 * i..32 * (i + 1)].try_into().unwrap()
+    }
+
+    fn set_element(&mut self, i: usize, element: [u8; 32]) {
+        self.proof[32 * i..32 * (i + 1)].copy_from_slice(&element);
+    }
+
     fn tamper(mut self, tamper: Tamper) -> Self {
-        let parts = split(&self.proof);
-        let num_points = 4 + parts.rounds.len();
-        let num_scalars = 1 + parts.n_final.len();
-        let set = |proof: &mut Vec<u8>, i: usize, chunk: Chunk| {
-            proof[32 * i..32 * (i + 1)].copy_from_slice(&chunk);
-        };
+        let elements = proof_elements(&self.proof).unwrap();
+        let num_rounds = elements.rounds.len();
+        let num_points = 4 + 2 * num_rounds;
+        let generator = RistrettoPoint::generator();
         match tamper {
             Tamper::Point(i) => {
                 let i = i % num_points;
-                let chunk: Chunk = self.proof[32 * i..32 * (i + 1)].try_into().unwrap();
-                set(&mut self.proof, i, shifted(&chunk));
+                let point = RistrettoPoint::from_byte_array(&self.element(i)).unwrap();
+                self.set_element(i, (point + generator).to_byte_array());
             }
             Tamper::Scalar(i) => {
-                let i = num_points + i % num_scalars;
-                let chunk: Chunk = self.proof[32 * i..32 * (i + 1)].try_into().unwrap();
-                let scalar = RistrettoScalar::from_byte_array(&chunk).unwrap();
+                let i = num_points + i % (1 + elements.n_final.len());
+                let scalar = RistrettoScalar::from_byte_array(&self.element(i)).unwrap();
                 let scalar = scalar + RistrettoScalar::from(1u64);
-                set(&mut self.proof, i, scalar.to_byte_array());
+                self.set_element(i, scalar.to_byte_array());
             }
             Tamper::SwapRound(i) => {
-                let i = 4 + 2 * (i % (parts.rounds.len() / 2));
-                let x: Chunk = self.proof[32 * i..32 * (i + 1)].try_into().unwrap();
-                let r: Chunk = self.proof[32 * (i + 1)..32 * (i + 2)].try_into().unwrap();
-                set(&mut self.proof, i, r);
-                set(&mut self.proof, i + 1, x);
+                let i = 4 + 2 * (i % num_rounds);
+                let (x, r) = (self.element(i), self.element(i + 1));
+                self.set_element(i, r);
+                self.set_element(i + 1, x);
             }
             Tamper::Commitment(i) => {
                 let i = i % self.commitments.len();
-                self.commitments[i] = shifted(&self.commitments[i]);
+                self.commitments[i] = PedersenCommitment(self.commitments[i].0 + generator);
             }
-            Tamper::ExtraCommitment => self
-                .commitments
-                .push(RistrettoPoint::generator().to_byte_array()),
+            Tamper::ExtraCommitment => self.commitments.push(PedersenCommitment(generator)),
             Tamper::Dst => self.dst.push(0),
             Tamper::Range(i) => {
                 let others: Vec<Range> = RANGES
                     .into_iter()
-                    .filter(|r| bits(r) != bits(&self.range))
+                    .filter(|r| r.bits() != self.range.bits())
                     .collect();
                 self.range = others[i % others.len()];
             }
@@ -492,7 +330,10 @@ fn rejects_tampered_proofs() {
 /// The frozen proof of `range_proof::tests::regression_test`.
 #[test]
 fn accepts_regression_proof() {
-    let commitment = |s: &str| -> Chunk { hex::decode(s).unwrap().try_into().unwrap() };
+    let commitment = |s: &str| {
+        let bytes: [u8; 32] = ::hex::decode(s).unwrap().try_into().unwrap();
+        PedersenCommitment(RistrettoPoint::from_byte_array(&bytes).unwrap())
+    };
     let instance = Instance {
         range: Range::Bits32,
         dst: b"test".to_vec(),
@@ -504,7 +345,7 @@ fn accepts_regression_proof() {
         ]
         .map(commitment)
         .to_vec(),
-        proof: hex::decode(
+        proof: ::hex::decode(
             "00d5d5d1529f01cf6420ec103dace15476ca510f5b92ae6762bc25f4bd1249021219fad1752e829b54c9726bdb9253128ba6e82ca16fd8ea2595e26a536b4406621a5bbe5a65f5d917da8906719361ad8dcb5c9618861e1ccaee288bd7db8d5e9e5b0e4cb21110d789b367d90e778ec30faeda08c405e7b40a64c9f55e355105dad137e8eb12facf2017dd0887338d6d1416718a9ab599e36a5fc26844b2ce5f44c9c0a0e79d43c07257498c7d755a0fb1e36d620fb312db78f230c11795af452ec6fd20bdddcd078dd121fd667b1226e14f79027b1502b770e804c776ce2e617c2e34ae010e418b31f72222ae7e76d5107747b507355aaa17b89d113ff8ee16963d2647afb472778c27d1983e8e0741be8e3252ce46faa2973ce1f6e352f670484baa1173bae5e99c5f3f0ff65ee368d191f8519986017a8faf1e08d6310d0f0bdf52df2d0b75fdbbdd56eacce0a932270b24b242ec9efb49a062b1d8dd4a0032d10c7962108d26a9239e1103806279e12396a064585f6b878050a84bbe41058a3416edfe76b21e7ec4945454970e53fe7cfb47d49e87373ae22f5ae499b50238eb4f534c997a1e88772fdc181885e7089147978798c99c43867803f5d554015048dbb1bbaa9976da6a08d9457c049a4521e733a28994bb3060f17119940509",
         )
         .unwrap(),

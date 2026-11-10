@@ -9,12 +9,11 @@ description = "Tests comparing fastcrypto::bulletproofspp with its Lean model."
 [workspace]
 
 [dependencies]
-fastcrypto = { path = "../../../..", features = ["experimental"] }
+fastcrypto = { path = "../../../..", features = ["lean-tests"] }
 fastcrypto-lean-testing = { path = "../../../../../fastcrypto-lean-testing" }
 
 [dev-dependencies]
 hex = "0.4.3"
-merlin = "3.0"
 proptest = "1.1.0"
 rand = "0.8.5"
 

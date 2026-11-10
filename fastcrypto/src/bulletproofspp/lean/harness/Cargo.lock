@@ -355,7 +355,6 @@ dependencies = [
  "fastcrypto",
  "fastcrypto-lean-testing",
  "hex",
- "merlin",
  "proptest",
  "rand 0.8.8",
 ]

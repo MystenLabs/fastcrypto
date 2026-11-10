@@ -7,8 +7,8 @@
 | `harness/` | A Rust crate whose tests compare `RangeProof` with the model through [`lean-rs`](https://github.com/jcreinhold/lean-rs). |
 
 The tests check that the provers give byte-identical proofs from the same randomness, and that the
-verifiers accept and reject the same proofs. Merlin is not modelled: the tests replay it and pass the
-model the entries and challenges, and the model checks its own transcript against those entries.
+verifiers accept and reject the same proofs. Merlin is not modelled: the tests log the Rust verifier's
+transcript and pass the entries and challenges to the model, which checks its own transcript against them.
 
 Needs [`elan`](https://github.com/leanprover/elan). Run with:
 

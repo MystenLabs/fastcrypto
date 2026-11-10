@@ -125,6 +125,21 @@ impl RangeProof {
             .map_err(|_| FastCryptoError::InvalidProof)
     }
 
+    /// Whether [Self::verify_batch] accepts, and the transcript it ran. For the tests against the
+    /// Lean model.
+    #[cfg(feature = "lean-tests")]
+    pub fn verify_batch_logged(
+        &self,
+        commitments: &[PedersenCommitment],
+        range: &Range,
+        dst: &[u8],
+    ) -> FastCryptoResult<(bool, crate::bulletproofspp::transcript::TranscriptLog)> {
+        let (params, gens, mut transcript) = setup(*range, commitments.len(), dst)?;
+        let accepted =
+            circuit::verify(&mut transcript, &gens, &params, &self.proof, commitments).is_ok();
+        Ok((accepted, transcript.log))
+    }
+
     /// Serialize: the four circuit commitments, the per-round `(X, R)`
     /// pairs, and the final scalars, 32 bytes each.
     pub fn to_bytes(&self) -> Vec<u8> {

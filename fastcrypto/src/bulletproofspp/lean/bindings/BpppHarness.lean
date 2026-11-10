@@ -6,8 +6,8 @@ The model of `fastcrypto::bulletproofspp` instantiated at `RistrettoModel`, and 
 tests call.
 
 A point is its canonical encoding, so structural equality is equality in the group. The Merlin
-transcript is not modelled: the oracle replays the entries and challenges computed in Rust, and
-answers `1` as soon as the model's transcript differs from them, which makes verification fail.
+transcript is not modelled: the oracle replays the entries and challenges logged by the Rust
+verifier, and answers `1` as soon as the model's transcript differs from them, which makes verification fail.
 -/
 
 namespace BpppHarness
@@ -43,9 +43,9 @@ def bytesHex (bytes : List Nat) : String :=
 
 /-- The form in which the Rust tests record a transcript entry. -/
 def entryString : Entry F Enc → String
-  | .message label data => s!"m|{label}|{bytesHex data}"
-  | .point label p => s!"p|{label}|{RistrettoModel.hexOfNat p.s.val}"
-  | .scalar label s => s!"s|{label}|{RistrettoModel.scalarToHex s}"
+  | .message label data => s!"a|{label}|{bytesHex data}"
+  | .point label p => s!"a|{label}|{RistrettoModel.hexOfNat p.s.val}"
+  | .scalar label s => s!"a|{label}|{RistrettoModel.scalarToHex s}"
   | .challenge label => s!"c|{label}"
 
 /-- The challenge for `log`, given the entries and challenges of the Merlin transcript. -/
