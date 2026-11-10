@@ -70,7 +70,7 @@ pub const SECP256R1_PUBLIC_KEY_LENGTH: usize = 33;
 pub const SECP256R1_PRIVATE_KEY_LENGTH: usize = 32;
 
 /// The length of a signature in bytes.
-pub const SECP256R1_SIGNATURE_LENTH: usize = 64;
+pub const SECP256R1_SIGNATURE_LENGTH: usize = 64;
 
 /// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
 pub const SECP256R1_KEYPAIR_LENGTH: usize = SECP256R1_PRIVATE_KEY_LENGTH;
@@ -106,7 +106,7 @@ pub struct Secp256r1PrivateKey {
 #[derive(Debug, Clone)]
 pub struct Secp256r1Signature {
     pub sig: ExternalSignature,
-    pub bytes: OnceCell<[u8; SECP256R1_SIGNATURE_LENTH]>,
+    pub bytes: OnceCell<[u8; SECP256R1_SIGNATURE_LENGTH]>,
 }
 
 impl std::hash::Hash for Secp256r1PublicKey {
@@ -301,17 +301,17 @@ impl AsRef<[u8]> for Secp256r1PrivateKey {
 // ZeroizeOnDrop).
 impl zeroize::ZeroizeOnDrop for Secp256r1PrivateKey {}
 
-serialize_deserialize_with_to_from_bytes!(Secp256r1Signature, SECP256R1_SIGNATURE_LENTH);
+serialize_deserialize_with_to_from_bytes!(Secp256r1Signature, SECP256R1_SIGNATURE_LENGTH);
 generate_bytes_representation!(
     Secp256r1Signature,
-    SECP256R1_SIGNATURE_LENTH,
+    SECP256R1_SIGNATURE_LENGTH,
     Secp256r1SignatureAsBytes
 );
 
 impl ToFromBytes for Secp256r1Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        if bytes.len() != SECP256R1_SIGNATURE_LENTH {
-            return Err(FastCryptoError::InputLengthWrong(SECP256R1_SIGNATURE_LENTH));
+        if bytes.len() != SECP256R1_SIGNATURE_LENGTH {
+            return Err(FastCryptoError::InputLengthWrong(SECP256R1_SIGNATURE_LENGTH));
         }
 
         // This fails if either r or s are zero: https://docs.rs/ecdsa/0.16.6/src/ecdsa/lib.rs.html#209-219.
@@ -327,13 +327,13 @@ impl ToFromBytes for Secp256r1Signature {
 impl Authenticator for Secp256r1Signature {
     type PubKey = Secp256r1PublicKey;
     type PrivKey = Secp256r1PrivateKey;
-    const LENGTH: usize = SECP256R1_SIGNATURE_LENTH;
+    const LENGTH: usize = SECP256R1_SIGNATURE_LENGTH;
 }
 
 impl AsRef<[u8]> for Secp256r1Signature {
     fn as_ref(&self) -> &[u8] {
         self.bytes.get_or_init::<_>(|| {
-            <[u8; SECP256R1_SIGNATURE_LENTH]>::try_from(self.sig.to_bytes().as_slice()).unwrap()
+            <[u8; SECP256R1_SIGNATURE_LENGTH]>::try_from(self.sig.to_bytes().as_slice()).unwrap()
         })
     }
 }

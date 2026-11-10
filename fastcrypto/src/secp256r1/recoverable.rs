@@ -28,7 +28,7 @@ use crate::secp256r1::conversion::{
 };
 use crate::secp256r1::{
     DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature, MULTIPLIER,
-    SECP256R1_SIGNATURE_LENTH,
+    SECP256R1_SIGNATURE_LENGTH,
 };
 use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 use crate::{
@@ -54,7 +54,7 @@ const FIELD_MODULUS: U256 =
     U256::from_be_hex("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff");
 use std::fmt::{self, Debug};
 
-pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + 1;
+pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENGTH + 1;
 
 /// Secp256r1 signature.
 #[readonly::make]
