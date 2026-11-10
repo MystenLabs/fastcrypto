@@ -91,8 +91,8 @@ impl NestedMerkleProof {
     }
 
     /// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`),
-    /// without checking the lengths of the proof. See
-    /// [fastcrypto::merkle::MerkleProof::verify_proof_for_honest_tree].
+    /// assuming the tree was built by an honest party. If that cannot be assumed, use
+    /// [Self::verify] instead.
     pub fn verify_for_honest_tree<S: Serialize>(
         &self,
         top_root: &Node,
@@ -113,11 +113,9 @@ impl NestedMerkleProof {
             .ok_or(InvalidProof)
     }
 
-    /// Derive the implied row root from this proof's row portion and `leaf` at `leaf_idx`.
+    /// Derive the implied row root from this proof's row portion and `leaf` at `leaf_idx`,
+    /// assuming the tree was built by an honest party.
     /// Returns [InvalidMessage] if the path is malformed.
-    // TODO: Take the number of leaves and check the proof length here once complaints are
-    // length-checked. Until then this must stay unchecked: it is used when checking a complaint,
-    // and a failure there counts as proof that the complaint is valid.
     pub fn derive_row_root_for_honest_tree<S: Serialize>(
         &self,
         leaf: &S,

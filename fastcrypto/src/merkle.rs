@@ -123,10 +123,8 @@ where
         Ok(())
     }
 
-    /// Verifies the proof given a Merkle root and the leaf data, without checking the proof's
-    /// length. The root must come from a tree built by [`MerkleTree`]. If whoever built the tree
-    /// is not trusted, use [`Self::verify_proof`] instead, since an unbalanced tree can open one
-    /// index to different leaves at different depths.
+    /// Verifies the proof given a Merkle root and the leaf data, assuming the tree was built by an
+    /// honest party. If that cannot be assumed, use [`Self::verify_proof`] instead.
     pub fn verify_proof_for_honest_tree(
         &self,
         root: &Node,
@@ -167,8 +165,8 @@ where
         self.hash_along_path(leaf, leaf_index)
     }
 
-    /// Recomputes the Merkle root from the proof and the provided leaf data, without checking the
-    /// proof's length. See [`Self::verify_proof_for_honest_tree`].
+    /// Recomputes the Merkle root from the proof and the provided leaf data, assuming the tree was
+    /// built by an honest party. If that cannot be assumed, use [`Self::compute_root`] instead.
     ///
     /// Returns `None` if the provided index is too large.
     pub fn compute_root_for_honest_tree(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
@@ -302,11 +300,8 @@ where
         proof.verify_proof_for_honest_tree_with_unserialized_leaf(root, neighbor, neighbor_index)
     }
 
-    /// Verifies non-inclusion of `target_leaf` without checking the lengths of the proofs. The
-    /// root must come from a tree built by [`MerkleTree`], see
-    /// [`MerkleProof::verify_proof_for_honest_tree`].
-    //
-    // Proves non-inclusion of a leaf assuming sorted tree.
+    /// Verifies non-inclusion of `target_leaf`, assuming the tree was built by an honest party
+    /// over sorted leaves.
     // Edge case explanations
     // - Empty tree: no leaves, automatically valid
     // - Target leaf smaller than all: no left neighbor, right neighbor must be at position 0

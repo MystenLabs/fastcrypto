@@ -345,6 +345,8 @@ impl Avid {
             if auth.shards.len() != self.nodes.weight_of(disperser)? as usize {
                 return Err(InvalidInput);
             }
+            // TODO: Change to strict verify later, together with the row root check in
+            // `decode_consistent`, where a failure counts as proof that the complaint is valid.
             // The proof lengths are not checked here yet, so that a complaint from a node that
             // still runs the previous release stays valid during a rollout.
             auth.proof.verify_for_honest_tree(
