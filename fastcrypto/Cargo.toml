@@ -71,6 +71,14 @@ cbc = { version = "0.1.2", features = ["std"], optional = true }
 aes-gcm = { version = "0.10.1", optional = true }
 aes-gcm-siv = { version = "0.11.1", optional = true }
 
+# Only for the Kani proofs in src/kani, which stub its point decompression. It is already in the
+# build through ed25519-consensus.
+[target.'cfg(kani)'.dependencies]
+curve25519-dalek-ng = "4.1.1"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
+
 [[bench]]
 name = "crypto"
 harness = false
