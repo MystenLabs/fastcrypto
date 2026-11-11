@@ -11,7 +11,8 @@
 //! is larger than its own deployment admits before deserializing it. A message grows with the
 //! receiver's own weight and with the batch size, and a receiver whose message is rejected sees no
 //! message and so cannot complain. Note that a deserialized message can take up to about 30 times
-//! its serialized size in memory.
+//! its serialized size in memory. [SharesForNode::serialized_length] gives the length of an honest
+//! ciphertext.
 //!
 //! In the first phase, the dealer sends an [AvssMessage] to each recipient. Receivers decrypt the
 //! ciphertext, verify the shares and vote on the message.
@@ -51,7 +52,7 @@ pub use crate::threshold_schnorr::avid::{
 use crate::threshold_schnorr::batch_avss_avid::DecodeAndDecryptOutcome::{
     InvalidDecryption, InvalidDispersal, Valid,
 };
-use crate::threshold_schnorr::bcs::BCSSerialized;
+use crate::threshold_schnorr::bcs::{uleb128_length, BCSSerialized};
 use crate::threshold_schnorr::recovery_proof;
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use crate::threshold_schnorr::{avid, Certificate, VerifiedCertificate};
@@ -1126,8 +1127,8 @@ impl SharesForNode {
     }
 
     /// The length of the BCS encoding of the shares for a node of weight `weight` with
-    /// `batch_size` nonces.
-    fn serialized_length(weight: u16, batch_size: usize) -> usize {
+    /// `batch_size` nonces. An honest dealer's ciphertext for the node has the same length.
+    pub fn serialized_length(weight: u16, batch_size: usize) -> usize {
         // SharesForNode { shares: Vec<ShareBatch> } with `weight` shares, each
         // ShareBatch { batch: Vec<S>, blinding_share: S } with `batch_size` scalars in `batch`.
         let batch = uleb128_length(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES;
@@ -1258,14 +1259,6 @@ impl SharesForNode {
 }
 
 impl BCSSerialized for SharesForNode {}
-
-/// The length of the ULEB128 encoding of `n`, which BCS uses for sequence lengths. See
-/// <https://github.com/diem/bcs#uleb128-encoded-integers>.
-fn uleb128_length(n: usize) -> usize {
-    // Each byte holds 7 bits of `n`, and zero takes one byte.
-    let bits = usize::BITS - n.leading_zeros();
-    bits.div_ceil(7).max(1) as usize
-}
 
 fn compute_challenge(
     random_oracle: &RandomOracle,
@@ -2019,6 +2012,42 @@ mod tests {
         let sid = b"zero weight dealer".to_vec();
 
         assert!(Dealer::new(nodes, dealer_id, params, sid, batch_size_per_weight).is_err());
+    }
+
+    #[test]
+    fn test_serialized_length() {
+        let weights = [3u16, 1, 3, 1, 2, 1, 1, 1, 2, 2];
+        let batch_size_per_weight = 64;
+        let mut rng = rand::thread_rng();
+        let nodes = Nodes::new(
+            weights
+                .iter()
+                .enumerate()
+                .map(|(id, &weight)| Node {
+                    id: id as u16,
+                    pk: PublicKey::from_private_key(&ecies_v1::PrivateKey::<EG>::new(&mut rng)),
+                    weight,
+                })
+                .collect_vec(),
+        )
+        .unwrap();
+        let dealer = Dealer::new(
+            nodes,
+            0,
+            Parameters { t: 5, f: 3 },
+            b"avss test".to_vec(),
+            batch_size_per_weight,
+        )
+        .unwrap();
+
+        let state = dealer.create_avss_messages(&mut rng).unwrap();
+        let batch_size = usize::from(weights[0]) * usize::from(batch_size_per_weight);
+        for (id, &weight) in weights.iter().enumerate() {
+            assert_eq!(
+                state.message_for(id as u16).unwrap().ciphertext.0.len(),
+                batch_avss::SharesForNode::serialized_length(weight, batch_size)
+            );
+        }
     }
 
     /// Build a uniform-weight Dealer and matching set of Receivers for tests.

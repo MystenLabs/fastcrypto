@@ -334,18 +334,29 @@ where
         receiver_pk: &PublicKey<G>,
         receiver_index: usize,
     ) -> FastCryptoResult<Vec<u8>> {
-        pkg.proof.verify(
-            &self.c,
-            &receiver_pk.0,
-            &pkg.ephemeral_key,
-            recovery_random_oracle,
-        )?;
+        self.verify_recovery_package(pkg, recovery_random_oracle, receiver_pk)?;
         let encs_ro = MultiRecipientEncryption::<G>::encs_random_oracle(encryption_random_oracle);
         let k = encs_ro.evaluate(&(receiver_index, pkg.ephemeral_key));
         let cipher = sym_cipher(&k);
         Ok(cipher
             .decrypt(&fixed_zero_nonce(), &enc.0)
             .expect("Decrypt should never fail for CTR mode"))
+    }
+
+    /// Verify that `pkg` is a recovery package for the receiver with public key `receiver_pk`,
+    /// without decrypting anything.
+    pub(crate) fn verify_recovery_package(
+        &self,
+        pkg: &RecoveryPackage<G>,
+        recovery_random_oracle: &RandomOracle,
+        receiver_pk: &PublicKey<G>,
+    ) -> FastCryptoResult<()> {
+        pkg.proof.verify(
+            &self.c,
+            &receiver_pk.0,
+            &pkg.ephemeral_key,
+            recovery_random_oracle,
+        )
     }
 }
 
