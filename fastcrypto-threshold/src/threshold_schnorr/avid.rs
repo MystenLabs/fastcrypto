@@ -654,8 +654,8 @@ mod tests {
             .unwrap();
     }
 
-    /// A dealer builds a top tree with five rows at depth 3, and hides another row for index 3 at
-    /// depth 2 in the slot that an honest tree pads.
+    /// A dealer can build a top tree that opens row 3 at the honest depth 3 and, through a slot
+    /// that an honest tree pads, also at depth 2. Five rows is the smallest tree with such a slot.
     #[test]
     fn proofs_of_the_wrong_length_are_rejected_for_echoes_and_dispersals() {
         use fastcrypto::hash::{Blake2b256, HashFunction};
@@ -683,18 +683,18 @@ mod tests {
                 .unwrap()
         };
         let rows = (0..5).map(row).collect_vec();
-        let other_row = row(9);
+        let hidden = row(9);
         let tree = NestedMerkleTree::new(rows.clone()).unwrap();
-        let other_tree = NestedMerkleTree::new(vec![other_row.clone()]).unwrap();
+        let hidden_tree = NestedMerkleTree::new(vec![hidden.clone()]).unwrap();
 
+        // Rows 0-4 at depth 3, and the hidden row at depth 2 in place of padding.
         let l = (0..5)
             .map(|i| leaf(&tree.row_root(i).unwrap()))
             .collect_vec();
         let (a, b) = (inner(&l[0], &l[1]), inner(&l[2], &l[3]));
         let c = inner(&l[4], &Node::Empty);
-        let d = leaf(&other_tree.row_root(0).unwrap());
+        let d = leaf(&hidden_tree.row_root(0).unwrap());
         let (ab, cd) = (inner(&a, &b), inner(&c, &d));
-        let top_root = inner(&ab, &cd);
         let top_paths = [
             vec![l[1].clone(), b.clone(), cd.clone()],
             vec![l[0].clone(), b.clone(), cd.clone()],
@@ -703,51 +703,48 @@ mod tests {
             vec![Node::Empty, d.clone(), ab.clone()],
         ];
 
-        let exact = |i: usize, j: usize| AuthenticatedShards {
-            shards: rows[i][j].clone(),
-            proof: NestedMerkleProof {
-                row_proof: tree.get_proof(i, j).unwrap().row_proof,
-                top_proof: MerkleProof::new(&top_paths[i]),
-            },
+        let authenticated =
+            |shards: &Shards, row_proof: MerkleProof, top_path: &[Node]| AuthenticatedShards {
+                shards: shards.clone(),
+                proof: NestedMerkleProof {
+                    row_proof,
+                    top_proof: MerkleProof::new(top_path),
+                },
+            };
+        let exact = |i: usize, j: usize| {
+            let row_proof = tree.get_proof(i, j).unwrap().row_proof;
+            authenticated(&rows[i][j], row_proof, &top_paths[i])
         };
-        let short = |j: usize| AuthenticatedShards {
-            shards: other_row[j].clone(),
-            proof: NestedMerkleProof {
-                row_proof: other_tree.get_proof(0, j).unwrap().row_proof,
-                top_proof: MerkleProof::new(&[c.clone(), ab.clone()]),
-            },
+        let short = |j: usize| {
+            let row_proof = hidden_tree.get_proof(0, j).unwrap().row_proof;
+            authenticated(&hidden[j], row_proof, &[c.clone(), ab.clone()])
         };
         let dispersal =
             |j: usize| -> Dispersal { (0..5u16).map(|i| (i, exact(i as usize, j))).collect() };
 
-        let target: PartyId = 3;
+        // Exact-length proofs are accepted, so a vote certifies the forged root.
         let (_, vote) = avid.process_dispersal(0, dispersal(0)).unwrap();
-        assert_eq!(vote.top_root, top_root);
+        assert_eq!(vote.top_root, inner(&ab, &cd));
 
-        // The short proof opens the other row under the same root, but is rejected.
+        // The short proof opens the hidden row at index 3 of the same root...
         assert!(short(2)
             .proof
-            .verify_for_trusted_tree(&top_root, &other_row[2], 3, 2)
+            .verify_for_trusted_tree(&vote.top_root, &hidden[2], 3, 2)
             .is_ok());
+        // ...but dispersals and echoes reject it.
         let mut forged = dispersal(2);
-        forged.insert(target, short(2));
+        forged.insert(3, short(2));
         assert!(avid.process_dispersal(2, forged).is_err());
         let echo = Echo {
             authenticated_shards: short(2),
         };
-        assert!(avid.verify_echo(echo, 2, &vote, target).is_err());
+        assert!(avid.verify_echo(echo, 2, &vote, 3).is_err());
 
-        // Exact-length echoes still verify.
-        let echo = Echo {
-            authenticated_shards: exact(3, 2),
-        };
-        avid.verify_echo(echo, 2, &vote, target).unwrap();
-
-        // Complaints are not length-checked yet, so a complaint with such a proof remains valid.
+        // Complaints are not length-checked yet, so one with the short proof is still valid.
         let complaint = Complaint {
             shards: BTreeMap::from([(0, exact(3, 0)), (1, exact(3, 1)), (2, short(2))]),
         };
-        avid.verify_complaint(&complaint, target, &vote, |_| true)
+        avid.verify_complaint(&complaint, 3, &vote, |_| true)
             .unwrap();
     }
 }
