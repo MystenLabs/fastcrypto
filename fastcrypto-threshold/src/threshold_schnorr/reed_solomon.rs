@@ -202,8 +202,7 @@ impl ErasureCoder {
         // Data format: a little-endian u32 length prefix followed by `data`, then zero padding to
         // fill a whole number of `Element`s across all shards.
         let len = u32::try_from(data.len()).map_err(|_| InvalidInput)?;
-        let framed_len = U32_SIZE + data.len();
-        let shard_size = framed_len.div_ceil(ELEMENT_SIZE_IN_BYTES * self.0.data_shard_count());
+        let shard_size = self.elements_per_shard(data.len());
         let total = ELEMENT_SIZE_IN_BYTES * shard_size * self.0.total_shard_count();
         Ok(len
             .to_le_bytes()
@@ -249,15 +248,17 @@ impl ErasureCoder {
         Ok(framed[U32_SIZE..end].to_vec())
     }
 
-    /// The length in bytes of each shard [Self::encode] makes from `data_len` bytes of data.
-    pub(crate) fn shard_length(&self, data_len: usize) -> usize {
+    /// The number of elements in each shard [Self::encode] makes from `data_len` bytes of data.
+    fn elements_per_shard(&self, data_len: usize) -> usize {
         // The data is framed and zero-padded so that it splits evenly over the `k` data shards,
         // each a whole number of elements:
         //   [len: u32 (little-endian)][data: data_len bytes][zero padding]
-        let framed_len = U32_SIZE + data_len;
-        let elements_per_shard =
-            framed_len.div_ceil(ELEMENT_SIZE_IN_BYTES * self.0.data_shard_count());
-        elements_per_shard * ELEMENT_SIZE_IN_BYTES
+        (U32_SIZE + data_len).div_ceil(ELEMENT_SIZE_IN_BYTES * self.0.data_shard_count())
+    }
+
+    /// The length in bytes of each shard [Self::encode] makes from `data_len` bytes of data.
+    pub(crate) fn shard_length(&self, data_len: usize) -> usize {
+        self.elements_per_shard(data_len) * ELEMENT_SIZE_IN_BYTES
     }
 }
 
