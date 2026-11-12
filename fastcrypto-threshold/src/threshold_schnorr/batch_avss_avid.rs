@@ -1259,7 +1259,8 @@ impl SharesForNode {
 
 impl BCSSerialized for SharesForNode {}
 
-/// The length of the ULEB128 encoding of `n`, which BCS uses for sequence lengths.
+/// The length of the ULEB128 encoding of `n`, which BCS uses for sequence lengths. See
+/// <https://github.com/zefchain/bcs#uleb128-encoded-integers>.
 fn uleb128_length(n: usize) -> usize {
     match n {
         0..0x80 => 1,
