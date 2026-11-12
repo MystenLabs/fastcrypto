@@ -155,17 +155,6 @@ impl ErasureCoder {
         Ok(())
     }
 
-    /// The length in bytes of each shard [Self::encode] makes from `data_len` bytes of data.
-    pub(crate) fn shard_length(&self, data_len: usize) -> usize {
-        // The data is framed and zero-padded so that it splits evenly over the `k` data shards,
-        // each a whole number of elements:
-        //   [len: u32 (little-endian)][data: data_len bytes][zero padding]
-        let framed_len = U32_SIZE + data_len;
-        let elements_per_shard =
-            framed_len.div_ceil(ELEMENT_SIZE_IN_BYTES * self.0.data_shard_count());
-        elements_per_shard * ELEMENT_SIZE_IN_BYTES
-    }
-
     /// Encode `data` into `n` shards of equal size, the first `k` of which hold the (zero-padded)
     /// data and the remaining `n - k` parity. Any `k` shards suffice to reconstruct the data.
     pub fn encode(&self, data: &[u8]) -> FastCryptoResult<Shards> {
@@ -258,6 +247,17 @@ impl ErasureCoder {
             return Err(InvalidInput);
         }
         Ok(framed[U32_SIZE..end].to_vec())
+    }
+
+    /// The length in bytes of each shard [Self::encode] makes from `data_len` bytes of data.
+    pub(crate) fn shard_length(&self, data_len: usize) -> usize {
+        // The data is framed and zero-padded so that it splits evenly over the `k` data shards,
+        // each a whole number of elements:
+        //   [len: u32 (little-endian)][data: data_len bytes][zero padding]
+        let framed_len = U32_SIZE + data_len;
+        let elements_per_shard =
+            framed_len.div_ceil(ELEMENT_SIZE_IN_BYTES * self.0.data_shard_count());
+        elements_per_shard * ELEMENT_SIZE_IN_BYTES
     }
 }
 
