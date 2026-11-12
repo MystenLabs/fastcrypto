@@ -90,6 +90,8 @@ impl NestedMerkleProof {
             .ok_or(InvalidProof)
     }
 
+    // TODO: Remove this and `derive_row_root_for_trusted_tree` once AVID complaints are checked
+    // with the strict variants.
     /// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`),
     /// assuming a trusted tree, i.e. one built by [NestedMerkleTree]. If the tree cannot be
     /// trusted, use [Self::verify] instead.
