@@ -60,4 +60,4 @@ default = []
 experimental = []
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(creusot)"] }
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(verus_keep_ghost)"] }

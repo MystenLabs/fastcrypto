@@ -10,7 +10,7 @@
 //! disperser to a recipient an "echo".
 
 use crate::nodes::{Nodes, PartyId};
-use crate::quorum::check_quorum;
+use crate::quorum::senders_weight;
 use crate::threshold_schnorr::merkle::{NestedMerkleProof, NestedMerkleTree};
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard, Shards};
 use crate::threshold_schnorr::EG;
@@ -270,7 +270,10 @@ impl Avid {
     ) -> FastCryptoResult<DecodeOutcome> {
         let senders = echoes.iter().map(|e| e.sender).collect_vec();
         let weights = self.nodes.iter().map(|n| n.weight).collect_vec();
-        check_quorum(&senders, &weights, self.required_weight())?;
+        let required = self.required_weight();
+        if senders_weight(&senders, &weights).ok_or(InvalidInput)? < required as u32 {
+            return Err(NotEnoughWeight(required as usize));
+        }
         let shards: BTreeMap<PartyId, AuthenticatedShards> = echoes
             .iter()
             .cloned()
@@ -444,19 +447,13 @@ mod tests {
     }
 
     #[test]
-    fn check_quorum_rejects_bad_senders() {
+    fn senders_weight_rejects_bad_senders() {
         let weights = [2, 0, 3];
-        assert!(check_quorum(&[0, 2], &weights, 5).is_ok());
-        assert!(matches!(check_quorum(&[], &weights, 0), Err(InvalidInput)));
-        assert!(matches!(
-            check_quorum(&[0, 0], &weights, 1),
-            Err(InvalidInput)
-        ));
-        assert!(matches!(check_quorum(&[3], &weights, 1), Err(InvalidInput)));
-        assert!(matches!(
-            check_quorum(&[0, 1], &weights, 3),
-            Err(NotEnoughWeight(3))
-        ));
+        assert_eq!(senders_weight(&[0, 2], &weights), Some(5));
+        assert_eq!(senders_weight(&[1], &weights), Some(0));
+        assert_eq!(senders_weight(&[], &weights), None);
+        assert_eq!(senders_weight(&[0, 0], &weights), None);
+        assert_eq!(senders_weight(&[3], &weights), None);
     }
 
     /// End-to-end happy path test
