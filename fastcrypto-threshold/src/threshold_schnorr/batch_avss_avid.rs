@@ -1125,10 +1125,10 @@ impl SharesForNode {
     }
 
     /// The length of the BCS encoding of the shares for a node of weight `weight` with
-    /// `batch_size` nonces: `uleb(weight) + weight * (uleb(batch_size) + (batch_size + 1) * 32)`.
-    /// Encryption preserves it, so it is also the length of the ciphertext an honest dealer sends
-    /// that node.
+    /// `batch_size` nonces, which is also the length of their encryption.
     fn serialized_length(weight: u16, batch_size: usize) -> usize {
+        // SharesForNode { shares: Vec<ShareBatch> } with `weight` batches, each
+        // ShareBatch { batch: Vec<S>, blinding_share: S } with `batch_size` scalars in `batch`.
         let batch = uleb128_length(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES;
         let weight = weight as usize;
         uleb128_length(weight) + weight * batch
