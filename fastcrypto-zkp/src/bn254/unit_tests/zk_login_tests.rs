@@ -11,7 +11,8 @@ use crate::bn254::zk_login::bitarray_to_bytearray;
 use crate::bn254::zk_login::poseidon_zk_login;
 use crate::bn254::zk_login::{
     base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
-    parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId, OIDCProvider,
+    parse_jwks, parse_v2_ext_iss, trim, verify_extended_claim, Claim, JWTDetails, JwkId,
+    OIDCProvider,
 };
 use crate::bn254::zk_login_api::{
     verify_zk_login_extended, verify_zk_login_id, verify_zk_login_iss, Bn254Fr, ZkLoginEnv,
@@ -602,6 +603,40 @@ fn test_v2_public_inputs_hash_matches_circuit_fixture() {
     assert_eq!(
         hash.to_string(),
         "10055516041686918213620150782216842656718491033112874618228320470549855286755"
+    );
+}
+
+#[test]
+fn test_parse_v2_ext_iss() {
+    for (ext_iss, iss) in [
+        (r#""iss":"A","#, "A"),
+        (r#""iss":"A"}"#, "A"),
+        (" \"iss\" :\t\"A\" ,", "A"),
+        (
+            r#""iss":"https:\/\/www.facebook.com","#,
+            "https://www.facebook.com",
+        ),
+    ] {
+        assert_eq!(parse_v2_ext_iss(ext_iss).unwrap(), iss, "{ext_iss}");
+    }
+    // V2 rejects each of these. It accepts only one member, named `iss`.
+    for ext_iss in [
+        r#""iss":"A""#,
+        r#""iss":"A","iss":"B","#,
+        r#""sub":"x","iss":"A","#,
+        r#""iss":"A","sub":"x"}"#,
+        r#""iss":{"iss":"A"},"#,
+        r#""iss":1,"#,
+        r#""iss":"A"},"x":{,"#,
+        r#""aud":"A","#,
+        "",
+    ] {
+        assert!(parse_v2_ext_iss(ext_iss).is_err(), "{ext_iss}");
+    }
+    // V1 still accepts other members.
+    assert_eq!(
+        verify_extended_claim(r#""sub":"x","iss":"A","#, "iss").unwrap(),
+        "A"
     );
 }
 

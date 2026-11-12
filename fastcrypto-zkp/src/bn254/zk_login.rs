@@ -528,18 +528,15 @@ impl JWTDetails {
     /// Read in the Claim and header string. Parse and validate kid, header, iss as JWT details.
     pub fn new(header_base64: &str, claim: &Claim) -> Result<Self, FastCryptoError> {
         let ext_claim = decode_base64_url(&claim.value, &claim.index_mod_4)?;
-        Self::from_extended_claim(header_base64, &ext_claim)
+        Self::from_header_and_iss(header_base64, verify_extended_claim(&ext_claim, ISS)?)
     }
 
-    fn from_extended_claim(
-        header_base64: &str,
-        extended_claim: &str,
-    ) -> Result<Self, FastCryptoError> {
+    fn from_header_and_iss(header_base64: &str, iss: String) -> Result<Self, FastCryptoError> {
         let header = JWTHeader::new(header_base64)?;
         Ok(JWTDetails {
             kid: header.kid,
             header: header_base64.to_string(),
-            iss: verify_extended_claim(extended_claim, ISS)?,
+            iss,
         })
     }
 }
@@ -713,7 +710,7 @@ impl ZkLoginInputsV2 {
         if self.header_base64.len() > usize::from(config.max_header_len_b64) {
             return Err(FastCryptoError::GeneralError("Header too long".to_string()));
         }
-        JWTDetails::from_extended_claim(&self.header_base64, &self.ext_iss)
+        JWTDetails::from_header_and_iss(&self.header_base64, parse_v2_ext_iss(&self.ext_iss)?)
     }
 
     fn encode_public_inputs_transcript(
@@ -831,6 +828,24 @@ fn verify_extended_claim(
         .as_str()
         .ok_or(FastCryptoError::InvalidInput)?;
     Ok(value.to_string())
+}
+
+/// Parse the V2 extended `iss` claim and return the decoded issuer.
+/// The slice must hold exactly one member, `iss`, with a string value, and end in `,` or `}`.
+fn parse_v2_ext_iss(ext_iss: &str) -> Result<String, FastCryptoError> {
+    // `deny_unknown_fields` rejects other members. Serde also rejects a repeated `iss`.
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct ExtIss {
+        iss: String,
+    }
+    let body = ext_iss
+        .strip_suffix(',')
+        .or_else(|| ext_iss.strip_suffix('}'))
+        .ok_or(FastCryptoError::InvalidInput)?;
+    let parsed: ExtIss =
+        serde_json::from_str(&format!("{{{body}}}")).map_err(|_| FastCryptoError::InvalidInput)?;
+    Ok(parsed.iss)
 }
 
 /// Parse the base64 string, add paddings based on offset, and convert to a bytearray.
