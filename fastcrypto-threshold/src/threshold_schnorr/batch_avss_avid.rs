@@ -678,7 +678,7 @@ impl Receiver {
         recipient: PartyId,
         shards: &AuthenticatedShards,
     ) -> FastCryptoResult<()> {
-        let expected = self.avid.shard_length(ciphertext_length(
+        let expected = self.avid.shard_length(SharesForNode::serialized_length(
             self.nodes.weight_of(recipient)?,
             self.batch_size,
         ));
@@ -1124,6 +1124,16 @@ impl SharesForNode {
         self.shares.len() as u16
     }
 
+    /// The length of the BCS encoding of the shares for a node of weight `weight` with
+    /// `batch_size` nonces. Encryption preserves it, so it is also the length of the ciphertext an
+    /// honest dealer sends that node.
+    fn serialized_length(weight: u16, batch_size: usize) -> usize {
+        // The length of the ULEB128 length prefix of a BCS sequence of `len` elements.
+        let prefix = |len: usize| (usize::BITS - len.leading_zeros()).div_ceil(7).max(1) as usize;
+        let share_batch = prefix(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES;
+        prefix(weight.into()) + usize::from(weight) * share_batch
+    }
+
     /// If all shares have the same batch size, return that.
     /// Otherwise, return an InvalidInput error.
     pub fn try_uniform_batch_size(&self) -> FastCryptoResult<usize> {
@@ -1247,16 +1257,6 @@ impl SharesForNode {
 }
 
 impl BCSSerialized for SharesForNode {}
-
-/// The length of the ciphertext an honest dealer encrypts for a recipient of weight
-/// `recipient_weight` with `batch_size` nonces: the length of the BCS encoding of the recipient's
-/// [SharesForNode], which encryption preserves.
-fn ciphertext_length(recipient_weight: u16, batch_size: usize) -> usize {
-    // The length of the ULEB128 length prefix of a BCS sequence of `len` elements.
-    let prefix = |len: usize| (usize::BITS - len.leading_zeros()).div_ceil(7).max(1) as usize;
-    let share_batch = prefix(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES;
-    prefix(recipient_weight.into()) + usize::from(recipient_weight) * share_batch
-}
 
 fn compute_challenge(
     random_oracle: &RandomOracle,
