@@ -318,7 +318,7 @@ fn global_pvk() -> PreparedVerifyingKey<Bn254> {
 }
 
 /// Load the insecure/test V2 verifying key from:
-/// https://github.com/MystenLabs/zklogin-circuits/blob/5f56d49baf2be3c278cbd7398c38042d9ae04e02/artifacts/dev/zkLogin.vkey
+/// https://github.com/MystenLabs/zklogin-circuits/blob/98f83f08ef018ffe1ec4f606a4b3db82d4dbba7b/artifacts/dev/zkLogin.vkey
 fn insecure_pvk_v2() -> PreparedVerifyingKey<Bn254> {
     // Convert the Circom G1/G2/GT to arkworks G1/G2/GT
     let vk_alpha_1 = g1_affine_from_str_projective(&vec![
@@ -420,22 +420,22 @@ fn insecure_pvk_v2() -> PreparedVerifyingKey<Bn254> {
     for e in [
         vec![
             Bn254FqElement::from_str(
-                "3373545770415370903464758013645365931939917232678459242722542394913978794552",
+                "2604693091120928089668503265725660484768315233480997420978812569800456259891",
             )
             .unwrap(),
             Bn254FqElement::from_str(
-                "3739181977773772266520226351914722083053481936777937720236575290712818692886",
+                "9707335097702507627712728353144376540022320592318742115867331717105682097097",
             )
             .unwrap(),
             Bn254FqElement::from_str("1").unwrap(),
         ],
         vec![
             Bn254FqElement::from_str(
-                "9258003708456575667586173076237052356721024850589816519143145719150477800735",
+                "10433718164938587218651880592661304784487303592249595403831730771819462482824",
             )
             .unwrap(),
             Bn254FqElement::from_str(
-                "10678054586461584500464697173624953209516332976991370885906441121713091267247",
+                "1715834194816720509279142787523453997023236975354296235952451750418070735468",
             )
             .unwrap(),
             Bn254FqElement::from_str("1").unwrap(),
@@ -543,7 +543,10 @@ pub enum CircuitVersion {
 }
 
 const V1_MAX_EXT_ISS_LEN: u16 = 165;
-const V2_MAX_EXT_ISS_LEN: u16 = 186;
+// V2 values must match circuits/zkLogin.circom in zklogin-circuits.
+// Source: MystenLabs/zklogin-circuits@98f83f08ef018ffe1ec4f606a4b3db82d4dbba7b.
+const V2_MAX_EXT_ISS_LEN: u16 = 174;
+const V2_MAX_HEADER_LEN: u16 = 317;
 
 impl CircuitVersion {
     /// Circuit-specific parameters (max field lengths) for this version.
@@ -555,7 +558,7 @@ impl CircuitVersion {
                 max_rsa_bits: 2048,
             },
             CircuitVersion::V2 => CircuitConfig {
-                max_header_len_b64: 279,
+                max_header_len_b64: V2_MAX_HEADER_LEN,
                 max_iss_len: V2_MAX_EXT_ISS_LEN,
                 max_rsa_bits: 8192,
             },

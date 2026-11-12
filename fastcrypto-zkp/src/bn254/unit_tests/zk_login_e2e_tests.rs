@@ -8,24 +8,131 @@ use crate::bn254::utils::get_test_issuer_jwt_token;
 use crate::bn254::zk_login::fetch_jwks;
 use crate::bn254::{
     utils::{gen_address_seed, get_proof},
-    zk_login::{JwkId, OIDCProvider, ZkLoginInputs, JWK},
-    zk_login_api::{verify_zk_login, ZkLoginEnv},
+    zk_login::{JwkId, OIDCProvider, VersionedZkLoginInputs, ZkLoginInputs, JWK},
+    zk_login_api::{verify_zk_login, verify_zk_login_extended, ZkLoginEnv},
 };
 use ark_std::rand::{rngs::StdRng, SeedableRng};
+use fastcrypto::encoding::{Base64, Encoding};
+use fastcrypto::hash::{HashFunction, Sha256};
 use fastcrypto::jwt_utils::parse_and_validate_jwt;
+use fastcrypto::rsa::{Base64UrlUnpadded, Encoding as _};
 use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use imbl::HashMap as ImHashMap;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use test_strategy::proptest;
 use test_strategy::Arbitrary;
 
 const PROVER_DEV_SERVER_URL: &str = "https://prover-dev.mystenlabs.com/v1";
+const PROVER_DEV_V2_URL: &str = "https://prover-dev-v2.mystenlabs.com/v1";
+const JWT_TESTER_8192_URL: &str = "https://jwt-tester.mystenlabs.com/8192/jwt";
+const JWT_TESTER_ISS: &str = "https://jwt-tester.mystenlabs.com";
+
+/// Compute the V2 nonce. It is the base64url encoding of the low 160 bits of
+/// SHA-256(SHA-256(eph_pk) || max_epoch || jwt_randomness).
+fn get_nonce_v2(eph_pk: &[u8], max_epoch: u64, jwt_randomness: &[u8; 16]) -> String {
+    let commitment = Sha256::digest(eph_pk);
+    let mut transcript = commitment.to_vec();
+    transcript.extend_from_slice(&max_epoch.to_be_bytes());
+    transcript.extend_from_slice(jwt_randomness);
+    let digest = Sha256::digest(&transcript);
+    Base64UrlUnpadded::encode_string(&digest.as_ref()[12..])
+}
+
+/// Get a fresh JWT from jwt-tester, request a proof from the dev-v2 prover, and verify it.
+/// The JWT is signed with the 8192-bit jwt-tester key.
+async fn prove_and_verify_v2(
+    eph_pubkey: &[u8],
+    max_epoch: u64,
+    jwt_randomness: &[u8; 16],
+    salt: &[u8; 16],
+    sub: &str,
+) {
+    let nonce = get_nonce_v2(eph_pubkey, max_epoch, jwt_randomness);
+    let client = reqwest::Client::new();
+    let jwt: TestIssuerJWTResponse = client
+        .post(JWT_TESTER_8192_URL)
+        .query(&[
+            ("nonce", nonce.as_str()),
+            ("iss", JWT_TESTER_ISS),
+            ("sub", sub),
+        ])
+        .header("Content-Length", "0")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    // The prover accepts the randomness and the salt as decimal strings.
+    // Its response is the V2 input format.
+    let response = client
+        .post(PROVER_DEV_V2_URL)
+        .json(&json!({
+            "jwt": jwt.jwt,
+            "extendedEphemeralPublicKey": Base64::encode(eph_pubkey),
+            "maxEpoch": max_epoch,
+            "jwtRandomness": BigUint::from_bytes_be(jwt_randomness).to_string(),
+            "salt": BigUint::from_bytes_be(salt).to_string(),
+            "keyClaimName": "sub",
+        }))
+        .send()
+        .await
+        .unwrap();
+    let status = response.status();
+    let response = response.text().await.unwrap();
+    assert!(status.is_success(), "prover returned {status}: {response}");
+    let inputs = VersionedZkLoginInputs::V2(serde_json::from_str(&response).unwrap())
+        .init()
+        .unwrap();
+    assert_eq!(inputs.get_iss(), JWT_TESTER_ISS);
+
+    let all_jwk: ImHashMap<JwkId, JWK> =
+        fetch_jwks(&OIDCProvider::TestIssuerKey8192, &client, false)
+            .await
+            .unwrap()
+            .into_iter()
+            .collect();
+    let verify = |env| verify_zk_login_extended(&inputs, max_epoch, eph_pubkey, &all_jwk, env);
+    assert!(verify(&ZkLoginEnv::Test).is_ok());
+    // No production V2 key exists yet.
+    assert!(verify(&ZkLoginEnv::Prod).is_err());
+}
 
 #[tokio::test]
-#[ignore = "TODO: update after the V2 prover is deployed"]
 async fn test_end_to_end_v2_prover() {
-    // TODO: Fetch and verify a proof from the live V2 prover.
+    // Wallet inputs from zklogin-circuits test/vectors/sampleWalletInputs.json.
+    let eph_pubkey = Base64::decode("ALnG7hYw7z5xEUSmSNsGu7IoT3J0z77lP/zuUDzBpJIA").unwrap();
+    let jwt_randomness = Base64::decode("S76Qi8c/SZlmmotnFMr13Q==").unwrap();
+    let salt = Base64::decode("urgFnwIxJ++Ooswtf0Nn1w==").unwrap();
+    prove_and_verify_v2(
+        &eph_pubkey,
+        10,
+        &jwt_randomness.try_into().unwrap(),
+        &salt.try_into().unwrap(),
+        "904448692",
+    )
+    .await;
+}
+
+#[proptest(async = "tokio")]
+async fn test_end_to_end_v2_test_issuer(test_input: TestInputStruct) {
+    // This test runs for a long time. Each case requests one proof from the dev-v2 prover.
+    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed(test_input.seed_ephemeral_kp));
+    let mut eph_pubkey = vec![0x00];
+    eph_pubkey.extend(kp.public().as_ref());
+    let sub = BigUint::from_bytes_be(&test_input.sub).to_string();
+    println!("max_epoch: {}, sub: {sub}", test_input.max_epoch);
+    prove_and_verify_v2(
+        &eph_pubkey,
+        test_input.max_epoch,
+        &test_input.jwt_rand_bytes,
+        &test_input.salt_bytes,
+        &sub,
+    )
+    .await;
 }
 
 #[tokio::test]

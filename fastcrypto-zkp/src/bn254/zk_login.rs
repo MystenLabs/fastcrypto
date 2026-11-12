@@ -656,12 +656,17 @@ pub type AddressSeed = [u8; 32];
 
 /// All inputs required for V2 proof verification. V2 carries the exact decoded extended issuer
 /// claim instead of a base64-encoded JWT payload fragment.
+/// The JSON format matches the V2 prover response.
+#[serde_with::serde_as]
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ZkLoginInputsV2 {
     proof_points: ZkLoginProof,
     ext_iss: String,
     header_base64: String,
+    /// "0x" followed by 64 hex characters.
+    #[serde_as(as = "fastcrypto::encoding::Hex")]
+    #[schemars(with = "String")]
     address_seed: AddressSeed,
     #[serde(skip)]
     jwt_details: JWTDetails,
