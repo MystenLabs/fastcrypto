@@ -678,6 +678,7 @@ impl Receiver {
         recipient: PartyId,
         shards: &AuthenticatedShards,
     ) -> FastCryptoResult<()> {
+        // A row's payload is the encryption of the recipient's shares, which has the same length.
         let expected = self.avid.shard_length(SharesForNode::serialized_length(
             self.nodes.weight_of(recipient)?,
             self.batch_size,
@@ -1125,7 +1126,7 @@ impl SharesForNode {
     }
 
     /// The length of the BCS encoding of the shares for a node of weight `weight` with
-    /// `batch_size` nonces, which is also the length of their encryption.
+    /// `batch_size` nonces.
     fn serialized_length(weight: u16, batch_size: usize) -> usize {
         // SharesForNode { shares: Vec<ShareBatch> } with `weight` batches, each
         // ShareBatch { batch: Vec<S>, blinding_share: S } with `batch_size` scalars in `batch`.
