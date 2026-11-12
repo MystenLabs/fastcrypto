@@ -1129,7 +1129,7 @@ impl SharesForNode {
     /// Encryption preserves it, so it is also the length of the ciphertext an honest dealer sends
     /// that node.
     fn serialized_length(weight: u16, batch_size: usize) -> usize {
-        let weight = usize::from(weight);
+        let weight = weight as usize;
         let batch = uleb128_length(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES;
         uleb128_length(weight) + weight * batch
     }
