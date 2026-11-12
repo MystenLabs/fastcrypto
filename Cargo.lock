@@ -1403,6 +1403,7 @@ dependencies = [
  "aes",
  "aes-gcm",
  "aes-gcm-siv",
+ "ark-bls12-381",
  "ark-ec",
  "ark-ff",
  "ark-secp256k1",

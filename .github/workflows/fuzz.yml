@@ -1,0 +1,50 @@
+name: Fuzz
+
+# Coverage-guided fuzzing of the parsers and primitives that take untrusted bytes on Sui
+# validators. Runs briefly on PRs that touch the fuzzed code, and longer every night.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "fuzz/**"
+      - "fastcrypto/src/groups/**"
+      - "fastcrypto-zkp/src/bn254/**"
+      - "fastcrypto-zkp/src/bls12381/**"
+      - "fastcrypto-zkp/src/groth16/**"
+      - ".github/workflows/fuzz.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  RUST_BACKTRACE: short
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-ghcloud
+    strategy:
+      matrix:
+        target:
+          - bls12381_group_ops
+          - groth16_bls12381
+          - groth16_bn254
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # pin@v3
+      - name: install nightly and cargo-fuzz
+        run: |
+          rustup toolchain install nightly --profile minimal
+          cargo +nightly install cargo-fuzz --locked
+      - name: fuzz ${{ matrix.target }}
+        working-directory: fuzz
+        env:
+          SECONDS_TO_RUN: ${{ github.event_name == 'pull_request' && 60 || 900 }}
+        run: cargo +nightly fuzz run -O ${{ matrix.target }} -- -max_total_time=$SECONDS_TO_RUN
