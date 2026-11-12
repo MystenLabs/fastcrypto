@@ -155,6 +155,12 @@ impl ErasureCoder {
         Ok(())
     }
 
+    /// The length in bytes of each shard [Self::encode] makes from `data_len` bytes of data.
+    pub(crate) fn shard_length(&self, data_len: usize) -> usize {
+        (U32_SIZE + data_len).div_ceil(ELEMENT_SIZE_IN_BYTES * self.0.data_shard_count())
+            * ELEMENT_SIZE_IN_BYTES
+    }
+
     /// Encode `data` into `n` shards of equal size, the first `k` of which hold the (zero-padded)
     /// data and the remaining `n - k` parity. Any `k` shards suffice to reconstruct the data.
     pub fn encode(&self, data: &[u8]) -> FastCryptoResult<Shards> {

@@ -140,6 +140,11 @@ impl Avid {
         Ok(Self { nodes, coder, f })
     }
 
+    /// The length of every shard in a dispersal of a payload of `payload_len` bytes.
+    pub(crate) fn shard_length(&self, payload_len: usize) -> usize {
+        self.coder.shard_length(payload_len)
+    }
+
     /// 1. RS-encode every payload and return a [DispersalBuilder] that can mint per-disperser
     ///    [Dispersal]s on demand via [DispersalBuilder::dispersal_for]. Fails if any of the
     ///    payloads are empty.

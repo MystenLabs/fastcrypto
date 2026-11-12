@@ -61,6 +61,7 @@ use fastcrypto::error::FastCryptoError::{
     GeneralOpaqueError, InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
 };
 use fastcrypto::error::FastCryptoResult;
+use fastcrypto::groups::secp256k1::SCALAR_SIZE_IN_BYTES;
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::hash::{Blake2b256, HashFunction};
 use fastcrypto::traits::AllowedRng;
@@ -613,6 +614,9 @@ impl Receiver {
             warn!("batch_avss echo: dispersal recipients and voters do not partition the node set");
             return Err(InvalidMessage);
         }
+        for (&recipient, shards) in &dispersal {
+            self.check_shard_lengths(recipient, shards)?;
+        }
         let (builder, vote) = self.avid.process_dispersal(self.id, dispersal)?;
         let avid_vote = AvidVote {
             vote,
@@ -660,8 +664,29 @@ impl Receiver {
         avid_cert: &VerifiedCertificate<C>,
     ) -> FastCryptoResult<VerifiedEcho> {
         self.check_avid_cert_weight(avid_cert)?;
+        // TODO: Check the shard lengths with `check_shard_lengths` once all signers check them
+        // before voting. Until then, honest signers may hold wrong-length shards.
         self.avid
             .verify_echo(echo, sender, &avid_cert.payload().vote, self.id)
+    }
+
+    /// Check that every shard in `shards` has the length of `recipient`'s row in an honest
+    /// dispersal. Otherwise a dealer could commit an oversized shard, and a complaint carrying it
+    /// could grow too large for the network to deliver.
+    fn check_shard_lengths(
+        &self,
+        recipient: PartyId,
+        shards: &AuthenticatedShards,
+    ) -> FastCryptoResult<()> {
+        let expected = self.avid.shard_length(ciphertext_length(
+            self.nodes.weight_of(recipient)?,
+            self.batch_size,
+        ));
+        if shards.shards.iter().any(|shard| shard.0.len() != expected) {
+            warn!("batch_avss: shards for recipient {recipient} have the wrong length");
+            return Err(InvalidMessage);
+        }
+        Ok(())
     }
 
     /// 7c. Reconstruct this receiver's ciphertext from at least `W − 2f` weight of
@@ -1222,6 +1247,16 @@ impl SharesForNode {
 }
 
 impl BCSSerialized for SharesForNode {}
+
+/// The length of the ciphertext an honest dealer encrypts for a recipient of weight
+/// `recipient_weight` with `batch_size` nonces: the length of the BCS encoding of the recipient's
+/// [SharesForNode], which encryption preserves.
+fn ciphertext_length(recipient_weight: u16, batch_size: usize) -> usize {
+    // The length of the ULEB128 length prefix of a BCS sequence of `len` elements.
+    let prefix = |len: usize| (usize::BITS - len.leading_zeros()).div_ceil(7).max(1) as usize;
+    let share_batch = prefix(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES;
+    prefix(recipient_weight.into()) + usize::from(recipient_weight) * share_batch
+}
 
 fn compute_challenge(
     random_oracle: &RandomOracle,
@@ -1870,6 +1905,80 @@ mod tests {
                 .collect_vec();
             Poly::recover_c0(t, shares.into_iter()).unwrap();
         }
+    }
+
+    #[test]
+    fn test_wrong_length_shards_are_rejected() {
+        // The dealer pads the shard it commits at disperser 6's position in receiver 0's row.
+        // Disperser 6 refuses to vote on the dispersal, and the remaining echoes still let
+        // receiver 0 complain about the dealer.
+        let (victim_id, padded_id) = (0u16, 6u16);
+        let (dealer, receivers) = uniform_session(7, 3, 2, 3);
+        let mut rng = rand::thread_rng();
+        let state = dealer.create_avss_messages(&mut rng).unwrap();
+        let mut voter_commons = BTreeMap::new();
+        for r in receivers.iter().filter(|r| r.id != victim_id) {
+            let (_, _, vcm) = r
+                .process_avss_message(&state.message_for(r.id).unwrap())
+                .unwrap();
+            voter_commons.insert(r.id, vcm);
+        }
+        let cert = AvssCert {
+            voters: voter_commons.keys().copied().collect(),
+            vote: AvssVote {
+                common_message_hash: state.common.hash(),
+            },
+        };
+        let messages = dealer
+            .create_avid_messages_for_testing(&state, cert, |shards_by_recipient| {
+                shards_by_recipient.get_mut(&victim_id).unwrap()[padded_id as usize][0]
+                    .0
+                    .push(0);
+            })
+            .unwrap();
+
+        assert!(receivers[padded_id as usize]
+            .process_avid_message(
+                &voter_commons[&padded_id],
+                messages.message_for(padded_id).unwrap()
+            )
+            .is_err());
+
+        let mut avid_votes = BTreeMap::new();
+        let mut echoes = BTreeMap::new();
+        for r in receivers
+            .iter()
+            .filter(|r| r.id != victim_id && r.id != padded_id)
+        {
+            let (builder, vote) = r
+                .process_avid_message(&voter_commons[&r.id], messages.message_for(r.id).unwrap())
+                .unwrap();
+            echoes.insert(r.id, builder.create_echo(victim_id).unwrap());
+            avid_votes.insert(r.id, vote);
+        }
+        let avid_cert = AvidCert {
+            signers: avid_votes.keys().copied().collect(),
+            vote: avid_votes.values().next().unwrap().clone(),
+        }
+        .to_verified()
+        .unwrap();
+
+        let victim = &receivers[victim_id as usize];
+        let vcm = victim
+            .verify_common_message(&avid_cert, state.common.clone())
+            .unwrap();
+        let echoes = echoes
+            .into_iter()
+            .map(|(sender, echo)| {
+                victim
+                    .verify_avid_echo_message(echo, sender, &avid_cert)
+                    .unwrap()
+            })
+            .collect_vec();
+        assert!(matches!(
+            victim.decode_and_decrypt(&echoes, &vcm, &mut rng).unwrap(),
+            DecodeAndDecryptOutcome::InvalidDispersal(_)
+        ));
     }
 
     #[test]
