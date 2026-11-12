@@ -1262,13 +1262,9 @@ impl BCSSerialized for SharesForNode {}
 /// The length of the ULEB128 encoding of `n`, which BCS uses for sequence lengths. See
 /// <https://github.com/diem/bcs#uleb128-encoded-integers>.
 fn uleb128_length(n: usize) -> usize {
-    match n {
-        0..0x80 => 1,
-        0x80..0x4000 => 2,
-        0x4000..0x20_0000 => 3,
-        0x20_0000..0x1000_0000 => 4,
-        _ => 5,
-    }
+    // Each byte holds 7 bits of `n`, and zero takes one byte.
+    let bits = usize::BITS - n.leading_zeros();
+    bits.div_ceil(7).max(1) as usize
 }
 
 fn compute_challenge(
