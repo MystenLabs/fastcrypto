@@ -1125,13 +1125,13 @@ impl SharesForNode {
     }
 
     /// The length of the BCS encoding of the shares for a node of weight `weight` with
-    /// `batch_size` nonces. Encryption preserves it, so it is also the length of the ciphertext an
-    /// honest dealer sends that node.
+    /// `batch_size` nonces: `uleb(weight) + weight * (uleb(batch_size) + (batch_size + 1) * 32)`.
+    /// Encryption preserves it, so it is also the length of the ciphertext an honest dealer sends
+    /// that node.
     fn serialized_length(weight: u16, batch_size: usize) -> usize {
-        // The length of the ULEB128 length prefix of a BCS sequence of `len` elements.
-        let prefix = |len: usize| (usize::BITS - len.leading_zeros()).div_ceil(7).max(1) as usize;
-        let share_batch = prefix(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES;
-        prefix(weight.into()) + usize::from(weight) * share_batch
+        let weight = usize::from(weight);
+        let batch = uleb128_length(batch_size) + (batch_size + 1) * SCALAR_SIZE_IN_BYTES;
+        uleb128_length(weight) + weight * batch
     }
 
     /// If all shares have the same batch size, return that.
@@ -1257,6 +1257,17 @@ impl SharesForNode {
 }
 
 impl BCSSerialized for SharesForNode {}
+
+/// The length of the ULEB128 encoding of `n`, which BCS uses for sequence lengths.
+fn uleb128_length(n: usize) -> usize {
+    match n {
+        0..0x80 => 1,
+        0x80..0x4000 => 2,
+        0x4000..0x20_0000 => 3,
+        0x20_0000..0x1000_0000 => 4,
+        _ => 5,
+    }
+}
 
 fn compute_challenge(
     random_oracle: &RandomOracle,
