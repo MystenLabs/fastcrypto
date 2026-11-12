@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 #![cfg_attr(not(test), forbid(unsafe_code))]
+#![cfg_attr(verus_keep_ghost, feature(proc_macro_hygiene))]
 #![warn(
     future_incompatible,
     nonstandard_style,
@@ -18,7 +19,6 @@ pub mod knapsack_weight_reduction;
 pub mod mocked_dkg;
 pub mod nodes;
 pub mod polynomial;
-mod quorum;
 pub mod tbls;
 pub mod threshold_schnorr;
 pub mod types;
