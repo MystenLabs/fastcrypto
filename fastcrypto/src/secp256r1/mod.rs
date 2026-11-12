@@ -66,6 +66,9 @@ use crate::{
 /// The length of a public key in bytes.
 pub const SECP256R1_PUBLIC_KEY_LENGTH: usize = 33;
 
+/// SEC1 tag of the compact point encoding.
+const SEC1_COMPACT_TAG: u8 = 0x05;
+
 /// The length of a private key in bytes.
 pub const SECP256R1_PRIVATE_KEY_LENGTH: usize = 32;
 
@@ -111,7 +114,8 @@ pub struct Secp256r1Signature {
 
 impl std::hash::Hash for Secp256r1PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.as_ref().hash(state);
+        // Hash the canonical encoding so that Hash agrees with Eq.
+        self.pubkey.as_ref().to_bytes().hash(state);
     }
 }
 
@@ -169,6 +173,14 @@ generate_bytes_representation!(
     Secp256r1PublicKeyAsBytes
 );
 impl Secp256r1PublicKey {
+    /// Like [ToFromBytes::from_bytes], but rejects the SEC1 compact encoding (prefix `0x05`).
+    pub fn from_bytes_strict(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        if bytes.first() == Some(&SEC1_COMPACT_TAG) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        <Self as ToFromBytes>::from_bytes(bytes)
+    }
+
     /// Verify the signature using the given hash function to hash the message.
     pub fn verify_with_hash<H: HashFunction<32>>(
         &self,
@@ -231,6 +243,7 @@ impl AsRef<[u8]> for Secp256r1PublicKey {
 }
 
 impl ToFromBytes for Secp256r1PublicKey {
+    /// Deprecated: use [Secp256r1PublicKey::from_bytes_strict], which rejects the compact encoding.
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         match ExternalPublicKey::try_from(bytes) {
             Ok(pubkey) => Ok(Secp256r1PublicKey {

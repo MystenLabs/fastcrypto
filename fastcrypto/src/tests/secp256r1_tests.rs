@@ -102,6 +102,50 @@ fn hash_public_key() {
 }
 
 #[test]
+fn compact_encoding() {
+    fn hash(pk: &Secp256r1PublicKey) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        pk.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    // 0x05 || x decodes to either P or -P. Check that both cases occur.
+    let mut seen = [false, false];
+    let mut rng = StdRng::from_seed([0; 32]);
+    for _ in 0..16 {
+        let pk = Secp256r1KeyPair::generate(&mut rng).public().clone();
+        let mut negated_bytes = pk.as_bytes().to_vec();
+        negated_bytes[0] ^= 1;
+        let negated = Secp256r1PublicKey::from_bytes(&negated_bytes).unwrap();
+        let mut compact_bytes = pk.as_bytes().to_vec();
+        compact_bytes[0] = 0x05;
+
+        // The lenient parser accepts the compact encoding and keeps the input bytes.
+        let compact = Secp256r1PublicKey::from_bytes(&compact_bytes).unwrap();
+        assert_eq!(compact.as_bytes(), compact_bytes.as_slice());
+
+        // Equal keys hash equally, regardless of the encoding they were parsed from.
+        let same = if compact == pk { &pk } else { &negated };
+        assert_eq!(&compact, same);
+        assert_eq!(hash(&compact), hash(same));
+        seen[(compact == pk) as usize] = true;
+
+        // The strict parser rejects the compact encoding but accepts the other encodings.
+        assert!(Secp256r1PublicKey::from_bytes_strict(&compact_bytes).is_err());
+        assert_eq!(
+            Secp256r1PublicKey::from_bytes_strict(pk.as_bytes()).unwrap(),
+            pk
+        );
+        assert_eq!(
+            Secp256r1PublicKey::from_bytes_strict(pk.pubkey.to_encoded_point(false).as_bytes())
+                .unwrap(),
+            pk
+        );
+    }
+    assert_eq!(seen, [true, true]);
+}
+
+#[test]
 fn fmt_public_key() {
     let kpref = keys().pop().unwrap();
     let public_key = kpref.public();
