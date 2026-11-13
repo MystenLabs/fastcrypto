@@ -18,6 +18,77 @@ pub uninterp spec fn spec_verifies(
     receiver: PartyId,
 ) -> bool;
 
+// Types of `avss` with only public fields. The specs look into the transparent ones but not the
+// opaque ones. `Receiver`, `Message` and `VerifiedComplaintResponse` are declared in `avss.rs`,
+// since a transparent declaration here cannot have private fields.
+#[verifier::external_type_specification]
+#[verifier::external_body]
+pub struct ExSharesForNode(SharesForNode);
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+pub struct ExComplaint(Complaint);
+
+#[verifier::external_type_specification]
+pub struct ExAvssOutput(AvssOutput);
+
+#[verifier::external_type_specification]
+pub struct ExComplaintResponse(ComplaintResponse);
+
+#[verifier::external_type_specification]
+pub struct ExProcessedMessage(ProcessedMessage);
+
+// Functions of `avss` that the proofs call but do not look into.
+
+/// `shares.verify(message, ids, receiver)` is `Ok` exactly when `verifies(..)` holds.
+pub assume_specification[ SharesForNode::verify ](
+    shares: &SharesForNode,
+    message: &Message,
+    expected_share_ids: &[ShareIndex],
+    receiver: PartyId,
+) -> (r: FastCryptoResult<()>)
+    ensures
+        r is Ok <==> spec_verifies(*shares, *message, expected_share_ids@, receiver),
+;
+
+/// `my_indices()` is `share_ids_of(nodes, id)`, and its `unwrap` does not panic.
+pub assume_specification[ Receiver::my_indices ](receiver: &Receiver) -> (r: Vec<ShareIndex>)
+    ensures
+        r@ == spec_share_ids(receiver.spec_nodes(), receiver.spec_id()),
+;
+
+pub assume_specification[ Receiver::recover_shares ](
+    receiver: &Receiver,
+    message: &Message,
+    responses: Vec<VerifiedComplaintResponse>,
+) -> FastCryptoResult<SharesForNode>;
+
+pub assume_specification[ warn_unverified_recovery ](e: &FastCryptoError);
+
+pub assume_specification[ Receiver::check_message ](
+    receiver: &Receiver,
+    message: &Message,
+) -> FastCryptoResult<()>;
+
+pub assume_specification[ Receiver::decrypt_my_shares ](
+    receiver: &Receiver,
+    message: &Message,
+) -> FastCryptoResult<SharesForNode>;
+
+pub assume_specification<R: AllowedRng>[ Receiver::create_complaint::<R> ](
+    receiver: &Receiver,
+    message: &Message,
+    rng: &mut R,
+) -> Complaint;
+
+pub assume_specification[ Receiver::check_complaint ](
+    receiver: &Receiver,
+    message: &Message,
+    accuser_id: PartyId,
+    complaint: &Complaint,
+    my_output: &AvssOutput,
+) -> FastCryptoResult<()>;
+
 /// `shares.clone()` is `shares`.
 pub assume_specification[ <SharesForNode as Clone>::clone ](shares: &SharesForNode) -> (r: SharesForNode)
     ensures

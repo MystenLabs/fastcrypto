@@ -33,21 +33,25 @@ cargo verus focus --features verus
 
 ### What is trusted
 
-Each item below is marked `external_body` (Verus takes the signature and does not read the body)
-or declared in `specs.rs`. Only the first four have a spec. Verus assumes what it says.
+Verus assumes what these say. Except where noted, they are declared in `fastcrypto-threshold/`
+and Verus does not read the code they describe.
 
 * `SharesForNode::verify`: `Ok` ⇔ `verifies(shares, message, ids, receiver)`, an uninterpreted
   predicate. So `verify` is assumed to be a deterministic check.
 * `Nodes::share_ids_of`: `Ok` ⇔ `valid_id(nodes, id)`, and `Ok(ids)` ⇒
   `ids = share_ids_of(nodes, id)`, both uninterpreted.
-* `SharesForNode::clone` returns an equal value.
 * `Receiver::my_indices`: returns `share_ids_of(nodes, id)`. This includes that its `unwrap` does
   not panic.
+* `SharesForNode::clone` returns an equal value.
 * With no spec: `Receiver::recover_shares`, `warn_unverified_recovery`, `Receiver::check_message`,
-  `Receiver::decrypt_my_shares`, `Receiver::create_complaint`, `Receiver::check_complaint`, the `From<u128>` impls of the
-  scalars and `Clone` for `Poly`.
-* Opaque types: `Nodes`, `Poly`, `PrivateKey`, `MultiRecipientEncryption`, `SharesForNode`,
-  `Complaint`, `Parameters`, and the group, scalar and error types of fastcrypto.
+  `Receiver::decrypt_my_shares`, `Receiver::create_complaint`, `Receiver::check_complaint`, the
+  `From<u128>` impls of the scalars and `Clone` for `Poly`.
+* Opaque types: `Nodes`, `Poly`, `MultiRecipientEncryption`, `SharesForNode`, `Complaint`,
+  `Parameters`, `PrivateKey` (marked in `ecies_v1.rs`), and the group, scalar and error types of
+  fastcrypto.
+* Types whose fields the proofs read: `Receiver`, `Message` and `VerifiedComplaintResponse`
+  (marked in `avss.rs`, since they have private fields), and `AvssOutput`, `ComplaintResponse` and
+  `ProcessedMessage`.
 * The traits `AdditiveGroup`, `Module`, `Scalar`, `GroupElement`, `AllowedRng`, `Zeroize`, rand's
   `RngCore` and `CryptoRng`, and serde's `Serialize`, `Deserialize` and `DeserializeOwned`,
   restated with their bounds.

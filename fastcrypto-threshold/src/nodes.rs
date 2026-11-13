@@ -4,8 +4,6 @@
 use crate::ecies_v1;
 use crate::knapsack_weight_reduction;
 use crate::types::ShareIndex;
-#[cfg(verus_keep_ghost)]
-use crate::verification::*;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
@@ -13,8 +11,6 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use tracing::debug;
-#[cfg(verus_keep_ghost)]
-use vstd::prelude::*;
 
 pub type PartyId = u16;
 
@@ -27,12 +23,6 @@ pub struct Node<G: GroupElement> {
 }
 
 /// Wrapper for a set of nodes.
-#[cfg_attr(
-    verus_keep_ghost,
-    verus_verify(external_body),
-    verifier::reject_recursive_types(G),
-    verifier::external_derive
-)]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Nodes<G: GroupElement> {
     nodes: Vec<Node<G>>, // Party ids are 0..len(nodes)-1 (inclusive)
@@ -159,11 +149,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     }
 
     /// Get the share ids of a node (ordered). Returns error if the node does not exist.
-    #[cfg_attr(verus_keep_ghost, verus_verify(external_body), verus_spec(r =>
-        ensures
-            r is Ok <==> spec_valid_id(*self, id),
-            r is Ok ==> r->Ok_0@ == spec_share_ids(*self, id),
-    ))]
     pub fn share_ids_of(&self, id: PartyId) -> FastCryptoResult<Vec<ShareIndex>> {
         // Check if the input is valid.
         self.node_id_to_node(id)?;

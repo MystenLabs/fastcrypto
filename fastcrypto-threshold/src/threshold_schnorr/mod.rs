@@ -83,11 +83,6 @@ pub type Address = [u8; 32];
 /// [Nodes::knapsack_reduce](crate::nodes::Nodes::knapsack_reduce), which guarantees `t > f`. The
 /// other reductions in [Nodes](crate::nodes::Nodes) can return `t == f`, which
 /// [Parameters::validate] rejects.
-#[cfg_attr(
-    verus_keep_ghost,
-    vstd::prelude::verus_verify(external_body),
-    verifier::external_derive
-)]
 #[derive(Copy, Clone, Debug)]
 pub struct Parameters {
     /// Reconstruction threshold: `≥ t` valid shares (by weight) reconstruct a secret.

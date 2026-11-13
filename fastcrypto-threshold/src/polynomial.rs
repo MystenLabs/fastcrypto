@@ -22,12 +22,6 @@ pub type Eval<A> = IndexedValue<A>;
 
 /// A polynomial that is using a scalar for the variable x and a generic
 /// element for the coefficients.
-#[cfg_attr(
-    verus_keep_ghost,
-    vstd::prelude::verus_verify(external_body),
-    verifier::reject_recursive_types(C),
-    verifier::external_derive
-)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Poly<C>(Vec<C>);
 

@@ -8,7 +8,7 @@
 use crate::nodes::{Nodes, PartyId};
 use crate::threshold_schnorr::G;
 use crate::types::ShareIndex;
-use fastcrypto::error::FastCryptoError;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use vstd::prelude::*;
 use vstd::set_lib::*;
 
@@ -143,6 +143,38 @@ pub uninterp spec fn spec_share_ids<C: fastcrypto::groups::GroupElement>(
     nodes: Nodes<C>,
     id: PartyId,
 ) -> Seq<ShareIndex>;
+
+// Types of this crate that the specs mention but do not look into.
+#[verifier::external_type_specification]
+#[verifier::external_body]
+#[verifier::reject_recursive_types(C)]
+pub struct ExNodes<C: fastcrypto::groups::GroupElement>(Nodes<C>);
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+#[verifier::reject_recursive_types(C)]
+pub struct ExPoly<C>(crate::polynomial::Poly<C>);
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+#[verifier::reject_recursive_types(C)]
+pub struct ExMultiRecipientEncryption<C: fastcrypto::groups::GroupElement>(
+    crate::ecies_v1::MultiRecipientEncryption<C>,
+);
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+pub struct ExParameters(crate::threshold_schnorr::Parameters);
+
+/// `Nodes::share_ids_of` is `Ok` exactly for valid ids, and then returns `share_ids_of(nodes, id)`.
+pub assume_specification<C: fastcrypto::groups::GroupElement + serde::Serialize>[ Nodes::<C>::share_ids_of ](
+    nodes: &Nodes<C>,
+    id: PartyId,
+) -> (r: FastCryptoResult<Vec<ShareIndex>>)
+    ensures
+        r is Ok <==> spec_valid_id(*nodes, id),
+        r is Ok ==> r->Ok_0@ == spec_share_ids(*nodes, id),
+;
 
 // The AVID sender check, `avid::total_weight_of_distinct`.
 

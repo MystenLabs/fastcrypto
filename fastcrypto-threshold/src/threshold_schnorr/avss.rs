@@ -84,7 +84,6 @@ pub struct Message {
 
 /// The result of a [Receiver] processing a [Message]: Either valid shares or a complaint.
 #[allow(clippy::large_enum_variant)]
-#[cfg_attr(verus_keep_ghost, verus_verify)]
 pub enum ProcessedMessage {
     Valid(AvssOutput),
     Complaint(Complaint),
@@ -95,11 +94,6 @@ pub enum ProcessedMessage {
 ///
 /// The accuser's id is not carried here; the higher-level protocol tracks which party a complaint
 /// came from and passes it to [Receiver::handle_complaint].
-#[cfg_attr(
-    verus_keep_ghost,
-    verus_verify(external_body),
-    verifier::external_derive
-)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Complaint {
     pub proof: RecoveryProof,
@@ -110,7 +104,6 @@ pub struct Complaint {
 ///
 /// The responder's id is not carried here; the higher-level protocol tracks which party a response
 /// came from and passes it to [Receiver::verify_complaint_response].
-#[cfg_attr(verus_keep_ghost, verus_verify, verifier::external_derive)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComplaintResponse {
     pub shares: SharesForNode,
@@ -127,7 +120,6 @@ pub struct VerifiedComplaintResponse {
 }
 
 /// The output of a receiver after a single instance of AVSS: The shares for each nonce + commitments for the next round.
-#[cfg_attr(verus_keep_ghost, verus_verify, verifier::external_derive)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AvssOutput {
     /// The commitments to the polynomials will be used for key rotation.
@@ -149,11 +141,6 @@ pub type Share = Eval<S>;
 
 /// All the shares given to a node. One share per the node's weight.
 /// These can be created either by decrypting the shares from the dealer or by recovering them from complaint responses.
-#[cfg_attr(
-    verus_keep_ghost,
-    verus_verify(external_body),
-    verifier::external_derive
-)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharesForNode {
     pub shares: Vec<Share>,
@@ -171,9 +158,6 @@ impl SharesForNode {
 
     /// Verify a set of shares received from a Dealer: that the share indices are exactly
     /// `expected_share_ids` and that each share is consistent with the dealer's commitment.
-    #[cfg_attr(verus_keep_ghost, verus_verify(external_body), verus_spec(r =>
-        ensures r is Ok <==> spec_verifies(*self, *message, expected_share_ids@, receiver)
-    ))]
     fn verify(
         &self,
         message: &Message,
@@ -434,7 +418,6 @@ impl Receiver {
 
     /// The checks of [Self::verify_message] on the message itself, which do not depend on this
     /// receiver's shares.
-    #[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
     fn check_message(&self, message: &Message) -> FastCryptoResult<()> {
         if message.feldman_commitment.degree() + 1 != self.params.t as usize
             || !message.feldman_commitment.is_reduced()
@@ -475,7 +458,6 @@ impl Receiver {
 
     /// Decrypt and deserialize this receiver's shares from a message that passed
     /// [Self::check_message].
-    #[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
     fn decrypt_my_shares(&self, message: &Message) -> FastCryptoResult<SharesForNode> {
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         let plaintext = message.ciphertext.decrypt(
@@ -489,7 +471,6 @@ impl Receiver {
     /// Build a complaint proving this receiver got invalid shares. This reveals this receiver's
     /// decryption key for the message, so it must only be called after [`Self::verify_message`]
     /// returned `Ok(None)`.
-    #[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
     fn create_complaint<R: AllowedRng>(&self, message: &Message, rng: &mut R) -> Complaint {
         Complaint {
             proof: RecoveryProof::create(
@@ -532,7 +513,6 @@ impl Receiver {
 
     /// The checks of [Self::handle_complaint]: that `my_output` is for `message` and that the
     /// complaint is valid.
-    #[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
     fn check_complaint(
         &self,
         message: &Message,
@@ -622,7 +602,6 @@ impl Receiver {
 
     /// The checks of [Self::recover] on the responses, and the interpolation of this receiver's
     /// shares from them.
-    #[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
     fn recover_shares(
         &self,
         message: &Message,
@@ -652,9 +631,6 @@ impl Receiver {
         SharesForNode::recover(self.my_indices(), self.params.t, &valid_shares)
     }
 
-    #[cfg_attr(verus_keep_ghost, verus_verify(external_body), verus_spec(r =>
-        ensures r@ == spec_share_ids(self.spec_nodes(), self.spec_id())
-    ))]
     pub fn my_indices(&self) -> Vec<ShareIndex> {
         self.nodes.share_ids_of(self.id).unwrap()
     }
@@ -870,7 +846,6 @@ impl AvssOutput {
     }
 }
 
-#[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
 fn warn_unverified_recovery(e: &FastCryptoError) {
     warn!(
         "AVSS recover: recovered shares failed verification, so the responses were not all verified against this message: {e:?}"

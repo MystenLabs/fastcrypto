@@ -56,12 +56,6 @@ pub struct Ciphertext(pub Vec<u8>);
 
 /// Multi-recipient encryption with a proof-of-possession of the ephemeral key.
 /// (rG, r RO1(rG), {AES(k=RO2(rPK_i), m_i)}_i, DDH-NIZK(G, RO1(rG), rG, r RO1(rG)) )
-#[cfg_attr(
-    verus_keep_ghost,
-    vstd::prelude::verus_verify(external_body),
-    verifier::reject_recursive_types(G),
-    verifier::external_derive
-)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MultiRecipientEncryption<G: GroupElement> {
     c: G,
