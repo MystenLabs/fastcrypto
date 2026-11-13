@@ -5,7 +5,9 @@
 //! `lib.rs`): what Verus may assume about types and traits from other crates, and the spec
 //! functions and lemmas for the AVID sender check.
 
+use crate::nodes::{Nodes, PartyId};
 use crate::threshold_schnorr::G;
+use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError;
 use vstd::prelude::*;
 use vstd::set_lib::*;
@@ -114,6 +116,27 @@ pub struct ExSecp256k1Scalar(fastcrypto::groups::secp256k1::Scalar);
 pub assume_specification<C: Clone>[ <crate::polynomial::Poly<C> as Clone>::clone ](
     p: &crate::polynomial::Poly<C>,
 ) -> crate::polynomial::Poly<C>;
+
+#[verifier::external_trait_specification]
+pub trait ExRngCore {
+    type ExternalTraitSpecificationFor: rand::RngCore;
+}
+
+#[verifier::external_trait_specification]
+pub trait ExCryptoRng {
+    type ExternalTraitSpecificationFor: rand::CryptoRng;
+}
+
+#[verifier::external_trait_specification]
+pub trait ExAllowedRng: rand::CryptoRng + rand::RngCore {
+    type ExternalTraitSpecificationFor: fastcrypto::traits::AllowedRng;
+}
+
+/// `nodes.share_ids_of(id)`, when it is `Ok`.
+pub uninterp spec fn spec_share_ids<C: fastcrypto::groups::GroupElement>(
+    nodes: Nodes<C>,
+    id: PartyId,
+) -> Seq<ShareIndex>;
 
 // The AVID sender check, `avid::senders_weight`.
 

@@ -28,29 +28,36 @@ cargo verus focus --features verus
 | `avid::senders_weight` | Returns the senders' total weight exactly when they are nonempty, distinct parties, and `None` otherwise. Never panics or overflows. | The sender check inside `decode_quorum` and `decode_total` (`Avid/Steps.lean`) |
 | `avss::Receiver::verify_complaint_response` | `Ok(v)` ⇒ `v.responder_id = responder_id`. | `verify_binds` (`Avss/Steps.lean`) |
 | `avss::Receiver::recover` | `Ok(o)` ⇒ `verifies(o.my_shares, message, share_ids_of(nodes, id), id)`. | `recover_sound` (`Avss/Steps.lean`) |
+| `avss::Receiver::process_message` | `Ok(Valid(o))` ⇒ `verifies(o.my_shares, message, share_ids_of(nodes, id), id)`. | `process_valid` (`Avss/Steps.lean`) |
 
 ### What is trusted
 
 Each item below is marked `external_body` (Verus takes the signature and does not read the body)
-or declared in `specs.rs`. Only the first two have a spec. Verus assumes what it says.
+or declared in `specs.rs`. Only the first three have a spec. Verus assumes what it says.
 
 * `SharesForNode::verify`: `Ok` ⇒ `verifies(shares, message, ids, receiver)`, an uninterpreted
   predicate. So `verify` is assumed to be a deterministic check.
-* `Receiver::my_indices`: returns `share_ids_of(nodes, id)`, also uninterpreted. This includes
-  that its `unwrap` does not panic.
-* With no spec: `Nodes::share_ids_of`, `Receiver::recover_shares`, `warn_unverified_recovery`,
-  the `From<u128>` impls of the scalars and `Clone` for `Poly`.
+* `Nodes::share_ids_of`: `Ok(ids)` ⇒ `ids = share_ids_of(nodes, id)`, also uninterpreted.
+* `Receiver::my_indices`: returns `share_ids_of(nodes, id)`. This includes that its `unwrap` does
+  not panic.
+* With no spec: `Receiver::recover_shares`, `warn_unverified_recovery`, `Receiver::check_message`,
+  `Receiver::decrypt_my_shares`, `Receiver::create_complaint`, the `From<u128>` impls of the
+  scalars and `Clone` for `Poly`.
 * Opaque types: `Nodes`, `Poly`, `PrivateKey`, `MultiRecipientEncryption`, `SharesForNode`,
-  `Parameters`, and the group, scalar and error types of fastcrypto.
-* The traits `AdditiveGroup`, `Module`, `Scalar`, `GroupElement`, `Zeroize` and serde's
-  `Serialize`, `Deserialize` and `DeserializeOwned`, restated with their bounds.
+  `Complaint`, `Parameters`, and the group, scalar and error types of fastcrypto.
+* The traits `AdditiveGroup`, `Module`, `Scalar`, `GroupElement`, `AllowedRng`, `Zeroize`, rand's
+  `RngCore` and `CryptoRng`, and serde's `Serialize`, `Deserialize` and `DeserializeOwned`,
+  restated with their bounds.
 
 ### Code changed for Verus
 
 * `avid::senders_weight` replaces the `all_unique` and `total_weight_of` check in
   `decode_or_complain` with a loop that Verus can check.
 * `Receiver::recover` moves its checks and interpolation into `recover_shares` and its logging
-  into `warn_unverified_recovery`, since Verus cannot check iterator chains or `tracing` macros.
+  into `warn_unverified_recovery`, and `Receiver::verify_message` moves its checks on the message
+  into `check_message` and its decryption into `decrypt_my_shares`, since Verus cannot check
+  iterator chains, closures or `tracing` macros. The rest of `verify_message` is written out as
+  steps instead of an `and_then` closure.
 * fastcrypto's `GroupElement` is split into `AdditiveGroup`, `Module<S>` and `GroupElement`, and
   `Scalar` is a `Module<Self>` instead of a `GroupElement`. Verus rejects the previous traits as
   cyclic, since a scalar was a group element whose scalar type is itself.

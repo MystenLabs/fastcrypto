@@ -84,6 +84,7 @@ pub struct Message {
 
 /// The result of a [Receiver] processing a [Message]: Either valid shares or a complaint.
 #[allow(clippy::large_enum_variant)]
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 pub enum ProcessedMessage {
     Valid(AvssOutput),
     Complaint(Complaint),
@@ -94,6 +95,11 @@ pub enum ProcessedMessage {
 ///
 /// The accuser's id is not carried here; the higher-level protocol tracks which party a complaint
 /// came from and passes it to [Receiver::handle_complaint].
+#[cfg_attr(
+    verus_keep_ghost,
+    verus_verify(external_body),
+    verifier::external_derive
+)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Complaint {
     pub proof: RecoveryProof,
@@ -380,6 +386,10 @@ impl Receiver {
     /// that this receiver was given a different `commitment` than the others.
     ///
     /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
+    #[cfg_attr(verus_keep_ghost, verus_spec(r =>
+        ensures r matches Ok(ProcessedMessage::Valid(o)) ==> spec_verifies(
+            o.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id())
+    ))]
     pub fn process_message<R: AllowedRng>(
         &self,
         message: &Message,
@@ -397,7 +407,33 @@ impl Receiver {
     /// use [`Self::process_message`] to build a broadcastable complaint. `Err`
     /// ([InvalidMessage]): the message is malformed and should be ignored. `Err` ([InvalidInput]):
     /// the dealing does not match this receiver's `commitment`.
+    #[cfg_attr(verus_keep_ghost, verus_spec(r =>
+        ensures r matches Ok(Some(o)) ==> spec_verifies(
+            o.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id())
+    ))]
     pub fn verify_message(&self, message: &Message) -> FastCryptoResult<Option<AvssOutput>> {
+        self.check_message(message)?;
+        let my_shares = match self.decrypt_my_shares(message) {
+            Ok(my_shares) => my_shares,
+            Err(_) => return Ok(None),
+        };
+        let my_share_ids = match self.nodes.share_ids_of(self.id) {
+            Ok(ids) => ids,
+            Err(_) => return Ok(None),
+        };
+        if my_shares.verify(message, &my_share_ids, self.id).is_err() {
+            return Ok(None);
+        }
+        Ok(Some(AvssOutput {
+            my_shares,
+            feldman_commitment: message.feldman_commitment.clone(),
+        }))
+    }
+
+    /// The checks of [Self::verify_message] on the message itself, which do not depend on this
+    /// receiver's shares.
+    #[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
+    fn check_message(&self, message: &Message) -> FastCryptoResult<()> {
         if message.feldman_commitment.degree() + 1 != self.params.t as usize
             || !message.feldman_commitment.is_reduced()
         {
@@ -432,28 +468,26 @@ impl Receiver {
                 warn!("AVSS verify_message: ciphertext verification failed: {e:?}");
                 InvalidMessage
             })?;
+        Ok(())
+    }
 
+    /// Decrypt and deserialize this receiver's shares from a message that passed
+    /// [Self::check_message].
+    #[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
+    fn decrypt_my_shares(&self, message: &Message) -> FastCryptoResult<SharesForNode> {
+        let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         let plaintext = message.ciphertext.decrypt(
             &self.enc_secret_key,
             &random_oracle_encryption,
             self.id as usize,
         );
-
-        match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
-            my_shares.verify(message, &self.nodes.share_ids_of(self.id)?, self.id)?;
-            Ok(my_shares)
-        }) {
-            Ok(my_shares) => Ok(Some(AvssOutput {
-                my_shares,
-                feldman_commitment: message.feldman_commitment.clone(),
-            })),
-            Err(_) => Ok(None),
-        }
+        SharesForNode::from_bytes(&plaintext)
     }
 
     /// Build a complaint proving this receiver got invalid shares. This reveals this receiver's
     /// decryption key for the message, so it must only be called after [`Self::verify_message`]
     /// returned `Ok(None)`.
+    #[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
     fn create_complaint<R: AllowedRng>(&self, message: &Message, rng: &mut R) -> Complaint {
         Complaint {
             proof: RecoveryProof::create(

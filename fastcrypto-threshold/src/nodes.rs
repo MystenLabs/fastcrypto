@@ -4,6 +4,8 @@
 use crate::ecies_v1;
 use crate::knapsack_weight_reduction;
 use crate::types::ShareIndex;
+#[cfg(verus_keep_ghost)]
+use crate::verification::*;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
@@ -157,7 +159,9 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     }
 
     /// Get the share ids of a node (ordered). Returns error if the node does not exist.
-    #[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
+    #[cfg_attr(verus_keep_ghost, verus_verify(external_body), verus_spec(r =>
+        ensures r is Ok ==> r->Ok_0@ == spec_share_ids(*self, id)
+    ))]
     pub fn share_ids_of(&self, id: PartyId) -> FastCryptoResult<Vec<ShareIndex>> {
         // Check if the input is valid.
         self.node_id_to_node(id)?;

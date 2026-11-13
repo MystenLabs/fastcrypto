@@ -5,6 +5,7 @@
 //! child module of `avss`, so it can read the private fields of its types.
 
 use super::*;
+pub use crate::verification::spec_share_ids;
 use vstd::prelude::*;
 
 verus! {
@@ -16,9 +17,6 @@ pub uninterp spec fn spec_verifies(
     ids: Seq<ShareIndex>,
     receiver: PartyId,
 ) -> bool;
-
-/// `nodes.share_ids_of(id)`.
-pub uninterp spec fn spec_share_ids(nodes: Nodes<EG>, id: PartyId) -> Seq<ShareIndex>;
 
 impl Receiver {
     /// This receiver's `nodes`.
