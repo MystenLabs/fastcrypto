@@ -198,35 +198,6 @@ fn reduce_weight(w: u16, d: u32, offset: u64) -> u16 {
     ((10_000 * (w as u64) + offset * (d as u64)) / (100 * (d as u64))) as u16
 }
 
-/// The value-space knapsack table `min_original_weight[v] = min { w(S) : w'(S) = v }` for
-/// `v in [0, W']`, computed in `O(n * W')`.
-fn knapsack_min_original(weights: &[u16], reduced: &[u16], reduced_total: u32) -> Vec<u32> {
-    let mut min_original_weight = vec![u32::MAX; reduced_total as usize + 1];
-    min_original_weight[0] = 0;
-    for (&w, &q) in weights.iter().zip(reduced.iter()) {
-        let (w, q) = (w as u32, q as usize);
-        if q == 0 {
-            continue;
-        }
-        for v in (q..min_original_weight.len()).rev() {
-            if min_original_weight[v - q] != u32::MAX {
-                min_original_weight[v] = min_original_weight[v].min(min_original_weight[v - q] + w);
-            }
-        }
-    }
-    min_original_weight
-}
-
-/// `g(weight) = max { w'(S) : w(S) <= weight }`.
-/// In other words, the largest reduced weight a subset can have while its
-/// original weight <= `weight`: w(S) <= weight => w'(S) <= g(weight).
-fn max_reduced_weight(min_original_weight: &[u32], weight: u32) -> u32 {
-    min_original_weight
-        .iter()
-        .rposition(|&x| x <= weight)
-        .expect("min_original_weight[0] = 0 always qualifies") as u32
-}
-
 /// A cheap rejection test that costs `O(n log n)`. It never errs when claiming
 /// infeasibility.
 fn greedy_reject(
@@ -332,6 +303,69 @@ fn check_candidate(
     Ok((tp as u16, fp as u16))
 }
 
+// BEGIN CREUSOT-VERIFIED
+// The functions between these markers are formally verified with Creusot, which proves that
+// `verify_reduction` is sound and that none of them can panic or overflow. The proof runs on an
+// annotated copy in verification/fastcrypto-threshold/knapsack_weight_reduction, and a test there
+// checks that the copy, minus its annotations, matches the code here. Changes here must be made there too.
+// They use index loops rather than iterator adaptors because Creusot can't reason about most
+// of the latter.
+
+/// The sum of `values`. Doesn't overflow as long as `values.len() <= 65537`.
+pub(crate) fn sum_u16(values: &[u16]) -> u32 {
+    let mut sum = 0u32;
+    let mut i = 0;
+    while i < values.len() {
+        sum += values[i] as u32;
+        i += 1;
+    }
+    sum
+}
+
+/// The value-space knapsack table `min_original_weight[v] = min { w(S) : w'(S) = v }` for
+/// `v in [0, W']`, computed in `O(n * W')`.
+pub(crate) fn knapsack_min_original(
+    weights: &[u16],
+    reduced: &[u16],
+    reduced_total: u32,
+) -> Vec<u32> {
+    let mut min_original_weight = vec![u32::MAX; reduced_total as usize + 1];
+    min_original_weight[0] = 0;
+    let n = weights.len().min(reduced.len());
+    let mut i = 0;
+    while i < n {
+        let w = weights[i] as u32;
+        let q = reduced[i] as usize;
+        // Iterate downward so that each party is used at most once.
+        let mut v = min_original_weight.len();
+        while v > q {
+            v -= 1;
+            if min_original_weight[v - q] != u32::MAX {
+                let candidate = min_original_weight[v - q] + w;
+                if candidate < min_original_weight[v] {
+                    min_original_weight[v] = candidate;
+                }
+            }
+        }
+        i += 1;
+    }
+    min_original_weight
+}
+
+/// `g(weight) = max { w'(S) : w(S) <= weight }`.
+/// In other words, the largest reduced weight a subset can have while its
+/// original weight <= `weight`: w(S) <= weight => w'(S) <= g(weight).
+pub(crate) fn max_reduced_weight(min_original_weight: &[u32], weight: u32) -> u32 {
+    let mut v = min_original_weight.len();
+    while v > 0 {
+        v -= 1;
+        if min_original_weight[v] <= weight {
+            return v as u32;
+        }
+    }
+    panic!("min_original_weight[0] = 0 always qualifies")
+}
+
 /// Verifier for a candidate reduction: checks conditions (P), (L1), (L2), and (L3)
 /// for an arbitrary `(weights', t', f')` in `O(n * W')` time. Returns
 /// `InvalidInput` for malformed inputs and a `GeneralError` naming the first
@@ -343,11 +377,13 @@ pub(crate) fn verify_reduction(
     delta: u16,
     reduction: &ReducedWeights,
 ) -> FastCryptoResult<()> {
-    let w_total = weights.iter().map(|&w| w as u32).sum::<u32>();
-    let reduced_total = reduction.weights.iter().map(|&w| w as u32).sum::<u32>();
-    if weights.len() != reduction.weights.len()
-        || weights.len() > MAX_PARTIES
-        || t == 0
+    // Check the lengths first so that the sums below cannot overflow.
+    if weights.len() != reduction.weights.len() || weights.len() > MAX_PARTIES {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    let w_total = sum_u16(weights);
+    let reduced_total = sum_u16(&reduction.weights);
+    if t == 0
         || f == 0
         || (t as u32) > w_total
         || w_total > u16::MAX as u32
@@ -369,18 +405,18 @@ pub(crate) fn verify_reduction(
 
     // (P): max { w'(S) : w(S) <= t-1 } <= t' - 1.
     if max_reduced_weight(&min_original_weight_map, (t - 1) as u32) > (reduction.t - 1) as u32 {
-        return Err(FastCryptoError::GeneralError("P violated".to_string()));
+        return Err(FastCryptoError::GeneralError("P violated".to_owned()));
     }
 
     // (L2): max { w'(S) : w(S) <= f } <= f'.
     if max_reduced_weight(&min_original_weight_map, f as u32) > reduction.f as u32 {
-        return Err(FastCryptoError::GeneralError("L2 violated".to_string()));
+        return Err(FastCryptoError::GeneralError("L2 violated".to_owned()));
     }
 
     // (L3): min { w'(S) : w(S) >= t + delta } >= t'.
     let b1 = w_total - (t as u32 + delta as u32);
     if reduced_total - max_reduced_weight(&min_original_weight_map, b1) < reduction.t as u32 {
-        return Err(FastCryptoError::GeneralError("L3 violated".to_string()));
+        return Err(FastCryptoError::GeneralError("L3 violated".to_owned()));
     }
 
     // (L1): min { w'(S) : w(S) >= t + f + delta } >= t' + f'.
@@ -388,7 +424,8 @@ pub(crate) fn verify_reduction(
     if reduced_total - max_reduced_weight(&min_original_weight_map, b2)
         < reduction.t as u32 + reduction.f as u32
     {
-        return Err(FastCryptoError::GeneralError("L1 violated".to_string()));
+        return Err(FastCryptoError::GeneralError("L1 violated".to_owned()));
     }
     Ok(())
 }
+// END CREUSOT-VERIFIED
