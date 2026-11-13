@@ -61,6 +61,10 @@ pub mod ristretto255_tests;
 pub mod bls12381_group_tests;
 
 #[cfg(test)]
+#[path = "tests/bls12381_group_property_tests.rs"]
+pub mod bls12381_group_property_tests;
+
+#[cfg(test)]
 #[path = "tests/vrf_tests.rs"]
 pub mod vrf_tests;
 

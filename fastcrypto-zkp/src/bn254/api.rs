@@ -10,6 +10,10 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 #[path = "unit_tests/api_tests.rs"]
 mod api_tests;
 
+#[cfg(test)]
+#[path = "unit_tests/api_property_tests.rs"]
+mod api_property_tests;
+
 /// Size of scalars in the BN254 construction.
 pub const SCALAR_SIZE: usize = 32;
 

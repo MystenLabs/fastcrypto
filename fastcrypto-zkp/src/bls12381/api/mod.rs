@@ -10,6 +10,8 @@ use fastcrypto::groups::bls12381::{
 
 mod conversions;
 #[cfg(test)]
+mod property_tests;
+#[cfg(test)]
 mod tests;
 
 /// Create a prepared verifying key for Groth16 over the BLS12-381 curve construction. See

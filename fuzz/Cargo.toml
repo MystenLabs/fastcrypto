@@ -1,0 +1,41 @@
+[package]
+name = "fastcrypto-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "Apache-2.0"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+bcs = "0.1.4"
+fastcrypto = { path = "../fastcrypto" }
+fastcrypto-zkp = { path = "../fastcrypto-zkp" }
+
+# Not a member of the main workspace: cargo-fuzz needs a nightly toolchain and its own build flags.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "groth16_bls12381"
+path = "fuzz_targets/groth16_bls12381.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "groth16_bn254"
+path = "fuzz_targets/groth16_bn254.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bls12381_group_ops"
+path = "fuzz_targets/bls12381_group_ops.rs"
+test = false
+doc = false
+bench = false
