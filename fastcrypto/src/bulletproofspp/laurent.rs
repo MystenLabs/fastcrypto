@@ -7,7 +7,7 @@
 use crate::bulletproofspp::util::{hadamard, inner_product, one, vec_add, vec_scalar_mul};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::RistrettoScalar;
-use crate::groups::{GroupElement, Scalar};
+use crate::groups::{AdditiveGroup, Scalar};
 use std::ops::{Add, Sub};
 
 type S = RistrettoScalar;

@@ -181,7 +181,7 @@ mod tests {
     use super::Presignatures;
     use crate::threshold_schnorr::batch_avss_avid::{ReceiverOutput, ShareBatch, SharesForNode};
     use crate::threshold_schnorr::{Parameters, G, S};
-    use fastcrypto::groups::GroupElement;
+    use fastcrypto::groups::AdditiveGroup;
 
     #[test]
     fn test_new_with_zero_weight_party() {

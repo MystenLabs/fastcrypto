@@ -62,7 +62,7 @@ use fastcrypto::error::FastCryptoError::{
 };
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::secp256k1::SCALAR_SIZE_IN_BYTES;
-use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::groups::{AdditiveGroup, MultiScalarMul, Scalar};
 use fastcrypto::hash::{Blake2b256, HashFunction};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
@@ -1309,7 +1309,7 @@ mod tests {
     use crate::types::ShareIndex;
     use fastcrypto::error::FastCryptoError::{InvalidMessage, NotEnoughWeight};
     use fastcrypto::error::FastCryptoResult;
-    use fastcrypto::groups::GroupElement;
+    use fastcrypto::groups::AdditiveGroup;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use serde::{Deserialize, Serialize};

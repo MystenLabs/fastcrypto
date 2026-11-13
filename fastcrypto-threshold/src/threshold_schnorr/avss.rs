@@ -34,7 +34,7 @@ use fastcrypto::error::FastCryptoError::{
     InputLengthWrong, InvalidInput, InvalidMessage, NotEnoughWeight,
 };
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::groups::{AdditiveGroup, MultiScalarMul, Scalar};
 use fastcrypto::serde_helpers::ToFromByteArray;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
@@ -665,7 +665,7 @@ impl DkOutput {
 
         let my_indices = nodes.share_ids_of(my_id)?;
 
-        let lagrange_coefficients: Vec<S> = Poly::<G>::get_lagrange_coefficients_for_c0(
+        let lagrange_coefficients: Vec<S> = Poly::<G>::get_lagrange_coefficients_for_c0::<S>(
             t,
             outputs.iter().map(|output| output.index),
         )
@@ -791,7 +791,7 @@ mod tests {
     use crate::types::{IndexedValue, ShareIndex};
     use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
     use fastcrypto::error::FastCryptoResult;
-    use fastcrypto::groups::{GroupElement, Scalar};
+    use fastcrypto::groups::{AdditiveGroup, Scalar};
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use std::collections::HashMap;

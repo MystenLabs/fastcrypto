@@ -6,7 +6,7 @@
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::multiplier::ToLittleEndianBytes;
-use crate::groups::{Doubling, GroupElement, Scalar as ScalarTrait};
+use crate::groups::{AdditiveGroup, Doubling, GroupElement, Module, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
@@ -24,9 +24,7 @@ pub const SCALAR_SIZE_IN_BYTES: usize = 32;
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct ProjectivePoint(pub(crate) Projective);
 
-impl GroupElement for ProjectivePoint {
-    type ScalarType = Scalar;
-
+impl AdditiveGroup for ProjectivePoint {
     fn zero() -> Self {
         Self(Projective::zero())
     }
@@ -34,6 +32,12 @@ impl GroupElement for ProjectivePoint {
     fn generator() -> Self {
         Self(Projective::generator())
     }
+}
+
+impl Module<Scalar> for ProjectivePoint {}
+
+impl GroupElement for ProjectivePoint {
+    type ScalarType = Scalar;
 }
 
 impl Doubling for ProjectivePoint {
@@ -63,9 +67,7 @@ impl Div<Scalar> for ProjectivePoint {
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct Scalar(pub(crate) Fr);
 
-impl GroupElement for Scalar {
-    type ScalarType = Scalar;
-
+impl AdditiveGroup for Scalar {
     fn zero() -> Self {
         Scalar(Fr::zero())
     }
@@ -73,6 +75,12 @@ impl GroupElement for Scalar {
     fn generator() -> Self {
         Scalar(Fr::one())
     }
+}
+
+impl Module<Scalar> for Scalar {}
+
+impl GroupElement for Scalar {
+    type ScalarType = Scalar;
 }
 
 impl Mul<Scalar> for Scalar {

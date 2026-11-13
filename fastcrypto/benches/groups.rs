@@ -14,8 +14,8 @@ mod group_benches {
     use fastcrypto::groups::multiplier::ScalarMultiplier;
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::{
-        bls12381, secp256k1, secp256r1, FromTrustedByteArray, GroupElement, HashToGroupElement,
-        MultiScalarMul, Pairing, Scalar,
+        bls12381, secp256k1, secp256r1, AdditiveGroup, FromTrustedByteArray, GroupElement,
+        HashToGroupElement, MultiScalarMul, Pairing, Scalar,
     };
     use fastcrypto::serde_helpers::ToFromByteArray;
     use rand::thread_rng;

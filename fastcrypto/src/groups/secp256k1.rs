@@ -5,7 +5,8 @@
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{
-    Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar as ScalarTrait,
+    AdditiveGroup, Doubling, FiatShamirChallenge, GroupElement, Module, MultiScalarMul,
+    Scalar as ScalarTrait,
 };
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
@@ -98,9 +99,7 @@ impl ProjectivePoint {
     }
 }
 
-impl GroupElement for ProjectivePoint {
-    type ScalarType = Scalar;
-
+impl AdditiveGroup for ProjectivePoint {
     fn zero() -> Self {
         Self(Projective::zero())
     }
@@ -108,6 +107,12 @@ impl GroupElement for ProjectivePoint {
     fn generator() -> Self {
         Self(Projective::generator())
     }
+}
+
+impl Module<Scalar> for ProjectivePoint {}
+
+impl GroupElement for ProjectivePoint {
+    type ScalarType = Scalar;
 }
 
 impl Doubling for ProjectivePoint {
@@ -188,9 +193,7 @@ impl Scalar {
     }
 }
 
-impl GroupElement for Scalar {
-    type ScalarType = Scalar;
-
+impl AdditiveGroup for Scalar {
     fn zero() -> Self {
         Scalar(Fr::zero())
     }
@@ -198,6 +201,12 @@ impl GroupElement for Scalar {
     fn generator() -> Self {
         Scalar(Fr::one())
     }
+}
+
+impl Module<Scalar> for Scalar {}
+
+impl GroupElement for Scalar {
+    type ScalarType = Scalar;
 }
 
 impl Mul<Scalar> for Scalar {
@@ -269,7 +278,7 @@ pub mod schnorr {
     use crate::error::{FastCryptoError, FastCryptoResult};
     use crate::groups::secp256k1::schnorr::Tag::{Aux, Challenge, Nonce};
     use crate::groups::secp256k1::{ProjectivePoint, Scalar};
-    use crate::groups::{GroupElement, MultiScalarMul};
+    use crate::groups::{AdditiveGroup, MultiScalarMul};
     use crate::hash::HashFunction;
     use crate::serde_helpers::ToFromByteArray;
     use crate::{hash, serialize_deserialize_with_to_from_byte_array};
