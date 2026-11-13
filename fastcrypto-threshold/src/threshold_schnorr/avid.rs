@@ -279,7 +279,7 @@ impl Avid {
         let senders = echoes.iter().map(|e| e.sender).collect_vec();
         let weights = self.nodes.iter().map(|n| n.weight).collect_vec();
         let required = self.required_weight();
-        if senders_weight(&senders, &weights).ok_or(InvalidInput)? < required as u32 {
+        if total_weight_of_distinct(&senders, &weights).ok_or(InvalidInput)? < required as u32 {
             return Err(NotEnoughWeight(required as usize));
         }
         let shards: BTreeMap<PartyId, AuthenticatedShards> = echoes
@@ -385,19 +385,20 @@ impl Avid {
     }
 }
 
-// `senders_weight` is verified with Verus, see verification/README.md.
+// `total_weight_of_distinct` is verified with Verus, see verification/README.md.
 
-/// The total weight of `senders`, or `None` if they are not nonempty, distinct parties.
+/// The total weight of the parties `ids`, or `None` if `ids` is empty, has duplicates or contains
+/// an id that is not a party.
 /// `weights[i]` is the weight of party `i`.
 #[cfg_attr(verus_keep_ghost, verus_spec(r =>
-    ensures r == if valid_senders(senders@, weights@.len() as int) {
-        Some(weight_of(senders@, weights@) as u32)
+    ensures r == if distinct_ids(ids@, weights@.len() as int) {
+        Some(weight_of(ids@, weights@) as u32)
     } else {
         None
     }
 ))]
-fn senders_weight(senders: &[u16], weights: &[u16]) -> Option<u32> {
-    if senders.is_empty() {
+fn total_weight_of_distinct(ids: &[u16], weights: &[u16]) -> Option<u32> {
+    if ids.is_empty() {
         return None;
     }
     let mut seen = vec![false; weights.len()];
@@ -405,31 +406,31 @@ fn senders_weight(senders: &[u16], weights: &[u16]) -> Option<u32> {
     let mut i = 0;
     #[cfg_attr(verus_keep_ghost, verus_spec(
         invariant
-            i <= senders.len(),
+            i <= ids.len(),
             seen@.len() == weights.len(),
             forall|x: int| 0 <= x < seen@.len() ==>
-                (seen@[x] <==> exists|k: int| 0 <= k < i && senders@[k] == x),
-            valid_senders(senders@.take(i as int), weights@.len() as int) || i == 0,
-            total == weight_of(senders@.take(i as int), weights@),
+                (seen@[x] <==> exists|k: int| 0 <= k < i && ids@[k] == x),
+            distinct_ids(ids@.take(i as int), weights@.len() as int) || i == 0,
+            total == weight_of(ids@.take(i as int), weights@),
             total <= i * 65535,
-        decreases senders.len() - i
+        decreases ids.len() - i
     ))]
-    while i < senders.len() {
-        let id = senders[i] as usize;
+    while i < ids.len() {
+        let id = ids[i] as usize;
         if id >= weights.len() || seen[id] {
             return None;
         }
         #[cfg(verus_keep_ghost)]
         proof! {
-            assert(senders@.take(i + 1).drop_last() =~= senders@.take(i as int));
-            lemma_distinct_len(senders@.take(i + 1));
+            assert(ids@.take(i + 1).drop_last() =~= ids@.take(i as int));
+            lemma_distinct_len(ids@.take(i + 1));
         }
         seen[id] = true;
         total += weights[id] as u32;
         i += 1;
     }
     #[cfg(verus_keep_ghost)]
-    proof! { assert(senders@.take(i as int) =~= senders@); }
+    proof! { assert(ids@.take(i as int) =~= ids@); }
     Some(total)
 }
 
@@ -503,13 +504,13 @@ mod tests {
     }
 
     #[test]
-    fn senders_weight_rejects_bad_senders() {
+    fn total_weight_of_distinct_rejects_bad_ids() {
         let weights = [2, 0, 3];
-        assert_eq!(senders_weight(&[0, 2], &weights), Some(5));
-        assert_eq!(senders_weight(&[1], &weights), Some(0));
-        assert_eq!(senders_weight(&[], &weights), None);
-        assert_eq!(senders_weight(&[0, 0], &weights), None);
-        assert_eq!(senders_weight(&[3], &weights), None);
+        assert_eq!(total_weight_of_distinct(&[0, 2], &weights), Some(5));
+        assert_eq!(total_weight_of_distinct(&[1], &weights), Some(0));
+        assert_eq!(total_weight_of_distinct(&[], &weights), None);
+        assert_eq!(total_weight_of_distinct(&[0, 0], &weights), None);
+        assert_eq!(total_weight_of_distinct(&[3], &weights), None);
     }
 
     /// End-to-end happy path test

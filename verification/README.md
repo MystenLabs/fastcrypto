@@ -25,7 +25,7 @@ cargo verus focus --features verus
 
 | Rust function | Contract | Lean contract |
 |---|---|---|
-| `avid::senders_weight` | Returns the senders' total weight exactly when they are nonempty, distinct parties, and `None` otherwise. Never panics or overflows. | The sender check inside `decode_quorum` and `decode_total` (`Avid/Steps.lean`) |
+| `avid::total_weight_of_distinct` | Returns the total weight of the given ids exactly when they are nonempty, distinct parties, and `None` otherwise. Never panics or overflows. | The sender check inside `decode_quorum` and `decode_total` (`Avid/Steps.lean`) |
 | `avss::Receiver::verify_complaint_response` | `Ok(v)` ⇒ `v.responder_id = responder_id`. | `verify_binds` (`Avss/Steps.lean`) |
 | `avss::Receiver::recover` | `Ok(o)` ⇒ `verifies(o.my_shares, message, share_ids_of(nodes, id), id)`. | `recover_sound` (`Avss/Steps.lean`) |
 | `avss::Receiver::process_message` | `Ok(Valid(o))` ⇒ `verifies(o.my_shares, message, share_ids_of(nodes, id), id)`. | `process_valid` (`Avss/Steps.lean`) |
@@ -51,7 +51,7 @@ or declared in `specs.rs`. Only the first three have a spec. Verus assumes what 
 
 ### Code changed for Verus
 
-* `avid::senders_weight` replaces the `all_unique` and `total_weight_of` check in
+* `avid::total_weight_of_distinct` replaces the `all_unique` and `total_weight_of` check in
   `decode_or_complain` with a loop that Verus can check.
 * `Receiver::recover` moves its checks and interpolation into `recover_shares` and its logging
   into `warn_unverified_recovery`, and `Receiver::verify_message` moves its checks on the message

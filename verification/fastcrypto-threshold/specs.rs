@@ -138,21 +138,21 @@ pub uninterp spec fn spec_share_ids<C: fastcrypto::groups::GroupElement>(
     id: PartyId,
 ) -> Seq<ShareIndex>;
 
-// The AVID sender check, `avid::senders_weight`.
+// The AVID sender check, `avid::total_weight_of_distinct`.
 
-/// `senders` is nonempty, and its elements are distinct parties `< n`.
-pub open spec fn valid_senders(senders: Seq<u16>, n: int) -> bool {
-    senders.len() > 0 && senders.no_duplicates() && forall|i: int| 0 <= i < senders.len() ==> senders[i] < n
+/// `ids` is nonempty, and its elements are distinct parties `< n`.
+pub open spec fn distinct_ids(ids: Seq<u16>, n: int) -> bool {
+    ids.len() > 0 && ids.no_duplicates() && forall|i: int| 0 <= i < ids.len() ==> ids[i] < n
 }
 
-/// The sum of `weights[s]` over the elements `s` of `senders`.
-pub open spec fn weight_of(senders: Seq<u16>, weights: Seq<u16>) -> int
-    decreases senders.len(),
+/// The sum of `weights[i]` over the elements `i` of `ids`.
+pub open spec fn weight_of(ids: Seq<u16>, weights: Seq<u16>) -> int
+    decreases ids.len(),
 {
-    if senders.len() == 0 {
+    if ids.len() == 0 {
         0
     } else {
-        weight_of(senders.drop_last(), weights) + weights[senders.last() as int]
+        weight_of(ids.drop_last(), weights) + weights[ids.last() as int]
     }
 }
 
