@@ -42,6 +42,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tap::TapFallible;
 use tracing::warn;
+#[cfg(verus_keep_ghost)]
+use vstd::prelude::*;
+
+// Spec functions for the Verus annotations below, see verification/README.md.
+#[cfg(verus_keep_ghost)]
+#[path = "../../../verification/fastcrypto-threshold/avss.rs"]
+mod verification;
+#[cfg(verus_keep_ghost)]
+use verification::*;
 
 pub struct Dealer {
     nodes: Nodes<EG>,
@@ -50,6 +59,7 @@ pub struct Dealer {
     secret: S, // For key rotation this is set to the previous round's share; otherwise sampled in `new`.
 }
 
+#[cfg_attr(verus_keep_ghost, verus_verify)]
 pub struct Receiver {
     nodes: Nodes<EG>,
     sid: Vec<u8>,
@@ -65,6 +75,7 @@ pub struct Receiver {
 /// over 1000 nodes, it measures ~170 KB. Nothing here bounds the size of a message, so a caller
 /// should reject an untrusted message that is larger than its own deployment admits before
 /// deserializing it.
+#[cfg_attr(verus_keep_ghost, verus_verify, verifier::external_derive)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
     feldman_commitment: Poly<G>,
@@ -93,6 +104,7 @@ pub struct Complaint {
 ///
 /// The responder's id is not carried here; the higher-level protocol tracks which party a response
 /// came from and passes it to [Receiver::verify_complaint_response].
+#[cfg_attr(verus_keep_ghost, verus_verify, verifier::external_derive)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComplaintResponse {
     pub shares: SharesForNode,
@@ -101,6 +113,7 @@ pub struct ComplaintResponse {
 /// A [ComplaintResponse] whose shares have been verified against the dealer's [Message] and bound
 /// to the responder that sent it. Created only by [Receiver::verify_complaint_response] and
 /// consumed by [Receiver::recover], which can therefore trust its contents.
+#[cfg_attr(verus_keep_ghost, verus_verify, verifier::external_derive)]
 #[derive(Debug, Clone)]
 pub struct VerifiedComplaintResponse {
     responder_id: PartyId,
@@ -108,6 +121,7 @@ pub struct VerifiedComplaintResponse {
 }
 
 /// The output of a receiver after a single instance of AVSS: The shares for each nonce + commitments for the next round.
+#[cfg_attr(verus_keep_ghost, verus_verify, verifier::external_derive)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AvssOutput {
     /// The commitments to the polynomials will be used for key rotation.
@@ -129,6 +143,11 @@ pub type Share = Eval<S>;
 
 /// All the shares given to a node. One share per the node's weight.
 /// These can be created either by decrypting the shares from the dealer or by recovering them from complaint responses.
+#[cfg_attr(
+    verus_keep_ghost,
+    verus_verify(external_body),
+    verifier::external_derive
+)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharesForNode {
     pub shares: Vec<Share>,
@@ -146,6 +165,9 @@ impl SharesForNode {
 
     /// Verify a set of shares received from a Dealer: that the share indices are exactly
     /// `expected_share_ids` and that each share is consistent with the dealer's commitment.
+    #[cfg_attr(verus_keep_ghost, verus_verify(external_body), verus_spec(r =>
+        ensures r is Ok ==> spec_verifies(*self, *message, expected_share_ids@, receiver)
+    ))]
     fn verify(
         &self,
         message: &Message,
@@ -492,6 +514,9 @@ impl Receiver {
     ///
     /// A receiver keeps at most one verified response per responder, since [Self::recover] rejects
     /// duplicates, and persists them until [Self::recover] succeeds.
+    #[cfg_attr(verus_keep_ghost, verus_spec(r =>
+        ensures r is Ok ==> r->Ok_0.spec_responder_id() == responder_id
+    ))]
     pub fn verify_complaint_response(
         &self,
         message: &Message,
@@ -514,11 +539,39 @@ impl Receiver {
     ///    Returns an error if the responses do not come from distinct parties, if their combined weight is
     ///    below the threshold `t`, or if the dealing does not match this receiver's `commitment`. The
     ///    caller must only pass responses that were verified against `message`.
+    #[cfg_attr(verus_keep_ghost, verus_spec(r =>
+        ensures r is Ok ==> spec_verifies(
+            r->Ok_0.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id())
+    ))]
     pub fn recover(
         &self,
         message: &Message,
         responses: Vec<VerifiedComplaintResponse>,
     ) -> FastCryptoResult<AvssOutput> {
+        let my_shares = self.recover_shares(message, responses)?;
+
+        // Interpolating shares that were verified against this message yields valid shares, so
+        // this final verification is defense-in-depth. A failure means the responses were not all
+        // verified against this message.
+        if let Err(e) = my_shares.verify(message, &self.my_indices(), self.id) {
+            warn_unverified_recovery(&e);
+            return Err(e);
+        }
+
+        Ok(AvssOutput {
+            my_shares,
+            feldman_commitment: message.feldman_commitment.clone(),
+        })
+    }
+
+    /// The checks of [Self::recover] on the responses, and the interpolation of this receiver's
+    /// shares from them.
+    #[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
+    fn recover_shares(
+        &self,
+        message: &Message,
+        responses: Vec<VerifiedComplaintResponse>,
+    ) -> FastCryptoResult<SharesForNode> {
         if let Some(c) = &self.commitment {
             if message.feldman_commitment.c0() != *c {
                 warn!(
@@ -540,25 +593,12 @@ impl Receiver {
         }
 
         let valid_shares = responses.into_iter().map(|r| r.shares).collect_vec();
-        let my_shares = SharesForNode::recover(self.my_indices(), self.params.t, &valid_shares)?;
-
-        // Interpolating shares that were verified against this message yields valid shares, so
-        // this final verification is defense-in-depth. A failure means the responses were not all
-        // verified against this message.
-        my_shares
-            .verify(message, &self.my_indices(), self.id)
-            .tap_err(|e| {
-                warn!(
-                    "AVSS recover: recovered shares failed verification, so the responses were not all verified against this message: {e:?}"
-                );
-            })?;
-
-        Ok(AvssOutput {
-            my_shares,
-            feldman_commitment: message.feldman_commitment.clone(),
-        })
+        SharesForNode::recover(self.my_indices(), self.params.t, &valid_shares)
     }
 
+    #[cfg_attr(verus_keep_ghost, verus_verify(external_body), verus_spec(r =>
+        ensures r@ == spec_share_ids(self.spec_nodes(), self.spec_id())
+    ))]
     pub fn my_indices(&self) -> Vec<ShareIndex> {
         self.nodes.share_ids_of(self.id).unwrap()
     }
@@ -772,6 +812,13 @@ impl AvssOutput {
             feldman_commitment: self.feldman_commitment + &rhs.feldman_commitment,
         })
     }
+}
+
+#[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
+fn warn_unverified_recovery(e: &FastCryptoError) {
+    warn!(
+        "AVSS recover: recovered shares failed verification, so the responses were not all verified against this message: {e:?}"
+    );
 }
 
 #[cfg(test)]

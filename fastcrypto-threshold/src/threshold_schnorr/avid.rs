@@ -14,6 +14,8 @@ use crate::threshold_schnorr::merkle::{NestedMerkleProof, NestedMerkleTree};
 use crate::threshold_schnorr::reed_solomon::{ErasureCoder, Shard, Shards};
 use crate::threshold_schnorr::EG;
 use crate::types::get_uniform_value;
+#[cfg(verus_keep_ghost)]
+use crate::verification::*;
 use fastcrypto::error::FastCryptoError::{
     InvalidInput, InvalidMessage, InvalidProof, NotEnoughWeight,
 };
@@ -25,6 +27,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use tap::TapFallible;
 use tracing::warn;
+#[cfg(verus_keep_ghost)]
+use vstd::prelude::*;
 
 /// A payload dispersed to a single recipient (an opaque byte string).
 pub(crate) type Payload = Vec<u8>;
@@ -272,15 +276,10 @@ impl Avid {
         echoes: &[VerifiedEcho],
         payload_ok: impl Fn(&[u8]) -> bool,
     ) -> FastCryptoResult<DecodeOutcome> {
-        if echoes.is_empty() || !echoes.iter().map(|e| e.sender).all_unique() {
-            return Err(InvalidInput);
-        }
+        let senders = echoes.iter().map(|e| e.sender).collect_vec();
+        let weights = self.nodes.iter().map(|n| n.weight).collect_vec();
         let required = self.required_weight();
-        if self
-            .nodes
-            .total_weight_of(echoes.iter().map(|e| &e.sender))?
-            < required
-        {
+        if senders_weight(&senders, &weights).ok_or(InvalidInput)? < required as u32 {
             return Err(NotEnoughWeight(required as usize));
         }
         let shards: BTreeMap<PartyId, AuthenticatedShards> = echoes
@@ -386,6 +385,54 @@ impl Avid {
     }
 }
 
+// `senders_weight` is verified with Verus, see verification/README.md.
+
+/// The total weight of `senders`, or `None` if they are not nonempty, distinct parties.
+/// `weights[i]` is the weight of party `i`.
+#[cfg_attr(verus_keep_ghost, verus_spec(r =>
+    ensures r == if valid_senders(senders@, weights@.len() as int) {
+        Some(weight_of(senders@, weights@) as u32)
+    } else {
+        None
+    }
+))]
+fn senders_weight(senders: &[u16], weights: &[u16]) -> Option<u32> {
+    if senders.is_empty() {
+        return None;
+    }
+    let mut seen = vec![false; weights.len()];
+    let mut total = 0u32;
+    let mut i = 0;
+    #[cfg_attr(verus_keep_ghost, verus_spec(
+        invariant
+            i <= senders.len(),
+            seen@.len() == weights.len(),
+            forall|x: int| 0 <= x < seen@.len() ==>
+                (seen@[x] <==> exists|k: int| 0 <= k < i && senders@[k] == x),
+            valid_senders(senders@.take(i as int), weights@.len() as int) || i == 0,
+            total == weight_of(senders@.take(i as int), weights@),
+            total <= i * 65535,
+        decreases senders.len() - i
+    ))]
+    while i < senders.len() {
+        let id = senders[i] as usize;
+        if id >= weights.len() || seen[id] {
+            return None;
+        }
+        #[cfg(verus_keep_ghost)]
+        proof! {
+            assert(senders@.take(i + 1).drop_last() =~= senders@.take(i as int));
+            lemma_distinct_len(senders@.take(i + 1));
+        }
+        seen[id] = true;
+        total += weights[id] as u32;
+        i += 1;
+    }
+    #[cfg(verus_keep_ghost)]
+    proof! { assert(senders@.take(i as int) =~= senders@); }
+    Some(total)
+}
+
 impl EchoBuilder {
     /// The recipients of the dispersal.
     pub fn recipients(&self) -> BTreeSet<PartyId> {
@@ -453,6 +500,16 @@ mod tests {
             })
             .collect();
         Nodes::new(nodes).unwrap()
+    }
+
+    #[test]
+    fn senders_weight_rejects_bad_senders() {
+        let weights = [2, 0, 3];
+        assert_eq!(senders_weight(&[0, 2], &weights), Some(5));
+        assert_eq!(senders_weight(&[1], &weights), Some(0));
+        assert_eq!(senders_weight(&[], &weights), None);
+        assert_eq!(senders_weight(&[0, 0], &weights), None);
+        assert_eq!(senders_weight(&[3], &weights), None);
     }
 
     /// End-to-end happy path test
