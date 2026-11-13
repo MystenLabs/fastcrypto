@@ -48,20 +48,3 @@ or declared in `specs.rs`. Only the first three have a spec. Verus assumes what 
 * The traits `AdditiveGroup`, `Module`, `Scalar`, `GroupElement`, `AllowedRng`, `Zeroize`, rand's
   `RngCore` and `CryptoRng`, and serde's `Serialize`, `Deserialize` and `DeserializeOwned`,
   restated with their bounds.
-
-### Code changed for Verus
-
-* `avid::total_weight_of_distinct` replaces the `all_unique` and `total_weight_of` check in
-  `decode_or_complain` with a loop that Verus can check.
-* `Receiver::recover` moves its checks and interpolation into `recover_shares` and its logging
-  into `warn_unverified_recovery`, and `Receiver::verify_message` moves its checks on the message
-  into `check_message` and its decryption into `decrypt_my_shares`, since Verus cannot check
-  iterator chains, closures or `tracing` macros. The rest of `verify_message` is written out as
-  steps instead of an `and_then` closure.
-* fastcrypto's `GroupElement` is split into `AdditiveGroup`, `Module<S>` and `GroupElement`, and
-  `Scalar` is a `Module<Self>` instead of a `GroupElement`. Verus rejects the previous traits as
-  cyclic, since a scalar was a group element whose scalar type is itself.
-* `RistrettoScalar` implements `From<u128>` and `From<u64>` directly instead of through
-  `derive_more`'s generic `#[from(forward)]`.
-* `fastcrypto-threshold` allows `unsafe` code only when Verus runs, since Verus's
-  `assume_specification` expands to it.
