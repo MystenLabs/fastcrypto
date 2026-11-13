@@ -164,7 +164,7 @@ fn reciprocals(params: &CircuitParams, n_l: &[S], alpha: S) -> FastCryptoResult<
 }
 
 /// The prover's witness and randomness, chosen before the first challenge.
-struct Witness {
+pub(crate) struct Witness {
     /// Input openings `V_i = u_i*G + s_i*H_0`: the values `u_i`...
     values: Vec<S>,
     /// ...and the blindings `s_i`.
@@ -176,18 +176,18 @@ struct Witness {
     n_l: Vec<S>,
     /// Shared multiplicities `m_1..m_15`, zero-padded.
     n_o: Vec<S>,
-    r_o: Vec<S>,
-    r_l: Vec<S>,
-    r_r: Vec<S>,
+    pub(crate) r_o: Vec<S>,
+    pub(crate) r_l: Vec<S>,
+    pub(crate) r_r: Vec<S>,
     /// Masks of `C_S`.
-    n_s: Vec<S>,
-    l_s: S,
+    pub(crate) n_s: Vec<S>,
+    pub(crate) l_s: S,
 }
 
 impl Witness {
     /// The honest witness for `values` under `blindings`, with fresh
     /// blinding and masks.
-    fn new(
+    pub(crate) fn new(
         params: &CircuitParams,
         rng: &mut impl AllowedRng,
         values: &[u64],

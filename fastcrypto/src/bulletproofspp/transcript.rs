@@ -10,30 +10,52 @@ use merlin::Transcript;
 
 pub(crate) struct BpppTranscript {
     inner: Transcript,
+    #[cfg(feature = "lean-tests")]
+    pub(crate) log: TranscriptLog,
+}
+
+/// What a transcript absorbed and returned, for the tests against the Lean model.
+#[cfg(feature = "lean-tests")]
+#[derive(Clone, Debug, Default)]
+pub struct TranscriptLog {
+    /// `(label, Some(data))` for absorbed data, and `(label, None)` for a challenge.
+    pub entries: Vec<(&'static [u8], Option<Vec<u8>>)>,
+    pub challenges: Vec<RistrettoScalar>,
 }
 
 impl BpppTranscript {
     pub(crate) fn new(label: &'static [u8]) -> Self {
         BpppTranscript {
             inner: Transcript::new(label),
+            #[cfg(feature = "lean-tests")]
+            log: TranscriptLog {
+                entries: vec![(b"dom-sep", Some(label.to_vec()))],
+                challenges: vec![],
+            },
         }
+    }
+
+    fn absorb(&mut self, label: &'static [u8], data: &[u8]) {
+        self.inner.append_message(label, data);
+        #[cfg(feature = "lean-tests")]
+        self.log.entries.push((label, Some(data.to_vec())));
     }
 
     /// Mark a protocol-stage boundary with a fixed tag (e.g. `norm_linear`),
     /// so identically-labeled absorptions in different sub-protocols cannot
     /// be confused. For caller-supplied data use [`Self::append_message`].
     pub(crate) fn domain_sep(&mut self, label: &'static [u8]) {
-        self.inner.append_message(b"dom-sep", label);
+        self.absorb(b"dom-sep", label);
     }
 
     /// Append variable-length data (e.g. the caller's domain separation tag).
     pub(crate) fn append_message(&mut self, label: &'static [u8], data: &[u8]) {
-        self.inner.append_message(label, data);
+        self.absorb(label, data);
     }
 
     /// Append a point in its canonical 32-byte encoding.
     pub(crate) fn append_point(&mut self, label: &'static [u8], point: &RistrettoPoint) {
-        self.inner.append_message(label, &point.to_byte_array());
+        self.absorb(label, &point.to_byte_array());
     }
 
     /// Append each commitment's point under the same label, in order.
@@ -45,7 +67,7 @@ impl BpppTranscript {
 
     /// Append a scalar in its canonical 32-byte little-endian encoding.
     pub(crate) fn append_scalar(&mut self, label: &'static [u8], scalar: &RistrettoScalar) {
-        self.inner.append_message(label, &scalar.to_byte_array());
+        self.absorb(label, &scalar.to_byte_array());
     }
 
     /// Append each scalar under the same label, in order.
@@ -57,7 +79,7 @@ impl BpppTranscript {
 
     /// Append a u64 in little-endian encoding.
     pub(crate) fn append_u64(&mut self, label: &'static [u8], value: u64) {
-        self.inner.append_message(label, &value.to_le_bytes());
+        self.absorb(label, &value.to_le_bytes());
     }
 
     /// Squeeze a scalar challenge: 64 uniform bytes reduced mod the group
@@ -65,7 +87,13 @@ impl BpppTranscript {
     pub(crate) fn challenge_scalar(&mut self, label: &'static [u8]) -> RistrettoScalar {
         let mut buf = [0u8; 64];
         self.inner.challenge_bytes(label, &mut buf);
-        RistrettoScalar::from_bytes_mod_order_wide(&buf)
+        let challenge = RistrettoScalar::from_bytes_mod_order_wide(&buf);
+        #[cfg(feature = "lean-tests")]
+        {
+            self.log.entries.push((label, None));
+            self.log.challenges.push(challenge);
+        }
+        challenge
     }
 }
 

@@ -124,6 +124,9 @@ copy_key = []
 # Used for feature that are not yet audited.
 experimental = []
 
+# Exposes BP++ internals to the tests against the Lean model (src/bulletproofspp/lean/harness).
+lean-tests = ["experimental"]
+
 # Include AES and its modes.
 aes = ["dep:aes", "dep:cbc", "dep:aes-gcm", "dep:ctr", "dep:aes-gcm-siv"]
 

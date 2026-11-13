@@ -1,0 +1,21 @@
+[package]
+name = "bppp-lean-harness"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Tests comparing fastcrypto::bulletproofspp with its Lean model."
+
+# Not a member of the fastcrypto workspace: building it needs a Lean toolchain.
+[workspace]
+
+[dependencies]
+fastcrypto = { path = "../../../..", features = ["lean-tests"] }
+fastcrypto-lean-testing = { path = "../../../../../fastcrypto-lean-testing" }
+
+[dev-dependencies]
+hex = "0.4.3"
+proptest = "1.1.0"
+rand = "0.8.5"
+
+[build-dependencies]
+fastcrypto-lean-testing = { path = "../../../../../fastcrypto-lean-testing", default-features = false, features = ["build"] }
