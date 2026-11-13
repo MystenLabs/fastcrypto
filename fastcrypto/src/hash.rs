@@ -22,9 +22,12 @@ use generic_array::GenericArray;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::fmt;
+use std::ops::{AddAssign, SubAssign};
 
 use crate::encoding::{Base64, Encoding};
 use crate::groups::ristretto255::RistrettoPoint;
+use crate::groups::vector_group::VectorGroup;
+use crate::groups::zq::Zq32;
 use crate::groups::HashToGroupElement;
 
 /// Represents a digest of `DIGEST_LEN` bytes.
@@ -211,7 +214,12 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
     fn insert_all<It, Data>(&mut self, items: It)
     where
         It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>;
+        Data: AsRef<[u8]>,
+    {
+        for item in items {
+            self.insert(item);
+        }
+    }
 
     /// Add all the elements of another hash function into this hash function.
     fn union(&mut self, other: &Self);
@@ -236,10 +244,44 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
     fn remove_all<It, Data>(&mut self, items: It)
     where
         It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>;
+        Data: AsRef<[u8]>,
+    {
+        for item in items {
+            self.remove(item);
+        }
+    }
 
     /// Generate a digest of the current state of this hash function.
     fn digest(&self) -> Digest<DIGEST_LENGTH>;
+}
+
+/// A multiset hash computed as the sum of the hashes of the items in a group. The digest is the
+/// Sha256 hash of the bincode serialization of the sum.
+#[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HomomorphicMultisetHash<T> {
+    accumulator: T,
+}
+
+impl<T> MultisetHash<32> for HomomorphicMultisetHash<T>
+where
+    T: HashToGroupElement + AddAssign + SubAssign + Clone + Eq + Serialize,
+{
+    fn insert<Data: AsRef<[u8]>>(&mut self, item: Data) {
+        self.accumulator += T::hash_to_group_element(item.as_ref());
+    }
+
+    fn union(&mut self, other: &Self) {
+        self.accumulator += other.accumulator.clone();
+    }
+
+    fn remove<Data: AsRef<[u8]>>(&mut self, item: Data) {
+        self.accumulator -= T::hash_to_group_element(item.as_ref());
+    }
+
+    fn digest(&self) -> Digest<32> {
+        let serialized = &bincode::serialize(&self.accumulator).unwrap();
+        Sha256::digest(serialized)
+    }
 }
 
 /// `EllipticCurveMultisetHash` (ECMH) is a homomorphic multiset hash function. Concretely, each element is mapped
@@ -252,67 +294,28 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
 /// Under the hood, it uses a Ristretto-flavoured Elligator 2 map to map a Sha512 hash of the provided
 /// data into points in the Ristretto group, and Sha256 to construct a digest from a serialization of
 /// the resulting RistrettoPoint, so digests are 32 bytes long.
-#[derive(Default, Clone, Serialize, Deserialize)]
-pub struct EllipticCurveMultisetHash {
-    accumulator: RistrettoPoint,
-}
-
-impl PartialEq for EllipticCurveMultisetHash {
-    fn eq(&self, other: &Self) -> bool {
-        self.accumulator == other.accumulator
-    }
-}
-
-impl Eq for EllipticCurveMultisetHash {}
-
-impl MultisetHash<32> for EllipticCurveMultisetHash {
-    fn insert<Data: AsRef<[u8]>>(&mut self, item: Data) {
-        self.accumulator += Self::hash_to_point(item);
-    }
-
-    fn insert_all<It, Data>(&mut self, items: It)
-    where
-        It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>,
-    {
-        for i in items {
-            self.insert(i);
-        }
-    }
-
-    fn union(&mut self, other: &Self) {
-        self.accumulator += other.accumulator;
-    }
-
-    fn remove<Data: AsRef<[u8]>>(&mut self, item: Data) {
-        self.accumulator -= Self::hash_to_point(item);
-    }
-
-    fn remove_all<It, Data>(&mut self, items: It)
-    where
-        It: IntoIterator<Item = Data>,
-        Data: AsRef<[u8]>,
-    {
-        for i in items {
-            self.remove(i);
-        }
-    }
-
-    fn digest(&self) -> Digest<32> {
-        let serialized = &bincode::serialize(&self.accumulator).unwrap();
-        Sha256::digest(serialized)
-    }
-}
-
-impl EllipticCurveMultisetHash {
-    /// Hash the given item into a RistrettoPoint to be used by the insert and remove methods.
-    fn hash_to_point<Data: AsRef<[u8]>>(item: Data) -> RistrettoPoint {
-        RistrettoPoint::hash_to_group_element(item.as_ref())
-    }
-}
+pub type EllipticCurveMultisetHash = HomomorphicMultisetHash<RistrettoPoint>;
 
 impl Debug for EllipticCurveMultisetHash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Accumulator").finish()
+    }
+}
+
+/// `LtHashQ32` is a lattice-based multiset hash ([Lewi et al.](https://eprint.iacr.org/2019/227)) over
+/// vectors of 1024 integers modulo 2^32 - 5, the largest prime below 2^32. The modulus is prime
+/// because [Ding et al.](https://eprint.iacr.org/2026/2083) break power-of-two moduli and recommend
+/// large primes.
+///
+/// Collision resistance is analysed for sets, where every element has multiplicity zero or one. A
+/// collision between two multisets in which no element has multiplicity above `B` gives a solution
+/// to SIS with coefficients bounded by `B`, and this problem becomes easier as `B` grows. Inserting
+/// the same element 2^32 - 5 times gives the same hash as not inserting it. Callers must keep
+/// multiplicities small, and must enforce a bound on them if the inputs are untrusted.
+pub type LtHashQ32 = HomomorphicMultisetHash<VectorGroup<Zq32<0xFFFF_FFFB>, 1024>>;
+
+impl Debug for LtHashQ32 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LtHashQ32").finish()
     }
 }
