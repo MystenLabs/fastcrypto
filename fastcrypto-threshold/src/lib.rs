@@ -47,6 +47,10 @@ pub mod random_oracle_tests;
 pub mod dkg_v1_tests;
 
 #[cfg(test)]
+#[path = "../../verification/fastcrypto-threshold/dkg_merge_verus/transform_code_test.rs"]
+mod dkg_merge_verus_copy_test;
+
+#[cfg(test)]
 #[path = "tests/nodes_tests.rs"]
 pub mod nodes_tests;
 
