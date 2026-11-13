@@ -48,6 +48,22 @@ impl RecoveryProof {
             .and_then(|bytes| check_recovered_shares(&bytes, verifier))
     }
 
+    /// Verify only the recovery package for `accuser_id`, without decrypting anything. This shows
+    /// that the package opens the accuser's ciphertext, but not that the shares in it are invalid.
+    pub(crate) fn verify_package(
+        &self,
+        accuser_id: PartyId,
+        enc_pk: &ecies_v1::PublicKey<EG>,
+        shared: &SharedComponents<EG>,
+        random_oracle: &RandomOracle,
+    ) -> FastCryptoResult<()> {
+        shared.verify_recovery_package(
+            &self.0,
+            &random_oracle.extend(&Recovery(accuser_id).to_string()),
+            enc_pk,
+        )
+    }
+
     pub fn create(
         accuser_id: PartyId,
         ciphertext: &ecies_v1::SharedComponents<EG>,

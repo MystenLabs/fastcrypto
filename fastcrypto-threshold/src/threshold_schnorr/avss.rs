@@ -25,7 +25,7 @@ use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly};
 use crate::random_oracle::RandomOracle;
-use crate::threshold_schnorr::bcs::BCSSerialized;
+use crate::threshold_schnorr::bcs::{uleb128_length, BCSSerialized};
 use crate::threshold_schnorr::recovery_proof::RecoveryProof;
 use crate::threshold_schnorr::Extensions::Encryption;
 use crate::threshold_schnorr::{random_oracle_from_sid, Parameters, EG, G, S};
@@ -127,6 +127,9 @@ pub struct DkOutput {
 /// A single share.
 pub type Share = Eval<S>;
 
+/// The length of the BCS encoding of a [ShareIndex].
+const SHARE_INDEX_SIZE_IN_BYTES: usize = 2;
+
 /// All the shares given to a node. One share per the node's weight.
 /// These can be created either by decrypting the shares from the dealer or by recovering them from complaint responses.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -138,6 +141,13 @@ impl SharesForNode {
     /// Get the weight of this node (number of shares it has).
     pub fn weight(&self) -> usize {
         self.shares.len()
+    }
+
+    /// The length of the BCS encoding of the shares for a node of weight `weight`. An honest
+    /// dealer's ciphertext for the node and the node's [ComplaintResponse] have the same length.
+    pub fn serialized_length(weight: u16) -> usize {
+        let weight = weight as usize;
+        uleb128_length(weight) + weight * (SHARE_INDEX_SIZE_IN_BYTES + S::BYTE_LENGTH)
     }
 
     pub fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
@@ -411,6 +421,14 @@ impl Receiver {
                 InvalidMessage
             })?;
 
+        let my_share_ids = self.my_indices();
+        if message.ciphertext.encs[self.id as usize].0.len()
+            != SharesForNode::serialized_length(my_share_ids.len() as u16)
+        {
+            warn!("AVSS verify_message: the ciphertext for this receiver has the wrong length");
+            return Ok(None);
+        }
+
         let plaintext = message.ciphertext.decrypt(
             &self.enc_secret_key,
             &random_oracle_encryption,
@@ -418,7 +436,7 @@ impl Receiver {
         );
 
         match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
-            my_shares.verify(message, &self.nodes.share_ids_of(self.id)?, self.id)?;
+            my_shares.verify(message, &my_share_ids, self.id)?;
             Ok(my_shares)
         }) {
             Ok(my_shares) => Ok(Some(AvssOutput {
@@ -470,18 +488,32 @@ impl Receiver {
             return Err(InvalidInput);
         }
         let accuser_share_ids = self.nodes.share_ids_of(accuser_id)?;
-        complaint.proof.check(
-            accuser_id,
-            &self.nodes.node_id_to_node(accuser_id)?.pk,
-            message
-                .ciphertext
-                .encs
-                .get(accuser_id as usize)
-                .ok_or(InvalidInput)?, // Should never happen if the message has been validated.
-            &message.ciphertext.shared(),
-            &self.random_oracle(),
-            |shares: &SharesForNode| shares.verify(message, &accuser_share_ids, accuser_id),
-        )?;
+        let accuser = self.nodes.node_id_to_node(accuser_id)?;
+        let accuser_ciphertext = message
+            .ciphertext
+            .encs
+            .get(accuser_id as usize)
+            .ok_or(InvalidInput)?; // Should never happen if the message has been validated.
+        if accuser_ciphertext.0.len()
+            == SharesForNode::serialized_length(accuser_share_ids.len() as u16)
+        {
+            complaint.proof.check(
+                accuser_id,
+                &accuser.pk,
+                accuser_ciphertext,
+                &message.ciphertext.shared(),
+                &self.random_oracle(),
+                |shares: &SharesForNode| shares.verify(message, &accuser_share_ids, accuser_id),
+            )?;
+        } else {
+            warn!("AVSS handle_complaint: the accuser's ciphertext has the wrong length");
+            complaint.proof.verify_package(
+                accuser_id,
+                &accuser.pk,
+                &message.ciphertext.shared(),
+                &self.random_oracle(),
+            )?;
+        }
         Ok(ComplaintResponse {
             shares: my_output.my_shares.clone(),
         })
@@ -789,7 +821,7 @@ mod tests {
     use crate::threshold_schnorr::Extensions::Encryption;
     use crate::threshold_schnorr::{Parameters, EG, G};
     use crate::types::{IndexedValue, ShareIndex};
-    use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
+    use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage, InvalidProof};
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
@@ -1104,10 +1136,140 @@ mod tests {
         assert_eq!(recovered, secret);
     }
 
+    #[test]
+    fn test_serialized_length() {
+        let weights = [2u16, 0, 1, 3, 130];
+        let params = Parameters { t: 3, f: 1 };
+        let mut rng = rand::thread_rng();
+        let nodes = Nodes::new(
+            weights
+                .iter()
+                .enumerate()
+                .map(|(id, &weight)| Node {
+                    id: id as u16,
+                    pk: PublicKey::from_private_key(&ecies_v1::PrivateKey::<EG>::new(&mut rng)),
+                    weight,
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+        let dealer = Dealer::new(None, nodes, params, b"tbls test".to_vec(), &mut rng).unwrap();
+
+        let message = dealer.create_message(&mut rng);
+
+        for (id, &weight) in weights.iter().enumerate() {
+            assert_eq!(
+                message.ciphertext.encs[id].0.len(),
+                SharesForNode::serialized_length(weight)
+            );
+        }
+    }
+
+    #[test]
+    fn test_complaint_about_wrong_length_ciphertext() {
+        let t = 3;
+        let n = 7;
+        let params = Parameters { t, f: 1 };
+        let mut rng = rand::thread_rng();
+        let sks = (0..n)
+            .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
+            .collect::<Vec<_>>();
+        let nodes = Nodes::new(
+            sks.iter()
+                .enumerate()
+                .map(|(id, sk)| Node {
+                    id: id as u16,
+                    pk: PublicKey::from_private_key(sk),
+                    weight: if id == 0 { 2 } else { 1 },
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+        let sid = b"tbls test".to_vec();
+        let secret = Scalar::rand(&mut rng);
+        let dealer =
+            Dealer::new(Some(secret), nodes.clone(), params, sid.clone(), &mut rng).unwrap();
+        let receivers = sks
+            .into_iter()
+            .enumerate()
+            .map(|(id, enc_secret_key)| {
+                Receiver::new(
+                    nodes.clone(),
+                    id as u16,
+                    params,
+                    sid.clone(),
+                    None,
+                    enc_secret_key,
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        let message = dealer
+            .create_message_mutating(&mut rng, |pk_and_msgs| pk_and_msgs[0].1.push(0))
+            .unwrap();
+        let complaint = assert_complaint(receivers[0].process_message(&message, &mut rng).unwrap());
+        let outputs = receivers
+            .iter()
+            .skip(1)
+            .map(|r| {
+                (
+                    r.id,
+                    assert_valid(r.process_message(&message, &mut rng).unwrap()),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
+        let other_proof = receivers[1].create_complaint(&message, &mut rng);
+        assert!(matches!(
+            receivers[2].handle_complaint(&message, 0, &other_proof, &outputs[&2]),
+            Err(InvalidProof)
+        ));
+
+        let responses = receivers
+            .iter()
+            .skip(1)
+            .map(|r| {
+                let response = r
+                    .handle_complaint(&message, 0, &complaint, &outputs[&r.id])
+                    .unwrap();
+                receivers[0]
+                    .verify_complaint_response(&message, r.id, response)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let recovered = receivers[0].recover(&message, responses).unwrap();
+        let shares = recovered
+            .my_shares
+            .shares
+            .iter()
+            .chain(outputs.values().flat_map(|o| o.my_shares.shares.iter()))
+            .take(t as usize)
+            .cloned()
+            .collect_vec();
+        assert_eq!(Poly::recover_c0(t, shares.iter()).unwrap(), secret);
+
+        let honest = dealer.create_message(&mut rng);
+        let honest_output = assert_valid(receivers[1].process_message(&honest, &mut rng).unwrap());
+        let lying = receivers[0].create_complaint(&honest, &mut rng);
+        assert!(matches!(
+            receivers[1].handle_complaint(&honest, 0, &lying, &honest_output),
+            Err(InvalidProof)
+        ));
+    }
+
     impl Dealer {
         pub fn create_message_cheating<Rng: AllowedRng>(
             &self,
             rng: &mut Rng,
+        ) -> FastCryptoResult<Message> {
+            self.create_message_mutating(rng, |pk_and_msgs| pk_and_msgs[0].1[7] ^= 1)
+        }
+
+        fn create_message_mutating<Rng: AllowedRng>(
+            &self,
+            rng: &mut Rng,
+            mutate: impl FnOnce(&mut [(PublicKey<EG>, Vec<u8>)]),
         ) -> FastCryptoResult<Message> {
             let polynomial = Poly::rand_fixed_c0(self.params.t - 1, self.secret, rng);
             let commitment = polynomial.commit();
@@ -1131,8 +1293,7 @@ mod tests {
                 })
                 .collect_vec();
 
-            // Modify the first share of the first receiver to simulate a cheating dealer
-            pk_and_msgs[0].1[7] ^= 1;
+            mutate(&mut pk_and_msgs);
 
             let ciphertext = MultiRecipientEncryption::encrypt(
                 &pk_and_msgs,
