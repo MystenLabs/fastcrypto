@@ -8,6 +8,8 @@
 //! to the dealer's broadcast. The set of recipients does not have to be all nodes.
 //! We call the message from the dealer to the recipients a "dispersal", and the message from a
 //! disperser to a recipient an "echo".
+//!
+//! We require the Merkle tree to be a commitment scheme, binding even against a malicious dealer.
 
 use crate::nodes::{Nodes, PartyId};
 use crate::threshold_schnorr::merkle::{NestedMerkleProof, NestedMerkleTree};
@@ -225,7 +227,13 @@ impl Avid {
                 }
                 shards
                     .proof
-                    .derive_top_root(&shards.shards, recipient_idx, my_id as usize)
+                    .derive_top_root(
+                        &shards.shards,
+                        recipient_idx,
+                        my_id as usize,
+                        dispersal.len(),
+                        self.nodes.num_nodes(),
+                    )
                     .tap_err(|err| warn!("avid echo: implied root failed at leaf {my_id}: {err:?}"))
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
@@ -260,8 +268,14 @@ impl Avid {
             return Err(InvalidMessage);
         }
         let receiver_idx = vote.recipient_index(receiver)?;
-        auth.proof
-            .verify(&vote.top_root, &auth.shards, receiver_idx, sender as usize)?;
+        auth.proof.verify(
+            &vote.top_root,
+            &auth.shards,
+            receiver_idx,
+            sender as usize,
+            vote.recipients.len(),
+            self.nodes.num_nodes(),
+        )?;
         Ok(VerifiedEcho { echo, sender })
     }
 
@@ -316,7 +330,7 @@ impl Avid {
         let (sender, authenticated_shards) = shards.iter().next().ok_or(InvalidInput)?;
         let expected_recipient_root = authenticated_shards
             .proof
-            .derive_row_root(&authenticated_shards.shards, *sender as usize)?;
+            .derive_row_root_for_trusted_tree(&authenticated_shards.shards, *sender as usize)?;
         if NestedMerkleTree::compute_row_root(&re_encoded)? != expected_recipient_root {
             return Err(InvalidProof);
         }
@@ -338,7 +352,11 @@ impl Avid {
             if auth.shards.len() != self.nodes.weight_of(disperser)? as usize {
                 return Err(InvalidInput);
             }
-            auth.proof.verify(
+            // TODO: Change to strict verify later, together with the row root check in
+            // `decode_consistent`, where a failure counts as proof that the complaint is valid.
+            // The proof lengths are not checked here yet, so that a complaint from a node that
+            // still runs the previous release stays valid during a rollout.
+            auth.proof.verify_for_trusted_tree(
                 &vote.top_root,
                 &auth.shards,
                 accuser_idx,
@@ -638,6 +656,100 @@ mod tests {
 
         // A validator accepts the complaint via the same re-encode check.
         avid.verify_complaint(&complaint, recipient, &certified_vote, |_| true)
+            .unwrap();
+    }
+
+    /// A dealer can build a top tree that opens row 3 at the honest depth 3 and, through a slot
+    /// that an honest tree pads, also at depth 2. Five rows is the smallest tree with such a slot.
+    #[test]
+    fn proofs_of_the_wrong_length_are_rejected_for_echoes_and_dispersals() {
+        use fastcrypto::hash::{Blake2b256, HashFunction};
+        use fastcrypto::merkle::{MerkleProof, Node};
+
+        let leaf = |n: &Node| -> Node {
+            let mut h = Blake2b256::default();
+            h.update([0u8]);
+            h.update(bcs::to_bytes(n).unwrap());
+            Node::from(h.finalize())
+        };
+        let inner = |l: &Node, r: &Node| -> Node {
+            let mut h = Blake2b256::default();
+            h.update([1u8]);
+            h.update(l.bytes());
+            h.update(r.bytes());
+            Node::from(h.finalize())
+        };
+
+        let nodes = Arc::new(nodes_with_weights(&[1u16; 5]));
+        let avid = Avid::new(Arc::clone(&nodes), 1).unwrap();
+        let row = |byte: u8| -> Vec<Shards> {
+            nodes
+                .collect_to_nodes(avid.coder.encode(&[byte; 100]).unwrap().into_iter())
+                .unwrap()
+        };
+        let rows = (0..5).map(row).collect_vec();
+        let hidden = row(9);
+        let tree = NestedMerkleTree::new(rows.clone()).unwrap();
+        let hidden_tree = NestedMerkleTree::new(vec![hidden.clone()]).unwrap();
+
+        // Rows 0-4 at depth 3, and the hidden row at depth 2 in place of padding.
+        let l = (0..5)
+            .map(|i| leaf(&tree.row_root(i).unwrap()))
+            .collect_vec();
+        let (a, b) = (inner(&l[0], &l[1]), inner(&l[2], &l[3]));
+        let c = inner(&l[4], &Node::Empty);
+        let d = leaf(&hidden_tree.row_root(0).unwrap());
+        let (ab, cd) = (inner(&a, &b), inner(&c, &d));
+        let top_paths = [
+            vec![l[1].clone(), b.clone(), cd.clone()],
+            vec![l[0].clone(), b.clone(), cd.clone()],
+            vec![l[3].clone(), a.clone(), cd.clone()],
+            vec![l[2].clone(), a.clone(), cd.clone()],
+            vec![Node::Empty, d.clone(), ab.clone()],
+        ];
+
+        let authenticated =
+            |shards: &Shards, row_proof: MerkleProof, top_path: &[Node]| AuthenticatedShards {
+                shards: shards.clone(),
+                proof: NestedMerkleProof {
+                    row_proof,
+                    top_proof: MerkleProof::new(top_path),
+                },
+            };
+        let exact = |i: usize, j: usize| {
+            let row_proof = tree.get_proof(i, j).unwrap().row_proof;
+            authenticated(&rows[i][j], row_proof, &top_paths[i])
+        };
+        let short = |j: usize| {
+            let row_proof = hidden_tree.get_proof(0, j).unwrap().row_proof;
+            authenticated(&hidden[j], row_proof, &[c.clone(), ab.clone()])
+        };
+        let dispersal =
+            |j: usize| -> Dispersal { (0..5u16).map(|i| (i, exact(i as usize, j))).collect() };
+
+        // Exact-length proofs are accepted, so a vote certifies the forged root.
+        let (_, vote) = avid.process_dispersal(0, dispersal(0)).unwrap();
+        assert_eq!(vote.top_root, inner(&ab, &cd));
+
+        // The short proof opens the hidden row at index 3 of the same root...
+        assert!(short(2)
+            .proof
+            .verify_for_trusted_tree(&vote.top_root, &hidden[2], 3, 2)
+            .is_ok());
+        // ...but dispersals and echoes reject it.
+        let mut forged = dispersal(2);
+        forged.insert(3, short(2));
+        assert!(avid.process_dispersal(2, forged).is_err());
+        let echo = Echo {
+            authenticated_shards: short(2),
+        };
+        assert!(avid.verify_echo(echo, 2, &vote, 3).is_err());
+
+        // Complaints are not length-checked yet, so one with the short proof is still valid.
+        let complaint = Complaint {
+            shards: BTreeMap::from([(0, exact(3, 0)), (1, exact(3, 1)), (2, short(2))]),
+        };
+        avid.verify_complaint(&complaint, 3, &vote, |_| true)
             .unwrap();
     }
 }

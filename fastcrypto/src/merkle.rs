@@ -108,33 +108,79 @@ where
         }
     }
 
-    /// Verifies the proof given a Merkle root and the leaf data.
-    pub fn verify_proof(
+    /// Verifies the proof for the leaf at `leaf_index` of a tree with `n_leaves` leaves, given a
+    /// Merkle root and the leaf data.
+    pub fn verify(
         &self,
         root: &Node,
         leaf: &[u8],
         leaf_index: usize,
+        n_leaves: usize,
     ) -> FastCryptoResult<()> {
-        if self.compute_root(leaf, leaf_index).as_ref() != Some(root) {
+        if self.compute_root(leaf, leaf_index, n_leaves).as_ref() != Some(root) {
             return Err(FastCryptoError::InvalidProof);
         }
         Ok(())
     }
 
-    pub fn verify_proof_with_unserialized_leaf<L: Serialize>(
+    /// Verifies the proof given a Merkle root and the leaf data, assuming a trusted tree, i.e. one
+    /// built by [`MerkleTree`]. If the tree cannot be trusted, use [`Self::verify`] instead.
+    pub fn verify_for_trusted_tree(
+        &self,
+        root: &Node,
+        leaf: &[u8],
+        leaf_index: usize,
+    ) -> FastCryptoResult<()> {
+        if self
+            .compute_root_for_trusted_tree(leaf, leaf_index)
+            .as_ref()
+            != Some(root)
+        {
+            return Err(FastCryptoError::InvalidProof);
+        }
+        Ok(())
+    }
+
+    pub fn verify_for_trusted_tree_with_unserialized_leaf<L: Serialize>(
         &self,
         root: &Node,
         leaf: &L,
         leaf_index: usize,
     ) -> FastCryptoResult<()> {
         let bytes = bcs::to_bytes(leaf).map_err(|_| FastCryptoError::InvalidInput)?;
-        self.verify_proof(root, &bytes, leaf_index)
+        self.verify_for_trusted_tree(root, &bytes, leaf_index)
     }
 
-    /// Recomputes the Merkle root from the proof and the provided leaf data.
+    /// The length of a proof in a [`MerkleTree`] with `n_leaves` leaves.
+    fn expected_proof_length(n_leaves: usize) -> usize {
+        // ceil(log2(n_leaves)), or zero if there are no leaves.
+        (usize::BITS - n_leaves.saturating_sub(1).leading_zeros()) as usize
+    }
+
+    /// Recomputes the root of a tree with `n_leaves` leaves from the proof and the provided leaf
+    /// data.
+    ///
+    /// Returns `None` if the provided index is outside the tree or the proof has the wrong length.
+    pub fn compute_root(&self, leaf: &[u8], leaf_index: usize, n_leaves: usize) -> Option<Node> {
+        if leaf_index >= n_leaves || self.len() != Self::expected_proof_length(n_leaves) {
+            return None;
+        }
+        self.hash_along_path(leaf, leaf_index)
+    }
+
+    /// Recomputes the Merkle root from the proof and the provided leaf data, assuming a trusted
+    /// tree, i.e. one built by [`MerkleTree`]. If the tree cannot be trusted, use
+    /// [`Self::compute_root`] instead.
     ///
     /// Returns `None` if the provided index is too large.
-    pub fn compute_root(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
+    pub fn compute_root_for_trusted_tree(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
+        self.hash_along_path(leaf, leaf_index)
+    }
+
+    /// Hashes `leaf` with the siblings in the proof, using `leaf_index` to tell left from right.
+    ///
+    /// Returns `None` if the index does not fit the depth of the path.
+    fn hash_along_path(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
         if leaf_index
             .checked_shr(self.path.len() as u32)
             .is_none_or(|s| s != 0)
@@ -254,15 +300,16 @@ where
         neighbor_index: usize,
         root: &Node,
     ) -> FastCryptoResult<()> {
-        proof.verify_proof_with_unserialized_leaf(root, neighbor, neighbor_index)
+        proof.verify_for_trusted_tree_with_unserialized_leaf(root, neighbor, neighbor_index)
     }
 
-    // Proves non-inclusion of a leaf assuming sorted tree.
+    /// Verifies non-inclusion of `target_leaf`, assuming a trusted tree, i.e. one built by
+    /// [`MerkleTree`], over sorted leaves.
     // Edge case explanations
     // - Empty tree: no leaves, automatically valid
     // - Target leaf smaller than all: no left neighbor, right neighbor must be at position 0
     // - Target leaf larger than all: left neighbor must be rightmost leaf
-    pub fn verify_proof(&self, root: &Node, target_leaf: &L) -> FastCryptoResult<()> {
+    pub fn verify_for_trusted_tree(&self, root: &Node, target_leaf: &L) -> FastCryptoResult<()> {
         // Note: For empty trees, we don't need to check anything
         if root.as_ref() == EMPTY_NODE.as_ref() {
             return Ok(());

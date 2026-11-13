@@ -74,45 +74,89 @@ impl NestedMerkleTree {
 }
 
 impl NestedMerkleProof {
-    /// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`).
+    /// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`) of a
+    /// tree with `n_rows` rows of `n_leaves` leaves each.
     pub fn verify<S: Serialize>(
         &self,
         top_root: &Node,
         leaf: &S,
         row_idx: usize,
         leaf_idx: usize,
+        n_rows: usize,
+        n_leaves: usize,
     ) -> FastCryptoResult<()> {
-        (self.derive_top_root(leaf, row_idx, leaf_idx)? == *top_root)
+        (self.derive_top_root(leaf, row_idx, leaf_idx, n_rows, n_leaves)? == *top_root)
             .then_some(())
             .ok_or(InvalidProof)
     }
 
-    /// Derive the implied row root from this proof's row portion and `leaf` at `leaf_idx`.
+    // TODO: Remove this and `derive_row_root_for_trusted_tree` once AVID complaints are checked
+    // with the strict variants.
+    /// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`),
+    /// assuming a trusted tree, i.e. one built by [NestedMerkleTree]. If the tree cannot be
+    /// trusted, use [Self::verify] instead.
+    pub fn verify_for_trusted_tree<S: Serialize>(
+        &self,
+        top_root: &Node,
+        leaf: &S,
+        row_idx: usize,
+        leaf_idx: usize,
+    ) -> FastCryptoResult<()> {
+        let row_root = self.derive_row_root_for_trusted_tree(leaf, leaf_idx)?;
+        let derived_top_root = self
+            .top_proof
+            .compute_root_for_trusted_tree(
+                &bcs::to_bytes(&row_root).map_err(|_| InvalidInput)?,
+                row_idx,
+            )
+            .ok_or(InvalidMessage)?;
+        (derived_top_root == *top_root)
+            .then_some(())
+            .ok_or(InvalidProof)
+    }
+
+    /// Derive the implied row root from this proof's row portion and `leaf` at `leaf_idx`,
+    /// assuming a trusted tree, i.e. one built by [NestedMerkleTree].
     /// Returns [InvalidMessage] if the path is malformed.
-    pub fn derive_row_root<S: Serialize>(
+    pub fn derive_row_root_for_trusted_tree<S: Serialize>(
         &self,
         leaf: &S,
         leaf_idx: usize,
     ) -> FastCryptoResult<Node> {
         self.row_proof
-            .compute_root(&bcs::to_bytes(leaf).map_err(|_| InvalidInput)?, leaf_idx)
+            .compute_root_for_trusted_tree(
+                &bcs::to_bytes(leaf).map_err(|_| InvalidInput)?,
+                leaf_idx,
+            )
             .ok_or(InvalidMessage)
     }
 
-    /// Derive the implied top root from this proof and `leaf` at (`row_idx`, `leaf_idx`): walk
-    /// the row proof from the leaf to an implied row root, then walk the top proof from that row
-    /// root to an implied top root. Returns [InvalidMessage] if either path is malformed.
+    /// Derive the implied top root from this proof and `leaf` at (`row_idx`, `leaf_idx`) of a tree
+    /// with `n_rows` rows of `n_leaves` leaves each: walk the row proof from the leaf to an
+    /// implied row root, then walk the top proof from that row root to an implied top root.
+    /// Returns [InvalidMessage] if either path is malformed or has the wrong length, or if either
+    /// index is outside the tree.
     pub fn derive_top_root<S: Serialize>(
         &self,
         leaf: &S,
         row_idx: usize,
         leaf_idx: usize,
+        n_rows: usize,
+        n_leaves: usize,
     ) -> FastCryptoResult<Node> {
-        let row_root = self.derive_row_root(leaf, leaf_idx)?;
+        let row_root = self
+            .row_proof
+            .compute_root(
+                &bcs::to_bytes(leaf).map_err(|_| InvalidInput)?,
+                leaf_idx,
+                n_leaves,
+            )
+            .ok_or(InvalidMessage)?;
         self.top_proof
             .compute_root(
                 &bcs::to_bytes(&row_root).map_err(|_| InvalidInput)?,
                 row_idx,
+                n_rows,
             )
             .ok_or(InvalidMessage)
     }
