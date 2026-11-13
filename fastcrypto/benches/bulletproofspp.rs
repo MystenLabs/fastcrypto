@@ -28,6 +28,9 @@ const CONFIGS: [(Range, usize); 8] = [
     (Range::Bits64, 32),
 ];
 
+/// Larger 64-bit batches, BP++ only: norm lengths `nm = 2^10, ..., 2^13`.
+const SCALING: [usize; 4] = [64, 128, 256, 512];
+
 fn values(range: &Range, m: usize, rng: &mut rand::rngs::ThreadRng) -> Vec<u64> {
     (0..m)
         .map(|_| rng.gen::<u64>() & range.max_value())
@@ -110,5 +113,33 @@ fn bppp_benchmarks(c: &mut Criterion) {
     grp.finish();
 }
 
-criterion_group!(benches, bp_benchmarks, bppp_benchmarks);
+fn bppp_scaling(c: &mut Criterion) {
+    let mut rng = rand::thread_rng();
+    let range = Range::Bits64;
+
+    let mut grp = c.benchmark_group("BPPP scaling prove");
+    grp.sample_size(10);
+    for m in SCALING {
+        let values = values(&range, m, &mut rng);
+        let (_, blindings) = commit(&values, &mut rng);
+        grp.bench_function(label(&range, m), |b| {
+            b.iter(|| RangeProof::prove_batch(&values, &blindings, &range, DST, &mut rng).unwrap())
+        });
+    }
+    grp.finish();
+
+    let mut grp = c.benchmark_group("BPPP scaling verify");
+    grp.sample_size(10);
+    for m in SCALING {
+        let values = values(&range, m, &mut rng);
+        let (commitments, blindings) = commit(&values, &mut rng);
+        let proof = RangeProof::prove_batch(&values, &blindings, &range, DST, &mut rng).unwrap();
+        grp.bench_function(label(&range, m), |b| {
+            b.iter(|| proof.verify_batch(&commitments, &range, DST).unwrap())
+        });
+    }
+    grp.finish();
+}
+
+criterion_group!(benches, bp_benchmarks, bppp_benchmarks, bppp_scaling);
 criterion_main!(benches);
