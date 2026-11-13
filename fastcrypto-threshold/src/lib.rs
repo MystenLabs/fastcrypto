@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-#![cfg_attr(not(test), forbid(unsafe_code))]
+#![cfg_attr(all(not(test), not(verus_keep_ghost)), forbid(unsafe_code))]
+#![cfg_attr(verus_keep_ghost, feature(proc_macro_hygiene))]
 #![warn(
     future_incompatible,
     nonstandard_style,
@@ -21,6 +22,11 @@ pub mod polynomial;
 pub mod tbls;
 pub mod threshold_schnorr;
 pub mod types;
+
+// Crate-wide Verus declarations, see verification/README.md.
+#[cfg(verus_keep_ghost)]
+#[path = "../../verification/fastcrypto-threshold/specs.rs"]
+mod verification;
 
 // TODO: needs to use ecies_v1
 // #[cfg(any(test, feature = "experimental"))]

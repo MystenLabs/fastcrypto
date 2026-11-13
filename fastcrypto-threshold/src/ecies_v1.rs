@@ -23,6 +23,12 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 ///
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, SilentDebug, ZeroizeOnDrop)]
+#[cfg_attr(
+    verus_keep_ghost,
+    vstd::prelude::verus_verify(external_body),
+    verifier::reject_recursive_types(G),
+    verifier::external_derive
+)]
 #[serde(bound = "")]
 pub struct PrivateKey<G: GroupElement>(pub(crate) G::ScalarType)
 where

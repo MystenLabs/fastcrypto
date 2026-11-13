@@ -25,6 +25,7 @@ itertools.workspace = true
 hex = "0.4.3"
 tap = { version = "1.0.1", features = [] }
 reed-solomon-erasure = { version = "6.0.0", default-features = false }
+vstd = { version = "=0.0.0-2026-11-01-0251", optional = true }
 
 [dev-dependencies]
 criterion = "0.5.1"
@@ -58,3 +59,11 @@ harness = false
 [features]
 default = []
 experimental = []
+# Only for checking the Verus proofs: `cargo verus focus --features verus`.
+verus = ["dep:vstd"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(verus_keep_ghost)"] }
+
+[package.metadata.verus]
+verify = true
