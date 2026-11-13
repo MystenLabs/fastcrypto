@@ -11,7 +11,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::secp256k1::schnorr::{
     bip0340_hash_to_scalar, SchnorrPublicKey, SchnorrSignature, Tag,
 };
-use fastcrypto::groups::GroupElement;
+use fastcrypto::groups::AdditiveGroup;
 use itertools::Itertools;
 use tap::TapFallible;
 use tracing::warn;

@@ -4,7 +4,7 @@
 use crate::threshold_schnorr::{Address, G, S};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
-use fastcrypto::groups::GroupElement;
+use fastcrypto::groups::AdditiveGroup;
 use fastcrypto::hmac::{hkdf_sha3_256, HkdfIkm};
 use fastcrypto::traits::ToFromBytes;
 

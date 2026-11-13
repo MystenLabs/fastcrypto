@@ -14,7 +14,7 @@ use crate::bulletproofspp::transcript::BpppTranscript;
 use crate::bulletproofspp::util::*;
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use crate::groups::{GroupElement, MultiScalarMul, Scalar};
+use crate::groups::{AdditiveGroup, MultiScalarMul, Scalar};
 use crate::serde_helpers::ToFromByteArray;
 use itertools::Itertools;
 

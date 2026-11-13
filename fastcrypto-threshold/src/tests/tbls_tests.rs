@@ -7,7 +7,7 @@ use crate::tbls::Share;
 use crate::{tbls::ThresholdBls, types::ThresholdBls12381MinSig};
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar};
-use fastcrypto::groups::{bls12381, GroupElement};
+use fastcrypto::groups::{bls12381, AdditiveGroup};
 use rand::prelude::*;
 use std::num::NonZeroU16;
 

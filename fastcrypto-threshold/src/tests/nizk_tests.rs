@@ -5,7 +5,7 @@ use crate::nizk::{DLNizk, DdhTupleNizk};
 use crate::random_oracle::RandomOracle;
 use fastcrypto::groups::bls12381::{G1Element, G2Element};
 use fastcrypto::groups::ristretto255::RistrettoPoint;
-use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
+use fastcrypto::groups::{AdditiveGroup, FiatShamirChallenge, GroupElement, Scalar};
 use rand::thread_rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;

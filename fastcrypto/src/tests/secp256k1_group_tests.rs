@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::groups::{Doubling, GroupElement, MultiScalarMul};
+use crate::groups::{AdditiveGroup, Doubling, MultiScalarMul};
 use std::ops::{Mul, Neg};
 
 use crate::groups::secp256k1::{ProjectivePoint, Scalar};

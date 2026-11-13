@@ -12,7 +12,7 @@ use crate::random_oracle::RandomOracle;
 use crate::types::ShareIndex;
 use crate::{ecies, ecies_v1};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{bls12381, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::groups::{bls12381, FiatShamirChallenge, GroupElement, AdditiveGroup, Module, MultiScalarMul, Scalar};
 use fastcrypto::hmac::{hmac_sha3_256, HmacKey};
 use fastcrypto::traits::{AllowedRng, ToFromBytes};
 use itertools::izip;

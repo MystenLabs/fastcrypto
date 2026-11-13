@@ -9,7 +9,7 @@ use crate::polynomial::*;
 use crate::types::ShareIndex;
 use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar as BlsScalar};
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::groups::{AdditiveGroup, GroupElement, MultiScalarMul, Scalar};
 use rand::prelude::*;
 use std::iter;
 use std::num::NonZeroU16;

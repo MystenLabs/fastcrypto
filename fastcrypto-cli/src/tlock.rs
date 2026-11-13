@@ -4,7 +4,7 @@
 
 use clap::Parser;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing};
+use fastcrypto::groups::{bls12381, AdditiveGroup, HashToGroupElement, Pairing};
 use fastcrypto::hash::{Blake2b256, HashFunction, Sha256};
 use fastcrypto::serde_helpers::ToFromByteArray;
 use rand::{thread_rng, Rng};

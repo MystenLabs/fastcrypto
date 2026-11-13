@@ -4,7 +4,7 @@
 use crate::error::FastCryptoError::InvalidProof;
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use crate::groups::{GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
+use crate::groups::{AdditiveGroup, HashToGroupElement, MultiScalarMul, Scalar};
 use crate::traits::AllowedRng;
 use derive_more::{Add, Mul, Sub};
 use lazy_static::lazy_static;
@@ -123,7 +123,7 @@ fn test_is_in_range() {
 
 #[test]
 fn test_commitment() {
-    use crate::groups::GroupElement;
+    use crate::groups::AdditiveGroup;
 
     let mut rng = rand::thread_rng();
     let value_1 = RistrettoScalar::from(1u64);
