@@ -1,0 +1,26 @@
+[package]
+name = "verify-knapsack-weight-reduction-verus"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Mysten Labs <build@mystenlabs.com>"]
+description = "Verus proofs for the fastcrypto-threshold weight reduction"
+publish = false
+
+# Flat layout: all sources sit next to this file.
+[lib]
+path = "lib.rs"
+
+[dependencies]
+# Must match the Verus release used to run the proofs (see README.md).
+vstd = "=0.0.0-2026-11-01-0251"
+fastcrypto = { path = "../../../fastcrypto" }
+
+[package.metadata.verus]
+verify = true
+
+# Built with `cargo verus` and its own toolchain, so not a member of the main workspace.
+[workspace]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(verus_only)", "cfg(verus_keep_ghost)"] }
