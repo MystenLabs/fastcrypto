@@ -1424,6 +1424,7 @@ dependencies = [
  "criterion",
  "ctr",
  "curve25519-dalek",
+ "curve25519-dalek-ng",
  "derive_more",
  "digest 0.10.7",
  "ecdsa 0.16.9",

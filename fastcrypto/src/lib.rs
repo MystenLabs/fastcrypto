@@ -12,6 +12,10 @@
 #[path = "tests/ed25519_tests.rs"]
 pub mod ed25519_tests;
 
+#[cfg(kani)]
+#[path = "kani/ed25519_proofs.rs"]
+mod ed25519_proofs;
+
 #[cfg(test)]
 #[path = "tests/secp256k1_tests.rs"]
 pub mod secp256k1_tests;
