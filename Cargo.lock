@@ -1589,6 +1589,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "serde_with",
  "test-strategy",
  "tokio",
  "tracing",

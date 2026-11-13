@@ -4,30 +4,30 @@
 use std::str::FromStr;
 
 use crate::bn254::utils::{
-    gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_proof, get_zk_login_address,
+    gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_zk_login_address,
 };
 use crate::bn254::zk_login::big_int_array_to_bits;
 use crate::bn254::zk_login::bitarray_to_bytearray;
 use crate::bn254::zk_login::poseidon_zk_login;
 use crate::bn254::zk_login::{
-    base64_to_bitarray, convert_base, decode_base64_url, fetch_jwks, hash_ascii_str_to_field,
-    hash_to_field, parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId, OIDCProvider,
+    base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
+    parse_jwks, parse_v2_ext_iss, trim, verify_extended_claim, Claim, JWTDetails, JwkId,
+    OIDCProvider,
 };
 use crate::bn254::zk_login_api::{
-    verify_zk_login_id, verify_zk_login_iss, Bn254Fr, ZkLoginCircuitMode, ZkLoginEnv,
+    verify_zk_login_extended, verify_zk_login_id, verify_zk_login_iss, Bn254Fr, ZkLoginEnv,
 };
 use crate::bn254::{
-    zk_login::{ZkLoginInputs, JWK},
+    zk_login::{VersionedZkLoginInputs, ZkLoginInputs, ZkLoginInputsV2, JWK},
     zk_login_api::verify_zk_login,
 };
 use crate::zk_login_utils::Bn254FrElement;
-use ark_bn254::Fr;
 use ark_std::rand::rngs::StdRng;
 use ark_std::rand::SeedableRng;
 use fastcrypto::ed25519::Ed25519KeyPair;
-use fastcrypto::encoding::{Encoding, Hex};
+use fastcrypto::encoding::{Base64, Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::jwt_utils::{parse_and_validate_jwt, JWTHeader};
+use fastcrypto::jwt_utils::JWTHeader;
 use fastcrypto::traits::KeyPair;
 use imbl::hashmap::HashMap as ImHashMap;
 use num_bigint::BigUint;
@@ -166,14 +166,7 @@ async fn test_verify_zk_login_google() {
         ),
         content,
     );
-    let res = verify_zk_login(
-        &zk_login_inputs,
-        10,
-        &eph_pubkey,
-        &map,
-        &ZkLoginEnv::Prod,
-        ZkLoginCircuitMode::V1Only,
-    );
+    let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
     assert!(res.is_ok());
 }
 
@@ -571,46 +564,112 @@ fn test_verify_zk_login_id_and_iss() {
 }
 
 #[test]
-fn test_all_inputs_hash() {
-    let jwt_sha2_hash_0 = Fr::from_str("248987002057371616691124650904415756047").unwrap();
-    let jwt_sha2_hash_1 = Fr::from_str("113498781424543581252500776698433499823").unwrap();
-    let masked_content_hash = Fr::from_str(
-        "14900420995580824499222150327925943524564997104405553289134597516335134742309",
-    )
-    .unwrap();
-    let payload_start_index = Fr::from_str("103").unwrap();
-    let payload_len = Fr::from_str("564").unwrap();
-    let eph_public_key_0 = Fr::from_str("17932473587154777519561053972421347139").unwrap();
-    let eph_public_key_1 = Fr::from_str("134696963602902907403122104327765350261").unwrap();
-    let max_epoch = Fr::from_str("10000").unwrap();
-    let num_sha2_blocks = Fr::from_str("11").unwrap();
-    let key_claim_name_f = Fr::from_str(
-        "18523124550523841778801820019979000409432455608728354507022210389496924497355",
-    )
-    .unwrap();
-    let addr_seed = Fr::from_str(
-        "15604334753912523265015800787270404628529489918817818174033741053550755333691",
-    )
-    .unwrap();
+fn test_v2_public_inputs_hash_matches_circuit_fixture() {
+    // https://github.com/MystenLabs/zklogin-circuits/blob/98f83f08ef018ffe1ec4f606a4b3db82d4dbba7b/test/circuits/sha256-transcripts.circom.test.js#L244-L326
+    let input = ZkLoginInputsV2 {
+        proof_points: super::ZkLoginProof {
+            a: vec![],
+            b: vec![],
+            c: vec![],
+        },
+        ext_iss: "\"iss\":\"https://issuer.example\",".to_string(),
+        header_base64: "eyJhbGciOiJSUzI1NiIsImtpZCI6ImJlbmNobWFyay1rZXkiLCJ0eXAiOiJKV1QifQ"
+            .to_string(),
+        address_seed: BigUint::from_str(
+            "46548047783484547733969084694273676712292427372185332440625037714802126242682",
+        )
+        .unwrap()
+        .to_bytes_be()
+        .try_into()
+        .unwrap(),
+        jwt_details: JWTDetails::default(),
+    };
+    let mut eph_pubkey = vec![0];
+    eph_pubkey.extend(
+        Hex::decode("123456789abcdef00112233445566778899aabbccddeeff00fedcba987654321").unwrap(),
+    );
+    let modulus =
+        ((BigUint::from(1u8) << 2047usize) + BigUint::from(0x123456789abcdefu64)).to_bytes_be();
+    let max_epoch = 0x1020304050607080;
+    let transcript = input
+        .encode_public_inputs_transcript(&eph_pubkey, &modulus, max_epoch)
+        .unwrap();
+    assert_eq!(transcript.len(), 1591);
 
-    let hash = poseidon_zk_login(&[
-        jwt_sha2_hash_0,
-        jwt_sha2_hash_1,
-        masked_content_hash,
-        payload_start_index,
-        payload_len,
-        eph_public_key_0,
-        eph_public_key_1,
-        max_epoch,
-        num_sha2_blocks,
-        key_claim_name_f,
-        addr_seed,
-    ])
-    .unwrap();
+    let hash = input
+        .calculate_all_inputs_hash(&eph_pubkey, &modulus, max_epoch)
+        .unwrap();
+
     assert_eq!(
         hash.to_string(),
-        "2487117669597822357956926047501254969190518860900347921480370492048882803688".to_string()
+        "10055516041686918213620150782216842656718491033112874618228320470549855286755"
     );
+}
+
+#[test]
+fn test_parse_v2_ext_iss() {
+    for (ext_iss, iss) in [
+        (r#""iss":"A","#, "A"),
+        (r#""iss":"A"}"#, "A"),
+        (" \"iss\" :\t\"A\" ,", "A"),
+        (
+            r#""iss":"https:\/\/www.facebook.com","#,
+            "https://www.facebook.com",
+        ),
+    ] {
+        assert_eq!(parse_v2_ext_iss(ext_iss).unwrap(), iss, "{ext_iss}");
+    }
+    // V2 rejects each of these. It accepts only one member, named `iss`.
+    for ext_iss in [
+        r#""iss":"A""#,
+        r#""iss":"A","iss":"B","#,
+        r#""sub":"x","iss":"A","#,
+        r#""iss":"A","sub":"x"}"#,
+        r#""iss":{"iss":"A"},"#,
+        r#""iss":1,"#,
+        r#""iss":"A"},"x":{,"#,
+        r#""aud":"A","#,
+        "",
+    ] {
+        assert!(parse_v2_ext_iss(ext_iss).is_err(), "{ext_iss}");
+    }
+    // V1 still accepts other members.
+    assert_eq!(
+        verify_extended_claim(r#""sub":"x","iss":"A","#, "iss").unwrap(),
+        "A"
+    );
+}
+
+#[test]
+fn test_v2_inputs_use_extended_issuer_wire_format() {
+    // The JSON format of the V2 prover response:
+    // https://github.com/MystenLabs/zklogin-circuits/blob/98f83f08ef018ffe1ec4f606a4b3db82d4dbba7b/src/lib/proverResponse.ts#L4-L10
+    let seed_hex = "0xcaffb21b7c12688e53c35f7466517bffe25060520ec2f6be90c6871b687ab64b";
+    let json = r#"{
+        "proofPoints":{"a":[],"b":[],"c":[]},
+        "extIss":"\"iss\":\"https://issuer.example\",",
+        "headerBase64":"eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleSJ9",
+        "addressSeed":"0xcaffb21b7c12688e53c35f7466517bffe25060520ec2f6be90c6871b687ab64b"
+    }"#;
+    let mut input: ZkLoginInputsV2 = serde_json::from_str(json).unwrap();
+    input.init().unwrap();
+    assert_eq!(input.jwt_details.iss, "https://issuer.example");
+    assert_eq!(input.validated_iss_and_kid().unwrap().1, "key");
+    assert_eq!(Hex::encode_with_format(input.address_seed), seed_hex);
+
+    // The address seed serializes back to the same 0x-prefixed hex string.
+    let value = serde_json::to_value(&input).unwrap();
+    assert_eq!(value["addressSeed"], seed_hex);
+
+    let mut input: ZkLoginInputsV2 =
+        serde_json::from_str(&json.replace("issuer", "issuér")).unwrap();
+    assert!(input.init().is_err());
+
+    // Reject a short seed and the byte-array format.
+    let short = json.replace(seed_hex, &seed_hex[..64]);
+    assert!(serde_json::from_str::<ZkLoginInputsV2>(&short).is_err());
+    let array = json.replace(&format!("\"{seed_hex}\""), "[0,1,2]");
+    assert!(serde_json::from_str::<ZkLoginInputsV2>(&array).is_err());
 }
 
 #[tokio::test]
@@ -642,28 +701,14 @@ async fn test_verify_zk_login() {
             alg: "RS256".to_string(),},
     );
 
-    // v1 proof verifies in v1-only mode and rollout mode.
-    for mode in [ZkLoginCircuitMode::V1Only, ZkLoginCircuitMode::Both] {
-        let res = verify_zk_login(
-            &input,
-            10000,
-            &eph_pubkey_bytes,
-            &all_jwk,
-            &ZkLoginEnv::Test,
-            mode,
-        );
-        assert!(res.is_ok());
-    }
-    // v1 proof fails in v2 only mode.
-    let res_v2_only = verify_zk_login(
+    let res = verify_zk_login(
         &input,
         10000,
         &eph_pubkey_bytes,
         &all_jwk,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V2Only,
     );
-    assert!(res_v2_only.is_err());
+    assert!(res.is_ok());
 
     let invalid_res = verify_zk_login(
         &invalid_proof_input,
@@ -671,114 +716,8 @@ async fn test_verify_zk_login() {
         &eph_pubkey_bytes,
         &all_jwk,
         &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
     );
     assert!(invalid_res.is_err());
-
-    // --- v2 circuit: generate a fresh proof from the dev v2 prover. ---
-    let max_epoch = 10;
-    let jwt_randomness = "100681567828351849884072155819400689117";
-    let user_salt = "129390038577185583942388216820280642146";
-
-    // Generate an ephemeral key pair
-    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
-    let mut eph_pubkey = vec![0x00];
-    eph_pubkey.extend(kp.public().as_ref());
-    let kp_bigint = BigUint::from_bytes_be(&eph_pubkey).to_string();
-
-    // Get nonce
-    let nonce = get_nonce(&eph_pubkey, max_epoch, jwt_randomness).unwrap();
-
-    // Get JWT from 8192-bit key endpoint
-    let client = reqwest::Client::new();
-    let iss = OIDCProvider::TestIssuerKey8192.get_config().iss;
-    let response = client
-        .post(format!(
-            "https://jwt-tester.mystenlabs.com/8192/jwt?nonce={}&iss={}&sub={}",
-            nonce, iss, "test"
-        ))
-        .header("Content-Type", "application/json")
-        .header("Content-Length", "0")
-        .send()
-        .await
-        .unwrap();
-    let jwt_response: serde_json::Value = response.json().await.unwrap();
-    let parsed_token = jwt_response["jwt"].as_str().unwrap().to_string();
-
-    // Get a proof from the V2 endpoint
-    let reader = get_proof(
-        &parsed_token,
-        max_epoch,
-        jwt_randomness,
-        &kp_bigint,
-        user_salt,
-        "https://prover-dev-v2.mystenlabs.com/v1",
-    )
-    .await
-    .expect("get_proof failed");
-
-    // Get sub and aud
-    let (sub, aud, _) =
-        parse_and_validate_jwt(&parsed_token).expect("parse_and_validate_jwt failed");
-
-    // Get the address seed
-    let address_seed =
-        gen_address_seed(user_salt, "sub", &sub, &aud).expect("gen_address_seed failed");
-
-    let zk_login_inputs =
-        ZkLoginInputs::from_reader(reader, &address_seed).expect("from_reader failed");
-
-    // Fetch the 8192-bit RSA JWK
-    let jwks_vec = fetch_jwks(&OIDCProvider::TestIssuerKey8192, &client, false)
-        .await
-        .unwrap();
-
-    let mut all_jwk = ImHashMap::new();
-    for (jwk_id, jwk) in jwks_vec {
-        all_jwk.insert(jwk_id, jwk);
-    }
-
-    // v2 proof should verify in rollout mode and v2 only mode.
-    for mode in [ZkLoginCircuitMode::Both, ZkLoginCircuitMode::V2Only] {
-        let res_v2 = verify_zk_login(
-            &zk_login_inputs,
-            max_epoch,
-            &eph_pubkey,
-            &all_jwk,
-            &ZkLoginEnv::Test,
-            mode,
-        );
-        assert!(res_v2.is_ok());
-    }
-
-    // v2 proof fails to verify in v1-only mode.
-    let res_v1_only = verify_zk_login(
-        &zk_login_inputs,
-        max_epoch,
-        &eph_pubkey,
-        &all_jwk,
-        &ZkLoginEnv::Test,
-        ZkLoginCircuitMode::V1Only,
-    );
-    assert!(res_v1_only.is_err());
-
-    // The Prod v2 VK is still the v1 placeholder (see `global_pvk_v2`), so a v2 proof must not
-    // verify in the Prod env under any mode. Revisit when the ceremony VK lands.
-    for mode in [
-        ZkLoginCircuitMode::V1Only,
-        ZkLoginCircuitMode::Both,
-        ZkLoginCircuitMode::V2Only,
-    ] {
-        let res_prod = verify_zk_login(
-            &zk_login_inputs,
-            max_epoch,
-            &eph_pubkey,
-            &all_jwk,
-            &ZkLoginEnv::Prod,
-            mode,
-        );
-        assert!(res_prod.is_err());
-    }
 }
 
 #[test]
@@ -810,4 +749,87 @@ fn test_bitarray_to_bytearray() {
     assert!(bitarray_to_bytearray(&[0; 15]).is_err());
     assert!(bitarray_to_bytearray(&[0; 16]).is_ok());
     assert!(bitarray_to_bytearray(&[0; 17]).is_err());
+}
+
+/// A real response of the dev-v2 prover for the zklogin-circuits@98f83f0 circuit.
+/// The JWT came from jwt-tester with its 8192-bit key `sui-key-id-8192`.
+/// Wallet inputs: test/vectors/sampleWalletInputs.json (max epoch 10) with a random salt.
+const DEV_V2_PROVER_RESPONSE: &str = r##"{"proofPoints":{"a":["3672349573138177599136904591772136128615295541414131525892912980311258613017","5467361857313536954177754187819314022656953804432145065103436331598939779249","1"],"b":[["3621969240695771382761921829801197197415465177139332043220269132643989232448","5424528374566235872088110579249089143759049625077902960702667499406875490381"],["6994112895913652805541628232059927104007885466568574872314282220414329649022","12013973278309517198105543956882880226502234878355137608655172590538533080238"],["1","0"]],"c":["6723038257690032669372610946335699590412556043141499607227581732061744475653","18277134152597580402304962298141919281459611366933030893849925862357869941859","1"]},"extIss":"\"iss\":\"https://jwt-tester.mystenlabs.com\",","headerBase64":"eyJraWQiOiJzdWkta2V5LWlkLTgxOTIiLCJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9","addressSeed":"0x6cf4834879b9d06e73191ab9403b84dfdb2a113815b40ae1c5b55d1f7e6208f0"}"##;
+
+/// Modulus of the jwt-tester key `sui-key-id-8192`.
+const JWT_TESTER_8192_N: &str = "lViYJOuLB6EZenCimgyWrwOH_QBEkCZxSIEfcQgP5MrZkRlohbrTAN1YpXGRaqugp9A4mRzCmi9ddXscpRBSsLefdPJJLG8lQZ2qrw6X2-6HD5kDFd6-K7JZS-_GOEfr5xGEDm8_MS_SorbmneKspL0n4MPYWH8qke4OBFCwL6WzGBU9rqDuvhYmafmkvVvOtHIqekBxNrCud7Spv43BHdiBM0V-jUquuNM3oK97i_GVLjGfwrGRpR3tK4nva_ryiHh9Ajs68If7-ZhIoLJ05lRsHJJpqsloiEqlCZwhge9zEMnNkoaIzdQr-xLy0GPnr5W0gikjlSGYiInfx9ITADwK3W33xdOB7npM7lqJY73Njbuw8hBQicU8t0M0gvvWfmh1KDeA5IqffZgue-ka9Jj1nrYmZtd0JimQpPDUiGbLv69gQJZcLVQWf9z6mVC4gNm8VU2OafssnolrvNndC3wIm8AgqzVzn_DIOcMQdhIe8jTF3hu1_6R4Id3KoA5Hb3uI2H86-8RjhSG2wKb3zi44yKSmxEDhzl7i450PQX64JK4ftv5jb9vSw5unpikmVvGlGsuvrqWFuWKBcrcXLgyar8pGvRO8fR9ifDHSj-D2fBiLnhK0-iqsJeU8XnfJhUvKxSjXejwsoQeLqlgq9-PgCDP3dE61fkqGpJ1UZjZ44Q9Vh4YLCPAO6oX8btXSkwreuP5m0UtWgFsc-ynWbt6NYS7JlsMtJNWybM4_auqRdil_cPMwFsUgjocztGLeG304YH-GehmyBJyGKuDIiXL9RfLoZ35jKawrWJb4UqckKWV5kOKeXsXdKtMw96ABFumcnhrzxAsqwshS5a2lT8P7Cdd9g3T1JXI7JM1AnJU9_gPXmJoc3yEFNf-JxEf00URoy2xUusyyxYdTswLJp3NQP4VjrAGwnsp7gHKC-V-mJ21FpQCHsV0JQ-1x-E3du9hkpsjTtGkffetEsV8k9enbkudox7WIlsnPcA8y7aY4lnaBqLLSzaj2GOf4KTN4cRpcPzOmSvgcVVYYQXDjRw45X86P1WJG8UDl6Wkl044tAdQRuIxW8QVzBFWWxeXcoagOBKn1_DV0RKUX9Ud4LLauy81rUNfoAcnolz9nippTBEZA_4OOBvXhdngCYaoZyjAkmYdPhKIkghGhKoVVKiEJ1Ua6nUr3zB9WFlTO9lODeV9h0tgKGtKGu3UBeaRCQSMv9gZK-eGIpcqjsqK_rEf4htdDZUBzfOJ0VtCiFYUUBPiuJNuIf9xQGVDE7qZufK1irvGug8jvWSWzB4pGLP75PnPH7B9axnXrxssaIR90Y3Vr9ih_ptzcfNrwD_wiGHUTy698FHu2fXp51HbSEQ";
+
+#[test]
+fn test_verify_dev_v2_prover_response() {
+    let iss = "https://jwt-tester.mystenlabs.com";
+    let eph_pubkey = Base64::decode("ALnG7hYw7z5xEUSmSNsGu7IoT3J0z77lP/zuUDzBpJIA").unwrap();
+    let max_epoch = 10;
+    let mut all_jwk = ImHashMap::new();
+    all_jwk.insert(
+        JwkId::new(iss.to_string(), "sui-key-id-8192".to_string()),
+        JWK {
+            kty: "RSA".to_string(),
+            e: "AQAB".to_string(),
+            n: JWT_TESTER_8192_N.to_string(),
+            alg: "RS256".to_string(),
+        },
+    );
+    let parse = |json: &str| {
+        VersionedZkLoginInputs::V2(serde_json::from_str(json).unwrap())
+            .init()
+            .unwrap()
+    };
+    let verify = |inputs: &VersionedZkLoginInputs, max_epoch: u64, env: &ZkLoginEnv| {
+        verify_zk_login_extended(inputs, max_epoch, &eph_pubkey, &all_jwk, env)
+    };
+
+    let inputs = parse(DEV_V2_PROVER_RESPONSE);
+    assert_eq!(inputs.get_iss(), iss);
+    assert!(verify(&inputs, max_epoch, &ZkLoginEnv::Test).is_ok());
+
+    // No production V2 key exists yet.
+    assert!(verify(&inputs, max_epoch, &ZkLoginEnv::Prod).is_err());
+
+    // A different max epoch changes the public input.
+    assert!(verify(&inputs, max_epoch + 1, &ZkLoginEnv::Test).is_err());
+
+    // A different address seed changes the public input.
+    let mut tampered: serde_json::Value = serde_json::from_str(DEV_V2_PROVER_RESPONSE).unwrap();
+    tampered["addressSeed"] = format!("0x{}", "00".repeat(32)).into();
+    let tampered = parse(&tampered.to_string());
+    assert!(verify(&tampered, max_epoch, &ZkLoginEnv::Test).is_err());
+
+    // A different ephemeral public key changes the public input.
+    let mut other_eph_pubkey = eph_pubkey.clone();
+    other_eph_pubkey[1] ^= 1;
+    assert!(verify_zk_login_extended(
+        &inputs,
+        max_epoch,
+        &other_eph_pubkey,
+        &all_jwk,
+        &ZkLoginEnv::Test
+    )
+    .is_err());
+
+    // A different modulus under the same JWK id changes the public input.
+    let other_jwk: ImHashMap<JwkId, JWK> = all_jwk
+        .iter()
+        .map(|(id, jwk)| {
+            let mut n = jwk.n.clone().into_bytes();
+            n[100] = if n[100] == b'A' { b'B' } else { b'A' };
+            let jwk = JWK {
+                n: String::from_utf8(n).unwrap(),
+                ..jwk.clone()
+            };
+            (id.clone(), jwk)
+        })
+        .collect();
+    assert!(verify_zk_login_extended(
+        &inputs,
+        max_epoch,
+        &eph_pubkey,
+        &other_jwk,
+        &ZkLoginEnv::Test
+    )
+    .is_err());
 }
