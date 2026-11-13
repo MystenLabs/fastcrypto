@@ -65,10 +65,21 @@ pub assume_specification[ Receiver::recover_shares ](
 
 pub assume_specification[ warn_unverified_recovery ](e: &FastCryptoError);
 
+/// Whether `check_message` accepts `message` depends only on the message and the receiver's
+/// shared configuration, not on its id or key.
 pub assume_specification[ Receiver::check_message ](
     receiver: &Receiver,
     message: &Message,
-) -> FastCryptoResult<()>;
+) -> (r: FastCryptoResult<()>)
+    ensures
+        r is Ok <==> spec_message_ok(*message, receiver.spec_config()),
+;
+
+/// `check_message` accepts `message` for a receiver with this configuration.
+pub uninterp spec fn spec_message_ok(message: Message, config: Config) -> bool;
+
+/// The configuration that all receivers share: `nodes`, `params`, `sid` and `commitment`.
+pub type Config = (Nodes<EG>, Parameters, Vec<u8>, Option<G>);
 
 pub assume_specification[ Receiver::decrypt_my_shares ](
     receiver: &Receiver,
@@ -117,6 +128,18 @@ fn response_verifies<R: AllowedRng>(
     }
 }
 
+/// `process_invalid_iff`: for receivers `Rᵢ` and `Rⱼ` configured alike,
+/// `Rᵢ.process_message(m)` is `Err` exactly when `Rⱼ.process_message(m)` is.
+#[allow(dead_code)]
+fn process_invalid_iff<R: AllowedRng>(r_i: &Receiver, r_j: &Receiver, m: &Message, rng: &mut R)
+    requires
+        r_i.spec_config() == r_j.spec_config(),
+{
+    let a = r_i.process_message(m, rng);
+    let b = r_j.process_message(m, rng);
+    assert(a is Err <==> b is Err);
+}
+
 impl Receiver {
     /// This receiver's `nodes`.
     pub open(super) spec fn spec_nodes(&self) -> Nodes<EG> {
@@ -126,6 +149,11 @@ impl Receiver {
     /// This receiver's id.
     pub open(super) spec fn spec_id(&self) -> PartyId {
         self.id
+    }
+
+    /// This receiver's shared configuration.
+    pub open(super) spec fn spec_config(&self) -> Config {
+        (self.nodes, self.params, self.sid, self.commitment)
     }
 }
 

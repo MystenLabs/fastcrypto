@@ -29,6 +29,7 @@ cargo verus focus --features verus
 | `avss::Receiver::verify_complaint_response` | `Ok(v)` ⇒ `v.responder_id = responder_id`. | `verify_binds` (`Avss/Steps.lean`) |
 | `avss::Receiver::recover` | `Ok(o)` ⇒ `verifies(o.my_shares, message, share_ids_of(nodes, id), id)`. | `recover_sound` (`Avss/Steps.lean`) |
 | `avss::Receiver::process_message` | `Ok(Valid(o))` ⇒ `verifies(o.my_shares, message, share_ids_of(nodes, id), id)`. | `process_valid` (`Avss/Steps.lean`) |
+| `process_invalid_iff` in `fastcrypto-threshold/avss.rs` | For receivers with the same `nodes`, `params`, `sid` and `commitment`: `Rᵢ.process_message(m)` is `Err` ⇔ `Rⱼ.process_message(m)` is `Err`. | `process_invalid_iff` (`Avss/Steps.lean`) |
 | `response_verifies` in `fastcrypto-threshold/avss.rs` | For receivers with the same `nodes`: `Rⱼ.process_message(m) = Ok(Valid(o))` and `Rⱼ.handle_complaint(m, i, c, o) = Ok(r)` ⇒ `Rᵢ.verify_complaint_response(m, j, r)` is `Ok`. | `response_verifies` (`Avss/Steps.lean`) |
 
 ### What is trusted
@@ -42,8 +43,11 @@ and Verus does not read the code they describe.
   `ids = share_ids_of(nodes, id)`, both uninterpreted.
 * `Receiver::my_indices`: returns `share_ids_of(nodes, id)`. This includes that its `unwrap` does
   not panic.
+* `Receiver::check_message`: `Ok` ⇔ `message_ok(message, config)`, uninterpreted, where `config` is
+  the receiver's `nodes`, `params`, `sid` and `commitment`. So its result does not depend on the
+  receiver's id or key.
 * `SharesForNode::clone` returns an equal value.
-* With no spec: `Receiver::recover_shares`, `warn_unverified_recovery`, `Receiver::check_message`,
+* With no spec: `Receiver::recover_shares`, `warn_unverified_recovery`,
   `Receiver::decrypt_my_shares`, `Receiver::create_complaint`, `Receiver::check_complaint`, the
   `From<u128>` impls of the scalars and `Clone` for `Poly`.
 * Opaque types: `Nodes`, `Poly`, `MultiRecipientEncryption`, `SharesForNode`, `Complaint`,

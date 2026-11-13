@@ -371,9 +371,11 @@ impl Receiver {
     ///
     /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
     #[cfg_attr(verus_keep_ghost, verus_spec(r =>
-        ensures r matches Ok(ProcessedMessage::Valid(o)) ==> spec_verifies(
-            o.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id())
-            && spec_valid_id(self.spec_nodes(), self.spec_id())
+        ensures
+            r matches Ok(ProcessedMessage::Valid(o)) ==> spec_verifies(
+                o.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id())
+                && spec_valid_id(self.spec_nodes(), self.spec_id()),
+            r is Err <==> !spec_message_ok(*message, self.spec_config()),
     ))]
     pub fn process_message<R: AllowedRng>(
         &self,
@@ -393,9 +395,11 @@ impl Receiver {
     /// ([InvalidMessage]): the message is malformed and should be ignored. `Err` ([InvalidInput]):
     /// the dealing does not match this receiver's `commitment`.
     #[cfg_attr(verus_keep_ghost, verus_spec(r =>
-        ensures r matches Ok(Some(o)) ==> spec_verifies(
-            o.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id())
-            && spec_valid_id(self.spec_nodes(), self.spec_id())
+        ensures
+            r matches Ok(Some(o)) ==> spec_verifies(
+                o.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id())
+                && spec_valid_id(self.spec_nodes(), self.spec_id()),
+            r is Err <==> !spec_message_ok(*message, self.spec_config()),
     ))]
     pub fn verify_message(&self, message: &Message) -> FastCryptoResult<Option<AvssOutput>> {
         self.check_message(message)?;
