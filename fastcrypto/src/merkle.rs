@@ -123,8 +123,6 @@ where
         Ok(())
     }
 
-    // TODO: The `*_for_trusted_tree` variants in this file can be removed if checkpoints in Sui
-    // commit to the size of the tree, so that its light client can use the strict versions.
     /// Verifies the proof given a Merkle root and the leaf data, assuming a trusted tree, i.e. one
     /// built by [`MerkleTree`]. If the tree cannot be trusted, use [`Self::verify`] instead.
     pub fn verify_for_trusted_tree(
