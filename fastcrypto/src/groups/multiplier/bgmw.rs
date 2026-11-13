@@ -103,6 +103,7 @@ mod tests {
     use super::*;
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::secp256r1::{ProjectivePoint, Scalar};
+    use crate::groups::AdditiveGroup;
     use crate::ristretto255_tests::GROUP_ORDER_MINUS_ONE;
     use ark_ff::{BigInteger, PrimeField};
     use ark_secp256r1::Fr;

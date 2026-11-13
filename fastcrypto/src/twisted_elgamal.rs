@@ -5,7 +5,9 @@ use crate::bulletproofs::{Range, RangeProof};
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, RISTRETTO_POINT_BYTE_LENGTH};
-use crate::groups::{Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
+use crate::groups::{
+    AdditiveGroup, Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar,
+};
 use crate::pedersen::{Blinding, PedersenCommitment, G, H};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;

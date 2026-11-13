@@ -14,7 +14,7 @@ use crate::tbls::ThresholdBls;
 use crate::types::{ShareIndex, ThresholdBls12381MinSig};
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::{G2Element, Scalar};
-use fastcrypto::groups::GroupElement;
+use fastcrypto::groups::{AdditiveGroup, GroupElement};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use rand::prelude::StdRng;

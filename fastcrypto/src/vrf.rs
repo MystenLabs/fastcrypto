@@ -65,7 +65,7 @@ pub trait VRFProof<const OUTPUT_SIZE: usize> {
 pub mod ecvrf {
     use crate::error::FastCryptoError;
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-    use crate::groups::{GroupElement, MultiScalarMul, Scalar};
+    use crate::groups::{AdditiveGroup, MultiScalarMul, Scalar};
     use crate::hash::{HashFunction, Sha512};
     use crate::serde_helpers::ToFromByteArray;
     use crate::traits::AllowedRng;

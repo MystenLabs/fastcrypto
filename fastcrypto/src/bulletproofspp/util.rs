@@ -6,7 +6,7 @@
 use crate::bulletproofspp::crs::BASE;
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::RistrettoScalar;
-use crate::groups::{GroupElement, Scalar};
+use crate::groups::{AdditiveGroup, Scalar};
 use crate::serde_helpers::ToFromByteArray;
 use std::slice::ChunksExact;
 
