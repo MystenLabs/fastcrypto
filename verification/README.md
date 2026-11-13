@@ -29,19 +29,22 @@ cargo verus focus --features verus
 | `avss::Receiver::verify_complaint_response` | `Ok(v)` ⇒ `v.responder_id = responder_id`. | `verify_binds` (`Avss/Steps.lean`) |
 | `avss::Receiver::recover` | `Ok(o)` ⇒ `verifies(o.my_shares, message, share_ids_of(nodes, id), id)`. | `recover_sound` (`Avss/Steps.lean`) |
 | `avss::Receiver::process_message` | `Ok(Valid(o))` ⇒ `verifies(o.my_shares, message, share_ids_of(nodes, id), id)`. | `process_valid` (`Avss/Steps.lean`) |
+| `response_verifies` in `fastcrypto-threshold/avss.rs` | For receivers with the same `nodes`: `Rⱼ.process_message(m) = Ok(Valid(o))` and `Rⱼ.handle_complaint(m, i, c, o) = Ok(r)` ⇒ `Rᵢ.verify_complaint_response(m, j, r)` is `Ok`. | `response_verifies` (`Avss/Steps.lean`) |
 
 ### What is trusted
 
 Each item below is marked `external_body` (Verus takes the signature and does not read the body)
-or declared in `specs.rs`. Only the first three have a spec. Verus assumes what it says.
+or declared in `specs.rs`. Only the first four have a spec. Verus assumes what it says.
 
-* `SharesForNode::verify`: `Ok` ⇒ `verifies(shares, message, ids, receiver)`, an uninterpreted
+* `SharesForNode::verify`: `Ok` ⇔ `verifies(shares, message, ids, receiver)`, an uninterpreted
   predicate. So `verify` is assumed to be a deterministic check.
-* `Nodes::share_ids_of`: `Ok(ids)` ⇒ `ids = share_ids_of(nodes, id)`, also uninterpreted.
+* `Nodes::share_ids_of`: `Ok` ⇔ `valid_id(nodes, id)`, and `Ok(ids)` ⇒
+  `ids = share_ids_of(nodes, id)`, both uninterpreted.
+* `SharesForNode::clone` returns an equal value.
 * `Receiver::my_indices`: returns `share_ids_of(nodes, id)`. This includes that its `unwrap` does
   not panic.
 * With no spec: `Receiver::recover_shares`, `warn_unverified_recovery`, `Receiver::check_message`,
-  `Receiver::decrypt_my_shares`, `Receiver::create_complaint`, the `From<u128>` impls of the
+  `Receiver::decrypt_my_shares`, `Receiver::create_complaint`, `Receiver::check_complaint`, the `From<u128>` impls of the
   scalars and `Clone` for `Poly`.
 * Opaque types: `Nodes`, `Poly`, `PrivateKey`, `MultiRecipientEncryption`, `SharesForNode`,
   `Complaint`, `Parameters`, and the group, scalar and error types of fastcrypto.

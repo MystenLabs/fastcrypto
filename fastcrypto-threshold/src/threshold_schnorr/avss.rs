@@ -172,7 +172,7 @@ impl SharesForNode {
     /// Verify a set of shares received from a Dealer: that the share indices are exactly
     /// `expected_share_ids` and that each share is consistent with the dealer's commitment.
     #[cfg_attr(verus_keep_ghost, verus_verify(external_body), verus_spec(r =>
-        ensures r is Ok ==> spec_verifies(*self, *message, expected_share_ids@, receiver)
+        ensures r is Ok <==> spec_verifies(*self, *message, expected_share_ids@, receiver)
     ))]
     fn verify(
         &self,
@@ -389,6 +389,7 @@ impl Receiver {
     #[cfg_attr(verus_keep_ghost, verus_spec(r =>
         ensures r matches Ok(ProcessedMessage::Valid(o)) ==> spec_verifies(
             o.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id())
+            && spec_valid_id(self.spec_nodes(), self.spec_id())
     ))]
     pub fn process_message<R: AllowedRng>(
         &self,
@@ -410,6 +411,7 @@ impl Receiver {
     #[cfg_attr(verus_keep_ghost, verus_spec(r =>
         ensures r matches Ok(Some(o)) ==> spec_verifies(
             o.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id())
+            && spec_valid_id(self.spec_nodes(), self.spec_id())
     ))]
     pub fn verify_message(&self, message: &Message) -> FastCryptoResult<Option<AvssOutput>> {
         self.check_message(message)?;
@@ -512,6 +514,9 @@ impl Receiver {
     ///    and an [InvalidInput] error if the inputs are inconsistent: `accuser_id` is unknown,
     ///    `message` was not validated, or `my_output` is not the output for `message`. The latter
     ///    indicates a bug in the caller.
+    #[cfg_attr(verus_keep_ghost, verus_spec(r =>
+        ensures r is Ok ==> r->Ok_0.shares == my_output.my_shares
+    ))]
     pub fn handle_complaint(
         &self,
         message: &Message,
@@ -519,6 +524,22 @@ impl Receiver {
         complaint: &Complaint,
         my_output: &AvssOutput,
     ) -> FastCryptoResult<ComplaintResponse> {
+        self.check_complaint(message, accuser_id, complaint, my_output)?;
+        Ok(ComplaintResponse {
+            shares: my_output.my_shares.clone(),
+        })
+    }
+
+    /// The checks of [Self::handle_complaint]: that `my_output` is for `message` and that the
+    /// complaint is valid.
+    #[cfg_attr(verus_keep_ghost, verus_verify(external_body))]
+    fn check_complaint(
+        &self,
+        message: &Message,
+        accuser_id: PartyId,
+        complaint: &Complaint,
+        my_output: &AvssOutput,
+    ) -> FastCryptoResult<()> {
         // Responding with the output for another dealing would reveal this receiver's shares of
         // that dealing.
         if my_output.feldman_commitment != message.feldman_commitment {
@@ -538,9 +559,7 @@ impl Receiver {
             &self.random_oracle(),
             |shares: &SharesForNode| shares.verify(message, &accuser_share_ids, accuser_id),
         )?;
-        Ok(ComplaintResponse {
-            shares: my_output.my_shares.clone(),
-        })
+        Ok(())
     }
 
     /// Verify a [ComplaintResponse] received from `responder_id` against the dealer's `message`,
@@ -549,7 +568,10 @@ impl Receiver {
     /// A receiver keeps at most one verified response per responder, since [Self::recover] rejects
     /// duplicates, and persists them until [Self::recover] succeeds.
     #[cfg_attr(verus_keep_ghost, verus_spec(r =>
-        ensures r is Ok ==> r->Ok_0.spec_responder_id() == responder_id
+        ensures
+            r is Ok ==> r->Ok_0.spec_responder_id() == responder_id,
+            r is Ok <==> spec_valid_id(self.spec_nodes(), responder_id) && spec_verifies(
+                response.shares, *message, spec_share_ids(self.spec_nodes(), responder_id), responder_id)
     ))]
     pub fn verify_complaint_response(
         &self,

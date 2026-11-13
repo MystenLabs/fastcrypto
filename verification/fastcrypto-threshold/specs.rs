@@ -132,6 +132,12 @@ pub trait ExAllowedRng: rand::CryptoRng + rand::RngCore {
     type ExternalTraitSpecificationFor: fastcrypto::traits::AllowedRng;
 }
 
+/// `nodes.share_ids_of(id)` is `Ok`.
+pub uninterp spec fn spec_valid_id<C: fastcrypto::groups::GroupElement>(
+    nodes: Nodes<C>,
+    id: PartyId,
+) -> bool;
+
 /// `nodes.share_ids_of(id)`, when it is `Ok`.
 pub uninterp spec fn spec_share_ids<C: fastcrypto::groups::GroupElement>(
     nodes: Nodes<C>,
