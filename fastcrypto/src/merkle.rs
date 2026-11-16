@@ -124,7 +124,8 @@ where
     }
 
     /// Verifies the proof given a Merkle root and the leaf data, assuming a trusted tree, i.e. one
-    /// built by [`MerkleTree`]. If the tree cannot be trusted, use [`Self::verify`] instead.
+    /// built by [`MerkleTree`]. Only the tree must be trusted, not the proof. If the tree cannot be
+    /// trusted, use [`Self::verify`] instead.
     pub fn verify_for_trusted_tree(
         &self,
         root: &Node,
@@ -169,8 +170,8 @@ where
     }
 
     /// Recomputes the Merkle root from the proof and the provided leaf data, assuming a trusted
-    /// tree, i.e. one built by [`MerkleTree`]. If the tree cannot be trusted, use
-    /// [`Self::compute_root`] instead.
+    /// tree, i.e. one built by [`MerkleTree`]. Only the tree must be trusted, not the proof. If the
+    /// tree cannot be trusted, use [`Self::compute_root`] instead.
     ///
     /// Returns `None` if the provided index is too large.
     pub fn compute_root_for_trusted_tree(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
@@ -304,7 +305,7 @@ where
     }
 
     /// Verifies non-inclusion of `target_leaf`, assuming a trusted tree, i.e. one built by
-    /// [`MerkleTree`], over sorted leaves.
+    /// [`MerkleTree`], over sorted leaves. Only the tree must be trusted, not the proof.
     // Edge case explanations
     // - Empty tree: no leaves, automatically valid
     // - Target leaf smaller than all: no left neighbor, right neighbor must be at position 0
