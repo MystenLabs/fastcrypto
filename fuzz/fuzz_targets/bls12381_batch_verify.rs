@@ -56,54 +56,50 @@ macro_rules! check_mode {
         let entries: &[Entry] = $entries;
 
         let mut aggregates = Vec::new();
-        let mut key_groups: Vec<Vec<&BLS12381PublicKey>> = Vec::new();
+        let mut key_groups: Vec<Vec<BLS12381PublicKey>> = Vec::new();
+        let mut messages: Vec<&[u8]> = Vec::new();
         let mut honest_aggregates = Vec::new();
         for entry in entries {
+            let signers = &entry.signers[..entry.signers.len().min(MAX_SIGNERS)];
+            if signers.is_empty() {
+                continue;
+            }
             let mut aggregate = BLS12381AggregateSignature::default();
             let mut keys = Vec::new();
             let mut honest = Vec::new();
-            for (index, part) in entry.signers.iter().take(MAX_SIGNERS) {
+            for (index, part) in signers {
                 let kp = &COMMITTEE[*index as usize % COMMITTEE_SIZE];
-                keys.push(kp.public());
-                honest.push(kp.sign(&entry.msg));
-                let added = match part {
-                    Part::Honest => aggregate.add_signature(kp.sign(&entry.msg)),
-                    Part::WrongMessage(other) => aggregate.add_signature(kp.sign(other)),
+                let honest_sig = kp.sign(&entry.msg);
+                keys.push(kp.public().clone());
+                honest.push(honest_sig.clone());
+                // Adding a decoded point never fails. Bytes that do not decode add nothing, so the
+                // claimed signer's signature is missing from the aggregate.
+                match part {
+                    Part::Honest => aggregate.add_signature(honest_sig).unwrap(),
+                    Part::WrongMessage(other) => aggregate.add_signature(kp.sign(other)).unwrap(),
                     Part::Signature(bytes) => {
-                        match <BLS12381Signature as ToFromBytes>::from_bytes(bytes) {
-                            Ok(sig) => aggregate.add_signature(sig),
-                            Err(_) => continue,
+                        if let Ok(sig) = <BLS12381Signature as ToFromBytes>::from_bytes(bytes) {
+                            aggregate.add_signature(sig).unwrap();
                         }
                     }
-                    Part::Aggregate(bytes) => match BLS12381AggregateSignature::from_bytes(bytes) {
-                        Ok(sig) => aggregate.add_aggregate(sig),
-                        Err(_) => continue,
-                    },
-                };
-                // Adding a decoded point never fails.
-                added.unwrap();
-            }
-            if keys.is_empty() {
-                continue;
+                    Part::Aggregate(bytes) => {
+                        if let Ok(sig) = BLS12381AggregateSignature::from_bytes(bytes) {
+                            aggregate.add_aggregate(sig).unwrap();
+                        }
+                    }
+                }
             }
             honest_aggregates.push(BLS12381AggregateSignature::aggregate(&honest).unwrap());
             aggregates.push(aggregate);
             key_groups.push(keys);
+            messages.push(&entry.msg);
         }
 
-        let messages: Vec<&[u8]> = entries
-            .iter()
-            .filter(|e| !e.signers.is_empty())
-            .map(|e| e.msg.as_slice())
-            .collect();
         let individually: Vec<bool> = aggregates
             .iter()
             .zip(&key_groups)
             .zip(&messages)
-            .map(|((aggregate, keys), msg)| {
-                let keys: Vec<BLS12381PublicKey> = keys.iter().map(|k| (*k).clone()).collect();
-                aggregate.verify(&keys, msg).is_ok()
-            })
+            .map(|((aggregate, keys), msg)| aggregate.verify(keys, msg).is_ok())
             .collect();
         for ((ok, aggregate), honest) in
             individually.iter().zip(&aggregates).zip(&honest_aggregates)
@@ -118,7 +114,7 @@ macro_rules! check_mode {
 
         let batched = BLS12381AggregateSignature::batch_verify(
             &aggregates.iter().collect::<Vec<_>>(),
-            key_groups.iter().map(|keys| keys.iter().copied()).collect(),
+            key_groups.iter().map(|keys| keys.iter()).collect(),
             &messages,
         );
         assert_eq!(batched.is_ok(), individually.iter().all(|ok| *ok));

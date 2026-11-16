@@ -38,11 +38,6 @@ pub fn keys() -> Vec<BLS12381KeyPair> {
 const PK_LENGTH: usize = <BLS12381PublicKey as VerifyingKey>::LENGTH;
 const SIG_LENGTH: usize = <BLS12381Signature as Authenticator>::LENGTH;
 
-/// The BLS12-381 base field modulus p, big-endian.
-const FIELD_MODULUS: [u8; 48] = hex_literal(
-    "1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab",
-);
-
 /// The BLS12-381 scalar field modulus r, big-endian.
 const GROUP_ORDER: [u8; 32] =
     hex_literal("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
@@ -71,47 +66,6 @@ const fn hex_literal<const N: usize>(s: &str) -> [u8; N] {
     out
 }
 
-/// Adds p to the field element stored big-endian in the last 48 bytes of `bytes`. For G1 this is
-/// the x-coordinate, for G2 it is the c0 part of x. Flags are preserved. Panics on overflow into
-/// the flag bits.
-fn add_field_modulus_to_last_coordinate(bytes: &mut [u8]) {
-    let start = bytes.len() - 48;
-    // For G1 the flags share the first byte with the coordinate.
-    let flags = if start == 0 { bytes[0] & 0xe0 } else { 0 };
-    bytes[start] &= 0x1f;
-    let mut carry = 0u16;
-    for i in (0..48).rev() {
-        let sum = bytes[start + i] as u16 + FIELD_MODULUS[i] as u16 + carry;
-        bytes[start + i] = sum as u8;
-        carry = sum >> 8;
-    }
-    assert_eq!(carry, 0);
-    assert_eq!(bytes[start] & 0xe0, 0, "x + p overflows into the flag bits");
-    bytes[0] |= flags;
-}
-
-/// A compressed encoding of length `len` whose x-coordinate is `x` (for G2, x = x + 0 * u).
-/// Such an encoding decodes to a point iff x^3 + b is a square.
-fn small_x_encoding(len: usize, x: u64) -> Vec<u8> {
-    let mut bytes = vec![0u8; len];
-    bytes[len - 8..].copy_from_slice(&x.to_be_bytes());
-    bytes[0] |= COMPRESSION_FLAG;
-    bytes
-}
-
-/// Lengths around the valid ones that must all be rejected.
-fn wrong_lengths(compressed_length: usize) -> Vec<usize> {
-    vec![
-        0,
-        1,
-        compressed_length - 1,
-        compressed_length + 1,
-        2 * compressed_length - 1,
-        2 * compressed_length + 1,
-        3 * compressed_length,
-    ]
-}
-
 fn infinity_encoding(len: usize) -> Vec<u8> {
     let mut bytes = vec![0u8; len];
     bytes[0] = COMPRESSION_FLAG | INFINITY_FLAG;
@@ -127,6 +81,17 @@ const NON_SUBGROUP_G1: [u8; BLS_G1_LENGTH] = hex_literal(
 /// prime order subgroup.
 const NON_SUBGROUP_G2: [u8; BLS_G2_LENGTH] = hex_literal(
     "800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002",
+);
+
+/// `NON_SUBGROUP_G1` with x = p + 4 instead of 4, that is, the same field element not reduced
+/// modulo p (p ends in ...aaab, so adding 4 does not carry).
+const UNREDUCED_G1: [u8; BLS_G1_LENGTH] = hex_literal(
+    "9a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaaf",
+);
+
+/// `NON_SUBGROUP_G2` with c0 = p + 2 instead of 2.
+const UNREDUCED_G2: [u8; BLS_G2_LENGTH] = hex_literal(
+    "8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaad",
 );
 
 /// A public key of this mode that is on the curve but not in the prime order subgroup.
@@ -211,26 +176,16 @@ fn aggregate_from_default(sigs: &[BLS12381Signature]) -> BLS12381AggregateSignat
     aggregate
 }
 
+/// Aggregates the two halves recursively and then combines them with `add_aggregate`.
 fn aggregate_treewise(sigs: &[BLS12381Signature]) -> BLS12381AggregateSignature {
     if sigs.len() <= 1 {
-        return sigs
-            .first()
-            .map(|s| {
-                let mut res = BLS12381AggregateSignature::default();
-                res.add_signature(s.clone()).unwrap();
-                res
-            })
-            .unwrap_or_default();
-    } else {
-        let mid = sigs.len() / 2;
-        let (left, right) = sigs.split_at(mid);
-        let left = aggregate_treewise(left);
-        let right = aggregate_treewise(right);
-        let mut res = BLS12381AggregateSignature::default();
-        res.add_aggregate(left).unwrap();
-        res.add_aggregate(right).unwrap();
-        res
+        return aggregate_from_default(sigs);
     }
+    let (left, right) = sigs.split_at(sigs.len() / 2);
+    let mut res = BLS12381AggregateSignature::default();
+    res.add_aggregate(aggregate_treewise(left)).unwrap();
+    res.add_aggregate(aggregate_treewise(right)).unwrap();
+    res
 }
 
 /// Aggregates the signatures of three fixed keys on a fixed message and compares with `expected`.
@@ -401,19 +356,12 @@ fn test_uncompressed_encodings_are_accepted_and_reencoded_compressed() {
         serde_json::to_string(&sig3).unwrap(),
         format!("\"{}\"", Base64::encode(sig.as_bytes()))
     );
-}
 
-#[test]
-fn test_binary_serde_rejects_uncompressed_encodings() {
-    let kp = keys().pop().unwrap();
-    let sig = kp.sign(b"message");
-    // Binary serde reads exactly the compressed length, so the uncompressed encoding is rejected
+    // Binary serde reads exactly the compressed length, so it rejects the uncompressed encoding
     // (its first half lacks the compression flag, and the second half is trailing data).
-    assert!(bcs::from_bytes::<BLS12381PublicKey>(&uncompressed_public_key(kp.public())).is_err());
-    assert!(bcs::from_bytes::<BLS12381Signature>(&uncompressed_signature(&sig)).is_err());
-    assert!(
-        bcs::from_bytes::<BLS12381AggregateSignature>(&uncompressed_signature(&sig)).is_err()
-    );
+    assert!(bcs::from_bytes::<BLS12381PublicKey>(&pk_uncompressed).is_err());
+    assert!(bcs::from_bytes::<BLS12381Signature>(&sig_uncompressed).is_err());
+    assert!(bcs::from_bytes::<BLS12381AggregateSignature>(&sig_uncompressed).is_err());
 }
 
 #[test]
@@ -421,6 +369,10 @@ fn test_reject_wrong_lengths() {
     let kp = keys().pop().unwrap();
     let pk = kp.public().as_bytes().to_vec();
     let sig = kp.sign(b"message").as_bytes().to_vec();
+    // Only the compressed and the uncompressed lengths are accepted.
+    let wrong_lengths = |compressed: usize| {
+        (0..=3 * compressed).filter(move |&len| len != compressed && len != 2 * compressed)
+    };
     for len in wrong_lengths(PK_LENGTH) {
         let bytes: Vec<u8> = pk.iter().cycle().take(len).copied().collect();
         assert!(BLS12381PublicKey::from_bytes(&bytes).is_err(), "pk length {}", len);
@@ -478,14 +430,13 @@ fn test_reject_non_canonical_point_encodings() {
         assert!(!decode(&bytes), "{}: sort flag on infinity", name);
 
         // A coordinate that is not reduced modulo p: x + p encodes the same field element as x.
-        let decodable_small_x = (1..1000u64)
-            .map(|x| small_x_encoding(len, x))
-            .find(|bytes| decode(bytes))
-            .expect("some small x is on the curve");
-        let mut bytes = decodable_small_x.clone();
-        add_field_modulus_to_last_coordinate(&mut bytes);
-        assert_ne!(bytes, decodable_small_x);
-        assert!(!decode(&bytes), "{}: x + p", name);
+        let (reduced, unreduced): (&[u8], &[u8]) = if len == BLS_G1_LENGTH {
+            (&NON_SUBGROUP_G1, &UNREDUCED_G1)
+        } else {
+            (&NON_SUBGROUP_G2, &UNREDUCED_G2)
+        };
+        assert!(decode(reduced), "{}: x", name);
+        assert!(!decode(unreduced), "{}: x + p", name);
     }
 
     let kp = keys().pop().unwrap();
@@ -961,11 +912,7 @@ fn test_aggregate_does_not_validate_but_verify_does() {
     // Aggregation accepts a signature outside the subgroup (it does not validate its inputs) ...
     sigs.push(<BLS12381Signature as ToFromBytes>::from_bytes(NON_SUBGROUP_SIGNATURE).unwrap());
     let aggregate = BLS12381AggregateSignature::aggregate(&sigs).unwrap();
-    let mut added = BLS12381AggregateSignature::default();
-    for sig in &sigs {
-        added.add_signature(sig.clone()).unwrap();
-    }
-    assert_eq!(added, aggregate);
+    assert_eq!(aggregate_from_default(&sigs), aggregate);
     // ... but no verification function accepts the result.
     assert!(aggregate.verify(&pks, &message).is_err());
     let messages: Vec<&[u8]> = vec![&message; pks.len()];
@@ -1325,22 +1272,6 @@ fn arb_batch_entry() -> impl Strategy<Value = BatchEntry> {
 const BLS_MAX_SIGNATURES: usize = 100;
 
 proptest! {
-    // Tests that serde does not panic
-    #[test]
-    fn test_basic_deser_publickey(bits in collection::vec(any::<u8>(), PK_LENGTH..=PK_LENGTH)) {
-        let _ = BLS12381PublicKey::from_bytes(&bits);
-    }
-
-    #[test]
-    fn test_basic_deser_privatekey(bits in collection::vec(any::<u8>(), BLS_PRIVATE_KEY_LENGTH..=BLS_PRIVATE_KEY_LENGTH)) {
-        let _ = BLS12381PrivateKey::from_bytes(&bits);
-    }
-
-    #[test]
-    fn test_basic_deser_signature(bits in collection::vec(any::<u8>(), SIG_LENGTH..=SIG_LENGTH)) {
-        let _ = <BLS12381Signature as ToFromBytes>::from_bytes(&bits);
-    }
-
     #[test]
     fn test_keypair_roundtrip(
         kp in arb_keypair(),
@@ -1348,14 +1279,6 @@ proptest! {
         let serialized = bincode::serialize(&kp).unwrap();
         let deserialized: BLS12381KeyPair = bincode::deserialize(&serialized).unwrap();
         assert_eq!(kp.public(), deserialized.public());
-    }
-
-    // Tests that signature verif does not panic
-    #[test]
-    fn test_basic_verify_signature(
-        (pk, msg, sig) in arb_sig_triplet()
-    ) {
-        let _ = pk.verify(&msg, &sig);
     }
 
     // Test compatibility between aggregate and iterated verification

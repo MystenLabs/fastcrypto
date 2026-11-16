@@ -34,41 +34,38 @@ macro_rules! check_mode {
             Lazy::new(|| BLS12381KeyPair::generate(&mut StdRng::from_seed([1; 32])));
         let input: &Input = $input;
 
-        // What the Move native does.
-        let native = <BLS12381Signature as ToFromBytes>::from_bytes(&input.sig)
-            .ok()
-            .and_then(|sig| {
-                let pk = BLS12381PublicKey::from_bytes(&input.pk).ok()?;
-                pk.validate().ok()?;
-                Some(pk.verify(&input.msg, &sig).is_ok())
-            })
-            .unwrap_or(false);
-        if native && input.pk.as_slice() == KEY.public().as_ref() {
-            assert_eq!(
-                <BLS12381Signature as ToFromBytes>::from_bytes(&input.sig).unwrap(),
-                KEY.sign(&input.msg)
-            );
+        let sig = <BLS12381Signature as ToFromBytes>::from_bytes(&input.sig);
+        let pk = BLS12381PublicKey::from_bytes(&input.pk);
+        // Signing is slow, so only sign when one of the inputs decodes.
+        let honest = once_cell::unsync::Lazy::new(|| KEY.sign(&input.msg));
+
+        // What the Move native does. Only checked for panics here: its result for the fixed key is
+        // covered by the checks below.
+        if let (Ok(sig), Ok(pk)) = (&sig, &pk) {
+            if pk.validate().is_ok() {
+                let _ = pk.verify(&input.msg, sig);
+            }
         }
 
-        // Arbitrary signatures against the fixed honest key.
-        if let Ok(sig) = <BLS12381Signature as ToFromBytes>::from_bytes(&input.sig) {
-            let honest = KEY.sign(&input.msg);
-            if KEY.public().verify(&input.msg, &sig).is_ok() {
-                assert_eq!(sig, honest, "a second valid signature exists");
+        // The honest signature is the only one that verifies under the fixed key, alone or as an
+        // aggregate.
+        if let Ok(sig) = &sig {
+            if KEY.public().verify(&input.msg, sig).is_ok() {
+                assert_eq!(sig, &*honest, "a second valid signature exists");
             }
             let aggregate = BLS12381AggregateSignature::from(sig.clone());
             if aggregate
                 .verify(std::slice::from_ref(KEY.public()), &input.msg)
                 .is_ok()
             {
-                assert_eq!(sig, honest, "a second valid aggregate signature exists");
+                assert_eq!(sig, &*honest, "a second valid aggregate signature exists");
             }
         }
 
         // No other public key accepts the fixed key's signature.
-        if let Ok(pk) = BLS12381PublicKey::from_bytes(&input.pk) {
-            if &pk != KEY.public() {
-                assert!(pk.verify(&input.msg, &KEY.sign(&input.msg)).is_err());
+        if let Ok(pk) = &pk {
+            if pk != KEY.public() {
+                assert!(pk.verify(&input.msg, &*honest).is_err());
             }
         }
     }};
