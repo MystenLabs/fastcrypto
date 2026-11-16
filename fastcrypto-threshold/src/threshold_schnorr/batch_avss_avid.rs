@@ -664,8 +664,7 @@ impl Receiver {
         avid_cert: &VerifiedCertificate<C>,
     ) -> FastCryptoResult<VerifiedEcho> {
         self.check_avid_cert_weight(avid_cert)?;
-        // TODO: Check the shard lengths with `check_shard_lengths` once all signers check them
-        // before voting. Until then, honest signers may hold wrong-length shards.
+        self.check_shard_lengths(self.id, &echo.authenticated_shards)?;
         self.avid
             .verify_echo(echo, sender, &avid_cert.payload().vote, self.id)
     }
@@ -1919,8 +1918,8 @@ mod tests {
     #[test]
     fn test_wrong_length_shards_are_rejected() {
         // The dealer pads the shard it commits at disperser 6's position in receiver 0's row.
-        // Disperser 6 refuses to vote on the dispersal, and the remaining echoes still let
-        // receiver 0 complain about the dealer.
+        // Disperser 6 refuses to vote on the dispersal, receiver 0 refuses an echo carrying the
+        // padded shard, and the remaining echoes still let receiver 0 complain about the dealer.
         let (victim_id, padded_id) = (0u16, 6u16);
         let (dealer, receivers) = uniform_session(7, 3, 2, 3);
         let mut rng = rand::thread_rng();
@@ -1946,11 +1945,10 @@ mod tests {
             })
             .unwrap();
 
-        assert!(receivers[padded_id as usize]
-            .process_avid_message(
-                &voter_commons[&padded_id],
-                messages.message_for(padded_id).unwrap()
-            )
+        let padded = &receivers[padded_id as usize];
+        let padded_message = messages.message_for(padded_id).unwrap();
+        assert!(padded
+            .process_avid_message(&voter_commons[&padded_id], padded_message.clone())
             .is_err());
 
         let mut avid_votes = BTreeMap::new();
@@ -1973,6 +1971,15 @@ mod tests {
         .unwrap();
 
         let victim = &receivers[victim_id as usize];
+        let (padded_builder, _) = padded
+            .avid
+            .process_dispersal(padded_id, padded_message.dispersal)
+            .unwrap();
+        let padded_echo = padded_builder.create_echo(victim_id).unwrap();
+        assert!(victim
+            .verify_avid_echo_message(padded_echo, padded_id, &avid_cert)
+            .is_err());
+
         let vcm = victim
             .verify_common_message(&avid_cert, state.common.clone())
             .unwrap();
