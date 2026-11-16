@@ -7,7 +7,7 @@ use crate::test_helpers::{signature_test_inputs_different_msg, verify_serializat
 use crate::traits::InsecureDefault;
 use crate::traits::Signer;
 use crate::{
-    bls12381::BLS_PRIVATE_KEY_LENGTH,
+    bls12381::{BLS_G1_LENGTH, BLS_G2_LENGTH, BLS_PRIVATE_KEY_LENGTH},
     encoding::{Base64, Hex},
     hash::{HashFunction, Sha256, Sha3_256},
     hmac::hkdf_generate_from_ikm,
@@ -16,6 +16,27 @@ use crate::{
         ToFromBytes, VerifyingKey,
     },
 };
+use proptest::{collection, prelude::*};
+use rand::{rngs::StdRng, RngCore, SeedableRng as _};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::str::FromStr;
+
+// We use the following macro in order to run all tests for both min_sig and min_pk.
+macro_rules! define_tests { () => {
+//
+// Helper functions
+//
+
+pub fn keys() -> Vec<BLS12381KeyPair> {
+    let mut rng = StdRng::from_seed([0; 32]);
+    (0..4)
+        .map(|_| BLS12381KeyPair::generate(&mut rng))
+        .collect()
+}
+
+const PK_LENGTH: usize = <BLS12381PublicKey as VerifyingKey>::LENGTH;
+const SIG_LENGTH: usize = <BLS12381Signature as Authenticator>::LENGTH;
 
 /// The BLS12-381 base field modulus p, big-endian.
 const FIELD_MODULUS: [u8; 48] = hex_literal(
@@ -90,23 +111,31 @@ fn wrong_lengths(compressed_length: usize) -> Vec<usize> {
         3 * compressed_length,
     ]
 }
-use proptest::{collection, prelude::*};
-use rand::{rngs::StdRng, RngCore, SeedableRng as _};
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use std::str::FromStr;
 
-// We use the following macro in order to run all tests for both min_sig and min_pk.
-macro_rules! define_tests { () => {
-pub fn keys() -> Vec<BLS12381KeyPair> {
-    let mut rng = StdRng::from_seed([0; 32]);
-    (0..4)
-        .map(|_| BLS12381KeyPair::generate(&mut rng))
-        .collect()
+fn infinity_encoding(len: usize) -> Vec<u8> {
+    let mut bytes = vec![0u8; len];
+    bytes[0] = COMPRESSION_FLAG | INFINITY_FLAG;
+    bytes
 }
 
-const PK_LENGTH: usize = <BLS12381PublicKey as VerifyingKey>::LENGTH;
-const SIG_LENGTH: usize = <BLS12381Signature as Authenticator>::LENGTH;
+/// Compressed G1 point with x = 4. It is on the curve but not in the prime order subgroup.
+const NON_SUBGROUP_G1: [u8; BLS_G1_LENGTH] = hex_literal(
+    "800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004",
+);
+
+/// Compressed G2 point with x = 2 (that is, c1 = 0 and c0 = 2). It is on the curve but not in the
+/// prime order subgroup.
+const NON_SUBGROUP_G2: [u8; BLS_G2_LENGTH] = hex_literal(
+    "800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002",
+);
+
+/// A public key of this mode that is on the curve but not in the prime order subgroup.
+const NON_SUBGROUP_PUBLIC_KEY: &[u8] =
+    if PK_LENGTH == BLS_G1_LENGTH { &NON_SUBGROUP_G1 } else { &NON_SUBGROUP_G2 };
+
+/// A signature of this mode that is on the curve but not in the prime order subgroup.
+const NON_SUBGROUP_SIGNATURE: &[u8] =
+    if SIG_LENGTH == BLS_G1_LENGTH { &NON_SUBGROUP_G1 } else { &NON_SUBGROUP_G2 };
 
 fn uncompressed_public_key(pk: &BLS12381PublicKey) -> Vec<u8> {
     pk.pubkey.serialize().to_vec()
@@ -116,34 +145,113 @@ fn uncompressed_signature(sig: &BLS12381Signature) -> Vec<u8> {
     sig.sig.serialize().to_vec()
 }
 
-/// Encoding of a public key that is on the curve but not in the prime order subgroup.
-fn non_subgroup_public_key_bytes() -> Vec<u8> {
-    (1..1000u64)
-        .map(|x| small_x_encoding(PK_LENGTH, x))
-        .find(|bytes| {
-            BLS12381PublicKey::from_bytes(bytes)
-                .map(|pk| pk.validate().is_err())
-                .unwrap_or(false)
+fn signature_test_inputs() -> (Vec<u8>, Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) {
+    // Make signatures.
+    let message: &[u8] = b"Hello, world!";
+    let (pubkeys, signatures): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
+        .into_iter()
+        .take(3)
+        .map(|kp| {
+            let sig = kp.sign(message);
+            (kp.public().clone(), sig)
         })
-        .expect("a non-subgroup point with a small x exists")
+        .unzip();
+
+    (message.to_vec(), pubkeys, signatures)
 }
 
-/// Encoding of a signature that is on the curve but not in the prime order subgroup.
-fn non_subgroup_signature_bytes() -> Vec<u8> {
-    (1..1000u64)
-        .map(|x| small_x_encoding(SIG_LENGTH, x))
-        .find(|bytes| {
-            <BLS12381Signature as ToFromBytes>::from_bytes(bytes)
-                .map(|sig| sig.sig.validate(false).is_err())
-                .unwrap_or(false)
+fn verify_batch_aggregate_signature_inputs() -> (
+    Vec<u8>,
+    Vec<u8>,
+    Vec<BLS12381PublicKey>,
+    Vec<BLS12381PublicKey>,
+    BLS12381AggregateSignature,
+    BLS12381AggregateSignature,
+) {
+    // Make signatures.
+    let message1: &[u8] = b"Hello, world!";
+    let (pubkeys1, signatures1): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
+        .into_iter()
+        .take(3)
+        .map(|kp| {
+            let sig = kp.sign(message1);
+            (kp.public().clone(), sig)
         })
-        .expect("a non-subgroup point with a small x exists")
+        .unzip();
+    let aggregated_signature1 = BLS12381AggregateSignature::aggregate(&signatures1).unwrap();
+
+    // Make signatures.
+    let message2: &[u8] = b"Hello, world?";
+    let (pubkeys2, signatures2): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
+        .into_iter()
+        .take(2)
+        .map(|kp| {
+            let sig = kp.sign(message2);
+            (kp.public().clone(), sig)
+        })
+        .unzip();
+
+    let aggregated_signature2 = BLS12381AggregateSignature::aggregate(&signatures2).unwrap();
+    (
+        message1.to_vec(),
+        message2.to_vec(),
+        pubkeys1,
+        pubkeys2,
+        aggregated_signature1,
+        aggregated_signature2,
+    )
 }
 
-fn infinity_encoding(len: usize) -> Vec<u8> {
-    let mut bytes = vec![0u8; len];
-    bytes[0] = COMPRESSION_FLAG | INFINITY_FLAG;
-    bytes
+/// Builds an aggregate the way Sui does: start from the default (infinity) and add signatures.
+fn aggregate_from_default(sigs: &[BLS12381Signature]) -> BLS12381AggregateSignature {
+    let mut aggregate = BLS12381AggregateSignature::default();
+    for sig in sigs {
+        aggregate.add_signature(sig.clone()).unwrap();
+    }
+    aggregate
+}
+
+fn aggregate_treewise(sigs: &[BLS12381Signature]) -> BLS12381AggregateSignature {
+    if sigs.len() <= 1 {
+        return sigs
+            .first()
+            .map(|s| {
+                let mut res = BLS12381AggregateSignature::default();
+                res.add_signature(s.clone()).unwrap();
+                res
+            })
+            .unwrap_or_default();
+    } else {
+        let mid = sigs.len() / 2;
+        let (left, right) = sigs.split_at(mid);
+        let left = aggregate_treewise(left);
+        let right = aggregate_treewise(right);
+        let mut res = BLS12381AggregateSignature::default();
+        res.add_aggregate(left).unwrap();
+        res.add_aggregate(right).unwrap();
+        res
+    }
+}
+
+/// Aggregates the signatures of three fixed keys on a fixed message and compares with `expected`.
+/// Called from the mode-specific regression tests below.
+fn check_aggregate_regression(expected: &str) {
+    let secrets = [
+        "266f9708fd8d3b462b10cdbf5498076c021eb3acfdd47cb1fef647967fe194fb",
+        "0bd9b34ac8b5d8ec5e1a8b4a5c1bbd74fbbd2a0d8f5ea1f3ff2e1c3b4a597886",
+        "3a7c2ea5e04f0c6c8bd3e6c4e9e4c0b5f2c1d1a2b3c4d5e6f708192a3b4c5d6e",
+    ];
+    let message = b"hello, narwhal";
+    let (pks, sigs): (Vec<_>, Vec<_>) = secrets
+        .iter()
+        .map(|s| {
+            let sk = BLS12381PrivateKey::from_bytes(&hex::decode(s).unwrap()).unwrap();
+            (BLS12381PublicKey::from(&sk), sk.sign(message))
+        })
+        .unzip();
+    let aggregate = BLS12381AggregateSignature::aggregate(&sigs).unwrap();
+    assert_eq!(Hex::encode(aggregate.as_bytes()), expected);
+    assert!(aggregate.verify(&pks, message).is_ok());
 }
 
 //
@@ -417,9 +525,9 @@ fn test_infinity_encodings() {
 #[test]
 fn test_non_subgroup_points_decode_but_do_not_validate() {
     // from_bytes does not check subgroup membership (documented), validate does.
-    let pk = BLS12381PublicKey::from_bytes(&non_subgroup_public_key_bytes()).unwrap();
+    let pk = BLS12381PublicKey::from_bytes(NON_SUBGROUP_PUBLIC_KEY).unwrap();
     assert!(pk.validate().is_err());
-    let sig = <BLS12381Signature as ToFromBytes>::from_bytes(&non_subgroup_signature_bytes()).unwrap();
+    let sig = <BLS12381Signature as ToFromBytes>::from_bytes(NON_SUBGROUP_SIGNATURE).unwrap();
     assert!(sig.sig.validate(false).is_err());
 
     // Points from honest key generation and signing are in the subgroup.
@@ -459,21 +567,6 @@ fn test_private_key_range() {
 //
 // Signature verification tests
 //
-
-fn signature_test_inputs() -> (Vec<u8>, Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) {
-    // Make signatures.
-    let message: &[u8] = b"Hello, world!";
-    let (pubkeys, signatures): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
-        .into_iter()
-        .take(3)
-        .map(|kp| {
-            let sig = kp.sign(message);
-            (kp.public().clone(), sig)
-        })
-        .unzip();
-
-    (message.to_vec(), pubkeys, signatures)
-}
 
 #[test]
 fn test_pk_verify() {
@@ -515,11 +608,11 @@ fn test_verify_rejects_infinity_and_non_subgroup_public_keys() {
     let message = b"message";
     let valid_sig = keys().pop().unwrap().sign(message);
     let infinity_pk = BLS12381PublicKey::from_bytes(&infinity_encoding(PK_LENGTH)).unwrap();
-    let non_subgroup_pk = BLS12381PublicKey::from_bytes(&non_subgroup_public_key_bytes()).unwrap();
+    let non_subgroup_pk = BLS12381PublicKey::from_bytes(NON_SUBGROUP_PUBLIC_KEY).unwrap();
     let signatures = [
         valid_sig.clone(),
         BLS12381Signature::default(),
-        <BLS12381Signature as ToFromBytes>::from_bytes(&non_subgroup_signature_bytes()).unwrap(),
+        <BLS12381Signature as ToFromBytes>::from_bytes(NON_SUBGROUP_SIGNATURE).unwrap(),
     ];
     for pk in [&infinity_pk, &non_subgroup_pk] {
         for sig in &signatures {
@@ -533,7 +626,7 @@ fn test_verify_rejects_infinity_and_non_subgroup_public_keys() {
 #[test]
 fn test_verify_rejects_non_subgroup_signature() {
     let kp = keys().pop().unwrap();
-    let sig = <BLS12381Signature as ToFromBytes>::from_bytes(&non_subgroup_signature_bytes()).unwrap();
+    let sig = <BLS12381Signature as ToFromBytes>::from_bytes(NON_SUBGROUP_SIGNATURE).unwrap();
     assert!(kp.public().verify(b"message", &sig).is_err());
     let aggregate = BLS12381AggregateSignature::from(sig);
     assert!(aggregate.verify(std::slice::from_ref(kp.public()), b"message").is_err());
@@ -629,48 +722,6 @@ fn verify_invalid_batch_different_msg() {
 //
 // Aggregated signatures and batch verification tests
 //
-
-fn verify_batch_aggregate_signature_inputs() -> (
-    Vec<u8>,
-    Vec<u8>,
-    Vec<BLS12381PublicKey>,
-    Vec<BLS12381PublicKey>,
-    BLS12381AggregateSignature,
-    BLS12381AggregateSignature,
-) {
-    // Make signatures.
-    let message1: &[u8] = b"Hello, world!";
-    let (pubkeys1, signatures1): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
-        .into_iter()
-        .take(3)
-        .map(|kp| {
-            let sig = kp.sign(message1);
-            (kp.public().clone(), sig)
-        })
-        .unzip();
-    let aggregated_signature1 = BLS12381AggregateSignature::aggregate(&signatures1).unwrap();
-
-    // Make signatures.
-    let message2: &[u8] = b"Hello, world?";
-    let (pubkeys2, signatures2): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
-        .into_iter()
-        .take(2)
-        .map(|kp| {
-            let sig = kp.sign(message2);
-            (kp.public().clone(), sig)
-        })
-        .unzip();
-
-    let aggregated_signature2 = BLS12381AggregateSignature::aggregate(&signatures2).unwrap();
-    (
-        message1.to_vec(),
-        message2.to_vec(),
-        pubkeys1,
-        pubkeys2,
-        aggregated_signature1,
-        aggregated_signature2,
-    )
-}
 
 #[test]
 fn batch_verify_aggregate_signature() {
@@ -908,7 +959,7 @@ fn test_aggregate_verify_with_wrong_number_of_inputs() {
 fn test_aggregate_does_not_validate_but_verify_does() {
     let (message, pks, mut sigs) = signature_test_inputs();
     // Aggregation accepts a signature outside the subgroup (it does not validate its inputs) ...
-    sigs.push(<BLS12381Signature as ToFromBytes>::from_bytes(&non_subgroup_signature_bytes()).unwrap());
+    sigs.push(<BLS12381Signature as ToFromBytes>::from_bytes(NON_SUBGROUP_SIGNATURE).unwrap());
     let aggregate = BLS12381AggregateSignature::aggregate(&sigs).unwrap();
     let mut added = BLS12381AggregateSignature::default();
     for sig in &sigs {
@@ -939,15 +990,6 @@ fn test_add_aggregate_to_non_default_aggregate() {
         aggregate
     );
     assert!(aggregate.verify(&pks, &message).is_ok());
-}
-
-/// Builds an aggregate the way Sui does: start from the default (infinity) and add signatures.
-fn aggregate_from_default(sigs: &[BLS12381Signature]) -> BLS12381AggregateSignature {
-    let mut aggregate = BLS12381AggregateSignature::default();
-    for sig in sigs {
-        aggregate.add_signature(sig.clone()).unwrap();
-    }
-    aggregate
 }
 
 #[test]
@@ -1006,7 +1048,7 @@ fn test_batch_verify_edge_cases() {
     // One invalid entry among valid ones is rejected, wherever it is.
     let invalid_entries = [
         BLS12381AggregateSignature::default(),
-        BLS12381AggregateSignature::from_bytes(&non_subgroup_signature_bytes()).unwrap(),
+        BLS12381AggregateSignature::from_bytes(NON_SUBGROUP_SIGNATURE).unwrap(),
         aggregate_from_default(&[keys[0].sign(b"other")]),
     ];
     for invalid in &invalid_entries {
@@ -1040,27 +1082,6 @@ fn test_batch_verify_edge_cases() {
 //
 // Other tests
 //
-
-/// Aggregates the signatures of three fixed keys on a fixed message and compares with `expected`.
-/// Called from the mode-specific regression tests below.
-fn check_aggregate_regression(expected: &str) {
-    let secrets = [
-        "266f9708fd8d3b462b10cdbf5498076c021eb3acfdd47cb1fef647967fe194fb",
-        "0bd9b34ac8b5d8ec5e1a8b4a5c1bbd74fbbd2a0d8f5ea1f3ff2e1c3b4a597886",
-        "3a7c2ea5e04f0c6c8bd3e6c4e9e4c0b5f2c1d1a2b3c4d5e6f708192a3b4c5d6e",
-    ];
-    let message = b"hello, narwhal";
-    let (pks, sigs): (Vec<_>, Vec<_>) = secrets
-        .iter()
-        .map(|s| {
-            let sk = BLS12381PrivateKey::from_bytes(&hex::decode(s).unwrap()).unwrap();
-            (BLS12381PublicKey::from(&sk), sk.sign(message))
-        })
-        .unzip();
-    let aggregate = BLS12381AggregateSignature::aggregate(&sigs).unwrap();
-    assert_eq!(Hex::encode(aggregate.as_bytes()), expected);
-    assert!(aggregate.verify(&pks, message).is_ok());
-}
 
 #[test]
 fn test_hkdf_generate_from_ikm() {
@@ -1210,7 +1231,6 @@ fn test_verify_with_default_values() {
 // Proptests
 //
 
-
 // Arbitrary implementations for the proptests
 fn arb_keypair() -> impl Strategy<Value = BLS12381KeyPair> {
     any::<[u8; 32]>()
@@ -1304,28 +1324,6 @@ fn arb_batch_entry() -> impl Strategy<Value = BatchEntry> {
 
 const BLS_MAX_SIGNATURES: usize = 100;
 
-fn aggregate_treewise(sigs: &[BLS12381Signature]) -> BLS12381AggregateSignature {
-    if sigs.len() <= 1 {
-        return sigs
-            .first()
-            .map(|s| {
-                let mut res = BLS12381AggregateSignature::default();
-                res.add_signature(s.clone()).unwrap();
-                res
-            })
-            .unwrap_or_default();
-    } else {
-        let mid = sigs.len() / 2;
-        let (left, right) = sigs.split_at(mid);
-        let left = aggregate_treewise(left);
-        let right = aggregate_treewise(right);
-        let mut res = BLS12381AggregateSignature::default();
-        res.add_aggregate(left).unwrap();
-        res.add_aggregate(right).unwrap();
-        res
-    }
-}
-
 proptest! {
     // Tests that serde does not panic
     #[test]
@@ -1359,7 +1357,6 @@ proptest! {
     ) {
         let _ = pk.verify(&msg, &sig);
     }
-
 
     // Test compatibility between aggregate and iterated verification
     #[test]

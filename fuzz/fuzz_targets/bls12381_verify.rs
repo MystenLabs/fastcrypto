@@ -1,6 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// THIS FILE IS AI-ONLY
+
 //! Verifies arbitrary (public key, signature, message) triples in both BLS12-381 modes, the way
 //! Sui's `bls12381_min_sig_verify` / `bls12381_min_pk_verify` Move natives do (`from_bytes` for
 //! both, `validate` on the public key, then `verify`).

@@ -1,6 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// THIS FILE IS AI-ONLY
+
 //! Decodes arbitrary bytes as every BLS12-381 signature-scheme type, in both modes and through
 //! every decoding path (`from_bytes`, BCS, bincode, JSON).
 //!

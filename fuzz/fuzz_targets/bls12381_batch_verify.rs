@@ -1,6 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// THIS FILE IS AI-ONLY
+
 //! Builds batches of aggregate signatures the way Sui verifies certificates (start from the
 //! default aggregate, add signatures or aggregates, then `batch_verify` against a fixed committee
 //! of validated keys), mixing honest signatures with attacker-chosen bytes.
