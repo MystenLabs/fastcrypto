@@ -16,17 +16,6 @@
 //! let signature = kp.sign_recoverable(message);
 //! assert_eq!(&signature.recover(message).unwrap(), kp.public());
 //! ```
-//!
-//! # Encoding
-//!
-//! [Secp256k1RecoverableSignature] implements [ToFromBytes] and serde using 65 bytes: the 64-byte
-//! compact signature of [Secp256k1Signature] (r followed by s, each as 32 big-endian bytes)
-//! followed by the recovery id as a single byte in `0..=3`, as in
-//! [libsecp256k1](https://github.com/bitcoin-core/secp256k1/blob/master/include/secp256k1_recovery.h).
-//! Decoding rejects r or s not smaller than the group order and recovery ids above 3.
-//!
-//! Human-readable serde formats (e.g. JSON) use the Base64 encoding of these bytes. Binary
-//! formats (e.g. BCS or bincode) write them as a fixed-size array without a length prefix.
 
 use crate::hash::HashFunction;
 use crate::secp256k1::{DefaultHash, Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1Signature};
@@ -51,7 +40,15 @@ pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1
 /// Length of a compact signature followed by one extra byte for recovery id, used to recover the public key from a signature.
 pub const SECP256K1_RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE + 1;
 
-/// Recoverable Secp256k1 ECDSA signature. Encoded as 65 bytes, see the [module documentation](self).
+/// Recoverable Secp256k1 ECDSA signature.
+///
+/// Encoded as 65 bytes: the 64-byte encoding of [Secp256k1Signature] (r followed by s, each as 32
+/// big-endian bytes) followed by the recovery id as a single byte in `0..=3`, as in
+/// [libsecp256k1](https://github.com/bitcoin-core/secp256k1/blob/master/include/secp256k1_recovery.h).
+/// Decoding rejects r or s that are not smaller than the group order and recovery ids above 3.
+///
+/// With serde, human-readable formats (e.g. JSON) use the Base64 encoding of these bytes and
+/// binary formats (e.g. BCS) write them as a fixed-size array without a length prefix.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1RecoverableSignature {

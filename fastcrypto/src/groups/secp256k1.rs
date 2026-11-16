@@ -2,29 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Implementation of the Secp256k1 (aka K-256) curve, see [SEC 2, sec. 2.4.1](https://www.secg.org/sec2-v2.pdf).
-//!
-//! # Encodings
-//!
-//! [ProjectivePoint] and [Scalar] implement [ToFromByteArray] and serde with the encodings below.
-//! Human-readable serde formats (e.g. JSON) use the Base64 encoding of the same bytes. Binary
-//! formats (e.g. BCS or bincode) write the bytes as a fixed-size array without a length prefix.
-//!
-//! * [ProjectivePoint]: 33 bytes in the compressed format of
-//!   [arkworks](https://docs.rs/ark-ec/0.4.2/ark_ec/models/short_weierstrass/enum.SWFlags.html).
-//!   This is _not_ the SEC1 encoding. Bytes `0..32` hold the x-coordinate in little-endian
-//!   order, and byte `32` is a flag byte which is
-//!   * `0x00` if y <= (p - 1) / 2,
-//!   * `0x80` if y > (p - 1) / 2,
-//!   * `0x40` for the point at infinity, in which case bytes `0..32` are all zero.
-//!
-//!   Decoding only accepts this canonical encoding, so every point has exactly one encoding.
-//!   Use [ProjectivePoint::to_sec1_bytes] and [ProjectivePoint::from_sec1_bytes] for the
-//!   SEC1 compressed encoding used by e.g. libsecp256k1 and Bitcoin.
-//! * [Scalar]: 32 bytes, big-endian. Decoding rejects values that are not smaller than the
-//!   group order. This matches the encoding of secret keys in
-//!   [SEC1, sec. 2.3.7](https://www.secg.org/sec1-v2.pdf) and in libsecp256k1.
-//! * [schnorr]: the encodings of [BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki),
-//!   see the types in that module.
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{
@@ -66,6 +43,22 @@ lazy_static! {
 }
 
 /// A point on the Secp256k1 curve in projective coordinates.
+///
+/// Encoded as 33 bytes in the compressed format of
+/// [arkworks](https://docs.rs/ark-ec/0.4.2/ark_ec/models/short_weierstrass/enum.SWFlags.html),
+/// which is _not_ the SEC1 encoding. Bytes `0..32` hold the x-coordinate in little-endian order,
+/// and byte `32` is a flag byte which is
+/// * `0x00` if y <= (p - 1) / 2,
+/// * `0x80` if y > (p - 1) / 2,
+/// * `0x40` for the point at infinity, in which case bytes `0..32` are all zero.
+///
+/// Decoding only accepts this canonical encoding, so every point has exactly one encoding.
+/// Use [ProjectivePoint::to_sec1_bytes] and [ProjectivePoint::from_sec1_bytes] for the SEC1
+/// compressed encoding used by e.g. libsecp256k1 and Bitcoin, and the types in [schnorr] for the
+/// encodings of [BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki).
+///
+/// With serde, human-readable formats (e.g. JSON) use the Base64 encoding of these bytes and
+/// binary formats (e.g. BCS) write them as a fixed-size array without a length prefix.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct ProjectivePoint(pub(crate) Projective);
 
@@ -203,7 +196,6 @@ impl Div<Scalar> for ProjectivePoint {
     }
 }
 
-/// The compressed arkworks encoding described in the [module documentation](self).
 impl ToFromByteArray<POINT_SIZE_IN_BYTES> for ProjectivePoint {
     /// Decode a point. Returns an `InvalidInput` error unless `bytes` is the canonical encoding
     /// of a point on the curve.
@@ -256,6 +248,13 @@ impl MultiScalarMul for ProjectivePoint {
 }
 
 /// A field element in the prime field of the same order as the curve.
+///
+/// Encoded as 32 bytes in big-endian order, like secret keys in
+/// [SEC1, sec. 2.3.7](https://www.secg.org/sec1-v2.pdf) and libsecp256k1. Decoding rejects values
+/// that are not smaller than the group order.
+///
+/// With serde, human-readable formats (e.g. JSON) use the Base64 encoding of these bytes and
+/// binary formats (e.g. BCS) write them as a fixed-size array without a length prefix.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct Scalar(pub(crate) Fr);
 
@@ -317,7 +316,6 @@ impl ScalarTrait for Scalar {
     }
 }
 
-/// 32 bytes, big-endian, see the [module documentation](self).
 impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
     /// Decode a scalar. Returns an `InvalidInput` error if the value is not smaller than the
     /// group order.

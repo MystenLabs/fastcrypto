@@ -3,16 +3,6 @@
 
 //! Implementation of the Secp256r1 (aka P-256) curve. This is a 256-bit Weierstrass curve of prime order.
 //! See [SEC 2, sec. 2.4.2](https://www.secg.org/sec2-v2.pdf) for details.
-//!
-//! # Encodings
-//!
-//! [ProjectivePoint] has no byte encoding. [Scalar] implements [ToFromByteArray] and serde using
-//! 32 bytes in little-endian order, the uncompressed format of
-//! [arkworks](https://docs.rs/ark-serialize/0.4.2/ark_serialize/). Note that this is the opposite
-//! byte order of the big-endian scalars in SEC1 and in [crate::groups::secp256k1]. Decoding
-//! rejects values that are not smaller than the group order. Human-readable serde formats
-//! (e.g. JSON) use the Base64 encoding of the same bytes, and binary formats (e.g. BCS or
-//! bincode) write the bytes as a fixed-size array without a length prefix.
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::multiplier::ToLittleEndianBytes;
@@ -70,6 +60,14 @@ impl Div<Scalar> for ProjectivePoint {
 }
 
 /// A field element in the prime field of the same order as the curve.
+///
+/// Encoded as 32 bytes in little-endian order, the uncompressed format of
+/// [arkworks](https://docs.rs/ark-serialize/0.4.2/ark_serialize/). Note that this is the opposite
+/// byte order of the scalars in SEC1 and in [crate::groups::secp256k1]. Decoding rejects values
+/// that are not smaller than the group order.
+///
+/// With serde, human-readable formats (e.g. JSON) use the Base64 encoding of these bytes and
+/// binary formats (e.g. BCS) write them as a fixed-size array without a length prefix.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct Scalar(pub(crate) Fr);
 
@@ -120,7 +118,6 @@ impl ScalarTrait for Scalar {
     }
 }
 
-/// 32 bytes, little-endian, see the [module documentation](self).
 impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
     /// Decode a scalar. Returns an `InvalidInput` error if the value is not smaller than the
     /// group order.
