@@ -837,6 +837,9 @@ impl Receiver {
             warn!("batch_avss handle_avid_complaint: AVID cert binds a different common message");
             return Err(InvalidMessage);
         }
+        // TODO: Check the shard lengths in `blame` with `check_shard_lengths` for `accuser_id`.
+        // They are not checked yet, so that a complaint from a node that still runs the previous
+        // release, which accepts echoes with wrong-length shards, stays valid during a rollout.
         self.avid
             .verify_complaint(blame, accuser_id, &avid_cert.payload().vote, |payload| {
                 check_ciphertext_hash(payload, accuser_id, verified_common).is_ok()
