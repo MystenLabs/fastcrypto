@@ -24,7 +24,9 @@ curve25519-dalek = "4.1.3"
 ecdsa = { version = "0.16.9", features = ["verifying"] }
 fastcrypto = { path = "../fastcrypto", features = ["experimental"] }
 hex-literal = "0.4.1"
-# k256 is an independent secp256k1 implementation that the secp256k1 targets compare with.
+# k256 is an independent secp256k1 implementation that the secp256k1 targets compare with. Same
+# version as the dev-dependency of fastcrypto: unlike later versions, its recovery accepts high-s
+# signatures, like fastcrypto and Ethereum.
 k256 = { version = "0.11.6", features = ["ecdsa", "keccak256", "sha256"] }
 libfuzzer-sys = "0.4"
 once_cell = "1.17.0"
@@ -94,6 +96,27 @@ bench = false
 [[bin]]
 name = "bls12381_group_ops"
 path = "fuzz_targets/bls12381_group_ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "secp256k1_deserialize"
+path = "fuzz_targets/secp256k1_deserialize.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "secp256k1_verify"
+path = "fuzz_targets/secp256k1_verify.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "secp256k1_ecrecover"
+path = "fuzz_targets/secp256k1_ecrecover.rs"
 test = false
 doc = false
 bench = false
