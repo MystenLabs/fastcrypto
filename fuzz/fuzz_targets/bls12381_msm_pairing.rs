@@ -1,6 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// THIS FILE IS AI-ONLY
+
 //! Multi-scalar multiplication in G1 and G2, sums of uncompressed G1 points and multi-pairing on
 //! arbitrary inputs. Scalars and points are decoded from bytes when the bytes are valid and derived
 //! from them otherwise, mixed with the inputs that blst handles as special cases: the identity, the

@@ -34,6 +34,10 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashSet;
 use std::fmt::Debug;
 
+//
+// Helper functions
+//
+
 const MSG: &[u8] = b"test message";
 
 /// The base field modulus p, big-endian.
@@ -48,6 +52,13 @@ const COMPRESSION_FLAG: u8 = 0x80;
 const INFINITY_FLAG: u8 = 0x40;
 const SORT_FLAG: u8 = 0x20;
 const ALL_FLAGS: u8 = COMPRESSION_FLAG | INFINITY_FLAG | SORT_FLAG;
+
+/// The compressed G1 point with x = 4. It is on the curve but not in the prime-order subgroup.
+const NON_SUBGROUP_G1: [u8; G1_ELEMENT_BYTE_LENGTH] = hex!("800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004");
+
+/// The compressed G2 point with x = 2 (x.c1 = 0 and x.c0 = 2). It is on the curve but not in the
+/// prime-order subgroup.
+const NON_SUBGROUP_G2: [u8; G2_ELEMENT_BYTE_LENGTH] = hex!("800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002");
 
 /// r - 1, the largest canonical scalar.
 fn minus_one() -> Scalar {
@@ -165,6 +176,209 @@ fn easy_part_of_final_exponentiation(f: &blst_fp12) -> blst_fp12 {
         blst_fp12_mul(&mut result, &frobenius, &g);
     }
     result
+}
+
+/// Checks that decoding `bytes` through serde agrees with `from_byte_array`: BCS and base64 in JSON
+/// accept exactly the encodings of the right length that `from_byte_array` accepts, and bincode,
+/// which ignores trailing bytes, the ones whose first `N` bytes it accepts. Returns the element.
+fn check_serde_agrees<T, const N: usize>(bytes: &[u8]) -> Option<T>
+where
+    T: ToFromByteArray<N> + Serialize + DeserializeOwned + PartialEq + Debug,
+{
+    let decode = |b: &[u8]| {
+        <[u8; N]>::try_from(b)
+            .ok()
+            .and_then(|b| T::from_byte_array(&b).ok())
+    };
+    let expected = decode(bytes);
+    assert_eq!(bcs::from_bytes::<T>(bytes).ok(), expected);
+    assert_eq!(
+        bincode::deserialize::<T>(bytes).ok(),
+        bytes.get(..N).and_then(decode)
+    );
+    let json = format!("\"{}\"", Base64::encode(bytes));
+    assert_eq!(serde_json::from_str::<T>(&json).ok(), expected);
+    if let Some(element) = &expected {
+        assert_eq!(bcs::to_bytes(element).unwrap(), bytes);
+        assert_eq!(bincode::serialize(element).unwrap(), bytes);
+        assert_eq!(serde_json::to_string(element).unwrap(), json);
+    }
+    expected
+}
+
+/// Decodes `bytes` with `from_byte_array` and checks the properties every decoder must have: an
+/// accepted encoding is the canonical encoding of the element, `from_trusted_byte_array` agrees,
+/// and serde accepts the same encodings (see [check_serde_agrees]).
+fn check_decoding<T, const N: usize>(bytes: &[u8; N]) -> Option<T>
+where
+    T: ToFromByteArray<N>
+        + FromTrustedByteArray<N>
+        + Serialize
+        + DeserializeOwned
+        + PartialEq
+        + Debug,
+{
+    let decoded = check_serde_agrees::<T, N>(bytes);
+    if let Some(element) = &decoded {
+        assert_eq!(&element.to_byte_array(), bytes, "non-canonical encoding");
+        assert_eq!(&T::from_trusted_byte_array(bytes).unwrap(), element);
+    }
+    decoded
+}
+
+/// Compares a decoding with arkworks'. arkworks 0.4 also accepts some encodings that the zcash
+/// format rejects, so it may accept an encoding that we reject if `lenient` holds for its result.
+fn compare_with_arkworks<P: PartialEq + Debug>(
+    ours: Option<P>,
+    theirs: Option<P>,
+    lenient: impl FnOnce(&P) -> bool,
+) -> Result<(), TestCaseError> {
+    match (ours, theirs) {
+        (Some(ours), Some(theirs)) => prop_assert_eq!(ours, theirs),
+        (None, None) => {}
+        (None, Some(theirs)) => {
+            prop_assert!(lenient(&theirs), "only arkworks accepts {:?}", theirs)
+        }
+        (Some(ours), None) => prop_assert!(false, "only fastcrypto accepts {:?}", ours),
+    }
+    Ok(())
+}
+
+/// Decodes an uncompressed encoding the way Sui's `uncompressed_g1_to_g1` does.
+fn decode_uncompressed(bytes: [u8; 2 * G1_ELEMENT_BYTE_LENGTH]) -> Option<G1Element> {
+    G1Element::try_from(&G1ElementUncompressed::from_trusted_byte_array(bytes)).ok()
+}
+
+/// The messages of the hash-to-curve test vectors in RFC 9380.
+fn rfc9380_messages() -> Vec<Vec<u8>> {
+    vec![
+        b"".to_vec(),
+        b"abc".to_vec(),
+        b"abcdef0123456789".to_vec(),
+        [b"q128_".as_slice(), &[b'q'; 128]].concat(),
+        [b"a512_".as_slice(), &[b'a'; 512]].concat(),
+    ]
+}
+
+/// Conversions to arkworks' ark-bls12-381, an independent implementation used as an oracle.
+mod arkworks {
+    use super::*;
+    use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Affine, G1Projective, G2Affine, G2Projective};
+    use ark_ec::hashing::curve_maps::wb::WBMap;
+    use ark_ec::hashing::map_to_curve_hasher::MapToCurveBasedHasher;
+    use ark_ec::hashing::HashToCurve;
+    use ark_ec::pairing::Pairing as _;
+    use ark_ec::{CurveGroup, VariableBaseMSM};
+    use ark_ff::field_hashers::DefaultFieldHasher;
+    use ark_ff::{Field, PrimeField, Zero};
+    use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+
+    pub fn scalar(s: &Scalar) -> Fr {
+        Fr::from_be_bytes_mod_order(&s.to_byte_array())
+    }
+
+    /// The big-endian integer `bytes` modulo r.
+    pub fn reduce(bytes: &[u8]) -> Fr {
+        Fr::from_be_bytes_mod_order(bytes)
+    }
+
+    pub fn inverse(s: &Fr) -> Option<Fr> {
+        s.inverse()
+    }
+
+    pub fn g1(p: &G1Element) -> G1Projective {
+        G1Affine::deserialize_compressed(&p.to_byte_array()[..])
+            .unwrap()
+            .into()
+    }
+
+    pub fn g2(p: &G2Element) -> G2Projective {
+        G2Affine::deserialize_compressed(&p.to_byte_array()[..])
+            .unwrap()
+            .into()
+    }
+
+    /// Converts an element of GT. arkworks encodes the 12 coefficients little-endian and in a
+    /// different order.
+    pub fn gt(x: &Fq12) -> GTElement {
+        let mut ark_bytes = Vec::new();
+        x.serialize_uncompressed(&mut ark_bytes).unwrap();
+        let mut bytes = [0u8; GT_ELEMENT_BYTE_LENGTH];
+        let mut chunks = bytes.chunks_exact_mut(FP_BYTE_LENGTH);
+        // The coefficient c[j].c[i].c[k] is at position (i, j, k) for fastcrypto and (j, i, k) for
+        // arkworks.
+        for i in 0..3 {
+            for j in 0..2 {
+                for k in 0..2 {
+                    let index = (j * 3 + i) * 2 + k;
+                    let chunk = chunks.next().unwrap();
+                    chunk.copy_from_slice(
+                        &ark_bytes[index * FP_BYTE_LENGTH..(index + 1) * FP_BYTE_LENGTH],
+                    );
+                    chunk.reverse();
+                }
+            }
+        }
+        GTElement::from_byte_array(&bytes).unwrap()
+    }
+
+    pub fn decode_g1(bytes: &[u8]) -> Option<G1Projective> {
+        G1Affine::deserialize_compressed(bytes).ok().map(Into::into)
+    }
+
+    pub fn decode_g1_uncompressed(bytes: &[u8]) -> Option<G1Projective> {
+        G1Affine::deserialize_uncompressed(bytes)
+            .ok()
+            .map(Into::into)
+    }
+
+    pub fn decode_g2(bytes: &[u8]) -> Option<G2Projective> {
+        G2Affine::deserialize_compressed(bytes).ok().map(Into::into)
+    }
+
+    pub fn is_zero(p: &impl Zero) -> bool {
+        p.is_zero()
+    }
+
+    pub fn pairing(p: &G1Projective, q: &G2Projective) -> Fq12 {
+        Bls12_381::pairing(p.into_affine(), q.into_affine()).0
+    }
+
+    pub fn pow(x: &Fq12, s: &Fr) -> Fq12 {
+        x.pow(s.into_bigint())
+    }
+
+    pub fn msm_g1(points: &[G1Projective], scalars: &[Fr]) -> G1Projective {
+        G1Projective::msm(&G1Projective::normalize_batch(points), scalars).unwrap()
+    }
+
+    pub fn msm_g2(points: &[G2Projective], scalars: &[Fr]) -> G2Projective {
+        G2Projective::msm(&G2Projective::normalize_batch(points), scalars).unwrap()
+    }
+
+    pub fn hash_to_g1(msg: &[u8]) -> G1Projective {
+        MapToCurveBasedHasher::<
+            G1Projective,
+            DefaultFieldHasher<sha2::Sha256, 128>,
+            WBMap<ark_bls12_381::g1::Config>,
+        >::new(DST_G1)
+        .unwrap()
+        .hash(msg)
+        .unwrap()
+        .into()
+    }
+
+    pub fn hash_to_g2(msg: &[u8]) -> G2Projective {
+        MapToCurveBasedHasher::<
+            G2Projective,
+            DefaultFieldHasher<sha2::Sha256, 128>,
+            WBMap<ark_bls12_381::g2::Config>,
+        >::new(DST_G2)
+        .unwrap()
+        .hash(msg)
+        .unwrap()
+        .into()
+    }
 }
 
 //
@@ -1099,35 +1313,32 @@ test_point_encodings!(test_g2_encodings, G2Element, G2_ELEMENT_BYTE_LENGTH);
 
 #[test]
 fn test_serialization_non_subgroup_points() {
-    // A small x-coordinate gives a point on the curve about half of the time, but such points are
-    // not in the prime-order subgroup. FromTrustedByteArray accepts them and from_byte_array rejects
-    // them.
-    let mut on_curve = 0;
-    for x in 1..=32u8 {
-        for sort in [0, SORT_FLAG] {
-            let mut g1 = [0u8; G1_ELEMENT_BYTE_LENGTH];
-            g1[0] = COMPRESSION_FLAG | sort;
-            g1[G1_ELEMENT_BYTE_LENGTH - 1] = x;
-            assert!(G1Element::from_byte_array(&g1).is_err());
-
-            // For G2, x = x.c1 * u + x.c0 is encoded as x.c1 || x.c0.
-            let mut g2 = [0u8; G2_ELEMENT_BYTE_LENGTH];
-            g2[0] = COMPRESSION_FLAG | sort;
-            g2[G2_ELEMENT_BYTE_LENGTH - 1] = x;
-            assert!(G2Element::from_byte_array(&g2).is_err());
-
-            if let Ok(p) = G1Element::from_trusted_byte_array(&g1) {
-                // The point is on the curve, so the encoding is canonical.
-                assert_eq!(p.to_byte_array(), g1);
-                on_curve += 1;
-            }
-            if let Ok(p) = G2Element::from_trusted_byte_array(&g2) {
-                assert_eq!(p.to_byte_array(), g2);
-                on_curve += 1;
-            }
-        }
+    // Points on the curve but not in the prime-order subgroup: FromTrustedByteArray accepts them and
+    // their encodings are canonical, but from_byte_array and serde reject them. The sort flag gives
+    // the negated point, and doubling gives another point outside the subgroup.
+    let p = G1Element::from_trusted_byte_array(&NON_SUBGROUP_G1).unwrap();
+    assert_eq!(p.to_byte_array(), NON_SUBGROUP_G1);
+    let mut negated = NON_SUBGROUP_G1;
+    negated[0] |= SORT_FLAG;
+    assert_eq!((-p).to_byte_array(), negated);
+    for p in [p, -p, p + p] {
+        let bytes = p.to_byte_array();
+        assert_eq!(G1Element::from_trusted_byte_array(&bytes).unwrap(), p);
+        assert!(G1Element::from_byte_array(&bytes).is_err());
+        assert!(check_serde_agrees::<G1Element, G1_ELEMENT_BYTE_LENGTH>(&bytes).is_none());
     }
-    assert!(on_curve > 32, "only {on_curve} points on the curve");
+
+    let q = G2Element::from_trusted_byte_array(&NON_SUBGROUP_G2).unwrap();
+    assert_eq!(q.to_byte_array(), NON_SUBGROUP_G2);
+    let mut negated = NON_SUBGROUP_G2;
+    negated[0] |= SORT_FLAG;
+    assert_eq!((-q).to_byte_array(), negated);
+    for q in [q, -q, q + q] {
+        let bytes = q.to_byte_array();
+        assert_eq!(G2Element::from_trusted_byte_array(&bytes).unwrap(), q);
+        assert!(G2Element::from_byte_array(&bytes).is_err());
+        assert!(check_serde_agrees::<G2Element, G2_ELEMENT_BYTE_LENGTH>(&bytes).is_none());
+    }
 }
 
 #[test]
@@ -1358,34 +1569,6 @@ fn test_serialization_gt_membership() {
     }
 }
 
-/// Checks that decoding `bytes` through serde agrees with `from_byte_array`: BCS and base64 in JSON
-/// accept exactly the encodings of the right length that `from_byte_array` accepts, and bincode,
-/// which ignores trailing bytes, the ones whose first `N` bytes it accepts. Returns the element.
-fn check_serde_agrees<T, const N: usize>(bytes: &[u8]) -> Option<T>
-where
-    T: ToFromByteArray<N> + Serialize + DeserializeOwned + PartialEq + Debug,
-{
-    let decode = |b: &[u8]| {
-        <[u8; N]>::try_from(b)
-            .ok()
-            .and_then(|b| T::from_byte_array(&b).ok())
-    };
-    let expected = decode(bytes);
-    assert_eq!(bcs::from_bytes::<T>(bytes).ok(), expected);
-    assert_eq!(
-        bincode::deserialize::<T>(bytes).ok(),
-        bytes.get(..N).and_then(decode)
-    );
-    let json = format!("\"{}\"", Base64::encode(bytes));
-    assert_eq!(serde_json::from_str::<T>(&json).ok(), expected);
-    if let Some(element) = &expected {
-        assert_eq!(bcs::to_bytes(element).unwrap(), bytes);
-        assert_eq!(bincode::serialize(element).unwrap(), bytes);
-        assert_eq!(serde_json::to_string(element).unwrap(), json);
-    }
-    expected
-}
-
 #[test]
 fn test_serde_agrees_with_from_byte_array() {
     fn check<T, const N: usize>(valid: [u8; N], invalid: [u8; N])
@@ -1527,11 +1710,6 @@ fn test_g1_large_sum() {
     assert_eq!(expected, sum);
 }
 
-/// Decodes an uncompressed encoding the way Sui's `uncompressed_g1_to_g1` does.
-fn decode_uncompressed(bytes: [u8; 2 * G1_ELEMENT_BYTE_LENGTH]) -> Option<G1Element> {
-    G1Element::try_from(&G1ElementUncompressed::from_trusted_byte_array(bytes)).ok()
-}
-
 #[test]
 fn test_g1_uncompressed_encodings() {
     let zero = G1Element::zero();
@@ -1584,18 +1762,12 @@ fn test_g1_uncompressed_encodings() {
         assert_eq!(decode_uncompressed(bytes), None);
     }
 
-    // Points on the curve but not in the subgroup are rejected.
-    for x in 1..=32u8 {
-        let mut compressed = [0u8; G1_ELEMENT_BYTE_LENGTH];
-        compressed[0] = COMPRESSION_FLAG;
-        compressed[G1_ELEMENT_BYTE_LENGTH - 1] = x;
-        if let Ok(p) = G1Element::from_trusted_byte_array(&compressed) {
-            assert_eq!(
-                decode_uncompressed(G1ElementUncompressed::from(&p).into_byte_array()),
-                None
-            );
-        }
-    }
+    // A point on the curve but not in the subgroup is rejected.
+    let p = G1Element::from_trusted_byte_array(&NON_SUBGROUP_G1).unwrap();
+    assert_eq!(
+        decode_uncompressed(G1ElementUncompressed::from(&p).into_byte_array()),
+        None
+    );
 }
 
 #[test]
@@ -1641,17 +1813,6 @@ fn test_g1_sum_adversarial_inputs() {
 //
 // Test vectors
 //
-
-/// The messages of the hash-to-curve test vectors in RFC 9380.
-fn rfc9380_messages() -> Vec<Vec<u8>> {
-    vec![
-        b"".to_vec(),
-        b"abc".to_vec(),
-        b"abcdef0123456789".to_vec(),
-        [b"q128_".as_slice(), &[b'q'; 128]].concat(),
-        [b"a512_".as_slice(), &[b'a'; 512]].concat(),
-    ]
-}
 
 /// Test vectors from RFC 9380, appendix J.9.1 (suite BLS12381G1_XMD:SHA-256_SSWU_RO_) and J.10.1
 /// (BLS12381G2_XMD:SHA-256_SSWU_RO_). They use the RFC's domain separation tags, so they are checked
@@ -1872,127 +2033,6 @@ fn test_golden_outputs() {
 // Proptests
 //
 
-/// Conversions to arkworks' ark-bls12-381, an independent implementation used as an oracle.
-mod arkworks {
-    use super::*;
-    use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Affine, G1Projective, G2Affine, G2Projective};
-    use ark_ec::hashing::curve_maps::wb::WBMap;
-    use ark_ec::hashing::map_to_curve_hasher::MapToCurveBasedHasher;
-    use ark_ec::hashing::HashToCurve;
-    use ark_ec::pairing::Pairing as _;
-    use ark_ec::{CurveGroup, VariableBaseMSM};
-    use ark_ff::field_hashers::DefaultFieldHasher;
-    use ark_ff::{Field, PrimeField, Zero};
-    use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-
-    pub fn scalar(s: &Scalar) -> Fr {
-        Fr::from_be_bytes_mod_order(&s.to_byte_array())
-    }
-
-    /// The big-endian integer `bytes` modulo r.
-    pub fn reduce(bytes: &[u8]) -> Fr {
-        Fr::from_be_bytes_mod_order(bytes)
-    }
-
-    pub fn inverse(s: &Fr) -> Option<Fr> {
-        s.inverse()
-    }
-
-    pub fn g1(p: &G1Element) -> G1Projective {
-        G1Affine::deserialize_compressed(&p.to_byte_array()[..])
-            .unwrap()
-            .into()
-    }
-
-    pub fn g2(p: &G2Element) -> G2Projective {
-        G2Affine::deserialize_compressed(&p.to_byte_array()[..])
-            .unwrap()
-            .into()
-    }
-
-    /// Converts an element of GT. arkworks encodes the 12 coefficients little-endian and in a
-    /// different order.
-    pub fn gt(x: &Fq12) -> GTElement {
-        let mut ark_bytes = Vec::new();
-        x.serialize_uncompressed(&mut ark_bytes).unwrap();
-        let mut bytes = [0u8; GT_ELEMENT_BYTE_LENGTH];
-        let mut chunks = bytes.chunks_exact_mut(FP_BYTE_LENGTH);
-        // The coefficient c[j].c[i].c[k] is at position (i, j, k) for fastcrypto and (j, i, k) for
-        // arkworks.
-        for i in 0..3 {
-            for j in 0..2 {
-                for k in 0..2 {
-                    let index = (j * 3 + i) * 2 + k;
-                    let chunk = chunks.next().unwrap();
-                    chunk.copy_from_slice(
-                        &ark_bytes[index * FP_BYTE_LENGTH..(index + 1) * FP_BYTE_LENGTH],
-                    );
-                    chunk.reverse();
-                }
-            }
-        }
-        GTElement::from_byte_array(&bytes).unwrap()
-    }
-
-    pub fn decode_g1(bytes: &[u8]) -> Option<G1Projective> {
-        G1Affine::deserialize_compressed(bytes).ok().map(Into::into)
-    }
-
-    pub fn decode_g1_uncompressed(bytes: &[u8]) -> Option<G1Projective> {
-        G1Affine::deserialize_uncompressed(bytes)
-            .ok()
-            .map(Into::into)
-    }
-
-    pub fn decode_g2(bytes: &[u8]) -> Option<G2Projective> {
-        G2Affine::deserialize_compressed(bytes).ok().map(Into::into)
-    }
-
-    pub fn is_zero(p: &impl Zero) -> bool {
-        p.is_zero()
-    }
-
-    pub fn pairing(p: &G1Projective, q: &G2Projective) -> Fq12 {
-        Bls12_381::pairing(p.into_affine(), q.into_affine()).0
-    }
-
-    pub fn pow(x: &Fq12, s: &Fr) -> Fq12 {
-        x.pow(s.into_bigint())
-    }
-
-    pub fn msm_g1(points: &[G1Projective], scalars: &[Fr]) -> G1Projective {
-        G1Projective::msm(&G1Projective::normalize_batch(points), scalars).unwrap()
-    }
-
-    pub fn msm_g2(points: &[G2Projective], scalars: &[Fr]) -> G2Projective {
-        G2Projective::msm(&G2Projective::normalize_batch(points), scalars).unwrap()
-    }
-
-    pub fn hash_to_g1(msg: &[u8]) -> G1Projective {
-        MapToCurveBasedHasher::<
-            G1Projective,
-            DefaultFieldHasher<sha2::Sha256, 128>,
-            WBMap<ark_bls12_381::g1::Config>,
-        >::new(DST_G1)
-        .unwrap()
-        .hash(msg)
-        .unwrap()
-        .into()
-    }
-
-    pub fn hash_to_g2(msg: &[u8]) -> G2Projective {
-        MapToCurveBasedHasher::<
-            G2Projective,
-            DefaultFieldHasher<sha2::Sha256, 128>,
-            WBMap<ark_bls12_381::g2::Config>,
-        >::new(DST_G2)
-        .unwrap()
-        .hash(msg)
-        .unwrap()
-        .into()
-    }
-}
-
 fn arb_scalar() -> impl Strategy<Value = Scalar> {
     prop_oneof![
         1 => prop_oneof![Just(Scalar::zero()), Just(Scalar::generator()), Just(minus_one())],
@@ -2127,44 +2167,6 @@ fn arb_terms<G: GroupElement<ScalarType = Scalar> + 'static>(
                 })
                 .collect()
         })
-}
-
-/// Decodes `bytes` with `from_byte_array` and checks the properties every decoder must have: an
-/// accepted encoding is the canonical encoding of the element, `from_trusted_byte_array` agrees,
-/// and serde accepts the same encodings (see [check_serde_agrees]).
-fn check_decoding<T, const N: usize>(bytes: &[u8; N]) -> Option<T>
-where
-    T: ToFromByteArray<N>
-        + FromTrustedByteArray<N>
-        + Serialize
-        + DeserializeOwned
-        + PartialEq
-        + Debug,
-{
-    let decoded = check_serde_agrees::<T, N>(bytes);
-    if let Some(element) = &decoded {
-        assert_eq!(&element.to_byte_array(), bytes, "non-canonical encoding");
-        assert_eq!(&T::from_trusted_byte_array(bytes).unwrap(), element);
-    }
-    decoded
-}
-
-/// Compares a decoding with arkworks'. arkworks 0.4 also accepts some encodings that the zcash
-/// format rejects, so it may accept an encoding that we reject if `lenient` holds for its result.
-fn compare_with_arkworks<P: PartialEq + Debug>(
-    ours: Option<P>,
-    theirs: Option<P>,
-    lenient: impl FnOnce(&P) -> bool,
-) -> Result<(), TestCaseError> {
-    match (ours, theirs) {
-        (Some(ours), Some(theirs)) => prop_assert_eq!(ours, theirs),
-        (None, None) => {}
-        (None, Some(theirs)) => {
-            prop_assert!(lenient(&theirs), "only arkworks accepts {:?}", theirs)
-        }
-        (Some(ours), None) => prop_assert!(false, "only fastcrypto accepts {:?}", ours),
-    }
-    Ok(())
 }
 
 proptest! {

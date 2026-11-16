@@ -1,6 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// THIS FILE IS AI-ONLY
+
 //! Runs sequences of the BLS12-381 operations of Sui's `group_ops` Move natives (the functions of
 //! `sui::bls12381`). Like `sui::group_ops::Element`, elements are kept as bytes, and are parsed the
 //! way the natives parse them: with `from_byte_array` for bytes from the user, and with

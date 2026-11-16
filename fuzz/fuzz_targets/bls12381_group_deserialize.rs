@@ -1,6 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+// THIS FILE IS AI-ONLY
+
 //! Decodes arbitrary bytes as every BLS12-381 group type (scalars, G1, G2, GT and uncompressed G1)
 //! through `from_byte_array`, `from_trusted_byte_array` and serde (BCS, bincode and base64 in JSON).
 //! Besides raw bytes, an input can mutate the encoding of a valid element, to get past the length
