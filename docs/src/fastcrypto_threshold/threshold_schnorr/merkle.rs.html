@@ -74,47 +74,91 @@
 <a href=#74 id=74 data-nosnippet>74</a>}
 <a href=#75 id=75 data-nosnippet>75</a>
 <a href=#76 id=76 data-nosnippet>76</a><span class="kw">impl </span>NestedMerkleProof {
-<a href=#77 id=77 data-nosnippet>77</a>    <span class="doccomment">/// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`).
-<a href=#78 id=78 data-nosnippet>78</a>    </span><span class="kw">pub fn </span>verify&lt;S: Serialize&gt;(
-<a href=#79 id=79 data-nosnippet>79</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#80 id=80 data-nosnippet>80</a>        top_root: <span class="kw-2">&amp;</span>Node,
-<a href=#81 id=81 data-nosnippet>81</a>        leaf: <span class="kw-2">&amp;</span>S,
-<a href=#82 id=82 data-nosnippet>82</a>        row_idx: usize,
-<a href=#83 id=83 data-nosnippet>83</a>        leaf_idx: usize,
-<a href=#84 id=84 data-nosnippet>84</a>    ) -&gt; FastCryptoResult&lt;()&gt; {
-<a href=#85 id=85 data-nosnippet>85</a>        (<span class="self">self</span>.derive_top_root(leaf, row_idx, leaf_idx)<span class="question-mark">? </span>== <span class="kw-2">*</span>top_root)
-<a href=#86 id=86 data-nosnippet>86</a>            .then_some(())
-<a href=#87 id=87 data-nosnippet>87</a>            .ok_or(InvalidProof)
-<a href=#88 id=88 data-nosnippet>88</a>    }
-<a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a>    <span class="doccomment">/// Derive the implied row root from this proof's row portion and `leaf` at `leaf_idx`.
-<a href=#91 id=91 data-nosnippet>91</a>    /// Returns [InvalidMessage] if the path is malformed.
-<a href=#92 id=92 data-nosnippet>92</a>    </span><span class="kw">pub fn </span>derive_row_root&lt;S: Serialize&gt;(
-<a href=#93 id=93 data-nosnippet>93</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#94 id=94 data-nosnippet>94</a>        leaf: <span class="kw-2">&amp;</span>S,
-<a href=#95 id=95 data-nosnippet>95</a>        leaf_idx: usize,
-<a href=#96 id=96 data-nosnippet>96</a>    ) -&gt; FastCryptoResult&lt;Node&gt; {
-<a href=#97 id=97 data-nosnippet>97</a>        <span class="self">self</span>.row_proof
-<a href=#98 id=98 data-nosnippet>98</a>            .compute_root(<span class="kw-2">&amp;</span>bcs::to_bytes(leaf).map_err(|<span class="kw">_</span>| InvalidInput)<span class="question-mark">?</span>, leaf_idx)
-<a href=#99 id=99 data-nosnippet>99</a>            .ok_or(InvalidMessage)
-<a href=#100 id=100 data-nosnippet>100</a>    }
-<a href=#101 id=101 data-nosnippet>101</a>
-<a href=#102 id=102 data-nosnippet>102</a>    <span class="doccomment">/// Derive the implied top root from this proof and `leaf` at (`row_idx`, `leaf_idx`): walk
-<a href=#103 id=103 data-nosnippet>103</a>    /// the row proof from the leaf to an implied row root, then walk the top proof from that row
-<a href=#104 id=104 data-nosnippet>104</a>    /// root to an implied top root. Returns [InvalidMessage] if either path is malformed.
-<a href=#105 id=105 data-nosnippet>105</a>    </span><span class="kw">pub fn </span>derive_top_root&lt;S: Serialize&gt;(
-<a href=#106 id=106 data-nosnippet>106</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#107 id=107 data-nosnippet>107</a>        leaf: <span class="kw-2">&amp;</span>S,
-<a href=#108 id=108 data-nosnippet>108</a>        row_idx: usize,
-<a href=#109 id=109 data-nosnippet>109</a>        leaf_idx: usize,
-<a href=#110 id=110 data-nosnippet>110</a>    ) -&gt; FastCryptoResult&lt;Node&gt; {
-<a href=#111 id=111 data-nosnippet>111</a>        <span class="kw">let </span>row_root = <span class="self">self</span>.derive_row_root(leaf, leaf_idx)<span class="question-mark">?</span>;
-<a href=#112 id=112 data-nosnippet>112</a>        <span class="self">self</span>.top_proof
-<a href=#113 id=113 data-nosnippet>113</a>            .compute_root(
-<a href=#114 id=114 data-nosnippet>114</a>                <span class="kw-2">&amp;</span>bcs::to_bytes(<span class="kw-2">&amp;</span>row_root).map_err(|<span class="kw">_</span>| InvalidInput)<span class="question-mark">?</span>,
-<a href=#115 id=115 data-nosnippet>115</a>                row_idx,
-<a href=#116 id=116 data-nosnippet>116</a>            )
-<a href=#117 id=117 data-nosnippet>117</a>            .ok_or(InvalidMessage)
-<a href=#118 id=118 data-nosnippet>118</a>    }
-<a href=#119 id=119 data-nosnippet>119</a>}
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="doccomment">/// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`) of a
+<a href=#78 id=78 data-nosnippet>78</a>    /// tree with `n_rows` rows of `n_leaves` leaves each.
+<a href=#79 id=79 data-nosnippet>79</a>    </span><span class="kw">pub fn </span>verify&lt;S: Serialize&gt;(
+<a href=#80 id=80 data-nosnippet>80</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#81 id=81 data-nosnippet>81</a>        top_root: <span class="kw-2">&amp;</span>Node,
+<a href=#82 id=82 data-nosnippet>82</a>        leaf: <span class="kw-2">&amp;</span>S,
+<a href=#83 id=83 data-nosnippet>83</a>        row_idx: usize,
+<a href=#84 id=84 data-nosnippet>84</a>        leaf_idx: usize,
+<a href=#85 id=85 data-nosnippet>85</a>        n_rows: usize,
+<a href=#86 id=86 data-nosnippet>86</a>        n_leaves: usize,
+<a href=#87 id=87 data-nosnippet>87</a>    ) -&gt; FastCryptoResult&lt;()&gt; {
+<a href=#88 id=88 data-nosnippet>88</a>        (<span class="self">self</span>.derive_top_root(leaf, row_idx, leaf_idx, n_rows, n_leaves)<span class="question-mark">? </span>== <span class="kw-2">*</span>top_root)
+<a href=#89 id=89 data-nosnippet>89</a>            .then_some(())
+<a href=#90 id=90 data-nosnippet>90</a>            .ok_or(InvalidProof)
+<a href=#91 id=91 data-nosnippet>91</a>    }
+<a href=#92 id=92 data-nosnippet>92</a>
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="comment">// TODO: Remove this and `derive_row_root_for_trusted_tree` once AVID complaints are checked
+<a href=#94 id=94 data-nosnippet>94</a>    // with the strict variants.
+<a href=#95 id=95 data-nosnippet>95</a>    </span><span class="doccomment">/// Verify this proof against `top_root` for `leaf` at position (`row_idx`, `leaf_idx`),
+<a href=#96 id=96 data-nosnippet>96</a>    /// assuming a trusted tree, i.e. one built by [NestedMerkleTree]. If the tree cannot be
+<a href=#97 id=97 data-nosnippet>97</a>    /// trusted, use [Self::verify] instead.
+<a href=#98 id=98 data-nosnippet>98</a>    </span><span class="kw">pub fn </span>verify_for_trusted_tree&lt;S: Serialize&gt;(
+<a href=#99 id=99 data-nosnippet>99</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#100 id=100 data-nosnippet>100</a>        top_root: <span class="kw-2">&amp;</span>Node,
+<a href=#101 id=101 data-nosnippet>101</a>        leaf: <span class="kw-2">&amp;</span>S,
+<a href=#102 id=102 data-nosnippet>102</a>        row_idx: usize,
+<a href=#103 id=103 data-nosnippet>103</a>        leaf_idx: usize,
+<a href=#104 id=104 data-nosnippet>104</a>    ) -&gt; FastCryptoResult&lt;()&gt; {
+<a href=#105 id=105 data-nosnippet>105</a>        <span class="kw">let </span>row_root = <span class="self">self</span>.derive_row_root_for_trusted_tree(leaf, leaf_idx)<span class="question-mark">?</span>;
+<a href=#106 id=106 data-nosnippet>106</a>        <span class="kw">let </span>derived_top_root = <span class="self">self
+<a href=#107 id=107 data-nosnippet>107</a>            </span>.top_proof
+<a href=#108 id=108 data-nosnippet>108</a>            .compute_root_for_trusted_tree(
+<a href=#109 id=109 data-nosnippet>109</a>                <span class="kw-2">&amp;</span>bcs::to_bytes(<span class="kw-2">&amp;</span>row_root).map_err(|<span class="kw">_</span>| InvalidInput)<span class="question-mark">?</span>,
+<a href=#110 id=110 data-nosnippet>110</a>                row_idx,
+<a href=#111 id=111 data-nosnippet>111</a>            )
+<a href=#112 id=112 data-nosnippet>112</a>            .ok_or(InvalidMessage)<span class="question-mark">?</span>;
+<a href=#113 id=113 data-nosnippet>113</a>        (derived_top_root == <span class="kw-2">*</span>top_root)
+<a href=#114 id=114 data-nosnippet>114</a>            .then_some(())
+<a href=#115 id=115 data-nosnippet>115</a>            .ok_or(InvalidProof)
+<a href=#116 id=116 data-nosnippet>116</a>    }
+<a href=#117 id=117 data-nosnippet>117</a>
+<a href=#118 id=118 data-nosnippet>118</a>    <span class="doccomment">/// Derive the implied row root from this proof's row portion and `leaf` at `leaf_idx`,
+<a href=#119 id=119 data-nosnippet>119</a>    /// assuming a trusted tree, i.e. one built by [NestedMerkleTree].
+<a href=#120 id=120 data-nosnippet>120</a>    /// Returns [InvalidMessage] if the path is malformed.
+<a href=#121 id=121 data-nosnippet>121</a>    </span><span class="kw">pub fn </span>derive_row_root_for_trusted_tree&lt;S: Serialize&gt;(
+<a href=#122 id=122 data-nosnippet>122</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#123 id=123 data-nosnippet>123</a>        leaf: <span class="kw-2">&amp;</span>S,
+<a href=#124 id=124 data-nosnippet>124</a>        leaf_idx: usize,
+<a href=#125 id=125 data-nosnippet>125</a>    ) -&gt; FastCryptoResult&lt;Node&gt; {
+<a href=#126 id=126 data-nosnippet>126</a>        <span class="self">self</span>.row_proof
+<a href=#127 id=127 data-nosnippet>127</a>            .compute_root_for_trusted_tree(
+<a href=#128 id=128 data-nosnippet>128</a>                <span class="kw-2">&amp;</span>bcs::to_bytes(leaf).map_err(|<span class="kw">_</span>| InvalidInput)<span class="question-mark">?</span>,
+<a href=#129 id=129 data-nosnippet>129</a>                leaf_idx,
+<a href=#130 id=130 data-nosnippet>130</a>            )
+<a href=#131 id=131 data-nosnippet>131</a>            .ok_or(InvalidMessage)
+<a href=#132 id=132 data-nosnippet>132</a>    }
+<a href=#133 id=133 data-nosnippet>133</a>
+<a href=#134 id=134 data-nosnippet>134</a>    <span class="doccomment">/// Derive the implied top root from this proof and `leaf` at (`row_idx`, `leaf_idx`) of a tree
+<a href=#135 id=135 data-nosnippet>135</a>    /// with `n_rows` rows of `n_leaves` leaves each: walk the row proof from the leaf to an
+<a href=#136 id=136 data-nosnippet>136</a>    /// implied row root, then walk the top proof from that row root to an implied top root.
+<a href=#137 id=137 data-nosnippet>137</a>    /// Returns [InvalidMessage] if either path is malformed or has the wrong length, or if either
+<a href=#138 id=138 data-nosnippet>138</a>    /// index is outside the tree.
+<a href=#139 id=139 data-nosnippet>139</a>    </span><span class="kw">pub fn </span>derive_top_root&lt;S: Serialize&gt;(
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#141 id=141 data-nosnippet>141</a>        leaf: <span class="kw-2">&amp;</span>S,
+<a href=#142 id=142 data-nosnippet>142</a>        row_idx: usize,
+<a href=#143 id=143 data-nosnippet>143</a>        leaf_idx: usize,
+<a href=#144 id=144 data-nosnippet>144</a>        n_rows: usize,
+<a href=#145 id=145 data-nosnippet>145</a>        n_leaves: usize,
+<a href=#146 id=146 data-nosnippet>146</a>    ) -&gt; FastCryptoResult&lt;Node&gt; {
+<a href=#147 id=147 data-nosnippet>147</a>        <span class="kw">let </span>row_root = <span class="self">self
+<a href=#148 id=148 data-nosnippet>148</a>            </span>.row_proof
+<a href=#149 id=149 data-nosnippet>149</a>            .compute_root(
+<a href=#150 id=150 data-nosnippet>150</a>                <span class="kw-2">&amp;</span>bcs::to_bytes(leaf).map_err(|<span class="kw">_</span>| InvalidInput)<span class="question-mark">?</span>,
+<a href=#151 id=151 data-nosnippet>151</a>                leaf_idx,
+<a href=#152 id=152 data-nosnippet>152</a>                n_leaves,
+<a href=#153 id=153 data-nosnippet>153</a>            )
+<a href=#154 id=154 data-nosnippet>154</a>            .ok_or(InvalidMessage)<span class="question-mark">?</span>;
+<a href=#155 id=155 data-nosnippet>155</a>        <span class="self">self</span>.top_proof
+<a href=#156 id=156 data-nosnippet>156</a>            .compute_root(
+<a href=#157 id=157 data-nosnippet>157</a>                <span class="kw-2">&amp;</span>bcs::to_bytes(<span class="kw-2">&amp;</span>row_root).map_err(|<span class="kw">_</span>| InvalidInput)<span class="question-mark">?</span>,
+<a href=#158 id=158 data-nosnippet>158</a>                row_idx,
+<a href=#159 id=159 data-nosnippet>159</a>                n_rows,
+<a href=#160 id=160 data-nosnippet>160</a>            )
+<a href=#161 id=161 data-nosnippet>161</a>            .ok_or(InvalidMessage)
+<a href=#162 id=162 data-nosnippet>162</a>    }
+<a href=#163 id=163 data-nosnippet>163</a>}
 </code></pre></div></section></main></body></html>
