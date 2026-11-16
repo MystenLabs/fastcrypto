@@ -13,6 +13,10 @@ arbitrary = { version = "1", features = ["derive"] }
 bcs = "0.1.4"
 bincode = "1.3.3"
 fastcrypto = { path = "../fastcrypto" }
+# k256 is an independent secp256k1 implementation that the secp256k1 targets compare with. Same
+# version as the dev-dependency of fastcrypto: unlike later versions, its recovery accepts high-s
+# signatures, like fastcrypto and Ethereum.
+k256 = { version = "0.11.6", features = ["ecdsa", "keccak256", "sha256"] }
 libfuzzer-sys = "0.4"
 once_cell = "1.17.0"
 rand = "0.8.5"
@@ -39,6 +43,27 @@ bench = false
 [[bin]]
 name = "bls12381_batch_verify"
 path = "fuzz_targets/bls12381_batch_verify.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "secp256k1_deserialize"
+path = "fuzz_targets/secp256k1_deserialize.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "secp256k1_verify"
+path = "fuzz_targets/secp256k1_verify.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "secp256k1_ecrecover"
+path = "fuzz_targets/secp256k1_ecrecover.rs"
 test = false
 doc = false
 bench = false
