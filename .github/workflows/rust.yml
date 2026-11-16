@@ -80,6 +80,27 @@ jobs:
       - name: cargo clippy
         run: cargo xclippy -D warnings
 
+  # Runs every fuzz target in fuzz/ for a short time, with libFuzzer's default random seed. Proptests
+  # run in the test job above, with proptest's default random seed and case counts.
+  fuzz:
+    runs-on: ubuntu-ghcloud
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # pin@v3
+      - name: Install nightly toolchain
+        run: rustup toolchain install nightly --profile minimal
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      - name: Build fuzz targets
+        working-directory: fuzz
+        run: cargo +nightly fuzz build
+      - name: Run fuzz targets
+        working-directory: fuzz
+        run: |
+          for target in $(cargo +nightly fuzz list); do
+            echo "Fuzzing $target"
+            cargo +nightly fuzz run "$target" -- -max_total_time=60
+          done
+
   rustfmt:
     runs-on: ubuntu-latest
     steps:
