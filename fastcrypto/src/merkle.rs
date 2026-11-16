@@ -124,7 +124,8 @@ where
     }
 
     /// Verifies the proof given a Merkle root and the leaf data, assuming a trusted tree, i.e. one
-    /// built by [`MerkleTree`]. Only the tree must be trusted, not the proof. If the tree cannot be
+    /// built by [`MerkleTree`]: every leaf is at the same depth, and every slot after the last leaf
+    /// is [`Node::Empty`]. Only the tree must be trusted, not the proof. If the tree cannot be
     /// trusted, use [`Self::verify`] instead.
     pub fn verify_for_trusted_tree(
         &self,
