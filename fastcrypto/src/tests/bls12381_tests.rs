@@ -102,6 +102,12 @@ const NON_SUBGROUP_PUBLIC_KEY: &[u8] =
 const NON_SUBGROUP_SIGNATURE: &[u8] =
     if SIG_LENGTH == BLS_G1_LENGTH { &NON_SUBGROUP_G1 } else { &NON_SUBGROUP_G2 };
 
+fn hash_of<T: Hash>(value: &T) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
 fn uncompressed_public_key(pk: &BLS12381PublicKey) -> Vec<u8> {
     pk.pubkey.serialize().to_vec()
 }
@@ -345,6 +351,11 @@ fn test_uncompressed_encodings_are_accepted_and_reencoded_compressed() {
     assert_eq!(aggregate2, aggregate);
     assert_eq!(aggregate2.as_bytes(), aggregate.as_bytes());
 
+    // Hash and Ord agree with Eq whatever the input encoding, because both use the compressed bytes.
+    assert_eq!(hash_of(&pk2), hash_of(&pk));
+    assert_eq!(pk2.cmp(&pk), std::cmp::Ordering::Equal);
+    assert_eq!(hash_of(&sig2), hash_of(&sig));
+
     // Base64 and human-readable serde go through from_bytes, so they accept it as well.
     let pk3 = BLS12381PublicKey::decode_base64(&Base64::encode(&pk_uncompressed)).unwrap();
     assert_eq!(pk3, pk);
@@ -362,6 +373,45 @@ fn test_uncompressed_encodings_are_accepted_and_reencoded_compressed() {
     assert!(bcs::from_bytes::<BLS12381PublicKey>(&pk_uncompressed).is_err());
     assert!(bcs::from_bytes::<BLS12381Signature>(&sig_uncompressed).is_err());
     assert!(bcs::from_bytes::<BLS12381AggregateSignature>(&sig_uncompressed).is_err());
+}
+
+#[test]
+fn test_bytes_representations() {
+    let kp = keys().pop().unwrap();
+    let pk = kp.public().clone();
+    let aggregate = BLS12381AggregateSignature::from(kp.sign(b"message"));
+
+    // A bytes representation holds the compressed encoding and converts back to the same value.
+    let pk_bytes = BLS12381PublicKeyAsBytes::from(&pk);
+    assert_eq!(pk_bytes.0, pk.as_bytes());
+    assert_eq!(BLS12381PublicKey::try_from(&pk_bytes).unwrap(), pk);
+    let aggregate_bytes = BLS12381AggregateSignatureAsBytes::from(&aggregate);
+    assert_eq!(aggregate_bytes.0, aggregate.as_bytes());
+    assert_eq!(
+        BLS12381AggregateSignature::try_from(&aggregate_bytes).unwrap(),
+        aggregate
+    );
+
+    // Deserializing a bytes representation does not validate it: any bytes of the right length
+    // are accepted, and only the conversion to the key or signature can fail.
+    let pk_bytes: BLS12381PublicKeyAsBytes = bcs::from_bytes(&[0xff; PK_LENGTH]).unwrap();
+    assert!(BLS12381PublicKey::try_from(&pk_bytes).is_err());
+    let aggregate_bytes: BLS12381AggregateSignatureAsBytes =
+        bcs::from_bytes(&[0xff; SIG_LENGTH]).unwrap();
+    assert!(BLS12381AggregateSignature::try_from(&aggregate_bytes).is_err());
+
+    // Like from_bytes, the conversion does not check subgroup membership.
+    let pk_bytes: BLS12381PublicKeyAsBytes = bcs::from_bytes(NON_SUBGROUP_PUBLIC_KEY).unwrap();
+    assert!(BLS12381PublicKey::try_from(&pk_bytes).unwrap().validate().is_err());
+
+    // Human-readable serde uses base64 of exactly the compressed length, so the uncompressed
+    // encoding is rejected.
+    let pk_bytes = BLS12381PublicKeyAsBytes::from(&pk);
+    let json = serde_json::to_string(&pk_bytes).unwrap();
+    assert_eq!(json, format!("\"{}\"", Base64::encode(pk.as_bytes())));
+    assert_eq!(serde_json::from_str::<BLS12381PublicKeyAsBytes>(&json).unwrap(), pk_bytes);
+    let json = format!("\"{}\"", Base64::encode(uncompressed_public_key(&pk)));
+    assert!(serde_json::from_str::<BLS12381PublicKeyAsBytes>(&json).is_err());
 }
 
 #[test]
@@ -1353,7 +1403,11 @@ proptest! {
             } else {
                 prop_assert_eq!(uncompressed_public_key(&pk), pk_bytes.clone());
             }
-            prop_assert_eq!(&BLS12381PublicKey::from_bytes(pk.as_bytes()).unwrap(), &pk);
+            // Eq, Hash and Ord agree with the canonical encoding.
+            let canonical = BLS12381PublicKey::from_bytes(pk.as_bytes()).unwrap();
+            prop_assert_eq!(&canonical, &pk);
+            prop_assert_eq!(hash_of(&canonical), hash_of(&pk));
+            prop_assert_eq!(canonical.cmp(&pk), std::cmp::Ordering::Equal);
             if &pk != kp.public() {
                 prop_assert!(pk.verify(&msg, &honest_sig).is_err());
             }
@@ -1374,6 +1428,9 @@ proptest! {
             } else {
                 prop_assert_eq!(uncompressed_signature(&sig), sig_bytes.clone());
             }
+            let canonical = <BLS12381Signature as ToFromBytes>::from_bytes(sig.as_bytes()).unwrap();
+            prop_assert_eq!(&canonical, &sig);
+            prop_assert_eq!(hash_of(&canonical), hash_of(&sig));
             prop_assert!(kp.public().verify(&msg, &sig).is_err());
             let aggregate = BLS12381AggregateSignature::from_bytes(&sig_bytes).unwrap();
             prop_assert_eq!(aggregate.as_bytes(), sig.as_bytes());
@@ -1481,7 +1538,7 @@ pub mod min_sig {
     use super::*;
     use crate::bls12381::min_sig::{
         BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
-        BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
+        BLS12381PrivateKey, BLS12381PublicKey, BLS12381PublicKeyAsBytes, BLS12381Signature,
     };
     define_tests!();
 
@@ -1541,13 +1598,85 @@ pub mod min_sig {
             assert_eq!(Hex::encode(Sha256::digest(&sig_bytes).digest), randomness);
         }
     }
+
+    #[test]
+    fn test_verify_sui_checkpoint_certificate() {
+        // A Sui mainnet checkpoint certificate, verified the way Sui verifies certificates. See the
+        // "description" field of the JSON file for where the data comes from.
+        let vector: serde_json::Value =
+            serde_json::from_str(include_str!("sui_checkpoint_test_vector.json")).unwrap();
+        let bytes = |v: &serde_json::Value| hex::decode(v.as_str().unwrap()).unwrap();
+
+        let committee: Vec<(BLS12381PublicKey, u64)> = vector["committee"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|member| {
+                let pk = BLS12381PublicKey::from_bytes(&bytes(&member["protocol_pubkey"])).unwrap();
+                (pk, member["voting_power"].as_u64().unwrap())
+            })
+            .collect();
+        // Sui orders the committee by public key, and validates every key (with a proof of
+        // possession) before it joins.
+        assert!(committee.windows(2).all(|pair| pair[0].0 < pair[1].0));
+        assert!(committee.iter().all(|(pk, _)| pk.validate().is_ok()));
+        assert_eq!(
+            committee.iter().map(|(_, power)| power).sum::<u64>(),
+            10_000
+        );
+
+        let signers: Vec<usize> = vector["signers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i.as_u64().unwrap() as usize)
+            .collect();
+        let signer_keys: Vec<BLS12381PublicKey> =
+            signers.iter().map(|&i| committee[i].0.clone()).collect();
+        // The signers hold a quorum (more than 2/3) of the voting power.
+        assert!(signers.iter().map(|&i| committee[i].1).sum::<u64>() >= 6_667);
+
+        // The signed message: intent (scope CheckpointSummary = 2, version 0, app Sui = 0), the BCS
+        // of the checkpoint summary, and the epoch.
+        let epoch = vector["epoch"].as_u64().unwrap();
+        let message_for_epoch = |epoch: u64| {
+            let mut message = vec![2, 0, 0];
+            message.extend(bytes(&vector["summary_bcs"]));
+            message.extend(epoch.to_le_bytes());
+            message
+        };
+        let message = message_for_epoch(epoch);
+        let signature =
+            BLS12381AggregateSignature::from_bytes(&bytes(&vector["aggregate_signature"])).unwrap();
+
+        // Sui adds the certificate's signature to a default aggregate and calls batch_verify.
+        let mut aggregate = BLS12381AggregateSignature::default();
+        aggregate.add_aggregate(signature.clone()).unwrap();
+        assert!(BLS12381AggregateSignature::batch_verify(
+            &[&aggregate],
+            vec![signer_keys.iter()],
+            &[&message]
+        )
+        .is_ok());
+        assert!(signature.verify(&signer_keys, &message).is_ok());
+
+        // Another epoch, a missing signer or an extra signer are rejected.
+        assert!(signature
+            .verify(&signer_keys, &message_for_epoch(epoch + 1))
+            .is_err());
+        assert!(signature.verify(&signer_keys[1..], &message).is_err());
+        let non_signer = (0..committee.len()).find(|i| !signers.contains(i)).unwrap();
+        let mut with_extra_signer = signer_keys.clone();
+        with_extra_signer.push(committee[non_signer].0.clone());
+        assert!(signature.verify(&with_extra_signer, &message).is_err());
+    }
 }
 
 pub mod min_pk {
     use super::*;
     use crate::bls12381::min_pk::{
         BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
-        BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
+        BLS12381PrivateKey, BLS12381PublicKey, BLS12381PublicKeyAsBytes, BLS12381Signature,
     };
     define_tests!();
 
