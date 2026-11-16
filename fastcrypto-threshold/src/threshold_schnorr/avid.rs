@@ -81,7 +81,7 @@ pub struct EchoBuilder {
 /// One disperser's message to a single message recipient.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Echo {
-    authenticated_shards: AuthenticatedShards,
+    pub(crate) authenticated_shards: AuthenticatedShards,
 }
 
 #[derive(Clone, Debug)]
