@@ -18,7 +18,7 @@
 
 use arbitrary::Arbitrary;
 use ark_ec::AffineRepr;
-use ark_serialize::CanonicalDeserialize;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::encoding::{Base64, Encoding};
 use fastcrypto::groups::bls12381::{
     buffer_to_scalar_mod_r, G1Element, G1ElementUncompressed, G2Element, GTElement, Scalar,
@@ -28,21 +28,16 @@ use fastcrypto::groups::bls12381::{
 use fastcrypto::groups::{FromTrustedByteArray, GroupElement, HashToGroupElement, Pairing};
 use fastcrypto::hash::{HashFunction, Sha512};
 use fastcrypto::serde_helpers::ToFromByteArray;
+use hex_literal::hex;
 use libfuzzer_sys::fuzz_target;
 use once_cell::sync::Lazy;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fmt::Debug;
 
-const GROUP_ORDER: [u8; SCALAR_LENGTH] = [
-    0x73, 0xed, 0xa7, 0x53, 0x29, 0x9d, 0x7d, 0x48, 0x33, 0x39, 0xd8, 0x08, 0x09, 0xa1, 0xd8, 0x05,
-    0x53, 0xbd, 0xa4, 0x02, 0xff, 0xfe, 0x5b, 0xfe, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01,
-];
-const FIELD_MODULUS: [u8; FP_BYTE_LENGTH] = [
-    0x1a, 0x01, 0x11, 0xea, 0x39, 0x7f, 0xe6, 0x9a, 0x4b, 0x1b, 0xa7, 0xb6, 0x43, 0x4b, 0xac, 0xd7,
-    0x64, 0x77, 0x4b, 0x84, 0xf3, 0x85, 0x12, 0xbf, 0x67, 0x30, 0xd2, 0xa0, 0xf6, 0xb0, 0xf6, 0x24,
-    0x1e, 0xab, 0xff, 0xfe, 0xb1, 0x53, 0xff, 0xff, 0xb9, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xaa, 0xab,
-];
+const GROUP_ORDER: [u8; SCALAR_LENGTH] =
+    hex!("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
+const FIELD_MODULUS: [u8; FP_BYTE_LENGTH] = hex!("1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab");
 const INFINITY_FLAG: u8 = 0x40;
 const SORT_FLAG: u8 = 0x20;
 const ALL_FLAGS: u8 = 0xe0;
@@ -141,30 +136,49 @@ fn check_scalar(bytes: &[u8]) {
     }
 }
 
-fn check_g1(bytes: &[u8]) {
-    let decoded = check::<G1Element, G1_ELEMENT_BYTE_LENGTH>(bytes);
-    if bytes.len() == G1_ELEMENT_BYTE_LENGTH {
-        let ark = ark_bls12_381::G1Affine::deserialize_compressed(bytes).ok();
-        match (decoded, ark) {
-            (Some(p), Some(q)) => assert_eq!(p.to_byte_array().to_vec(), compressed(&q)),
-            (None, Some(q)) => assert!(q.is_zero() && bytes[0] & INFINITY_FLAG != 0),
-            (Some(p), None) => panic!("only fastcrypto accepts {p:?}"),
-            (None, None) => {}
-        }
+/// Compares a decoding with arkworks', as compressed encodings. arkworks may also accept an
+/// encoding that we reject if `lenient` holds for its result.
+fn compare_with_arkworks<A: AffineRepr>(
+    ours: Option<Vec<u8>>,
+    theirs: Option<A>,
+    lenient: impl FnOnce(&A) -> bool,
+) {
+    match (ours, theirs) {
+        (Some(p), Some(q)) => assert_eq!(p, compressed(&q)),
+        (None, Some(q)) => assert!(lenient(&q), "only arkworks accepts {q:?}"),
+        (Some(p), None) => panic!("only fastcrypto accepts {p:?}"),
+        (None, None) => {}
     }
 }
 
-fn check_g2(bytes: &[u8]) {
-    let decoded = check::<G2Element, G2_ELEMENT_BYTE_LENGTH>(bytes);
-    if bytes.len() == G2_ELEMENT_BYTE_LENGTH {
-        let ark = ark_bls12_381::G2Affine::deserialize_compressed(bytes).ok();
-        match (decoded, ark) {
-            (Some(p), Some(q)) => assert_eq!(p.to_byte_array().to_vec(), compressed(&q)),
-            (None, Some(q)) => assert!(q.is_zero() && bytes[0] & INFINITY_FLAG != 0),
-            (Some(p), None) => panic!("only fastcrypto accepts {p:?}"),
-            (None, None) => {}
-        }
+/// Decodes a compressed G1 (`A` = `G1Affine`) or G2 (`A` = `G2Affine`) point. arkworks also accepts
+/// the infinity flag with other bits set.
+fn check_point<T, A, const N: usize>(bytes: &[u8])
+where
+    T: ToFromByteArray<N>
+        + FromTrustedByteArray<N>
+        + Serialize
+        + DeserializeOwned
+        + PartialEq
+        + Debug,
+    A: AffineRepr,
+{
+    let decoded = check::<T, N>(bytes);
+    if bytes.len() == N {
+        compare_with_arkworks(
+            decoded.map(|p| p.to_byte_array().to_vec()),
+            A::deserialize_compressed(bytes).ok(),
+            |q| q.is_zero() && bytes[0] & INFINITY_FLAG != 0,
+        );
     }
+}
+
+fn check_g1(bytes: &[u8]) {
+    check_point::<G1Element, ark_bls12_381::G1Affine, G1_ELEMENT_BYTE_LENGTH>(bytes);
+}
+
+fn check_g2(bytes: &[u8]) {
+    check_point::<G2Element, ark_bls12_381::G2Affine, G2_ELEMENT_BYTE_LENGTH>(bytes);
 }
 
 fn check_gt(bytes: &[u8]) {
@@ -194,24 +208,22 @@ fn check_g1_uncompressed(bytes: &[u8]) {
     // Summing trusted terms must not panic, whatever they are.
     let _ = G1ElementUncompressed::sum(&[G1ElementUncompressed::from_trusted_byte_array(array)]);
 
-    let ark = ark_bls12_381::G1Affine::deserialize_uncompressed(bytes).ok();
-    match (decoded, ark) {
-        (Some(p), Some(q)) => assert_eq!(p.to_byte_array().to_vec(), compressed(&q)),
-        (None, Some(q)) => {
-            let mut without_sort_flag = array;
-            without_sort_flag[0] &= !SORT_FLAG;
-            let lenient = (q.is_zero() && bytes[0] & INFINITY_FLAG != 0)
+    // arkworks also accepts the infinity flag with other bits set, and ignores the sort flag.
+    let mut without_sort_flag = array;
+    without_sort_flag[0] &= !SORT_FLAG;
+    compare_with_arkworks(
+        decoded.map(|p| p.to_byte_array().to_vec()),
+        ark_bls12_381::G1Affine::deserialize_uncompressed(bytes).ok(),
+        |q| {
+            (q.is_zero() && bytes[0] & INFINITY_FLAG != 0)
                 || (bytes[0] & ALL_FLAGS == SORT_FLAG
                     && decode_uncompressed(without_sort_flag).map(|p| p.to_byte_array().to_vec())
-                        == Some(compressed(&q)));
-            assert!(lenient, "only arkworks accepts {q:?}");
-        }
-        (Some(p), None) => panic!("only fastcrypto accepts {p:?}"),
-        (None, None) => {}
-    }
+                        == Some(compressed(q)))
+        },
+    );
 }
 
-fn compressed(p: &impl ark_serialize::CanonicalSerialize) -> Vec<u8> {
+fn compressed(p: &impl CanonicalSerialize) -> Vec<u8> {
     let mut bytes = Vec::new();
     p.serialize_compressed(&mut bytes).unwrap();
     bytes

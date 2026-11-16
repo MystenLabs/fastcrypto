@@ -786,7 +786,7 @@ dependencies = [
  "bincode",
  "curve25519-dalek",
  "fastcrypto",
- "hex",
+ "hex-literal",
  "libfuzzer-sys",
  "once_cell",
  "rand",

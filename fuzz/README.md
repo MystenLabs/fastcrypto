@@ -12,8 +12,7 @@ This crate is not part of the main workspace because cargo-fuzz needs a nightly 
 | `ed25519_verify` | Signature verification the way Sui's `ed25519_verify` Move native does it, against an independent ZIP215 implementation |
 | `ed25519_batch_verify` | Every Ed25519 batch verification API against individual verification, on ZIP215 edge cases |
 | `bls12381_group_deserialize` | Decoding of BLS12-381 scalars, G1, G2, GT and uncompressed G1 elements from raw and mutated bytes, compared with serde and arkworks |
-| `bls12381_group_ops` | Sequences of the BLS12-381 operations of Sui's `group_ops` Move natives, on elements kept as bytes like `sui::group_ops::Element` |
-| `bls12381_msm_pairing` | MSM in G1 and G2, sums of uncompressed G1 points and multi-pairing on arbitrary inputs, compared with naive computation |
+| `bls12381_group_ops` | Sequences of the BLS12-381 operations of Sui's `group_ops` Move natives and multi-pairing, on elements kept as bytes like `sui::group_ops::Element`, compared with naive computation |
 
 Run a target with:
 

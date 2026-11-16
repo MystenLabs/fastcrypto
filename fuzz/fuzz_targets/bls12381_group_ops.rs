@@ -4,16 +4,20 @@
 // THIS FILE IS AI-ONLY
 
 //! Runs sequences of the BLS12-381 operations of Sui's `group_ops` Move natives (the functions of
-//! `sui::bls12381`). Like `sui::group_ops::Element`, elements are kept as bytes, and are parsed the
-//! way the natives parse them: with `from_byte_array` for bytes from the user, and with
-//! `from_trusted_byte_array` for constants and outputs of earlier operations. The arguments of
-//! `mul` and `div` are in the natives' order: `mul(s, e) = e * s` and `div(s, e) = e / s`.
+//! `sui::bls12381`), plus multi-pairing, which BLS and Groth16 verification use. Like
+//! `sui::group_ops::Element`, elements are kept as bytes, and are parsed the way the natives parse
+//! them: with `from_byte_array` for bytes from the user, and with `from_trusted_byte_array` for
+//! constants and outputs of earlier operations. The arguments of `mul` and `div` are in the natives'
+//! order: `mul(s, e) = e * s` and `div(s, e) = e / s`. Since outputs are fed back as inputs, the
+//! operations reach the cases that blst handles specially: the identity, the scalars 0, 1 and
+//! r - 1, repeated points and negated points.
 //!
 //! Invariants: nothing panics; every output is the canonical encoding of a valid element, so
 //! `from_byte_array` accepts it and byte equality (`group_ops::equal`) is element equality; an
 //! operation fails exactly where the native fails (division by zero, hashing an empty message, MSM
-//! inputs of different lengths, empty or above the length limit, sums above the term limit); and
-//! the outputs are consistent with each other.
+//! inputs of different lengths, empty or above the length limit, sums above the term limit,
+//! multi-pairing inputs of different lengths); MSM, sums and multi-pairing equal their naive
+//! computation; the pairing is bilinear; and the outputs are consistent with each other.
 
 #![no_main]
 
@@ -27,6 +31,7 @@ use fastcrypto::groups::{
     FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
 };
 use fastcrypto::serde_helpers::ToFromByteArray;
+use hex_literal::hex;
 use libfuzzer_sys::fuzz_target;
 
 /// `group_ops_bls12381_msm_max_len` in Sui's protocol config.
@@ -35,6 +40,8 @@ const MSM_MAX_LENGTH: usize = 32;
 const SUM_MAX_TERMS: usize = 1200;
 /// Bounds the work per input.
 const MAX_OPS: usize = 64;
+/// Pairings are slow, so multi-pairings have at most this many terms.
+const MAX_PAIRINGS: usize = 4;
 
 #[derive(Arbitrary, Debug, Clone, Copy)]
 enum Group {
@@ -61,7 +68,10 @@ enum Op {
     /// G1 if `true`, otherwise G2; pairs of (scalar index, element index), plus extra scalars to
     /// make the lengths differ.
     Msm(bool, Vec<(u8, u8)>, u8),
-    Pairing(u8, u8),
+    /// A G1 index, a G2 index and a scalar index, to check bilinearity.
+    Pairing(u8, u8, u8),
+    /// Pairs of (G1 index, G2 index).
+    MultiPairing(Vec<(u8, u8)>),
     G1ToUncompressed(u8),
     UncompressedToG1(u8),
     /// Indices of uncompressed elements, and how often to repeat the list.
@@ -77,25 +87,21 @@ struct State {
     uncompressed: Vec<[u8; 2 * G1_ELEMENT_BYTE_LENGTH]>,
 }
 
-fn hex<const N: usize>(s: &str) -> [u8; N] {
-    hex::decode(s).unwrap().try_into().unwrap()
-}
-
 impl State {
     /// The constants of `sui::bls12381`.
     fn new() -> Self {
         Self {
             scalars: vec![
                 [0; SCALAR_LENGTH],
-                hex("0000000000000000000000000000000000000000000000000000000000000001"),
+                hex!("0000000000000000000000000000000000000000000000000000000000000001"),
             ],
             g1: vec![
-                hex("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-                hex("97f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb"),
+                hex!("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+                hex!("97f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb"),
             ],
             g2: vec![
-                hex("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-                hex("93e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8"),
+                hex!("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+                hex!("93e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8"),
             ],
             gt: vec![
                 GTElement::zero().to_byte_array(),
@@ -328,13 +334,39 @@ fn run(state: &mut State, op: Op) {
                 state.g2.push(r);
             }
         }
-        Op::Pairing(i, j) => {
-            if let (Some(p), Some(q)) = (pick(&state.g1, i), pick(&state.g2, j)) {
-                let (p, q): (G1Element, G2Element) = (trusted(&p), trusted(&q));
+        Op::Pairing(i, j, k) => {
+            if let (Some(p), Some(q), Some(s)) = (
+                pick(&state.g1, i),
+                pick(&state.g2, j),
+                pick(&state.scalars, k),
+            ) {
+                let (p, q, s): (G1Element, G2Element, Scalar) =
+                    (trusted(&p), trusted(&q), trusted(&s));
                 let e = p.pairing(&q);
-                assert_eq!(G1Element::multi_pairing(&[p], &[q]).unwrap(), e);
+                assert_eq!((p * s).pairing(&q), e * s);
+                assert_eq!(p.pairing(&(q * s)), e * s);
                 state.gt.push(output(e));
             }
+        }
+        Op::MultiPairing(pairs) => {
+            let mut a: Vec<G1Element> = Vec::new();
+            let mut b: Vec<G2Element> = Vec::new();
+            for (i, j) in pairs.iter().take(MAX_PAIRINGS) {
+                let (Some(p), Some(q)) = (pick(&state.g1, *i), pick(&state.g2, *j)) else {
+                    return;
+                };
+                a.push(trusted(&p));
+                b.push(trusted(&q));
+            }
+            let naive = a
+                .iter()
+                .zip(&b)
+                .fold(GTElement::zero(), |acc, (p, q)| acc + p.pairing(q));
+            assert_eq!(G1Element::multi_pairing(&a, &b).unwrap(), naive);
+            // A length mismatch is rejected.
+            a.push(G1Element::generator());
+            assert!(G1Element::multi_pairing(&a, &b).is_err());
+            state.gt.push(output(naive));
         }
         Op::G1ToUncompressed(i) => {
             if let Some(p) = pick(&state.g1, i) {

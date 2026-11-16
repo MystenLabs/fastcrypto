@@ -10,8 +10,8 @@ use crate::groups::bls12381::{
     GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
 };
 use crate::groups::{
-    FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
-    Scalar as ScalarTrait,
+    FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul,
+    Pairing, Scalar as ScalarTrait,
 };
 use crate::hash::{HashFunction, Sha256};
 use crate::serde_helpers::ToFromByteArray;
@@ -21,18 +21,16 @@ use crate::traits::VerifyingKey;
 use crate::traits::{KeyPair, ToFromBytes};
 use blst::{
     blst_final_exp, blst_fp12, blst_fp12_conjugate, blst_fp12_frobenius_map, blst_fp12_inverse,
-    blst_fp12_mul, blst_fp_from_bendian, blst_hash_to_g1, blst_hash_to_g2, blst_p1, blst_p1_affine,
-    blst_p1_affine_generator, blst_p1_affine_on_curve, blst_p1_affine_serialize, blst_p1_compress,
-    blst_p1_deserialize, blst_p2, blst_p2_affine, blst_p2_affine_generator,
-    blst_p2_affine_on_curve, blst_p2_affine_serialize, blst_p2_compress, blst_p2_deserialize,
-    blst_p2_serialize, BLST_ERROR,
+    blst_fp12_mul, blst_fp_from_bendian, blst_hash_to_g1, blst_hash_to_g2, blst_p1,
+    blst_p1_compress, blst_p2, blst_p2_compress, blst_p2_serialize,
 };
 use hex_literal::hex;
 use proptest::{collection, prelude::*};
-use rand::{rngs::StdRng, thread_rng, RngCore, SeedableRng as _};
+use rand::{rngs::StdRng, RngCore, SeedableRng as _};
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashSet;
 use std::fmt::Debug;
+use zeroize::Zeroize;
 
 //
 // Helper functions
@@ -139,6 +137,20 @@ fn hash_to_g2_with_dst(msg: &[u8], dst: &[u8]) -> (G2Element, [u8; 2 * G2_ELEMEN
         G2Element::from_byte_array(&compressed).unwrap(),
         uncompressed,
     )
+}
+
+/// Checks multiplication by 2^k and 2^k - 1 for k = 0, ..., 254, which are scalars of every bit
+/// length: G1 and G2 pass the bit length of the scalar to blst, and GT multiplication loops over the
+/// bits.
+fn check_mul_by_every_bit_length<G: GroupElement<ScalarType = Scalar>>(p: G) {
+    let mut two_to_the_k = Scalar::generator();
+    let mut expected = p;
+    for _ in 0..255 {
+        assert_eq!(p * two_to_the_k, expected);
+        assert_eq!(p * (two_to_the_k - Scalar::generator()), expected - p);
+        two_to_the_k = two_to_the_k + two_to_the_k;
+        expected = expected + expected;
+    }
 }
 
 /// A random element of F_p^12, which is almost never in GT.
@@ -348,12 +360,8 @@ mod arkworks {
         x.pow(s.into_bigint())
     }
 
-    pub fn msm_g1(points: &[G1Projective], scalars: &[Fr]) -> G1Projective {
-        G1Projective::msm(&G1Projective::normalize_batch(points), scalars).unwrap()
-    }
-
-    pub fn msm_g2(points: &[G2Projective], scalars: &[Fr]) -> G2Projective {
-        G2Projective::msm(&G2Projective::normalize_batch(points), scalars).unwrap()
+    pub fn msm<G: VariableBaseMSM>(points: &[G], scalars: &[G::ScalarField]) -> G {
+        G::msm(&G::batch_convert_to_mul_base(points), scalars).unwrap()
     }
 
     pub fn hash_to_g1(msg: &[u8]) -> G1Projective {
@@ -390,298 +398,6 @@ fn test_scalar_arithmetic() {
     let zero = Scalar::zero();
     let one = Scalar::generator();
 
-    assert_eq!(zero, zero - zero);
-    assert_eq!(zero, -zero);
-
-    let four = one + zero + one + one + one;
-    assert_eq!(four, Scalar::from(4));
-
-    let three = four - one;
-    assert_eq!(three, one + one + one);
-
-    let six = three * Scalar::from(2);
-    assert_eq!(six, Scalar::from(6));
-
-    let two = (six / three).unwrap();
-    assert_eq!(two, Scalar::from(2));
-
-    assert!((six / zero).is_err());
-
-    let inv_two = two.inverse().unwrap();
-    assert_eq!(inv_two * two, one);
-
-    // Check that u128 is decoded correctly.
-    let x: u128 = 2 << 66;
-    let x_scalar = Scalar::from(x);
-    let res = x_scalar / Scalar::from(8);
-    assert_eq!(res.unwrap(), Scalar::from(2 << 63));
-}
-
-#[test]
-fn test_g1_arithmetic() {
-    // Test that different ways of computing [5]G gives the expected result
-    let g = G1Element::generator();
-
-    let p1 = g * Scalar::from(5);
-
-    let p2 = g + g + g + g + g;
-    assert_eq!(p1, p2);
-
-    let mut p3 = G1Element::zero();
-    p3 += p2;
-    assert_eq!(p1, p3);
-
-    let mut p4 = g;
-    p4 *= Scalar::from(5);
-    assert_eq!(p1, p4);
-
-    let p5 = g * (Scalar::from(7) - Scalar::from(2));
-    assert_eq!(p1, p5);
-
-    let p6 = g * Scalar::zero();
-    assert_eq!(G1Element::zero(), p6);
-
-    let sc = Scalar::rand(&mut thread_rng());
-    let p7 = g * sc;
-    assert_eq!(p7 * Scalar::from(1), p7);
-
-    assert_ne!(G1Element::zero(), g);
-    assert_eq!(G1Element::zero(), g - g);
-
-    assert!((G1Element::generator() / Scalar::zero()).is_err());
-    assert_eq!((p5 / Scalar::from(5)).unwrap(), g);
-
-    let identity = G1Element::zero();
-    assert_eq!(identity, identity - identity);
-    assert_eq!(identity, -identity);
-}
-
-#[test]
-fn test_g1_msm() {
-    for l in 1..50 {
-        let mut scalars = Vec::new();
-        let mut points = Vec::new();
-        let mut expected = G1Element::zero();
-        for _ in 0..l {
-            let s = Scalar::rand(&mut thread_rng());
-            let e = Scalar::rand(&mut thread_rng());
-            let g = G1Element::generator() * e;
-            expected += g * s;
-            scalars.push(s);
-            points.push(g);
-        }
-        let actual = G1Element::multi_scalar_mul(&scalars, &points).unwrap();
-        assert_eq!(expected, actual);
-
-        assert!(G1Element::multi_scalar_mul(&scalars[1..], &points).is_err());
-        assert!(G1Element::multi_scalar_mul(&[], &[]).is_err());
-    }
-}
-
-#[test]
-fn test_g1_msm_single() {
-    let actual =
-        G1Element::multi_scalar_mul(&[Scalar::generator()], &[G1Element::generator()]).unwrap();
-    assert_eq!(G1Element::generator(), actual);
-
-    let r = Scalar::rand(&mut thread_rng());
-    let actual = G1Element::multi_scalar_mul(&[r], &[G1Element::generator()]).unwrap();
-    assert_eq!(G1Element::generator() * r, actual);
-
-    let r = Scalar::rand(&mut thread_rng());
-    let h = G1Element::generator() * Scalar::rand(&mut thread_rng());
-    let actual = G1Element::multi_scalar_mul(&[r], &[h]).unwrap();
-    assert_eq!(h * r, actual);
-}
-
-#[test]
-fn test_g1_msm_identity() {
-    let actual = G1Element::multi_scalar_mul(&[Scalar::zero()], &[G1Element::generator()]).unwrap();
-    assert_eq!(G1Element::zero(), actual);
-
-    let actual = G1Element::multi_scalar_mul(&[Scalar::generator()], &[G1Element::zero()]).unwrap();
-    assert_eq!(G1Element::zero(), actual);
-
-    let actual = G1Element::multi_scalar_mul(
-        &[Scalar::zero(), Scalar::generator()],
-        &[G1Element::generator(), G1Element::generator()],
-    )
-    .unwrap();
-    assert_eq!(G1Element::generator(), actual);
-
-    let h = G1Element::generator() * Scalar::rand(&mut thread_rng());
-    let actual =
-        G1Element::multi_scalar_mul(&[Scalar::generator(), Scalar::zero()], &[h, h]).unwrap();
-    assert_eq!(h, actual);
-
-    // since blst 0.3.11 this bug is triggered only for large inputs (after the fix
-    // of https://github.com/supranational/blst/commit/168ff67ce74f2dbace619704bb75a865d0e6c913)
-    (2..200).for_each(|l| {
-        let ones = vec![Scalar::generator(); l];
-        let mut points = vec![G1Element::generator(); l];
-        let rand_index = thread_rng().next_u32() as usize % l;
-        points[rand_index] = G1Element::zero();
-        let actual = G1Element::multi_scalar_mul(&ones, &points).unwrap();
-        assert_eq!(
-            G1Element::generator() * Scalar::from((l - 1) as u128),
-            actual
-        );
-    });
-}
-
-#[test]
-fn test_g2_arithmetic() {
-    // Test that different ways of computing [5]G gives the expected result
-    let g = G2Element::generator();
-
-    let p1 = g * Scalar::from(5);
-
-    let p2 = g + g + g + g + g + g - g;
-    assert_eq!(p1, p2);
-
-    let mut p3 = G2Element::zero();
-    p3 += p2;
-    assert_eq!(p1, p3);
-
-    let mut p4 = g;
-    p4 *= Scalar::from(5);
-    assert_eq!(p1, p4);
-
-    let p5 = g * (Scalar::from(7) - Scalar::from(2));
-    assert_eq!(p1, p5);
-
-    let p6 = g * Scalar::zero();
-    assert_eq!(G2Element::zero(), p6);
-
-    let sc = Scalar::rand(&mut thread_rng());
-    let p7 = g * sc;
-    assert_eq!(p7 * Scalar::from(1), p7);
-
-    assert!((G2Element::generator() / Scalar::zero()).is_err());
-    assert_eq!((p5 / Scalar::from(5)).unwrap(), g);
-
-    assert_ne!(G2Element::zero(), g);
-    assert_eq!(G2Element::zero(), g - g);
-
-    let identity = G2Element::zero();
-    assert_eq!(identity, identity - identity);
-    assert_eq!(identity, -identity);
-}
-
-#[test]
-fn test_g2_msm() {
-    for l in 1..50 {
-        let mut scalars = Vec::new();
-        let mut points = Vec::new();
-        let mut expected = G2Element::zero();
-        for _ in 0..l {
-            let s = Scalar::rand(&mut thread_rng());
-            let e = Scalar::rand(&mut thread_rng());
-            let g = G2Element::generator() * e;
-            expected += g * s;
-            scalars.push(s);
-            points.push(g);
-        }
-        let actual = G2Element::multi_scalar_mul(&scalars, &points).unwrap();
-        assert_eq!(expected, actual);
-
-        assert!(G2Element::multi_scalar_mul(&scalars[1..], &points).is_err());
-        assert!(G2Element::multi_scalar_mul(&[], &[]).is_err());
-    }
-}
-
-#[test]
-fn test_g2_msm_single() {
-    let actual =
-        G2Element::multi_scalar_mul(&[Scalar::generator()], &[G2Element::generator()]).unwrap();
-    assert_eq!(G2Element::generator(), actual);
-
-    let r = Scalar::rand(&mut thread_rng());
-    let actual = G2Element::multi_scalar_mul(&[r], &[G2Element::generator()]).unwrap();
-    assert_eq!(G2Element::generator() * r, actual);
-
-    let r = Scalar::rand(&mut thread_rng());
-    let h = G2Element::generator() * Scalar::rand(&mut thread_rng());
-    let actual = G2Element::multi_scalar_mul(&[r], &[h]).unwrap();
-    assert_eq!(h * r, actual);
-}
-
-#[test]
-fn test_g2_msm_identity() {
-    let actual = G2Element::multi_scalar_mul(&[Scalar::zero()], &[G2Element::generator()]).unwrap();
-    assert_eq!(G2Element::zero(), actual);
-
-    let actual = G2Element::multi_scalar_mul(&[Scalar::generator()], &[G2Element::zero()]).unwrap();
-    assert_eq!(G2Element::zero(), actual);
-
-    let actual = G2Element::multi_scalar_mul(
-        &[Scalar::zero(), Scalar::generator()],
-        &[G2Element::generator(), G2Element::generator()],
-    )
-    .unwrap();
-    assert_eq!(G2Element::generator(), actual);
-
-    let h = G2Element::generator() * Scalar::rand(&mut thread_rng());
-    let actual =
-        G2Element::multi_scalar_mul(&[Scalar::generator(), Scalar::zero()], &[h, h]).unwrap();
-    assert_eq!(h, actual);
-
-    // since blst 0.3.11 this bug is triggered only for large inputs (after the fix
-    // of https://github.com/supranational/blst/commit/168ff67ce74f2dbace619704bb75a865d0e6c913)
-    (2..200).for_each(|l| {
-        let ones = vec![Scalar::generator(); l];
-        let mut points = vec![G2Element::generator(); l];
-        let rand_index = thread_rng().next_u32() as usize % l;
-        points[rand_index] = G2Element::zero();
-        let actual = G2Element::multi_scalar_mul(&ones, &points).unwrap();
-        assert_eq!(
-            G2Element::generator() * Scalar::from((l - 1) as u128),
-            actual
-        );
-    });
-}
-
-#[test]
-fn test_gt_arithmetic() {
-    // Test that different ways of computing [5]G gives the expected result
-    let g = GTElement::generator();
-
-    let p1 = g * Scalar::from(5);
-
-    let p2 = g + g + g + g + g + g - g;
-    assert_eq!(p1, p2);
-
-    let mut p3 = GTElement::zero();
-    p3 += p2;
-    assert_eq!(p1, p3);
-
-    let mut p4 = g;
-    p4 *= Scalar::from(5);
-    assert_eq!(p1, p4);
-
-    let p5 = g * (Scalar::from(7) - Scalar::from(2));
-    assert_eq!(p1, p5);
-
-    let p6 = g * Scalar::zero();
-    assert_eq!(GTElement::zero(), p6);
-
-    let sc = Scalar::rand(&mut thread_rng());
-    let p7 = g * sc;
-    assert_eq!(p7 * Scalar::from(1), p7);
-
-    assert_ne!(GTElement::zero(), g);
-    assert_eq!(GTElement::zero(), g - g);
-    assert_eq!(GTElement::zero(), GTElement::zero() - GTElement::zero());
-
-    assert!((GTElement::generator() / Scalar::zero()).is_err());
-    assert_eq!((p5 / Scalar::from(5)).unwrap(), g);
-}
-
-#[test]
-fn test_scalar_edge_cases() {
-    let zero = Scalar::zero();
-    let one = Scalar::generator();
-
     // r - 1 is the largest scalar, and arithmetic wraps around r.
     assert_eq!(
         minus_one().to_byte_array(),
@@ -699,6 +415,10 @@ fn test_scalar_edge_cases() {
     assert!((zero / zero).is_err());
     assert!((minus_one() / zero).is_err());
     assert_eq!((zero / minus_one()).unwrap(), zero);
+    assert_eq!(
+        (Scalar::from(6) / Scalar::from(3)).unwrap(),
+        Scalar::from(2)
+    );
 
     let mut rng = StdRng::from_seed([1; 32]);
     for _ in 0..20 {
@@ -732,11 +452,17 @@ fn test_scalar_edge_cases() {
         Scalar::from(12)
     );
     assert_eq!(<Scalar as GroupElement>::sum(std::iter::empty()), zero);
+
+    // Zeroize clears a secret scalar.
+    let mut secret = Scalar::rand(&mut rng);
+    secret.zeroize();
+    assert_eq!(secret, zero);
 }
 
-/// Edge cases of the group law and of scalar multiplication that the Sui natives let anyone reach:
-/// doubling through addition, adding the inverse, the identity, and the scalars 0, 1 and r - 1.
-macro_rules! test_group_edge_cases {
+/// The group law and scalar multiplication on the edge cases that the Sui natives let anyone reach:
+/// doubling through addition, adding the inverse, the identity, and the scalars 0, 1 and r - 1. Also
+/// multiplication by scalars of every bit length.
+macro_rules! test_group_arithmetic {
     ($name:ident, $type:ty, $points:expr) => {
         #[test]
         fn $name() {
@@ -775,12 +501,13 @@ macro_rules! test_group_edge_cases {
                 q *= minus_one();
                 assert_eq!(q, -p);
             }
+            check_mul_by_every_bit_length(<$type>::generator());
         }
     };
 }
 
-test_group_edge_cases!(
-    test_g1_edge_cases,
+test_group_arithmetic!(
+    test_g1_arithmetic,
     G1Element,
     vec![
         G1Element::zero(),
@@ -790,8 +517,8 @@ test_group_edge_cases!(
     ]
 );
 
-test_group_edge_cases!(
-    test_g2_edge_cases,
+test_group_arithmetic!(
+    test_g2_arithmetic,
     G2Element,
     vec![
         G2Element::zero(),
@@ -801,8 +528,8 @@ test_group_edge_cases!(
     ]
 );
 
-test_group_edge_cases!(
-    test_gt_edge_cases,
+test_group_arithmetic!(
+    test_gt_arithmetic,
     GTElement,
     vec![
         GTElement::zero(),
@@ -811,11 +538,11 @@ test_group_edge_cases!(
     ]
 );
 
-/// MSM agrees with the naive sum on the inputs that blst's MSM must handle specially: identity
-/// points, zero scalars, repeated points and points that cancel, up to twice Sui's length limit (32).
-/// MSM only fails on empty inputs and length mismatches; Sui treats any other error as an invariant
-/// violation.
-macro_rules! test_msm_adversarial_inputs {
+/// MSM agrees with the naive sum for every length up to twice Sui's limit (32), on the inputs that
+/// blst's MSM must handle specially: identity points, zero scalars, repeated points and points that
+/// cancel. MSM only fails on empty inputs and length mismatches; Sui treats any other error as an
+/// invariant violation.
+macro_rules! test_msm {
     ($name:ident, $type:ty) => {
         #[test]
         fn $name() {
@@ -823,44 +550,31 @@ macro_rules! test_msm_adversarial_inputs {
             let zero = <$type>::zero();
             let p = <$type>::generator() * Scalar::rand(&mut rng);
             let q = <$type>::hash_to_group_element(MSG);
-            let point_pool = [zero, p, -p, q, -q, p + q];
-            let scalar_pool = [
-                Scalar::zero(),
-                Scalar::generator(),
-                minus_one(),
-                Scalar::rand(&mut rng),
-            ];
-
+            let s = Scalar::rand(&mut rng);
+            // The pools have coprime sizes, so every pair of a scalar and a point occurs.
+            let point_pool = [zero, p, -p, q, -q, p + q, <$type>::generator()];
+            let scalar_pool = [Scalar::zero(), Scalar::generator(), minus_one(), s, -s];
             for n in 1..=64 {
-                for _ in 0..4 {
-                    let points: Vec<$type> = (0..n)
-                        .map(|_| point_pool[rng.next_u32() as usize % point_pool.len()])
-                        .collect();
-                    let scalars: Vec<Scalar> = (0..n)
-                        .map(
-                            |_| match rng.next_u32() as usize % (scalar_pool.len() + 1) {
-                                i if i < scalar_pool.len() => scalar_pool[i],
-                                _ => Scalar::rand(&mut rng),
-                            },
+                let (scalars, points): (Vec<Scalar>, Vec<$type>) = (0..n)
+                    .map(|i| {
+                        (
+                            scalar_pool[i % scalar_pool.len()],
+                            point_pool[i % point_pool.len()],
                         )
-                        .collect();
-                    let expected = points
-                        .iter()
-                        .zip(&scalars)
-                        .fold(zero, |acc, (p, s)| acc + *p * *s);
-                    assert_eq!(
-                        <$type>::multi_scalar_mul(&scalars, &points).unwrap(),
-                        expected
-                    );
-                    assert_eq!(
-                        <$type>::inner_product(points.clone(), scalars.clone()),
-                        expected
-                    );
-                }
+                    })
+                    .unzip();
+                let expected = points
+                    .iter()
+                    .zip(&scalars)
+                    .fold(zero, |acc, (p, s)| acc + *p * *s);
+                assert_eq!(
+                    <$type>::multi_scalar_mul(&scalars, &points).unwrap(),
+                    expected
+                );
+                assert_eq!(<$type>::inner_product(points, scalars), expected);
             }
 
             // Terms that cancel exactly.
-            let s = Scalar::rand(&mut rng);
             assert_eq!(<$type>::multi_scalar_mul(&[s, s], &[p, -p]).unwrap(), zero);
             assert_eq!(<$type>::multi_scalar_mul(&[s, -s], &[p, p]).unwrap(), zero);
             assert_eq!(
@@ -884,6 +598,18 @@ macro_rules! test_msm_adversarial_inputs {
                 );
             }
 
+            // One identity among many equal terms. Since blst 0.3.11 this bug is triggered only for
+            // large inputs (after the fix of
+            // https://github.com/supranational/blst/commit/168ff67ce74f2dbace619704bb75a865d0e6c913).
+            for n in 2..200 {
+                let mut points = vec![<$type>::generator(); n];
+                points[rng.next_u32() as usize % n] = zero;
+                assert_eq!(
+                    <$type>::multi_scalar_mul(&vec![Scalar::generator(); n], &points).unwrap(),
+                    <$type>::generator() * Scalar::from((n - 1) as u128)
+                );
+            }
+
             // Empty inputs and length mismatches are rejected.
             assert!(<$type>::multi_scalar_mul(&[], &[]).is_err());
             assert!(<$type>::multi_scalar_mul(&[s], &[]).is_err());
@@ -899,84 +625,15 @@ macro_rules! test_msm_adversarial_inputs {
     };
 }
 
-test_msm_adversarial_inputs!(test_g1_msm_adversarial_inputs, G1Element);
-test_msm_adversarial_inputs!(test_g2_msm_adversarial_inputs, G2Element);
+test_msm!(test_g1_msm, G1Element);
+test_msm!(test_g2_msm, G2Element);
 
 //
 // Pairing and hash-to-curve tests
 //
 
 #[test]
-fn test_pairing_and_hash_to_curve() {
-    let e1 = G1Element::hash_to_group_element(MSG);
-    let sk1 = Scalar::generator();
-    let pk1 = G2Element::generator() * sk1;
-    let sig1 = e1 * sk1;
-    assert_eq!(e1.pairing(&pk1), sig1.pairing(&G2Element::generator()));
-
-    let e2 = G2Element::hash_to_group_element(MSG);
-    let sk2 = Scalar::generator();
-    let pk2 = G1Element::generator() * sk2;
-    let sig2 = e2 * sk2;
-    assert_eq!(pk2.pairing(&e2), G1Element::generator().pairing(&sig2));
-
-    assert_eq!(
-        G1Element::zero().pairing(&G2Element::zero()),
-        GTElement::zero()
-    );
-    assert_eq!(
-        G1Element::zero().pairing(&G2Element::generator()),
-        GTElement::zero()
-    );
-    assert_eq!(
-        G1Element::generator().pairing(&G2Element::zero()),
-        GTElement::zero()
-    );
-
-    // next should not fail
-    let _ = G1Element::hash_to_group_element(&[]);
-    let _ = G2Element::hash_to_group_element(&[]);
-    let _ = G1Element::hash_to_group_element(&[1]);
-    let _ = G2Element::hash_to_group_element(&[1]);
-
-    // Test multi-pairing
-    assert!(G1Element::multi_pairing(&[], &[pk1]).is_err());
-    assert_eq!(
-        G1Element::multi_pairing(&[], &[]).unwrap(),
-        GTElement::zero()
-    );
-    assert_eq!(
-        G1Element::multi_pairing(&[e1], &[pk1]).unwrap(),
-        e1.pairing(&pk1)
-    );
-    assert_eq!(
-        G1Element::multi_pairing(&[e1, pk2], &[pk1, e2]).unwrap(),
-        e1.pairing(&pk1) + pk2.pairing(&e2)
-    );
-    assert_eq!(
-        G1Element::multi_pairing(&[G1Element::zero()], &[G2Element::zero()]).unwrap(),
-        GTElement::zero()
-    );
-    assert_eq!(
-        G1Element::multi_pairing(
-            &[G1Element::zero(), G1Element::zero()],
-            &[G2Element::zero(), G2Element::zero()]
-        )
-        .unwrap(),
-        GTElement::zero()
-    );
-    assert_eq!(
-        G1Element::multi_pairing(&[G1Element::generator()], &[G2Element::zero()]).unwrap(),
-        GTElement::zero()
-    );
-    assert_eq!(
-        G1Element::multi_pairing(&[G1Element::zero()], &[G2Element::generator()]).unwrap(),
-        GTElement::zero()
-    );
-}
-
-#[test]
-fn test_pairing_bilinearity() {
+fn test_pairing() {
     let g1 = G1Element::generator();
     let g2 = G2Element::generator();
     let gt = g1.pairing(&g2);
@@ -984,6 +641,13 @@ fn test_pairing_bilinearity() {
     assert_ne!(gt, GTElement::zero());
     // e(g1, g2) has order r.
     assert_eq!(gt * minus_one() + gt, GTElement::zero());
+    // A pairing with the identity is the identity.
+    assert_eq!(G1Element::zero().pairing(&g2), GTElement::zero());
+    assert_eq!(g1.pairing(&G2Element::zero()), GTElement::zero());
+    assert_eq!(
+        G1Element::zero().pairing(&G2Element::zero()),
+        GTElement::zero()
+    );
 
     let mut rng = StdRng::from_seed([4; 32]);
     for _ in 0..5 {
@@ -1004,27 +668,34 @@ fn test_pairing_bilinearity() {
 }
 
 #[test]
-fn test_multi_pairing_adversarial_inputs() {
+fn test_multi_pairing() {
     let mut rng = StdRng::from_seed([5; 32]);
     let p = G1Element::generator() * Scalar::rand(&mut rng);
     let q = G2Element::generator() * Scalar::rand(&mut rng);
-    let g1_pool = [G1Element::zero(), p, -p, G1Element::generator()];
-    let g2_pool = [G2Element::zero(), q, -q, G2Element::generator()];
-    for n in 0..=6 {
-        for _ in 0..4 {
-            let a: Vec<G1Element> = (0..n)
-                .map(|_| g1_pool[rng.next_u32() as usize % g1_pool.len()])
-                .collect();
-            let b: Vec<G2Element> = (0..n)
-                .map(|_| g2_pool[rng.next_u32() as usize % g2_pool.len()])
-                .collect();
-            let expected = a
-                .iter()
-                .zip(&b)
-                .fold(GTElement::zero(), |acc, (x, y)| acc + x.pairing(y));
-            assert_eq!(G1Element::multi_pairing(&a, &b).unwrap(), expected);
-        }
-    }
+    let (g1, g2) = (G1Element::generator(), G2Element::generator());
+    let (zero1, zero2) = (G1Element::zero(), G2Element::zero());
+    let e = p.pairing(&q);
+
+    assert_eq!(
+        G1Element::multi_pairing(&[], &[]).unwrap(),
+        GTElement::zero()
+    );
+    assert_eq!(G1Element::multi_pairing(&[p], &[q]).unwrap(), e);
+    assert_eq!(G1Element::multi_pairing(&[p, p], &[q, q]).unwrap(), e + e);
+    assert_eq!(
+        G1Element::multi_pairing(&[p, g1], &[q, g2]).unwrap(),
+        e + GTElement::generator()
+    );
+
+    // Terms with the identity contribute nothing.
+    assert_eq!(
+        G1Element::multi_pairing(&[zero1, p, g1], &[q, q, zero2]).unwrap(),
+        e
+    );
+    assert_eq!(
+        G1Element::multi_pairing(&[zero1, zero1], &[zero2, zero2]).unwrap(),
+        GTElement::zero()
+    );
 
     // Terms that cancel.
     assert_eq!(
@@ -1037,14 +708,18 @@ fn test_multi_pairing_adversarial_inputs() {
     );
 
     // Length mismatches are rejected.
+    assert!(G1Element::multi_pairing(&[], &[q]).is_err());
+    assert!(G1Element::multi_pairing(&[p], &[]).is_err());
     assert!(G1Element::multi_pairing(&[p, p], &[q]).is_err());
     assert!(G1Element::multi_pairing(&[p], &[q, q]).is_err());
 }
 
 #[test]
-fn test_hash_to_curve_outputs() {
+fn test_hash_to_curve() {
     // The outputs are in the subgroup and not the identity, and distinct messages give distinct
-    // points, also when they only differ by trailing zeros.
+    // points, also when they only differ by trailing zeros. The outputs are blst's hash-to-curve with
+    // the domain separation tags of the BLS signature schemes, which
+    // test_hash_to_curve_rfc9380_vectors checks against the RFC.
     let mut messages: Vec<Vec<u8>> = vec![vec![]];
     for length in [
         1,
@@ -1073,24 +748,13 @@ fn test_hash_to_curve_outputs() {
         assert_ne!(p, G1Element::zero());
         assert_eq!(G1Element::from_byte_array(&p.to_byte_array()).unwrap(), p);
         assert!(seen_g1.insert(p.to_byte_array()));
+        assert_eq!(p, hash_to_g1_with_dst(msg, DST_G1));
 
         let q = G2Element::hash_to_group_element(msg);
         assert_ne!(q, G2Element::zero());
         assert_eq!(G2Element::from_byte_array(&q.to_byte_array()).unwrap(), q);
         assert!(seen_g2.insert(q.to_byte_array()));
-    }
-
-    // These are blst's hash-to-curve with the domain separation tags of the BLS signature schemes,
-    // which test_hash_to_curve_rfc9380_vectors checks against the RFC.
-    for msg in &messages {
-        assert_eq!(
-            G1Element::hash_to_group_element(msg),
-            hash_to_g1_with_dst(msg, DST_G1)
-        );
-        assert_eq!(
-            G2Element::hash_to_group_element(msg),
-            hash_to_g2_with_dst(msg, DST_G2).0
-        );
+        assert_eq!(q, hash_to_g2_with_dst(msg, DST_G2).0);
     }
 }
 
@@ -1162,35 +826,6 @@ fn test_consistent_bls12381_serialization() {
 
 #[test]
 fn test_serialization_scalar() {
-    let bytes = [0u8; 32];
-    assert_eq!(Scalar::from_byte_array(&bytes).unwrap(), Scalar::zero());
-
-    // Scalar::from_byte_array should not accept the order or above it.
-    let order =
-        hex::decode("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001").unwrap();
-    assert!(Scalar::from_byte_array(<&[u8; 32]>::try_from(order.as_slice()).unwrap()).is_err());
-    let order =
-        hex::decode("73eda753299d9d483339d80809a1d80553bda402fffe5bfeffffffff11000001").unwrap();
-    assert!(Scalar::from_byte_array(<&[u8; 32]>::try_from(order.as_slice()).unwrap()).is_err());
-
-    // Scalar::from_byte_array should accept the order - 1.
-    let order_minus_one =
-        hex::decode("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000").unwrap();
-    assert_eq!(
-        Scalar::from_byte_array(<&[u8; 32]>::try_from(order_minus_one.as_slice()).unwrap())
-            .unwrap(),
-        Scalar::zero() - Scalar::generator()
-    );
-
-    for _ in 0..100 {
-        let s = Scalar::rand(&mut thread_rng());
-        let bytes = s.to_byte_array();
-        assert_eq!(s, Scalar::from_byte_array(&bytes).unwrap());
-    }
-}
-
-#[test]
-fn test_serialization_scalar_canonical() {
     let one = Scalar::generator();
 
     // Scalars are big-endian: the little-endian encoding of one decodes as 2^248.
@@ -1220,10 +855,9 @@ fn test_serialization_scalar_canonical() {
     ] {
         assert!(Scalar::from_byte_array(&bytes).is_err());
     }
-    assert_eq!(
-        Scalar::from_byte_array(&minus_one().to_byte_array()).unwrap(),
-        minus_one()
-    );
+    for s in [Scalar::zero(), one, minus_one()] {
+        assert_eq!(Scalar::from_byte_array(&s.to_byte_array()).unwrap(), s);
+    }
 
     // FromTrustedByteArray reduces modulo r instead.
     assert_eq!(
@@ -1244,17 +878,28 @@ fn test_serialization_scalar_canonical() {
             .to_byte_array(),
         hex!("1824b159acc5056f998c4fefecbc4ff55884b7fa0003480200000001fffffffd")
     );
-    for s in [
-        Scalar::zero(),
-        one,
-        minus_one(),
-        Scalar::rand(&mut thread_rng()),
-    ] {
+    for s in [Scalar::zero(), one, minus_one()] {
         assert_eq!(
             Scalar::from_trusted_byte_array(&s.to_byte_array()).unwrap(),
             s
         );
     }
+}
+
+#[test]
+fn test_reduce_mod_uniform_buffer() {
+    // 9920230154395168010467440495232506909487652629574290093191912925556996116934135093887783048487593217824704573634359454220706793741831181736379748807477797
+    let bytes = <[u8; 64]>::try_from(hex::decode("bd69132eca59d8eb6b2aeaab1bb0f4128ea2554a2a5fd5ed90cfa341311d63d2bddef3cf93ebbd3781dc09921ca8611e0db756164b297a90cff258c8138a0a25").unwrap()).unwrap();
+    // This is the above bytes as a big-endian integer modulo the BLS scalar field size and then written as big-endian bytes.
+    let expected =
+        hex::decode("42326e5eb98173088355c38dace25686f73f8900c8af2da6480b34e2313c49c2").unwrap();
+    assert_eq!(expected, reduce_mod_uniform_buffer(&bytes).to_byte_array());
+
+    // 99202309022396765790443178473142775358161915835492099699231487822465101596204583014819121570129071631157073920534979728799457207703011355835025584728154395168010467440495232506909487652629574290093191912925556996116934135093887783048487593217824704573634359454220706793741831181736379748807477797
+    let bytes = <[u8; 59]>::try_from(hex::decode("bd69132eca59d8eb6b2aeaab1bb0f4128ea2554a2a5fd5ed90cfa341311d63d2bddef3cf93ebbd3781dc09921ca8611e0db756164b297a90cff258").unwrap()).unwrap();
+    let expected =
+        hex::decode("21015212b5c7a44c04c39447bf7d2addc5035a9b118f07a29956bf00fa65bd74").unwrap();
+    assert_eq!(expected, reduce_mod_uniform_buffer(&bytes).to_byte_array());
 }
 
 /// Every combination of the three flag bits, unreduced coordinates (x + p) and infinity with any
@@ -1308,8 +953,8 @@ macro_rules! test_point_encodings {
     };
 }
 
-test_point_encodings!(test_g1_encodings, G1Element, G1_ELEMENT_BYTE_LENGTH);
-test_point_encodings!(test_g2_encodings, G2Element, G2_ELEMENT_BYTE_LENGTH);
+test_point_encodings!(test_serialization_g1, G1Element, G1_ELEMENT_BYTE_LENGTH);
+test_point_encodings!(test_serialization_g2, G2Element, G2_ELEMENT_BYTE_LENGTH);
 
 #[test]
 fn test_serialization_non_subgroup_points() {
@@ -1342,190 +987,13 @@ fn test_serialization_non_subgroup_points() {
 }
 
 #[test]
-fn test_serialization_g1() {
-    let infinity_bit = 0x40;
-    let compressed_bit = 0x80;
-
-    // All zero serialization for G1 should fail.
-    let mut bytes = [0u8; 48];
-    assert!(G1Element::from_byte_array(&bytes).is_err());
-
-    // Infinity w/o compressed byte should fail.
-    bytes[0] |= infinity_bit;
-    assert!(G1Element::from_byte_array(&bytes).is_err());
-
-    // Valid infinity
-    bytes[0] |= compressed_bit;
-    assert_eq!(
-        G1Element::zero(),
-        G1Element::from_byte_array(&bytes).unwrap()
-    );
-
-    // to and from_byte_array should be inverses.
-    let mut bytes = G1Element::generator().to_byte_array();
-    assert_eq!(
-        G1Element::generator(),
-        G1Element::from_byte_array(&bytes).unwrap()
-    );
-    assert_ne!(bytes[0] & compressed_bit, 0);
-
-    // Unsetting the compressed bit set, this should fail.
-    bytes[0] ^= compressed_bit;
-    assert!(G1Element::from_byte_array(&bytes).is_err());
-
-    // Test correct uncompressed serialization of a point
-    let mut uncompressed_bytes = [0u8; 96];
-    unsafe {
-        blst_p1_affine_serialize(uncompressed_bytes.as_mut_ptr(), blst_p1_affine_generator());
-    }
-    // This should fail because from_byte_array only accepts compressed format.
-    assert!(G1Element::from_byte_array(&(uncompressed_bytes[0..48].try_into().unwrap())).is_err());
-
-    // But if we set the uncompressed bit, it should work because the compressed format is just the first coordinate.
-    uncompressed_bytes[0] |= 0x80;
-    assert_eq!(
-        G1Element::generator(),
-        G1Element::from_byte_array(&(uncompressed_bytes[0..48].try_into().unwrap())).unwrap()
-    );
-
-    // Test FromTrustedByteArray.
-    let mut bytes = G1Element::generator().to_byte_array();
-    let g1 = G1Element::from_trusted_byte_array(&bytes).unwrap();
-    assert_eq!(g1, G1Element::generator());
-    // Also when the input is not a valid point.
-    bytes[bytes.len() - 1] += 2;
-    assert!(G1Element::from_trusted_byte_array(&bytes).is_ok());
-    // Verify that this is a valid point on the curve.
-    unsafe {
-        let mut p: blst_p1_affine = blst_p1_affine::default();
-        assert!(blst_p1_deserialize(&mut p, bytes.as_ptr()) == BLST_ERROR::BLST_SUCCESS);
-        assert!(blst_p1_affine_on_curve(&p));
-    };
-    assert!(G1Element::from_byte_array(&bytes).is_err());
-}
-
-#[test]
-fn test_serialization_g2() {
-    let infinity_bit = 0x40;
-    let compressed_bit = 0x80;
-
-    // All zero serialization for G2 should fail.
-    let mut bytes = [0u8; 96];
-    assert!(G2Element::from_byte_array(&bytes).is_err());
-
-    // Infinity w/o compressed byte should fail.
-    bytes[0] |= infinity_bit;
-    assert!(G2Element::from_byte_array(&bytes).is_err());
-
-    // Valid infinity when the right bits are set.
-    bytes[0] |= compressed_bit;
-    assert_eq!(
-        G2Element::zero(),
-        G2Element::from_byte_array(&bytes).unwrap()
-    );
-
-    // to and from_byte_array should be inverses.
-    let mut bytes = G2Element::generator().to_byte_array();
-    assert_eq!(
-        G2Element::generator(),
-        G2Element::from_byte_array(&bytes).unwrap()
-    );
-    assert_ne!(bytes[0] & compressed_bit, 0);
-
-    // Unsetting the compressed bit set, this should fail.
-    bytes[0] ^= compressed_bit;
-    assert!(G2Element::from_byte_array(&bytes).is_err());
-
-    // Test correct uncompressed serialization of a point
-    let mut uncompressed_bytes = [0u8; 192];
-    unsafe {
-        blst_p2_affine_serialize(uncompressed_bytes.as_mut_ptr(), blst_p2_affine_generator());
-    }
-    // This should fail because from_byte_array only accepts compressed format.
-    assert!(G2Element::from_byte_array(&(uncompressed_bytes[0..96].try_into().unwrap())).is_err());
-
-    // But if we set the uncompressed bit, it should work because the compressed format is just the first coordinate.
-    uncompressed_bytes[0] |= 0x80;
-    assert_eq!(
-        G2Element::generator(),
-        G2Element::from_byte_array(&(uncompressed_bytes[0..96].try_into().unwrap())).unwrap()
-    );
-
-    // Test FromTrustedByteArray.
-    let mut bytes = G2Element::generator().to_byte_array();
-    let g2 = G2Element::from_trusted_byte_array(&bytes).unwrap();
-    assert_eq!(g2, G2Element::generator());
-    // Also when the input is not a valid point.
-    bytes[bytes.len() - 1] += 2;
-    assert!(G2Element::from_trusted_byte_array(&bytes).is_ok());
-    // Verify that this is a valid point on the curve.
-    unsafe {
-        let mut p: blst_p2_affine = blst_p2_affine::default();
-        assert!(blst_p2_deserialize(&mut p, bytes.as_ptr()) == BLST_ERROR::BLST_SUCCESS);
-        assert!(blst_p2_affine_on_curve(&p));
-    };
-    assert!(G2Element::from_byte_array(&bytes).is_err());
-}
-
-#[test]
-fn test_reduce_mod_uniform_buffer() {
-    // 9920230154395168010467440495232506909487652629574290093191912925556996116934135093887783048487593217824704573634359454220706793741831181736379748807477797
-    let bytes = <[u8; 64]>::try_from(hex::decode("bd69132eca59d8eb6b2aeaab1bb0f4128ea2554a2a5fd5ed90cfa341311d63d2bddef3cf93ebbd3781dc09921ca8611e0db756164b297a90cff258c8138a0a25").unwrap()).unwrap();
-    // This is the above bytes as a big-endian integer modulo the BLS scalar field size and then written as big-endian bytes.
-    let expected =
-        hex::decode("42326e5eb98173088355c38dace25686f73f8900c8af2da6480b34e2313c49c2").unwrap();
-    assert_eq!(expected, reduce_mod_uniform_buffer(&bytes).to_byte_array());
-
-    // 99202309022396765790443178473142775358161915835492099699231487822465101596204583014819121570129071631157073920534979728799457207703011355835025584728154395168010467440495232506909487652629574290093191912925556996116934135093887783048487593217824704573634359454220706793741831181736379748807477797
-    let bytes = <[u8; 59]>::try_from(hex::decode("bd69132eca59d8eb6b2aeaab1bb0f4128ea2554a2a5fd5ed90cfa341311d63d2bddef3cf93ebbd3781dc09921ca8611e0db756164b297a90cff258").unwrap()).unwrap();
-    let expected =
-        hex::decode("21015212b5c7a44c04c39447bf7d2addc5035a9b118f07a29956bf00fa65bd74").unwrap();
-    assert_eq!(expected, reduce_mod_uniform_buffer(&bytes).to_byte_array());
-}
-
-#[test]
 fn test_serialization_gt() {
-    // All zero serialization for GT should fail.
-    let bytes = [0u8; 576];
-    assert!(GTElement::from_byte_array(&bytes).is_err());
-
-    // to and from_byte_array should be inverses.
-    let bytes = GTElement::generator().to_byte_array();
-    assert_eq!(
-        GTElement::generator(),
-        GTElement::from_byte_array(&bytes).unwrap()
-    );
-
-    // reject if one of the elements >= P
-    let mut bytes = GTElement::generator().to_byte_array();
-    let p = hex::decode("1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab").unwrap();
-    let mut carry = 0;
-    let mut target = [0; 48];
-    for i in (0..48).rev() {
-        let sum = (bytes[i] as u16) + (p[i] as u16) + carry;
-        target[i] = (sum % 256) as u8;
-        carry = sum / 256;
-    }
-    assert_eq!(carry, 0);
-    bytes[0..48].copy_from_slice(&target);
-    assert!(GTElement::from_byte_array(&bytes).is_err());
-
-    // Test FromTrustedByteArray.
-    let mut bytes = GTElement::generator().to_byte_array();
-    let gt = GTElement::from_trusted_byte_array(&bytes).unwrap();
-    assert_eq!(gt, GTElement::generator());
-    // Also when the input is not a valid point.
-    bytes[bytes.len() - 1] += 2;
-    assert!(GTElement::from_trusted_byte_array(&bytes).is_ok());
-    assert!(GTElement::from_byte_array(&bytes).is_err());
-}
-
-#[test]
-fn test_serialization_gt_membership() {
-    // An unreduced coordinate (c + p) at any of the 12 positions is rejected, also by
-    // FromTrustedByteArray.
+    // Zero is not in GT, and neither is any element with an unreduced coordinate (c + p) at any of the
+    // 12 positions, which even FromTrustedByteArray rejects.
+    assert!(GTElement::from_byte_array(&[0; GT_ELEMENT_BYTE_LENGTH]).is_err());
     for element in [GTElement::zero(), GTElement::generator()] {
         let bytes = element.to_byte_array();
+        assert_eq!(GTElement::from_byte_array(&bytes).unwrap(), element);
         for index in 0..GT_ELEMENT_BYTE_LENGTH / FP_BYTE_LENGTH {
             let unreduced: [u8; GT_ELEMENT_BYTE_LENGTH] = add_modulus(&bytes, index, false)
                 .unwrap()
@@ -1609,121 +1077,11 @@ fn test_serde_agrees_with_from_byte_array() {
 
 #[test]
 fn test_g1_to_uncompressed() {
-    let a = G1Element::generator() * Scalar::from(7u128);
-
-    let uncompressed_bytes = G1ElementUncompressed::from(&a);
-
-    // Compressed bit flags (1 and 3) should not be set.
-    assert_eq!(uncompressed_bytes.0[0] & 0xA0, 0);
-
-    // Infinity bit flag (2) should not be set.
-    assert_eq!(uncompressed_bytes.0[0] & 0x40, 0);
-
-    // Regression test
-    assert_eq!(&uncompressed_bytes.0, hex::decode("1928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7108dadbaa4b636445639d5ae3089b3c43a8a1d47818edd1839d7383959a41c10fdc66849cfa1b08c5a11ec7e28981a1c").unwrap().as_slice());
-
-    // Check round-trip
-    let b = G1Element::try_from(&uncompressed_bytes).unwrap();
-    assert_eq!(a, b);
-
-    // Simply padding a compressed serialization with 0's will fail
-    let mut padded = b.to_byte_array().to_vec();
-    padded.extend_from_slice(&[0u8; G1_ELEMENT_BYTE_LENGTH]);
-    assert_eq!(padded.len(), 2 * G1_ELEMENT_BYTE_LENGTH);
-    let uncompressed = G1ElementUncompressed::from_trusted_byte_array(padded.try_into().unwrap());
-    assert!(G1Element::try_from(&uncompressed).is_err());
-
-    // A point not on the curve fails
-    let mut bytes = uncompressed_bytes.into_byte_array();
-    bytes[1] += 1;
-    let uncompressed_bytes = G1ElementUncompressed::from_trusted_byte_array(bytes);
-    assert!(G1Element::try_from(&uncompressed_bytes).is_err());
-
-    // Serialize the point-at-infinity
-    let a = G1Element::zero();
-    let uncompressed_bytes = G1ElementUncompressed::from(&a);
-
-    // Only the point at infinity flag should be set.
-    assert_eq!(uncompressed_bytes.0[0], 0x40);
-
-    // The remaining bytes should all be zero
-    assert_eq!(
-        uncompressed_bytes.0[1..],
-        [0u8; G1_ELEMENT_BYTE_LENGTH * 2 - 1]
-    );
-
-    // All zeros
-    let uncompressed =
-        G1ElementUncompressed::from_trusted_byte_array([0u8; 2 * G1_ELEMENT_BYTE_LENGTH]);
-    assert!(G1Element::try_from(&uncompressed).is_err());
-}
-
-#[test]
-fn test_g1_sum() {
-    // Empty sum
-    assert_eq!(G1ElementUncompressed::sum(&[]).unwrap(), G1Element::zero());
-
-    // Non-trivial sum
-    let a = G1Element::generator();
-    let b = G1Element::generator() * Scalar::from(2u128);
-    let c = G1Element::generator() * Scalar::from(3u128);
-    let mut bytes: Vec<G1ElementUncompressed> = vec![(&a).into(), (&b).into(), (&c).into()];
-    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
-    assert_eq!(sum, G1Element::generator() * Scalar::from(6u128));
-
-    // Adding zeros doesn't change anything
-    bytes.push(G1ElementUncompressed::from(&G1Element::zero()));
-    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
-    assert_eq!(sum, G1Element::generator() * Scalar::from(6u128));
-
-    // Equal elements in sum
-    let bytes = vec![(&b).into(), (&b).into()];
-    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
-    assert_eq!(sum, G1Element::generator() * Scalar::from(4u128));
-
-    // Singleton sum
-    let bytes = [(&b).into()];
-    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
-    assert_eq!(sum, b);
-
-    // Adding zero's
-    let mut bytes = vec![G1ElementUncompressed::from(&G1Element::zero())];
-    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
-    assert_eq!(sum, G1Element::zero());
-    bytes.push(G1ElementUncompressed::from(&G1Element::zero()));
-    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
-    assert_eq!(sum, G1Element::zero());
-}
-
-#[test]
-fn test_g1_large_sum() {
-    let mut rng = thread_rng();
-    let n: usize = 100;
-    let points: Vec<G1Element> = (0..n)
-        .map(|_| G1Element::generator() * Scalar::rand(&mut rng))
-        .collect();
-    let expected = points.iter().fold(G1Element::zero(), |acc, p| acc + p);
-
-    let as_uncompressed: Vec<G1ElementUncompressed> =
-        points.iter().map(G1ElementUncompressed::from).collect();
-    let sum = G1ElementUncompressed::sum(as_uncompressed.as_slice()).unwrap();
-    assert_eq!(expected, sum);
-}
-
-#[test]
-fn test_g1_uncompressed_encodings() {
     let zero = G1Element::zero();
     let h = G1Element::hash_to_group_element(MSG);
     for p in [zero, G1Element::generator(), h, -h] {
         let canonical = G1ElementUncompressed::from(&p).into_byte_array();
         assert_eq!(decode_uncompressed(canonical), Some(p));
-
-        // The x-coordinate is the compressed encoding without its flags.
-        if p != zero {
-            let mut compressed = p.to_byte_array();
-            compressed[0] &= !ALL_FLAGS;
-            assert_eq!(canonical[..G1_ELEMENT_BYTE_LENGTH], compressed);
-        }
 
         // Only the canonical flags decode: no compression or sort flag, and the infinity flag
         // exactly for the identity.
@@ -1743,14 +1101,22 @@ fn test_g1_uncompressed_encodings() {
             }
         }
 
-        // -y gives -p.
         if p != zero {
+            // The x-coordinate is the compressed encoding without its flags.
+            let mut compressed = p.to_byte_array();
+            compressed[0] &= !ALL_FLAGS;
+            assert_eq!(canonical[..G1_ELEMENT_BYTE_LENGTH], compressed);
+
+            // -y gives -p, and any other change to y gives a point off the curve.
             let negated = G1ElementUncompressed::from(&-p).into_byte_array();
             assert_eq!(
                 canonical[..G1_ELEMENT_BYTE_LENGTH],
                 negated[..G1_ELEMENT_BYTE_LENGTH]
             );
             assert_eq!(decode_uncompressed(negated), Some(-p));
+            let mut off_curve = canonical;
+            off_curve[2 * G1_ELEMENT_BYTE_LENGTH - 1] ^= 1;
+            assert_eq!(decode_uncompressed(off_curve), None);
         }
     }
 
@@ -1771,7 +1137,7 @@ fn test_g1_uncompressed_encodings() {
 }
 
 #[test]
-fn test_g1_sum_adversarial_inputs() {
+fn test_g1_sum() {
     // blst's bulk addition handles a point added to itself, to its inverse or to the identity as
     // special cases. Hashi sums the public keys of the signers, which may repeat, and uses the
     // identity as a placeholder.
@@ -1786,12 +1152,8 @@ fn test_g1_sum_adversarial_inputs() {
         G1ElementUncompressed::sum(&uncompressed).unwrap()
     };
     for n in 0..=100 {
-        for _ in 0..3 {
-            let terms: Vec<G1Element> = (0..n)
-                .map(|_| pool[rng.next_u32() as usize % pool.len()])
-                .collect();
-            assert_eq!(sum(&terms), terms.iter().fold(zero, |acc, t| acc + t));
-        }
+        let mixed: Vec<G1Element> = (0..n).map(|i| pool[i % pool.len()]).collect();
+        assert_eq!(sum(&mixed), mixed.iter().fold(zero, |acc, t| acc + t));
         let alternating: Vec<G1Element> = (0..n).map(|i| if i % 2 == 0 { p } else { -p }).collect();
         assert_eq!(sum(&alternating), if n % 2 == 1 { p } else { zero });
         assert_eq!(sum(&vec![p; n]), p * Scalar::from(n as u128));
@@ -1808,6 +1170,27 @@ fn test_g1_sum_adversarial_inputs() {
         sum(&distinct),
         G1Element::generator() * Scalar::from(1200 * 1201 / 2)
     );
+
+    // The sum fails if a term is all zeros, off the curve, has an unreduced coordinate or the sort
+    // flag.
+    let valid = G1ElementUncompressed::from(&p).into_byte_array();
+    let mut off_curve = valid;
+    off_curve[2 * G1_ELEMENT_BYTE_LENGTH - 1] ^= 1;
+    let unreduced = add_modulus(&valid, 1, true).unwrap().try_into().unwrap();
+    let mut sort_flag = valid;
+    sort_flag[0] |= SORT_FLAG;
+    for invalid in [
+        [0; 2 * G1_ELEMENT_BYTE_LENGTH],
+        off_curve,
+        unreduced,
+        sort_flag,
+    ] {
+        let terms = [
+            G1ElementUncompressed::from(&p),
+            G1ElementUncompressed::from_trusted_byte_array(invalid),
+        ];
+        assert!(G1ElementUncompressed::sum(&terms).is_err());
+    }
 }
 
 //
@@ -1816,7 +1199,7 @@ fn test_g1_sum_adversarial_inputs() {
 
 /// Test vectors from RFC 9380, appendix J.9.1 (suite BLS12381G1_XMD:SHA-256_SSWU_RO_) and J.10.1
 /// (BLS12381G2_XMD:SHA-256_SSWU_RO_). They use the RFC's domain separation tags, so they are checked
-/// against blst's hash-to-curve directly; test_hash_to_curve_outputs checks that
+/// against blst's hash-to-curve directly; test_hash_to_curve checks that
 /// `hash_to_group_element` is the same function with the tags of the BLS signature schemes.
 #[test]
 fn test_hash_to_curve_rfc9380_vectors() {
@@ -2183,6 +1566,18 @@ proptest! {
     }
 
     #[test]
+    fn prop_scalar_from_uniform_buffer(bytes in collection::vec(any::<u8>(), 0..=80)) {
+        // Buffers of 48 to 64 bytes are reduced modulo r, and other lengths are rejected.
+        let result = buffer_to_scalar_mod_r(&bytes);
+        prop_assert_eq!(result.is_ok(), (48..=64).contains(&bytes.len()));
+        if let Ok(s) = result {
+            prop_assert_eq!(arkworks::scalar(&s), arkworks::reduce(&bytes));
+            prop_assert_eq!(reduce_mod_uniform_buffer(&bytes), s);
+            prop_assert_eq!(Scalar::fiat_shamir_reduction_to_group_element(&bytes), s);
+        }
+    }
+
+    #[test]
     fn prop_g1_decoding_is_canonical(p in arb_g1(), mutation in arb_mutation()) {
         let bytes = mutation.apply(p.to_byte_array(), true, G1_ELEMENT_BYTE_LENGTH);
         let decoded = check_decoding::<G1Element, G1_ELEMENT_BYTE_LENGTH>(&bytes);
@@ -2360,6 +1755,10 @@ macro_rules! prop_group_arithmetic_matches_arkworks {
                 for r in [p + q, p - q, -p, p * s] {
                     prop_assert_eq!(<$type>::from_byte_array(&r.to_byte_array()).unwrap(), r);
                 }
+                // Equal elements have equal encodings, however they were computed: Sui's group_ops
+                // compares elements by their bytes.
+                prop_assert_eq!(p == q, p.to_byte_array() == q.to_byte_array());
+                prop_assert_eq!((p + q - q).to_byte_array(), p.to_byte_array());
             }
         }
     };
@@ -2381,7 +1780,7 @@ prop_group_arithmetic_matches_arkworks!(
 /// MSM agrees with the naive sum and with arkworks on terms that repeat and cancel. It only fails on
 /// empty input.
 macro_rules! prop_msm_matches_arkworks {
-    ($name:ident, $type:ty, $arb:expr, $to_arkworks:path, $arkworks_msm:path) => {
+    ($name:ident, $type:ty, $arb:expr, $to_arkworks:path) => {
         proptest! {
             #![proptest_config(ProptestConfig::with_cases(32))]
 
@@ -2400,7 +1799,7 @@ macro_rules! prop_msm_matches_arkworks {
                     let arkworks_scalars: Vec<_> = scalars.iter().map(arkworks::scalar).collect();
                     prop_assert_eq!(
                         $to_arkworks(&result),
-                        $arkworks_msm(&arkworks_points, &arkworks_scalars)
+                        arkworks::msm(&arkworks_points, &arkworks_scalars)
                     );
                 }
             }
@@ -2412,13 +1811,11 @@ prop_msm_matches_arkworks!(
     prop_g1_msm_matches_arkworks,
     G1Element,
     arb_g1(),
-    arkworks::g1,
-    arkworks::msm_g1
+    arkworks::g1
 );
 prop_msm_matches_arkworks!(
     prop_g2_msm_matches_arkworks,
     G2Element,
     arb_g2(),
-    arkworks::g2,
-    arkworks::msm_g2
+    arkworks::g2
 );

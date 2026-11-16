@@ -18,7 +18,7 @@ bcs = "0.1.4"
 bincode = "1.3.3"
 curve25519-dalek = "4.1.3"
 fastcrypto = { path = "../fastcrypto", features = ["experimental"] }
-hex = "0.4.3"
+hex-literal = "0.4.1"
 libfuzzer-sys = "0.4"
 once_cell = "1.17.0"
 rand = "0.8.5"
@@ -82,13 +82,6 @@ bench = false
 [[bin]]
 name = "bls12381_group_ops"
 path = "fuzz_targets/bls12381_group_ops.rs"
-test = false
-doc = false
-bench = false
-
-[[bin]]
-name = "bls12381_msm_pairing"
-path = "fuzz_targets/bls12381_msm_pairing.rs"
 test = false
 doc = false
 bench = false
