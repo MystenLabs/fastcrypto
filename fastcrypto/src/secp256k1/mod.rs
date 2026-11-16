@@ -23,9 +23,11 @@
 //! * [Secp256k1PublicKey]: 33 bytes in the SEC1 compressed format,
 //!   [SEC1, sec. 2.3.3](https://www.secg.org/sec1-v2.pdf): a tag byte, `0x02` if the y-coordinate
 //!   is even and `0x03` if it is odd, followed by the x-coordinate as 32 big-endian bytes.
-//!   Note that [ToFromBytes::from_bytes] also accepts the 65-byte uncompressed (`0x04`) and hybrid
-//!   (`0x06`/`0x07`) formats, so encoding a decoded key does not always return the input bytes.
-//!   Serde only accepts the 33-byte compressed format.
+//!   This is the only accepted encoding: decoding rejects the 65-byte uncompressed (`0x04`) and
+//!   hybrid (`0x06`/`0x07`) formats and x-coordinates that are not smaller than the field modulus,
+//!   so encoding a decoded key always returns the input bytes.
+//!   [Secp256k1PublicKey::from_bytes_lenient] also accepts the uncompressed and hybrid formats, for
+//!   callers that must keep accepting them.
 //! * [Secp256k1PrivateKey] and [Secp256k1KeyPair]: the secret scalar as 32 big-endian bytes,
 //!   [SEC1, sec. 2.3.7](https://www.secg.org/sec1-v2.pdf). Decoding rejects zero and values not
 //!   smaller than the group order. A key pair is encoded as its secret key only.
@@ -147,6 +149,21 @@ impl VerifyingKey for Secp256k1PublicKey {
 }
 
 impl Secp256k1PublicKey {
+    /// Decode a public key from any SEC1 format accepted by libsecp256k1: compressed (33 bytes),
+    /// uncompressed (65 bytes, tag `0x04`) or hybrid (65 bytes, tag `0x06`/`0x07`). The decoded key
+    /// is always encoded in the compressed format.
+    ///
+    /// This accepts the same inputs as [ToFromBytes::from_bytes] did before it was restricted to
+    /// the compressed format, and is meant for callers that must keep accepting those inputs.
+    /// Prefer [ToFromBytes::from_bytes] otherwise.
+    pub fn from_bytes_lenient(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let pubkey = PublicKey::from_slice(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+        Ok(Secp256k1PublicKey {
+            pubkey,
+            bytes: OnceCell::new(),
+        })
+    }
+
     /// Verify the signature using the given hash function to hash the message.
     pub fn verify_with_hash<H: HashFunction<32>>(
         &self,
@@ -169,17 +186,20 @@ impl AsRef<[u8]> for Secp256k1PublicKey {
 }
 
 impl ToFromBytes for Secp256k1PublicKey {
-    /// Decode a public key from the SEC1 compressed (33 bytes), uncompressed (65 bytes, tag `0x04`)
-    /// or hybrid (65 bytes, tag `0x06`/`0x07`) format. The key is always encoded in the
-    /// compressed format.
+    /// Decode a public key from the 33-byte SEC1 compressed format. Other formats, such as the
+    /// 65-byte uncompressed (tag `0x04`) and hybrid (tag `0x06`/`0x07`) formats, are rejected, so
+    /// every key has exactly one accepted encoding.
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        match PublicKey::from_slice(bytes) {
-            Ok(pubkey) => Ok(Secp256k1PublicKey {
-                pubkey,
-                bytes: OnceCell::new(),
-            }),
-            Err(_) => Err(FastCryptoError::InvalidInput),
-        }
+        // PublicKey::from_slice also accepts the uncompressed and hybrid formats, which are 65
+        // bytes long. With exactly 33 bytes it only accepts tags 0x02 and 0x03 and an x-coordinate
+        // smaller than the field modulus, so the input is the canonical encoding of the key.
+        let bytes = <[u8; SECP256K1_PUBLIC_KEY_LENGTH]>::try_from(bytes)
+            .map_err(|_| FastCryptoError::InputLengthWrong(SECP256K1_PUBLIC_KEY_LENGTH))?;
+        let pubkey = PublicKey::from_slice(&bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+        Ok(Secp256k1PublicKey {
+            pubkey,
+            bytes: OnceCell::with_value(bytes),
+        })
     }
 }
 

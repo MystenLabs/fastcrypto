@@ -510,11 +510,168 @@ proptest::proptest! {
     }
 }
 
+/// Add a small integer to a 32-byte big-endian integer, panicking on overflow.
+fn add_small(bytes: &[u8; 32], x: u64) -> [u8; 32] {
+    let mut result = *bytes;
+    let mut carry = x as u128;
+    for b in result.iter_mut().rev() {
+        let sum = *b as u128 + (carry & 0xff);
+        *b = sum as u8;
+        carry = (carry >> 8) + (sum >> 8);
+    }
+    assert_eq!(carry, 0);
+    result
+}
+
+#[test]
+fn public_key_encoding() {
+    let mut rng = StdRng::from_seed([0; 32]);
+    for _ in 0..16 {
+        let pk = Secp256k1KeyPair::generate(&mut rng).public().clone();
+
+        // The encoding is the SEC1 compressed format, as produced by libsecp256k1 and k256.
+        let compressed = pk.as_bytes().to_vec();
+        assert_eq!(compressed, pk.pubkey.serialize());
+        let k256_key = k256::PublicKey::from_sec1_bytes(&compressed).unwrap();
+        assert_eq!(
+            compressed.as_slice(),
+            k256::elliptic_curve::sec1::ToEncodedPoint::to_encoded_point(&k256_key, true)
+                .as_bytes()
+        );
+
+        // The compressed format round-trips, also through the human-readable and binary serde.
+        let decoded = Secp256k1PublicKey::from_bytes(&compressed).unwrap();
+        assert_eq!(decoded, pk);
+        assert_eq!(decoded.as_bytes(), compressed.as_slice());
+        let json = serde_json::to_string(&pk).unwrap();
+        assert_eq!(
+            serde_json::from_str::<Secp256k1PublicKey>(&json).unwrap(),
+            pk
+        );
+        let bcs_bytes = bcs::to_bytes(&pk).unwrap();
+        assert_eq!(bcs_bytes, compressed);
+        assert_eq!(
+            bcs::from_bytes::<Secp256k1PublicKey>(&bcs_bytes).unwrap(),
+            pk
+        );
+
+        // Flipping the tag gives the negated key, as in libsecp256k1.
+        let mut negated = compressed.clone();
+        negated[0] ^= 1;
+        assert_eq!(
+            Secp256k1PublicKey::from_bytes(&negated).unwrap().pubkey,
+            pk.pubkey.negate(rust_secp256k1::SECP256K1)
+        );
+
+        // The uncompressed format is accepted by libsecp256k1 but rejected, also via Base64 and
+        // serde.
+        let uncompressed = pk.pubkey.serialize_uncompressed();
+        assert!(rust_secp256k1::PublicKey::from_slice(&uncompressed).is_ok());
+        assert!(Secp256k1PublicKey::from_bytes(&uncompressed).is_err());
+        assert!(Secp256k1PublicKey::decode_base64(&Base64::encode(uncompressed)).is_err());
+        let json = serde_json::to_string(&Base64::encode(uncompressed)).unwrap();
+        assert!(serde_json::from_str::<Secp256k1PublicKey>(&json).is_err());
+
+        // The hybrid format (0x06 or 0x07 depending on the parity of y, followed by x and y) is
+        // accepted by libsecp256k1 but rejected.
+        let mut hybrid = uncompressed;
+        hybrid[0] = 0x06 | (uncompressed[64] & 1);
+        assert!(rust_secp256k1::PublicKey::from_slice(&hybrid).is_ok());
+        assert!(Secp256k1PublicKey::from_bytes(&hybrid).is_err());
+
+        // The lenient decoder accepts all three formats and encodes them in the compressed format.
+        for bytes in [&compressed[..], &uncompressed[..], &hybrid[..]] {
+            let lenient = Secp256k1PublicKey::from_bytes_lenient(bytes).unwrap();
+            assert_eq!(lenient, pk);
+            assert_eq!(lenient.as_bytes(), compressed.as_slice());
+        }
+        assert!(Secp256k1PublicKey::from_bytes_lenient(&compressed[1..]).is_err());
+
+        // Other tags are rejected for both lengths.
+        for tag in [0x00, 0x01, 0x04, 0x05, 0x06, 0x07, 0xff] {
+            let mut bytes = compressed.clone();
+            bytes[0] = tag;
+            assert!(Secp256k1PublicKey::from_bytes(&bytes).is_err());
+        }
+
+        // Wrong lengths are rejected.
+        for len in [0, 1, 32, 34, 64, 66] {
+            let mut bytes = compressed.clone();
+            bytes.resize(len, 0);
+            assert!(Secp256k1PublicKey::from_bytes(&bytes).is_err());
+        }
+    }
+
+    // The identity, encoded as a single zero byte in SEC1, is rejected.
+    assert!(Secp256k1PublicKey::from_bytes(&[0x00]).is_err());
+    assert!(Secp256k1PublicKey::from_bytes(&[0u8; 33]).is_err());
+}
+
+#[test]
+fn public_key_encoding_rejects_unreduced_x() {
+    // The field modulus of secp256k1.
+    let p: [u8; 32] =
+        hex::decode("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f")
+            .unwrap()
+            .try_into()
+            .unwrap();
+
+    // Find a small x-coordinate of a point, so x + p < 2^256 is a non-canonical encoding of x.
+    let (x, decoded) = (1u64..)
+        .find_map(|x| {
+            let mut bytes = [0u8; 33];
+            bytes[0] = 0x02;
+            bytes[1..].copy_from_slice(&add_small(&[0u8; 32], x));
+            Secp256k1PublicKey::from_bytes(&bytes)
+                .ok()
+                .map(|pk| (x, pk))
+        })
+        .unwrap();
+
+    let mut bytes = [0u8; 33];
+    bytes[0] = 0x02;
+    bytes[1..].copy_from_slice(&add_small(&p, x));
+    assert!(rust_secp256k1::PublicKey::from_slice(&bytes).is_err());
+    assert!(k256::PublicKey::from_sec1_bytes(&bytes).is_err());
+    assert!(Secp256k1PublicKey::from_bytes(&bytes).is_err());
+    assert_eq!(decoded.as_bytes()[1..], add_small(&[0u8; 32], x));
+
+    // x = p is also rejected.
+    bytes[1..].copy_from_slice(&p);
+    assert!(Secp256k1PublicKey::from_bytes(&bytes).is_err());
+}
+
+proptest! {
+    #[test]
+    fn public_key_decoding_agrees_with_libsecp256k1(
+        bytes in proptest::collection::vec(any::<u8>(), 33)
+    ) {
+        // For 33-byte inputs, we accept exactly the points that libsecp256k1 and k256 accept.
+        let ours = Secp256k1PublicKey::from_bytes(&bytes);
+        let theirs = rust_secp256k1::PublicKey::from_slice(&bytes);
+        prop_assert_eq!(ours.is_ok(), theirs.is_ok());
+        if bytes[0] == 0x02 || bytes[0] == 0x03 {
+            prop_assert_eq!(ours.is_ok(), k256::PublicKey::from_sec1_bytes(&bytes).is_ok());
+        }
+        if let Ok(pk) = ours {
+            prop_assert_eq!(pk.pubkey, theirs.unwrap());
+            prop_assert_eq!(pk.as_bytes(), bytes.as_slice());
+        }
+    }
+}
+
 #[test]
 fn wycheproof_test() {
     let test_set = TestSet::load(EcdsaSecp256k1Sha256).unwrap();
     for test_group in test_set.test_groups {
-        let pk = Secp256k1PublicKey::from_bytes(&test_group.key.key).unwrap();
+        // Wycheproof keys are in the uncompressed format, which from_bytes rejects.
+        assert!(Secp256k1PublicKey::from_bytes(&test_group.key.key).is_err());
+        let pk = Secp256k1PublicKey::from_bytes(
+            &rust_secp256k1::PublicKey::from_slice(&test_group.key.key)
+                .unwrap()
+                .serialize(),
+        )
+        .unwrap();
         for test in test_group.tests {
             let bytes = match Signature::from_der(&test.sig) {
                 Ok(mut s) => {
