@@ -263,14 +263,16 @@ impl Avid {
             return Err(InvalidMessage);
         }
         let receiver_idx = vote.recipient_index(receiver)?;
-        auth.proof.verify(
-            &vote.top_root,
-            &auth.shards,
-            receiver_idx,
-            sender as usize,
-            vote.recipients.len(),
-            self.nodes.num_nodes(),
-        )?;
+        auth.proof
+            .verify(
+                &vote.top_root,
+                &auth.shards,
+                receiver_idx,
+                sender as usize,
+                vote.recipients.len(),
+                self.nodes.num_nodes(),
+            )
+            .tap_err(|err| warn!("avid echo: proof from {sender} failed to verify: {err:?}"))?;
         Ok(VerifiedEcho { echo, sender })
     }
 
