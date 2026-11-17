@@ -3,7 +3,7 @@
 
 // THIS FILE IS AI-ONLY
 
-//! Batch-verifies attacker-chosen (public key, signature, message) items, biased towards the
+//! Batch-verifies 1 to 6 attacker-chosen (public key, signature, message) items, biased towards the
 //! ZIP215 edge cases, with every batch API: `verify_batch_empty_fail(_different_msg)` and
 //! `Ed25519AggregateSignature`'s `verify`, `verify_different_msg` and `batch_verify`.
 //!
@@ -96,5 +96,10 @@ fuzz_target!(|input: Input| {
             individual
         );
         assert_eq!(aggregate.verify(&pks, msgs[0]).is_ok(), individual);
+        assert_eq!(
+            Ed25519AggregateSignature::batch_verify(&[&aggregate], vec![pks.iter()], &[msgs[0]])
+                .is_ok(),
+            individual
+        );
     }
 });

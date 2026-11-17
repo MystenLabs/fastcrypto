@@ -78,6 +78,9 @@ const SMALL_ORDER_CANONICAL: [[u8; PK_LENGTH]; 8] = [
     hex!("c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa"),
 ];
 
+/// The seed of the honest key in the proptests. The proptest strategies never sign with it.
+const HONEST_SEED: [u8; SK_LENGTH] = [7; SK_LENGTH];
+
 /// y = 2 is not the y-coordinate of a point.
 const OFF_CURVE_ENCODING: [u8; PK_LENGTH] =
     hex!("0200000000000000000000000000000000000000000000000000000000000000");
@@ -500,27 +503,6 @@ fn test_serialize_deserialize_aggregate_signatures() {
 }
 
 #[test]
-fn test_serialization_vs_test_vector() {
-    // Test vector from https://www.rfc-editor.org/rfc/rfc8032#page-24.
-    let sk =
-        hex::decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60").unwrap();
-    let pk =
-        hex::decode("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a").unwrap();
-    let m = hex::decode("").unwrap();
-    let sig = hex::decode("e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b").unwrap();
-
-    let recovered_sk: Ed25519PrivateKey = bincode::deserialize(&sk).unwrap();
-    let recovered_pk: Ed25519PublicKey = bincode::deserialize(&pk).unwrap();
-    let recovered_sig: Ed25519Signature = bincode::deserialize(&sig).unwrap();
-
-    let kp: Ed25519KeyPair = recovered_sk.into();
-    let signature = kp.sign(&m);
-    let serialized_signature = bincode::serialize(&signature).unwrap();
-    assert_eq!(serialized_signature, sig);
-    assert!(recovered_pk.verify(&m, &recovered_sig).is_ok());
-}
-
-#[test]
 fn test_serde_signatures_human_readable() {
     let kp = keys().pop().unwrap();
     let message: &[u8] = b"Hello, world!";
@@ -930,11 +912,15 @@ fn test_rfc8032_test_vectors() {
             hex::decode(msg).unwrap(),
             hex::decode(sig).unwrap(),
         );
-        let kp = Ed25519KeyPair::from_bytes(&sk).unwrap();
-        assert_eq!(kp.public().as_bytes(), pk);
+        // Binary serde is the raw bytes.
+        let private_key: Ed25519PrivateKey = bincode::deserialize(&sk).unwrap();
+        let public_key: Ed25519PublicKey = bincode::deserialize(&pk).unwrap();
+        let expected: Ed25519Signature = bincode::deserialize(&sig).unwrap();
+        let kp = Ed25519KeyPair::from(private_key);
+        assert_eq!(kp.public(), &public_key);
         let signature = kp.sign(&msg);
-        assert_eq!(signature.as_bytes(), sig);
-        assert!(kp.public().verify(&msg, &signature).is_ok());
+        assert_eq!(bincode::serialize(&signature).unwrap(), sig);
+        assert!(public_key.verify(&msg, &expected).is_ok());
         assert!(reference_verify(&pk, &sig, &msg));
         let (reference_pk, reference_sig) = reference_sign(&sk.try_into().unwrap(), &msg, 0, 0);
         assert_eq!(reference_pk.as_slice(), pk);
@@ -1003,7 +989,6 @@ fn test_cofactored_verification() {
     public_keys.sort();
     public_keys.dedup();
     assert_eq!(public_keys.len(), SMALL_ORDER_CANONICAL.len());
-    assert_eq!(public_keys.len(), 8);
 }
 
 #[test]
@@ -1040,20 +1025,6 @@ fn test_small_order_public_keys() {
                 assert!(pk.verify(msg, &sig).is_ok());
             }
             assert!(pk.verify(msg, &honest.sign(msg)).is_err());
-        }
-    }
-}
-
-#[test]
-fn test_zip215_small_order_matrix() {
-    // The ZIP215 test cases of ed25519-consensus: every small-order encoding as public key and as
-    // R, with s = 0. All 196 verify, both in fastcrypto and in the reference implementation.
-    let encodings = small_order_encodings();
-    for pk in &encodings {
-        for r in &encodings {
-            let sig = signature_bytes(r, &[0; 32]);
-            assert!(verify_bytes(pk, &sig, ZIP215_MSG));
-            assert!(reference_verify(pk, &sig, ZIP215_MSG));
         }
     }
 }
@@ -1491,8 +1462,9 @@ fn verify_invalid_batch_different_msg() {
 
 #[test]
 fn test_batch_verification_zip215_matrix() {
-    // Batch verification agrees with individual verification on the ZIP215 test cases, one by one
-    // and all 196 in one batch.
+    // The ZIP215 test cases of ed25519-consensus: every small-order encoding as public key and as
+    // R, with s = 0. All 196 verify, in fastcrypto and in the reference implementation, one by one
+    // and with every batch API, alone or all in one batch.
     let encodings = small_order_encodings();
     let items: Vec<VerificationInput> = encodings
         .iter()
@@ -1504,6 +1476,7 @@ fn test_batch_verification_zip215_matrix() {
         .collect();
     assert_eq!(items.len(), 196);
     for item in &items {
+        assert!(reference_verify(&item.0, &item.1, &item.2));
         assert!(check_batch_agrees_with_individual(std::slice::from_ref(
             item
         )));
@@ -1883,8 +1856,9 @@ fn arb_valid_verification_input(msg: Vec<u8>) -> BoxedStrategy<VerificationInput
 }
 
 /// Adversarial (public key, signature, message) triples for `msg`: valid ones, valid ones with a
-/// bit of the key or the signature flipped or with s replaced by s + ℓ, non-canonical and
-/// small-order encodings of the key and of R, and random bytes. About half verify.
+/// bit of the key or the signature flipped or with s replaced by s + ℓ, the same tampering of the
+/// signature of the key of `HONEST_SEED`, non-canonical and small-order encodings of the key and
+/// of R, and random bytes. About half verify.
 fn arb_verification_input(msg: Vec<u8>) -> BoxedStrategy<VerificationInput> {
     let encodings: Vec<[u8; PK_LENGTH]> = non_canonical_point_encodings()
         .into_iter()
@@ -1892,8 +1866,20 @@ fn arb_verification_input(msg: Vec<u8>) -> BoxedStrategy<VerificationInput> {
         .collect();
     let msg1 = msg.clone();
     let msg2 = msg.clone();
+    let msg3 = msg.clone();
     prop_oneof![
         5 => arb_valid_verification_input(msg.clone()),
+        // The honest key's signature with one bit flipped, or with s replaced by s + ℓ.
+        1 => (0..=SIG_LENGTH * 8).prop_map(move |bit| {
+            let (pk, mut sig) = reference_sign(&HONEST_SEED, &msg3, 0, 0);
+            if bit < SIG_LENGTH * 8 {
+                sig[bit / 8] ^= 1 << (bit % 8);
+            } else {
+                let s = add_group_order(&sig[32..]);
+                sig[32..].copy_from_slice(&s);
+            }
+            (pk, sig, msg3.clone())
+        }),
         2 => (arb_valid_verification_input(msg.clone()), 0..(PK_LENGTH + SIG_LENGTH) * 8)
             .prop_map(|((mut pk, mut sig, msg), bit)| {
                 if bit < PK_LENGTH * 8 {
@@ -1964,32 +1950,42 @@ proptest! {
         assert_eq!(kp.public(), deserialized.public());
     }
 
-    // Public keys decode iff the reference implementation decodes them, keep their bytes, compare
-    // and hash by their bytes, and every decoder agrees with from_bytes.
+    // Public keys decode iff they are 32 bytes that the reference implementation decodes, keep
+    // their bytes, compare and hash by their bytes, and every decoder agrees with from_bytes.
     #[test]
-    fn test_decode_adversarial_public_keys(bytes in arb_public_key_bytes()) {
+    fn test_decode_adversarial_public_keys(
+        bytes in prop_oneof![
+            3 => arb_public_key_bytes().prop_map(|pk| pk.to_vec()),
+            1 => collection::vec(any::<u8>(), 0..=2 * PK_LENGTH + 1),
+        ],
+    ) {
         let decoded = Ed25519PublicKey::from_bytes(&bytes);
-        let point = decompress(&bytes);
+        let point = <[u8; PK_LENGTH]>::try_from(bytes.as_slice())
+            .ok()
+            .and_then(|pk| decompress(&pk));
         prop_assert_eq!(decoded.is_ok(), point.is_some());
         if let (Ok(pk), Some(point)) = (&decoded, point) {
             let canonical = point.compress().to_bytes();
             let canonical_pk = Ed25519PublicKey::from_bytes(&canonical).unwrap();
-            prop_assert_eq!(pk.as_bytes(), bytes);
+            prop_assert_eq!(pk.as_bytes(), &bytes[..]);
             prop_assert_eq!(pk == &canonical_pk, bytes == canonical);
-            prop_assert_eq!(hash_of(pk), hash_of(&bytes));
-            prop_assert_eq!(pk.cmp(&canonical_pk), bytes.cmp(&canonical));
+            prop_assert_eq!(hash_of(pk), hash_of(&bytes[..]));
+            prop_assert_eq!(pk.cmp(&canonical_pk), bytes[..].cmp(&canonical[..]));
         }
         prop_assert_eq!(
             bcs::from_bytes::<Ed25519PublicKey>(&bytes).ok(),
             decoded.as_ref().ok().cloned()
         );
-        let json = format!("\"{}\"", Base64::encode(bytes));
+        let json = format!("\"{}\"", Base64::encode(&bytes));
         prop_assert_eq!(
             serde_json::from_str::<Ed25519PublicKey>(&json).ok(),
             decoded.as_ref().ok().cloned()
         );
-        let as_bytes = bcs::from_bytes::<Ed25519PublicKeyAsBytes>(&bytes).unwrap();
-        prop_assert_eq!(Ed25519PublicKey::try_from(&as_bytes).ok(), decoded.ok());
+        let as_bytes = bcs::from_bytes::<Ed25519PublicKeyAsBytes>(&bytes);
+        prop_assert_eq!(as_bytes.is_ok(), bytes.len() == PK_LENGTH);
+        if let Ok(as_bytes) = as_bytes {
+            prop_assert_eq!(Ed25519PublicKey::try_from(&as_bytes).ok(), decoded.ok());
+        }
     }
 
     // Verification agrees with the reference implementation, and with a batch of one item.
@@ -1999,6 +1995,9 @@ proptest! {
     ) {
         let verified = verify_bytes(&pk, &sig, &msg);
         prop_assert_eq!(verified, reference_verify(&pk, &sig, &msg));
+        // Under the honest key, the only signature that verifies is its owner's.
+        let (honest_pk, honest_sig) = reference_sign(&HONEST_SEED, &msg, 0, 0);
+        prop_assert_eq!(verify_bytes(&honest_pk, &sig, &msg), sig == honest_sig);
         prop_assert_eq!(check_batch_agrees_with_individual(&[(pk, sig, msg)]), verified);
     }
 
