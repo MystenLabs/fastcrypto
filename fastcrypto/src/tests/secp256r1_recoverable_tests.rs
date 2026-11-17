@@ -4,6 +4,7 @@
 use p256::ecdsa::Signature;
 use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::scalar::IsHigh;
+use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::elliptic_curve::Curve;
 use p256::{NistP256, Scalar, U256};
 use proptest::{prelude::*, strategy::Strategy};
@@ -314,7 +315,13 @@ fn test_sk_zeroization_on_drop() {
 fn wycheproof_test() {
     let test_set = TestSet::load(EcdsaSecp256r1Sha256).unwrap();
     for test_group in test_set.test_groups {
-        let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
+        let pk = Secp256r1PublicKey::from_bytes(
+            p256::PublicKey::from_sec1_bytes(&test_group.key.key)
+                .unwrap()
+                .to_encoded_point(true)
+                .as_bytes(),
+        )
+        .unwrap();
         for test in test_group.tests {
             let signature = match &Signature::from_der(&test.sig) {
                 Ok(s) => Secp256r1RecoverableSignature::from_uncompressed(s.to_bytes().as_slice())

@@ -15,6 +15,30 @@
 //! let signature = kp.sign(message);
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
+//!
+//! # Encodings
+//!
+//! The types below implement [ToFromBytes] and serde with these encodings:
+//!
+//! * [Secp256r1PublicKey]: 33 bytes in the SEC1 compressed format,
+//!   [SEC1, sec. 2.3.3](https://www.secg.org/sec1-v2.pdf): a tag byte, `0x02` if the y-coordinate
+//!   is even and `0x03` if it is odd, followed by the x-coordinate as 32 big-endian bytes.
+//!   This is the only accepted encoding: decoding rejects the 65-byte uncompressed format (tag
+//!   `0x04`), the 33-byte compact format (tag `0x05`) and x-coordinates that are not smaller than
+//!   the field modulus, so encoding a decoded key always returns the input bytes.
+//!   [Secp256r1PublicKey::from_bytes_lenient] also accepts the uncompressed and compact formats,
+//!   for callers that must keep accepting them.
+//! * [Secp256r1PrivateKey] and [Secp256r1KeyPair]: the secret scalar as 32 big-endian bytes,
+//!   [SEC1, sec. 2.3.7](https://www.secg.org/sec1-v2.pdf). Decoding rejects zero and values not
+//!   smaller than the group order. A key pair is encoded as its secret key only.
+//! * [Secp256r1Signature]: 64 bytes, r followed by s, each as 32 big-endian bytes (the fixed-size
+//!   format of [IEEE P1363](https://standards.ieee.org/ieee/1363/2049/), not ASN.1 DER). Decoding
+//!   rejects r or s that are zero or not smaller than the group order. Signing always produces a
+//!   signature with a low s (s <= n / 2) and verification rejects signatures with a high s, so for
+//!   each signature there is only one encoding that verifies.
+//!
+//! Human-readable serde formats (e.g. JSON) use the Base64 encoding of these bytes. Binary
+//! formats (e.g. BCS or bincode) write them as a fixed-size array without a length prefix.
 
 pub mod recoverable;
 
@@ -66,8 +90,8 @@ use crate::{
 /// The length of a public key in bytes.
 pub const SECP256R1_PUBLIC_KEY_LENGTH: usize = 33;
 
-/// SEC1 tag of the compact point encoding.
-const SEC1_COMPACT_TAG: u8 = 0x05;
+/// SEC1 tags of the compressed point encoding, for an even and odd y-coordinate respectively.
+const SEC1_COMPRESSED_TAGS: [u8; 2] = [0x02, 0x03];
 
 /// The length of a private key in bytes.
 pub const SECP256R1_PRIVATE_KEY_LENGTH: usize = 32;
@@ -88,7 +112,8 @@ pub const SLIDING_WINDOW_WIDTH: usize = 5;
 /// specified using the `with_hash` functions.
 pub type DefaultHash = Sha256;
 
-/// Secp256r1 public key.
+/// Secp256r1 public key. Encoded in the 33-byte SEC1 compressed format, see the
+/// [module documentation](self).
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256r1PublicKey {
@@ -96,7 +121,7 @@ pub struct Secp256r1PublicKey {
     pub bytes: OnceCell<[u8; SECP256R1_PUBLIC_KEY_LENGTH]>,
 }
 
-/// Secp256r1 private key.
+/// Secp256r1 private key. Encoded as 32 big-endian bytes, see the [module documentation](self).
 #[readonly::make]
 #[derive(SilentDebug, SilentDisplay)]
 pub struct Secp256r1PrivateKey {
@@ -104,7 +129,8 @@ pub struct Secp256r1PrivateKey {
     pub bytes: OnceCell<zeroize::Zeroizing<[u8; SECP256R1_PRIVATE_KEY_LENGTH]>>,
 }
 
-/// Secp256r1 signature.
+/// Secp256r1 ECDSA signature. Encoded as 64 bytes, r followed by s, see the
+/// [module documentation](self).
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256r1Signature {
@@ -173,11 +199,25 @@ generate_bytes_representation!(
     Secp256r1PublicKeyAsBytes
 );
 impl Secp256r1PublicKey {
-    /// Like [ToFromBytes::from_bytes], but rejects the SEC1 compact encoding (prefix `0x05`).
+    /// Decode a public key from any SEC1 format accepted by p256: compressed (33 bytes),
+    /// uncompressed (65 bytes, tag `0x04`) or compact (33 bytes, tag `0x05`). The decoded key is
+    /// always encoded in the compressed format.
+    ///
+    /// This accepts the same inputs as [ToFromBytes::from_bytes] did before it was restricted to
+    /// the compressed format, and is meant for callers that must keep accepting those inputs.
+    /// Prefer [ToFromBytes::from_bytes] otherwise.
+    pub fn from_bytes_lenient(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let pubkey =
+            ExternalPublicKey::try_from(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+        Ok(Secp256r1PublicKey {
+            pubkey,
+            bytes: OnceCell::new(),
+        })
+    }
+
+    /// Same as [ToFromBytes::from_bytes], which now also only accepts the SEC1 compressed format.
+    #[deprecated(note = "use ToFromBytes::from_bytes, which is now equally strict")]
     pub fn from_bytes_strict(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        if bytes.first() == Some(&SEC1_COMPACT_TAG) {
-            return Err(FastCryptoError::InvalidInput);
-        }
         <Self as ToFromBytes>::from_bytes(bytes)
     }
 
@@ -243,19 +283,24 @@ impl AsRef<[u8]> for Secp256r1PublicKey {
 }
 
 impl ToFromBytes for Secp256r1PublicKey {
-    /// Deprecated: use [Secp256r1PublicKey::from_bytes_strict], which rejects the compact encoding.
+    /// Decode a public key from the 33-byte SEC1 compressed format. Other formats, such as the
+    /// 65-byte uncompressed (tag `0x04`) and the 33-byte compact (tag `0x05`) formats, are rejected,
+    /// so every key has exactly one accepted encoding.
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        match ExternalPublicKey::try_from(bytes) {
-            Ok(pubkey) => Ok(Secp256r1PublicKey {
-                pubkey,
-                // If the given bytes is in the right format (compressed), we keep them for next time to_bytes is called
-                bytes: match <[u8; SECP256R1_PUBLIC_KEY_LENGTH]>::try_from(bytes) {
-                    Ok(result) => OnceCell::with_value(result),
-                    Err(_) => OnceCell::new(),
-                },
-            }),
-            Err(_) => Err(FastCryptoError::InvalidInput),
+        let bytes = <[u8; SECP256R1_PUBLIC_KEY_LENGTH]>::try_from(bytes)
+            .map_err(|_| FastCryptoError::InputLengthWrong(SECP256R1_PUBLIC_KEY_LENGTH))?;
+        // ExternalPublicKey::try_from also accepts the compact format, which has the same length.
+        if !SEC1_COMPRESSED_TAGS.contains(&bytes[0]) {
+            return Err(FastCryptoError::InvalidInput);
         }
+        // This rejects x-coordinates that are not smaller than the field modulus, so the input is
+        // the canonical encoding of the key and can be cached.
+        let pubkey =
+            ExternalPublicKey::try_from(&bytes[..]).map_err(|_| FastCryptoError::InvalidInput)?;
+        Ok(Secp256r1PublicKey {
+            pubkey,
+            bytes: OnceCell::with_value(bytes),
+        })
     }
 }
 
