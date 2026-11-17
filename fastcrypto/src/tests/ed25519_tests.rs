@@ -1050,6 +1050,8 @@ fn wycheproof_test() {
                 TestResult::Valid => assert!(verified, "tc {}", test.tc_id),
                 TestResult::Invalid if verified => {
                     assert_eq!(test.flags, [TestFlag::InvalidEncoding]);
+                    let r: [u8; 32] = test.sig[..32].try_into().unwrap();
+                    assert_ne!(decompress(&r).unwrap().compress().to_bytes(), r);
                     accepted_invalid.push(test.tc_id);
                 }
                 _ => {}
@@ -1123,10 +1125,17 @@ fn ed25519_speccheck() {
 
     for i in 0..12 {
         let msg = hex::decode(msgs[i]).unwrap();
-        let pk = hex::decode(pks[i]).unwrap();
-        let sig = hex::decode(sigs[i]).unwrap();
-        assert_eq!(expected[i], verify_bytes(&pk, &sig, &msg), "case {i}");
-        assert_eq!(expected[i], reference_verify(&pk, &sig, &msg), "case {i}");
+        let pk_bytes = hex::decode(pks[i]).unwrap();
+        let sig_bytes = hex::decode(sigs[i]).unwrap();
+        // Every key and signature decodes; only verification can fail.
+        let pk = Ed25519PublicKey::from_bytes(&pk_bytes).unwrap();
+        let sig = signature(&sig_bytes);
+        assert_eq!(expected[i], pk.verify(&msg, &sig).is_ok(), "case {i}");
+        assert_eq!(
+            expected[i],
+            reference_verify(&pk_bytes, &sig_bytes, &msg),
+            "case {i}"
+        );
     }
 }
 
