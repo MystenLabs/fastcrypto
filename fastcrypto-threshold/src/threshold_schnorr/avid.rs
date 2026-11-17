@@ -320,12 +320,13 @@ impl Avid {
         &self,
         shards: BTreeMap<PartyId, AuthenticatedShards>,
     ) -> BTreeMap<PartyId, AuthenticatedShards> {
+        let required = self.required_weight();
         let mut weight = 0;
         shards
             .into_iter()
             .take_while_inclusive(|(sender, _)| {
                 weight += self.nodes.weight_of(*sender).expect("valid party id");
-                weight < self.required_weight()
+                weight < required
             })
             .collect()
     }
