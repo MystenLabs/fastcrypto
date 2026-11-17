@@ -56,9 +56,6 @@ lazy_static! {
 /// Use [ProjectivePoint::to_sec1_bytes] and [ProjectivePoint::from_sec1_bytes] for the SEC1
 /// compressed encoding used by e.g. libsecp256k1 and Bitcoin, and the types in [schnorr] for the
 /// encodings of [BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki).
-///
-/// With serde, human-readable formats (e.g. JSON) use the Base64 encoding of these bytes and
-/// binary formats (e.g. BCS) write them as a fixed-size array without a length prefix.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct ProjectivePoint(pub(crate) Projective);
 
@@ -252,9 +249,6 @@ impl MultiScalarMul for ProjectivePoint {
 /// Encoded as 32 bytes in big-endian order, like secret keys in
 /// [SEC1, sec. 2.3.7](https://www.secg.org/sec1-v2.pdf) and libsecp256k1. Decoding rejects values
 /// that are not smaller than the group order.
-///
-/// With serde, human-readable formats (e.g. JSON) use the Base64 encoding of these bytes and
-/// binary formats (e.g. BCS) write them as a fixed-size array without a length prefix.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct Scalar(pub(crate) Fr);
 

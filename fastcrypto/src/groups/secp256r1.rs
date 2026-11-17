@@ -65,9 +65,6 @@ impl Div<Scalar> for ProjectivePoint {
 /// [arkworks](https://docs.rs/ark-serialize/0.4.2/ark_serialize/). Note that this is the opposite
 /// byte order of the scalars in SEC1 and in [crate::groups::secp256k1]. Decoding rejects values
 /// that are not smaller than the group order.
-///
-/// With serde, human-readable formats (e.g. JSON) use the Base64 encoding of these bytes and
-/// binary formats (e.g. BCS) write them as a fixed-size array without a length prefix.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct Scalar(pub(crate) Fr);
 

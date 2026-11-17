@@ -46,9 +46,6 @@ pub const SECP256K1_RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNA
 /// big-endian bytes) followed by the recovery id as a single byte in `0..=3`, as in
 /// [libsecp256k1](https://github.com/bitcoin-core/secp256k1/blob/master/include/secp256k1_recovery.h).
 /// Decoding rejects r or s that are not smaller than the group order and recovery ids above 3.
-///
-/// With serde, human-readable formats (e.g. JSON) use the Base64 encoding of these bytes and
-/// binary formats (e.g. BCS) write them as a fixed-size array without a length prefix.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1RecoverableSignature {

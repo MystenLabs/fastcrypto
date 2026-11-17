@@ -69,9 +69,6 @@ pub type DefaultHash = Sha256;
 /// [libsecp256k1](https://github.com/bitcoin-core/secp256k1/blob/master/include/secp256k1.h).
 /// Note that [ToFromBytes::from_bytes] also accepts the 65-byte uncompressed (`0x04`) and hybrid
 /// (`0x06`/`0x07`) formats, so encoding a decoded key does not always return the input bytes.
-///
-/// With serde, human-readable formats (e.g. JSON) use the Base64 encoding of these bytes and
-/// binary formats (e.g. BCS) write them as a fixed-size array without a length prefix.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1PublicKey {
@@ -84,9 +81,6 @@ pub struct Secp256k1PublicKey {
 /// Encoded as the secret scalar in 32 big-endian bytes,
 /// [SEC1, sec. 2.3.7](https://www.secg.org/sec1-v2.pdf). Decoding rejects zero and values not
 /// smaller than the group order.
-///
-/// With serde, human-readable formats (e.g. JSON) use the Base64 encoding of these bytes and
-/// binary formats (e.g. BCS) write them as a fixed-size array without a length prefix.
 #[readonly::make]
 #[derive(SilentDebug, SilentDisplay)]
 pub struct Secp256k1PrivateKey {
@@ -101,9 +95,6 @@ pub struct Secp256k1PrivateKey {
 /// Decoding rejects r or s that are not smaller than the group order.
 /// Signing always produces a signature with a low s (s <= n / 2) and verification rejects
 /// signatures with a high s, so for each signature there is only one encoding that verifies.
-///
-/// With serde, human-readable formats (e.g. JSON) use the Base64 encoding of these bytes and
-/// binary formats (e.g. BCS) write them as a fixed-size array without a length prefix.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1Signature {

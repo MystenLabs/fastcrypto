@@ -61,9 +61,6 @@ pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LE
 /// Encoded as 65 bytes: the 64-byte encoding of [Secp256r1Signature] (r followed by s, each as 32
 /// big-endian bytes) followed by the recovery id as a single byte in `0..=3`. Decoding rejects
 /// r or s that are zero or not smaller than the group order and recovery ids above 3.
-///
-/// With serde, human-readable formats (e.g. JSON) use the Base64 encoding of these bytes and
-/// binary formats (e.g. BCS) write them as a fixed-size array without a length prefix.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256r1RecoverableSignature {
