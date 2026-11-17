@@ -308,7 +308,7 @@ impl Avid {
         Ok(match self.decode_consistent(&shards, payload_ok) {
             Ok(payload) => DecodeOutcome::Decoded(payload),
             Err(_) => DecodeOutcome::Complaint(Complaint {
-                shards: self.take_required_weight(shards)?,
+                shards: self.take_required_weight(shards),
             }),
         })
     }
@@ -319,18 +319,15 @@ impl Avid {
     fn take_required_weight(
         &self,
         shards: BTreeMap<PartyId, AuthenticatedShards>,
-    ) -> FastCryptoResult<BTreeMap<PartyId, AuthenticatedShards>> {
-        let required = self.required_weight();
+    ) -> BTreeMap<PartyId, AuthenticatedShards> {
         let mut weight = 0;
-        let mut kept = BTreeMap::new();
-        for (sender, auth) in shards {
-            if weight >= required {
-                break;
-            }
-            weight += self.nodes.weight_of(sender)?;
-            kept.insert(sender, auth);
-        }
-        Ok(kept)
+        shards
+            .into_iter()
+            .take_while_inclusive(|(sender, _)| {
+                weight += self.nodes.weight_of(*sender).expect("valid party id");
+                weight < self.required_weight()
+            })
+            .collect()
     }
 
     /// RS-decode the payload from authenticated `shards` and confirm it is a consistent codeword
