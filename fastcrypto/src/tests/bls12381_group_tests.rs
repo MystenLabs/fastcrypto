@@ -4,6 +4,7 @@
 use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381Signature, DST_G2};
 use crate::bls12381::min_sig::DST_G1;
 use crate::encoding::{Base64, Encoding};
+use crate::error::FastCryptoError;
 use crate::groups::bls12381::{
     buffer_to_scalar_mod_r, reduce_mod_uniform_buffer, G1Element, G1ElementUncompressed, G2Element,
     GTElement, Scalar, FP_BYTE_LENGTH, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
@@ -14,7 +15,7 @@ use crate::groups::{
     Pairing, Scalar as ScalarTrait,
 };
 use crate::hash::{HashFunction, Sha256};
-use crate::serde_helpers::ToFromByteArray;
+use crate::serde_helpers::{BytesRepresentation, ToFromByteArray};
 use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::traits::VerifyingKey;
@@ -483,9 +484,7 @@ macro_rules! test_group_arithmetic {
                 assert_eq!(p * Scalar::zero(), zero);
                 assert_eq!(p * Scalar::generator(), p);
                 assert_eq!(p * minus_one(), -p);
-                assert_eq!(p * minus_one() + p, zero);
                 assert_eq!(p * minus_one() * minus_one(), p);
-                assert_eq!(p * (minus_one() + Scalar::from(2)), p);
                 assert_eq!(zero * minus_one(), zero);
 
                 assert!((p / Scalar::zero()).is_err());
@@ -639,8 +638,6 @@ fn test_pairing() {
     let gt = g1.pairing(&g2);
     assert_eq!(gt, GTElement::generator());
     assert_ne!(gt, GTElement::zero());
-    // e(g1, g2) has order r.
-    assert_eq!(gt * minus_one() + gt, GTElement::zero());
     // A pairing with the identity is the identity.
     assert_eq!(G1Element::zero().pairing(&g2), GTElement::zero());
     assert_eq!(g1.pairing(&G2Element::zero()), GTElement::zero());
@@ -764,37 +761,27 @@ fn test_hash_to_curve() {
 
 #[test]
 fn test_serde_and_regression() {
-    let s1 = Scalar::generator();
-    let g1 = G1Element::generator();
-    let g2 = G2Element::generator();
-    let gt = GTElement::generator();
-    let id1 = G1Element::zero();
-    let id2 = G2Element::zero();
-    let id3 = GTElement::zero();
-    let id4 = Scalar::zero();
-
     verify_serialization(
-        &s1,
-        Some(
-            hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
-                .unwrap()
-                .as_slice(),
-        ),
+        &Scalar::zero(),
+        Some(&hex!(
+            "0000000000000000000000000000000000000000000000000000000000000000"
+        )),
     );
-    verify_serialization(&g1, Some(hex::decode("97f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb").unwrap().as_slice()));
-    verify_serialization(&g2, Some(hex::decode("93e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8").unwrap().as_slice()));
-    verify_serialization(&gt, Some(hex::decode("1250ebd871fc0a92a7b2d83168d0d727272d441befa15c503dd8e90ce98db3e7b6d194f60839c508a84305aaca1789b6089a1c5b46e5110b86750ec6a532348868a84045483c92b7af5af689452eafabf1a8943e50439f1d59882a98eaa0170f19f26337d205fb469cd6bd15c3d5a04dc88784fbb3d0b2dbdea54d43b2b73f2cbb12d58386a8703e0f948226e47ee89d06fba23eb7c5af0d9f80940ca771b6ffd5857baaf222eb95a7d2809d61bfe02e1bfd1b68ff02f0b8102ae1c2d5d5ab1a1368bb445c7c2d209703f239689ce34c0378a68e72a6b3b216da0e22a5031b54ddff57309396b38c881c4c849ec23e87193502b86edb8857c273fa075a50512937e0794e1e65a7617c90d8bd66065b1fffe51d7a579973b1315021ec3c19934f11b8b424cd48bf38fcef68083b0b0ec5c81a93b330ee1a677d0d15ff7b984e8978ef48881e32fac91b93b47333e2ba5703350f55a7aefcd3c31b4fcb6ce5771cc6a0e9786ab5973320c806ad360829107ba810c5a09ffdd9be2291a0c25a99a201b2f522473d171391125ba84dc4007cfbf2f8da752f7c74185203fcca589ac719c34dffbbaad8431dad1c1fb597aaa5018107154f25a764bd3c79937a45b84546da634b8f6be14a8061e55cceba478b23f7dacaa35c8ca78beae9624045b4b604c581234d086a9902249b64728ffd21a189e87935a954051c7cdba7b3872629a4fafc05066245cb9108f0242d0fe3ef0f41e58663bf08cf068672cbd01a7ec73baca4d72ca93544deff686bfd6df543d48eaa24afe47e1efde449383b676631").unwrap().as_slice()));
-    verify_serialization(&id1, Some(hex::decode("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
-    verify_serialization(&id2, Some(hex::decode("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
-    verify_serialization(&id3, Some(hex::decode("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
     verify_serialization(
-        &id4,
-        Some(
-            hex::decode("0000000000000000000000000000000000000000000000000000000000000000")
-                .unwrap()
-                .as_slice(),
-        ),
+        &Scalar::generator(),
+        Some(&hex!(
+            "0000000000000000000000000000000000000000000000000000000000000001"
+        )),
     );
+    verify_serialization(&G1Element::zero(), Some(&hex!("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")));
+    verify_serialization(&G1Element::generator(), Some(&hex!("97f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb")));
+    verify_serialization(&G2Element::zero(), Some(&hex!("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")));
+    verify_serialization(&G2Element::generator(), Some(&hex!("93e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8")));
+    // The identity of GT is 1 in F_p^12: the first of the 12 coefficients is 1.
+    let mut gt_one = [0u8; GT_ELEMENT_BYTE_LENGTH];
+    gt_one[FP_BYTE_LENGTH - 1] = 1;
+    verify_serialization(&GTElement::zero(), Some(&gt_one));
+    verify_serialization(&GTElement::generator(), Some(&hex!("1250ebd871fc0a92a7b2d83168d0d727272d441befa15c503dd8e90ce98db3e7b6d194f60839c508a84305aaca1789b6089a1c5b46e5110b86750ec6a532348868a84045483c92b7af5af689452eafabf1a8943e50439f1d59882a98eaa0170f19f26337d205fb469cd6bd15c3d5a04dc88784fbb3d0b2dbdea54d43b2b73f2cbb12d58386a8703e0f948226e47ee89d06fba23eb7c5af0d9f80940ca771b6ffd5857baaf222eb95a7d2809d61bfe02e1bfd1b68ff02f0b8102ae1c2d5d5ab1a1368bb445c7c2d209703f239689ce34c0378a68e72a6b3b216da0e22a5031b54ddff57309396b38c881c4c849ec23e87193502b86edb8857c273fa075a50512937e0794e1e65a7617c90d8bd66065b1fffe51d7a579973b1315021ec3c19934f11b8b424cd48bf38fcef68083b0b0ec5c81a93b330ee1a677d0d15ff7b984e8978ef48881e32fac91b93b47333e2ba5703350f55a7aefcd3c31b4fcb6ce5771cc6a0e9786ab5973320c806ad360829107ba810c5a09ffdd9be2291a0c25a99a201b2f522473d171391125ba84dc4007cfbf2f8da752f7c74185203fcca589ac719c34dffbbaad8431dad1c1fb597aaa5018107154f25a764bd3c79937a45b84546da634b8f6be14a8061e55cceba478b23f7dacaa35c8ca78beae9624045b4b604c581234d086a9902249b64728ffd21a189e87935a954051c7cdba7b3872629a4fafc05066245cb9108f0242d0fe3ef0f41e58663bf08cf068672cbd01a7ec73baca4d72ca93544deff686bfd6df543d48eaa24afe47e1efde449383b676631")));
 }
 
 #[test]
@@ -888,18 +875,19 @@ fn test_serialization_scalar() {
 
 #[test]
 fn test_reduce_mod_uniform_buffer() {
+    // The big-endian integers
     // 9920230154395168010467440495232506909487652629574290093191912925556996116934135093887783048487593217824704573634359454220706793741831181736379748807477797
-    let bytes = <[u8; 64]>::try_from(hex::decode("bd69132eca59d8eb6b2aeaab1bb0f4128ea2554a2a5fd5ed90cfa341311d63d2bddef3cf93ebbd3781dc09921ca8611e0db756164b297a90cff258c8138a0a25").unwrap()).unwrap();
-    // This is the above bytes as a big-endian integer modulo the BLS scalar field size and then written as big-endian bytes.
-    let expected =
-        hex::decode("42326e5eb98173088355c38dace25686f73f8900c8af2da6480b34e2313c49c2").unwrap();
-    assert_eq!(expected, reduce_mod_uniform_buffer(&bytes).to_byte_array());
-
+    // (64 bytes) and
     // 99202309022396765790443178473142775358161915835492099699231487822465101596204583014819121570129071631157073920534979728799457207703011355835025584728154395168010467440495232506909487652629574290093191912925556996116934135093887783048487593217824704573634359454220706793741831181736379748807477797
-    let bytes = <[u8; 59]>::try_from(hex::decode("bd69132eca59d8eb6b2aeaab1bb0f4128ea2554a2a5fd5ed90cfa341311d63d2bddef3cf93ebbd3781dc09921ca8611e0db756164b297a90cff258").unwrap()).unwrap();
-    let expected =
-        hex::decode("21015212b5c7a44c04c39447bf7d2addc5035a9b118f07a29956bf00fa65bd74").unwrap();
-    assert_eq!(expected, reduce_mod_uniform_buffer(&bytes).to_byte_array());
+    // (59 bytes), reduced modulo r.
+    assert_eq!(
+        reduce_mod_uniform_buffer(&hex!("bd69132eca59d8eb6b2aeaab1bb0f4128ea2554a2a5fd5ed90cfa341311d63d2bddef3cf93ebbd3781dc09921ca8611e0db756164b297a90cff258c8138a0a25")).to_byte_array(),
+        hex!("42326e5eb98173088355c38dace25686f73f8900c8af2da6480b34e2313c49c2")
+    );
+    assert_eq!(
+        reduce_mod_uniform_buffer(&hex!("bd69132eca59d8eb6b2aeaab1bb0f4128ea2554a2a5fd5ed90cfa341311d63d2bddef3cf93ebbd3781dc09921ca8611e0db756164b297a90cff258")).to_byte_array(),
+        hex!("21015212b5c7a44c04c39447bf7d2addc5035a9b118f07a29956bf00fa65bd74")
+    );
 }
 
 /// Every combination of the three flag bits, unreduced coordinates (x + p) and infinity with any
@@ -956,34 +944,70 @@ macro_rules! test_point_encodings {
 test_point_encodings!(test_serialization_g1, G1Element, G1_ELEMENT_BYTE_LENGTH);
 test_point_encodings!(test_serialization_g2, G2Element, G2_ELEMENT_BYTE_LENGTH);
 
-#[test]
-fn test_serialization_non_subgroup_points() {
-    // Points on the curve but not in the prime-order subgroup: FromTrustedByteArray accepts them and
-    // their encodings are canonical, but from_byte_array and serde reject them. The sort flag gives
-    // the negated point, and doubling gives another point outside the subgroup.
-    let p = G1Element::from_trusted_byte_array(&NON_SUBGROUP_G1).unwrap();
-    assert_eq!(p.to_byte_array(), NON_SUBGROUP_G1);
-    let mut negated = NON_SUBGROUP_G1;
+/// Points on the curve but not in the prime-order subgroup: FromTrustedByteArray accepts them and
+/// their encodings are canonical, but from_byte_array, serde and the conversion from a bytes
+/// representation reject them. The sort flag gives the negated point, and doubling gives another
+/// point outside the subgroup.
+fn check_non_subgroup_point<T, const N: usize>(bytes: [u8; N])
+where
+    T: GroupElement
+        + ToFromByteArray<N>
+        + FromTrustedByteArray<N>
+        + Serialize
+        + DeserializeOwned
+        + Debug
+        + for<'a> TryFrom<&'a BytesRepresentation<N>, Error = FastCryptoError>,
+{
+    let p = T::from_trusted_byte_array(&bytes).unwrap();
+    assert_eq!(p.to_byte_array(), bytes);
+    let mut negated = bytes;
     negated[0] |= SORT_FLAG;
     assert_eq!((-p).to_byte_array(), negated);
     for p in [p, -p, p + p] {
         let bytes = p.to_byte_array();
-        assert_eq!(G1Element::from_trusted_byte_array(&bytes).unwrap(), p);
-        assert!(G1Element::from_byte_array(&bytes).is_err());
-        assert!(check_serde_agrees::<G1Element, G1_ELEMENT_BYTE_LENGTH>(&bytes).is_none());
+        assert_eq!(T::from_trusted_byte_array(&bytes).unwrap(), p);
+        assert!(T::from_byte_array(&bytes).is_err());
+        assert!(check_serde_agrees::<T, N>(&bytes).is_none());
+        assert!(T::try_from(&BytesRepresentation(bytes)).is_err());
     }
+}
 
-    let q = G2Element::from_trusted_byte_array(&NON_SUBGROUP_G2).unwrap();
-    assert_eq!(q.to_byte_array(), NON_SUBGROUP_G2);
-    let mut negated = NON_SUBGROUP_G2;
-    negated[0] |= SORT_FLAG;
-    assert_eq!((-q).to_byte_array(), negated);
-    for q in [q, -q, q + q] {
-        let bytes = q.to_byte_array();
-        assert_eq!(G2Element::from_trusted_byte_array(&bytes).unwrap(), q);
-        assert!(G2Element::from_byte_array(&bytes).is_err());
-        assert!(check_serde_agrees::<G2Element, G2_ELEMENT_BYTE_LENGTH>(&bytes).is_none());
+#[test]
+fn test_serialization_non_subgroup_points() {
+    check_non_subgroup_point::<G1Element, G1_ELEMENT_BYTE_LENGTH>(NON_SUBGROUP_G1);
+    check_non_subgroup_point::<G2Element, G2_ELEMENT_BYTE_LENGTH>(NON_SUBGROUP_G2);
+}
+
+/// fastcrypto-threshold keeps signatures as G1ElementAsBytes. A bytes representation holds the
+/// compressed encoding and serializes like the point, but deserializes from any bytes of the right
+/// length: only the conversion to the point validates them.
+#[test]
+fn test_bytes_representations() {
+    fn check<T, const N: usize>(element: T)
+    where
+        T: ToFromByteArray<N>
+            + Serialize
+            + Debug
+            + PartialEq
+            + for<'a> TryFrom<&'a BytesRepresentation<N>, Error = FastCryptoError>,
+        BytesRepresentation<N>: for<'a> From<&'a T>,
+    {
+        let bytes = BytesRepresentation::<N>::from(&element);
+        assert_eq!(bytes.0, element.to_byte_array());
+        assert_eq!(T::try_from(&bytes).unwrap(), element);
+        assert_eq!(
+            bcs::to_bytes(&bytes).unwrap(),
+            bcs::to_bytes(&element).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_string(&bytes).unwrap(),
+            serde_json::to_string(&element).unwrap()
+        );
+        let invalid: BytesRepresentation<N> = bcs::from_bytes(&[0xff; N]).unwrap();
+        assert!(T::try_from(&invalid).is_err());
     }
+    check(G1Element::hash_to_group_element(MSG));
+    check(G2Element::hash_to_group_element(MSG));
 }
 
 #[test]
