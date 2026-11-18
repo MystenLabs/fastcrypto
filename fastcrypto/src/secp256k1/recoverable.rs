@@ -40,7 +40,12 @@ pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1
 /// Length of a compact signature followed by one extra byte for recovery id, used to recover the public key from a signature.
 pub const SECP256K1_RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE + 1;
 
-/// Secp256k1 signature.
+/// Recoverable Secp256k1 ECDSA signature.
+///
+/// Encoded as 65 bytes: the 64-byte encoding of [Secp256k1Signature] (r followed by s, each as 32
+/// big-endian bytes) followed by the recovery id as a single byte in `0..=3`, as in
+/// [libsecp256k1](https://github.com/bitcoin-core/secp256k1/blob/master/include/secp256k1_recovery.h).
+/// Decoding rejects r or s that are not smaller than the group order and recovery ids above 3.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1RecoverableSignature {

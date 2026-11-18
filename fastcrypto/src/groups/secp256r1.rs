@@ -1,8 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implementation of the Secp256r1 (aka P-256) curve. This is a 256-bit Weirstrass curve of prime order.
-//! See "SEC 2: Recommended Elliptic Curve Domain Parameters" for details."
+//! Implementation of the Secp256r1 (aka P-256) curve. This is a 256-bit Weierstrass curve of prime order.
+//! See [SEC 2, sec. 2.4.2](https://www.secg.org/sec2-v2.pdf) for details.
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::multiplier::ToLittleEndianBytes;
@@ -60,6 +60,11 @@ impl Div<Scalar> for ProjectivePoint {
 }
 
 /// A field element in the prime field of the same order as the curve.
+///
+/// Encoded as 32 bytes in little-endian order, the uncompressed format of
+/// [arkworks](https://docs.rs/ark-serialize/0.4.2/ark_serialize/). Note that this is the opposite
+/// byte order of the scalars in SEC1 and in [crate::groups::secp256k1]. Decoding rejects values
+/// that are not smaller than the group order.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct Scalar(pub(crate) Fr);
 
@@ -111,6 +116,8 @@ impl ScalarTrait for Scalar {
 }
 
 impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
+    /// Decode a scalar. Returns an `InvalidInput` error if the value is not smaller than the
+    /// group order.
     fn from_byte_array(bytes: &[u8; SCALAR_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
         Ok(Scalar(
             Fr::deserialize_uncompressed(bytes.as_slice())

@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implementation of the Secp256k1 (aka K-256) curve.
+//! Implementation of the Secp256k1 (aka K-256) curve, see [SEC 2, sec. 2.4.1](https://www.secg.org/sec2-v2.pdf).
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{
@@ -26,6 +26,15 @@ pub const SCALAR_SIZE_IN_BYTES: usize = 32;
 /// Size of a serialized point in bytes. This uses compressed serialization.
 pub const POINT_SIZE_IN_BYTES: usize = 33;
 
+/// Size of a point in the SEC1 compressed encoding.
+pub const SEC1_POINT_SIZE_IN_BYTES: usize = 33;
+
+/// SEC1 tag for a compressed point with an even y-coordinate.
+const SEC1_TAG_EVEN: u8 = 0x02;
+
+/// SEC1 tag for a compressed point with an odd y-coordinate.
+const SEC1_TAG_ODD: u8 = 0x03;
+
 lazy_static! {
     pub static ref FQ_MODULUS: BigUint =
         BigUint::from_bytes_be(Fq::MODULUS.to_bytes_be().as_slice());
@@ -34,6 +43,19 @@ lazy_static! {
 }
 
 /// A point on the Secp256k1 curve in projective coordinates.
+///
+/// Encoded as 33 bytes in the compressed format of
+/// [arkworks](https://docs.rs/ark-ec/0.4.2/ark_ec/models/short_weierstrass/enum.SWFlags.html),
+/// which is _not_ the SEC1 encoding. Bytes `0..32` hold the x-coordinate in little-endian order,
+/// and byte `32` is a flag byte which is
+/// * `0x00` if y <= (p - 1) / 2,
+/// * `0x80` if y > (p - 1) / 2,
+/// * `0x40` for the point at infinity, in which case bytes `0..32` are all zero.
+///
+/// Decoding only accepts this canonical encoding, so every point has exactly one encoding.
+/// Use [ProjectivePoint::to_sec1_bytes] and [ProjectivePoint::from_sec1_bytes] for the SEC1
+/// compressed encoding used by e.g. libsecp256k1 and Bitcoin, and the types in [schnorr] for the
+/// encodings of [BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki).
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct ProjectivePoint(pub(crate) Projective);
 
@@ -58,23 +80,61 @@ impl ProjectivePoint {
     /// Lift an x-coordinate to a point on the curve with an even y-coordinate.
     /// Returns an error if x is not the x-coordinate of a point on the curve.
     pub fn with_even_y_from_x_be_bytes(x: &[u8; 32]) -> FastCryptoResult<Self> {
+        Self::from_x_be_bytes_and_y_parity(x, false)
+    }
+
+    /// Lift an x-coordinate to the point on the curve whose y-coordinate is odd iff `odd_y` is
+    /// true. Returns an error if x is not smaller than the field modulus or if it is not the
+    /// x-coordinate of a point on the curve.
+    fn from_x_be_bytes_and_y_parity(x: &[u8; 32], odd_y: bool) -> FastCryptoResult<Self> {
         let x = BigUint::from_bytes_be(x);
         if x >= *FQ_MODULUS {
             return Err(FastCryptoError::InvalidInput);
         }
         let x = Fq::from(x);
-        match Affine::get_ys_from_x_unchecked(x) {
-            Some((y1, y2)) => {
-                // y2 = n - y1 so one of them must be even
-                let even_y = if y1.into_bigint().is_even() {
-                    y1.into_bigint()
-                } else {
-                    y2.into_bigint()
-                };
-                Ok(ProjectivePoint(Affine::new(x, Fq::from(even_y)).into()))
-            }
-            None => Err(FastCryptoError::InvalidInput),
-        }
+        let (y1, y2) = Affine::get_ys_from_x_unchecked(x).ok_or(FastCryptoError::InvalidInput)?;
+        // y2 = p - y1 and p is odd, so exactly one of them is even.
+        let y = if y1.into_bigint().is_odd() == odd_y {
+            y1
+        } else {
+            y2
+        };
+        Ok(ProjectivePoint(Affine::new(x, y).into()))
+    }
+
+    /// Encode this point in the SEC1 compressed format,
+    /// [SEC1, sec. 2.3.3](https://www.secg.org/sec1-v2.pdf): a tag byte, `0x02` if the
+    /// y-coordinate is even and `0x03` if it is odd, followed by the x-coordinate as 32
+    /// big-endian bytes. This is the format used by e.g. libsecp256k1 and Bitcoin for compressed
+    /// public keys.
+    ///
+    /// Returns an `InvalidInput` error for the point at infinity, which SEC1 encodes as a single
+    /// zero byte.
+    pub fn to_sec1_bytes(&self) -> FastCryptoResult<[u8; SEC1_POINT_SIZE_IN_BYTES]> {
+        let mut bytes = [0u8; SEC1_POINT_SIZE_IN_BYTES];
+        bytes[0] = if self.has_even_y()? {
+            SEC1_TAG_EVEN
+        } else {
+            SEC1_TAG_ODD
+        };
+        bytes[1..].copy_from_slice(&self.x_as_be_bytes()?);
+        Ok(bytes)
+    }
+
+    /// Decode a point from the SEC1 compressed format, see [Self::to_sec1_bytes].
+    ///
+    /// Returns an `InvalidInput` error unless the tag is `0x02` or `0x03`, the x-coordinate is
+    /// smaller than the field modulus and it is the x-coordinate of a point on the curve. So the
+    /// uncompressed (`0x04`) and hybrid (`0x06`/`0x07`) formats and the point at infinity are
+    /// rejected, and every point has exactly one accepted encoding.
+    pub fn from_sec1_bytes(bytes: &[u8; SEC1_POINT_SIZE_IN_BYTES]) -> FastCryptoResult<Self> {
+        let odd_y = match bytes[0] {
+            SEC1_TAG_EVEN => false,
+            SEC1_TAG_ODD => true,
+            _ => return Err(FastCryptoError::InvalidInput),
+        };
+        let x = bytes[1..].try_into().expect("Always 32 bytes");
+        Self::from_x_be_bytes_and_y_parity(x, odd_y)
     }
 
     /// Returns true iff the y-coordinate of this point is even.
@@ -134,11 +194,22 @@ impl Div<Scalar> for ProjectivePoint {
 }
 
 impl ToFromByteArray<POINT_SIZE_IN_BYTES> for ProjectivePoint {
+    /// Decode a point. Returns an `InvalidInput` error unless `bytes` is the canonical encoding
+    /// of a point on the curve.
     fn from_byte_array(bytes: &[u8; POINT_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
-        Ok(ProjectivePoint(
-            Projective::deserialize_compressed(bytes.as_slice())
-                .map_err(|_| FastCryptoError::InvalidInput)?,
-        ))
+        // Arkworks checks that x is smaller than the field modulus and that the point is on the
+        // curve, but it ignores the six lowest bits of the flag byte and the x-coordinate if the
+        // infinity flag is set. Re-encoding and comparing rejects these non-canonical encodings.
+        let point = Affine::deserialize_compressed(bytes.as_slice())
+            .map_err(|_| FastCryptoError::InvalidInput)?;
+        let mut canonical = [0u8; POINT_SIZE_IN_BYTES];
+        point
+            .serialize_compressed(&mut canonical[..])
+            .expect("Is always 33 bytes");
+        if canonical != *bytes {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        Ok(ProjectivePoint(point.into()))
     }
 
     fn to_byte_array(&self) -> [u8; POINT_SIZE_IN_BYTES] {
@@ -174,6 +245,10 @@ impl MultiScalarMul for ProjectivePoint {
 }
 
 /// A field element in the prime field of the same order as the curve.
+///
+/// Encoded as 32 bytes in big-endian order, like secret keys in
+/// [SEC1, sec. 2.3.7](https://www.secg.org/sec1-v2.pdf) and libsecp256k1. Decoding rejects values
+/// that are not smaller than the group order.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct Scalar(pub(crate) Fr);
 
@@ -236,6 +311,8 @@ impl ScalarTrait for Scalar {
 }
 
 impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
+    /// Decode a scalar. Returns an `InvalidInput` error if the value is not smaller than the
+    /// group order.
     fn from_byte_array(bytes: &[u8; SCALAR_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
         // Align serialization with the k256 crate which follows the Bitcoin implementation
         let value = BigUint::from_bytes_be(bytes);
@@ -279,6 +356,10 @@ pub mod schnorr {
     pub const PRIVATE_KEY_SIZE_IN_BYTES: usize = 32;
 
     /// A Schnorr signature as defined in BIP-340. The r point must have an even y-coordinate and the s scalar cannot be zero.
+    ///
+    /// Encoded as 64 bytes as in BIP-340: the x-coordinate of r as 32 big-endian bytes followed by
+    /// s as 32 big-endian bytes. Decoding rejects encodings where r is not the x-coordinate of a
+    /// point on the curve or where s is zero or not smaller than the group order.
     pub struct SchnorrSignature {
         pub r: [u8; 32],
         pub s: Scalar,
@@ -323,6 +404,11 @@ pub mod schnorr {
 
     /// A Schnorr public key as defined in BIP-340.
     /// The point cannot be the point at infinity and the y-coordinate must be even.
+    ///
+    /// Encoded as the 32-byte "x-only" format of BIP-340: the x-coordinate as 32 big-endian bytes,
+    /// with the y-coordinate implicitly even. This is the SEC1 compressed encoding (see
+    /// [ProjectivePoint::to_sec1_bytes]) without the leading `0x02` tag. Decoding rejects
+    /// x-coordinates that are not smaller than the field modulus or not on the curve.
     pub struct SchnorrPublicKey(ProjectivePoint);
 
     impl TryFrom<&ProjectivePoint> for SchnorrPublicKey {
@@ -363,6 +449,10 @@ pub mod schnorr {
     serialize_deserialize_with_to_from_byte_array!(SchnorrPublicKey);
 
     /// A Schnorr private key. The scalar cannot be zero.
+    ///
+    /// Encoded as 32 big-endian bytes like [Scalar]. As in BIP-340, a secret key d is replaced
+    /// by n - d if d·G has an odd y-coordinate, so decoding and then encoding a key returns the
+    /// bytes of n - d in that case. Both encodings give the same public key.
     pub struct SchnorrPrivateKey(Scalar);
 
     impl TryFrom<Scalar> for SchnorrPrivateKey {

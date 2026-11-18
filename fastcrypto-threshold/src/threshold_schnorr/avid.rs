@@ -92,8 +92,8 @@ pub struct VerifiedEcho {
     echo: Echo,
 }
 
-/// A complaint that a dispersal is inconsistent, carrying the shards the accuser collected so that
-/// others can re-run the check.
+/// A complaint that a dispersal is inconsistent, carrying `W − 2f` weight of the shards the accuser
+/// collected so that others can re-run the check.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Complaint {
     pub shards: BTreeMap<PartyId, AuthenticatedShards>,
@@ -282,7 +282,8 @@ impl Avid {
     }
 
     /// 6. Reconstruct the caller's payload from a quorum of [VerifiedEcho]s, or raise a
-    ///    [Complaint]. Rejects duplicate dispersers, requires `≥ W − 2f` weight.
+    ///    [Complaint] with the first `W − 2f` weight of shards. Rejects duplicate dispersers,
+    ///    requires `≥ W − 2f` weight.
     pub fn decode_or_complain(
         &self,
         echoes: &[VerifiedEcho],
@@ -306,8 +307,28 @@ impl Avid {
             .collect();
         Ok(match self.decode_consistent(&shards, payload_ok) {
             Ok(payload) => DecodeOutcome::Decoded(payload),
-            Err(_) => DecodeOutcome::Complaint(Complaint { shards }),
+            Err(_) => DecodeOutcome::Complaint(Complaint {
+                shards: self.take_required_weight(shards),
+            }),
         })
+    }
+
+    /// Keep the first shards of `shards` that together have `W − 2f` weight. These are enough to
+    /// show that a dispersal is inconsistent, since any `W − 2f` weight of shards from a
+    /// consistent dispersal decodes to it, and they keep a complaint small enough to send.
+    fn take_required_weight(
+        &self,
+        shards: BTreeMap<PartyId, AuthenticatedShards>,
+    ) -> BTreeMap<PartyId, AuthenticatedShards> {
+        let required = self.required_weight();
+        let mut weight = 0;
+        shards
+            .into_iter()
+            .take_while_inclusive(|(sender, _)| {
+                weight += self.nodes.weight_of(*sender).expect("valid party id");
+                weight < required
+            })
+            .collect()
     }
 
     /// RS-decode the payload from authenticated `shards` and confirm it is a consistent codeword
@@ -591,6 +612,12 @@ mod tests {
             .decode_or_complain(&echoes, |_| true)
             .unwrap()
             .unwrap_complaint();
+
+        // The complaint carries only the first W − 2f = 3 weight of echoes, here all honest.
+        assert_eq!(
+            complaint.shards.keys().copied().collect_vec(),
+            vec![0, 1, 2]
+        );
 
         // Another party validates the complaint.
         avid.verify_complaint(&complaint, recipient, &certified_vote, |_| true)
