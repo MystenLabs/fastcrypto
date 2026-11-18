@@ -1,0 +1,73 @@
+# Verification
+
+Formal checks of fastcrypto code. Code that only verifiers read lives here. The Rust sources
+carry annotations only, gated on `cfg(verus_keep_ghost)`, which is set only when Verus runs, so
+normal builds do not see them.
+
+## Verus
+
+`fastcrypto-threshold/` holds the Verus declarations for the `fastcrypto-threshold` crate:
+
+| File | Included from | Contents |
+|---|---|---|
+| `specs.rs` | `src/lib.rs` | What Verus may assume about types and traits from other crates, and the spec functions and lemma for the AVID sender check. |
+| `avss.rs` | `src/threshold_schnorr/avss.rs`, as a child module so it can read private fields | Spec functions for AVSS. |
+
+To check the proofs, install [Verus](https://github.com/verus-lang/verus) (the `vstd` version
+in `fastcrypto-threshold/Cargo.toml` must match the Verus release) and run, in
+`fastcrypto-threshold`:
+
+```bash
+cargo verus focus --features verus
+```
+
+### What is proved
+
+| Rust function | Contract | Lean contract |
+|---|---|---|
+| `avid::total_weight_of_distinct` | Returns the total weight of the given ids exactly when they are nonempty, distinct parties, and `None` otherwise. Never panics or overflows. | The sender check inside `decode_quorum` and `decode_total` (`Avid/Steps.lean`) |
+| `avss::Receiver::verify_complaint_response` | `Ok(v)` ⇒ `v.responder_id = responder_id`. | `verify_binds` (`Avss/Steps.lean`) |
+| `avss::Receiver::recover` | `Ok(o)` ⇒ `verifies(o.my_shares, message, share_ids_of(nodes, id), id)`. | `recover_sound` (`Avss/Steps.lean`) |
+| `avss::Receiver::process_message` | `Ok(Valid(o))` ⇒ `verifies(o.my_shares, message, share_ids_of(nodes, id), id)`. | `process_valid` (`Avss/Steps.lean`) |
+| `recover_complete` in `fastcrypto-threshold/avss.rs` | `Rᵢ.process_message(m)` is not `Err` and `vs` are responses returned by `Rᵢ.verify_complaint_response` for `m`, from distinct parties with total weight `≥ t` ⇒ `Rᵢ.recover(m, vs)` is `Ok`. | `recover_complete` (`Avss/Steps.lean`) |
+| `handle_accepts` in `fastcrypto-threshold/avss.rs` | For receivers configured alike, with `i` a party: `Rᵢ.process_message(m) = Ok(Complaint(c))` and `Rⱼ.process_message(m) = Ok(Valid(o))` ⇒ `Rⱼ.handle_complaint(m, i, c, o)` is `Ok`. | `handle_accepts` (`Avss/Steps.lean`) |
+| `process_invalid_iff` in `fastcrypto-threshold/avss.rs` | For receivers with the same `nodes`, `params`, `sid` and `commitment`: `Rᵢ.process_message(m)` is `Err` ⇔ `Rⱼ.process_message(m)` is `Err`. | `process_invalid_iff` (`Avss/Steps.lean`) |
+| `response_verifies` in `fastcrypto-threshold/avss.rs` | For receivers with the same `nodes`: `Rⱼ.process_message(m) = Ok(Valid(o))` and `Rⱼ.handle_complaint(m, i, c, o) = Ok(r)` ⇒ `Rᵢ.verify_complaint_response(m, j, r)` is `Ok`. | `response_verifies` (`Avss/Steps.lean`) |
+
+### What is trusted
+
+Verus assumes what these say. Except where noted, they are declared in `fastcrypto-threshold/`
+and Verus does not read the code they describe.
+
+* `SharesForNode::verify`: `Ok` ⇔ `verifies(shares, message, ids, receiver)`, an uninterpreted
+  predicate. So `verify` is assumed to be a deterministic check.
+* `Nodes::share_ids_of`: `Ok` ⇔ `valid_id(nodes, id)`, and `Ok(ids)` ⇒
+  `ids = share_ids_of(nodes, id)`, both uninterpreted.
+* `Receiver::my_indices`: returns `share_ids_of(nodes, id)`. This includes that its `unwrap` does
+  not panic.
+* `Receiver::check_message`: `Ok` ⇔ `message_ok(message, config)`, uninterpreted, where `config` is
+  the receiver's `nodes`, `params`, `sid` and `commitment`. So its result does not depend on the
+  receiver's id or key.
+* `Receiver::decrypt_my_shares`: `Ok(s)` ⇔ `shares_of(message, id) = Some(s)`, uninterpreted. So
+  decrypting with a receiver's key gives the shares encrypted to its id, as its key matches its
+  public key in `nodes`.
+* `Receiver::create_complaint` returns an honest complaint by the receiver, an uninterpreted
+  predicate.
+* `Receiver::check_complaint`, the completeness of the recovery proof: it is `Ok` for an honest
+  complaint by a party about a message that passes `check_message`, answered with an output for
+  that message, when the accuser's shares fail to decrypt or to verify.
+* `Receiver::recover_shares`, the completeness of interpolation: for a message that passes
+  `check_message` and responses returned by `verify_complaint_response` for it, from distinct
+  parties with total weight `≥ t`, it is `Ok` and the recovered shares pass `verify`. Weights are
+  an uninterpreted `weight(nodes, id)`.
+* `SharesForNode::clone` and `Poly::clone` return an equal value.
+* With no spec: `warn_unverified_recovery` and the `From<u128>` impls of the scalars.
+* Opaque types: `Nodes`, `Poly`, `MultiRecipientEncryption`, `SharesForNode`, `Complaint`,
+  `PrivateKey` (marked in `ecies_v1.rs`), and the group, scalar and error types of
+  fastcrypto.
+* Types whose fields the proofs read: `Receiver`, `Message` and `VerifiedComplaintResponse`
+  (marked in `avss.rs`, since they have private fields), and `AvssOutput`, `ComplaintResponse`,
+  `ProcessedMessage` and `Parameters`.
+* The traits `AdditiveGroup`, `Module`, `Scalar`, `GroupElement`, `AllowedRng`, `Zeroize`, rand's
+  `RngCore` and `CryptoRng`, and serde's `Serialize`, `Deserialize` and `DeserializeOwned`,
+  restated with their bounds.
