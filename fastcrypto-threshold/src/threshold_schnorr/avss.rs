@@ -374,7 +374,11 @@ impl Receiver {
         ensures
             r matches Ok(ProcessedMessage::Valid(o)) ==> spec_verifies(
                 o.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id())
-                && spec_valid_id(self.spec_nodes(), self.spec_id()),
+                && spec_valid_id(self.spec_nodes(), self.spec_id())
+                && o.feldman_commitment == message.spec_commitment(),
+            r matches Ok(ProcessedMessage::Complaint(c)) ==> spec_honest_complaint(c, *message, self.spec_id())
+                && (spec_valid_id(self.spec_nodes(), self.spec_id())
+                    ==> !spec_shares_verify(*message, self.spec_nodes(), self.spec_id())),
             r is Err <==> !spec_message_ok(*message, self.spec_config()),
     ))]
     pub fn process_message<R: AllowedRng>(
@@ -398,7 +402,10 @@ impl Receiver {
         ensures
             r matches Ok(Some(o)) ==> spec_verifies(
                 o.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id())
-                && spec_valid_id(self.spec_nodes(), self.spec_id()),
+                && spec_valid_id(self.spec_nodes(), self.spec_id())
+                && o.feldman_commitment == message.spec_commitment(),
+            r matches Ok(None) ==> (spec_valid_id(self.spec_nodes(), self.spec_id())
+                ==> !spec_shares_verify(*message, self.spec_nodes(), self.spec_id())),
             r is Err <==> !spec_message_ok(*message, self.spec_config()),
     ))]
     pub fn verify_message(&self, message: &Message) -> FastCryptoResult<Option<AvssOutput>> {
@@ -500,7 +507,10 @@ impl Receiver {
     ///    `message` was not validated, or `my_output` is not the output for `message`. The latter
     ///    indicates a bug in the caller.
     #[cfg_attr(verus_keep_ghost, verus_spec(r =>
-        ensures r is Ok ==> r->Ok_0.shares == my_output.my_shares
+        ensures
+            r is Ok ==> r->Ok_0.shares == my_output.my_shares,
+            spec_complaint_holds(self.spec_config(), *message, accuser_id, *complaint, *my_output)
+                ==> r is Ok,
     ))]
     pub fn handle_complaint(
         &self,

@@ -115,7 +115,10 @@ pub struct ExSecp256k1Scalar(fastcrypto::groups::secp256k1::Scalar);
 
 pub assume_specification<C: Clone>[ <crate::polynomial::Poly<C> as Clone>::clone ](
     p: &crate::polynomial::Poly<C>,
-) -> crate::polynomial::Poly<C>;
+) -> (r: crate::polynomial::Poly<C>)
+    ensures
+        r == *p,
+;
 
 #[verifier::external_trait_specification]
 pub trait ExRngCore {
