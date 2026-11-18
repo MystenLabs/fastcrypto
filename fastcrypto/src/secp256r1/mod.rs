@@ -89,6 +89,14 @@ pub const SLIDING_WINDOW_WIDTH: usize = 5;
 pub type DefaultHash = Sha256;
 
 /// Secp256r1 public key.
+///
+/// Encoded as 33 bytes in the SEC1 compressed format,
+/// [SEC1, sec. 2.3.3](https://www.secg.org/sec1-v2.pdf): a tag byte, `0x02` if the y-coordinate is
+/// even and `0x03` if it is odd, followed by the x-coordinate as 32 big-endian bytes.
+/// Note that [ToFromBytes::from_bytes] also accepts the 65-byte uncompressed format (tag `0x04`)
+/// and the 33-byte compact format (tag `0x05`), and that a key decoded from the compact format is
+/// encoded in the compact format again. [Secp256r1PublicKey::from_bytes_strict] rejects the
+/// compact format.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256r1PublicKey {
@@ -97,6 +105,10 @@ pub struct Secp256r1PublicKey {
 }
 
 /// Secp256r1 private key.
+///
+/// Encoded as the secret scalar in 32 big-endian bytes,
+/// [SEC1, sec. 2.3.7](https://www.secg.org/sec1-v2.pdf). Decoding rejects zero and values not
+/// smaller than the group order.
 #[readonly::make]
 #[derive(SilentDebug, SilentDisplay)]
 pub struct Secp256r1PrivateKey {
@@ -104,7 +116,13 @@ pub struct Secp256r1PrivateKey {
     pub bytes: OnceCell<zeroize::Zeroizing<[u8; SECP256R1_PRIVATE_KEY_LENGTH]>>,
 }
 
-/// Secp256r1 signature.
+/// Secp256r1 ECDSA signature.
+///
+/// Encoded as 64 bytes: r followed by s, each as 32 big-endian bytes. This is the fixed-size format
+/// of [IEEE 1363](https://standards.ieee.org/ieee/1363/2049/), not ASN.1 DER. Decoding rejects r
+/// or s that are zero or not smaller than the group order.
+/// Signing always produces a signature with a low s (s <= n / 2) and verification rejects
+/// signatures with a high s, so for each signature there is only one encoding that verifies.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256r1Signature {
@@ -379,6 +397,8 @@ impl From<&Secp256r1RecoverableSignature> for Secp256r1Signature {
 }
 
 /// Secp256r1 public/private key pair.
+///
+/// Encoded as its private key only, see [Secp256r1PrivateKey].
 #[derive(Debug, PartialEq, Eq)]
 pub struct Secp256r1KeyPair {
     pub public: Secp256r1PublicKey,
