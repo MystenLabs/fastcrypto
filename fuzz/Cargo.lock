@@ -769,11 +769,13 @@ dependencies = [
  "arbitrary",
  "bcs",
  "bincode",
+ "curve25519-dalek",
  "fastcrypto",
  "libfuzzer-sys",
  "once_cell",
  "rand",
  "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]

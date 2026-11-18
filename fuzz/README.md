@@ -8,6 +8,9 @@ This crate is not part of the main workspace because cargo-fuzz needs a nightly 
 | `bls12381_deserialize` | Decoding of BLS12-381 keys and signatures in both modes, through `from_bytes`, BCS, bincode and JSON |
 | `bls12381_verify` | Signature verification the way Sui's `bls12381_*_verify` Move natives do it |
 | `bls12381_batch_verify` | Aggregation and `batch_verify` of certificates mixing honest and arbitrary signatures |
+| `ed25519_deserialize` | Decoding of Ed25519 keys, signatures and aggregate signatures through `from_bytes`, BCS, bincode and JSON |
+| `ed25519_verify` | Signature verification the way Sui's `ed25519_verify` Move native does it, against an independent ZIP215 implementation |
+| `ed25519_batch_verify` | Every Ed25519 batch verification API against individual verification, on ZIP215 edge cases |
 
 Run a target with:
 
