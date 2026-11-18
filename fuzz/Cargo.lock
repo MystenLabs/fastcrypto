@@ -24,6 +24,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-bls12-381"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c775f0d12169cba7aae4caeb547bb6a50781c7449a8aa53793827c9ec4abf488"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-serialize",
+ "ark-std",
+]
+
+[[package]]
 name = "ark-ec"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -767,13 +779,18 @@ name = "fastcrypto-fuzz"
 version = "0.0.0"
 dependencies = [
  "arbitrary",
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-serialize",
  "bcs",
  "bincode",
  "curve25519-dalek",
  "fastcrypto",
+ "hex-literal",
  "libfuzzer-sys",
  "once_cell",
  "rand",
+ "serde",
  "serde_json",
  "sha2 0.10.9",
 ]
