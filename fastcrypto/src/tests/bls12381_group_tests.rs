@@ -262,17 +262,6 @@ fn decode_uncompressed(bytes: [u8; 2 * G1_ELEMENT_BYTE_LENGTH]) -> Option<G1Elem
     G1Element::try_from(&G1ElementUncompressed::from_trusted_byte_array(bytes)).ok()
 }
 
-/// The messages of the hash-to-curve test vectors in RFC 9380.
-fn rfc9380_messages() -> Vec<Vec<u8>> {
-    vec![
-        b"".to_vec(),
-        b"abc".to_vec(),
-        b"abcdef0123456789".to_vec(),
-        [b"q128_".as_slice(), &[b'q'; 128]].concat(),
-        [b"a512_".as_slice(), &[b'a'; 512]].concat(),
-    ]
-}
-
 /// Conversions to arkworks' ark-bls12-381, an independent implementation used as an oracle.
 mod arkworks {
     use super::*;
@@ -537,10 +526,11 @@ test_group_arithmetic!(
     ]
 );
 
-/// MSM agrees with the naive sum for every length up to twice Sui's limit (32), on the inputs that
-/// blst's MSM must handle specially: identity points, zero scalars, repeated points and points that
-/// cancel. MSM only fails on empty inputs and length mismatches; Sui treats any other error as an
-/// invariant violation.
+/// MSM agrees with the naive sum for every length up to twice Sui's limit (32), with identity points,
+/// zero scalars, repeated points and points that cancel. multi_scalar_mul drops the terms with a zero
+/// scalar or an identity point before calling blst, which does not handle the identity, so those
+/// inputs test the filter (including when it drops every term), and the others reach blst. MSM only
+/// fails on empty inputs and length mismatches; Sui treats any other error as an invariant violation.
 macro_rules! test_msm {
     ($name:ident, $type:ty) => {
         #[test]
@@ -597,8 +587,8 @@ macro_rules! test_msm {
                 );
             }
 
-            // One identity among many equal terms. Since blst 0.3.11 this bug is triggered only for
-            // large inputs (after the fix of
+            // One identity among many equal terms, which the filter drops. blst's MSM has a bug on
+            // this input, which since blst 0.3.11 is triggered only for large inputs (after the fix of
             // https://github.com/supranational/blst/commit/168ff67ce74f2dbace619704bb75a865d0e6c913).
             for n in 2..200 {
                 let mut points = vec![<$type>::generator(); n];
@@ -1228,73 +1218,83 @@ fn test_g1_sum() {
 #[test]
 fn test_hash_to_curve_rfc9380_vectors() {
     const G1_DST: &[u8] = b"QUUX-V01-CS02-with-BLS12381G1_XMD:SHA-256_SSWU_RO_";
-    // The output point (x, y).
-    const G1_OUTPUTS: [[&str; 2]; 5] = [
-        [
-            "052926add2207b76ca4fa57a8734416c8dc95e24501772c814278700eed6d1e4e8cf62d9c09db0fac349612b759e79a1",
-            "08ba738453bfed09cb546dbb0783dbb3a5f1f566ed67bb6be0e8c67e2e81a4cc68ee29813bb7994998f3eae0c9c6a265",
-        ],
-        [
-            "03567bc5ef9c690c2ab2ecdf6a96ef1c139cc0b2f284dca0a9a7943388a49a3aee664ba5379a7655d3c68900be2f6903",
-            "0b9c15f3fe6e5cf4211f346271d7b01c8f3b28be689c8429c85b67af215533311f0b8dfaaa154fa6b88176c229f2885d",
-        ],
-        [
-            "11e0b079dea29a68f0383ee94fed1b940995272407e3bb916bbf268c263ddd57a6a27200a784cbc248e84f357ce82d98",
-            "03a87ae2caf14e8ee52e51fa2ed8eefe80f02457004ba4d486d6aa1f517c0889501dc7413753f9599b099ebcbbd2d709",
-        ],
-        [
-            "15f68eaa693b95ccb85215dc65fa81038d69629f70aeee0d0f677cf22285e7bf58d7cb86eefe8f2e9bc3f8cb84fac488",
-            "1807a1d50c29f430b8cafc4f8638dfeeadf51211e1602a5f184443076715f91bb90a48ba1e370edce6ae1062f5e6dd38",
-        ],
-        [
-            "082aabae8b7dedb0e78aeb619ad3bfd9277a2f77ba7fad20ef6aabdc6c31d19ba5a6d12283553294c1825c4b3ca2dcfe",
-            "05b84ae5a942248eea39e1d91030458c40153f3b654ab7872d779ad1e942856a20c438e8d99bc8abfbf74729ce1f7ac8",
-        ],
+    const G2_DST: &[u8] = b"QUUX-V01-CS02-with-BLS12381G2_XMD:SHA-256_SSWU_RO_";
+    // Each message with the G1 output (x, y) and the G2 output (x.c0 + x.c1 * u, y.c0 + y.c1 * u)
+    // as [x.c0, x.c1, y.c0, y.c1].
+    let vectors: [(Vec<u8>, [&str; 2], [&str; 4]); 5] = [
+        (
+            b"".to_vec(),
+            [
+                "052926add2207b76ca4fa57a8734416c8dc95e24501772c814278700eed6d1e4e8cf62d9c09db0fac349612b759e79a1",
+                "08ba738453bfed09cb546dbb0783dbb3a5f1f566ed67bb6be0e8c67e2e81a4cc68ee29813bb7994998f3eae0c9c6a265",
+            ],
+            [
+                "0141ebfbdca40eb85b87142e130ab689c673cf60f1a3e98d69335266f30d9b8d4ac44c1038e9dcdd5393faf5c41fb78a",
+                "05cb8437535e20ecffaef7752baddf98034139c38452458baeefab379ba13dff5bf5dd71b72418717047f5b0f37da03d",
+                "0503921d7f6a12805e72940b963c0cf3471c7b2a524950ca195d11062ee75ec076daf2d4bc358c4b190c0c98064fdd92",
+                "12424ac32561493f3fe3c260708a12b7c620e7be00099a974e259ddc7d1f6395c3c811cdd19f1e8dbf3e9ecfdcbab8d6",
+            ],
+        ),
+        (
+            b"abc".to_vec(),
+            [
+                "03567bc5ef9c690c2ab2ecdf6a96ef1c139cc0b2f284dca0a9a7943388a49a3aee664ba5379a7655d3c68900be2f6903",
+                "0b9c15f3fe6e5cf4211f346271d7b01c8f3b28be689c8429c85b67af215533311f0b8dfaaa154fa6b88176c229f2885d",
+            ],
+            [
+                "02c2d18e033b960562aae3cab37a27ce00d80ccd5ba4b7fe0e7a210245129dbec7780ccc7954725f4168aff2787776e6",
+                "139cddbccdc5e91b9623efd38c49f81a6f83f175e80b06fc374de9eb4b41dfe4ca3a230ed250fbe3a2acf73a41177fd8",
+                "1787327b68159716a37440985269cf584bcb1e621d3a7202be6ea05c4cfe244aeb197642555a0645fb87bf7466b2ba48",
+                "00aa65dae3c8d732d10ecd2c50f8a1baf3001578f71c694e03866e9f3d49ac1e1ce70dd94a733534f106d4cec0eddd16",
+            ],
+        ),
+        (
+            b"abcdef0123456789".to_vec(),
+            [
+                "11e0b079dea29a68f0383ee94fed1b940995272407e3bb916bbf268c263ddd57a6a27200a784cbc248e84f357ce82d98",
+                "03a87ae2caf14e8ee52e51fa2ed8eefe80f02457004ba4d486d6aa1f517c0889501dc7413753f9599b099ebcbbd2d709",
+            ],
+            [
+                "121982811d2491fde9ba7ed31ef9ca474f0e1501297f68c298e9f4c0028add35aea8bb83d53c08cfc007c1e005723cd0",
+                "190d119345b94fbd15497bcba94ecf7db2cbfd1e1fe7da034d26cbba169fb3968288b3fafb265f9ebd380512a71c3f2c",
+                "05571a0f8d3c08d094576981f4a3b8eda0a8e771fcdcc8ecceaf1356a6acf17574518acb506e435b639353c2e14827c8",
+                "0bb5e7572275c567462d91807de765611490205a941a5a6af3b1691bfe596c31225d3aabdf15faff860cb4ef17c7c3be",
+            ],
+        ),
+        (
+            [b"q128_".as_slice(), &[b'q'; 128]].concat(),
+            [
+                "15f68eaa693b95ccb85215dc65fa81038d69629f70aeee0d0f677cf22285e7bf58d7cb86eefe8f2e9bc3f8cb84fac488",
+                "1807a1d50c29f430b8cafc4f8638dfeeadf51211e1602a5f184443076715f91bb90a48ba1e370edce6ae1062f5e6dd38",
+            ],
+            [
+                "19a84dd7248a1066f737cc34502ee5555bd3c19f2ecdb3c7d9e24dc65d4e25e50d83f0f77105e955d78f4762d33c17da",
+                "0934aba516a52d8ae479939a91998299c76d39cc0c035cd18813bec433f587e2d7a4fef038260eef0cef4d02aae3eb91",
+                "14f81cd421617428bc3b9fe25afbb751d934a00493524bc4e065635b0555084dd54679df1536101b2c979c0152d09192",
+                "09bcccfa036b4847c9950780733633f13619994394c23ff0b32fa6b795844f4a0673e20282d07bc69641cee04f5e5662",
+            ],
+        ),
+        (
+            [b"a512_".as_slice(), &[b'a'; 512]].concat(),
+            [
+                "082aabae8b7dedb0e78aeb619ad3bfd9277a2f77ba7fad20ef6aabdc6c31d19ba5a6d12283553294c1825c4b3ca2dcfe",
+                "05b84ae5a942248eea39e1d91030458c40153f3b654ab7872d779ad1e942856a20c438e8d99bc8abfbf74729ce1f7ac8",
+            ],
+            [
+                "01a6ba2f9a11fa5598b2d8ace0fbe0a0eacb65deceb476fbbcb64fd24557c2f4b18ecfc5663e54ae16a84f5ab7f62534",
+                "11fca2ff525572795a801eed17eb12785887c7b63fb77a42be46ce4a34131d71f7a73e95fee3f812aea3de78b4d01569",
+                "0b6798718c8aed24bc19cb27f866f1c9effcdbf92397ad6448b5c9db90d2b9da6cbabf48adc1adf59a1a28344e79d57e",
+                "03a47f8e6d1763ba0cad63d6114c0accbef65707825a511b251a660a9b3994249ae4e63fac38b23da0c398689ee2ab52",
+            ],
+        ),
     ];
-    for (msg, [x, y]) in rfc9380_messages().iter().zip(G1_OUTPUTS) {
-        let p = hash_to_g1_with_dst(msg, G1_DST);
+    for (msg, [x, y], [x0, x1, y0, y1]) in vectors {
+        let p = hash_to_g1_with_dst(&msg, G1_DST);
         assert_eq!(
             hex::encode(G1ElementUncompressed::from(&p).into_byte_array()),
             format!("{x}{y}")
         );
-    }
-
-    const G2_DST: &[u8] = b"QUUX-V01-CS02-with-BLS12381G2_XMD:SHA-256_SSWU_RO_";
-    // The output point (x.c0 + x.c1 * u, y.c0 + y.c1 * u) as [x.c0, x.c1, y.c0, y.c1].
-    const G2_OUTPUTS: [[&str; 4]; 5] = [
-        [
-            "0141ebfbdca40eb85b87142e130ab689c673cf60f1a3e98d69335266f30d9b8d4ac44c1038e9dcdd5393faf5c41fb78a",
-            "05cb8437535e20ecffaef7752baddf98034139c38452458baeefab379ba13dff5bf5dd71b72418717047f5b0f37da03d",
-            "0503921d7f6a12805e72940b963c0cf3471c7b2a524950ca195d11062ee75ec076daf2d4bc358c4b190c0c98064fdd92",
-            "12424ac32561493f3fe3c260708a12b7c620e7be00099a974e259ddc7d1f6395c3c811cdd19f1e8dbf3e9ecfdcbab8d6",
-        ],
-        [
-            "02c2d18e033b960562aae3cab37a27ce00d80ccd5ba4b7fe0e7a210245129dbec7780ccc7954725f4168aff2787776e6",
-            "139cddbccdc5e91b9623efd38c49f81a6f83f175e80b06fc374de9eb4b41dfe4ca3a230ed250fbe3a2acf73a41177fd8",
-            "1787327b68159716a37440985269cf584bcb1e621d3a7202be6ea05c4cfe244aeb197642555a0645fb87bf7466b2ba48",
-            "00aa65dae3c8d732d10ecd2c50f8a1baf3001578f71c694e03866e9f3d49ac1e1ce70dd94a733534f106d4cec0eddd16",
-        ],
-        [
-            "121982811d2491fde9ba7ed31ef9ca474f0e1501297f68c298e9f4c0028add35aea8bb83d53c08cfc007c1e005723cd0",
-            "190d119345b94fbd15497bcba94ecf7db2cbfd1e1fe7da034d26cbba169fb3968288b3fafb265f9ebd380512a71c3f2c",
-            "05571a0f8d3c08d094576981f4a3b8eda0a8e771fcdcc8ecceaf1356a6acf17574518acb506e435b639353c2e14827c8",
-            "0bb5e7572275c567462d91807de765611490205a941a5a6af3b1691bfe596c31225d3aabdf15faff860cb4ef17c7c3be",
-        ],
-        [
-            "19a84dd7248a1066f737cc34502ee5555bd3c19f2ecdb3c7d9e24dc65d4e25e50d83f0f77105e955d78f4762d33c17da",
-            "0934aba516a52d8ae479939a91998299c76d39cc0c035cd18813bec433f587e2d7a4fef038260eef0cef4d02aae3eb91",
-            "14f81cd421617428bc3b9fe25afbb751d934a00493524bc4e065635b0555084dd54679df1536101b2c979c0152d09192",
-            "09bcccfa036b4847c9950780733633f13619994394c23ff0b32fa6b795844f4a0673e20282d07bc69641cee04f5e5662",
-        ],
-        [
-            "01a6ba2f9a11fa5598b2d8ace0fbe0a0eacb65deceb476fbbcb64fd24557c2f4b18ecfc5663e54ae16a84f5ab7f62534",
-            "11fca2ff525572795a801eed17eb12785887c7b63fb77a42be46ce4a34131d71f7a73e95fee3f812aea3de78b4d01569",
-            "0b6798718c8aed24bc19cb27f866f1c9effcdbf92397ad6448b5c9db90d2b9da6cbabf48adc1adf59a1a28344e79d57e",
-            "03a47f8e6d1763ba0cad63d6114c0accbef65707825a511b251a660a9b3994249ae4e63fac38b23da0c398689ee2ab52",
-        ],
-    ];
-    for (msg, [x0, x1, y0, y1]) in rfc9380_messages().iter().zip(G2_OUTPUTS) {
-        let (_, uncompressed) = hash_to_g2_with_dst(msg, G2_DST);
+        let (_, uncompressed) = hash_to_g2_with_dst(&msg, G2_DST);
         assert_eq!(hex::encode(uncompressed), format!("{x1}{x0}{y1}{y0}"));
     }
 }
