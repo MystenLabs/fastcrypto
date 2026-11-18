@@ -11,6 +11,8 @@ This crate is not part of the main workspace because cargo-fuzz needs a nightly 
 | `ed25519_deserialize` | Decoding of Ed25519 keys, signatures and aggregate signatures through `from_bytes`, BCS, bincode and JSON |
 | `ed25519_verify` | Signature verification the way Sui's `ed25519_verify` Move native does it, against an independent ZIP215 implementation |
 | `ed25519_batch_verify` | Every Ed25519 batch verification API against individual verification, on ZIP215 edge cases |
+| `bls12381_group_deserialize` | Decoding of BLS12-381 scalars, G1, G2, GT and uncompressed G1 elements from raw and mutated bytes, compared with serde and arkworks |
+| `bls12381_group_ops` | Sequences of the BLS12-381 operations of Sui's `group_ops` Move natives and multi-pairing, on elements kept as bytes like `sui::group_ops::Element`, compared with naive computation |
 | `secp256k1_deserialize` | Decoding of secp256k1 keys, signatures and recoverable signatures, through `from_bytes`, BCS, bincode, JSON and the `*AsBytes` types, compared with k256 |
 | `secp256k1_verify` | Signature verification the way Sui's `secp256k1_verify` Move native does it, compared with k256 |
 | `secp256k1_ecrecover` | Public key recovery and decompression the way Sui's `secp256k1_ecrecover` and `decompress_pubkey` Move natives do it, compared with k256 |

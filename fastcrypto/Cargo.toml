@@ -142,3 +142,5 @@ radix64 = "0.6.2"
 base58 = "0.2.0"
 rust-base58 = "0.0.4"
 secp256k1 = { version = "0.31.1", features = ["global-context"] }
+# Independent BLS12-381 implementation, used as a test oracle for the blst-based groups.
+ark-bls12-381 = "0.4.0"
