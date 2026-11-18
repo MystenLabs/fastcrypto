@@ -11,7 +11,7 @@ use ark_snark::SNARK;
 use ark_std::rand::thread_rng;
 use ark_std::UniformRand;
 use fastcrypto::groups::bls12381::{G1Element, G2Element};
-use fastcrypto::groups::GroupElement;
+use fastcrypto::groups::AdditiveGroup;
 use fastcrypto::serde_helpers::ToFromByteArray;
 use itertools::repeat_n;
 

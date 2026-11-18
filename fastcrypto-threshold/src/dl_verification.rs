@@ -3,7 +3,7 @@
 
 use crate::polynomial::{Eval, Poly, PrivatePoly};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{bls12381, GroupElement, MultiScalarMul, Pairing, Scalar};
+use fastcrypto::groups::{bls12381, AdditiveGroup, GroupElement, MultiScalarMul, Pairing, Scalar};
 use fastcrypto::traits::AllowedRng;
 use std::num::NonZeroU16;
 

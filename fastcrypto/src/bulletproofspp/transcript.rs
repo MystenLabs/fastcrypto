@@ -72,7 +72,7 @@ impl BpppTranscript {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::groups::GroupElement;
+    use crate::groups::AdditiveGroup;
 
     #[test]
     fn test_deterministic_and_binding() {

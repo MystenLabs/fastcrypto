@@ -241,7 +241,7 @@ mod tests {
 
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::secp256r1::{ProjectivePoint, Scalar};
-    use crate::groups::GroupElement;
+    use crate::groups::AdditiveGroup;
     use crate::groups::Scalar as ScalarTrait;
     use crate::ristretto255_tests::GROUP_ORDER_MINUS_ONE;
     use crate::serde_helpers::ToFromByteArray;

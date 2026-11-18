@@ -7,8 +7,9 @@
 use crate::error::FastCryptoError::InvalidInput;
 use crate::error::FastCryptoResult;
 use crate::groups::{
-    Doubling, FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement,
-    MixedMultiScalarMul, MultiScalarMul, PrecomputableMultiScalarMul, Scalar,
+    AdditiveGroup, Doubling, FiatShamirChallenge, FromTrustedByteArray, GroupElement,
+    HashToGroupElement, MixedMultiScalarMul, Module, MultiScalarMul, PrecomputableMultiScalarMul,
+    Scalar,
 };
 use crate::hash::{Blake2b256, ReverseWrapper, Sha512};
 use crate::serde_helpers::ToFromByteArray;
@@ -22,7 +23,7 @@ use curve25519_dalek::ristretto::RistrettoPoint as ExternalPoint;
 use curve25519_dalek::ristretto::VartimeRistrettoPrecomputation;
 use curve25519_dalek::scalar::Scalar as ExternalScalar;
 use curve25519_dalek::traits::{Identity, VartimeMultiscalarMul, VartimePrecomputedMultiscalarMul};
-use derive_more::{Add, From, Mul, Neg, Sub};
+use derive_more::{Add, Mul, Neg, Sub};
 use elliptic_curve::group::GroupEncoding;
 use elliptic_curve::hash2curve::{ExpandMsg, ExpandMsgXmd, Expander};
 use elliptic_curve::{Field, Group};
@@ -217,9 +218,7 @@ impl Mul<RistrettoScalar> for RistrettoPoint {
     }
 }
 
-impl GroupElement for RistrettoPoint {
-    type ScalarType = RistrettoScalar;
-
+impl AdditiveGroup for RistrettoPoint {
     fn zero() -> RistrettoPoint {
         RistrettoPoint(<curve25519_dalek::RistrettoPoint as Identity>::identity())
     }
@@ -227,6 +226,12 @@ impl GroupElement for RistrettoPoint {
     fn generator() -> Self {
         RistrettoPoint(RISTRETTO_BASEPOINT_POINT)
     }
+}
+
+impl Module<RistrettoScalar> for RistrettoPoint {}
+
+impl GroupElement for RistrettoPoint {
+    type ScalarType = RistrettoScalar;
 }
 
 impl HashToGroupElement for RistrettoPoint {
@@ -265,10 +270,21 @@ impl FromTrustedByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
 serialize_deserialize_with_to_from_byte_array!(RistrettoPoint);
 
 /// Represents a scalar.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Mul, Neg, GroupOpsExtend, Zeroize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Add, Sub, Mul, Neg, GroupOpsExtend, Zeroize)]
 #[mul(forward)]
-#[from(forward)]
 pub struct RistrettoScalar(pub(crate) ExternalScalar);
+
+impl From<u128> for RistrettoScalar {
+    fn from(value: u128) -> Self {
+        RistrettoScalar(ExternalScalar::from(value))
+    }
+}
+
+impl From<u64> for RistrettoScalar {
+    fn from(value: u64) -> Self {
+        RistrettoScalar(ExternalScalar::from(value))
+    }
+}
 
 impl RistrettoScalar {
     /// Construct a [RistrettoScalar] by reducing a 64-byte little-endian integer modulo the group order.
@@ -291,15 +307,20 @@ impl Div<RistrettoScalar> for RistrettoScalar {
     }
 }
 
-impl GroupElement for RistrettoScalar {
-    type ScalarType = Self;
-
+impl AdditiveGroup for RistrettoScalar {
     fn zero() -> Self {
         RistrettoScalar(ExternalScalar::ZERO)
     }
+
     fn generator() -> Self {
         RistrettoScalar(ExternalScalar::ONE)
     }
+}
+
+impl Module<RistrettoScalar> for RistrettoScalar {}
+
+impl GroupElement for RistrettoScalar {
+    type ScalarType = RistrettoScalar;
 }
 
 impl Scalar for RistrettoScalar {

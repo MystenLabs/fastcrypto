@@ -7,7 +7,7 @@ use crate::groups::bls12381::{
     G1_ELEMENT_BYTE_LENGTH,
 };
 use crate::groups::{
-    FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
+    AdditiveGroup, FromTrustedByteArray, HashToGroupElement, MultiScalarMul, Pairing,
     Scalar as ScalarTrait,
 };
 use crate::serde_helpers::ToFromByteArray;

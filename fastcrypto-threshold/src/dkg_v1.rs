@@ -14,7 +14,9 @@ use crate::random_oracle::RandomOracle;
 use crate::tbls::Share;
 use crate::types::ShareIndex;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul};
+use fastcrypto::groups::{
+    AdditiveGroup, FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul,
+};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use rand::thread_rng;

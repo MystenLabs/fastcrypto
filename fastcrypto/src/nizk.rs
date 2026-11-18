@@ -3,7 +3,7 @@
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::MultiScalarMul;
-use crate::groups::{FiatShamirChallenge, GroupElement, Scalar};
+use crate::groups::{AdditiveGroup, FiatShamirChallenge, GroupElement, Scalar};
 use crate::traits::AllowedRng;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::ops::Neg;
@@ -96,7 +96,7 @@ fn is_valid_relation<G: MultiScalarMul>(
 }
 
 /// Custom deserializer for GroupElements which fails if the result is zero.
-fn check_non_zero<'de, D, G: GroupElement + Deserialize<'de>>(d: D) -> Result<G, D::Error>
+fn check_non_zero<'de, D, G: AdditiveGroup + Deserialize<'de>>(d: D) -> Result<G, D::Error>
 where
     D: Deserializer<'de>,
 {

@@ -7,7 +7,7 @@
 
 use crate::types::{to_scalar, IndexedValue, ShareIndex};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::groups::{AdditiveGroup, GroupElement, Module, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ pub type PrivatePoly<C> = Poly<<C as GroupElement>::ScalarType>;
 pub type PublicPoly<C> = Poly<C>;
 
 /// Vector related operations.
-impl<C: GroupElement> Poly<C> {
+impl<C: AdditiveGroup> Poly<C> {
     /// Returns an upper bound for the degree of the polynomial.
     /// The returned number is equal to the size of the underlying coefficient vector - 1,
     /// and in case some of the leading elements are zero, the actual degree will be smaller.
@@ -65,7 +65,7 @@ impl<C> From<Vec<C>> for Poly<C> {
     }
 }
 
-impl<C: GroupElement> AddAssign<&Self> for Poly<C> {
+impl<C: AdditiveGroup> AddAssign<&Self> for Poly<C> {
     fn add_assign(&mut self, other: &Self) {
         self.0.iter_mut().zip(&other.0).for_each(|(a, b)| *a += *b);
         // if we have a smaller degree we can copy the rest
@@ -100,7 +100,7 @@ impl<C: Scalar> Mul<&Poly<C>> for &Poly<C> {
     }
 }
 
-impl<C: GroupElement> Add<&Poly<C>> for Poly<C> {
+impl<C: AdditiveGroup> Add<&Poly<C>> for Poly<C> {
     type Output = Poly<C>;
 
     fn add(mut self, rhs: &Poly<C>) -> Poly<C> {
@@ -109,7 +109,7 @@ impl<C: GroupElement> Add<&Poly<C>> for Poly<C> {
     }
 }
 
-impl<C: GroupElement> SubAssign<Poly<C>> for Poly<C> {
+impl<C: AdditiveGroup> SubAssign<Poly<C>> for Poly<C> {
     fn sub_assign(&mut self, rhs: Poly<C>) {
         if self.0.len() < rhs.0.len() {
             self.0.resize(rhs.0.len(), C::zero());
@@ -121,7 +121,7 @@ impl<C: GroupElement> SubAssign<Poly<C>> for Poly<C> {
 }
 
 /// GroupElement operations.
-impl<C: GroupElement> Poly<C> {
+impl<C: AdditiveGroup> Poly<C> {
     /// Returns a polynomial with the zero element.
     pub fn zero() -> Self {
         Self::from(vec![C::zero()])
@@ -140,9 +140,12 @@ impl<C: GroupElement> Poly<C> {
     // signature from party i is verified).
 
     /// Evaluates the polynomial at the specified value.
-    pub fn eval(&self, i: ShareIndex) -> Eval<C> {
+    pub fn eval<S: Scalar>(&self, i: ShareIndex) -> Eval<C>
+    where
+        C: Module<S>,
+    {
         // Use Horner's Method to evaluate the polynomial.
-        let xi: C::ScalarType = to_scalar(i);
+        let xi: S = to_scalar(i);
         let res = self
             .0
             .iter()
@@ -160,19 +163,22 @@ impl<C: GroupElement> Poly<C> {
     /// If m == 0, the returned range will be empty.
     ///
     /// This is based on an algorithm in section 4.6.4 of Knuth's "The Art of Computer Programming".
-    pub fn eval_range(&self, m: u16) -> EvalRange<C> {
+    pub fn eval_range<S: Scalar>(&self, m: u16) -> EvalRange<C>
+    where
+        C: Module<S>,
+    {
         // The PolynomialEvaluator can't handle m = 0, m = u16::MAX or self.degree() >= u16::MAX,
         // so in those extreme cases, we just evaluate everything using Polynomial::eval.
         // TODO: why not return error in these cases?
         if m == 0 || m == u16::MAX || self.degree() >= u16::MAX as usize {
             return EvalRange(
                 (1..=m)
-                    .map(|i| self.eval(ShareIndex::new(i).unwrap()).value)
+                    .map(|i| self.eval::<S>(ShareIndex::new(i).unwrap()).value)
                     .collect_vec(),
             );
         }
         EvalRange(
-            PolynomialEvaluator::new(
+            PolynomialEvaluator::new::<S>(
                 self,
                 NonZeroU16::new(1).unwrap(),
                 NonZeroU16::new(1).unwrap(),
@@ -186,49 +192,42 @@ impl<C: GroupElement> Poly<C> {
 
     /// Multiply x.1 with y using u128s if possible, otherwise convert x.1 to the group element and multiply.
     /// Invariant: If res = fast_mult(x1, x2, y) then x.0 * x.1 * y = res.0 * res.1.
-    pub(crate) fn fast_mult(x: (C::ScalarType, u128), y: u128) -> (C::ScalarType, u128) {
+    pub(crate) fn fast_mult<S: Scalar>(x: (S, u128), y: u128) -> (S, u128) {
         if x.1.leading_zeros() >= (128 - y.leading_zeros()) {
             (x.0, x.1 * y)
         } else {
-            (x.0 * C::ScalarType::from(x.1), y)
+            (x.0 * S::from(x.1), y)
         }
     }
 
     /// Compute initial * \prod factors.
-    pub(crate) fn fast_product(
-        initial: C::ScalarType,
-        factors: impl Iterator<Item = u128>,
-    ) -> C::ScalarType {
+    pub(crate) fn fast_product<S: Scalar>(initial: S, factors: impl Iterator<Item = u128>) -> S {
         let (result, remaining) =
             factors.fold((initial, 1), |acc, factor| Self::fast_mult(acc, factor));
-        result * C::ScalarType::from(remaining)
+        result * S::from(remaining)
     }
 
-    pub(crate) fn get_lagrange_coefficients_for_c0(
+    pub(crate) fn get_lagrange_coefficients_for_c0<S: Scalar>(
         t: u16,
         indices: impl Iterator<Item = impl Borrow<ShareIndex>>,
-    ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {
+    ) -> FastCryptoResult<(S, Vec<S>)> {
         Self::get_lagrange_coefficients_for(0, t, indices)
     }
 
     /// Expects exactly t unique indices.
     /// Returns an error if x is one of the indices.
-    fn get_lagrange_coefficients_for(
+    fn get_lagrange_coefficients_for<S: Scalar>(
         x: u128,
         t: u16,
         indices: impl Iterator<Item = impl Borrow<ShareIndex>>,
-    ) -> FastCryptoResult<(C::ScalarType, Vec<C::ScalarType>)> {
+    ) -> FastCryptoResult<(S, Vec<S>)> {
         let indices = indices.map(|i| i.borrow().get() as u128).collect_vec();
         if !indices.iter().all_unique() || indices.len() != t as usize || indices.contains(&x) {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        let x_as_scalar = C::ScalarType::from(x);
-        let full_numerator = C::ScalarType::product(
-            indices
-                .iter()
-                .map(|i| C::ScalarType::from(*i) - x_as_scalar),
-        );
+        let x_as_scalar = S::from(x);
+        let full_numerator = S::product(indices.iter().map(|i| S::from(*i) - x_as_scalar));
 
         Ok((
             full_numerator,
@@ -237,7 +236,7 @@ impl<C: GroupElement> Poly<C> {
                 .map(|i| {
                     let mut negative = false;
                     let mut denominator = Self::fast_product(
-                        C::ScalarType::from(*i) - x_as_scalar,
+                        S::from(*i) - x_as_scalar,
                         indices.iter().filter(|j| *j != i).map(|j| {
                             if i > j {
                                 negative = !negative;
@@ -259,12 +258,17 @@ impl<C: GroupElement> Poly<C> {
 
     /// Given exactly `t` polynomial evaluations, it will recover the polynomial's constant term.
     /// For group elements better use recover_c0_msm.
-    pub fn recover_c0(
+    pub fn recover_c0<S: Scalar>(
         t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
-    ) -> FastCryptoResult<C> {
-        let coeffs =
-            Self::get_lagrange_coefficients_for_c0(t, shares.clone().map(|s| s.borrow().index))?;
+    ) -> FastCryptoResult<C>
+    where
+        C: Module<S>,
+    {
+        let coeffs = Self::get_lagrange_coefficients_for_c0::<S>(
+            t,
+            shares.clone().map(|s| s.borrow().index),
+        )?;
         Ok(C::sum(
             shares
                 .map(|s| s.borrow().value)
@@ -274,9 +278,12 @@ impl<C: GroupElement> Poly<C> {
     }
 
     /// Checks if a given share is valid.
-    pub fn verify_share(&self, idx: ShareIndex, share: &C::ScalarType) -> FastCryptoResult<()> {
+    pub fn verify_share<S: Scalar>(&self, idx: ShareIndex, share: &S) -> FastCryptoResult<()>
+    where
+        C: Module<S>,
+    {
         let e = C::generator() * share;
-        let pub_eval = self.eval(idx);
+        let pub_eval = self.eval::<S>(idx);
         if pub_eval.value == e {
             Ok(())
         } else {
@@ -403,7 +410,7 @@ impl<C: Scalar> Poly<C> {
             let x_i = p_i.index.get() as u128;
             let mut negative = false;
             let mut denominator = Self::fast_product(
-                C::ScalarType::generator(),
+                C::generator(),
                 points
                     .iter()
                     .enumerate()
@@ -553,7 +560,7 @@ struct Monomial<C> {
     degree: usize,
 }
 
-impl<C: GroupElement> AddAssign<&Monomial<C>> for Poly<C> {
+impl<C: AdditiveGroup> AddAssign<&Monomial<C>> for Poly<C> {
     fn add_assign(&mut self, rhs: &Monomial<C>) {
         if self.0.len() <= rhs.degree {
             self.0.resize(rhs.degree + 1, C::zero());
@@ -638,7 +645,7 @@ impl<C: Scalar> Div<MonicLinear<C>> for &Poly<C> {
 }
 
 #[cfg(test)]
-pub(crate) fn poly_eq<C: GroupElement>(a: &Poly<C>, b: &Poly<C>) -> bool {
+pub(crate) fn poly_eq<C: AdditiveGroup>(a: &Poly<C>, b: &Poly<C>) -> bool {
     a.0[..(a.degree() + 1)] == b.0[..(b.degree() + 1)]
 }
 
@@ -652,11 +659,18 @@ pub(crate) struct PolynomialEvaluator<C> {
     step: NonZeroU16,
 }
 
-impl<C: GroupElement> PolynomialEvaluator<C> {
+impl<C: AdditiveGroup> PolynomialEvaluator<C> {
     /// Create a new evaluator.
     /// Returns an [InvalidInput] error if `initial + step * polynomial.degree()` cannot be represented as an u16.
     /// Once created, calling [Self::next] will return the evaluation for the next element in the arithmetic progression until the input cannot be represented as an u16.
-    fn new(polynomial: &Poly<C>, initial: NonZeroU16, step: NonZeroU16) -> FastCryptoResult<Self> {
+    fn new<S: Scalar>(
+        polynomial: &Poly<C>,
+        initial: NonZeroU16,
+        step: NonZeroU16,
+    ) -> FastCryptoResult<Self>
+    where
+        C: Module<S>,
+    {
         // Compute initial values (see exercise 7 in 4.6.4 of TAOCP)
         let points = (0..=polynomial.degree())
             .map(|i| {
@@ -665,7 +679,7 @@ impl<C: GroupElement> PolynomialEvaluator<C> {
                     .and_then(|i| i.checked_mul(step.get()))
                     .and_then(|istep| istep.checked_add(initial.get()))
                     .and_then(NonZeroU16::new)
-                    .map(|x| polynomial.eval(x).value)
+                    .map(|x| polynomial.eval::<S>(x).value)
                     .ok_or(FastCryptoError::InvalidInput)
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
@@ -710,7 +724,7 @@ impl<C: GroupElement> PolynomialEvaluator<C> {
     }
 }
 
-impl<C: GroupElement> Iterator for PolynomialEvaluator<C> {
+impl<C: AdditiveGroup> Iterator for PolynomialEvaluator<C> {
     type Item = Eval<C>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -782,7 +796,7 @@ impl<C> IntoIterator for EvalRange<C> {
     }
 }
 
-impl<C: GroupElement> Add for EvalRange<C> {
+impl<C: AdditiveGroup> Add for EvalRange<C> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -796,10 +810,10 @@ impl<C: GroupElement> Add for EvalRange<C> {
     }
 }
 
-impl<C: GroupElement> Mul<&C::ScalarType> for EvalRange<C> {
+impl<S: Scalar, C: Module<S>> Mul<&S> for EvalRange<C> {
     type Output = Self;
 
-    fn mul(self, rhs: &C::ScalarType) -> Self::Output {
+    fn mul(self, rhs: &S) -> Self::Output {
         Self(self.0.iter().map(|a| *a * rhs).collect_vec())
     }
 }

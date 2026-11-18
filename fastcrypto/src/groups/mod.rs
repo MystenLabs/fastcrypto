@@ -17,7 +17,8 @@ pub mod multiplier;
 pub mod secp256k1;
 
 /// Trait impl'd by elements of an additive cyclic group.
-pub trait GroupElement:
+/// The additive structure shared by group elements and scalars.
+pub trait AdditiveGroup:
     Copy
     + Clone
     + Debug
@@ -29,23 +30,31 @@ pub trait GroupElement:
     + SubAssign
     + for<'a> Sub<&'a Self, Output = Self>
     + Neg<Output = Self>
-    + Mul<Self::ScalarType, Output = Self>
-    + Div<Self::ScalarType, Output = Result<Self, FastCryptoError>>
-    + for<'a> Mul<&'a Self::ScalarType, Output = Self>
     + Sized
 {
-    /// Type of scalars used in the `Self::mul` multiplication method.
-    type ScalarType: Scalar;
-
-    /// Return an instance of the identity element in this group.
+    /// Return an instance of the identity element.
     fn zero() -> Self;
 
-    /// Return an instance of the generator for this group.
+    /// Return an instance of the generator.
     fn generator() -> Self;
 
     fn sum(terms: impl Iterator<Item = Self>) -> Self {
         terms.fold(Self::zero(), |acc, x| acc + x)
     }
+}
+
+/// An additive group with multiplication by scalars of type `S`. Polynomials are defined over
+/// this, so their coefficients can be group elements or scalars.
+pub trait Module<S>:
+    AdditiveGroup + Mul<S, Output = Self> + for<'a> Mul<&'a S, Output = Self>
+{
+}
+
+pub trait GroupElement:
+    Module<Self::ScalarType> + Div<Self::ScalarType, Output = Result<Self, FastCryptoError>>
+{
+    /// Type of scalars used in the `Self::mul` multiplication method.
+    type ScalarType: Scalar;
 
     /// Compute the inner product of two iterators. The sum stops when the shortest iterator ends.
     fn inner_product<B: IntoIterator<Item = Self::ScalarType>>(
@@ -60,7 +69,14 @@ pub trait GroupElement:
 
 /// Trait impl'd by scalars to be used with [GroupElement].
 pub trait Scalar:
-    GroupElement<ScalarType = Self> + Copy + From<u128> + Sized + Debug + Serialize + DeserializeOwned
+    Module<Self>
+    + Div<Self, Output = Result<Self, FastCryptoError>>
+    + Copy
+    + From<u128>
+    + Sized
+    + Debug
+    + Serialize
+    + DeserializeOwned
 {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
     fn inverse(&self) -> FastCryptoResult<Self>;

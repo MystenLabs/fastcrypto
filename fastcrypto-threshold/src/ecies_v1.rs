@@ -23,6 +23,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 ///
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, SilentDebug, ZeroizeOnDrop)]
+#[serde(bound = "")]
 pub struct PrivateKey<G: GroupElement>(pub(crate) G::ScalarType)
 where
     G::ScalarType: Zeroize;

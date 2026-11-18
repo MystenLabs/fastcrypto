@@ -3,7 +3,7 @@
 
 use crate::dkg_v1::Output;
 use crate::nodes::{Nodes, PartyId};
-use crate::polynomial::PrivatePoly;
+use crate::polynomial::Poly;
 use fastcrypto::groups::GroupElement;
 use serde::Serialize;
 
@@ -19,7 +19,7 @@ pub fn generate_mocked_output<G: GroupElement + Serialize, EG: GroupElement + Se
         .collect();
     *coefficients.get_mut(0).unwrap() = G::ScalarType::from(full_private_key);
 
-    let poly = PrivatePoly::<G::ScalarType>::from(coefficients);
+    let poly = Poly::<G::ScalarType>::from(coefficients);
     let vss_pk = poly.commit();
 
     let shares = nodes

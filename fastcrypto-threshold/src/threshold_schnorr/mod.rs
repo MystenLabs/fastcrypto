@@ -182,7 +182,7 @@ mod tests {
     use crate::types::{get_uniform_value, IndexedValue, ShareIndex};
     use fastcrypto::error::FastCryptoError::{InputTooShort, InvalidInput};
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
-    use fastcrypto::groups::{GroupElement, Scalar};
+    use fastcrypto::groups::{AdditiveGroup, Scalar};
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use std::collections::HashMap;

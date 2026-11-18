@@ -143,7 +143,7 @@ impl RangeProof {
 mod tests {
     use super::*;
     use crate::groups::ristretto255::RistrettoPoint;
-    use crate::groups::GroupElement;
+    use crate::groups::AdditiveGroup;
     use crate::serde_helpers::ToFromByteArray;
 
     /// Frozen proof for values [0, u32::MAX, 12345, 1 << 31] in Bits32 with
