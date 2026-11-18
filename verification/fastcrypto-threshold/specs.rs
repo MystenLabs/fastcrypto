@@ -135,6 +135,23 @@ pub trait ExAllowedRng: rand::CryptoRng + rand::RngCore {
     type ExternalTraitSpecificationFor: fastcrypto::traits::AllowedRng;
 }
 
+/// The weight of party `id`.
+pub uninterp spec fn spec_weight<C: fastcrypto::groups::GroupElement>(nodes: Nodes<C>, id: PartyId) -> int;
+
+/// The total weight of the parties `ids`.
+pub open spec fn spec_total_weight<C: fastcrypto::groups::GroupElement>(
+    nodes: Nodes<C>,
+    ids: Seq<PartyId>,
+) -> int
+    decreases ids.len(),
+{
+    if ids.len() == 0 {
+        0
+    } else {
+        spec_total_weight(nodes, ids.drop_last()) + spec_weight(nodes, ids.last())
+    }
+}
+
 /// `nodes.share_ids_of(id)` is `Ok`.
 pub uninterp spec fn spec_valid_id<C: fastcrypto::groups::GroupElement>(
     nodes: Nodes<C>,
@@ -166,7 +183,6 @@ pub struct ExMultiRecipientEncryption<C: fastcrypto::groups::GroupElement>(
 );
 
 #[verifier::external_type_specification]
-#[verifier::external_body]
 pub struct ExParameters(crate::threshold_schnorr::Parameters);
 
 /// `Nodes::share_ids_of` is `Ok` exactly for valid ids, and then returns `share_ids_of(nodes, id)`.

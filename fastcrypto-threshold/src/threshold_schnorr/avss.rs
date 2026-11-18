@@ -565,7 +565,8 @@ impl Receiver {
         ensures
             r is Ok ==> r->Ok_0.spec_responder_id() == responder_id,
             r is Ok <==> spec_valid_id(self.spec_nodes(), responder_id) && spec_verifies(
-                response.shares, *message, spec_share_ids(self.spec_nodes(), responder_id), responder_id)
+                response.shares, *message, spec_share_ids(self.spec_nodes(), responder_id), responder_id),
+            r is Ok ==> spec_verified(r->Ok_0, *message, self.spec_nodes()),
     ))]
     pub fn verify_complaint_response(
         &self,
@@ -590,8 +591,10 @@ impl Receiver {
     ///    below the threshold `t`, or if the dealing does not match this receiver's `commitment`. The
     ///    caller must only pass responses that were verified against `message`.
     #[cfg_attr(verus_keep_ghost, verus_spec(r =>
-        ensures r is Ok ==> spec_verifies(
-            r->Ok_0.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id())
+        ensures
+            r is Ok ==> spec_verifies(
+                r->Ok_0.my_shares, *message, spec_share_ids(self.spec_nodes(), self.spec_id()), self.spec_id()),
+            spec_enough_responses(self.spec_config(), *message, responses@) ==> r is Ok,
     ))]
     pub fn recover(
         &self,

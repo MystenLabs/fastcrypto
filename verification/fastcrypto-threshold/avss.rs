@@ -5,7 +5,7 @@
 //! child module of `avss`, so it can read the private fields of its types.
 
 use super::*;
-pub use crate::verification::{spec_share_ids, spec_valid_id};
+pub use crate::verification::{spec_share_ids, spec_total_weight, spec_valid_id};
 use vstd::prelude::*;
 
 verus! {
@@ -57,11 +57,46 @@ pub assume_specification[ Receiver::my_indices ](receiver: &Receiver) -> (r: Vec
         r@ == spec_share_ids(receiver.spec_nodes(), receiver.spec_id()),
 ;
 
+/// Completeness of interpolation: from verified responses by distinct parties with weight `≥ t`,
+/// for a message that passes `check_message`, `recover_shares` recovers shares that verify.
 pub assume_specification[ Receiver::recover_shares ](
     receiver: &Receiver,
     message: &Message,
     responses: Vec<VerifiedComplaintResponse>,
-) -> FastCryptoResult<SharesForNode>;
+) -> (r: FastCryptoResult<SharesForNode>)
+    ensures
+        spec_enough_responses(receiver.spec_config(), *message, responses@) ==> r is Ok
+            && spec_verifies(
+                r->Ok_0,
+                *message,
+                spec_share_ids(receiver.spec_nodes(), receiver.spec_id()),
+                receiver.spec_id(),
+            ),
+;
+
+/// `v` was returned by `verify_complaint_response` for `message` at a receiver with these `nodes`.
+pub open(super) spec fn spec_verified(v: VerifiedComplaintResponse, message: Message, nodes: Nodes<EG>) -> bool {
+    spec_valid_id(nodes, v.responder_id)
+        && spec_verifies(v.shares, message, spec_share_ids(nodes, v.responder_id), v.responder_id)
+}
+
+/// The parties that sent `vs`.
+pub open(super) spec fn spec_responders(vs: Seq<VerifiedComplaintResponse>) -> Seq<PartyId> {
+    vs.map_values(|v: VerifiedComplaintResponse| v.responder_id)
+}
+
+/// The premises of `recover_complete`: `message` passes `check_message`, and `vs` are verified
+/// responses by distinct parties with total weight `≥ t`.
+pub open(super) spec fn spec_enough_responses(
+    config: Config,
+    message: Message,
+    vs: Seq<VerifiedComplaintResponse>,
+) -> bool {
+    &&& spec_message_ok(message, config)
+    &&& forall|k: int| 0 <= k < vs.len() ==> spec_verified(#[trigger] vs[k], message, config.0)
+    &&& spec_responders(vs).no_duplicates()
+    &&& config.1.t as int <= spec_total_weight(config.0, spec_responders(vs))
+}
 
 pub assume_specification[ warn_unverified_recovery ](e: &FastCryptoError);
 
@@ -170,6 +205,27 @@ fn response_verifies<R: AllowedRng>(
             let v = r_i.verify_complaint_response(m, r_j.id, r);
             assert(v is Ok);
         }
+    }
+}
+
+/// `recover_complete`: if `Rᵢ.process_message(m)` is not `Err` and `vs` are responses returned by
+/// `Rᵢ.verify_complaint_response` for `m`, from distinct parties with total weight `≥ t`, then
+/// `Rᵢ.recover(m, vs)` is `Ok`.
+#[allow(dead_code)]
+fn recover_complete<R: AllowedRng>(
+    r_i: &Receiver,
+    m: &Message,
+    vs: Vec<VerifiedComplaintResponse>,
+    rng: &mut R,
+)
+    requires
+        forall|k: int| 0 <= k < vs.len() ==> spec_verified(#[trigger] vs@[k], *m, r_i.spec_nodes()),
+        spec_responders(vs@).no_duplicates(),
+        r_i.spec_config().1.t as int <= spec_total_weight(r_i.spec_nodes(), spec_responders(vs@)),
+{
+    if r_i.process_message(m, rng).is_ok() {
+        let o = r_i.recover(m, vs);
+        assert(o is Ok);
     }
 }
 
