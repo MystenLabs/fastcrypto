@@ -359,6 +359,19 @@ structure fastcrypto.groups.FiatShamirChallenge (Self : Type _) where
 structure fastcrypto.groups.HashToGroupElement (Self : Type _) where
   hash_to_group_element : Slice Std.U8 → Result Self
 
+/-- Trait declaration: [fastcrypto::groups::MultiScalarMul]
+    Source: 'fastcrypto/src/groups/mod.rs', lines 146:0-146:38
+    Name pattern: [fastcrypto::groups::MultiScalarMul]
+    Visibility: public -/
+@[rust_trait "fastcrypto::groups::MultiScalarMul"
+  (parentClauses := ["GroupElementInst"])]
+structure fastcrypto.groups.MultiScalarMul (Self : Type _)
+  (Self_Clause0_ScalarType : Type _) where
+  GroupElementInst : fastcrypto.groups.GroupElement Self
+    Self_Clause0_ScalarType
+  multi_scalar_mul : Slice Self_Clause0_ScalarType → Slice Self → Result
+    (core.result.Result Self fastcrypto.error.FastCryptoError)
+
 /-- Trait declaration: [zeroize::Zeroize]
     Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.8.2/src/lib.rs', lines 272:0-272:17
     Name pattern: [zeroize::Zeroize]
@@ -450,6 +463,15 @@ structure threshold_schnorr.avss.ComplaintResponse where
 structure threshold_schnorr.avss.VerifiedComplaintResponse where
   responder_id : Std.U16
   shares : threshold_schnorr.avss.SharesForNode
+
+/-- [fastcrypto_threshold::threshold_schnorr::avss::DkOutput]
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 127:0-131:1
+    Visibility: public -/
+structure threshold_schnorr.avss.DkOutput where
+  vk : fastcrypto.groups.secp256k1.ProjectivePoint
+  commitments : alloc.vec.Vec (types.IndexedValue
+    fastcrypto.groups.secp256k1.ProjectivePoint)
+  my_shares : threshold_schnorr.avss.SharesForNode
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::_#11::{impl serde_core::de::Deserialize<'de> for fastcrypto_threshold::threshold_schnorr::avss::SharesForNode}::deserialize::__Field]
     Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 138:34-138:45 -/

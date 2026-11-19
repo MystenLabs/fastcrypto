@@ -93,4 +93,10 @@ for f in d.glob("FunsExternal.lean"):
     for name, model in MODELS.items():
         s = re.sub(r"axiom " + re.escape(name) + r"\n(?:[^\n]+\n)*", model + "\n", s)
     f.write_text(s)
+# A Rust parameter named `nodes` shadows the `nodes` module, so references to the module's
+# functions are written from the root namespace.
+f = d / "Funs.lean"
+s = f.read_text()
+s = re.sub(r"(?<![\w.])nodes\.Nodes\.", "_root_.nodes.Nodes.", s)
+f.write_text(s)
 print("fixed", d)

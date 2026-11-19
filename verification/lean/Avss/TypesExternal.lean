@@ -123,6 +123,11 @@ axiom nodes.Nodes (G : Type _) (Clause0_ScalarType : Type _) : Type
     Visibility: public -/
 axiom polynomial.Poly (C : Type _) : Type
 
+/-- [fastcrypto_threshold::polynomial::EvalRange]
+    Source: 'fastcrypto-threshold/src/polynomial.rs', lines 746:0-746:32
+    Visibility: public -/
+axiom polynomial.EvalRange (C : Type _) : Type
+
 /-- [fastcrypto_threshold::threshold_schnorr::recovery_proof::RecoveryProof]
     Source: 'fastcrypto-threshold/src/threshold_schnorr/recovery_proof.rs', lines 20:0-20:46
     Visibility: public -/
