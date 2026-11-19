@@ -7,8 +7,9 @@
 //! JSON and the `*AsBytes` representations). The bytes are arbitrary or derived from the encodings
 //! of a fixed key pair and its signatures.
 //!
-//! Invariants: nothing panics; public keys decode to the point that p256 decodes them to, and a
-//! 33-byte compressed key decodes iff p256 accepts it; a decoded key is equal to, hashes like and
+//! Invariants: nothing panics; public keys decode iff p256 accepts them, to the same point, except
+//! that `from_bytes_strict` rejects the compact format; a key decoded from 33 bytes keeps them and
+//! one decoded from 65 bytes is encoded compressed; a decoded key is equal to, hashes like and
 //! compares equal to the key decoded from its compressed encoding; signatures decode iff they are
 //! 64 bytes r || s with r and s in [1, n - 1], and recoverable signatures iff they are such a
 //! signature followed by a recovery id in 0..=3; private keys and key pairs decode iff they are 32
@@ -117,18 +118,19 @@ fuzz_target!(|input: Input| {
     // Public keys.
     let pk = Secp256r1PublicKey::from_bytes(data);
     let expected = p256::PublicKey::from_sec1_bytes(data);
-    let is_compressed = data.len() == PK_LENGTH && (data[0] == 0x02 || data[0] == 0x03);
-    if is_compressed {
-        assert_eq!(pk.is_ok(), expected.is_ok());
-    }
+    assert_eq!(pk.is_ok(), expected.is_ok());
+    assert_eq!(
+        Secp256r1PublicKey::from_bytes_strict(data).is_ok(),
+        pk.is_ok() && data[0] != 0x05
+    );
     if let Ok(pk) = &pk {
         let expected = expected.unwrap();
         assert_eq!(pk.pubkey.as_affine(), expected.as_affine());
         let compressed = expected.to_encoded_point(true);
-        if is_compressed {
-            assert_eq!(pk.as_bytes(), data);
+        match data.len() {
+            PK_LENGTH => assert_eq!(pk.as_bytes(), data),
+            _ => assert_eq!(pk.as_bytes(), compressed.as_bytes()),
         }
-        assert!(pk.as_bytes() == data || pk.as_bytes() == compressed.as_bytes());
         let compressed_pk = Secp256r1PublicKey::from_bytes(compressed.as_bytes()).unwrap();
         assert_eq!(pk, &compressed_pk);
         assert_eq!(hash_of(pk), hash_of(&compressed_pk));

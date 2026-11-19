@@ -1,50 +1,41 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use p256::ecdsa::Signature;
-use p256::elliptic_curve::scalar::IsHigh;
-use p256::elliptic_curve::sec1::ToEncodedPoint;
-use p256::Scalar;
-use proptest::{prelude::*, strategy::Strategy};
-use rand::{rngs::StdRng, SeedableRng as _};
-use rust_secp256k1::constants::SECRET_KEY_SIZE;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use std::str::FromStr;
-use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
-use wycheproof::TestResult;
-
-use crate::encoding::{Base64, Encoding};
-use crate::hash::{Blake2b256, Keccak256};
-use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
-use crate::test_helpers::verify_serialization;
-use crate::traits::Signer;
-use crate::{
-    hash::{HashFunction, Sha256},
-    secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature},
-    signature_service::SignatureService,
-    test_helpers,
-    traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
-};
-
-use crate::error::FastCryptoError;
-use crate::hash::Sha3_256;
-use crate::secp256r1::{
-    Secp256r1PublicKeyAsBytes, Secp256r1SignatureAsBytes, SECP256R1_PRIVATE_KEY_LENGTH,
-    SECP256R1_PUBLIC_KEY_LENGTH, SECP256R1_SIGNATURE_LENGTH,
-};
 use base64ct::Encoding as _;
 use once_cell::sync::Lazy;
 use p256::ecdsa::signature::hazmat::{PrehashSigner, PrehashVerifier};
+use p256::ecdsa::Signature;
 use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
-use p256::U256;
+use p256::elliptic_curve::scalar::IsHigh;
+use p256::elliptic_curve::sec1::ToEncodedPoint;
+use p256::{Scalar, U256};
 use proptest::collection;
 use proptest::strategy::ValueTree;
 use proptest::test_runner::TestRunner;
+use proptest::{prelude::*, strategy::Strategy};
+use rand::{rngs::StdRng, SeedableRng as _};
+use rust_secp256k1::constants::SECRET_KEY_SIZE;
 use serde::Deserialize;
 use std::cmp::Ordering;
-use wycheproof::ecdsa::TestName;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::str::FromStr;
+use wycheproof::ecdsa::{TestName, TestSet};
+use wycheproof::TestResult;
+
+use crate::encoding::{Base64, Encoding};
+use crate::error::FastCryptoError;
+use crate::hash::{Blake2b256, HashFunction, Keccak256, Sha256, Sha3_256};
+use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
+use crate::secp256r1::{
+    Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1PublicKeyAsBytes,
+    Secp256r1Signature, Secp256r1SignatureAsBytes, SECP256R1_PRIVATE_KEY_LENGTH,
+    SECP256R1_PUBLIC_KEY_LENGTH, SECP256R1_SIGNATURE_LENGTH,
+};
+use crate::signature_service::SignatureService;
+use crate::test_helpers::{self, verify_serialization};
+use crate::traits::{EncodeDecodeBase64, KeyPair, Signer, ToFromBytes, VerifyingKey};
 
 //
 // Helper functions
@@ -63,6 +54,10 @@ pub(crate) const GROUP_ORDER: [u8; 32] =
 /// floor(n / 2), big-endian. A signature has a low s if s <= floor(n / 2).
 const HALF_GROUP_ORDER: [u8; 32] =
     hex_literal::hex!("7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8");
+
+/// The P-256 field modulus p, big-endian.
+const FIELD_MODULUS: [u8; 32] =
+    hex_literal::hex!("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff");
 
 /// The compressed encoding of the generator, which is the public key of the private key 1.
 const GENERATOR_COMPRESSED: [u8; PK_LENGTH] =
@@ -183,15 +178,15 @@ pub(crate) fn add_small(bytes: &[u8; 32], delta: i64) -> [u8; 32] {
     .into()
 }
 
+/// Whether the y-coordinate of a public key is at most p - y, that is, smaller than p / 2.
+fn has_smaller_y(pk: &Secp256r1PublicKey) -> bool {
+    let y = U256::from_be_slice(pk.pubkey.to_encoded_point(false).y().unwrap());
+    y <= U256::from_be_slice(&FIELD_MODULUS).wrapping_sub(&y)
+}
+
 /// The uncompressed SEC1 encoding of a public key.
 fn uncompressed(pk: &Secp256r1PublicKey) -> Vec<u8> {
     pk.pubkey.to_encoded_point(false).as_bytes().to_vec()
-}
-
-/// Decodes a public key in any SEC1 format with p256 and decodes its compressed encoding.
-fn compressed(sec1: &[u8]) -> Secp256r1PublicKey {
-    let pk = p256::PublicKey::from_sec1_bytes(sec1).unwrap();
-    Secp256r1PublicKey::from_bytes(pk.to_encoded_point(true).as_bytes()).unwrap()
 }
 
 /// Verification with p256, an independent implementation, of an r || s signature on the message
@@ -235,7 +230,7 @@ fn check_wycheproof<H: HashFunction<32>>(name: TestName, p1363: bool) -> (usize,
     let (mut verified, mut rejected_high_s) = (0, 0);
     for test_group in TestSet::load(name).unwrap().test_groups {
         // The keys are given in the uncompressed format.
-        let pk = compressed(&test_group.key.key);
+        let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
         for test in test_group.tests {
             let bytes = match p1363 {
                 true => Some(test.sig.to_vec()),
@@ -274,15 +269,8 @@ fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256r1PublicKey>, Vec<Secp256r1Si
     (digest.to_vec(), pubkeys, signatures)
 }
 
-fn map_result(t: TestResult) -> TestResult {
-    match t {
-        TestResult::Valid => TestResult::Valid,
-        _ => TestResult::Invalid, // Treat Acceptable as Invalid
-    }
-}
-
 //
-// Functionality and round-trip tests
+// Serialization tests
 //
 
 #[test]
@@ -301,6 +289,68 @@ fn serialize_deserialize() {
 }
 
 #[test]
+fn serde_and_bytes_representations() {
+    let kp = keys().pop().unwrap();
+    let pk = kp.public().clone();
+    let signature = kp.sign(MSG);
+
+    // Human-readable formats use Base64 and binary formats the bytes without a length prefix. A key
+    // pair is encoded as its private key.
+    for (json, bytes) in [
+        (serde_json::to_string(&pk).unwrap(), pk.as_bytes()),
+        (
+            serde_json::to_string(&signature).unwrap(),
+            signature.as_bytes(),
+        ),
+        (serde_json::to_string(&kp).unwrap(), kp.secret.as_bytes()),
+    ] {
+        assert_eq!(json, format!("\"{}\"", Base64::encode(bytes)));
+    }
+    assert_eq!(bcs::to_bytes(&pk).unwrap(), pk.as_bytes());
+    assert_eq!(bcs::to_bytes(&signature).unwrap(), signature.as_bytes());
+    assert_eq!(bcs::to_bytes(&kp).unwrap(), kp.secret.as_bytes());
+    assert_eq!(
+        bcs::from_bytes::<Secp256r1KeyPair>(&bcs::to_bytes(&kp).unwrap()).unwrap(),
+        kp
+    );
+
+    // Deserialization validates like from_bytes, and BCS rejects trailing bytes.
+    let mut long = signature.as_bytes().to_vec();
+    long.push(0);
+    assert!(bcs::from_bytes::<Secp256r1Signature>(&long).is_err());
+    assert!(bcs::from_bytes::<Secp256r1Signature>(&[0; SIG_LENGTH]).is_err());
+    assert!(serde_json::from_str::<Secp256r1Signature>(&format!(
+        "\"{}\"",
+        Base64::encode([0; SIG_LENGTH])
+    ))
+    .is_err());
+    assert!(bcs::from_bytes::<Secp256r1PublicKey>(&X_THREE_COMPRESSED).is_err());
+    let uncompressed = uncompressed(&pk);
+    let json = format!("\"{}\"", Base64::encode(&uncompressed));
+    assert_eq!(
+        serde_json::from_str::<Secp256r1PublicKey>(&json).unwrap(),
+        pk
+    );
+    assert!(bcs::from_bytes::<Secp256r1PublicKey>(&uncompressed).is_err());
+    assert!(bcs::from_bytes::<Secp256r1PrivateKey>(&[0; SK_LENGTH]).is_err());
+    assert!(bcs::from_bytes::<Secp256r1KeyPair>(&GROUP_ORDER).is_err());
+
+    // The *AsBytes types hold any bytes of the right length, and converting them validates.
+    let pk_bytes: Secp256r1PublicKeyAsBytes = bcs::from_bytes(&X_THREE_COMPRESSED).unwrap();
+    assert!(Secp256r1PublicKey::try_from(&pk_bytes).is_err());
+    let pk_bytes: Secp256r1PublicKeyAsBytes = bcs::from_bytes(pk.as_bytes()).unwrap();
+    assert_eq!(Secp256r1PublicKey::try_from(&pk_bytes).unwrap(), pk);
+    assert_eq!(Secp256r1PublicKeyAsBytes::from(&pk), pk_bytes);
+    let signature_bytes: Secp256r1SignatureAsBytes = bcs::from_bytes(&[0; SIG_LENGTH]).unwrap();
+    assert!(Secp256r1Signature::try_from(&signature_bytes).is_err());
+    let signature_bytes: Secp256r1SignatureAsBytes = bcs::from_bytes(signature.as_bytes()).unwrap();
+    assert_eq!(
+        Secp256r1Signature::try_from(&signature_bytes).unwrap(),
+        signature
+    );
+}
+
+#[test]
 fn import_export_public_key() {
     let kpref = keys().pop().unwrap();
     let public_key = kpref.public();
@@ -311,63 +361,87 @@ fn import_export_public_key() {
 }
 
 #[test]
-fn test_public_key_recovery_error() {
-    // incorrect length
-    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; 1]).is_err());
+fn public_key_from_bytes() {
+    let kp = keys().pop().unwrap();
+    let pk = kp.public().clone();
+    let pk_bytes = pk.as_ref();
+    let rebuilt_pk = <Secp256r1PublicKey as ToFromBytes>::from_bytes(pk_bytes).unwrap();
+    assert_eq!(rebuilt_pk, pk);
 
-    // invalid recovery id at index 65
-    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
+    // check for failure
+    let mut pk_bytes = pk.as_ref().to_vec();
+    pk_bytes.pop();
+    assert!(<Secp256r1PublicKey as ToFromBytes>::from_bytes(&pk_bytes).is_err());
 
-    // Invalid signature: Zeros in signatures are not allowed
-    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(
-        &[0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH]
-    )
-    .is_err());
-}
-
-#[test]
-fn public_key_ordering() {
-    // Ord compares the uncompressed encodings, that is x and then y, like p256. This is not the
-    // order of the compressed encodings returned by as_bytes, which start with the parity of y. For
-    // example, the generator has an odd y, which is smaller than the even y of its negation.
-    let generator = Secp256r1PublicKey::from_bytes(&GENERATOR_COMPRESSED).unwrap();
-    let mut negated_bytes = GENERATOR_COMPRESSED;
-    negated_bytes[0] ^= 1;
-    let negated = Secp256r1PublicKey::from_bytes(&negated_bytes).unwrap();
-    assert!(generator < negated);
-    assert!(generator.as_bytes() > negated.as_bytes());
-
-    // Ord, Eq and Hash agree with each other.
+    // from_bytes accepts the SEC1 formats that p256 accepts: compressed (33 bytes with tag 0x02 or
+    // 0x03), uncompressed (65 bytes with tag 0x04) and compact (33 bytes with tag 0x05, see
+    // compact_encoding). A key decoded from the uncompressed format is encoded compressed.
     let mut pks: Vec<_> = keys().iter().map(|kp| kp.public().clone()).collect();
-    pks.extend([
-        generator,
-        negated,
-        Secp256r1PublicKey::from_bytes(&X_ZERO_COMPRESSED).unwrap(),
-    ]);
-    for pk1 in &pks {
-        for pk2 in &pks {
-            assert_eq!(pk1.cmp(pk2), uncompressed(pk1).cmp(&uncompressed(pk2)));
-            assert_eq!(pk1.partial_cmp(pk2), Some(pk1.cmp(pk2)));
-            assert_eq!(pk1.cmp(pk2) == Ordering::Equal, pk1 == pk2);
-            assert_eq!(pk1 == pk2, pk1.as_bytes() == pk2.as_bytes());
-            assert_eq!(pk1 == pk2, hash_of(pk1) == hash_of(pk2));
+    pks.push(Secp256r1PublicKey::from_bytes(&GENERATOR_COMPRESSED).unwrap());
+    pks.push(Secp256r1PublicKey::from_bytes(&X_ZERO_COMPRESSED).unwrap());
+    for pk in pks {
+        let compressed = pk.as_bytes().to_vec();
+        assert_eq!(
+            compressed,
+            pk.pubkey.to_encoded_point(true).as_bytes().to_vec()
+        );
+        let uncompressed = uncompressed(&pk);
+        for bytes in [&compressed, &uncompressed] {
+            for decoded in [
+                Secp256r1PublicKey::from_bytes(bytes).unwrap(),
+                Secp256r1PublicKey::from_bytes_strict(bytes).unwrap(),
+            ] {
+                assert_eq!(decoded, pk);
+                assert_eq!(decoded.as_bytes(), compressed);
+            }
+        }
+
+        // Flipping the tag of the compressed format gives the negated key.
+        let mut negated = compressed.clone();
+        negated[0] ^= 1;
+        assert_eq!(
+            *Secp256r1PublicKey::from_bytes(&negated)
+                .unwrap()
+                .pubkey
+                .as_affine(),
+            -*pk.pubkey.as_affine()
+        );
+
+        // Other tags are rejected, including the hybrid tags 0x06 and 0x07.
+        for tag in 0..=u8::MAX {
+            let mut short = compressed.clone();
+            short[0] = tag;
+            assert_eq!(
+                Secp256r1PublicKey::from_bytes(&short).is_ok(),
+                [0x02, 0x03, 0x05].contains(&tag)
+            );
+            let mut long = uncompressed.clone();
+            long[0] = tag;
+            assert_eq!(Secp256r1PublicKey::from_bytes(&long).is_ok(), tag == 0x04);
+        }
+
+        // Other lengths are rejected.
+        for len in [0, 1, 32, 34, 64, 66] {
+            let mut bytes = compressed.clone();
+            bytes.resize(len, 0);
+            assert!(Secp256r1PublicKey::from_bytes(&bytes).is_err());
         }
     }
-}
 
-#[test]
-fn hash_public_key() {
-    let kpref = keys().pop().unwrap();
-    let public_key = kpref.public();
-
-    let mut hasher = DefaultHasher::new();
-    public_key.hash(&mut hasher);
-    let digest = hasher.finish();
-
-    let mut other_hasher = DefaultHasher::new();
-    public_key.as_bytes().hash(&mut other_hasher);
-    let expected = other_hasher.finish();
-    assert_eq!(expected, digest);
+    // An x-coordinate that is not on the curve, x not reduced modulo p and the identity (a single
+    // zero byte in SEC1) are rejected, also by p256.
+    let mut x_three_odd = X_THREE_COMPRESSED;
+    x_three_odd[0] ^= 1;
+    for bytes in [
+        &X_THREE_COMPRESSED[..],
+        &x_three_odd,
+        &X_ZERO_UNREDUCED,
+        &[0x00],
+        &[0; PK_LENGTH],
+    ] {
+        assert!(Secp256r1PublicKey::from_bytes(bytes).is_err());
+        assert!(p256::PublicKey::from_sec1_bytes(bytes).is_err());
+    }
 }
 
 #[test]
@@ -392,6 +466,7 @@ fn compact_encoding() {
         // The lenient parser accepts the compact encoding and keeps the input bytes.
         let compact = Secp256r1PublicKey::from_bytes(&compact_bytes).unwrap();
         assert_eq!(compact.as_bytes(), compact_bytes.as_slice());
+        assert!(has_smaller_y(&compact));
 
         // Equal keys hash equally, regardless of the encoding they were parsed from.
         let same = if compact == pk { &pk } else { &negated };
@@ -415,30 +490,6 @@ fn compact_encoding() {
 }
 
 #[test]
-fn fmt_public_key() {
-    let kpref = keys().pop().unwrap();
-    let public_key = kpref.public();
-    assert_eq!(
-        public_key.to_string(),
-        Base64::encode(public_key.as_bytes())
-    );
-}
-
-#[test]
-fn public_key_from_bytes() {
-    let kp = keys().pop().unwrap();
-    let pk = kp.public().clone();
-    let pk_bytes = pk.as_ref();
-    let rebuilt_pk = <Secp256r1PublicKey as ToFromBytes>::from_bytes(pk_bytes).unwrap();
-    assert_eq!(rebuilt_pk, pk);
-
-    // check for failure
-    let mut pk_bytes = pk.as_ref().to_vec();
-    pk_bytes.pop();
-    assert!(<Secp256r1PublicKey as ToFromBytes>::from_bytes(&pk_bytes).is_err());
-}
-
-#[test]
 fn import_export_secret_key() {
     let kpref = keys().pop().unwrap();
     let secret_key = kpref.private();
@@ -446,36 +497,6 @@ fn import_export_secret_key() {
     let import = Secp256r1PrivateKey::decode_base64(&export);
     assert!(import.is_ok());
     assert_eq!(import.unwrap().as_ref(), secret_key.as_ref());
-}
-
-#[test]
-#[cfg(feature = "copy_key")]
-fn test_copy_key_pair() {
-    let kp = keys().pop().unwrap();
-    let kp_copied = kp.copy();
-
-    assert_eq!(kp.public().as_bytes(), kp_copied.public().as_bytes());
-    assert_eq!(kp.private().as_bytes(), kp_copied.private().as_bytes());
-}
-
-#[test]
-#[cfg(feature = "copy_key")]
-fn serialize_private_key_only_for_keypair() {
-    let keypairs = keys();
-    keypairs.into_iter().for_each(|kp| {
-        let sk = kp.copy().private();
-        let serialized_kp = bincode::serialize(&kp).unwrap();
-        let serialized_sk = bincode::serialize(&sk).unwrap();
-        assert_eq!(serialized_sk, serialized_kp);
-    });
-}
-
-#[test]
-fn key_pair_from_string_roundtrip() {
-    let kp = keys().pop().unwrap();
-    let kp_str = Base64::encode(kp.as_ref());
-    let recovered = Secp256r1KeyPair::from_str(&kp_str).unwrap();
-    assert_eq!(kp, recovered);
 }
 
 #[test]
@@ -550,6 +571,36 @@ fn non_canonical_secret_key() {
 }
 
 #[test]
+fn key_pair_from_string_roundtrip() {
+    let kp = keys().pop().unwrap();
+    let kp_str = Base64::encode(kp.as_ref());
+    let recovered = Secp256r1KeyPair::from_str(&kp_str).unwrap();
+    assert_eq!(kp, recovered);
+}
+
+#[test]
+#[cfg(feature = "copy_key")]
+fn test_copy_key_pair() {
+    let kp = keys().pop().unwrap();
+    let kp_copied = kp.copy();
+
+    assert_eq!(kp.public().as_bytes(), kp_copied.public().as_bytes());
+    assert_eq!(kp.private().as_bytes(), kp_copied.private().as_bytes());
+}
+
+#[test]
+#[cfg(feature = "copy_key")]
+fn serialize_private_key_only_for_keypair() {
+    let keypairs = keys();
+    keypairs.into_iter().for_each(|kp| {
+        let sk = kp.copy().private();
+        let serialized_kp = bincode::serialize(&kp).unwrap();
+        let serialized_sk = bincode::serialize(&sk).unwrap();
+        assert_eq!(serialized_sk, serialized_kp);
+    });
+}
+
+#[test]
 fn to_from_bytes_signature() {
     let kpref = keys().pop().unwrap();
     let signature = kpref.sign(b"Hello, world!");
@@ -621,24 +672,23 @@ fn fail_on_r_or_s_zero() {
 }
 
 #[test]
-fn hash_signature() {
-    let sig = keys().pop().unwrap().sign(MSG);
+fn test_public_key_recovery_error() {
+    // incorrect length
+    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; 1]).is_err());
 
-    let mut hasher = DefaultHasher::new();
-    sig.hash(&mut hasher);
-    let digest = hasher.finish();
+    // invalid recovery id at index 65
+    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
 
-    let mut other_hasher = DefaultHasher::new();
-    sig.as_bytes().hash(&mut other_hasher);
-    let expected = other_hasher.finish();
-    assert_eq!(expected, digest);
+    // Invalid signature: Zeros in signatures are not allowed
+    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(
+        &[0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH]
+    )
+    .is_err());
 }
 
-#[test]
-fn fmt_signature() {
-    let sig = keys().pop().unwrap().sign(MSG);
-    assert_eq!(sig.to_string(), Base64::encode(sig.as_bytes()));
-}
+//
+// Signature verification tests
+//
 
 #[test]
 fn verify_valid_signature() {
@@ -654,6 +704,28 @@ fn verify_valid_signature() {
     // Verify the signature.
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
+}
+
+#[test]
+fn verify_invalid_signature() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+
+    // Make signature.
+    let message: &[u8] = b"Hello, world!";
+    let digest = Sha256::digest(message);
+
+    // Verify the signature against good digest passes.
+    let signature = kp.sign(digest.as_ref());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
+
+    // Verify the signature against bad digest fails.
+    let bad_message: &[u8] = b"Bad message!";
+    let digest = Sha256::digest(bad_message);
+
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
 }
 
 #[test]
@@ -696,93 +768,6 @@ fn verify_hashed_failed_if_different_hash() {
 }
 
 #[test]
-fn verify_valid_batch() {
-    let (digest, pubkeys, signatures) = signature_test_inputs();
-
-    let res = Secp256r1PublicKey::verify_batch_empty_fail(&digest[..], &pubkeys, &signatures);
-    assert!(res.is_ok(), "{:?}", res);
-}
-
-#[test]
-fn verify_invalid_batch() {
-    let (digest, pubkeys, mut signatures) = signature_test_inputs();
-    // mangle one signature
-    signatures.swap(0, 1);
-
-    assert!(Secp256r1PublicKey::verify_batch_empty_fail(&digest, &pubkeys, &signatures).is_err())
-}
-
-#[test]
-fn verify_empty_batch() {
-    let (digest, _, _) = signature_test_inputs();
-
-    let res = Secp256r1PublicKey::verify_batch_empty_fail(&digest[..], &[], &[]);
-    assert!(res.is_err(), "{:?}", res);
-}
-
-#[test]
-fn verify_batch_missing_public_keys() {
-    let (digest, pubkeys, signatures) = signature_test_inputs();
-
-    // missing leading public keys
-    let res = Secp256r1PublicKey::verify_batch_empty_fail(&digest, &pubkeys[1..], &signatures);
-    assert!(res.is_err(), "{:?}", res);
-
-    // missing trailing public keys
-    let res = Secp256r1PublicKey::verify_batch_empty_fail(
-        &digest,
-        &pubkeys[..pubkeys.len() - 1],
-        &signatures,
-    );
-    assert!(res.is_err(), "{:?}", res);
-}
-
-#[test]
-fn verify_invalid_signature() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-
-    // Make signature.
-    let message: &[u8] = b"Hello, world!";
-    let digest = Sha256::digest(message);
-
-    // Verify the signature against good digest passes.
-    let signature = kp.sign(digest.as_ref());
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
-
-    // Verify the signature against bad digest fails.
-    let bad_message: &[u8] = b"Bad message!";
-    let digest = Sha256::digest(bad_message);
-
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
-}
-
-#[test]
-fn verify_valid_batch_different_msg() {
-    let inputs = test_helpers::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
-    let res = Secp256r1PublicKey::verify_batch_empty_fail_different_msg(
-        &inputs.digests,
-        &inputs.pubkeys,
-        &inputs.signatures,
-    );
-    assert!(res.is_ok(), "{:?}", res);
-}
-
-#[test]
-fn verify_invalid_batch_different_msg() {
-    let mut inputs = test_helpers::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
-    inputs.signatures.swap(0, 1);
-    let res = Secp256r1PublicKey::verify_batch_empty_fail_different_msg(
-        &inputs.digests,
-        &inputs.pubkeys,
-        &inputs.signatures,
-    );
-    assert!(res.is_err(), "{:?}", res);
-}
-
-#[test]
 fn fail_to_verify_if_upper_s() {
     // Make signature.
     let message: &[u8] = b"Hello, world!";
@@ -819,188 +804,52 @@ fn fail_to_verify_if_upper_s() {
     }
 }
 
-#[tokio::test]
-async fn signature_service() {
-    // Get a keypair.
+#[test]
+fn verify_fails_if_verification_point_is_identity() {
+    // With r = -z / d, where z is the hash of the message and d the private key, the point u1 G + u2 Q
+    // computed by verification is the identity, which has no x-coordinate.
     let kp = keys().pop().unwrap();
-    let pk = kp.public().clone();
-
-    // Spawn the signature service.
-    let service = SignatureService::new(kp);
-
-    // Request signature from the service.
-    let message: &[u8] = b"Hello, world!";
-    let digest = Sha256::digest(message);
-    let signature = service.request_signature(digest).await;
-
-    //    digest.into()
-
-    // Verify the signature we received.
-    assert!(pk.verify(digest.as_ref(), &signature).is_ok());
-    assert!(pk.verify(digest.as_ref(), &signature).is_ok());
+    let d = *kp.secret.privkey.as_nonzero_scalar();
+    let z = <Scalar as Reduce<U256>>::reduce_bytes(&Sha256::digest(MSG).digest.into());
+    let r = -(z * d.invert().unwrap());
+    let bytes = Signature::from_scalars(r, Scalar::ONE).unwrap().to_bytes();
+    assert!(!p256_verify::<Sha256>(kp.public().as_bytes(), MSG, &bytes));
+    let signature = <Secp256r1Signature as ToFromBytes>::from_bytes(&bytes).unwrap();
+    assert_eq!(
+        kp.public().verify(MSG, &signature),
+        Err(FastCryptoError::InvalidSignature)
+    );
 }
 
 #[test]
-fn test_sk_zeroization_on_drop() {
-    let ptr: *const u8;
-    let bytes_ptr: *const u8;
-
-    let mut sk_bytes = Vec::new();
-
-    {
-        let mut rng = StdRng::from_seed([9; 32]);
-        let kp = Secp256r1KeyPair::generate(&mut rng);
-        let sk = kp.private();
-        sk_bytes.extend_from_slice(sk.as_ref());
-
-        ptr = std::ptr::addr_of!(sk.privkey) as *const u8;
-        bytes_ptr = &sk.as_ref()[0] as *const u8;
-
-        let sk_memory: &[u8] = unsafe { std::slice::from_raw_parts(bytes_ptr, SECRET_KEY_SIZE) };
-        // Assert that this is equal to sk_bytes before deletion
-        assert_eq!(sk_memory, &sk_bytes[..]);
-    }
-
-    // Check that self.privkey is set to ONE_KEY (workaround to all zero SecretKey considered as invalid)
-    unsafe {
-        assert_eq!(*ptr, 1);
-        for i in 1..SECRET_KEY_SIZE {
-            assert_eq!(*ptr.add(i), 0);
-        }
-    }
-
-    // Check that self.bytes is zeroized
-    let sk_memory: &[u8] = unsafe { std::slice::from_raw_parts(bytes_ptr, SECRET_KEY_SIZE) };
-    assert_ne!(sk_memory, &sk_bytes[..]);
-}
-
-#[test]
-fn wycheproof_test_nonrecoverable() {
-    let test_set = TestSet::load(EcdsaSecp256r1Sha256).unwrap();
-    for test_group in test_set.test_groups {
-        let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
-        for test in test_group.tests {
-            let signature = match Signature::from_der(&test.sig) {
-                Ok(s) => Secp256r1Signature::from_bytes(
-                    // Wycheproof tests do not enforce low s but we do, so we need to normalize
-                    s.normalize_s().unwrap_or(s).to_bytes().as_slice(),
-                )
-                .unwrap(),
-                Err(_) => {
-                    assert_eq!(map_result(test.result), TestResult::Invalid);
-                    continue;
-                }
-            };
-
-            let mut res = TestResult::Invalid;
-            if pk.verify(test.msg.as_slice(), &signature).is_ok() {
-                res = TestResult::Valid;
-            }
-            assert_eq!(map_result(test.result), res, "{}", test.comment);
-        }
-    }
-}
-
-#[test]
-fn dont_display_secrets() {
-    let keypairs = keys();
-    keypairs.into_iter().for_each(|keypair| {
-        let sk = keypair.private();
-        assert_eq!(format!("{}", sk), "<elided secret for Secp256r1PrivateKey>");
+fn sign_and_verify_with_small_keys() {
+    // The private keys 1, 2, 3, n - 1 and n - 2, whose public keys are small multiples of the
+    // generator, which is also the base point of the precomputed table used in verification.
+    let small = |k: u8| {
+        let mut bytes = [0; SK_LENGTH];
+        bytes[SK_LENGTH - 1] = k;
+        bytes
+    };
+    for sk in [
+        small(1),
+        small(2),
+        small(3),
+        add_small(&GROUP_ORDER, -1),
+        add_small(&GROUP_ORDER, -2),
+    ] {
+        let kp = Secp256r1KeyPair::from_bytes(&sk).unwrap();
+        let expected = p256::ecdsa::SigningKey::from_slice(&sk).unwrap();
         assert_eq!(
-            format!("{:?}", sk),
-            "<elided secret for Secp256r1PrivateKey>"
+            kp.public().as_bytes(),
+            expected.verifying_key().to_encoded_point(true).as_bytes()
         );
-    });
-}
-
-//
-// Serialization tests
-//
-
-#[test]
-fn public_key_edge_cases() {
-    // The point with x = 0 is a valid public key, and so is its negation.
-    let pk = Secp256r1PublicKey::from_bytes(&X_ZERO_COMPRESSED).unwrap();
-    assert_eq!(pk.as_bytes(), X_ZERO_COMPRESSED);
-    let mut negated = X_ZERO_COMPRESSED;
-    negated[0] ^= 1;
-    assert_ne!(Secp256r1PublicKey::from_bytes(&negated).unwrap(), pk);
-
-    // An x-coordinate that is not on the curve, x not reduced modulo p and the identity (a single
-    // zero byte in SEC1) are rejected, also by p256.
-    let mut x_three_odd = X_THREE_COMPRESSED;
-    x_three_odd[0] ^= 1;
-    for bytes in [
-        &X_THREE_COMPRESSED[..],
-        &x_three_odd,
-        &X_ZERO_UNREDUCED,
-        &[0x00],
-        &[0; PK_LENGTH],
-    ] {
-        assert!(Secp256r1PublicKey::from_bytes(bytes).is_err());
-        assert!(p256::PublicKey::from_sec1_bytes(bytes).is_err());
+        for msg in MESSAGES {
+            let signature = kp.sign(msg);
+            assert_eq!(signature.as_bytes(), p256_sign::<Sha256>(&sk, msg));
+            assert!(kp.public().verify(msg, &signature).is_ok());
+        }
     }
 }
-
-#[test]
-fn serde_and_bytes_representations() {
-    let kp = keys().pop().unwrap();
-    let pk = kp.public().clone();
-    let signature = kp.sign(MSG);
-
-    // Human-readable formats use Base64 and binary formats the bytes without a length prefix. A key
-    // pair is encoded as its private key.
-    for (json, bytes) in [
-        (serde_json::to_string(&pk).unwrap(), pk.as_bytes()),
-        (
-            serde_json::to_string(&signature).unwrap(),
-            signature.as_bytes(),
-        ),
-        (serde_json::to_string(&kp).unwrap(), kp.secret.as_bytes()),
-    ] {
-        assert_eq!(json, format!("\"{}\"", Base64::encode(bytes)));
-    }
-    assert_eq!(bcs::to_bytes(&pk).unwrap(), pk.as_bytes());
-    assert_eq!(bcs::to_bytes(&signature).unwrap(), signature.as_bytes());
-    assert_eq!(bcs::to_bytes(&kp).unwrap(), kp.secret.as_bytes());
-    assert_eq!(
-        bcs::from_bytes::<Secp256r1KeyPair>(&bcs::to_bytes(&kp).unwrap()).unwrap(),
-        kp
-    );
-
-    // Deserialization validates like from_bytes, and BCS rejects trailing bytes.
-    let mut long = signature.as_bytes().to_vec();
-    long.push(0);
-    assert!(bcs::from_bytes::<Secp256r1Signature>(&long).is_err());
-    assert!(bcs::from_bytes::<Secp256r1Signature>(&[0; SIG_LENGTH]).is_err());
-    assert!(serde_json::from_str::<Secp256r1Signature>(&format!(
-        "\"{}\"",
-        Base64::encode([0; SIG_LENGTH])
-    ))
-    .is_err());
-    assert!(bcs::from_bytes::<Secp256r1PublicKey>(&X_THREE_COMPRESSED).is_err());
-    assert!(bcs::from_bytes::<Secp256r1PrivateKey>(&[0; SK_LENGTH]).is_err());
-    assert!(bcs::from_bytes::<Secp256r1KeyPair>(&GROUP_ORDER).is_err());
-
-    // The *AsBytes types hold any bytes of the right length, and converting them validates.
-    let pk_bytes: Secp256r1PublicKeyAsBytes = bcs::from_bytes(&X_THREE_COMPRESSED).unwrap();
-    assert!(Secp256r1PublicKey::try_from(&pk_bytes).is_err());
-    let pk_bytes: Secp256r1PublicKeyAsBytes = bcs::from_bytes(pk.as_bytes()).unwrap();
-    assert_eq!(Secp256r1PublicKey::try_from(&pk_bytes).unwrap(), pk);
-    assert_eq!(Secp256r1PublicKeyAsBytes::from(&pk), pk_bytes);
-    let signature_bytes: Secp256r1SignatureAsBytes = bcs::from_bytes(&[0; SIG_LENGTH]).unwrap();
-    assert!(Secp256r1Signature::try_from(&signature_bytes).is_err());
-    let signature_bytes: Secp256r1SignatureAsBytes = bcs::from_bytes(signature.as_bytes()).unwrap();
-    assert_eq!(
-        Secp256r1Signature::try_from(&signature_bytes).unwrap(),
-        signature
-    );
-}
-
-//
-// Signature verification tests
-//
 
 #[test]
 fn rfc6979_test_vectors() {
@@ -1027,9 +876,9 @@ fn rfc6979_test_vectors() {
 }
 
 #[test]
-fn wycheproof_test_without_normalization() {
-    // Unlike wycheproof_test_nonrecoverable, s is not normalized here, so the valid signatures with
-    // a high s must be rejected. The P1363 suite encodes signatures as r || s, like from_bytes.
+fn wycheproof_test_nonrecoverable() {
+    // Signatures are not normalized, so the valid signatures with a high s must be rejected. The
+    // P1363 suite encodes signatures as r || s, like from_bytes.
     assert_eq!(
         check_wycheproof::<Sha256>(TestName::EcdsaSecp256r1Sha256, false),
         (103, 71)
@@ -1092,50 +941,215 @@ fn verify_real_passkey_signature() {
 }
 
 #[test]
-fn verify_fails_if_verification_point_is_identity() {
-    // With r = -z / d, where z is the hash of the message and d the private key, the point u1 G + u2 Q
-    // computed by verification is the identity, which has no x-coordinate.
-    let kp = keys().pop().unwrap();
-    let d = *kp.secret.privkey.as_nonzero_scalar();
-    let z = <Scalar as Reduce<U256>>::reduce_bytes(&Sha256::digest(MSG).digest.into());
-    let r = -(z * d.invert().unwrap());
-    let bytes = Signature::from_scalars(r, Scalar::ONE).unwrap().to_bytes();
-    assert!(!p256_verify::<Sha256>(kp.public().as_bytes(), MSG, &bytes));
-    let signature = <Secp256r1Signature as ToFromBytes>::from_bytes(&bytes).unwrap();
+fn verify_valid_batch() {
+    let (digest, pubkeys, signatures) = signature_test_inputs();
+
+    let res = Secp256r1PublicKey::verify_batch_empty_fail(&digest[..], &pubkeys, &signatures);
+    assert!(res.is_ok(), "{:?}", res);
+}
+
+#[test]
+fn verify_invalid_batch() {
+    let (digest, pubkeys, mut signatures) = signature_test_inputs();
+    // mangle one signature
+    signatures.swap(0, 1);
+
+    assert!(Secp256r1PublicKey::verify_batch_empty_fail(&digest, &pubkeys, &signatures).is_err())
+}
+
+#[test]
+fn verify_empty_batch() {
+    let (digest, _, _) = signature_test_inputs();
+
+    let res = Secp256r1PublicKey::verify_batch_empty_fail(&digest[..], &[], &[]);
+    assert!(res.is_err(), "{:?}", res);
+}
+
+#[test]
+fn verify_batch_missing_public_keys() {
+    let (digest, pubkeys, signatures) = signature_test_inputs();
+
+    // missing leading public keys
+    let res = Secp256r1PublicKey::verify_batch_empty_fail(&digest, &pubkeys[1..], &signatures);
+    assert!(res.is_err(), "{:?}", res);
+
+    // missing trailing public keys
+    let res = Secp256r1PublicKey::verify_batch_empty_fail(
+        &digest,
+        &pubkeys[..pubkeys.len() - 1],
+        &signatures,
+    );
+    assert!(res.is_err(), "{:?}", res);
+}
+
+#[test]
+fn verify_valid_batch_different_msg() {
+    let inputs = test_helpers::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
+    let res = Secp256r1PublicKey::verify_batch_empty_fail_different_msg(
+        &inputs.digests,
+        &inputs.pubkeys,
+        &inputs.signatures,
+    );
+    assert!(res.is_ok(), "{:?}", res);
+}
+
+#[test]
+fn verify_invalid_batch_different_msg() {
+    let mut inputs = test_helpers::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
+    inputs.signatures.swap(0, 1);
+    let res = Secp256r1PublicKey::verify_batch_empty_fail_different_msg(
+        &inputs.digests,
+        &inputs.pubkeys,
+        &inputs.signatures,
+    );
+    assert!(res.is_err(), "{:?}", res);
+}
+
+//
+// Other tests
+//
+
+#[test]
+fn public_key_ordering() {
+    // Ord compares the uncompressed encodings, that is x and then y, like p256. This is not the
+    // order of the compressed encodings returned by as_bytes, which start with the parity of y. For
+    // example, the generator has an odd y, which is smaller than the even y of its negation.
+    let generator = Secp256r1PublicKey::from_bytes(&GENERATOR_COMPRESSED).unwrap();
+    let mut negated_bytes = GENERATOR_COMPRESSED;
+    negated_bytes[0] ^= 1;
+    let negated = Secp256r1PublicKey::from_bytes(&negated_bytes).unwrap();
+    assert!(generator < negated);
+    assert!(generator.as_bytes() > negated.as_bytes());
+
+    // Ord, Eq and Hash agree with each other.
+    let mut pks: Vec<_> = keys().iter().map(|kp| kp.public().clone()).collect();
+    pks.extend([
+        generator,
+        negated,
+        Secp256r1PublicKey::from_bytes(&X_ZERO_COMPRESSED).unwrap(),
+    ]);
+    for pk1 in &pks {
+        for pk2 in &pks {
+            assert_eq!(pk1.cmp(pk2), uncompressed(pk1).cmp(&uncompressed(pk2)));
+            assert_eq!(pk1.partial_cmp(pk2), Some(pk1.cmp(pk2)));
+            assert_eq!(pk1.cmp(pk2) == Ordering::Equal, pk1 == pk2);
+            assert_eq!(pk1 == pk2, pk1.as_bytes() == pk2.as_bytes());
+            assert_eq!(pk1 == pk2, hash_of(pk1) == hash_of(pk2));
+        }
+    }
+}
+
+#[test]
+fn hash_public_key() {
+    let kpref = keys().pop().unwrap();
+    let public_key = kpref.public();
+
+    let mut hasher = DefaultHasher::new();
+    public_key.hash(&mut hasher);
+    let digest = hasher.finish();
+
+    let mut other_hasher = DefaultHasher::new();
+    public_key.as_bytes().hash(&mut other_hasher);
+    let expected = other_hasher.finish();
+    assert_eq!(expected, digest);
+}
+
+#[test]
+fn fmt_public_key() {
+    let kpref = keys().pop().unwrap();
+    let public_key = kpref.public();
     assert_eq!(
-        kp.public().verify(MSG, &signature),
-        Err(FastCryptoError::InvalidSignature)
+        public_key.to_string(),
+        Base64::encode(public_key.as_bytes())
     );
 }
 
 #[test]
-fn sign_and_verify_with_small_keys() {
-    // The private keys 1, 2, 3, n - 1 and n - 2, whose public keys are small multiples of the
-    // generator, which is also the base point of the precomputed table used in verification.
-    let small = |k: u8| {
-        let mut bytes = [0; SK_LENGTH];
-        bytes[SK_LENGTH - 1] = k;
-        bytes
-    };
-    for sk in [
-        small(1),
-        small(2),
-        small(3),
-        add_small(&GROUP_ORDER, -1),
-        add_small(&GROUP_ORDER, -2),
-    ] {
-        let kp = Secp256r1KeyPair::from_bytes(&sk).unwrap();
-        let expected = p256::ecdsa::SigningKey::from_slice(&sk).unwrap();
-        assert_eq!(
-            kp.public().as_bytes(),
-            expected.verifying_key().to_encoded_point(true).as_bytes()
-        );
-        for msg in MESSAGES {
-            let signature = kp.sign(msg);
-            assert_eq!(signature.as_bytes(), p256_sign::<Sha256>(&sk, msg));
-            assert!(kp.public().verify(msg, &signature).is_ok());
+fn hash_signature() {
+    let sig = keys().pop().unwrap().sign(MSG);
+
+    let mut hasher = DefaultHasher::new();
+    sig.hash(&mut hasher);
+    let digest = hasher.finish();
+
+    let mut other_hasher = DefaultHasher::new();
+    sig.as_bytes().hash(&mut other_hasher);
+    let expected = other_hasher.finish();
+    assert_eq!(expected, digest);
+}
+
+#[test]
+fn fmt_signature() {
+    let sig = keys().pop().unwrap().sign(MSG);
+    assert_eq!(sig.to_string(), Base64::encode(sig.as_bytes()));
+}
+
+#[tokio::test]
+async fn signature_service() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+    let pk = kp.public().clone();
+
+    // Spawn the signature service.
+    let service = SignatureService::new(kp);
+
+    // Request signature from the service.
+    let message: &[u8] = b"Hello, world!";
+    let digest = Sha256::digest(message);
+    let signature = service.request_signature(digest).await;
+
+    //    digest.into()
+
+    // Verify the signature we received.
+    assert!(pk.verify(digest.as_ref(), &signature).is_ok());
+    assert!(pk.verify(digest.as_ref(), &signature).is_ok());
+}
+
+#[test]
+fn test_sk_zeroization_on_drop() {
+    let ptr: *const u8;
+    let bytes_ptr: *const u8;
+
+    let mut sk_bytes = Vec::new();
+
+    {
+        let mut rng = StdRng::from_seed([9; 32]);
+        let kp = Secp256r1KeyPair::generate(&mut rng);
+        let sk = kp.private();
+        sk_bytes.extend_from_slice(sk.as_ref());
+
+        ptr = std::ptr::addr_of!(sk.privkey) as *const u8;
+        bytes_ptr = &sk.as_ref()[0] as *const u8;
+
+        let sk_memory: &[u8] = unsafe { std::slice::from_raw_parts(bytes_ptr, SECRET_KEY_SIZE) };
+        // Assert that this is equal to sk_bytes before deletion
+        assert_eq!(sk_memory, &sk_bytes[..]);
+    }
+
+    // Check that self.privkey is set to ONE_KEY (workaround to all zero SecretKey considered as invalid)
+    unsafe {
+        assert_eq!(*ptr, 1);
+        for i in 1..SECRET_KEY_SIZE {
+            assert_eq!(*ptr.add(i), 0);
         }
     }
+
+    // Check that self.bytes is zeroized
+    let sk_memory: &[u8] = unsafe { std::slice::from_raw_parts(bytes_ptr, SECRET_KEY_SIZE) };
+    assert_ne!(sk_memory, &sk_bytes[..]);
+}
+
+#[test]
+fn dont_display_secrets() {
+    let keypairs = keys();
+    keypairs.into_iter().for_each(|keypair| {
+        let sk = keypair.private();
+        assert_eq!(format!("{}", sk), "<elided secret for Secp256r1PrivateKey>");
+        assert_eq!(
+            format!("{:?}", sk),
+            "<elided secret for Secp256r1PrivateKey>"
+        );
+    });
 }
 
 //
@@ -1270,44 +1284,46 @@ proptest! {
         let deserialized: Secp256r1KeyPair = bincode::deserialize(&serialized).unwrap();
         assert_eq!(kp.public(), deserialized.public());
     }
-}
 
-proptest! {
     #[test]
     fn test_decode_adversarial_public_keys(bytes in arb_public_key_bytes()) {
+        // from_bytes accepts exactly the encodings that p256 accepts and decodes them to the same
+        // point. from_bytes_strict also rejects the compact format.
         let decoded = Secp256r1PublicKey::from_bytes(&bytes);
         let expected = p256::PublicKey::from_sec1_bytes(&bytes);
-
-        // A compressed encoding is accepted iff p256 accepts it, and it is then the encoding of
-        // the key.
-        let is_compressed = bytes.len() == PK_LENGTH && (bytes[0] == 0x02 || bytes[0] == 0x03);
-        if is_compressed {
-            prop_assert_eq!(decoded.is_ok(), expected.is_ok());
-        }
+        prop_assert_eq!(decoded.is_ok(), expected.is_ok());
+        prop_assert_eq!(
+            Secp256r1PublicKey::from_bytes_strict(&bytes).is_ok(),
+            decoded.is_ok() && bytes[0] != 0x05
+        );
         let Ok(pk) = decoded else {
             return Ok(());
         };
-        if is_compressed {
-            prop_assert_eq!(pk.as_bytes(), &bytes[..]);
-        }
-
-        // Every accepted encoding decodes to the point that p256 decodes it to, and the key is
-        // equal to, hashes like and compares equal to the key decoded from the compressed
-        // encoding of that point.
         let expected = expected.unwrap();
         prop_assert_eq!(pk.pubkey.as_affine(), expected.as_affine());
+        if bytes[0] == 0x05 {
+            prop_assert!(has_smaller_y(&pk));
+        }
+
+        // A key decoded from 33 bytes keeps them, and one decoded from 65 bytes is encoded
+        // compressed. Either way, it is equal to, hashes like and compares equal to the key
+        // decoded from the compressed encoding.
         let compressed = expected.to_encoded_point(true);
+        match bytes.len() {
+            PK_LENGTH => prop_assert_eq!(pk.as_bytes(), &bytes[..]),
+            _ => prop_assert_eq!(pk.as_bytes(), compressed.as_bytes()),
+        }
         let compressed_pk = Secp256r1PublicKey::from_bytes(compressed.as_bytes()).unwrap();
         prop_assert_eq!(&pk, &compressed_pk);
         prop_assert_eq!(hash_of(&pk), hash_of(&compressed_pk));
         prop_assert_eq!(pk.cmp(&compressed_pk), Ordering::Equal);
 
-        // The key encodes to its input or to the compressed encoding, which both decode to it.
-        prop_assert!(pk.as_bytes() == &bytes[..] || pk.as_bytes() == compressed.as_bytes());
-        prop_assert_eq!(&Secp256r1PublicKey::from_bytes(pk.as_bytes()).unwrap(), &pk);
-        let bcs_bytes = bcs::to_bytes(&pk).unwrap();
-        prop_assert_eq!(&bcs::from_bytes::<Secp256r1PublicKey>(&bcs_bytes).unwrap(), &pk);
-        let json = serde_json::to_string(&pk).unwrap();
+        // BCS has a fixed length of 33 bytes, while JSON goes through from_bytes.
+        prop_assert_eq!(
+            bcs::from_bytes::<Secp256r1PublicKey>(&bytes).ok(),
+            (bytes.len() == PK_LENGTH).then(|| pk.clone())
+        );
+        let json = format!("\"{}\"", Base64::encode(&bytes));
         prop_assert_eq!(&serde_json::from_str::<Secp256r1PublicKey>(&json).unwrap(), &pk);
     }
 

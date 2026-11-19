@@ -1,15 +1,20 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use ecdsa::RecoveryId;
+use once_cell::sync::Lazy;
 use p256::ecdsa::Signature;
 use p256::elliptic_curve::bigint::ArrayEncoding;
+use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::scalar::IsHigh;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::elliptic_curve::Curve;
 use p256::{NistP256, Scalar, U256};
+use proptest::collection;
+use proptest::strategy::ValueTree;
+use proptest::test_runner::TestRunner;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
-use rust_secp256k1::constants::SECRET_KEY_SIZE;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
@@ -17,33 +22,20 @@ use wycheproof::TestResult;
 
 use crate::encoding::{Base64, Encoding};
 use crate::error::FastCryptoError;
-use crate::hash::Blake2b256;
-use crate::secp256r1::{
-    Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature,
+use crate::hash::{Blake2b256, HashFunction, Keccak256, Sha256};
+use crate::secp256r1::recoverable::{
+    Secp256r1RecoverableSignature, SECP256R1_RECOVERABLE_SIGNATURE_LENGTH,
 };
-use crate::{
-    hash::{HashFunction, Sha256},
-    secp256r1::recoverable::Secp256r1RecoverableSignature,
-    signature_service::SignatureService,
-    traits::{EncodeDecodeBase64, KeyPair, ToFromBytes},
-};
-
-use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
-use crate::test_helpers::verify_serialization;
-use crate::traits::VerifyingKey;
-use crate::traits::{RecoverableSignature, RecoverableSigner, Signer, VerifyRecoverable};
-
-use crate::hash::Keccak256;
+use crate::secp256r1::{Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature};
 use crate::secp256r1_tests::{
     add_small, is_high_s, negate_s, p256_verify, GROUP_ORDER, HONEST_KEYS, MESSAGES,
     RFC6979_PRIVATE_KEY, RFC6979_PUBLIC_KEY, RFC6979_SHA256_SIGNATURES, SIG_LENGTH,
 };
-use ecdsa::RecoveryId;
-use once_cell::sync::Lazy;
-use p256::elliptic_curve::ops::Reduce;
-use proptest::collection;
-use proptest::strategy::ValueTree;
-use proptest::test_runner::TestRunner;
+use crate::test_helpers::verify_serialization;
+use crate::traits::{
+    KeyPair, RecoverableSignature, RecoverableSigner, Signer, ToFromBytes, VerifyRecoverable,
+    VerifyingKey,
+};
 
 //
 // Helper functions
@@ -118,7 +110,7 @@ fn map_result(t: TestResult) -> TestResult {
 }
 
 //
-// Functionality and round-trip tests
+// Serialization tests
 //
 
 #[test]
@@ -129,22 +121,17 @@ fn serialize_deserialize() {
 }
 
 #[test]
-fn import_export_public_key() {
+fn to_from_bytes_signature() {
     let kpref = keys().pop().unwrap();
-    let public_key = kpref.public();
-    let export = public_key.encode_base64();
-    let import = Secp256r1PublicKey::decode_base64(&export);
-    assert!(import.is_ok());
-    assert_eq!(import.unwrap().as_ref(), public_key.as_ref());
-}
-
-#[test]
-fn test_public_key_recovery() {
-    let kp = keys().pop().unwrap();
-    let message: &[u8] = b"Hello, world!";
-    let signature: Secp256r1RecoverableSignature = kp.sign_recoverable(message);
-    let recovered_key = signature.recover(message).unwrap();
-    assert_eq!(recovered_key, *kp.public());
+    let signature = kpref.sign_recoverable(b"Hello, world!");
+    let sig_bytes = signature.as_ref();
+    let rebuilt_sig =
+        <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
+    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref());
+    // check for failure
+    let mut sig_bytes = signature.as_ref().to_vec();
+    sig_bytes.pop();
+    assert!(<Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&sig_bytes).is_err());
 }
 
 #[test]
@@ -185,52 +172,6 @@ fn test_public_key_recovery_error() {
 }
 
 #[test]
-fn import_export_secret_key() {
-    let kpref = keys().pop().unwrap();
-    let secret_key = kpref.private();
-    let export = secret_key.encode_base64();
-    let import = Secp256r1PrivateKey::decode_base64(&export);
-    assert!(import.is_ok());
-    assert_eq!(import.unwrap().as_ref(), secret_key.as_ref());
-}
-
-#[test]
-#[cfg(feature = "copy_key")]
-fn test_copy_key_pair() {
-    let kp = keys().pop().unwrap();
-    let kp_copied = kp.copy();
-
-    assert_eq!(kp.public().as_bytes(), kp_copied.public().as_bytes());
-    assert_eq!(kp.private().as_bytes(), kp_copied.private().as_bytes());
-}
-
-#[test]
-#[cfg(feature = "copy_key")]
-fn serialize_private_key_only_for_keypair() {
-    let keypairs = keys();
-    keypairs.into_iter().for_each(|kp| {
-        let sk = kp.copy().private();
-        let serialized_kp = bincode::serialize(&kp).unwrap();
-        let serialized_sk = bincode::serialize(&sk).unwrap();
-        assert_eq!(serialized_sk, serialized_kp);
-    });
-}
-
-#[test]
-fn to_from_bytes_signature() {
-    let kpref = keys().pop().unwrap();
-    let signature = kpref.sign_recoverable(b"Hello, world!");
-    let sig_bytes = signature.as_ref();
-    let rebuilt_sig =
-        <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
-    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref());
-    // check for failure
-    let mut sig_bytes = signature.as_ref().to_vec();
-    sig_bytes.pop();
-    assert!(<Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&sig_bytes).is_err());
-}
-
-#[test]
 fn fail_on_r_or_s_zero() {
     // Verification (split_scalars) panics if r or s is zero, so we check that this is caught in deserialization.
 
@@ -253,24 +194,17 @@ fn fail_on_r_or_s_zero() {
     assert!(<Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&s_is_zero).is_err());
 }
 
-#[test]
-fn fmt_signature() {
-    let sig = keys().pop().unwrap().sign_recoverable(MSG);
-    assert_eq!(sig.to_string(), Base64::encode(sig.as_bytes()));
-}
+//
+// Signature verification tests
+//
 
 #[test]
-fn hash_signature() {
-    let sig = keys().pop().unwrap().sign_recoverable(MSG);
-
-    let mut hasher = DefaultHasher::new();
-    sig.hash(&mut hasher);
-    let digest = hasher.finish();
-
-    let mut other_hasher = DefaultHasher::new();
-    sig.as_bytes().hash(&mut other_hasher);
-    let expected = other_hasher.finish();
-    assert_eq!(expected, digest);
+fn test_public_key_recovery() {
+    let kp = keys().pop().unwrap();
+    let message: &[u8] = b"Hello, world!";
+    let signature: Secp256r1RecoverableSignature = kp.sign_recoverable(message);
+    let recovered_key = signature.recover(message).unwrap();
+    assert_eq!(recovered_key, *kp.public());
 }
 
 #[test]
@@ -354,239 +288,6 @@ fn fail_to_verify_if_upper_s() {
     assert!(pk
         .verify_recoverable(&digest.digest, &normalized_sig)
         .is_ok());
-}
-
-#[tokio::test]
-async fn signature_service() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-    let pk = kp.public().clone();
-
-    // Spawn the signature service.
-    let service = SignatureService::new(kp);
-
-    // Request signature from the service.
-    let message: &[u8] = b"Hello, world!";
-    let digest = Sha256::digest(message);
-    let signature = service.request_signature(digest).await;
-
-    //    digest.into()
-
-    // Verify the signature we received.
-    assert!(pk.verify(digest.as_ref(), &signature).is_ok());
-}
-
-#[test]
-fn test_sk_zeroization_on_drop() {
-    let ptr: *const u8;
-    let bytes_ptr: *const u8;
-
-    let mut sk_bytes = Vec::new();
-
-    {
-        let mut rng = StdRng::from_seed([9; 32]);
-        let kp = Secp256r1KeyPair::generate(&mut rng);
-        let sk = kp.private();
-        sk_bytes.extend_from_slice(sk.as_ref());
-
-        ptr = std::ptr::addr_of!(sk.privkey) as *const u8;
-        bytes_ptr = &sk.as_ref()[0] as *const u8;
-
-        let sk_memory: &[u8] = unsafe { std::slice::from_raw_parts(bytes_ptr, SECRET_KEY_SIZE) };
-        // Assert that this is equal to sk_bytes before deletion
-        assert_eq!(sk_memory, &sk_bytes[..]);
-    }
-
-    // Check that self.privkey is set to ONE_KEY (workaround to all zero SecretKey considered as invalid)
-    unsafe {
-        assert_eq!(*ptr, 1);
-        for i in 1..SECRET_KEY_SIZE {
-            assert_eq!(*ptr.add(i), 0);
-        }
-    }
-
-    // Check that self.bytes is zeroized
-    let sk_memory: &[u8] = unsafe { std::slice::from_raw_parts(bytes_ptr, SECRET_KEY_SIZE) };
-    assert_ne!(sk_memory, &sk_bytes[..]);
-}
-
-#[test]
-fn wycheproof_test() {
-    let test_set = TestSet::load(EcdsaSecp256r1Sha256).unwrap();
-    for test_group in test_set.test_groups {
-        let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
-        for test in test_group.tests {
-            let signature = match &Signature::from_der(&test.sig) {
-                Ok(s) => Secp256r1RecoverableSignature::from_uncompressed(s.to_bytes().as_slice())
-                    .unwrap(),
-                Err(_) => {
-                    assert_eq!(map_result(test.result), TestResult::Invalid);
-                    continue;
-                }
-            };
-
-            let bytes = signature.as_ref();
-
-            // Wycheproof tests do not provide a recovery id, iterate over all possible ones to verify.
-            let mut n_bytes = [0u8; 65];
-            n_bytes[..64].copy_from_slice(&bytes[..64]);
-            let mut res = TestResult::Invalid;
-
-            for i in 0..4 {
-                n_bytes[64] = i;
-                let sig =
-                    <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
-                if pk.verify_recoverable(test.msg.as_slice(), &sig).is_ok() {
-                    res = TestResult::Valid;
-                    break;
-                } else {
-                    continue;
-                }
-            }
-            assert_eq!(map_result(test.result), res, "{}", test.comment);
-        }
-    }
-}
-
-// Shift r by 2^256 - n and set the x-reduced bit: r + n wraps back to x(R), so legacy
-// recovery returns a key for the wrong r. Current recovery rejects it.
-#[test]
-fn legacy_recovery_accepts_wrapped_r() {
-    let kp = keys().pop().unwrap();
-    let msg = b"Hello, world!";
-    let honest = kp.sign_recoverable(msg);
-
-    let mut bytes = [0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH];
-    bytes.copy_from_slice(honest.as_ref());
-    let r = U256::from_be_slice(&bytes[..32]);
-    let shifted = r.wrapping_add(&U256::ZERO.wrapping_sub(&NistP256::ORDER));
-    assert!(shifted > r && shifted < NistP256::ORDER);
-    bytes[..32].copy_from_slice(&shifted.to_be_byte_array());
-    bytes[64] |= 2;
-    let wrapped = <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&bytes).unwrap();
-
-    assert_eq!(
-        &honest.recover_with_hash_legacy::<Sha256>(msg).unwrap(),
-        kp.public()
-    );
-
-    assert_eq!(
-        wrapped.recover(msg).unwrap_err(),
-        FastCryptoError::InvalidSignature
-    );
-    let legacy_pk = wrapped.recover_with_hash_legacy::<Sha256>(msg).unwrap();
-    assert_ne!(&legacy_pk, kp.public());
-    assert!(legacy_pk
-        .verify(msg, &Secp256r1Signature::from(&wrapped))
-        .is_err());
-}
-
-// Lets put r + n in [p, 2^256): it fits in 256 bits but is no field element. Strict recovery
-// rejects it at the bound check, legacy recovery when decompression fails.
-#[test]
-fn recovery_rejects_x_at_or_above_p() {
-    let kp = keys().pop().unwrap();
-    let msg = b"Hello, world!";
-    let honest = kp.sign_recoverable(msg);
-
-    let mut bytes = [0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH];
-    bytes.copy_from_slice(honest.as_ref());
-    let p = U256::from_be_hex("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff");
-    // r = (p - n) + (r mod 2^223) keeps r < n and r + n < p + 2^223 < 2^256.
-    let low =
-        U256::from_be_slice(&bytes[..32]) & (U256::ONE.shl_vartime(223).wrapping_sub(&U256::ONE));
-    let shifted = p.wrapping_sub(&NistP256::ORDER).wrapping_add(&low);
-    assert!(shifted < NistP256::ORDER);
-    bytes[..32].copy_from_slice(&shifted.to_be_byte_array());
-    bytes[64] |= 2;
-    let sig = <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&bytes).unwrap();
-
-    assert_eq!(
-        sig.recover(msg).unwrap_err(),
-        FastCryptoError::InvalidSignature
-    );
-    assert!(sig.recover_with_hash_legacy::<Sha256>(msg).is_err());
-}
-
-#[test]
-fn test_recoverable_nonrecoverable_conversion() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-
-    let message: &[u8] = b"Hello, world!";
-    let signature = kp.sign_recoverable(message);
-    assert!(kp.public().verify_recoverable(message, &signature).is_ok());
-
-    let nonrecoverable_signature = Secp256r1Signature::from(&signature);
-    assert!(kp
-        .public()
-        .verify(message, &nonrecoverable_signature)
-        .is_ok());
-
-    let recovered_signature = Secp256r1RecoverableSignature::try_from_nonrecoverable(
-        &nonrecoverable_signature,
-        kp.public(),
-        message,
-    )
-    .unwrap();
-    assert!(kp
-        .public()
-        .verify_recoverable(message, &recovered_signature)
-        .is_ok());
-
-    // A signature with a high s, which verify rejects, also converts: to the high-s signature with
-    // the other recovery id, which verify_recoverable accepts since recovery allows a high s.
-    let high_s = <Secp256r1Signature as ToFromBytes>::from_bytes(
-        &negate_s(signature.as_ref())[..SIG_LENGTH],
-    )
-    .unwrap();
-    assert!(kp.public().verify(message, &high_s).is_err());
-    let converted =
-        Secp256r1RecoverableSignature::try_from_nonrecoverable(&high_s, kp.public(), message)
-            .unwrap();
-    assert_eq!(&converted.as_bytes()[..SIG_LENGTH], high_s.as_bytes());
-    assert_eq!(converted.recovery_id, signature.recovery_id ^ 1);
-    assert!(kp.public().verify_recoverable(message, &converted).is_ok());
-}
-
-#[test]
-fn test_invalid_nonrecoverable_conversion() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-
-    // Sign over raw message.
-    let message: &[u8] = b"Hello, world!";
-    let signature = kp.sign_recoverable(message);
-    let nonrecoverable_signature = Secp256r1Signature::from(&signature);
-
-    // Try to convert a nonrecoverable signature to a recoverable one with a different message.
-    let other_message: &[u8] = b"Hello, other world!";
-    assert!(Secp256r1RecoverableSignature::try_from_nonrecoverable(
-        &nonrecoverable_signature,
-        kp.public(),
-        other_message,
-    )
-    .is_err());
-}
-
-//
-// Recovery tests
-//
-
-#[test]
-fn rfc6979_test_vectors_recoverable() {
-    // The recoverable signature is the normalized signature of RFC 6979, A.2.5, followed by the
-    // recovery id, and it recovers the RFC's public key.
-    let kp = Secp256r1KeyPair::from_bytes(&RFC6979_PRIVATE_KEY).unwrap();
-    for ((msg, _), recovery_id) in RFC6979_SHA256_SIGNATURES.iter().zip([1, 0]) {
-        let signature = kp.sign_recoverable(msg);
-        assert_eq!(&signature.as_bytes()[..SIG_LENGTH], kp.sign(msg).as_bytes());
-        assert_eq!(signature.recovery_id, recovery_id);
-        assert_eq!(
-            signature.recover(msg).unwrap().as_bytes(),
-            RFC6979_PUBLIC_KEY
-        );
-    }
 }
 
 #[test]
@@ -745,19 +446,208 @@ fn recover_fails_if_key_is_identity() {
     assert!(signature.recover(MSG).is_ok());
 }
 
+// Shift r by 2^256 - n and set the x-reduced bit: r + n wraps back to x(R), so legacy
+// recovery returns a key for the wrong r. Current recovery rejects it.
+#[test]
+fn legacy_recovery_accepts_wrapped_r() {
+    let kp = keys().pop().unwrap();
+    let msg = b"Hello, world!";
+    let honest = kp.sign_recoverable(msg);
+
+    let mut bytes = [0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH];
+    bytes.copy_from_slice(honest.as_ref());
+    let r = U256::from_be_slice(&bytes[..32]);
+    let shifted = r.wrapping_add(&U256::ZERO.wrapping_sub(&NistP256::ORDER));
+    assert!(shifted > r && shifted < NistP256::ORDER);
+    bytes[..32].copy_from_slice(&shifted.to_be_byte_array());
+    bytes[64] |= 2;
+    let wrapped = <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&bytes).unwrap();
+
+    assert_eq!(
+        &honest.recover_with_hash_legacy::<Sha256>(msg).unwrap(),
+        kp.public()
+    );
+
+    assert_eq!(
+        wrapped.recover(msg).unwrap_err(),
+        FastCryptoError::InvalidSignature
+    );
+    let legacy_pk = wrapped.recover_with_hash_legacy::<Sha256>(msg).unwrap();
+    assert_ne!(&legacy_pk, kp.public());
+    assert!(legacy_pk
+        .verify(msg, &Secp256r1Signature::from(&wrapped))
+        .is_err());
+}
+
+// Lets put r + n in [p, 2^256): it fits in 256 bits but is no field element. Strict recovery
+// rejects it at the bound check, legacy recovery when decompression fails.
+#[test]
+fn recovery_rejects_x_at_or_above_p() {
+    let kp = keys().pop().unwrap();
+    let msg = b"Hello, world!";
+    let honest = kp.sign_recoverable(msg);
+
+    let mut bytes = [0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH];
+    bytes.copy_from_slice(honest.as_ref());
+    let p = U256::from_be_hex("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff");
+    // r = (p - n) + (r mod 2^223) keeps r < n and r + n < p + 2^223 < 2^256.
+    let low =
+        U256::from_be_slice(&bytes[..32]) & (U256::ONE.shl_vartime(223).wrapping_sub(&U256::ONE));
+    let shifted = p.wrapping_sub(&NistP256::ORDER).wrapping_add(&low);
+    assert!(shifted < NistP256::ORDER);
+    bytes[..32].copy_from_slice(&shifted.to_be_byte_array());
+    bytes[64] |= 2;
+    let sig = <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&bytes).unwrap();
+
+    assert_eq!(
+        sig.recover(msg).unwrap_err(),
+        FastCryptoError::InvalidSignature
+    );
+    assert!(sig.recover_with_hash_legacy::<Sha256>(msg).is_err());
+}
+
+#[test]
+fn rfc6979_test_vectors_recoverable() {
+    // The recoverable signature is the normalized signature of RFC 6979, A.2.5, followed by the
+    // recovery id, and it recovers the RFC's public key.
+    let kp = Secp256r1KeyPair::from_bytes(&RFC6979_PRIVATE_KEY).unwrap();
+    for ((msg, _), recovery_id) in RFC6979_SHA256_SIGNATURES.iter().zip([1, 0]) {
+        let signature = kp.sign_recoverable(msg);
+        assert_eq!(&signature.as_bytes()[..SIG_LENGTH], kp.sign(msg).as_bytes());
+        assert_eq!(signature.recovery_id, recovery_id);
+        assert_eq!(
+            signature.recover(msg).unwrap().as_bytes(),
+            RFC6979_PUBLIC_KEY
+        );
+    }
+}
+
+#[test]
+fn wycheproof_test() {
+    let test_set = TestSet::load(EcdsaSecp256r1Sha256).unwrap();
+    for test_group in test_set.test_groups {
+        let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
+        for test in test_group.tests {
+            let signature = match &Signature::from_der(&test.sig) {
+                Ok(s) => Secp256r1RecoverableSignature::from_uncompressed(s.to_bytes().as_slice())
+                    .unwrap(),
+                Err(_) => {
+                    assert_eq!(map_result(test.result), TestResult::Invalid);
+                    continue;
+                }
+            };
+
+            let bytes = signature.as_ref();
+
+            // Wycheproof tests do not provide a recovery id, iterate over all possible ones to verify.
+            let mut n_bytes = [0u8; 65];
+            n_bytes[..64].copy_from_slice(&bytes[..64]);
+            let mut res = TestResult::Invalid;
+
+            for i in 0..4 {
+                n_bytes[64] = i;
+                let sig =
+                    <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
+                if pk.verify_recoverable(test.msg.as_slice(), &sig).is_ok() {
+                    res = TestResult::Valid;
+                    break;
+                } else {
+                    continue;
+                }
+            }
+            assert_eq!(map_result(test.result), res, "{}", test.comment);
+        }
+    }
+}
+
+#[test]
+fn test_recoverable_nonrecoverable_conversion() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+
+    let message: &[u8] = b"Hello, world!";
+    let signature = kp.sign_recoverable(message);
+    assert!(kp.public().verify_recoverable(message, &signature).is_ok());
+
+    let nonrecoverable_signature = Secp256r1Signature::from(&signature);
+    assert!(kp
+        .public()
+        .verify(message, &nonrecoverable_signature)
+        .is_ok());
+
+    let recovered_signature = Secp256r1RecoverableSignature::try_from_nonrecoverable(
+        &nonrecoverable_signature,
+        kp.public(),
+        message,
+    )
+    .unwrap();
+    assert!(kp
+        .public()
+        .verify_recoverable(message, &recovered_signature)
+        .is_ok());
+
+    // A signature with a high s, which verify rejects, also converts: to the high-s signature with
+    // the other recovery id, which verify_recoverable accepts since recovery allows a high s.
+    let high_s = <Secp256r1Signature as ToFromBytes>::from_bytes(
+        &negate_s(signature.as_ref())[..SIG_LENGTH],
+    )
+    .unwrap();
+    assert!(kp.public().verify(message, &high_s).is_err());
+    let converted =
+        Secp256r1RecoverableSignature::try_from_nonrecoverable(&high_s, kp.public(), message)
+            .unwrap();
+    assert_eq!(&converted.as_bytes()[..SIG_LENGTH], high_s.as_bytes());
+    assert_eq!(converted.recovery_id, signature.recovery_id ^ 1);
+    assert!(kp.public().verify_recoverable(message, &converted).is_ok());
+}
+
+#[test]
+fn test_invalid_nonrecoverable_conversion() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+
+    // Sign over raw message.
+    let message: &[u8] = b"Hello, world!";
+    let signature = kp.sign_recoverable(message);
+    let nonrecoverable_signature = Secp256r1Signature::from(&signature);
+
+    // Try to convert a nonrecoverable signature to a recoverable one with a different message.
+    let other_message: &[u8] = b"Hello, other world!";
+    assert!(Secp256r1RecoverableSignature::try_from_nonrecoverable(
+        &nonrecoverable_signature,
+        kp.public(),
+        other_message,
+    )
+    .is_err());
+}
+
+//
+// Other tests
+//
+
+#[test]
+fn hash_signature() {
+    let sig = keys().pop().unwrap().sign_recoverable(MSG);
+
+    let mut hasher = DefaultHasher::new();
+    sig.hash(&mut hasher);
+    let digest = hasher.finish();
+
+    let mut other_hasher = DefaultHasher::new();
+    sig.as_bytes().hash(&mut other_hasher);
+    let expected = other_hasher.finish();
+    assert_eq!(expected, digest);
+}
+
+#[test]
+fn fmt_signature() {
+    let sig = keys().pop().unwrap().sign_recoverable(MSG);
+    assert_eq!(sig.to_string(), Base64::encode(sig.as_bytes()));
+}
+
 //
 // Proptests
 //
-
-// Arbitrary implementations for the proptests
-fn arb_keypair() -> impl Strategy<Value = Secp256r1KeyPair> {
-    any::<[u8; 32]>()
-        .prop_map(|seed| {
-            let mut rng = StdRng::from_seed(seed);
-            Secp256r1KeyPair::generate(&mut rng)
-        })
-        .no_shrink()
-}
 
 /// One of the honest recoverable signatures, as (key index, message index, signature).
 fn arb_honest_recoverable_signature() -> impl Strategy<Value = (usize, usize, Vec<u8>)> {
@@ -836,17 +726,6 @@ fn arb_recoverable_input() -> impl Strategy<Value = (usize, usize, Vec<u8>)> {
             collection::vec(any::<u8>(), RECOVERABLE_SIG_LENGTH)
         ),
     ]
-}
-
-proptest! {
-    #[test]
-    fn test_keypair_roundtrip(
-        kp in arb_keypair(),
-    ){
-        let serialized = bincode::serialize(&kp).unwrap();
-        let deserialized: Secp256r1KeyPair = bincode::deserialize(&serialized).unwrap();
-        assert_eq!(kp.public(), deserialized.public());
-    }
 }
 
 proptest! {
