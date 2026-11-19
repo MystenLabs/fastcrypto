@@ -43,8 +43,20 @@ Each contract follows from a theorem about the generated functions:
 | `Receiver::recover` | `Rᵢ.process_message(m)` is not `Err`, and `vs` are responses returned by `Rᵢ.verify_complaint_response` for `m`, from distinct parties of total weight `≥ t` ⇒ `Rᵢ.recover(m, vs)` is `Ok`. | `recover_complete` |
 | `SharesForNode::verify` | `Rᵢ.process_message(m)` is not `Err` ⇒ there is a `p` with `p.degree() < t` such that `sh.verify(m, share_ids_of(j), j)` is `Ok` ⇒ `sh.shares = [p.eval(k) for k in share_ids_of(j)]`. | `feldman_binding` |
 
-`create_valid`, which is about `Dealer::create_message`, is not proved: it is a hypothesis of
-`contracts`. Its statement is probabilistic, and the generated code does not include the dealer.
+`create_valid` and `create_secret`, which are about `Dealer::create_message`, are not proved: they
+are hypotheses of `contracts`. Their statements are about the distribution of `create_message`'s
+messages, and the generated code does not include the dealer.
+
+`Rotation.lean` proves `process_matches_commitment`, a contract of the spec's `RotationContracts`
+for key rotation, for the `Api` of receivers created with `commitment = Some(G::generator() * s)`:
+
+| Rust function | Contract | Theorem |
+|---|---|---|
+| `Receiver::process_message` | `Rᵢ.process_message(m)` is not `Err` ⇒ every `p` with `p.degree() < t` such that `sh.verify(m, share_ids_of(j), j)` is `Ok` ⇒ `sh.shares = [p.eval(k) for k in share_ids_of(j)]` has `p.c0() = s`. | `process_matches_commitment` |
+
+On the way it proves `verify_complete`: `SharesForNode::verify` accepts shares whose indices are
+the expected ids and that each pass `verify_share`. The other contract of `RotationContracts`,
+`rotation_interpolates`, is about `DkOutput::complete_key_rotation` and is not proved.
 
 From `contracts`, `Link.lean` states these theorems of fastcrypto-specs for the generated code,
 under `Link.Assumptions` (the hypotheses below, together):
@@ -94,12 +106,27 @@ theorems.
   * Every party has share ids (`share_ids_of(j)` is `Ok`), and the weights of any set of parties
     add up to at most `u16::MAX`.
   * `process_message` returns, without a panic, for every party and message.
-  * `create_valid`, see above.
+  * `create_valid` and `create_secret`, see above.
+* Hypotheses of `process_matches_commitment`, defined in `AvssProofs/Rotation.lean`:
+  * `CommitmentOpening`, which implies `CommitmentBinding`: a commitment `c` of degree `d` commits
+    to a polynomial `p` of degree at most `d` whose `eval` returns, a share passes `verify_share`
+    exactly when its value is `p.eval` at its index, and `c.c0() = G::generator() * p.c0()`.
+  * `gen`, the map `s ↦ G::generator() * s` from the spec's field to secp256k1 points, is
+    injective.
+  * `PointEqSound`: `PartialEq` for secp256k1 points returns `true` only for equal points.
+  * `SharesCoverT`: the parties' share ids include `t` distinct indices.
+  * `Shamir.Contracts`, the spec's contracts for `polynomial.rs`, for the scalar-polynomial
+    functions of the link. Only `recover_c0` is used: polynomials of degree `< t` that agree at
+    `t` indices have the same `c0()`.
+  * `NonZeroModel`, as for `contracts`.
 * What the spec needs that the generated code does not give, in `Link.Scalars`:
   * The scalar field `F` and a map from secp256k1 scalars to it. Lean sees the scalars as an opaque
     type.
   * `ofIndex`, which makes a share index into a `NonZeroU16`, with `NonZeroModel`: `get()` of a
     `NonZeroU16` returns a positive value that determines it, and `get()` of `ofIndex(k)` is `k`.
     Lean sees `NonZero` as an opaque type.
-  * The scalar-polynomial functions of the spec that AVSS does not call (`c0`, `rand_fixed_c0`,
-    `add`, `recover_c0`). No AVSS contract mentions them.
+  * The scalar-polynomial functions of the spec that AVSS does not call (`rand_fixed_c0`, `add`,
+    `mul`, `recover_c0`). `eval`, `degree_bound` and `c0` are the generated `Poly::eval`,
+    `Poly::degree` and `Poly::c0`.
+* The dealers stay abstract (`Link.Dealers`): their type, `create_message`'s distribution and
+  their `secret`.

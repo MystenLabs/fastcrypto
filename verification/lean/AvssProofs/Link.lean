@@ -22,14 +22,6 @@ open fastcrypto_threshold
 
 namespace AvssProofs.Link
 
-/-- A triple says the call returns. -/
-theorem spec_eq_ok {α : Type _} {m : Result α} {p : α → Prop} (h : m ⦃ x => p x ⦄) :
-    ∃ x, m = ok x ∧ p x := by
-  cases m with
-  | ret a => exact ⟨a, rfl, (WP.spec_ok a).mp h⟩
-  | vis e k => exact absurd h (by simp)
-  | div => exact absurd h (by simp)
-
 /-- The value a call returns, if it returns. -/
 noncomputable def okVal {α : Type _} (x : Result α) : Option α :=
   open Classical in if h : ∃ a, x = ok a then some h.choose else none
@@ -152,7 +144,8 @@ structure Receivers where
 
 /-- What the spec needs about scalars and share indices that the generated code does not give: the
 scalar field `F` and how secp256k1 scalars map to it, how a share index is made into a
-`NonZeroU16` (`ofIndex`), and the scalar-polynomial functions that AVSS does not call. -/
+`NonZeroU16` (`ofIndex`), and the scalar-polynomial functions that AVSS does not call (`add`,
+`mul`, `rand_fixed_c0`, `recover_c0`). -/
 structure Scalars where
   F : Type
   [field : Field F]
@@ -160,10 +153,11 @@ structure Scalars where
   toF : fastcrypto.groups.secp256k1.Scalar → F
   ofIndex : FastcryptoSpecs.Shamir.ShareIndex →
     core.num.nonzero.NonZero Std.U16 core.num.niche_types.NonZeroU16Inner
-  c0 : polynomial.Poly fastcrypto.groups.secp256k1.Scalar → F
   randFixedC0 : ℕ → F → PMF (polynomial.Poly fastcrypto.groups.secp256k1.Scalar)
   add : polynomial.Poly fastcrypto.groups.secp256k1.Scalar →
     polynomial.Poly fastcrypto.groups.secp256k1.Scalar →
+    polynomial.Poly fastcrypto.groups.secp256k1.Scalar
+  mul : polynomial.Poly fastcrypto.groups.secp256k1.Scalar → F →
     polynomial.Poly fastcrypto.groups.secp256k1.Scalar
   recoverC0 : ℕ → List (FastcryptoSpecs.Shamir.Eval F) →
     Except FastcryptoSpecs.Shamir.Error F
@@ -217,10 +211,21 @@ noncomputable def setup (C : Receivers) : FastcryptoSpecs.Avss.Setup (Party C.ns
   t := (C.recv 0#u16).params.t.val
   f := (C.recv 0#u16).params.f.val
 
-/-- The spec's `Api` for the generated code. `Dealer` and `createMessage` stay abstract: the
-generated code does not include `Dealer`. -/
-noncomputable def api (C : Receivers) (Z : Scalars) (Dealer : Type)
-    (createMessage : Dealer → PMF threshold_schnorr.avss.Message) :
+/-- The dealers, which stay abstract: the generated code does not include `Dealer`. `secret d` is
+the secret `d` shares. -/
+structure Dealers (Z : Scalars) where
+  Dealer : Type
+  createMessage : Dealer → PMF threshold_schnorr.avss.Message
+  secret : Dealer → Z.F
+
+/-- `Poly::c0` for scalar polynomials, as a total function into `F`. -/
+noncomputable def c0Of (Z : Scalars) (p : polynomial.Poly fastcrypto.groups.secp256k1.Scalar) : Z.F :=
+  ((okVal (@polynomial.Poly.c0 _
+    fastcrypto.groups.secp256k1.Scalar.Insts.FastcryptoGroupsScalar.ModuleInst.AdditiveGroupInst
+    p)).map Z.toF).getD 0
+
+/-- The spec's `Api` for the generated code. -/
+noncomputable def api (C : Receivers) (Z : Scalars) (D : Dealers Z) :
     FastcryptoSpecs.Avss.Api (Party C.ns) where
   Message := threshold_schnorr.avss.Message
   Complaint := threshold_schnorr.avss.Complaint
@@ -243,16 +248,18 @@ noncomputable def api (C : Receivers) (Z : Scalars) (Dealer : Type)
     else none
   shares o := o.my_shares
   verifyShares m i sh := open Classical in decide (ValidShares C.ns m i.val sh)
-  Dealer := Dealer
-  createMessage := createMessage
+  Dealer := D.Dealer
+  createMessage := D.createMessage
+  secret := D.secret
   F := Z.F
   Sh := {
     Poly := polynomial.Poly fastcrypto.groups.secp256k1.Scalar
-    c0 := Z.c0
+    c0 := c0Of Z
     degreeBound := degreeBound
     randFixedC0 := Z.randFixedC0
     eval := evalAt Z
     add := Z.add
+    mul := Z.mul
     recoverC0 := Z.recoverC0 }
   shareIds j := ((toOption (shareIdsOf C.ns j.val)).map fun ids => ids.val.map idx).getD []
   shareList sh := sh.shares.val.map fun s => ⟨idx s.index, Z.toF s.value⟩
@@ -314,8 +321,7 @@ theorem not_invalid {R E : Type _}
 open scoped ENNReal in
 /-- The contracts of fastcrypto-specs hold for the generated code, assuming `create_valid` and the
 hypotheses of the theorems in this directory. -/
-theorem contracts (C : Receivers) (Z : Scalars) (Dealer : Type)
-    (createMessage : Dealer → PMF threshold_schnorr.avss.Message)
+theorem contracts (C : Receivers) (Z : Scalars) (D : Dealers Z)
     (hclone : CloneIsId) (hpclone : PolyCloneIsId) (hpeq : PolyEqRefl) (hrec : RecoveryComplete)
     (hinterp : ∀ j, InterpolationComplete (C.recv j)) (hbind : CommitmentBinding)
     (hnz : NonZeroModel Z)
@@ -324,9 +330,13 @@ theorem contracts (C : Receivers) (Z : Scalars) (Dealer : Type)
     (hret : ∀ (j : Party C.ns) m, ∃ y,
       threshold_schnorr.avss.Receiver.process_message C.rngInst (C.recv j.val) m (C.rng j.val) =
         ok y)
-    (hcreate : ∀ d, ((api C Z Dealer createMessage).createMessage d).toOuterMeasure
-      {m | ¬ (api C Z Dealer createMessage).AllValid m} ≤ (Fintype.card Z.F : ℝ≥0∞)⁻¹) :
-    FastcryptoSpecs.Avss.Contracts (setup C) (api C Z Dealer createMessage) where
+    (hcreate : ∀ d, ((api C Z D).createMessage d).toOuterMeasure
+      {m | ¬ (api C Z D).AllValid m} ≤ (Fintype.card Z.F : ℝ≥0∞)⁻¹)
+    (hsecret : ∀ d m, m ∈ ((api C Z D).createMessage d).support → ∀ p, (api C Z D).Sh.degreeBound p < (setup C).t →
+        (∀ j sh, (api C Z D).verifyShares m j sh = true →
+          (api C Z D).shareList sh = ((api C Z D).shareIds j).map ((api C Z D).Sh.eval p)) →
+        (api C Z D).Sh.c0 p = (api C Z D).secret d) :
+    FastcryptoSpecs.Avss.Contracts (setup C) (api C Z D) where
   process_valid := by
     intro i m o h
     obtain ⟨g, hg⟩ := toProcessed_valid.mp h
@@ -399,7 +409,7 @@ theorem contracts (C : Receivers) (Z : Scalars) (Dealer : Type)
       obtain ⟨w, -, rfl⟩ := List.mem_map.mp hv'
       rw [C.nodes_eq, hWp ⟨w.val.responder_id, w.2⟩]
       exact Party.weight_spec ⟨w.val.responder_id, w.2⟩
-    have hsumeq : (setup C).weightOf ((vs.map (api C Z Dealer createMessage).responderId).toFinset) =
+    have hsumeq : (setup C).weightOf ((vs.map (api C Z D).responderId).toFinset) =
         ((vs.map Subtype.val).map fun v => (W v.responder_id).val).sum := by
       unfold FastcryptoSpecs.Avss.Setup.weightOf
       erw [List.sum_toFinset _ hnd, List.map_map, List.map_map]
@@ -434,6 +444,7 @@ theorem contracts (C : Receivers) (Z : Scalars) (Dealer : Type)
       simpa [FastcryptoSpecs.Avss.Api.ValidOutput, api] using this
     · simp at h
   create_valid := hcreate
+  create_secret := hsecret
   feldman_binding := by
     intro i m hpm
     obtain ⟨⟨x, g⟩, hx, hnx⟩ := not_invalid hpm (hret i m)
@@ -463,8 +474,7 @@ theorem contracts (C : Receivers) (Z : Scalars) (Dealer : Type)
 
 open scoped ENNReal in
 /-- The hypotheses of `contracts`, together. -/
-structure Assumptions (C : Receivers) (Z : Scalars) (Dealer : Type)
-    (createMessage : Dealer → PMF threshold_schnorr.avss.Message) : Prop where
+structure Assumptions (C : Receivers) (Z : Scalars) (D : Dealers Z) : Prop where
   clone : CloneIsId
   polyClone : PolyCloneIsId
   polyEq : PolyEqRefl
@@ -477,56 +487,59 @@ structure Assumptions (C : Receivers) (Z : Scalars) (Dealer : Type)
   processReturns : ∀ (j : Party C.ns) m, ∃ y,
     threshold_schnorr.avss.Receiver.process_message C.rngInst (C.recv j.val) m (C.rng j.val) =
       ok y
-  createValid : ∀ d, ((api C Z Dealer createMessage).createMessage d).toOuterMeasure
-    {m | ¬ (api C Z Dealer createMessage).AllValid m} ≤ (Fintype.card Z.F : ℝ≥0∞)⁻¹
+  createValid : ∀ d, ((api C Z D).createMessage d).toOuterMeasure
+    {m | ¬ (api C Z D).AllValid m} ≤ (Fintype.card Z.F : ℝ≥0∞)⁻¹
+  createSecret : ∀ d m, m ∈ ((api C Z D).createMessage d).support → ∀ p, (api C Z D).Sh.degreeBound p < (setup C).t →
+    (∀ j sh, (api C Z D).verifyShares m j sh = true →
+      (api C Z D).shareList sh = ((api C Z D).shareIds j).map ((api C Z D).Sh.eval p)) →
+    (api C Z D).Sh.c0 p = (api C Z D).secret d
 
-variable {C : Receivers} {Z : Scalars} {Dealer : Type}
-  {createMessage : Dealer → PMF threshold_schnorr.avss.Message}
+variable {C : Receivers} {Z : Scalars} {D : Dealers Z}
 
-theorem Assumptions.contracts (h : Assumptions C Z Dealer createMessage) :
-    FastcryptoSpecs.Avss.Contracts (setup C) (api C Z Dealer createMessage) :=
-  AvssProofs.Link.contracts C Z Dealer createMessage h.clone h.polyClone h.polyEq h.recovery
-    h.interpolation h.binding h.nonZero h.shareIds h.weightsFit h.processReturns h.createValid
+theorem Assumptions.contracts (h : Assumptions C Z D) :
+    FastcryptoSpecs.Avss.Contracts (setup C) (api C Z D) :=
+  AvssProofs.Link.contracts C Z D h.clone h.polyClone h.polyEq h.recovery
+    h.interpolation h.binding h.nonZero h.shareIds h.weightsFit h.processReturns h.createValid h.createSecret
 
 /-! The theorems of fastcrypto-specs that follow from `Contracts`, for the generated code. -/
 
 open FastcryptoSpecs.Avss in
 /-- **Liveness of AVSS.** For a certified message, every honest party eventually holds an output
 whose shares pass `SharesForNode::verify(m, share_ids_of(i), i)`. -/
-theorem every_honest_party_gets_valid_shares (h : Assumptions C Z Dealer createMessage)
+theorem every_honest_party_gets_valid_shares (h : Assumptions C Z D)
     (hS : (setup C).Valid) {corrupt : Finset (Party C.ns)} (hcorrupt : (setup C).Tolerates corrupt)
     {m : threshold_schnorr.avss.Message} {signers : Finset (Party C.ns)}
-    (hcert : Certificate (setup C) (api C Z Dealer createMessage) corrupt m signers)
-    {σ : ℕ → State (api C Z Dealer createMessage)}
-    (hrun : Run (api C Z Dealer createMessage) m corrupt σ) (i : Party C.ns) (hi : i ∉ corrupt) :
-    ∃ n o, (σ n).output i = some o ∧ (api C Z Dealer createMessage).ValidOutput m i o :=
+    (hcert : Certificate (setup C) (api C Z D) corrupt m signers)
+    {σ : ℕ → State (api C Z D)}
+    (hrun : Run (api C Z D) m corrupt σ) (i : Party C.ns) (hi : i ∉ corrupt) :
+    ∃ n o, (σ n).output i = some o ∧ (api C Z D).ValidOutput m i o :=
   FastcryptoSpecs.Avss.every_honest_party_gets_valid_shares hS h.contracts hcorrupt hcert hrun i hi
 
 open FastcryptoSpecs.Avss in
 /-- **Agreement.** All outputs honest parties hold for a certified message fit one polynomial of
 degree `< t`. -/
-theorem honest_outputs_agree (h : Assumptions C Z Dealer createMessage) (hS : (setup C).Valid)
+theorem honest_outputs_agree (h : Assumptions C Z D) (hS : (setup C).Valid)
     {corrupt : Finset (Party C.ns)} (hcorrupt : (setup C).Tolerates corrupt)
     {m : threshold_schnorr.avss.Message} {signers : Finset (Party C.ns)}
-    (hcert : Certificate (setup C) (api C Z Dealer createMessage) corrupt m signers)
-    {σ : ℕ → State (api C Z Dealer createMessage)}
-    (hrun : BasicRun (api C Z Dealer createMessage) m corrupt σ) (i₀ : Party C.ns) :
-    ∃ p, (api C Z Dealer createMessage).Sh.degreeBound p < (setup C).t ∧
+    (hcert : Certificate (setup C) (api C Z D) corrupt m signers)
+    {σ : ℕ → State (api C Z D)}
+    (hrun : BasicRun (api C Z D) m corrupt σ) (i₀ : Party C.ns) :
+    ∃ p, (api C Z D).Sh.degreeBound p < (setup C).t ∧
       ∀ i n o, i ∉ corrupt → (σ n).output i = some o →
-        (api C Z Dealer createMessage).shareList ((api C Z Dealer createMessage).shares o) =
-          ((api C Z Dealer createMessage).shareIds i).map
-            ((api C Z Dealer createMessage).Sh.eval p) :=
+        (api C Z D).shareList ((api C Z D).shares o) =
+          ((api C Z D).shareIds i).map
+            ((api C Z D).Sh.eval p) :=
   FastcryptoSpecs.Avss.honest_outputs_agree hS h.contracts hcorrupt hcert hrun i₀
 
 open FastcryptoSpecs.Avss in
 /-- **Honest dealer: no complaints.** If every receiver finds `m` valid, every honest party
 eventually holds an output from `process_message` whose shares verify, and never complains. -/
-theorem honest_dealer_no_complaints (h : Assumptions C Z Dealer createMessage)
-    {m : threshold_schnorr.avss.Message} (hm : (api C Z Dealer createMessage).AllValid m)
-    {corrupt : Finset (Party C.ns)} {σ : ℕ → State (api C Z Dealer createMessage)}
-    (hrun : BasicRun (api C Z Dealer createMessage) m corrupt σ) (i : Party C.ns)
+theorem honest_dealer_no_complaints (h : Assumptions C Z D)
+    {m : threshold_schnorr.avss.Message} (hm : (api C Z D).AllValid m)
+    {corrupt : Finset (Party C.ns)} {σ : ℕ → State (api C Z D)}
+    (hrun : BasicRun (api C Z D) m corrupt σ) (i : Party C.ns)
     (hi : i ∉ corrupt) :
-    (∃ n o, (σ n).output i = some o ∧ (api C Z Dealer createMessage).ValidOutput m i o) ∧
+    (∃ n o, (σ n).output i = some o ∧ (api C Z D).ValidOutput m i o) ∧
       ∀ n c, (σ n).processed i ≠ some (.complaint c) :=
   FastcryptoSpecs.Avss.honest_dealer_no_complaints h.contracts hm hrun i hi
 
