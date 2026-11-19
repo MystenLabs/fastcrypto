@@ -378,17 +378,11 @@ fn test_recoverable_id_gt_1() {
             Secp256k1RecoverableSignature::from_bytes(signature_bytes.as_slice()).unwrap();
         let pk = Secp256k1PublicKey::from_bytes(pk_bytes.as_slice()).unwrap();
         let signature = Secp256k1Signature::from_bytes(&signature_bytes.as_slice()[..64]).unwrap();
-        let generated_recoverable_signature =
-            Secp256k1RecoverableSignature::try_from_nonrecoverable(&signature, &pk, MESSAGE)
-                .unwrap();
         let generated_pk = recoverable_signature.recover(MESSAGE).unwrap();
 
         pk.verify_recoverable(MESSAGE, &recoverable_signature)
             .unwrap();
         pk.verify(MESSAGE, &signature).unwrap();
-        pk.verify_recoverable(MESSAGE, &generated_recoverable_signature)
-            .unwrap();
-        assert_eq!(recoverable_signature, generated_recoverable_signature);
         assert_eq!(pk, generated_pk);
     }
 }
@@ -440,48 +434,6 @@ fn test_recoverable_nonrecoverable_conversion() {
         .public()
         .verify(message, &nonrecoverable_signature)
         .is_ok());
-
-    let recovered_signature = Secp256k1RecoverableSignature::try_from_nonrecoverable(
-        &nonrecoverable_signature,
-        kp.public(),
-        message,
-    )
-    .unwrap();
-    assert!(kp
-        .public()
-        .verify_recoverable(message, &recovered_signature)
-        .is_ok());
-
-    // The conversion uses recovery, so it also converts a high-s signature, which does not verify,
-    // to the high-s recoverable signature.
-    let high_s_bytes = high_s(signature.as_bytes());
-    let high_s =
-        <Secp256k1Signature as ToFromBytes>::from_bytes(&high_s_bytes[..SIG_LENGTH]).unwrap();
-    assert!(kp.public().verify(message, &high_s).is_err());
-    let converted =
-        Secp256k1RecoverableSignature::try_from_nonrecoverable(&high_s, kp.public(), message)
-            .unwrap();
-    assert_eq!(converted.as_bytes(), high_s_bytes);
-}
-
-#[test]
-fn test_invalid_nonrecoverable_conversion() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-
-    // Sign over raw message.
-    let message: &[u8] = b"Hello, world!";
-    let signature = kp.sign_recoverable(message);
-    let nonrecoverable_signature = Secp256k1Signature::from(&signature);
-
-    // Try to convert a nonrecoverable signature to a recoverable one with a different message.
-    let other_message: &[u8] = b"Hello, other world!";
-    assert!(Secp256k1RecoverableSignature::try_from_nonrecoverable(
-        &nonrecoverable_signature,
-        kp.public(),
-        other_message,
-    )
-    .is_err());
 }
 
 #[test]
@@ -550,8 +502,8 @@ fn arb_recoverable_signature_bytes() -> impl Strategy<Value = Vec<u8>> {
 proptest! {
     // fastcrypto and k256 produce the same recoverable signatures with Keccak-256 (as in Ethereum)
     // and recover the signer's key from them, but not with the other recovery id. With the default
-    // hash function, the conversions between recoverable and non-recoverable signatures agree with
-    // signing.
+    // hash function, a recoverable signature without its recovery id is the non-recoverable
+    // signature.
     #[test]
     fn test_k256_against_secp256k1_lib_with_recovery(
         seed in any::<[u8; 32]>(),
@@ -571,13 +523,7 @@ proptest! {
 
         let sig = kp.sign_recoverable(&msg);
         prop_assert!(sig.as_bytes()[SIG_LENGTH] <= 1);
-        let standard = Secp256k1Signature::from(&sig);
-        prop_assert_eq!(&standard, &kp.sign(&msg));
-        prop_assert_eq!(
-            Secp256k1RecoverableSignature::try_from_nonrecoverable(&standard, kp.public(), &msg)
-                .unwrap(),
-            sig
-        );
+        prop_assert_eq!(&Secp256k1Signature::from(&sig), &kp.sign(&msg));
     }
 
     // Decoding and recovery (as in Sui's secp256k1_ecrecover Move native, with Keccak-256 as in
