@@ -58,3 +58,7 @@ harness = false
 [features]
 default = []
 experimental = []
+
+[lints.rust]
+# Set when Charon translates this crate for Aeneas, see verification/lean.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(aeneas)"] }
