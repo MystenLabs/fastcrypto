@@ -183,15 +183,22 @@ pub struct UsedProcessedMessages<G: GroupElement, EG: GroupElement>(
 impl<G: GroupElement, EG: GroupElement> From<&[ProcessedMessage<G, EG>]>
     for UsedProcessedMessages<G, EG>
 {
+    // BEGIN AENEAS-VERIFIED: used_processed_messages_from
+    // Formally verified with Aeneas and Lean, see the comment on `Party::merge`.
     // Assumes all parties see the same order of messages.
     fn from(msgs: &[ProcessedMessage<G, EG>]) -> Self {
-        let filtered = msgs
-            .iter()
-            .unique_by(|&m| m.message.sender) // stable
-            .cloned()
-            .collect::<Vec<_>>();
+        // Keep the first message from each sender, in order.
+        let mut senders = Vec::new();
+        let mut filtered = Vec::new();
+        for m in msgs {
+            if !senders.contains(&m.message.sender) {
+                senders.push(m.message.sender);
+                filtered.push(m.clone());
+            }
+        }
         Self(filtered)
     }
+    // END AENEAS-VERIFIED: used_processed_messages_from
 }
 
 /// Processed messages that were not excluded after the third phase of the protocol.
@@ -512,6 +519,8 @@ where
         self.process_message(message, rng)
     }
 
+    // BEGIN AENEAS-VERIFIED: merge
+    // Formally verified with Aeneas and Lean, see verification/fastcrypto-threshold/dkg_merge_aeneas.
     /// 6. Merge results from multiple ProcessedMessages so only one message needs to be sent.
     ///
     ///    Returns NotEnoughInputs if the threshold t is not met.
@@ -525,16 +534,14 @@ where
         debug!("DKG: Trying to merge {} messages", processed_messages.len());
         let filtered_messages = UsedProcessedMessages::from(processed_messages);
         // Verify we have enough messages
-        let total_weight = filtered_messages
-            .0
-            .iter()
-            .map(|m| {
-                self.nodes
-                    .node_id_to_node(m.message.sender)
-                    .expect("checked in process_message")
-                    .weight as u32
-            })
-            .sum::<u32>();
+        let mut total_weight = 0;
+        for m in &filtered_messages.0[..] {
+            total_weight += self
+                .nodes
+                .node_id_to_node(m.message.sender)
+                .expect("checked in process_message")
+                .weight as u32;
+        }
         let required_t = self.old_t.unwrap_or(self.t);
         if total_weight < (required_t as u32) {
             debug!("Merge failed with total weight {total_weight}");
@@ -543,27 +550,31 @@ where
 
         info!("DKG: Merging messages with total weight {total_weight}");
 
-        // Log used parties.
-        let used_parties = filtered_messages
-            .0
-            .iter()
-            .map(|m| m.message.sender.to_string())
-            .collect::<Vec<String>>()
-            .join(",");
-        debug!("DKG: Using messages from parties: {}", used_parties);
+        debug!(
+            "DKG: Using messages from parties: {}",
+            filtered_messages
+                .0
+                .iter()
+                .map(|m| m.message.sender.to_string())
+                .collect::<Vec<String>>()
+                .join(",")
+        );
 
         let mut conf = Confirmation {
             sender: self.id,
             complaints: Vec::new(),
         };
-        for m in &filtered_messages.0 {
+        let mut all_complaints = true;
+        for m in &filtered_messages.0[..] {
             if let Some(complaint) = &m.complaint {
                 info!("DKG: Including a complaint on party {}", m.message.sender);
                 conf.complaints.push(complaint.clone());
+            } else {
+                all_complaints = false;
             }
         }
 
-        if filtered_messages.0.iter().all(|m| m.complaint.is_some()) {
+        if all_complaints {
             error!("DKG: All processed messages resulted in complaints, this should never happen");
             return Err(FastCryptoError::GeneralError(
                 "All processed messages resulted in complaints".to_string(),
@@ -572,6 +583,7 @@ where
 
         Ok((conf, filtered_messages))
     }
+    // END AENEAS-VERIFIED: merge
 
     /// 7. Process all confirmations, check all complaints, and update the local set of
     ///    valid shares accordingly.

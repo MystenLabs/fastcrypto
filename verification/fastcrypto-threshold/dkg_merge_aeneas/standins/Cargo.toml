@@ -1,0 +1,13 @@
+[package]
+name = "dkg-merge-standins"
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Compiles the verified DKG functions against stand-in types, for Charon and Aeneas"
+
+[dependencies]
+fastcrypto = { path = "../../../../fastcrypto" }
+
+# Not part of the fastcrypto workspace.
+[workspace]
