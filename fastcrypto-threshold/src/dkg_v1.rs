@@ -183,15 +183,23 @@ pub struct UsedProcessedMessages<G: GroupElement, EG: GroupElement>(
 impl<G: GroupElement, EG: GroupElement> From<&[ProcessedMessage<G, EG>]>
     for UsedProcessedMessages<G, EG>
 {
+    // BEGIN VERUS-VERIFIED: used_processed_messages_from
+    // Formally verified with Verus, see the comment on `Party::merge`.
     // Assumes all parties see the same order of messages.
     fn from(msgs: &[ProcessedMessage<G, EG>]) -> Self {
-        let filtered = msgs
-            .iter()
-            .unique_by(|&m| m.message.sender) // stable
-            .cloned()
-            .collect::<Vec<_>>();
+        // Keep the first message from each sender, in order.
+        let mut senders = HashSet::new();
+        let mut filtered = Vec::new();
+        let mut i = 0;
+        while i < msgs.len() {
+            if senders.insert(msgs[i].message.sender) {
+                filtered.push(msgs[i].clone());
+            }
+            i += 1;
+        }
         Self(filtered)
     }
+    // END VERUS-VERIFIED: used_processed_messages_from
 }
 
 /// Processed messages that were not excluded after the third phase of the protocol.
@@ -512,6 +520,14 @@ where
         self.process_message(message, rng)
     }
 
+    // BEGIN VERUS-VERIFIED: merge
+    // `merge`, `UsedProcessedMessages::from` and `Nodes::node_id_to_node` are formally verified
+    // with Verus. If every message's sender is a valid node id (the assumption below), `merge`
+    // never panics, and if it succeeds, it uses the first message of each sender, their total
+    // weight meets the threshold, and the confirmation carries exactly their complaints. The proof
+    // runs on an annotated copy in verification/fastcrypto-threshold/dkg_merge_verus, and a test
+    // there checks that the copy, minus its annotations, matches the code here. Changes here must
+    // be made there too.
     /// 6. Merge results from multiple ProcessedMessages so only one message needs to be sent.
     ///
     ///    Returns NotEnoughInputs if the threshold t is not met.
@@ -525,16 +541,16 @@ where
         debug!("DKG: Trying to merge {} messages", processed_messages.len());
         let filtered_messages = UsedProcessedMessages::from(processed_messages);
         // Verify we have enough messages
-        let total_weight = filtered_messages
-            .0
-            .iter()
-            .map(|m| {
-                self.nodes
-                    .node_id_to_node(m.message.sender)
-                    .expect("checked in process_message")
-                    .weight as u32
-            })
-            .sum::<u32>();
+        let mut total_weight = 0u32;
+        let mut i = 0;
+        while i < filtered_messages.0.len() {
+            total_weight += self
+                .nodes
+                .node_id_to_node(filtered_messages.0[i].message.sender)
+                .expect("checked in process_message")
+                .weight as u32;
+            i += 1;
+        }
         let required_t = self.old_t.unwrap_or(self.t);
         if total_weight < (required_t as u32) {
             debug!("Merge failed with total weight {total_weight}");
@@ -544,13 +560,15 @@ where
         info!("DKG: Merging messages with total weight {total_weight}");
 
         // Log used parties.
-        let used_parties = filtered_messages
-            .0
-            .iter()
-            .map(|m| m.message.sender.to_string())
-            .collect::<Vec<String>>()
-            .join(",");
-        debug!("DKG: Using messages from parties: {}", used_parties);
+        debug!(
+            "DKG: Using messages from parties: {}",
+            filtered_messages
+                .0
+                .iter()
+                .map(|m| m.message.sender.to_string())
+                .collect::<Vec<String>>()
+                .join(",")
+        );
 
         let mut conf = Confirmation {
             sender: self.id,
@@ -572,6 +590,7 @@ where
 
         Ok((conf, filtered_messages))
     }
+    // END VERUS-VERIFIED: merge
 
     /// 7. Process all confirmations, check all complaints, and update the local set of
     ///    valid shares accordingly.
