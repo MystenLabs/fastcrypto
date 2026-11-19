@@ -54,6 +54,10 @@ pub mod nodes_tests;
 #[path = "tests/knapsack_weight_reduction_tests.rs"]
 pub mod knapsack_weight_reduction_tests;
 
+#[cfg(test)]
+#[path = "../../verification/fastcrypto-threshold/knapsack_weight_reduction_verus/transform_code_test.rs"]
+mod knapsack_weight_reduction_verus_copy_test;
+
 // TODO: needs to use ecies_v1
 // #[cfg(test)]
 // #[path = "tests/nidkg_tests.rs"]
