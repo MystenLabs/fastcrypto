@@ -139,9 +139,9 @@ axiom alloc.vec.Vec.truncate
     Visibility: public -/
 @[rust_fun
   "alloc::vec::{core::iter::traits::collect::IntoIterator<&'a alloc::vec::Vec<@T>, &'a @T, core::slice::iter::Iter<'a, @T>>}::into_iter"]
-axiom SharedAVec.Insts.CoreIterTraitsCollectIntoIteratorSharedATIter.into_iter
-  {T : Type _} (A : Type _) :
-  alloc.vec.Vec T → Result (core.slice.iter.Iter T)
+def SharedAVec.Insts.CoreIterTraitsCollectIntoIteratorSharedATIter.into_iter
+  {T : Type _} (A : Type _) (v : alloc.vec.Vec T) : Result (core.slice.iter.Iter T) :=
+  ok ⟨alloc.vec.Vec.deref v, 0⟩
 
 /-- [alloc::vec::{impl core::convert::AsRef<[T]> for alloc::vec::Vec<T>}::as_ref]:
     Source: '/rustc/library/alloc/src/vec/mod.rs', lines 4445:4-4445:28

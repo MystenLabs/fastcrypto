@@ -83,10 +83,14 @@ MODELS = {
     "core.result.Result.is_err": (
         "def core.result.Result.is_err\n  {T : Type _} {E : Type _} : core.result.Result T E → Result Bool\n"
         "  | .Ok _ => ok false\n  | .Err _ => ok true"),
+    "SharedAVec.Insts.CoreIterTraitsCollectIntoIteratorSharedATIter.into_iter": (
+        "def SharedAVec.Insts.CoreIterTraitsCollectIntoIteratorSharedATIter.into_iter\n"
+        "  {T : Type _} (A : Type _) (v : alloc.vec.Vec T) : Result (core.slice.iter.Iter T) :=\n"
+        "  ok ⟨alloc.vec.Vec.deref v, 0⟩"),
 }
 for f in d.glob("FunsExternal.lean"):
     s = f.read_text()
     for name, model in MODELS.items():
-        s = re.sub(r"axiom " + re.escape(name) + r"\n[^\n]*\n?(?=\n|$)", model + "\n", s)
+        s = re.sub(r"axiom " + re.escape(name) + r"\n(?:[^\n]+\n)*", model + "\n", s)
     f.write_text(s)
 print("fixed", d)

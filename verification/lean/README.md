@@ -31,6 +31,7 @@ other than `ok`. The theorems are about calls that return.
 | `response_verifies` | For receivers with the same `nodes`: `Rⱼ.process_message(m) = Ok(Valid(o))` and `Rⱼ.handle_complaint(m, i, c, o) = Ok(r)` ⇒ `Rᵢ.verify_complaint_response(m, j, r) = Ok(_)`. Assumes `CloneIsId`. |
 | `process_invalid_iff` | For receivers with the same `nodes`, `params`, `sid` and `commitment`: `Rᵢ.process_message(m)` is `Err` ⇔ `Rⱼ.process_message(m)` is `Err`. |
 | `handle_accepts` | For receivers configured alike and a party `i`: `Rᵢ.process_message(m) = Ok(Complaint(c))` and `Rⱼ.process_message(m) = Ok(Valid(o))` ⇒ `Rⱼ.handle_complaint(m, i, c, o) = Ok(_)`. Assumes `CloneIsId`, `PolyCloneIsId`, `PolyEqRefl` and `RecoveryComplete`. |
+| `recover_complete` | `Rᵢ.process_message(m)` is not `Err`, each response in `vs` was returned by `Rᵢ.verify_complaint_response(m, …)`, the responders are distinct, `weight_of(j) = Ok(W(j))` for each responder `j` with `t ≤ Σ W(j) ≤ u16::MAX`, and `share_ids_of(i)` is `Ok` ⇒ `Rᵢ.recover(m, vs) = Ok(_)`. Assumes `PolyCloneIsId` and `InterpolationComplete`. |
 
 ## What is assumed
 
@@ -45,6 +46,10 @@ other than `ok`. The theorems are about calls that return.
   * `RecoveryComplete`: the completeness of the recovery proof. For receivers configured alike, a
     complaint that `Rᵢ.create_complaint` makes about a message whose shares `Rᵢ.verify_message`
     rejected is accepted by `Rⱼ.check_recovery_proof`.
+  * `InterpolationComplete`: the completeness of share recovery, which depends on the `Nodes`
+    functions and polynomial interpolation. For a message that passes `Rᵢ.check_message`, the shares
+    of responses that `Rᵢ.verify_complaint_response` returned for distinct responders of total
+    weight at least `t` make `SharesForNode::recover` return shares that verify for `Rᵢ`.
 * `fix_aeneas_output.py` changes the translation as follows.
   * serde's traits are mutually recursive, which Lean rejects. Their structures are emptied, and
     the derived `Serialize` and `Deserialize` code for the AVSS types becomes axioms. The proofs do
@@ -53,5 +58,6 @@ other than `ok`. The theorems are about calls that return.
   * An instance that refers to itself (the `BCSSerialized` impl of `SharesForNode`), and any
     function whose body Aeneas could not translate (`check_recovery_proof`, because of the closure
     it passes on), become axioms.
-  * `Result::is_err`, which Aeneas' library does not model yet, is defined as returning `true`
-    exactly for `Err`.
+  * Two functions that Aeneas' library does not model yet are defined: `Result::is_err` returns
+    `true` exactly for `Err`, and `IntoIterator::into_iter` for `&Vec` returns an iterator over the
+    vector's elements.
