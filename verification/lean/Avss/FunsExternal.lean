@@ -1330,6 +1330,17 @@ axiom polynomial.Poly.is_reduced
   fastcrypto.groups.AdditiveGroup C) :
   polynomial.Poly C → Result Bool
 
+/-- [fastcrypto_threshold::polynomial::{fastcrypto_threshold::polynomial::Poly<C>}::eval]:
+    Source: 'fastcrypto-threshold/src/polynomial.rs', lines 143:4-159:5
+    Visibility: public -/
+axiom polynomial.Poly.eval
+  {C : Type _} {S : Type _} (fastcryptogroupsAdditiveGroupInst :
+  fastcrypto.groups.AdditiveGroup C) (fastcryptogroupsScalarInst :
+  fastcrypto.groups.Scalar S) (fastcryptogroupsModuleInst :
+  fastcrypto.groups.Module C S) :
+  polynomial.Poly C → core.num.nonzero.NonZero Std.U16
+    core.num.niche_types.NonZeroU16Inner → Result (types.IndexedValue C)
+
 /-- [fastcrypto_threshold::polynomial::{fastcrypto_threshold::polynomial::Poly<C>}::verify_share]:
     Source: 'fastcrypto-threshold/src/polynomial.rs', lines 281:4-292:5
     Visibility: public -/
