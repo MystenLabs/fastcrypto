@@ -23,6 +23,7 @@ RUSTFLAGS="--cfg aeneas" CARGO_TARGET_DIR="$root/target/charon" "$charon" cargo 
   --start-from "$A::Receiver::verify_complaint_response" \
   --start-from "$A::Receiver::recover" \
   --start-from crate::polynomial::Poly::eval \
+  --start-from "$A::DkOutput::complete_key_rotation" \
   --opaque fastcrypto --include fastcrypto::error \
   --opaque serde_core --opaque serde \
   --opaque "{impl serde_core::ser::Serialize for _}" --opaque "{impl serde_core::de::Deserialize<_> for _}" \

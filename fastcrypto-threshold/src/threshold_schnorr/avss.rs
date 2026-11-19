@@ -718,58 +718,58 @@ impl DkOutput {
         if outputs.is_empty() {
             return Err(InvalidInput);
         }
-        if !outputs.iter().map(|output| output.index).all_unique() {
+        let mut output_indices = Vec::new();
+        let mut output_index_values = Vec::new();
+        for output in outputs {
+            output_indices.push(output.index);
+            output_index_values.push(output.index.get());
+        }
+        if !all_distinct(&output_index_values) {
             return Err(InvalidInput);
         }
 
         let my_indices = nodes.share_ids_of(my_id)?;
 
-        let lagrange_coefficients: Vec<S> = Poly::<G>::get_lagrange_coefficients_for_c0::<S>(
-            t,
-            outputs.iter().map(|output| output.index),
-        )
-        .map(|c| c.1.iter().map(|s| s * c.0).collect_vec())?;
+        let (c, lambdas) =
+            Poly::<G>::get_lagrange_coefficients_for_c0::<S>(t, output_indices.iter())?;
+        let mut lagrange_coefficients: Vec<S> = Vec::new();
+        for lambda in &lambdas {
+            lagrange_coefficients.push(lambda * c);
+        }
 
-        let feldman_commitment = Poly::multi_scalar_mul(
-            &outputs
-                .iter()
-                .map(|output| output.value.feldman_commitment.clone())
-                .collect_vec(),
-            &lagrange_coefficients,
-        )?;
+        let mut output_commitments = Vec::new();
+        let mut output_c0s = Vec::new();
+        for output in outputs {
+            output_commitments.push(output.value.feldman_commitment.clone());
+            output_c0s.push(output.value.feldman_commitment.c0());
+        }
+        let feldman_commitment =
+            Poly::multi_scalar_mul(&output_commitments, &lagrange_coefficients)?;
 
         let commitments = feldman_commitment.eval_range(nodes.total_weight()).to_vec();
 
-        let shares = my_indices
-            .iter()
-            .map(|&index| {
-                let terms = outputs
-                    .iter()
-                    .zip(&lagrange_coefficients)
-                    .map(|(output, coeff)| {
-                        Ok(output
-                            .value
-                            .share_for_index(index)
-                            .ok_or(InvalidInput)?
-                            .value
-                            * coeff)
-                    })
-                    .collect::<FastCryptoResult<Vec<_>>>()?;
-                Ok(Eval {
-                    index,
-                    value: S::sum(terms.into_iter()),
-                })
-            })
-            .collect::<FastCryptoResult<Vec<_>>>()?;
+        // Each share is the sum of the outputs' shares at its index, weighted by the Lagrange
+        // coefficients.
+        let mut shares = Vec::new();
+        let mut missing_share = false;
+        for index in &my_indices {
+            let mut value = S::zero();
+            for (output, coeff) in outputs.iter().zip(&lagrange_coefficients) {
+                match output.value.share_for_index(*index) {
+                    Some(share) => value += share.value * coeff,
+                    None => missing_share = true,
+                }
+            }
+            shares.push(Eval {
+                index: *index,
+                value,
+            });
+        }
+        if missing_share {
+            return Err(InvalidInput);
+        }
 
-        let vk = G::multi_scalar_mul(
-            &lagrange_coefficients,
-            outputs
-                .iter()
-                .map(|o| o.value.feldman_commitment.c0())
-                .collect_vec()
-                .as_slice(),
-        )?;
+        let vk = G::multi_scalar_mul(&lagrange_coefficients, &output_c0s)?;
 
         Ok(Self {
             my_shares: SharesForNode { shares },

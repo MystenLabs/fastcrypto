@@ -47,16 +47,17 @@ Each contract follows from a theorem about the generated functions:
 are hypotheses of `contracts`. Their statements are about the distribution of `create_message`'s
 messages, and the generated code does not include the dealer.
 
-`Rotation.lean` proves `process_matches_commitment`, a contract of the spec's `RotationContracts`
-for key rotation, for the `Api` of receivers created with `commitment = Some(G::generator() * s)`:
+`Rotation.lean` proves the two contracts of the spec's `RotationContracts` for key rotation:
 
 | Rust function | Contract | Theorem |
 |---|---|---|
-| `Receiver::process_message` | `Rᵢ.process_message(m)` is not `Err` ⇒ every `p` with `p.degree() < t` such that `sh.verify(m, share_ids_of(j), j)` is `Ok` ⇒ `sh.shares = [p.eval(k) for k in share_ids_of(j)]` has `p.c0() = s`. | `process_matches_commitment` |
+| `Receiver::process_message` | For receivers created with `commitment = Some(G::generator() * s)`: `Rᵢ.process_message(m)` is not `Err` ⇒ every `p` with `p.degree() < t` such that `sh.verify(m, share_ids_of(j), j)` is `Ok` ⇒ `sh.shares = [p.eval(k) for k in share_ids_of(j)]` has `p.c0() = s`. | `process_matches_commitment` |
+| `DkOutput::complete_key_rotation` | `complete_key_rotation(t, i, outputs) = Ok(dk)` and each output holds the shares `[(k, v_o(k)) for k in share_ids_of(i)]` ⇒ `dk.my_shares = [(k, w(k)) for k in share_ids_of(i)]` with `recover_c0(t, [(u, v_o(k)) for (u, o) in outputs]) = Ok(w(k))`. | `rotation_interpolates` |
 
-On the way it proves `verify_complete`: `SharesForNode::verify` accepts shares whose indices are
-the expected ids and that each pass `verify_share`. The other contract of `RotationContracts`,
-`rotation_interpolates`, is about `DkOutput::complete_key_rotation` and is not proved.
+On the way, `VerifyComplete.lean` proves that `SharesForNode::verify` accepts shares whose indices
+are the expected ids and that each pass `verify_share`, and `KeyRotation.lean` proves what
+`complete_key_rotation` returns: each share is the sum of the outputs' shares at its index, times
+their Lagrange coefficients.
 
 From `contracts`, `Link.lean` states these theorems of fastcrypto-specs for the generated code,
 under `Link.Assumptions` (the hypotheses below, together):
@@ -83,6 +84,8 @@ theorems.
   * An instance that refers to itself (the `BCSSerialized` impl of `SharesForNode`), and any
     function whose body Aeneas could not translate (`check_recovery_proof`, because of its
     closure), become axioms.
+  * A Rust parameter named `nodes` (of `complete_key_rotation`) shadows the `nodes` module, so
+    the generated code refers to that module's functions from the root namespace.
   * Two functions that Aeneas' library does not model are defined: `Result::is_err` returns `true`
     exactly for `Err`, and `IntoIterator::into_iter` for `&Vec` returns an iterator over the
     vector's elements.
@@ -119,6 +122,13 @@ theorems.
     functions of the link. Only `recover_c0` is used: polynomials of degree `< t` that agree at
     `t` indices have the same `c0()`.
   * `NonZeroModel`, as for `contracts`.
+* Hypotheses of `rotation_interpolates`:
+  * `ScalarHom`: the map from secp256k1 scalars to the spec's field takes the scalar `zero`, `+=`
+    and `*` that `complete_key_rotation` uses to the field's.
+  * `LagrangeRecover`: `Poly::recover_c0` is `Σⱼ yⱼ·λⱼ·c` for the coefficients `(c, λ)` that
+    `get_lagrange_coefficients_for_c0` returns for the same indices, as `recover_c0` computes it.
+  * `NonZeroModel`, as for `contracts`.
+  * `complete_dkg`, which uses a `HashMap`, is not translated and stays abstract.
 * What the spec needs that the generated code does not give, in `Link.Scalars`:
   * The scalar field `F` and a map from secp256k1 scalars to it. Lean sees the scalars as an opaque
     type.
