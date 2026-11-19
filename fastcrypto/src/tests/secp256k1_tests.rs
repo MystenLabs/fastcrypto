@@ -1,16 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use k256::ecdsa::signature::hazmat::PrehashVerifier;
-#[cfg(feature = "copy_key")]
-use k256::ecdsa::signature::Signature as ExternalSignature;
-#[cfg(feature = "copy_key")]
-use k256::ecdsa::signature::Signer as ExternalSigner;
-#[cfg(feature = "copy_key")]
-use k256::ecdsa::signature::Verifier as ExternalVerifier;
-#[cfg(feature = "copy_key")]
-use proptest::arbitrary::Arbitrary;
-use proptest::{collection, prelude::*, strategy::Strategy};
+use k256::ecdsa::signature::hazmat::{PrehashSigner, PrehashVerifier};
+use proptest::strategy::ValueTree;
+use proptest::test_runner::TestRunner;
+use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature, SecretKey};
 use std::collections::hash_map::DefaultHasher;
@@ -234,15 +228,8 @@ fn serialize_deserialize() {
 
     let kp = keys().pop().unwrap();
     verify_serialization(&kp, Some(kp.as_bytes()));
-}
 
-#[test]
-fn test_human_readable_serialization() {
-    let kp = keys().pop().unwrap();
-    let pk = kp.public().clone();
-    let sig = kp.sign(MSG);
-
-    // JSON uses base64 of the same bytes as binary serde.
+    // Human-readable serde uses base64 of the same bytes as binary serde.
     let json = serde_json::to_string(&pk).unwrap();
     assert_eq!(json, format!("\"{}\"", Base64::encode(pk.as_bytes())));
     assert_eq!(
@@ -258,7 +245,7 @@ fn test_human_readable_serialization() {
 }
 
 #[test]
-fn test_bytes_representations() {
+fn bytes_representation() {
     let kp = keys().pop().unwrap();
     let pk = kp.public().clone();
     let sig = kp.sign(MSG);
@@ -304,18 +291,132 @@ fn import_export_public_key() {
     assert_eq!(import.unwrap(), *public_key);
 }
 
+// `from_bytes` (and therefore base64 and human-readable serde, and the `secp256k1_verify` and
+// `decompress_pubkey` Move natives in Sui) accepts exactly the compressed (0x02 / 0x03), the
+// uncompressed (0x04) and the hybrid (0x06 / 0x07) encodings of a point other than the identity.
 #[test]
 fn public_key_from_bytes() {
-    let kp = keys().pop().unwrap();
-    let pk = kp.public().clone();
-    let pk_bytes = pk.as_ref();
-    let rebuilt_pk = <Secp256k1PublicKey as ToFromBytes>::from_bytes(pk_bytes).unwrap();
-    assert_eq!(rebuilt_pk, pk);
+    let decode = |bytes: &[u8]| Secp256k1PublicKey::from_bytes(bytes).is_ok();
+    let pk = keys().pop().unwrap().public().clone();
+    let compressed = pk.as_bytes().to_vec();
+    let uncompressed_bytes = uncompressed(&pk);
+    let hybrid_bytes = hybrid(&pk);
+    assert!(decode(&X_ONE_COMPRESSED));
+    assert!(decode(&X_ONE_UNCOMPRESSED));
 
-    // check for failure
-    let mut pk_bytes = pk.as_ref().to_vec();
-    pk_bytes.pop();
-    assert!(<Secp256k1PublicKey as ToFromBytes>::from_bytes(&pk_bytes).is_err());
+    // The 33-byte encodings use exactly the prefixes 0x02 and 0x03, and the 65-byte encodings the
+    // prefix 0x04 or the hybrid prefix that matches the parity of y.
+    let accepted_prefixes = |encoding: &[u8]| -> Vec<u8> {
+        (0..=255u8)
+            .filter(|&prefix| decode(&[&[prefix][..], &encoding[1..]].concat()))
+            .collect()
+    };
+    assert_eq!(
+        accepted_prefixes(&compressed),
+        vec![PREFIX_EVEN_Y, PREFIX_ODD_Y]
+    );
+    assert_eq!(
+        accepted_prefixes(&uncompressed_bytes),
+        vec![PREFIX_UNCOMPRESSED, hybrid_bytes[0]]
+    );
+    // So the 33-byte "compact" encoding with prefix 0x05, which some other implementations like
+    // k256 accept, is rejected.
+    let compact = [&[0x05][..], &compressed[1..]].concat();
+    assert!(k256::ecdsa::VerifyingKey::from_sec1_bytes(&compact).is_ok());
+
+    // Other lengths are rejected, also with a valid prefix, and so is the uncompressed encoding
+    // without its prefix.
+    for len in (0..=3 * PK_LENGTH).filter(|&len| len != PK_LENGTH && len != UNCOMPRESSED_PK_LENGTH)
+    {
+        for encoding in [&compressed[..], &uncompressed_bytes[..]] {
+            let bytes: Vec<u8> = encoding.iter().cycle().take(len).copied().collect();
+            assert!(!decode(&bytes), "{}", len);
+        }
+    }
+    assert!(!decode(&uncompressed_bytes[1..]));
+
+    // The point at infinity has no encoding: SEC1 encodes it as a single 0x00 byte.
+    assert!(!decode(&[0x00]));
+    assert!(!decode(&[0x00; PK_LENGTH]));
+    assert!(!decode(&[0x00; UNCOMPRESSED_PK_LENGTH]));
+
+    // x-coordinates that are not reduced modulo p.
+    assert!(!decode(&X_ONE_UNREDUCED));
+    let mut bytes = X_ONE_UNCOMPRESSED;
+    bytes[1..33].copy_from_slice(&X_ONE_UNREDUCED[1..]);
+    assert!(!decode(&bytes));
+    for prefix in [PREFIX_EVEN_Y, PREFIX_ODD_Y] {
+        assert!(!decode(&[&[prefix][..], &FIELD_MODULUS].concat()));
+        assert!(!decode(&[&[prefix][..], &[0xff; 32]].concat()));
+        // y^2 = 7 has no solution, so there is no point with x = 0.
+        assert!(!decode(&[&[prefix][..], &[0x00; 32]].concat()));
+    }
+
+    // A y-coordinate that does not match x.
+    let mut bytes = uncompressed_bytes;
+    bytes[64] ^= 1;
+    assert!(!decode(&bytes));
+}
+
+// The key decoded from any accepted encoding is the same: it is encoded compressed, and Eq, Hash,
+// Ord, the Sui address and verification do not depend on the input encoding.
+#[test]
+fn test_public_key_encodings() {
+    let keys = keys();
+    let pk = keys[0].public().clone();
+    let compressed = pk.as_bytes().to_vec();
+    let uncompressed_bytes = uncompressed(&pk);
+
+    // The prefix of a compressed encoding gives the parity of y, so changing it gives another key.
+    let mut negated = compressed.clone();
+    negated[0] ^= 1;
+    assert_ne!(Secp256k1PublicKey::from_bytes(&negated).unwrap(), pk);
+
+    for encoding in [&uncompressed_bytes[..], &hybrid(&pk)[..]] {
+        let decoded = Secp256k1PublicKey::from_bytes(encoding).unwrap();
+        assert_eq!(decoded, pk);
+        assert_eq!(decoded.as_bytes(), compressed);
+        assert_eq!(uncompressed(&decoded), uncompressed_bytes);
+        assert_eq!(hash_of(&decoded), hash_of(&pk));
+        assert_eq!(decoded.cmp(&pk), std::cmp::Ordering::Equal);
+        assert_eq!(sui_address(&decoded), sui_address(&pk));
+        assert!(decoded.verify(MSG, &keys[0].sign(MSG)).is_ok());
+        assert!(decoded.verify(MSG, &keys[1].sign(MSG)).is_err());
+
+        // Base64 and human-readable serde go through from_bytes, so they accept it as well...
+        assert_eq!(
+            Secp256k1PublicKey::decode_base64(&Base64::encode(encoding)).unwrap(),
+            pk
+        );
+        let json = format!("\"{}\"", Base64::encode(encoding));
+        let from_json: Secp256k1PublicKey = serde_json::from_str(&json).unwrap();
+        assert_eq!(from_json, pk);
+        // ... but serializing again gives the compressed encoding.
+        assert_eq!(
+            serde_json::to_string(&from_json).unwrap(),
+            format!("\"{}\"", Base64::encode(&compressed))
+        );
+
+        // Binary serde reads exactly the compressed length, so it rejects these encodings.
+        assert!(bcs::from_bytes::<Secp256k1PublicKey>(encoding).is_err());
+        assert!(bincode::deserialize::<Secp256k1PublicKey>(encoding).is_err());
+    }
+
+    // A key whose y is even uses the prefixes 0x02 and 0x06, and one whose y is odd uses 0x03
+    // and 0x07. The key x = 1 has an even y.
+    let x_one = Secp256k1PublicKey::from_bytes(&X_ONE_COMPRESSED).unwrap();
+    assert_eq!(uncompressed(&x_one), X_ONE_UNCOMPRESSED);
+    assert_eq!(hybrid(&x_one)[0], PREFIX_HYBRID_EVEN_Y);
+    let odd_key = keys
+        .iter()
+        .map(|kp| kp.public())
+        .find(|pk| pk.as_bytes()[0] == PREFIX_ODD_Y)
+        .unwrap();
+    assert_eq!(hybrid(odd_key)[0], PREFIX_HYBRID_ODD_Y);
+    // A hybrid prefix that does not match the parity of y is rejected.
+    let mut bytes = hybrid(odd_key);
+    bytes[0] = PREFIX_HYBRID_EVEN_Y;
+    assert!(Secp256k1PublicKey::from_bytes(&bytes).is_err());
 }
 
 #[test]
@@ -326,10 +427,12 @@ fn private_key_from_bytes() {
     let rebuilt_sk = <Secp256k1PrivateKey as ToFromBytes>::from_bytes(sk_bytes).unwrap();
     assert_eq!(rebuilt_sk, sk);
 
-    // check for failure
-    let mut sk_bytes = sk.as_ref().to_vec();
-    sk_bytes.pop();
-    assert!(<Secp256k1PrivateKey as ToFromBytes>::from_bytes(&sk_bytes).is_err());
+    // Only 32 bytes are accepted, for private keys and key pairs.
+    for len in (0..=3 * SK_LENGTH).filter(|&len| len != SK_LENGTH) {
+        let bytes: Vec<u8> = sk_bytes.iter().cycle().take(len).copied().collect();
+        assert!(Secp256k1PrivateKey::from_bytes(&bytes).is_err(), "{}", len);
+        assert!(Secp256k1KeyPair::from_bytes(&bytes).is_err(), "{}", len);
+    }
 }
 
 #[test]
@@ -343,8 +446,8 @@ fn import_export_secret_key() {
 }
 
 #[test]
-fn test_private_key_range() {
-    // Private keys are big-endian integers in [1, n).
+fn non_canonical_secret_key() {
+    // Private keys are big-endian integers in [1, n), for private keys and key pairs.
     let zero = [0u8; SK_LENGTH];
     let mut one = [0u8; SK_LENGTH];
     one[SK_LENGTH - 1] = 1;
@@ -398,191 +501,26 @@ fn key_pair_from_string_roundtrip() {
     assert_eq!(kp, recovered);
 }
 
-#[test]
-fn to_from_bytes_signature() {
-    let kpref = keys().pop().unwrap();
-    let signature = kpref.sign(MSG);
-    let sig_bytes = signature.as_ref();
-    let rebuilt_sig = <Secp256k1Signature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
-    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref());
-    // check for failure
-    let mut sig_bytes = signature.as_ref().to_vec();
-    sig_bytes.pop();
-    assert!(<Secp256k1Signature as ToFromBytes>::from_bytes(&sig_bytes).is_err());
-}
-
-// `from_bytes` (and therefore base64 and human-readable serde, and the `secp256k1_verify` and
-// `decompress_pubkey` Move natives in Sui) accepts the compressed (0x02 / 0x03), the uncompressed
-// (0x04) and the hybrid (0x06 / 0x07) encodings of a public key, while `as_bytes` and binary serde
-// always use the compressed one. These tests pin which encodings are accepted.
-#[test]
-fn test_public_key_encodings() {
-    let keys = keys();
-    let pk = keys[0].public().clone();
-    let compressed = pk.as_bytes().to_vec();
-
-    // The 33-byte encodings use exactly the prefixes 0x02 and 0x03, and the prefix gives the
-    // parity of y.
-    let accepted_prefixes = |encoding: &[u8]| -> Vec<u8> {
-        (0..=255u8)
-            .filter(|&prefix| {
-                let mut bytes = encoding.to_vec();
-                bytes[0] = prefix;
-                Secp256k1PublicKey::from_bytes(&bytes).is_ok()
-            })
-            .collect()
-    };
-    assert_eq!(
-        accepted_prefixes(&compressed),
-        vec![PREFIX_EVEN_Y, PREFIX_ODD_Y]
-    );
-    let mut negated = compressed.clone();
-    negated[0] ^= 1;
-    assert_ne!(Secp256k1PublicKey::from_bytes(&negated).unwrap(), pk);
-
-    // The 65-byte encodings use the prefix 0x04, or the hybrid prefix that matches the parity of y.
-    let uncompressed_bytes = uncompressed(&pk);
-    let hybrid_bytes = hybrid(&pk);
-    assert_eq!(
-        accepted_prefixes(&uncompressed_bytes),
-        vec![PREFIX_UNCOMPRESSED, hybrid_bytes[0]]
-    );
-
-    for encoding in [&uncompressed_bytes[..], &hybrid_bytes[..]] {
-        let decoded = Secp256k1PublicKey::from_bytes(encoding).unwrap();
-        // The decoded key is the same, and is encoded as the compressed bytes.
-        assert_eq!(decoded, pk);
-        assert_eq!(decoded.as_bytes(), compressed);
-        assert_eq!(uncompressed(&decoded), uncompressed_bytes);
-        // Hash and Ord agree with Eq whatever the input encoding.
-        assert_eq!(hash_of(&decoded), hash_of(&pk));
-        assert_eq!(decoded.cmp(&pk), std::cmp::Ordering::Equal);
-        // So does the Sui address, which hashes the compressed bytes.
-        assert_eq!(sui_address(&decoded), sui_address(&pk));
-        // It verifies the same signatures.
-        assert!(decoded.verify(MSG, &keys[0].sign(MSG)).is_ok());
-        assert!(decoded.verify(MSG, &keys[1].sign(MSG)).is_err());
-
-        // Base64 and human-readable serde go through from_bytes, so they accept it as well...
-        assert_eq!(
-            Secp256k1PublicKey::decode_base64(&Base64::encode(encoding)).unwrap(),
-            pk
-        );
-        let json = format!("\"{}\"", Base64::encode(encoding));
-        let from_json: Secp256k1PublicKey = serde_json::from_str(&json).unwrap();
-        assert_eq!(from_json, pk);
-        // ... but serializing again gives the compressed encoding.
-        assert_eq!(
-            serde_json::to_string(&from_json).unwrap(),
-            format!("\"{}\"", Base64::encode(&compressed))
-        );
-
-        // Binary serde reads exactly the compressed length, so it rejects these encodings.
-        assert!(bcs::from_bytes::<Secp256k1PublicKey>(encoding).is_err());
-        assert!(bincode::deserialize::<Secp256k1PublicKey>(encoding).is_err());
-    }
-
-    // A key whose y is even uses the prefixes 0x02 and 0x06, and one whose y is odd uses 0x03
-    // and 0x07. The key x = 1 has an even y.
-    let x_one = Secp256k1PublicKey::from_bytes(&X_ONE_COMPRESSED).unwrap();
-    assert_eq!(uncompressed(&x_one), X_ONE_UNCOMPRESSED);
-    assert_eq!(hybrid(&x_one)[0], PREFIX_HYBRID_EVEN_Y);
-    let odd_key = keys
-        .iter()
-        .map(|kp| kp.public())
-        .find(|pk| pk.as_bytes()[0] == PREFIX_ODD_Y)
-        .unwrap();
-    assert_eq!(hybrid(odd_key)[0], PREFIX_HYBRID_ODD_Y);
-}
-
-#[test]
-fn test_reject_wrong_lengths() {
-    let kp = keys().pop().unwrap();
-    let compressed = kp.public().as_bytes().to_vec();
-    let uncompressed = uncompressed(kp.public()).to_vec();
-    let sig = kp.sign(MSG).as_bytes().to_vec();
-    let sk = kp.as_bytes().to_vec();
-
-    for len in (0..=3 * PK_LENGTH).filter(|&len| len != PK_LENGTH && len != UNCOMPRESSED_PK_LENGTH)
-    {
-        // Truncate or extend a valid encoding, keeping its prefix.
-        for encoding in [&compressed, &uncompressed] {
-            let bytes: Vec<u8> = encoding.iter().cycle().take(len).copied().collect();
-            assert!(Secp256k1PublicKey::from_bytes(&bytes).is_err(), "{}", len);
-        }
-    }
-    // The 64-byte encoding without prefix is not accepted either.
-    assert!(Secp256k1PublicKey::from_bytes(&uncompressed[1..]).is_err());
-
-    for len in (0..=3 * SIG_LENGTH).filter(|&len| len != SIG_LENGTH) {
-        let bytes: Vec<u8> = sig.iter().cycle().take(len).copied().collect();
-        assert!(<Secp256k1Signature as ToFromBytes>::from_bytes(&bytes).is_err());
-    }
-    for len in (0..=3 * SK_LENGTH).filter(|&len| len != SK_LENGTH) {
-        let bytes: Vec<u8> = sk.iter().cycle().take(len).copied().collect();
-        assert!(Secp256k1PrivateKey::from_bytes(&bytes).is_err());
-        assert!(Secp256k1KeyPair::from_bytes(&bytes).is_err());
-    }
-}
-
-#[test]
-fn test_reject_invalid_public_keys() {
-    let decode = |bytes: &[u8]| Secp256k1PublicKey::from_bytes(bytes).is_ok();
-    let pk = keys().pop().unwrap().public().clone();
-    assert!(decode(&X_ONE_COMPRESSED));
-    assert!(decode(&X_ONE_UNCOMPRESSED));
-
-    // The point at infinity has no encoding: SEC1 encodes it as a single 0x00 byte.
-    assert!(!decode(&[0x00]));
-    assert!(!decode(&[0x00; PK_LENGTH]));
-    assert!(!decode(&[0x00; UNCOMPRESSED_PK_LENGTH]));
-
-    // x-coordinates that are not reduced modulo p.
-    assert!(!decode(&X_ONE_UNREDUCED));
-    let mut bytes = X_ONE_UNCOMPRESSED;
-    bytes[1..33].copy_from_slice(&X_ONE_UNREDUCED[1..]);
-    assert!(!decode(&bytes));
-    for prefix in [PREFIX_EVEN_Y, PREFIX_ODD_Y] {
-        assert!(!decode(&[&[prefix][..], &FIELD_MODULUS].concat()));
-        assert!(!decode(&[&[prefix][..], &[0xff; 32]].concat()));
-        // y^2 = 7 has no solution, so there is no point with x = 0.
-        assert!(!decode(&[&[prefix][..], &[0x00; 32]].concat()));
-    }
-
-    // A y-coordinate that does not match x.
-    let mut bytes = uncompressed(&pk);
-    bytes[64] ^= 1;
-    assert!(!decode(&bytes));
-
-    // A hybrid prefix that does not match the parity of y.
-    let mut bytes = hybrid(&pk);
-    bytes[0] ^= 1;
-    assert!(!decode(&bytes));
-
-    // The 33-byte "compact" encoding with prefix 0x05 (accepted by some other implementations,
-    // like k256) is not accepted.
-    let mut bytes = pk.as_bytes().to_vec();
-    bytes[0] = 0x05;
-    assert!(!decode(&bytes));
-    assert!(k256::ecdsa::VerifyingKey::from_sec1_bytes(&bytes).is_ok());
-}
-
 // `from_bytes` accepts r || s with r and s in [0, n), and does not normalize s: `as_bytes` returns
 // the input. Signatures with r = 0 or s = 0 decode but never verify, and neither do high-s ones.
 #[test]
-fn test_signature_encodings() {
+fn to_from_bytes_signature() {
     let kp = keys().pop().unwrap();
-    let sig = kp.sign(MSG);
-    let bytes = sig.as_bytes().to_vec();
+    let signature = kp.sign(MSG);
+    let bytes = signature.as_bytes().to_vec();
     let decode = |bytes: &[u8]| <Secp256k1Signature as ToFromBytes>::from_bytes(bytes);
+    assert_eq!(decode(&bytes).unwrap(), signature);
+
+    // Only 64 bytes are accepted.
+    for len in (0..=3 * SIG_LENGTH).filter(|&len| len != SIG_LENGTH) {
+        let bytes: Vec<u8> = bytes.iter().cycle().take(len).copied().collect();
+        assert!(decode(&bytes).is_err(), "{}", len);
+    }
+
     let with_r = |r: &[u8]| [r, &bytes[32..]].concat();
     let with_s = |s: &[u8]| [&bytes[..32], s].concat();
     let mut order_minus_one = GROUP_ORDER;
     order_minus_one[31] -= 1;
-
-    // Signatures by this module are low-s.
-    assert!(!is_high_s(&bytes));
-
     for bytes in [
         with_r(&[0; 32]),
         with_s(&[0; 32]),
@@ -637,19 +575,7 @@ fn verify_valid_signature() {
 }
 
 #[test]
-fn verify_valid_signature_default_hash() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-
-    // Sign over raw message.
-    let signature = kp.sign(MSG);
-
-    // Verify the signature against hashed message.
-    assert!(kp.public().verify(MSG, &signature).is_ok());
-}
-
-#[test]
-fn test_verify_with_hash_functions() {
+fn verify_hashed_failed_if_different_hash() {
     let kp = keys().pop().unwrap();
     let pk = kp.public();
 
@@ -676,35 +602,6 @@ fn test_verify_with_hash_functions() {
             .is_ok());
         assert!(pk.verify(msg, &kp.sign(msg)).is_ok());
         assert!(pk.verify(msg, &kp.sign(MSG)).is_err());
-    }
-}
-
-#[test]
-fn test_verify_rejects_high_s() {
-    // ECDSA signatures are malleable: if (r, s) is valid, then so is (r, n - s). Like Bitcoin and
-    // Ethereum transactions, verification only accepts the one with s <= n / 2, which is the one
-    // that signing produces. k256 does the same.
-    let kp = keys().pop().unwrap();
-    for msg in [&b"a"[..], b"b", b"c", b"d"] {
-        let sig = kp.sign_with_hash::<Keccak256>(msg);
-        assert!(!is_high_s(sig.as_bytes()));
-        let high_s_bytes = negate_s(sig.as_bytes());
-        assert!(is_high_s(&high_s_bytes));
-        let high_s = <Secp256k1Signature as ToFromBytes>::from_bytes(&high_s_bytes).unwrap();
-        assert_ne!(high_s, sig);
-        assert!(kp
-            .public()
-            .verify_with_hash::<Keccak256>(msg, &high_s)
-            .is_err());
-
-        let digest = Keccak256::digest(msg).digest;
-        assert!(k256_verify(kp.public().as_bytes(), &digest, sig.as_bytes()));
-        assert!(!k256_verify(kp.public().as_bytes(), &digest, &high_s_bytes));
-
-        // Normalizing s gives the original signature back.
-        let mut normalized = high_s.sig;
-        normalized.normalize_s();
-        assert_eq!(normalized.serialize_compact(), sig.as_bytes());
     }
 }
 
@@ -772,22 +669,9 @@ fn verify_invalid_signature() {
     assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
 }
 
-#[test]
-fn verify_hashed_failed_if_different_hash() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-
-    // Sign over raw message (hashed to keccak256 internally).
-    let message: &[u8] = &[0u8; 1];
-    let signature = kp.sign_with_hash::<Keccak256>(message);
-
-    // Verify the signature using other hash function.
-    assert!(kp
-        .public()
-        .verify_with_hash::<Blake2b256>(message, &signature)
-        .is_err());
-}
-
+// ECDSA signatures are malleable: if (r, s) is valid, then so is (r, n - s). Like Bitcoin and
+// Ethereum transactions, verification only accepts the one with s <= n / 2, which is the one that
+// signing produces. k256 does the same.
 #[test]
 fn fail_to_verify_if_upper_s() {
     // Test case from https://github.com/fjl/go-ethereum/blob/41c854a60fad2ad9bb732857445624c7214541db/crypto/signature_test.go#L79
@@ -814,6 +698,30 @@ fn fail_to_verify_if_upper_s() {
     assert!(pk
         .verify_with_hash::<Keccak256>(&msg, &normalized_sig)
         .is_ok());
+
+    // Signatures by this module are low-s, and negating s gives a signature that is rejected.
+    let kp = keys().pop().unwrap();
+    for msg in [&b"a"[..], b"b", b"c", b"d"] {
+        let sig = kp.sign_with_hash::<Keccak256>(msg);
+        assert!(!is_high_s(sig.as_bytes()));
+        let high_s_bytes = negate_s(sig.as_bytes());
+        assert!(is_high_s(&high_s_bytes));
+        let high_s = <Secp256k1Signature as ToFromBytes>::from_bytes(&high_s_bytes).unwrap();
+        assert_ne!(high_s, sig);
+        assert!(kp
+            .public()
+            .verify_with_hash::<Keccak256>(msg, &high_s)
+            .is_err());
+
+        let digest = Keccak256::digest(msg).digest;
+        assert!(k256_verify(kp.public().as_bytes(), &digest, sig.as_bytes()));
+        assert!(!k256_verify(kp.public().as_bytes(), &digest, &high_s_bytes));
+
+        // Normalizing s gives the original signature back.
+        let mut normalized = high_s.sig;
+        normalized.normalize_s();
+        assert_eq!(normalized.serialize_compact(), sig.as_bytes());
+    }
 }
 
 #[test]
@@ -1019,7 +927,6 @@ fn fmt_signature() {
 // Proptests
 //
 
-// Arbitrary implementations for the proptests
 fn arb_keypair() -> impl Strategy<Value = Secp256k1KeyPair> {
     any::<[u8; 32]>()
         .prop_map(|seed| {
@@ -1029,18 +936,41 @@ fn arb_keypair() -> impl Strategy<Value = Secp256k1KeyPair> {
         .no_shrink()
 }
 
-/// Byte strings shaped like public key encodings, to reach deeper than the length check: the
-/// compressed, the uncompressed or any length, a prefix that is mostly a SEC1 prefix (0x00 to
-/// 0x07), and an x-coordinate that is either random or small (a small x is on the curve about half
-/// of the time).
+/// Either a valid encoding (compressed, uncompressed or hybrid) of the public key of `keys()[0]` or
+/// `keys()[1]`, mostly with one bit flipped, or bytes shaped like a public key encoding, to reach
+/// deeper than the length check: the compressed, the uncompressed or any length, a prefix that is
+/// mostly a SEC1 prefix (0x00 to 0x07), and an x-coordinate that is either random or small (a small
+/// x is on the curve about half of the time).
 fn arb_public_key_bytes() -> impl Strategy<Value = Vec<u8>> {
+    let encodings: Vec<Vec<u8>> = keys()[..2]
+        .iter()
+        .flat_map(|kp| {
+            let pk = kp.public();
+            [
+                pk.as_bytes().to_vec(),
+                uncompressed(pk).to_vec(),
+                hybrid(pk).to_vec(),
+            ]
+        })
+        .collect();
+    let valid_or_flipped = (
+        proptest::sample::select(encodings),
+        proptest::option::weighted(0.8, any::<usize>()),
+    )
+        .prop_map(|(mut bytes, bit)| {
+            if let Some(bit) = bit {
+                let bit = bit % (bytes.len() * 8);
+                bytes[bit / 8] ^= 1 << (bit % 8);
+            }
+            bytes
+        });
     let length = prop_oneof![
         3 => Just(PK_LENGTH),
         1 => Just(UNCOMPRESSED_PK_LENGTH),
         1 => 0..=2 * UNCOMPRESSED_PK_LENGTH,
     ];
     let prefix = prop_oneof![3 => 0..=7u8, 1 => any::<u8>()];
-    (
+    let shaped = (
         length,
         prefix,
         0..4096u64,
@@ -1057,7 +987,8 @@ fn arb_public_key_bytes() -> impl Strategy<Value = Vec<u8>> {
                 *first = prefix;
             }
             bytes
-        })
+        });
+    prop_oneof![valid_or_flipped, shaped]
 }
 
 /// Scalars (r or s) that are random, small, or close to n or n / 2.
@@ -1077,97 +1008,104 @@ pub(crate) fn arb_scalar_bytes() -> impl Strategy<Value = [u8; 32]> {
     ]
 }
 
-/// Either r || s with adversarial scalars, or the signature by `keys()[0]` on the given message,
-/// as is, with one bit flipped or with s negated.
-fn arb_signature_bytes(msg: &'static [u8]) -> impl Strategy<Value = Vec<u8>> {
+/// Either r || s with adversarial scalars, or the signature by `keys()[0]` on `MSG`, as is, with
+/// one bit flipped or with s negated.
+fn arb_signature_bytes() -> impl Strategy<Value = Vec<u8>> {
+    let honest = keys()[0].sign(MSG).as_bytes().to_vec();
     prop_oneof![
         3 => (arb_scalar_bytes(), arb_scalar_bytes()).prop_map(|(r, s)| [r, s].concat()),
-        1 => Just(()).prop_map(move |_| keys()[0].sign(msg).as_bytes().to_vec()),
-        3 =>
-        (0..SIG_LENGTH * 8).prop_map(move |bit| {
-            let mut bytes = keys()[0].sign(msg).as_bytes().to_vec();
-            bytes[bit / 8] ^= 1 << (bit % 8);
-            bytes
-        }),
-        1 => Just(()).prop_map(move |_| negate_s(keys()[0].sign(msg).as_bytes())),
+        1 => Just(honest.clone()),
+        3 => flip_bit(honest.clone()),
+        1 => Just(negate_s(&honest)),
     ]
 }
 
-/// A valid encoding (0 = compressed, 1 = uncompressed, 2 = hybrid) of the public key of `keys()[0]`
-/// or `keys()[1]`, mostly with one bit flipped.
-fn arb_valid_or_flipped_public_key() -> impl Strategy<Value = Vec<u8>> {
-    (
-        0..2usize,
-        0..3usize,
-        proptest::option::weighted(0.8, any::<usize>()),
-    )
-        .prop_map(|(key, encoding, bit)| {
-            let pk = keys()[key].public().clone();
-            let mut bytes = match encoding {
-                0 => pk.as_bytes().to_vec(),
-                1 => uncompressed(&pk).to_vec(),
-                _ => hybrid(&pk).to_vec(),
-            };
-            if let Some(bit) = bit {
-                let bit = bit % (bytes.len() * 8);
-                bytes[bit / 8] ^= 1 << (bit % 8);
-            }
-            bytes
-        })
+/// The given bytes with one bit flipped.
+pub(crate) fn flip_bit(bytes: Vec<u8>) -> impl Strategy<Value = Vec<u8>> {
+    (0..bytes.len() * 8).prop_map(move |bit| {
+        let mut bytes = bytes.clone();
+        bytes[bit / 8] ^= 1 << (bit % 8);
+        bytes
+    })
+}
+
+/// Private keys: scalars that are random, small, or close to n or n / 2, or bytes of any length.
+fn arb_private_key_bytes() -> impl Strategy<Value = Vec<u8>> {
+    prop_oneof![
+        arb_scalar_bytes().prop_map(|s| s.to_vec()),
+        collection::vec(any::<u8>(), 0..=2 * SK_LENGTH),
+    ]
 }
 
 proptest! {
+    // fastcrypto and k256 derive the same public key and the same (deterministic, low-s)
+    // signatures, and agree on the verification of honest, tampered and high-s signatures with
+    // SHA-256 and Keccak-256 (the hash functions of Sui's secp256k1_verify Move native).
     #[test]
-    #[cfg(feature = "copy_key")]
     fn test_k256_against_secp256k1_lib(
-        r in <[u8; 32]>::arbitrary()
-) {
-        let message: &[u8] = b"hello world!";
-        let mut rng = StdRng::from_seed(r);
+        kp in arb_keypair(),
+        msg in collection::vec(any::<u8>(), 0..100),
+        keccak in any::<bool>(),
+        tamper in proptest::option::of(prop_oneof![
+            (0..SIG_LENGTH * 8).prop_map(Some),
+            Just(None::<usize>),
+        ]),
+    ) {
+        let k256_kp = k256::ecdsa::SigningKey::from_bytes(kp.as_bytes()).unwrap();
+        let k256_pk = k256_kp.verifying_key().to_bytes();
+        prop_assert_eq!(kp.public().as_bytes(), k256_pk.as_slice());
 
-        // construct private key with arbitrary seed and sign
-        let key_pair = Secp256k1KeyPair::generate(&mut rng);
-        let key_pair_copied = key_pair.copy();
-        let key_pair_copied_2 = key_pair.copy();
-        let key_pair_copied_3 = key_pair.copy();
+        let (sig, digest) = if keccak {
+            (kp.sign_with_hash::<Keccak256>(&msg), Keccak256::digest(&msg).digest)
+        } else {
+            (kp.sign_with_hash::<Sha256>(&msg), Sha256::digest(&msg).digest)
+        };
+        let k256_sig: k256::ecdsa::Signature = k256_kp.sign_prehash(&digest).unwrap();
+        prop_assert_eq!(sig.as_bytes(), k256_sig.as_ref());
 
-        let signature: Secp256k1Signature = key_pair.sign(message);
-        assert!(key_pair.public().verify(message, &signature).is_ok());
-
-        // Use k256 to construct private key with the same bytes and sign the same message
-        let priv_key_1 = k256::ecdsa::SigningKey::from_bytes(key_pair_copied_3.private().as_bytes()).unwrap();
-        let pub_key_1 = priv_key_1.verifying_key();
-        let signature_1: k256::ecdsa::Signature = priv_key_1.sign(message);
-        assert!(pub_key_1.verify(message, &signature_1).is_ok());
-
-        // Two private keys are serialized as the same
-        assert_eq!(key_pair_copied.private().as_bytes(), priv_key_1.to_bytes().as_slice());
-
-        // Two pubkeys are the same
-        assert_eq!(
-            key_pair.public().as_bytes(),
-            pub_key_1.to_bytes().as_slice()
-        );
-
-        // Same signatures produced from both implementations
-        assert_eq!(signature.as_ref(), signature_1.as_bytes());
-
-        // Use fastcrypto keypair to verify a signature constructed by k256
-        let secp_sig1 = bincode::deserialize::<Secp256k1Signature>(signature_1.as_ref()).unwrap();
-        assert!(key_pair_copied_2.public().verify(message, &secp_sig1).is_ok());
-
-        // Use k256 keypair to verify sig constructed by fastcrypto
-        let typed_sig = k256::ecdsa::Signature::try_from(signature.as_ref()).unwrap();
-        assert!(pub_key_1.verify(message, &typed_sig).is_ok());
+        let bytes = match tamper {
+            None => sig.as_bytes().to_vec(),
+            Some(Some(bit)) => {
+                let mut bytes = sig.as_bytes().to_vec();
+                bytes[bit / 8] ^= 1 << (bit % 8);
+                bytes
+            }
+            Some(None) => negate_s(sig.as_bytes()),
+        };
+        let verified = <Secp256k1Signature as ToFromBytes>::from_bytes(&bytes).is_ok_and(|sig| {
+            if keccak {
+                kp.public().verify_with_hash::<Keccak256>(&msg, &sig).is_ok()
+            } else {
+                kp.public().verify_with_hash::<Sha256>(&msg, &sig).is_ok()
+            }
+        });
+        prop_assert_eq!(verified, tamper.is_none());
+        prop_assert_eq!(verified, k256_verify(kp.public().as_bytes(), &digest, &bytes));
     }
 
+    // Private keys decode iff they are 32 bytes in [1, n), like in k256, and give the same public
+    // key as k256. A key pair is serialized as its private key.
     #[test]
-    fn test_keypair_roundtrip(
-        kp in arb_keypair(),
-    ){
-        let serialized = bincode::serialize(&kp).unwrap();
-        let deserialized: Secp256k1KeyPair = bincode::deserialize(&serialized).unwrap();
-        assert_eq!(kp.public(), deserialized.public());
+    fn test_keypair_roundtrip(bytes in arb_private_key_bytes()) {
+        let decoded = Secp256k1KeyPair::from_bytes(&bytes);
+        prop_assert_eq!(Secp256k1PrivateKey::from_bytes(&bytes).is_ok(), decoded.is_ok());
+        let k256_decoded = if bytes.len() == SK_LENGTH {
+            k256::ecdsa::SigningKey::from_bytes(&bytes).ok()
+        } else {
+            None
+        };
+        prop_assert_eq!(decoded.is_ok(), k256_decoded.is_some());
+        let from_bcs = bcs::from_bytes::<Secp256k1KeyPair>(&bytes).ok();
+        prop_assert_eq!(
+            from_bcs.as_ref(),
+            decoded.as_ref().ok().filter(|_| bytes.len() == SK_LENGTH)
+        );
+        if let (Ok(kp), Some(k256_kp)) = (decoded, k256_decoded) {
+            prop_assert_eq!(kp.as_bytes(), &bytes[..]);
+            prop_assert_eq!(bincode::serialize(&kp).unwrap(), bytes);
+            let k256_pk = k256_kp.verifying_key().to_bytes();
+            prop_assert_eq!(kp.public().as_bytes(), k256_pk.as_slice());
+        }
     }
 
     // Decoding never panics on adversarial bytes, every accepted encoding is the compressed,
@@ -1176,7 +1114,7 @@ proptest! {
     // encodings that only one of them supports).
     #[test]
     fn test_decode_adversarial_public_keys(
-        bytes in prop_oneof![arb_public_key_bytes(), arb_valid_or_flipped_public_key()],
+        bytes in arb_public_key_bytes(),
         msg in any::<[u8; 8]>(),
     ) {
         let keys = keys();
@@ -1233,9 +1171,7 @@ proptest! {
     // Signatures decode iff r < n and s < n, decoding does not change the bytes, and verification
     // agrees with k256 and only accepts the signature that keys[0] produces.
     #[test]
-    fn test_decode_and_verify_adversarial_signatures(
-        bytes in arb_signature_bytes(MSG),
-    ) {
+    fn test_decode_and_verify_adversarial_signatures(bytes in arb_signature_bytes()) {
         let kp = &keys()[0];
         let decoded = <Secp256k1Signature as ToFromBytes>::from_bytes(&bytes);
         prop_assert_eq!(
@@ -1262,65 +1198,40 @@ proptest! {
         let json = format!("\"{}\"", Base64::encode(&bytes));
         prop_assert_eq!(serde_json::from_str::<Secp256k1Signature>(&json).ok(), decoded.ok());
     }
+}
 
-    // Private keys decode iff they are 32 bytes in [1, n), like in k256, and give the same public
-    // key as k256.
-    #[test]
-    fn test_decode_adversarial_private_keys(
-        bytes in prop_oneof![
-            arb_scalar_bytes().prop_map(|s| s.to_vec()),
-            collection::vec(any::<u8>(), 0..=2 * SK_LENGTH),
-        ],
-    ) {
-        let decoded = Secp256k1KeyPair::from_bytes(&bytes);
-        prop_assert_eq!(Secp256k1PrivateKey::from_bytes(&bytes).is_ok(), decoded.is_ok());
-        let k256_decoded = if bytes.len() == SK_LENGTH {
-            k256::ecdsa::SigningKey::from_bytes(&bytes).ok()
-        } else {
-            None
-        };
-        prop_assert_eq!(decoded.is_ok(), k256_decoded.is_some());
-        if let (Ok(kp), Some(k256_kp)) = (decoded, k256_decoded) {
-            prop_assert_eq!(kp.as_bytes(), &bytes[..]);
-            let k256_pk = k256_kp.verifying_key().to_bytes();
-            prop_assert_eq!(kp.public().as_bytes(), k256_pk.as_slice());
-        }
-    }
+/// The fraction of `SAMPLES` values from a strategy for which `property` holds, with a fixed seed.
+pub(crate) fn rate<T: std::fmt::Debug>(
+    strategy: impl Strategy<Value = T>,
+    property: impl Fn(&T) -> bool,
+) -> f64 {
+    const SAMPLES: usize = 1000;
+    let mut runner = TestRunner::deterministic();
+    (0..SAMPLES)
+        .filter(|_| property(&strategy.new_tree(&mut runner).unwrap().current()))
+        .count() as f64
+        / SAMPLES as f64
+}
 
-    // Verification with SHA-256 and Keccak-256 (the hash functions of Sui's secp256k1_verify Move
-    // native) agrees with k256 on honest, tampered and high-s signatures.
-    #[test]
-    fn test_verify_matches_k256(
-        kp in arb_keypair(),
-        msg in collection::vec(any::<u8>(), 0..100),
-        keccak in any::<bool>(),
-        tamper in proptest::option::of(prop_oneof![
-            (0..SIG_LENGTH * 8).prop_map(Some),
-            Just(None::<usize>),
-        ]),
-    ) {
-        let (sig, digest) = if keccak {
-            (kp.sign_with_hash::<Keccak256>(&msg), Keccak256::digest(&msg).digest)
-        } else {
-            (kp.sign_with_hash::<Sha256>(&msg), Sha256::digest(&msg).digest)
-        };
-        let bytes = match tamper {
-            None => sig.as_bytes().to_vec(),
-            Some(Some(bit)) => {
-                let mut bytes = sig.as_bytes().to_vec();
-                bytes[bit / 8] ^= 1 << (bit % 8);
-                bytes
-            }
-            Some(None) => negate_s(sig.as_bytes()),
-        };
-        let verified = <Secp256k1Signature as ToFromBytes>::from_bytes(&bytes).is_ok_and(|sig| {
-            if keccak {
-                kp.public().verify_with_hash::<Keccak256>(&msg, &sig).is_ok()
-            } else {
-                kp.public().verify_with_hash::<Sha256>(&msg, &sig).is_ok()
-            }
-        });
-        prop_assert_eq!(verified, tamper.is_none());
-        prop_assert_eq!(verified, k256_verify(kp.public().as_bytes(), &digest, &bytes));
-    }
+#[test]
+fn test_proptest_strategies_are_not_vacuous() {
+    // The adversarial strategies above must produce enough inputs that decode and verify, and
+    // enough that do not, for the proptests to check something.
+    let decoded = rate(arb_public_key_bytes(), |bytes| {
+        Secp256k1PublicKey::from_bytes(bytes).is_ok()
+    });
+    assert!((0.1..0.4).contains(&decoded), "{decoded}");
+
+    let decoded = rate(arb_signature_bytes(), |bytes| {
+        <Secp256k1Signature as ToFromBytes>::from_bytes(bytes).is_ok()
+    });
+    assert!((0.75..0.98).contains(&decoded), "{decoded}");
+    let honest = keys()[0].sign(MSG);
+    let verified = rate(arb_signature_bytes(), |bytes| bytes == honest.as_bytes());
+    assert!((0.05..0.25).contains(&verified), "{verified}");
+
+    let decoded = rate(arb_private_key_bytes(), |bytes| {
+        Secp256k1PrivateKey::from_bytes(bytes).is_ok()
+    });
+    assert!((0.25..0.6).contains(&decoded), "{decoded}");
 }
