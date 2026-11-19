@@ -98,14 +98,15 @@ jobs:
       - name: Build fuzz targets
         working-directory: fuzz
         run: cargo +nightly fuzz build
-      # The targets run at the same time, each on its own core, so this step takes about a minute.
+      # The targets run at the same time, each on its own core, so this step takes about 30 seconds.
+      # Long runs of the fuzz targets happen elsewhere.
       - name: Run fuzz targets
         working-directory: fuzz
         run: |
           targets=($(cargo +nightly fuzz list))
           pids=()
           for target in "${targets[@]}"; do
-            cargo +nightly fuzz run "$target" -- -max_total_time=60 > "$RUNNER_TEMP/$target.log" 2>&1 &
+            cargo +nightly fuzz run "$target" -- -max_total_time=30 > "$RUNNER_TEMP/$target.log" 2>&1 &
             pids+=($!)
           done
           failed=0
