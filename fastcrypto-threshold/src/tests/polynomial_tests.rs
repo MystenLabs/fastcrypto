@@ -393,18 +393,25 @@ mod points_tests {
         let shares = [s1, s2, s3];
         assert_eq!(Poly::<G>::recover_c0_msm(3, shares.iter()).unwrap(), one);
 
-        // and random tests
-        let poly = Poly::<G::ScalarType>::rand(123, &mut thread_rng());
+        // Random tests: recover c0 from random subsets of exactly threshold shares. The sizes are
+        // small because with degree 123 and 199 shares, the Ristretto instance of this test took
+        // nearly 3 minutes in CI, while the BLS instances took under a second.
+        const DEGREE: u16 = 20;
+        const THRESHOLD: u16 = DEGREE + 1;
+        const NUM_SHARES: u16 = 40;
+        let poly = Poly::<G::ScalarType>::rand(DEGREE, &mut thread_rng());
         let poly_g = poly.commit();
-        // insufficient shares gathered
-        let mut shares = (1..200)
+        let mut shares = (1..=NUM_SHARES)
             .map(|i| poly_g.eval(ShareIndex::new(i).unwrap()))
             .collect::<Vec<_>>();
         let c0 = poly_g.c0();
         for _ in 0..10 {
             shares.shuffle(&mut thread_rng());
-            let used_shares = shares.iter().take(124);
-            assert_eq!(c0, Poly::<G>::recover_c0_msm(124, used_shares).unwrap());
+            let used_shares = shares.iter().take(THRESHOLD as usize);
+            assert_eq!(
+                c0,
+                Poly::<G>::recover_c0_msm(THRESHOLD, used_shares).unwrap()
+            );
         }
     }
 
