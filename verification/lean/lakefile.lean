@@ -3,7 +3,7 @@ open Lake DSL
 
 -- The contracts the proofs are linked to. Required before Aeneas: Lake resolves the last `require` first, so Aeneas' Mathlib is used.
 require fastcrypto_specs from git "https://github.com/jonas-lj/fastcrypto-specs" @
-  "fa0ecb3e0118fd19f82cd3ef5615310d84329d9a"
+  "8dbc08dc257835ecbdd8c1359f183e4d5ab29981"
 
 -- The Aeneas Lean library, at the commit of the nightly release whose Charon and Aeneas
 -- generated `Avss` (see `extract.sh`).

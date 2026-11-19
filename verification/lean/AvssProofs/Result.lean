@@ -78,4 +78,12 @@ macro "ok_inv" " at " h:ident : tactic =>
         Option.some.injEq, reduceCtorEq, false_and, and_false] at $h:ident)
     ))
 
+/-- A triple says the call returns. -/
+theorem spec_eq_ok {α : Type _} {m : Result α} {p : α → Prop} (h : m ⦃ x => p x ⦄) :
+    ∃ x, m = ok x ∧ p x := by
+  cases m with
+  | ret a => exact ⟨a, rfl, (WP.spec_ok a).mp h⟩
+  | vis e k => exact absurd h (by simp)
+  | div => exact absurd h (by simp)
+
 end AvssProofs
