@@ -6,6 +6,11 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  # Weekly, and when started by hand, the tests also run on Windows.
+  schedule:
+    # Sundays at 00:00 UTC.
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -45,9 +50,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os:
-          - ubuntu-ghcloud
-          - windows-ghcloud
+        # A Windows runner costs twice as much per minute as a Linux one, so pull requests and
+        # pushes to main test only on Linux. Scheduled and manual runs test on both.
+        os: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["ubuntu-ghcloud", "windows-ghcloud"]' || '["ubuntu-ghcloud"]') }}
       fail-fast: false
     env:
       RUSTFLAGS: -D warnings
@@ -93,13 +98,30 @@ jobs:
       - name: Build fuzz targets
         working-directory: fuzz
         run: cargo +nightly fuzz build
+      # The targets run at the same time, each on its own core, so this step takes about a minute.
       - name: Run fuzz targets
         working-directory: fuzz
         run: |
-          for target in $(cargo +nightly fuzz list); do
-            echo "Fuzzing $target"
-            cargo +nightly fuzz run "$target" -- -max_total_time=60
+          targets=($(cargo +nightly fuzz list))
+          pids=()
+          for target in "${targets[@]}"; do
+            cargo +nightly fuzz run "$target" -- -max_total_time=60 > "$RUNNER_TEMP/$target.log" 2>&1 &
+            pids+=($!)
           done
+          failed=0
+          for i in "${!targets[@]}"; do
+            target=${targets[$i]}
+            if wait "${pids[$i]}"; then
+              echo "::group::$target passed"
+              cat "$RUNNER_TEMP/$target.log"
+              echo "::endgroup::"
+            else
+              echo "$target failed:"
+              cat "$RUNNER_TEMP/$target.log"
+              failed=1
+            fi
+          done
+          exit $failed
 
   rustfmt:
     runs-on: ubuntu-latest
