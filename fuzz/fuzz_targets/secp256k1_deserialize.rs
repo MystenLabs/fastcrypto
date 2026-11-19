@@ -17,6 +17,9 @@
 
 #![no_main]
 
+#[path = "secp256k1_common.rs"]
+mod secp256k1_common;
+
 use fastcrypto::encoding::{Base64, Encoding};
 use fastcrypto::secp256k1::recoverable::Secp256k1RecoverableSignature;
 use fastcrypto::secp256k1::{
@@ -24,8 +27,10 @@ use fastcrypto::secp256k1::{
     Secp256k1Signature, Secp256k1SignatureAsBytes,
 };
 use fastcrypto::traits::{KeyPair, ToFromBytes};
+use hex_literal::hex;
 use k256::elliptic_curve::sec1::ToEncodedPoint;
 use libfuzzer_sys::fuzz_target;
+use secp256k1_common::assert_real_crypto;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -36,34 +41,8 @@ const RECOVERABLE_SIG_LENGTH: usize = 65;
 const SK_LENGTH: usize = 32;
 
 /// The order n of the secp256k1 group, big-endian.
-const GROUP_ORDER: [u8; 32] = [
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
-    0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b, 0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41,
-];
-
-/// The compressed encoding of the generator, which is the public key of the private key 1.
-const GENERATOR: [u8; 33] = [
-    0x02, 0x79, 0xbe, 0x66, 0x7e, 0xf9, 0xdc, 0xbb, 0xac, 0x55, 0xa0, 0x62, 0x95, 0xce, 0x87, 0x0b,
-    0x07, 0x02, 0x9b, 0xfc, 0xdb, 0x2d, 0xce, 0x28, 0xd9, 0x59, 0xf2, 0x81, 0x5b, 0x16, 0xf8, 0x17,
-    0x98,
-];
-
-/// rust-secp256k1 replaces its cryptography with insecure mocks when it is built with
-/// `cfg(fuzzing)`, which cargo-fuzz sets unless it is given `--no-cfg-fuzzing`. Fail instead of
-/// fuzzing the mocks.
-fn assert_real_crypto() {
-    static CHECKED: std::sync::Once = std::sync::Once::new();
-    CHECKED.call_once(|| {
-        let mut one = [0u8; 32];
-        one[31] = 1;
-        let kp = Secp256k1KeyPair::from_bytes(&one).unwrap();
-        assert_eq!(
-            kp.public().as_bytes(),
-            GENERATOR,
-            "secp256k1 is mocked: build with `cargo fuzz build --no-cfg-fuzzing`"
-        );
-    });
-}
+const GROUP_ORDER: [u8; 32] =
+    hex!("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
 
 fn hash_of<T: Hash>(value: &T) -> u64 {
     let mut hasher = DefaultHasher::new();
