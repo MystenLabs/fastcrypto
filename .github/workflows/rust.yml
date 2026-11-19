@@ -6,7 +6,8 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  # Weekly, and when started by hand, the tests also run on Windows.
+  # Weekly, so that the tests also run on Windows, and cargo-deny checks for new advisories, in
+  # weeks without pushes to main.
   schedule:
     # Sundays at 00:00 UTC.
     - cron: "0 0 * * 0"
@@ -50,9 +51,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # A Windows runner costs twice as much per minute as a Linux one, so pull requests and
-        # pushes to main test only on Linux. Scheduled and manual runs test on both.
-        os: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["ubuntu-ghcloud", "windows-ghcloud"]' || '["ubuntu-ghcloud"]') }}
+        # A Windows runner costs twice as much per minute as a Linux one, so pull requests test
+        # only on Linux. Pushes to main, scheduled runs and manual runs test on both.
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-ghcloud"]' || '["ubuntu-ghcloud", "windows-ghcloud"]') }}
       fail-fast: false
     env:
       RUSTFLAGS: -D warnings
