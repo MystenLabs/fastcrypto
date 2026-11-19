@@ -4,6 +4,9 @@
 //! Bulletproofs++ (BP++) reciprocal range proofs over Ristretto255.
 pub mod range_proof;
 
+#[cfg(feature = "lean-tests")]
+pub mod lean_support;
+
 mod circuit;
 mod constraints;
 mod crs;
