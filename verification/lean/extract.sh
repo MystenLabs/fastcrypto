@@ -6,7 +6,7 @@
 # `lakefile.lean`. Set CHARON and AENEAS to their paths, or put them on PATH.
 #
 # Code outside `avss.rs` is kept opaque: Lean only sees the signatures of the functions it calls
-# from other modules and crates.
+# from other modules and crates, and of `Poly::eval`, which the proofs use.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
@@ -22,6 +22,7 @@ RUSTFLAGS="--cfg aeneas" CARGO_TARGET_DIR="$root/target/charon" "$charon" cargo 
   --start-from "$A::Receiver::handle_complaint" \
   --start-from "$A::Receiver::verify_complaint_response" \
   --start-from "$A::Receiver::recover" \
+  --start-from crate::polynomial::Poly::eval \
   --opaque fastcrypto --include fastcrypto::error \
   --opaque serde_core --opaque serde \
   --opaque "{impl serde_core::ser::Serialize for _}" --opaque "{impl serde_core::de::Deserialize<_> for _}" \
