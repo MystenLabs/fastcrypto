@@ -6,11 +6,7 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  # Weekly, so that the tests also run on Windows, and cargo-deny checks for new advisories, in
-  # weeks without pushes to main.
-  schedule:
-    # Sundays at 00:00 UTC.
-    - cron: "0 0 * * 0"
+  # To test a branch on Windows before merging it.
   workflow_dispatch:
 
 env:
@@ -52,7 +48,7 @@ jobs:
     strategy:
       matrix:
         # A Windows runner costs twice as much per minute as a Linux one, so pull requests test
-        # only on Linux. Pushes to main, scheduled runs and manual runs test on both.
+        # only on Linux. Pushes to main and manual runs test on both.
         os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-ghcloud"]' || '["ubuntu-ghcloud", "windows-ghcloud"]') }}
       fail-fast: false
     env:
