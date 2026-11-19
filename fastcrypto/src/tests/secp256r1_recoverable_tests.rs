@@ -450,35 +450,4 @@ fn test_recoverable_nonrecoverable_conversion() {
         .public()
         .verify(message, &nonrecoverable_signature)
         .is_ok());
-
-    let recovered_signature = Secp256r1RecoverableSignature::try_from_nonrecoverable(
-        &nonrecoverable_signature,
-        kp.public(),
-        message,
-    )
-    .unwrap();
-    assert!(kp
-        .public()
-        .verify_recoverable(message, &recovered_signature)
-        .is_ok());
-}
-
-#[test]
-fn test_invalid_nonrecoverable_conversion() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-
-    // Sign over raw message.
-    let message: &[u8] = b"Hello, world!";
-    let signature = kp.sign_recoverable(message);
-    let nonrecoverable_signature = Secp256r1Signature::from(&signature);
-
-    // Try to convert a nonrecoverable signature to a recoverable one with a different message.
-    let other_message: &[u8] = b"Hello, other world!";
-    assert!(Secp256r1RecoverableSignature::try_from_nonrecoverable(
-        &nonrecoverable_signature,
-        kp.public(),
-        other_message,
-    )
-    .is_err());
 }

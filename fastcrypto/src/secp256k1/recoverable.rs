@@ -18,7 +18,7 @@
 //! ```
 
 use crate::hash::HashFunction;
-use crate::secp256k1::{DefaultHash, Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1Signature};
+use crate::secp256k1::{DefaultHash, Secp256k1KeyPair, Secp256k1PublicKey};
 use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 use crate::{
     encoding::{Base64, Encoding},
@@ -42,7 +42,7 @@ pub const SECP256K1_RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNA
 
 /// Recoverable Secp256k1 ECDSA signature.
 ///
-/// Encoded as 65 bytes: the 64-byte encoding of [Secp256k1Signature] (r followed by s, each as 32
+/// Encoded as 65 bytes: the 64-byte encoding of [Secp256k1Signature](crate::secp256k1::Secp256k1Signature) (r followed by s, each as 32
 /// big-endian bytes) followed by the recovery id as a single byte in `0..=3`, as in
 /// [libsecp256k1](https://github.com/bitcoin-core/secp256k1/blob/master/include/secp256k1_recovery.h).
 /// Decoding rejects r or s that are not smaller than the group order and recovery ids above 3.
@@ -107,34 +107,6 @@ impl PartialEq for Secp256k1RecoverableSignature {
 impl Eq for Secp256k1RecoverableSignature {}
 
 impl_base64_display_fmt!(Secp256k1RecoverableSignature);
-
-impl Secp256k1RecoverableSignature {
-    /// Convert a non-recoverable signature into a recoverable signature.
-    pub fn try_from_nonrecoverable(
-        signature: &Secp256k1Signature,
-        pk: &Secp256k1PublicKey,
-        message: &[u8],
-    ) -> Result<Self, FastCryptoError> {
-        // Secp256k1Signature::as_bytes is guaranteed to return SECP256K1_SIGNATURE_LENGTH = SECP256K1_RECOVERABLE_SIGNATURE_SIZE - 1 bytes.
-        let mut recoverable_signature_bytes = [0u8; SECP256K1_RECOVERABLE_SIGNATURE_SIZE];
-        recoverable_signature_bytes[0..SECP256K1_RECOVERABLE_SIGNATURE_SIZE - 1]
-            .copy_from_slice(signature.as_ref());
-
-        for recovery_id in 0..4 {
-            recoverable_signature_bytes[SECP256K1_RECOVERABLE_SIGNATURE_SIZE - 1] = recovery_id;
-            let recoverable_signature = <Secp256k1RecoverableSignature as ToFromBytes>::from_bytes(
-                &recoverable_signature_bytes,
-            )?;
-            if pk
-                .verify_recoverable(message, &recoverable_signature)
-                .is_ok()
-            {
-                return Ok(recoverable_signature);
-            }
-        }
-        Err(FastCryptoError::InvalidInput)
-    }
-}
 
 impl RecoverableSignature for Secp256k1RecoverableSignature {
     type PubKey = Secp256k1PublicKey;
