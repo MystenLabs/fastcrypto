@@ -30,14 +30,21 @@ other than `ok`. The theorems are about calls that return.
 | `process_valid` | `process_message(m) = Ok(Valid(o))` ⇒ `ValidShares nodes m id o.my_shares`. |
 | `response_verifies` | For receivers with the same `nodes`: `Rⱼ.process_message(m) = Ok(Valid(o))` and `Rⱼ.handle_complaint(m, i, c, o) = Ok(r)` ⇒ `Rᵢ.verify_complaint_response(m, j, r) = Ok(_)`. Assumes `CloneIsId`. |
 | `process_invalid_iff` | For receivers with the same `nodes`, `params`, `sid` and `commitment`: `Rᵢ.process_message(m)` is `Err` ⇔ `Rⱼ.process_message(m)` is `Err`. |
+| `handle_accepts` | For receivers configured alike and a party `i`: `Rᵢ.process_message(m) = Ok(Complaint(c))` and `Rⱼ.process_message(m) = Ok(Valid(o))` ⇒ `Rⱼ.handle_complaint(m, i, c, o) = Ok(_)`. Assumes `CloneIsId`, `PolyCloneIsId`, `PolyEqRefl` and `RecoveryComplete`. |
 
 ## What is assumed
 
 * The translation: Charon, Aeneas and `fix_aeneas_output.py`.
 * The opaque functions are arbitrary: nothing is assumed about what they return, except where a
   theorem says so.
-* `CloneIsId` (a hypothesis of `response_verifies`): `SharesForNode::clone` returns an equal value.
-  Its derived code calls the `Clone` impls of opaque types.
+* Hypotheses of the theorems that need them, defined in `AvssProofs/`:
+  * `CloneIsId`: `SharesForNode::clone` returns an equal value. Its derived code calls the `Clone`
+    impls of opaque types.
+  * `PolyCloneIsId` and `PolyEqRefl`: `Poly::clone` returns an equal value, and `Poly::eq` of a
+    polynomial with itself is `true`.
+  * `RecoveryComplete`: the completeness of the recovery proof. For receivers configured alike, a
+    complaint that `Rᵢ.create_complaint` makes about a message whose shares `Rᵢ.verify_message`
+    rejected is accepted by `Rⱼ.check_recovery_proof`.
 * `fix_aeneas_output.py` changes the translation as follows.
   * serde's traits are mutually recursive, which Lean rejects. Their structures are emptied, and
     the derived `Serialize` and `Deserialize` code for the AVSS types becomes axioms. The proofs do
