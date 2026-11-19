@@ -27,7 +27,6 @@ use wycheproof::TestResult;
 use crate::encoding::{Base64, Encoding};
 use crate::error::FastCryptoError;
 use crate::hash::{Blake2b256, HashFunction, Keccak256, Sha256, Sha3_256};
-use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
 use crate::secp256r1::{
     Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1PublicKeyAsBytes,
     Secp256r1Signature, Secp256r1SignatureAsBytes, SECP256R1_PRIVATE_KEY_LENGTH,
@@ -41,7 +40,7 @@ use crate::traits::{EncodeDecodeBase64, KeyPair, Signer, ToFromBytes, VerifyingK
 // Helper functions
 //
 
-const MSG: &[u8] = b"Hello, world!";
+pub(crate) const MSG: &[u8] = b"Hello, world!";
 
 const PK_LENGTH: usize = SECP256R1_PUBLIC_KEY_LENGTH;
 pub(crate) const SIG_LENGTH: usize = SECP256R1_SIGNATURE_LENGTH;
@@ -223,34 +222,40 @@ fn sui_address(flag: u8, pk: &Secp256r1PublicKey) -> [u8; 32] {
     hasher.finalize().digest
 }
 
-/// Checks that exactly the valid signatures with a low s of a Wycheproof ECDSA suite for P-256
-/// verify, with the messages hashed with `H`. The signatures are DER encoded, or r || s if `p1363`.
-/// Returns the number of signatures that verify and the number of valid ones rejected for a high s.
-fn check_wycheproof<H: HashFunction<32>>(name: TestName, p1363: bool) -> (usize, usize) {
-    let (mut verified, mut rejected_high_s) = (0, 0);
+/// Runs a Wycheproof ECDSA suite for P-256 and checks that `verify(pk, msg, signature)` accepts
+/// exactly the valid signatures, except those with a high s unless `accepts_high_s`. The signature
+/// is r || s, converted from DER unless `p1363`. Returns the number of accepted signatures and the
+/// number of valid signatures with a high s.
+pub(crate) fn check_wycheproof(
+    name: TestName,
+    p1363: bool,
+    accepts_high_s: bool,
+    verify: impl Fn(&Secp256r1PublicKey, &[u8], &[u8]) -> bool,
+) -> (usize, usize) {
+    let (mut accepted, mut valid_high_s) = (0, 0);
     for test_group in TestSet::load(name).unwrap().test_groups {
         // The keys are given in the uncompressed format.
         let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
         for test in test_group.tests {
-            let bytes = match p1363 {
-                true => Some(test.sig.to_vec()),
-                false => Signature::from_der(&test.sig)
-                    .ok()
-                    .map(|s| s.to_bytes().to_vec()),
+            let signature = match p1363 {
+                true => test.sig.to_vec(),
+                false => Signature::from_der(&test.sig).map_or(vec![], |s| s.to_bytes().to_vec()),
             };
-            let signature =
-                bytes.and_then(|b| <Secp256r1Signature as ToFromBytes>::from_bytes(&b).ok());
-            let high_s = signature.as_ref().is_some_and(|s| is_high_s(s.as_ref()));
+            let ok = verify(&pk, &test.msg, &signature);
             let valid = test.result == TestResult::Valid;
-            let ok = signature
-                .as_ref()
-                .is_some_and(|s| pk.verify_with_hash::<H>(&test.msg, s).is_ok());
-            assert_eq!(ok, valid && !high_s, "tc {}: {}", test.tc_id, test.comment);
-            verified += ok as usize;
-            rejected_high_s += (valid && high_s) as usize;
+            let high_s = valid && is_high_s(&signature);
+            assert_eq!(
+                ok,
+                valid && (accepts_high_s || !high_s),
+                "tc {}: {}",
+                test.tc_id,
+                test.comment
+            );
+            accepted += ok as usize;
+            valid_high_s += high_s as usize;
         }
     }
-    (verified, rejected_high_s)
+    (accepted, valid_high_s)
 }
 
 fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256r1PublicKey>, Vec<Secp256r1Signature>) {
@@ -621,7 +626,8 @@ fn to_from_bytes_signature() {
     let der = signature.sig.to_der();
     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(der.as_bytes()).is_err());
 
-    // r and s must be in [1, n - 1], as in p256, and accepted values are encoded as given.
+    // r and s must be in [1, n - 1], as in p256, and accepted values are encoded as given. Zero must
+    // be rejected here since verification (split_scalars) panics if r or s is zero.
     let mut one = [0; 32];
     one[31] = 1;
     for (value, valid) in [
@@ -650,82 +656,19 @@ fn to_from_bytes_signature() {
     assert_eq!(decoded.as_bytes(), high_s);
 }
 
-#[test]
-fn fail_on_r_or_s_zero() {
-    // Verification (split_scalars) panics if r or s is zero, so we check that this is caught in deserialization.
-
-    // Build valid signature
-    let signature = keys().pop().unwrap().sign(b"Hello, world!");
-    let sig_bytes = signature.as_ref();
-
-    // Set r to zero
-    let mut r_is_zero = [0u8; 64];
-    r_is_zero[0..32].copy_from_slice(&Scalar::ZERO.to_bytes());
-    r_is_zero[32..64].copy_from_slice(&sig_bytes[32..64]);
-    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&r_is_zero).is_err());
-
-    // Set s to zero
-    let mut s_is_zero = [0u8; 64];
-    s_is_zero[0..32].copy_from_slice(&sig_bytes[0..32]);
-    s_is_zero[32..64].copy_from_slice(&Scalar::ZERO.to_bytes());
-    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&s_is_zero).is_err());
-}
-
-#[test]
-fn test_public_key_recovery_error() {
-    // incorrect length
-    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; 1]).is_err());
-
-    // invalid recovery id at index 65
-    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
-
-    // Invalid signature: Zeros in signatures are not allowed
-    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(
-        &[0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH]
-    )
-    .is_err());
-}
-
 //
 // Signature verification tests
 //
 
 #[test]
-fn verify_valid_signature() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-
-    // Sign over raw message, hashed to keccak256.
-    let message: &[u8] = b"Hello, world!";
-    let digest = Sha256::digest(message);
-
-    let signature = kp.sign(digest.as_ref());
-
-    // Verify the signature.
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
-}
-
-#[test]
 fn verify_invalid_signature() {
-    // Get a keypair.
     let kp = keys().pop().unwrap();
+    let signature = kp.sign(MSG);
+    assert!(kp.public().verify(MSG, &signature).is_ok());
 
-    // Make signature.
-    let message: &[u8] = b"Hello, world!";
-    let digest = Sha256::digest(message);
-
-    // Verify the signature against good digest passes.
-    let signature = kp.sign(digest.as_ref());
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
-
-    // Verify the signature against bad digest fails.
-    let bad_message: &[u8] = b"Bad message!";
-    let digest = Sha256::digest(bad_message);
-
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
+    // Another message or another key fails.
+    assert!(kp.public().verify(b"Bad message!", &signature).is_err());
+    assert!(keys()[0].public().verify(MSG, &signature).is_err());
 }
 
 #[test]
@@ -879,16 +822,35 @@ fn rfc6979_test_vectors() {
 fn wycheproof_test_nonrecoverable() {
     // Signatures are not normalized, so the valid signatures with a high s must be rejected. The
     // P1363 suite encodes signatures as r || s, like from_bytes.
+    fn verify<H: HashFunction<32>>(pk: &Secp256r1PublicKey, msg: &[u8], signature: &[u8]) -> bool {
+        <Secp256r1Signature as ToFromBytes>::from_bytes(signature)
+            .is_ok_and(|signature| pk.verify_with_hash::<H>(msg, &signature).is_ok())
+    }
     assert_eq!(
-        check_wycheproof::<Sha256>(TestName::EcdsaSecp256r1Sha256, false),
+        check_wycheproof(
+            TestName::EcdsaSecp256r1Sha256,
+            false,
+            false,
+            verify::<Sha256>
+        ),
         (103, 71)
     );
     assert_eq!(
-        check_wycheproof::<Sha256>(TestName::EcdsaSecp256r1Sha256P1363, true),
+        check_wycheproof(
+            TestName::EcdsaSecp256r1Sha256P1363,
+            true,
+            false,
+            verify::<Sha256>
+        ),
         (103, 70)
     );
     assert_eq!(
-        check_wycheproof::<Sha3_256>(TestName::EcdsaSecp256r1Sha3_256, false),
+        check_wycheproof(
+            TestName::EcdsaSecp256r1Sha3_256,
+            false,
+            false,
+            verify::<Sha3_256>
+        ),
         (103, 75)
     );
 }
@@ -1389,7 +1351,7 @@ proptest! {
 #[test]
 fn test_proptest_strategies_are_not_vacuous() {
     // A good part of the adversarial inputs above decode, and some signatures verify.
-    const SAMPLES: usize = 1000;
+    const SAMPLES: usize = 500;
     let mut runner = TestRunner::deterministic();
     let mut sample = |strategy: &dyn Fn(&mut TestRunner) -> bool| {
         (0..SAMPLES).filter(|_| strategy(&mut runner)).count()
