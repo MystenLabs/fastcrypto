@@ -1,4 +1,6 @@
 import FastcryptoSpecs.Avss.Steps
+import FastcryptoSpecs.Avss.Agreement
+import FastcryptoSpecs.Avss.HonestDealer
 import AvssProofs.VerifyBinds
 import AvssProofs.RecoverSound
 import AvssProofs.ProcessValid
@@ -120,6 +122,13 @@ noncomputable abbrev shareIdsOf (ns : Nodes) (j : Std.U16) :=
 
 /-- The parties: the ids that `nodes.weight_of` accepts. -/
 abbrev Party (ns : Nodes) := {j : Std.U16 // ∃ w, weightOf ns j = ok (core.result.Result.Ok w)}
+
+/-- There are finitely many parties: at most one per `u16`. -/
+noncomputable instance (ns : Nodes) : Fintype (Party ns) :=
+  have : Finite (Party ns) := Finite.of_injective
+    (fun j : Party ns => (⟨j.val.val, by have := j.val.hBounds; simp at this ⊢; omega⟩ : Fin 65536))
+    (fun a b h => Subtype.ext (UScalar.eq_of_val_eq (by simpa using h)))
+  Fintype.ofFinite _
 
 /-- `nodes.weight_of(j)`. -/
 noncomputable def Party.weight {ns : Nodes} (j : Party ns) : Std.U16 := j.2.choose
@@ -451,5 +460,74 @@ theorem contracts (C : Receivers) (Z : Scalars) (Dealer : Type)
       show _ = evalAt Z p (idx s.index)
       simp only [evalAt, ofIndex_idx Z hnz, okVal_eq_some.mpr hiv, Option.map_some,
         Option.getD_some, hval]
+
+open scoped ENNReal in
+/-- The hypotheses of `contracts`, together. -/
+structure Assumptions (C : Receivers) (Z : Scalars) (Dealer : Type)
+    (createMessage : Dealer → PMF threshold_schnorr.avss.Message) : Prop where
+  clone : CloneIsId
+  polyClone : PolyCloneIsId
+  polyEq : PolyEqRefl
+  recovery : RecoveryComplete
+  interpolation : ∀ j, InterpolationComplete (C.recv j)
+  binding : CommitmentBinding
+  nonZero : NonZeroModel Z
+  shareIds : ∀ j : Party C.ns, ∃ ids, shareIdsOf C.ns j.val = ok (core.result.Result.Ok ids)
+  weightsFit : ∀ A : Finset (Party C.ns), (setup C).weightOf A ≤ U16.max
+  processReturns : ∀ (j : Party C.ns) m, ∃ y,
+    threshold_schnorr.avss.Receiver.process_message C.rngInst (C.recv j.val) m (C.rng j.val) =
+      ok y
+  createValid : ∀ d, ((api C Z Dealer createMessage).createMessage d).toOuterMeasure
+    {m | ¬ (api C Z Dealer createMessage).AllValid m} ≤ (Fintype.card Z.F : ℝ≥0∞)⁻¹
+
+variable {C : Receivers} {Z : Scalars} {Dealer : Type}
+  {createMessage : Dealer → PMF threshold_schnorr.avss.Message}
+
+theorem Assumptions.contracts (h : Assumptions C Z Dealer createMessage) :
+    FastcryptoSpecs.Avss.Contracts (setup C) (api C Z Dealer createMessage) :=
+  AvssProofs.Link.contracts C Z Dealer createMessage h.clone h.polyClone h.polyEq h.recovery
+    h.interpolation h.binding h.nonZero h.shareIds h.weightsFit h.processReturns h.createValid
+
+/-! The theorems of fastcrypto-specs that follow from `Contracts`, for the generated code. -/
+
+open FastcryptoSpecs.Avss in
+/-- **Liveness of AVSS.** For a certified message, every honest party eventually holds an output
+whose shares pass `SharesForNode::verify(m, share_ids_of(i), i)`. -/
+theorem every_honest_party_gets_valid_shares (h : Assumptions C Z Dealer createMessage)
+    (hS : (setup C).Valid) {corrupt : Finset (Party C.ns)} (hcorrupt : (setup C).Tolerates corrupt)
+    {m : threshold_schnorr.avss.Message} {signers : Finset (Party C.ns)}
+    (hcert : Certificate (setup C) (api C Z Dealer createMessage) corrupt m signers)
+    {σ : ℕ → State (api C Z Dealer createMessage)}
+    (hrun : Run (api C Z Dealer createMessage) m corrupt σ) (i : Party C.ns) (hi : i ∉ corrupt) :
+    ∃ n o, (σ n).output i = some o ∧ (api C Z Dealer createMessage).ValidOutput m i o :=
+  FastcryptoSpecs.Avss.every_honest_party_gets_valid_shares hS h.contracts hcorrupt hcert hrun i hi
+
+open FastcryptoSpecs.Avss in
+/-- **Agreement.** All outputs honest parties hold for a certified message fit one polynomial of
+degree `< t`. -/
+theorem honest_outputs_agree (h : Assumptions C Z Dealer createMessage) (hS : (setup C).Valid)
+    {corrupt : Finset (Party C.ns)} (hcorrupt : (setup C).Tolerates corrupt)
+    {m : threshold_schnorr.avss.Message} {signers : Finset (Party C.ns)}
+    (hcert : Certificate (setup C) (api C Z Dealer createMessage) corrupt m signers)
+    {σ : ℕ → State (api C Z Dealer createMessage)}
+    (hrun : BasicRun (api C Z Dealer createMessage) m corrupt σ) (i₀ : Party C.ns) :
+    ∃ p, (api C Z Dealer createMessage).Sh.degreeBound p < (setup C).t ∧
+      ∀ i n o, i ∉ corrupt → (σ n).output i = some o →
+        (api C Z Dealer createMessage).shareList ((api C Z Dealer createMessage).shares o) =
+          ((api C Z Dealer createMessage).shareIds i).map
+            ((api C Z Dealer createMessage).Sh.eval p) :=
+  FastcryptoSpecs.Avss.honest_outputs_agree hS h.contracts hcorrupt hcert hrun i₀
+
+open FastcryptoSpecs.Avss in
+/-- **Honest dealer: no complaints.** If every receiver finds `m` valid, every honest party
+eventually holds an output from `process_message` whose shares verify, and never complains. -/
+theorem honest_dealer_no_complaints (h : Assumptions C Z Dealer createMessage)
+    {m : threshold_schnorr.avss.Message} (hm : (api C Z Dealer createMessage).AllValid m)
+    {corrupt : Finset (Party C.ns)} {σ : ℕ → State (api C Z Dealer createMessage)}
+    (hrun : BasicRun (api C Z Dealer createMessage) m corrupt σ) (i : Party C.ns)
+    (hi : i ∉ corrupt) :
+    (∃ n o, (σ n).output i = some o ∧ (api C Z Dealer createMessage).ValidOutput m i o) ∧
+      ∀ n c, (σ n).processed i ≠ some (.complaint c) :=
+  FastcryptoSpecs.Avss.honest_dealer_no_complaints h.contracts hm hrun i hi
 
 end AvssProofs.Link

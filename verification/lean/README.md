@@ -46,6 +46,21 @@ Each contract follows from a theorem about the generated functions:
 `create_valid`, which is about `Dealer::create_message`, is not proved: it is a hypothesis of
 `contracts`. Its statement is probabilistic, and the generated code does not include the dealer.
 
+From `contracts`, `Link.lean` states these theorems of fastcrypto-specs for the generated code,
+under `Link.Assumptions` (the hypotheses below, together):
+
+| Theorem | Statement |
+|---|---|
+| `every_honest_party_gets_valid_shares` | Liveness: for a certified message, every honest party eventually holds shares that pass `SharesForNode::verify`, directly or through complaints and `recover`. Under the execution model of `Avss/Protocol.lean`. |
+| `honest_outputs_agree` | All outputs honest parties hold for a certified message fit one polynomial of degree `< t`. |
+| `honest_dealer_no_complaints` | If every receiver finds the message valid, every honest party gets valid shares from `process_message` and never complains. |
+
+The other AVSS theorems of fastcrypto-specs either assume nothing about the code
+(`honest_dealer_certifiable`, `corrupt_can_block_certificate`, `accepted_same_cert`, and so on), or
+also need the contracts of `polynomial.rs` (`Shamir.Contracts`) and of `complete_dkg`
+(`DkgContracts`), which are not proved here: `honest_shares_recover_same_secret` and the DKG
+theorems.
+
 ## What is assumed
 
 * The translation: Charon, Aeneas and `fix_aeneas_output.py`. The script changes the translation:
