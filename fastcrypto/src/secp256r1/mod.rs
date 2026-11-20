@@ -193,10 +193,18 @@ generate_bytes_representation!(
 impl Secp256r1PublicKey {
     /// Like [ToFromBytes::from_bytes], but rejects the SEC1 compact encoding (prefix `0x05`).
     pub fn from_bytes_strict(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        if bytes.first() == Some(&SEC1_COMPACT_TAG) {
+        if Self::is_compact_encoding(bytes) {
             return Err(FastCryptoError::InvalidInput);
         }
         <Self as ToFromBytes>::from_bytes(bytes)
+    }
+
+    /// Whether `bytes` starts with the SEC1 compact encoding tag `0x05`. The bytes are not parsed,
+    /// so the result does not say whether they encode a valid key. A key that
+    /// [ToFromBytes::from_bytes] parsed from the compact encoding keeps that encoding, so
+    /// `Self::is_compact_encoding(pk.as_ref())` tells whether `pk` was parsed from it.
+    pub fn is_compact_encoding(bytes: &[u8]) -> bool {
+        bytes.first() == Some(&SEC1_COMPACT_TAG)
     }
 
     /// Verify the signature using the given hash function to hash the message.
