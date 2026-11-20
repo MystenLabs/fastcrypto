@@ -115,10 +115,10 @@ where
         leaf: &[u8],
         leaf_index: usize,
     ) -> FastCryptoResult<()> {
-        if self.compute_root(leaf, leaf_index).as_ref() != Some(root) {
-            return Err(FastCryptoError::InvalidProof);
+        match self.compute_root(leaf, leaf_index) {
+            Some(computed) if computed == *root => Ok(()),
+            _ => Err(FastCryptoError::InvalidProof),
         }
-        Ok(())
     }
 
     pub fn verify_proof_with_unserialized_leaf<L: Serialize>(
@@ -135,16 +135,16 @@ where
     ///
     /// Returns `None` if the provided index is too large.
     pub fn compute_root(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
-        if leaf_index
-            .checked_shr(self.path.len() as u32)
-            .is_none_or(|s| s != 0)
-        {
+        // The index must be smaller than 2^len, and the proof shorter than usize::BITS.
+        if self.path.len() >= usize::BITS as usize || leaf_index >> self.path.len() != 0 {
             return None;
         }
         let mut current_hash = leaf_hash::<T>(leaf);
         let mut level_index = leaf_index;
-        for sibling in self.path.iter() {
+        let mut level = 0;
+        while level < self.path.len() {
             // The sibling hash of the current node
+            let sibling = &self.path[level];
             if level_index.is_multiple_of(2) {
                 // The current node is a left child
                 current_hash = inner_hash::<T>(&current_hash, sibling);
@@ -154,6 +154,7 @@ where
             };
             // Update to the level index one level up in the tree
             level_index /= 2;
+            level += 1;
         }
         Some(current_hash)
     }
@@ -161,16 +162,18 @@ where
     // Check if the proof is for the rightmost leaf in the tree
     pub fn is_right_most(&self, leaf_index: usize) -> bool {
         let mut level_index = leaf_index;
-        for sibling in self.path.iter() {
+        let mut level = 0;
+        while level < self.path.len() {
             // The sibling hash of the current node
             if level_index.is_multiple_of(2) {
                 // The current node is a left child
-                if sibling.as_ref() != EMPTY_NODE.as_ref() {
+                if self.path[level].bytes() != EMPTY_NODE {
                     return false;
                 }
             }
             // Update to the level index one level up in the tree
             level_index /= 2;
+            level += 1;
         }
         true
     }
@@ -342,10 +345,12 @@ where
         I::IntoIter: ExactSizeIterator,
         I::Item: AsRef<[u8]>,
     {
-        let leaf_hashes = iter
-            .into_iter()
-            .map(|leaf| leaf_hash::<T>(leaf.as_ref()))
-            .collect::<Vec<_>>();
+        let iter = iter.into_iter();
+        // Allocate all nodes now, since the vector is reused by `build_from_leaf_hashes`.
+        let mut leaf_hashes = Vec::with_capacity(n_nodes(iter.len()));
+        for leaf in iter {
+            leaf_hashes.push(leaf_hash::<T>(leaf.as_ref()));
+        }
         Self::build_from_leaf_hashes(leaf_hashes)
     }
 
@@ -360,30 +365,19 @@ where
         I::IntoIter: ExactSizeIterator,
         I::Item: Serialize,
     {
-        let leaf_hashes = iter
-            .into_iter()
-            .map(|leaf| {
-                bcs::to_bytes(&leaf)
-                    .map_err(|_| FastCryptoError::InvalidInput)
-                    .map(|bytes| leaf_hash::<T>(&bytes))
-            })
-            .collect::<FastCryptoResult<Vec<_>>>()?;
+        let iter = iter.into_iter();
+        // Allocate all nodes now, since the vector is reused by `build_from_leaf_hashes`.
+        let mut leaf_hashes = Vec::with_capacity(n_nodes(iter.len()));
+        for leaf in iter {
+            let bytes = bcs::to_bytes(&leaf).map_err(|_| FastCryptoError::InvalidInput)?;
+            leaf_hashes.push(leaf_hash::<T>(&bytes));
+        }
         Ok(Self::build_from_leaf_hashes(leaf_hashes))
     }
 
-    /// Create the [`MerkleTree`] as a commitment to the provided data hashes.
-    fn build_from_leaf_hashes<I>(iter: I) -> Self
-    where
-        I: IntoIterator,
-        I::IntoIter: ExactSizeIterator<Item = Node>,
-    {
-        let iter = iter.into_iter();
-
-        // Create the capacity that we know will be needed, since the vec will be
-        // reused by the call to from_leaf_nodes.
-        let mut nodes = Vec::with_capacity(n_nodes(iter.len()));
-        nodes.extend(iter);
-
+    /// Create the [`MerkleTree`] as a commitment to the provided leaf hashes. The inner nodes are
+    /// appended to `nodes`.
+    fn build_from_leaf_hashes(mut nodes: Vec<Node>) -> Self {
         let n_leaves = nodes.len();
         let mut level_nodes = n_leaves;
         let mut prev_level_index = 0;
@@ -398,9 +392,12 @@ where
 
             let new_level_index = prev_level_index + level_nodes;
 
-            (prev_level_index..new_level_index)
-                .step_by(2)
-                .for_each(|index| nodes.push(inner_hash::<T>(&nodes[index], &nodes[index + 1])));
+            let mut index = prev_level_index;
+            while index < new_level_index {
+                let parent = inner_hash::<T>(&nodes[index], &nodes[index + 1]);
+                nodes.push(parent);
+                index += 2;
+            }
 
             prev_level_index = new_level_index;
             level_nodes /= 2;
@@ -420,7 +417,11 @@ where
 
     /// Get a copy of the root hash of `self`.
     pub fn root(&self) -> Node {
-        self.nodes.last().map_or(Node::Empty, |val| val.clone())
+        if self.nodes.is_empty() {
+            Node::Empty
+        } else {
+            self.nodes[self.nodes.len() - 1].clone()
+        }
     }
 
     /// Get the [`MerkleProof`] for the leaf at `leaf_index` consisting
@@ -432,15 +433,13 @@ where
                 leaf_index
             )));
         }
-        let mut path = Vec::with_capacity(
-            usize::try_from(self.n_leaves.ilog2()).expect("this is smaller than `n_leaves`") + 1,
-        );
+        let mut path = Vec::new();
         let mut level_index = leaf_index;
         let mut n_level = self.n_leaves;
         let mut level_base_index = 0;
         while n_level > 1 {
             // All levels contain an even number of nodes
-            n_level = n_level.next_multiple_of(2);
+            n_level += n_level % 2;
             let sibling_index = if level_index.is_multiple_of(2) {
                 level_base_index + level_index + 1
             } else {
