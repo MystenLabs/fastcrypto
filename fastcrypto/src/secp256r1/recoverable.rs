@@ -154,18 +154,6 @@ impl Secp256r1RecoverableSignature {
         }
         Err(FastCryptoError::InvalidInput)
     }
-
-    /// util function to parse wycheproof test key from DER format.
-    #[cfg(test)]
-    pub(crate) fn from_uncompressed(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        ExternalSignature::try_from(bytes)
-            .map(|sig| Secp256r1RecoverableSignature {
-                sig,
-                recovery_id: 0u8,
-                bytes: OnceCell::new(),
-            })
-            .map_err(|_| FastCryptoError::InvalidInput)
-    }
 }
 
 impl RecoverableSigner for Secp256r1KeyPair {
