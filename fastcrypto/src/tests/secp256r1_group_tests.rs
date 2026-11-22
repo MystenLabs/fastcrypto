@@ -6,7 +6,7 @@ use crate::error::FastCryptoError;
 use crate::groups::multiplier::windowed::{multi_scalar_mul, WindowedScalarMultiplier};
 use crate::groups::multiplier::ScalarMultiplier;
 use crate::groups::secp256r1::{ProjectivePoint, Scalar, SCALAR_SIZE_IN_BYTES};
-use crate::groups::{secp256r1, Doubling, GroupElement, Scalar as ScalarTrait};
+use crate::groups::{Doubling, GroupElement, Scalar as ScalarTrait};
 use crate::secp256r1::conversion::{
     affine_pt_arkworks_to_p256, affine_pt_p256_to_projective_arkworks, arkworks_fq_to_fr,
     fq_arkworks_to_p256, fr_arkworks_to_p256, fr_p256_to_arkworks, get_affine_x_coordinate,
@@ -27,7 +27,8 @@ use p256::{AffinePoint, EncodedPoint, U256};
 use proptest::prelude::*;
 use proptest::strategy::ValueTree;
 use proptest::test_runner::TestRunner;
-use rand::thread_rng;
+use rand::rngs::StdRng;
+use rand::SeedableRng as _;
 use std::collections::HashMap;
 
 //
@@ -241,26 +242,21 @@ fn precomputed_multiples(point: &ProjectivePoint, width: usize) -> Vec<Projectiv
 
 #[test]
 fn test_arithmetic() {
-    let p = ProjectivePoint::generator();
-    let two_p = p + p;
-    let s = Scalar::from(2);
-    assert_eq!(two_p, p.double());
-    assert_eq!(two_p, p * s);
-    assert_eq!(p, two_p * (Scalar::generator() / s).unwrap());
-
-    // Check that u128 is decoded correctly.
-    let x: u128 = 2 << 66;
-    let x_scalar = Scalar::from(x);
-    let res = x_scalar / Scalar::from(8);
-    assert_eq!(res.unwrap(), Scalar::from(2 << 63));
-}
-
-#[test]
-fn test_group_laws_on_edge_cases() {
     let g = ProjectivePoint::generator();
     let o = ProjectivePoint::zero();
+    let two = Scalar::from(2);
     let minus_one = from_p256_scalar(&minus_one());
 
+    assert_eq!(g + g, g.double());
+    assert_eq!(g * two, g.double());
+    assert_eq!(g.double() * (Scalar::generator() / two).unwrap(), g);
+    // u128 is converted correctly.
+    assert_eq!(
+        Scalar::from(2 << 66) / Scalar::from(8),
+        Ok(Scalar::from(2 << 63))
+    );
+
+    // The identity, inverses, and the scalars 0, 1 and n - 1.
     assert_eq!(ProjectivePoint::default(), o);
     assert_eq!(g * Scalar::zero(), o);
     assert_eq!(g * Scalar::generator(), g);
@@ -269,7 +265,6 @@ fn test_group_laws_on_edge_cases() {
     assert_eq!(g * minus_one + g, o);
     assert_eq!(g + -g, o);
     assert_eq!(g - g, o);
-    assert_eq!(g + g, g.double());
     assert_eq!(o.double(), o);
     assert_eq!(-o, o);
     assert_eq!(o + g, g);
@@ -319,14 +314,9 @@ fn test_division_by_zero() {
 
 #[test]
 fn test_to_from_byte_array() {
-    let scalar = secp256r1::Scalar::rand(&mut thread_rng());
-    let bytes = scalar.to_byte_array();
-    let reconstructed = Scalar::from_byte_array(&bytes).unwrap();
-    assert_eq!(scalar, reconstructed);
-}
+    let scalar = Scalar::rand(&mut StdRng::from_seed([0; 32]));
+    assert_eq!(Scalar::from_byte_array(&scalar.to_byte_array()), Ok(scalar));
 
-#[test]
-fn test_scalar_encoding() {
     // Little-endian, unlike SEC1 and p256.
     let mut seven = [0; SCALAR_SIZE_IN_BYTES];
     seven[0] = 7;
