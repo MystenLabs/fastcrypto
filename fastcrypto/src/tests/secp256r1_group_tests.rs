@@ -4,7 +4,7 @@
 use crate::encoding::{Base64, Encoding};
 use crate::error::FastCryptoError;
 use crate::groups::multiplier::windowed::{multi_scalar_mul, WindowedScalarMultiplier};
-use crate::groups::multiplier::ScalarMultiplier;
+use crate::groups::multiplier::{ScalarMultiplier, ToLittleEndianBytes};
 use crate::groups::secp256r1::{ProjectivePoint, Scalar, SCALAR_SIZE_IN_BYTES};
 use crate::groups::{Doubling, GroupElement, Scalar as ScalarTrait};
 use crate::secp256r1::conversion::{
@@ -80,19 +80,18 @@ fn reduce(bytes: &[u8; 32]) -> p256::Scalar {
     <p256::Scalar as Reduce<U256>>::reduce_bytes(bytes.into())
 }
 
-/// Reverses the byte order, from big-endian to little-endian or back.
+/// Reverses the byte order, from big-endian to little-endian.
 fn reversed(mut bytes: [u8; SCALAR_SIZE_IN_BYTES]) -> [u8; SCALAR_SIZE_IN_BYTES] {
     bytes.reverse();
     bytes
 }
 
-/// Converts a p256 scalar to a fastcrypto scalar, which is encoded little-endian.
 fn from_p256_scalar(scalar: &p256::Scalar) -> Scalar {
-    Scalar::from_byte_array(&reversed(scalar.to_bytes().into())).unwrap()
+    Scalar::from_byte_array(&scalar.to_bytes().into()).unwrap()
 }
 
 fn to_p256_scalar(scalar: &Scalar) -> p256::Scalar {
-    p256::Scalar::from_repr(reversed(scalar.to_byte_array()).into()).unwrap()
+    p256::Scalar::from_repr(scalar.to_byte_array().into()).unwrap()
 }
 
 /// The affine coordinates of a point, big-endian, or `None` for the identity.
@@ -320,20 +319,20 @@ fn test_to_from_byte_array() {
     let scalar = Scalar::rand(&mut StdRng::from_seed([0; 32]));
     assert_eq!(Scalar::from_byte_array(&scalar.to_byte_array()), Ok(scalar));
 
-    // Little-endian, unlike SEC1 and p256.
-    let mut seven = [0; SCALAR_SIZE_IN_BYTES];
-    seven[0] = 7;
-    assert_eq!(Scalar::from(7).to_byte_array(), seven);
-    let mut u128_max = [0; SCALAR_SIZE_IN_BYTES];
-    u128_max[..16].copy_from_slice(&[0xff; 16]);
+    // Big-endian, like SEC1, p256 and the secp256k1 group. The windowed multiplier reads the
+    // little-endian bytes instead.
+    let one = hex!("0000000000000000000000000000000000000000000000000000000000000001");
+    assert_eq!(Scalar::from(1).to_byte_array(), one);
+    assert_eq!(Scalar::from(1).to_le_bytes(), reversed(one));
+    let u128_max = hex!("00000000000000000000000000000000ffffffffffffffffffffffffffffffff");
     assert_eq!(Scalar::from(u128::MAX).to_byte_array(), u128_max);
+    assert_eq!(Scalar::from(u128::MAX).to_le_bytes(), reversed(u128_max));
 
     // Exactly the values below n are accepted.
-    let order_minus_one = reversed(add_small(&GROUP_ORDER, -1));
-    assert_eq!(
-        Scalar::from_byte_array(&order_minus_one).unwrap(),
-        from_p256_scalar(&minus_one())
-    );
+    let order_minus_one = add_small(&GROUP_ORDER, -1);
+    let scalar = Scalar::from_byte_array(&order_minus_one).unwrap();
+    assert_eq!(scalar, from_p256_scalar(&minus_one()));
+    assert_eq!(scalar.to_byte_array(), order_minus_one);
     assert_eq!(Scalar::from_byte_array(&[0; 32]).unwrap(), Scalar::zero());
     for rejected in [
         GROUP_ORDER,
@@ -342,22 +341,22 @@ fn test_to_from_byte_array() {
         [0xff; 32],
     ] {
         assert_eq!(
-            Scalar::from_byte_array(&reversed(rejected)),
+            Scalar::from_byte_array(&rejected),
             Err(FastCryptoError::InvalidInput)
         );
-        assert!(bcs::from_bytes::<Scalar>(&reversed(rejected)).is_err());
+        assert!(bcs::from_bytes::<Scalar>(&rejected).is_err());
     }
 
     // BCS is the 32 bytes without a length prefix, JSON is their Base64 encoding.
-    assert_eq!(bcs::to_bytes(&Scalar::from(7)).unwrap(), seven);
-    assert_eq!(bcs::from_bytes::<Scalar>(&seven).unwrap(), Scalar::from(7));
+    assert_eq!(bcs::to_bytes(&Scalar::from(1)).unwrap(), one);
+    assert_eq!(bcs::from_bytes::<Scalar>(&one).unwrap(), Scalar::from(1));
     assert_eq!(
-        serde_json::to_string(&Scalar::from(7)).unwrap(),
-        "\"BwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\""
+        serde_json::to_string(&Scalar::from(1)).unwrap(),
+        "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE=\""
     );
     assert_eq!(
-        serde_json::from_str::<Scalar>("\"BwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"").unwrap(),
-        Scalar::from(7)
+        serde_json::from_str::<Scalar>("\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE=\"").unwrap(),
+        Scalar::from(1)
     );
     for length in [0, 31, 33] {
         assert!(bcs::from_bytes::<Scalar>(&vec![0; length]).is_err());
@@ -587,7 +586,7 @@ fn test_vectors_multiples_of_generator() {
         .chain(
             MUL_TEST_VECTORS
                 .iter()
-                .map(|(k, x, y)| (Scalar::from_byte_array(&reversed(*k)).unwrap(), x, y)),
+                .map(|(k, x, y)| (Scalar::from_byte_array(k).unwrap(), x, y)),
         );
     let g = ProjectivePoint::generator();
     for (k, x, y) in vectors {
@@ -673,17 +672,16 @@ fn arb_affine_point() -> impl Strategy<Value = AffinePoint> {
 
 proptest! {
     #[test]
-    fn test_decode_adversarial_scalars(big_endian in arb_big_endian_bytes()) {
-        // Decoding accepts exactly the little-endian encodings of the values below n, the same set
-        // as p256 with big-endian encodings, and BCS agrees.
-        let bytes = reversed(big_endian);
-        let expected = Option::<p256::Scalar>::from(p256::Scalar::from_repr(big_endian.into()));
+    fn test_decode_adversarial_scalars(bytes in arb_big_endian_bytes()) {
+        // Decoding accepts exactly the encodings of the values below n, like p256, and BCS agrees.
+        let expected = Option::<p256::Scalar>::from(p256::Scalar::from_repr(bytes.into()));
         let decoded = Scalar::from_byte_array(&bytes);
         prop_assert_eq!(decoded.is_ok(), expected.is_some());
         prop_assert_eq!(bcs::from_bytes::<Scalar>(&bytes).ok(), decoded.clone().ok());
         if let (Ok(scalar), Some(expected)) = (decoded, expected) {
-            prop_assert_eq!(to_p256_scalar(&scalar), expected);
+            prop_assert_eq!(fr_arkworks_to_p256(&scalar.0), expected);
             prop_assert_eq!(scalar.to_byte_array(), bytes);
+            prop_assert_eq!(scalar.to_le_bytes(), reversed(bytes));
         }
     }
 
@@ -827,7 +825,7 @@ fn test_proptest_strategies_are_not_vacuous() {
                 .new_tree(&mut runner)
                 .unwrap()
                 .current();
-            Scalar::from_byte_array(&reversed(bytes)).is_ok()
+            Scalar::from_byte_array(&bytes).is_ok()
         })
         .count();
     let near_order = (0..SAMPLES)

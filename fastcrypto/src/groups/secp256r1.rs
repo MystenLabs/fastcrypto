@@ -11,9 +11,9 @@ use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
 use ark_ec::Group;
-use ark_ff::{Field, One, UniformRand, Zero};
+use ark_ff::{BigInteger, Field, One, PrimeField, UniformRand, Zero};
 use ark_secp256r1::{Fr, Projective};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_serialize::CanonicalDeserialize;
 use derive_more::{Add, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Div, Mul};
@@ -61,10 +61,9 @@ impl Div<Scalar> for ProjectivePoint {
 
 /// A field element in the prime field of the same order as the curve.
 ///
-/// Encoded as 32 bytes in little-endian order, the uncompressed format of
-/// [arkworks](https://docs.rs/ark-serialize/0.4.2/ark_serialize/). Note that this is the opposite
-/// byte order of the scalars in SEC1 and in [crate::groups::secp256k1]. Decoding rejects values
-/// that are not smaller than the group order.
+/// Encoded as 32 bytes in big-endian order, like secret keys in
+/// [SEC1, sec. 2.3.7](https://www.secg.org/sec1-v2.pdf) and the scalars of the p256 crate and
+/// [crate::groups::secp256k1]. Decoding rejects values that are not smaller than the group order.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct Scalar(pub(crate) Fr);
 
@@ -116,27 +115,30 @@ impl ScalarTrait for Scalar {
 }
 
 impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
-    /// Decode a scalar. Returns an `InvalidInput` error if the value is not smaller than the
-    /// group order.
+    /// Decode a scalar from its big-endian encoding. Returns an `InvalidInput` error if the value
+    /// is not smaller than the group order.
     fn from_byte_array(bytes: &[u8; SCALAR_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
+        // arkworks decodes little-endian and rejects values that are not smaller than the order.
+        let mut little_endian = *bytes;
+        little_endian.reverse();
         Ok(Scalar(
-            Fr::deserialize_uncompressed(bytes.as_slice())
+            Fr::deserialize_uncompressed(little_endian.as_slice())
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         ))
     }
 
     fn to_byte_array(&self) -> [u8; SCALAR_SIZE_IN_BYTES] {
-        let mut bytes = [0u8; SCALAR_SIZE_IN_BYTES];
         self.0
-            .serialize_uncompressed(&mut bytes[..])
-            .expect("Byte array not large enough");
-        bytes
+            .into_bigint()
+            .to_bytes_be()
+            .try_into()
+            .expect("Always 32 bytes")
     }
 }
 
 impl ToLittleEndianBytes for Scalar {
     fn to_le_bytes(&self) -> Vec<u8> {
-        self.to_byte_array().to_vec()
+        self.0.into_bigint().to_bytes_le()
     }
 }
 

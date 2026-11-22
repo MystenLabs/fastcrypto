@@ -11,7 +11,7 @@
 //! the scalars 0 and ±1. The multipliers use the parameters of ECDSA and others, with windows of 1
 //! to 10 bits.
 //!
-//! Invariants: nothing panics; scalar decoding accepts exactly the little-endian encodings of the
+//! Invariants: nothing panics; scalar decoding accepts exactly the big-endian encodings of the
 //! values below n, round trips and agrees with BCS; inversion and division fail exactly for zero;
 //! every result equals p256's.
 
@@ -20,7 +20,7 @@
 use arbitrary::Arbitrary;
 use ark_ff::PrimeField;
 use fastcrypto::groups::multiplier::windowed::{multi_scalar_mul, WindowedScalarMultiplier};
-use fastcrypto::groups::multiplier::ScalarMultiplier;
+use fastcrypto::groups::multiplier::{ScalarMultiplier, ToLittleEndianBytes};
 use fastcrypto::groups::secp256r1::{ProjectivePoint, Scalar};
 use fastcrypto::groups::{Doubling, GroupElement, Scalar as _};
 use fastcrypto::secp256r1::{PRECOMPUTED_POINTS, SLIDING_WINDOW_WIDTH};
@@ -66,7 +66,6 @@ static CACHE_1024_WINDOW_9: Lazy<Multiplier<1024, 9>> = Lazy::new(with_generator
 
 #[derive(Arbitrary, Debug)]
 enum Op {
-    /// Little-endian, as `Scalar::from_byte_array` decodes it.
     ScalarFromBytes([u8; 32]),
     ScalarFromU128(u128),
     /// 2^(k mod 257) - (d mod 4): leading zero windows, and scalars at window boundaries.
@@ -136,17 +135,14 @@ impl State {
     }
 }
 
-/// Reverses the byte order, from big-endian to little-endian or back.
-fn reversed(mut bytes: [u8; 32]) -> [u8; 32] {
-    bytes.reverse();
-    bytes
-}
-
+/// Checks a scalar against p256 through its big-endian encoding, and the little-endian bytes that
+/// the multipliers read.
 fn check_scalar(scalar: &Scalar, expected: &p256::Scalar) {
-    assert_eq!(
-        reversed(scalar.to_byte_array()),
-        <[u8; 32]>::from(expected.to_bytes())
-    );
+    let big_endian = <[u8; 32]>::from(expected.to_bytes());
+    assert_eq!(scalar.to_byte_array(), big_endian);
+    let mut little_endian = big_endian;
+    little_endian.reverse();
+    assert_eq!(scalar.to_le_bytes(), little_endian);
 }
 
 /// Checks a point against p256 through its affine coordinates.
@@ -165,8 +161,7 @@ fn check_point(point: &ProjectivePoint, expected: &p256::ProjectivePoint) {
 }
 
 fn from_p256_scalar(scalar: &p256::Scalar) -> Scalar {
-    Scalar::from_byte_array(&reversed(scalar.to_bytes().into()))
-        .expect("a scalar below n does not decode")
+    Scalar::from_byte_array(&scalar.to_bytes().into()).expect("a scalar below n does not decode")
 }
 
 fn mul_with_base<const CACHE_SIZE: usize, const WINDOW: usize>(
@@ -204,8 +199,7 @@ fn msm<const N: usize>(
 fn run(state: &mut State, op: Op) {
     match op {
         Op::ScalarFromBytes(bytes) => {
-            let big_endian = reversed(bytes);
-            let expected = Option::<p256::Scalar>::from(p256::Scalar::from_repr(big_endian.into()));
+            let expected = Option::<p256::Scalar>::from(p256::Scalar::from_repr(bytes.into()));
             let decoded = Scalar::from_byte_array(&bytes);
             assert_eq!(decoded.is_ok(), expected.is_some());
             assert_eq!(bcs::from_bytes::<Scalar>(&bytes).ok(), decoded.clone().ok());
