@@ -186,23 +186,57 @@ pub(crate) fn g2_affine_from_str_projective(s: &CircomG2) -> Result<G2Affine, Fa
 
 #[cfg(test)]
 mod test {
-    use crate::zk_login_utils::Bn254FqElement;
-    use std::str::FromStr;
-
-    use super::Bn254FrElement;
+    use super::{Bn254FqElement, Bn254FrElement};
+    use ark_bn254::{Fq, Fr};
+    use ark_ff::PrimeField;
     use num_bigint::BigUint;
     use proptest::prelude::*;
-    #[test]
-    fn from_str_on_digits_only() {
-        // do not allow non digit results.
-        assert!(Bn254FrElement::from_str("10_________0").is_err());
-        assert!(Bn254FqElement::from_str("10_________0").is_err());
-        // do not allow leading zeros.
-        assert!(Bn254FrElement::from_str("000001").is_err());
-        assert!(Bn254FqElement::from_str("000001").is_err());
-        assert!(Bn254FrElement::from_str("garbage").is_err());
-        assert!(Bn254FqElement::from_str("garbage").is_err());
+    use std::str::FromStr;
+
+    //
+    // Helper functions
+    //
+
+    /// The moduli p of Fq and r of Fr.
+    fn moduli() -> (BigUint, BigUint) {
+        (Fq::MODULUS.into(), Fr::MODULUS.into())
     }
+
+    /// The decimal strings of an element of Fq and of Fr, or `None` if they don't parse.
+    fn parse(s: &str) -> (Option<String>, Option<String>) {
+        (
+            Bn254FqElement::from_str(s).ok().map(|x| x.to_string()),
+            Bn254FrElement::from_str(s).ok().map(|x| x.to_string()),
+        )
+    }
+
+    //
+    // Parsing tests
+    //
+
+    /// Field elements are decimal strings: "0", or digits without a leading zero. Non-standard,
+    /// pinned: integers that are at least the modulus are reduced modulo it, so one element has
+    /// many strings. [std::fmt::Display] gives the canonical string.
+    #[test]
+    fn test_decimal_strings() {
+        let (p, r) = moduli();
+        let (p, r, p_minus_r) = (p.to_string(), r.to_string(), (&p - &r).to_string());
+        // (string, as an element of Fq, as an element of Fr)
+        for (s, fq, fr) in [
+            ("0", Some("0"), Some("0")),
+            ("1", Some("1"), Some("1")),
+            (&p, Some("0"), Some(p_minus_r.as_str())),
+            (&r, Some(r.as_str()), Some("0")),
+        ] {
+            assert_eq!(parse(s), (fq.map(String::from), fr.map(String::from)));
+        }
+        for s in [
+            "", "00", "01", "+1", "-1", " 1", "1 ", "1e3", "0x1", "10_0", "garbage", "\u{663}",
+        ] {
+            assert_eq!(parse(s), (None, None), "{s}");
+        }
+    }
+
     #[test]
     fn unpadded_slice() {
         let seed = Bn254FrElement([0; 32]);
@@ -214,17 +248,24 @@ mod test {
         assert_eq!(seed.unpadded(), [1; 31].as_slice());
     }
 
-    proptest! {
-        #[test]
-        fn dont_crash_on_large_inputs(
-            bytes in proptest::collection::vec(any::<u8>(), 33..1024)
-        ) {
-            let big_int = BigUint::from_bytes_be(&bytes);
-            let radix10 = big_int.to_str_radix(10);
+    //
+    // Proptests
+    //
 
-            // doesn't crash
-            let _ = Bn254FrElement::from_str(&radix10);
-            let _ = Bn254FqElement::from_str(&radix10);
+    proptest! {
+        /// Parsing never panics, even on long strings, accepts exactly the decimal strings and
+        /// reduces them modulo the size of the field.
+        #[test]
+        fn test_parse_strings(s in prop_oneof!["0|[1-9][0-9]{0,2500}", "[0-9a-z +-]{0,90}"]) {
+            let decimal = s == "0" || (!s.starts_with('0') && !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()));
+            let (fq, fr) = parse(&s);
+            if decimal {
+                let (n, (p, r)) = (BigUint::from_str(&s).unwrap(), moduli());
+                prop_assert_eq!(fq, Some((&n % p).to_string()));
+                prop_assert_eq!(fr, Some((&n % r).to_string()));
+            } else {
+                prop_assert_eq!((fq, fr), (None, None));
+            }
         }
     }
 }

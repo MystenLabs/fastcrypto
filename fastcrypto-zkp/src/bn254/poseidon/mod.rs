@@ -165,14 +165,51 @@ mod test {
     use crate::bn254::FieldElement;
     use ark_bn254::Fr;
     use ark_ff::{BigInteger, PrimeField};
+    use fastcrypto::error::FastCryptoError;
     use lazy_static::lazy_static;
-    use proptest::arbitrary::Arbitrary;
+    use num_bigint::BigUint;
     use proptest::collection;
+    use proptest::prelude::*;
     use std::str::FromStr;
+
+    //
+    // Helper functions
+    //
 
     fn to_bigint_arr(vals: Vec<u8>) -> Vec<FieldElement> {
         vals.into_iter().map(Fr::from).map(FieldElement).collect()
     }
+
+    /// The modulus p of the field.
+    fn modulus() -> BigUint {
+        Fr::MODULUS.into()
+    }
+
+    /// The 32-byte little-endian encoding of an integer smaller than 2^256.
+    fn le_bytes(n: &BigUint) -> Vec<u8> {
+        let mut bytes = n.to_bytes_le();
+        bytes.resize(32, 0);
+        bytes
+    }
+
+    /// 32 bytes: mostly the canonical encoding of a field element, sometimes an integer close to
+    /// the modulus p, or any 32 bytes, which is usually at least p since p is about 2^253.6.
+    fn arb_input() -> impl Strategy<Value = Vec<u8>> {
+        prop_oneof![
+            8 => any::<[u8; 32]>()
+                .prop_map(|bytes| Fr::from_le_bytes_mod_order(&bytes).into_bigint().to_bytes_le()),
+            1 => (0..4u8).prop_map(|k| le_bytes(&(modulus() + k - 2u8))),
+            1 => any::<[u8; 32]>().prop_map(|bytes| bytes.to_vec()),
+        ]
+    }
+
+    lazy_static! {
+        static ref POSEIDON_ARK: poseidon_ark::Poseidon = poseidon_ark::Poseidon::new();
+    }
+
+    //
+    // Hash tests
+    //
 
     #[test]
     fn poseidon_test() {
@@ -266,26 +303,67 @@ mod test {
             hex::decode("9a1817447a60199e51453274f217362acfe962966b4cf63d4190d6e7f5c05c11")
                 .unwrap();
         assert_eq!(hash.as_slice(), &expected);
-
-        // Input larger than the modulus
-        let inputs = vec![vec![255; 32]];
-        assert!(poseidon_bytes(&inputs).is_err());
     }
 
-    #[cfg(test)]
-    lazy_static! {
-        static ref POSEIDON_ARK: poseidon_ark::Poseidon = poseidon_ark::Poseidon::new();
+    /// [poseidon_bytes] takes 1 to 16 inputs, each the 32-byte little-endian encoding of an integer
+    /// smaller than the modulus p.
+    #[test]
+    fn test_poseidon_bytes_inputs() {
+        let one = le_bytes(&1u8.into());
+        // (inputs, expected error)
+        for (inputs, error) in [
+            (vec![one.clone(); 16], None),
+            (vec![le_bytes(&(modulus() - 1u8))], None),
+            (vec![], Some(FastCryptoError::InputLengthWrong(0))),
+            (
+                vec![one.clone(); 17],
+                Some(FastCryptoError::InputLengthWrong(17)),
+            ),
+            (
+                vec![le_bytes(&modulus())],
+                Some(FastCryptoError::InvalidInput),
+            ),
+            (vec![vec![0xff; 32]], Some(FastCryptoError::InvalidInput)),
+            (
+                vec![one.clone(), le_bytes(&modulus())],
+                Some(FastCryptoError::InvalidInput),
+            ),
+            (vec![vec![]], Some(FastCryptoError::InvalidInput)),
+            (
+                vec![one[..31].to_vec()],
+                Some(FastCryptoError::InvalidInput),
+            ),
+            (
+                vec![[one.clone(), vec![0]].concat()],
+                Some(FastCryptoError::InvalidInput),
+            ),
+        ] {
+            assert_eq!(poseidon_bytes(&inputs).err(), error);
+        }
     }
 
-    proptest::proptest! {
+    //
+    // Proptests
+    //
+
+    proptest! {
+        /// [poseidon_bytes] accepts exactly the canonical inputs, and then agrees with poseidon-ark.
         #[test]
-        fn test_against_poseidon_ark(r in collection::vec(<[u8; 32]>::arbitrary(), 1..16)) {
-
-            let inputs = r.iter().map(|ri| Fr::from_le_bytes_mod_order(ri)).collect::<Vec<_>>();
-            let expected = POSEIDON_ARK.hash(inputs.clone()).unwrap().into_bigint().to_bytes_le();
-
-            let actual = poseidon_bytes(&inputs.iter().map(|i| i.into_bigint().to_bytes_le().to_vec()).collect::<Vec<_>>()).unwrap();
-            assert_eq!(&actual, expected.as_slice());
+        fn test_against_poseidon_ark(inputs in collection::vec(arb_input(), 1..=16)) {
+            let canonical = inputs
+                .iter()
+                .map(|bytes| {
+                    let n = BigUint::from_bytes_le(bytes);
+                    (n < modulus()).then(|| Fr::from(n))
+                })
+                .collect::<Option<Vec<_>>>();
+            match canonical {
+                Some(inputs_as_fr) => {
+                    let expected = POSEIDON_ARK.hash(inputs_as_fr).unwrap().into_bigint().to_bytes_le();
+                    prop_assert_eq!(poseidon_bytes(&inputs).unwrap().to_vec(), expected);
+                }
+                None => prop_assert_eq!(poseidon_bytes(&inputs), Err(FastCryptoError::InvalidInput)),
+            }
         }
     }
 }

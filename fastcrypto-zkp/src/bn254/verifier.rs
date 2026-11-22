@@ -15,10 +15,6 @@ use crate::bn254::{FieldElement, Proof, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 
-#[cfg(test)]
-#[path = "unit_tests/verifier_tests.rs"]
-mod verifier_tests;
-
 /// This is a helper function to store a pre-processed version of the verifying key.
 /// This is roughly homologous to [`ark_groth16::data_structures::PreparedVerifyingKey`].
 /// Note that contrary to Arkworks, we don't store a "prepared" version of the gamma_g2_neg_pc,
