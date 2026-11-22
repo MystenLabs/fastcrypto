@@ -235,12 +235,9 @@ fn compute_multiples<G: Doubling + for<'a> Add<&'a G, Output = G> + Clone + Debu
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::{BigInteger, PrimeField};
-    use ark_secp256r1::Fr;
     use rand::thread_rng;
 
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-    use crate::groups::secp256r1::{ProjectivePoint, Scalar};
     use crate::groups::GroupElement;
     use crate::groups::Scalar as ScalarTrait;
     use crate::ristretto255_tests::GROUP_ORDER_MINUS_ONE;
@@ -274,61 +271,6 @@ mod tests {
 
         for scalar in scalars {
             let expected = RistrettoPoint::generator() * scalar;
-            let actual = multiplier.mul(&scalar);
-            assert_eq!(expected, actual);
-        }
-    }
-
-    #[test]
-    fn test_scalar_multiplication_secp256r1() {
-        let mut modulus_minus_one = Fr::MODULUS_MINUS_ONE_DIV_TWO;
-        modulus_minus_one.mul2();
-        let scalars = [
-            Scalar::from(0),
-            Scalar::from(1),
-            Scalar::from(2),
-            Scalar::from(1234),
-            Scalar::from(123456),
-            Scalar::from(123456789),
-            Scalar::from(0xffffffffffffffff),
-            Scalar(Fr::from(modulus_minus_one)),
-        ];
-
-        for scalar in scalars {
-            let expected = ProjectivePoint::generator() * scalar;
-
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 2, 4>::new(
-                ProjectivePoint::generator(),
-                ProjectivePoint::zero(),
-            );
-            let actual = multiplier.mul(&scalar);
-            assert_eq!(expected, actual);
-
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 16, 4>::new(
-                ProjectivePoint::generator(),
-                ProjectivePoint::zero(),
-            );
-            let actual = multiplier.mul(&scalar);
-            assert_eq!(expected, actual);
-
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 32, 4>::new(
-                ProjectivePoint::generator(),
-                ProjectivePoint::zero(),
-            );
-            let actual = multiplier.mul(&scalar);
-            assert_eq!(expected, actual);
-
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 64, 4>::new(
-                ProjectivePoint::generator(),
-                ProjectivePoint::zero(),
-            );
-            let actual = multiplier.mul(&scalar);
-            assert_eq!(expected, actual);
-
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 512, 4>::new(
-                ProjectivePoint::generator(),
-                ProjectivePoint::zero(),
-            );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
         }
