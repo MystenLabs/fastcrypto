@@ -42,8 +42,9 @@ type EcdsaMultiplier =
 static ECDSA_MULTIPLIER: Lazy<EcdsaMultiplier> =
     Lazy::new(|| EcdsaMultiplier::new(ProjectivePoint::generator(), ProjectivePoint::zero()));
 
-/// A multiplier with 2-bit windows for both scalars of `two_scalar_mul`.
-static SMALLEST_MULTIPLIER: Lazy<WindowedScalarMultiplier<ProjectivePoint, Scalar, 4, 2>> =
+/// The multiplier with the smallest cache and sliding window: 1-bit windows for both scalars of
+/// `two_scalar_mul`.
+static SMALLEST_MULTIPLIER: Lazy<WindowedScalarMultiplier<ProjectivePoint, Scalar, 2, 1>> =
     Lazy::new(|| {
         WindowedScalarMultiplier::new(ProjectivePoint::generator(), ProjectivePoint::zero())
     });
@@ -432,12 +433,13 @@ fn test_two_scalar_mul_on_edge_cases() {
         .iter()
         .any(|(_, _, _, expected)| *expected == p256::ProjectivePoint::IDENTITY));
 
-    // Window widths 2 to 10 for G, and 2 to 9 for Q.
+    // Window widths 1 to 10 for G, and 1 to 9 for Q.
+    check_two_scalar_mul::<2, 1>(&cases);
     check_two_scalar_mul::<4, 2>(&cases);
     check_two_scalar_mul::<8, 3>(&cases);
     check_two_scalar_mul::<16, 4>(&cases);
     check_two_scalar_mul::<64, 6>(&cases);
-    check_two_scalar_mul::<PRECOMPUTED_POINTS, 2>(&cases);
+    check_two_scalar_mul::<PRECOMPUTED_POINTS, 1>(&cases);
     check_two_scalar_mul::<PRECOMPUTED_POINTS, SLIDING_WINDOW_WIDTH>(&cases);
     check_two_scalar_mul::<512, 9>(&cases);
     check_two_scalar_mul::<1024, 8>(&cases);
@@ -464,7 +466,7 @@ fn test_multi_scalar_mul() {
     ];
     let scalars = edge_scalars();
     for (i, (elements, expected_elements)) in element_sets.iter().enumerate() {
-        for width in 2..=8 {
+        for width in 1..=8 {
             let s = [
                 scalars[(5 * width + i) % scalars.len()],
                 scalars[(3 * width + 1) % scalars.len()],
@@ -478,7 +480,7 @@ fn test_multi_scalar_mul() {
                 HashMap::new(),
                 HashMap::from([(1, precomputed_multiples(&elements[1], width))]),
                 HashMap::from([
-                    (0, precomputed_multiples(&elements[0], 2)),
+                    (0, precomputed_multiples(&elements[0], 1)),
                     (2, precomputed_multiples(&elements[2], 10 - width)),
                 ]),
             ];
@@ -768,8 +770,8 @@ proptest! {
     #[test]
     fn test_multi_scalar_mul_with_tables(
         terms in prop::array::uniform3((arb_scalar(), arb_point_log())),
-        width in 2usize..=8,
-        table_width in 2usize..=8,
+        width in 1usize..=8,
+        table_width in 1usize..=8,
         table_index in 0usize..3,
     ) {
         let expected = terms

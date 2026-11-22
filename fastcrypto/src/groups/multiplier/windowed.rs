@@ -193,8 +193,10 @@ pub fn multi_scalar_mul<
                     is_in_window[i] = false;
                 }
             } else if test_bit(&scalar_bytes[i], bit) {
-                // The iteration has reached a set bit for the i'th scalar.
-                if bit >= window_sizes[i] - 1 {
+                // The iteration has reached a set bit for the i'th scalar. A window is only checked
+                // for completion on the bits after the one that opens it, so a 1-bit window would
+                // never be added: use double-and-add for 1-bit windows.
+                if window_sizes[i] > 1 && bit >= window_sizes[i] - 1 {
                     // There is enough room for a window. Set indicator and reset window index.
                     is_in_window[i] = true;
                     index_in_window[i] = 1;
