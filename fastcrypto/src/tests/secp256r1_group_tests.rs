@@ -79,17 +79,19 @@ fn reduce(bytes: &[u8; 32]) -> p256::Scalar {
     <p256::Scalar as Reduce<U256>>::reduce_bytes(bytes.into())
 }
 
+/// Reverses the byte order, from big-endian to little-endian or back.
+fn reversed(mut bytes: [u8; SCALAR_SIZE_IN_BYTES]) -> [u8; SCALAR_SIZE_IN_BYTES] {
+    bytes.reverse();
+    bytes
+}
+
 /// Converts a p256 scalar to a fastcrypto scalar, which is encoded little-endian.
 fn from_p256_scalar(scalar: &p256::Scalar) -> Scalar {
-    let mut bytes: [u8; SCALAR_SIZE_IN_BYTES] = scalar.to_bytes().into();
-    bytes.reverse();
-    Scalar::from_byte_array(&bytes).unwrap()
+    Scalar::from_byte_array(&reversed(scalar.to_bytes().into())).unwrap()
 }
 
 fn to_p256_scalar(scalar: &Scalar) -> p256::Scalar {
-    let mut bytes = scalar.to_byte_array();
-    bytes.reverse();
-    p256::Scalar::from_repr(bytes.into()).unwrap()
+    p256::Scalar::from_repr(reversed(scalar.to_byte_array()).into()).unwrap()
 }
 
 /// The affine coordinates of a point, big-endian, or `None` for the identity.
@@ -326,12 +328,7 @@ fn test_to_from_byte_array() {
     assert_eq!(Scalar::from(u128::MAX).to_byte_array(), u128_max);
 
     // Exactly the values below n are accepted.
-    let little_endian = |big_endian: [u8; 32]| {
-        let mut bytes = big_endian;
-        bytes.reverse();
-        bytes
-    };
-    let order_minus_one = little_endian(add_small(&GROUP_ORDER, -1));
+    let order_minus_one = reversed(add_small(&GROUP_ORDER, -1));
     assert_eq!(
         Scalar::from_byte_array(&order_minus_one).unwrap(),
         from_p256_scalar(&minus_one())
@@ -344,10 +341,10 @@ fn test_to_from_byte_array() {
         [0xff; 32],
     ] {
         assert_eq!(
-            Scalar::from_byte_array(&little_endian(rejected)),
+            Scalar::from_byte_array(&reversed(rejected)),
             Err(FastCryptoError::InvalidInput)
         );
-        assert!(bcs::from_bytes::<Scalar>(&little_endian(rejected)).is_err());
+        assert!(bcs::from_bytes::<Scalar>(&reversed(rejected)).is_err());
     }
 
     // BCS is the 32 bytes without a length prefix, JSON is their Base64 encoding.
@@ -585,11 +582,11 @@ fn test_vectors_multiples_of_generator() {
         .iter()
         .enumerate()
         .map(|(i, (x, y))| (Scalar::from(i as u128 + 1), x, y))
-        .chain(MUL_TEST_VECTORS.iter().map(|(k, x, y)| {
-            let mut little_endian = *k;
-            little_endian.reverse();
-            (Scalar::from_byte_array(&little_endian).unwrap(), x, y)
-        }));
+        .chain(
+            MUL_TEST_VECTORS
+                .iter()
+                .map(|(k, x, y)| (Scalar::from_byte_array(&reversed(*k)).unwrap(), x, y)),
+        );
     let g = ProjectivePoint::generator();
     for (k, x, y) in vectors {
         let expected = Some((x.to_vec(), y.to_vec()));
@@ -677,8 +674,7 @@ proptest! {
     fn test_decode_adversarial_scalars(big_endian in arb_big_endian_bytes()) {
         // Decoding accepts exactly the little-endian encodings of the values below n, the same set
         // as p256 with big-endian encodings, and BCS agrees.
-        let mut bytes = big_endian;
-        bytes.reverse();
+        let bytes = reversed(big_endian);
         let expected = Option::<p256::Scalar>::from(p256::Scalar::from_repr(big_endian.into()));
         let decoded = Scalar::from_byte_array(&bytes);
         prop_assert_eq!(decoded.is_ok(), expected.is_some());
@@ -711,6 +707,10 @@ proptest! {
         prop_assert_eq!(to_p256_point(&-x), -expected_x);
         prop_assert_eq!(to_p256_point(&x.double()), expected_x.double());
         prop_assert_eq!(to_p256_point(&(x * from_p256_scalar(&s))), expected_x * s);
+        // Division fails exactly for s = 0.
+        let quotient = (x / from_p256_scalar(&s)).ok().map(|q| to_p256_point(&q));
+        let inverse = Option::<p256::Scalar>::from(s.invert());
+        prop_assert_eq!(quotient, inverse.map(|i| expected_x * i));
         prop_assert_eq!(x == y, expected_x == expected_y);
     }
 
@@ -756,12 +756,13 @@ proptest! {
         let (point, expected_q) = multiple_of_generator(&q);
         let expected = p256::ProjectivePoint::GENERATOR * u1 + expected_q * u2;
         let (u1, u2) = (from_p256_scalar(&u1), from_p256_scalar(&u2));
-        prop_assert_eq!(to_p256_point(&ECDSA_MULTIPLIER.two_scalar_mul(&u1, &point, &u2)), expected);
-        prop_assert_eq!(to_p256_point(&SMALLEST_MULTIPLIER.two_scalar_mul(&u1, &point, &u2)), expected);
-        prop_assert_eq!(
-            ECDSA_MULTIPLIER.mul(&u1),
-            ProjectivePoint::generator() * u1
-        );
+        for result in [
+            ECDSA_MULTIPLIER.two_scalar_mul(&u1, &point, &u2),
+            SMALLEST_MULTIPLIER.two_scalar_mul(&u1, &point, &u2),
+        ] {
+            prop_assert_eq!(to_p256_point(&result), expected);
+        }
+        prop_assert_eq!(ECDSA_MULTIPLIER.mul(&u1), ProjectivePoint::generator() * u1);
     }
 
     #[test]
@@ -780,7 +781,10 @@ proptest! {
         let zero = ProjectivePoint::zero();
         for table in [
             HashMap::new(),
-            HashMap::from([(table_index, precomputed_multiples(&elements[table_index], table_width))]),
+            HashMap::from([(
+                table_index,
+                precomputed_multiples(&elements[table_index], table_width),
+            )]),
         ] {
             prop_assert_eq!(
                 to_p256_point(&multi_scalar_mul(&scalars, &elements, &table, width, zero)),
@@ -817,12 +821,11 @@ fn test_proptest_strategies_are_not_vacuous() {
         .count();
     let decoded = (0..SAMPLES)
         .filter(|_| {
-            let mut bytes = arb_big_endian_bytes()
+            let bytes = arb_big_endian_bytes()
                 .new_tree(&mut runner)
                 .unwrap()
                 .current();
-            bytes.reverse();
-            Scalar::from_byte_array(&bytes).is_ok()
+            Scalar::from_byte_array(&reversed(bytes)).is_ok()
         })
         .count();
     let near_order = (0..SAMPLES)

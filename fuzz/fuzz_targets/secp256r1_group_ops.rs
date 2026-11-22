@@ -133,10 +133,17 @@ impl State {
     }
 }
 
+/// Reverses the byte order, from big-endian to little-endian or back.
+fn reversed(mut bytes: [u8; 32]) -> [u8; 32] {
+    bytes.reverse();
+    bytes
+}
+
 fn check_scalar(scalar: &Scalar, expected: &p256::Scalar) {
-    let mut big_endian = scalar.to_byte_array();
-    big_endian.reverse();
-    assert_eq!(big_endian, <[u8; 32]>::from(expected.to_bytes()));
+    assert_eq!(
+        reversed(scalar.to_byte_array()),
+        <[u8; 32]>::from(expected.to_bytes())
+    );
 }
 
 /// Checks a point against p256 through its affine coordinates.
@@ -155,9 +162,8 @@ fn check_point(point: &ProjectivePoint, expected: &p256::ProjectivePoint) {
 }
 
 fn from_p256_scalar(scalar: &p256::Scalar) -> Scalar {
-    let mut little_endian: [u8; 32] = scalar.to_bytes().into();
-    little_endian.reverse();
-    Scalar::from_byte_array(&little_endian).expect("a scalar below n does not decode")
+    Scalar::from_byte_array(&reversed(scalar.to_bytes().into()))
+        .expect("a scalar below n does not decode")
 }
 
 fn mul_with_base<const CACHE_SIZE: usize, const WINDOW: usize>(
@@ -195,8 +201,7 @@ fn msm<const N: usize>(
 fn run(state: &mut State, op: Op) {
     match op {
         Op::ScalarFromBytes(bytes) => {
-            let mut big_endian = bytes;
-            big_endian.reverse();
+            let big_endian = reversed(bytes);
             let expected = Option::<p256::Scalar>::from(p256::Scalar::from_repr(big_endian.into()));
             let decoded = Scalar::from_byte_array(&bytes);
             assert_eq!(decoded.is_ok(), expected.is_some());
