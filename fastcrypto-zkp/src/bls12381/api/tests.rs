@@ -20,10 +20,7 @@ use proptest::prelude::*;
 use crate::bls12381::api::{get_public_inputs_num, prepare_pvk_bytes, verify_groth16_in_bytes};
 use crate::dummy_circuits::Fibonacci;
 
-#[path = "../../groth16/test_utils.rs"]
-mod test_utils;
-
-use test_utils::{
+use crate::groth16::test_utils::{
     arb_byte_mutation, arb_mutation, compressed, decode, le_bytes, modulus, Inputs, PROOF_PART,
     PUBLIC_INPUTS_PART,
 };
@@ -102,7 +99,7 @@ fn verify(inputs: &Inputs) -> Result<bool, FastCryptoError> {
 
 /// Decodes a concatenation of compressed arkworks values of the given size.
 fn decode_all<T: CanonicalDeserialize>(bytes: &[u8], size: usize) -> Option<Vec<T>> {
-    if bytes.len() % size != 0 {
+    if !bytes.len().is_multiple_of(size) {
         return None;
     }
     bytes
@@ -301,6 +298,10 @@ fn test_prepare_pvk_bytes() {
         assert!(prepare_pvk_bytes(&vk[..len]).is_err());
     }
     assert!(prepare_pvk_bytes(&[vk.clone(), vec![0; G1_ELEMENT_BYTE_LENGTH]].concat()).is_err());
+    // gamma_abc with no points, which a circuit can't have.
+    let mut no_points = vk[..GAMMA_ABC_LENGTH_OFFSET + 8].to_vec();
+    no_points[GAMMA_ABC_LENGTH_OFFSET..].copy_from_slice(&0u64.to_le_bytes());
+    assert!(prepare_pvk_bytes(&no_points).is_err());
     for gamma_abc_length in [0, 1, 3, u64::MAX] {
         let mut vk = vk.clone();
         vk[GAMMA_ABC_LENGTH_OFFSET..GAMMA_ABC_LENGTH_OFFSET + 8]
@@ -462,7 +463,7 @@ proptest! {
     /// many public inputs as the prepared verifying key has. Sui checks the latter against its
     /// limit before it prepares a key.
     #[test]
-    fn test_prepare_mutated_vk(mutations in vec(arb_byte_mutation(), 1..4)) {
+    fn test_prepare_mutated_vk(mutations in vec(arb_byte_mutation(), 0..4)) {
         let mut vk = decode(VK);
         for mutation in &mutations {
             mutation.apply(&mut vk);

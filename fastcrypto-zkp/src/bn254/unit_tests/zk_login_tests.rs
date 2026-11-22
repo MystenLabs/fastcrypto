@@ -17,7 +17,7 @@ use crate::bn254::zk_login_api::{
     ZkLoginEnv,
 };
 use crate::zk_login_utils::Bn254FrElement;
-use ark_bn254::{Fq, Fr};
+use ark_bn254::{Fq, Fq2, Fr, G2Affine};
 use ark_ff::PrimeField;
 use fastcrypto::encoding::{Base64, Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
@@ -30,10 +30,7 @@ use proptest::collection::vec;
 use proptest::prelude::*;
 use proptest::sample::Index;
 
-#[path = "../../groth16/test_utils.rs"]
-mod test_utils;
-
-use test_utils::arb_byte_mutation;
+use crate::groth16::test_utils::{arb_byte_mutation, arb_byte_mutation_of};
 
 //
 // Helper functions
@@ -137,9 +134,14 @@ fn add(decimal: &str, n: &BigUint) -> String {
     (BigUint::from_str(decimal).unwrap() + n).to_string()
 }
 
+/// The decimal string of an element of Fq. Its `Display` writes 0 as an empty string.
+fn decimal(x: Fq) -> String {
+    BigUint::from(x.into_bigint()).to_string()
+}
+
 /// The decimal string of `-x` in Fq.
-fn negate(decimal: &str) -> String {
-    (-Fq::from_str(decimal).unwrap()).to_string()
+fn negate(x: &str) -> String {
+    decimal(-Fq::from_str(x).unwrap())
 }
 
 const GOOGLE_JWK_BYTES: &[u8] = r#"{
@@ -476,6 +478,10 @@ fn test_parse_jwks_invalid() {
         br#"{"keys":1}"#,
         br#"{"keys":[1,"a",null]}"#,
         br#"{"keys":[{}]}"#,
+        // Only RSA keys with the exponent 65537, for RS256.
+        br#"{"keys":[{"kty":"RSA","e":"AQAC","n":"AQAB","kid":"1","alg":"RS256"}]}"#,
+        br#"{"keys":[{"kty":"EC","e":"AQAB","n":"AQAB","kid":"1","alg":"RS256"}]}"#,
+        br#"{"keys":[{"kty":"RSA","e":"AQAB","n":"AQAB","kid":"1","alg":"RS512"}]}"#,
         deeply_nested.as_bytes(),
     ] {
         for skip_on_invalid_jwk in [true, false] {
@@ -914,11 +920,27 @@ fn test_verify_zk_login_test_env() {
     assert_eq!(verify(&parse(&json), &ZkLoginEnv::Test), Ok(()));
     assert!(verify(&parse(&json), &ZkLoginEnv::Prod).is_err());
 
-    // Other points: a and b with x = 1.
-    let mut other_points = json.clone();
-    other_points["proofPoints"]["a"][0] = "1".into();
-    other_points["proofPoints"]["b"][0][0] = "1".into();
-    assert!(verify(&parse(&other_points), &ZkLoginEnv::Test).is_err());
+    // Points that are not on the curve: a and b with x = 1.
+    let mut a_not_on_curve = json.clone();
+    a_not_on_curve["proofPoints"]["a"][0] = "1".into();
+    let mut b_not_on_curve = json.clone();
+    b_not_on_curve["proofPoints"]["b"][0][0] = "1".into();
+    // B on the curve of G2 with x = 1, but not in G2: the curve has a cofactor.
+    let b =
+        G2Affine::get_point_from_x_unchecked(Fq2::new(Fq::from(1u8), Fq::from(0u8)), true).unwrap();
+    assert!(!b.is_in_correct_subgroup_assuming_on_curve());
+    let mut b_not_in_subgroup = json.clone();
+    b_not_in_subgroup["proofPoints"]["b"] = serde_json::json!([
+        [decimal(b.x.c0), decimal(b.x.c1)],
+        [decimal(b.y.c0), decimal(b.y.c1)],
+        ["1", "0"]
+    ]);
+    for json in [a_not_on_curve, b_not_on_curve, b_not_in_subgroup] {
+        assert_eq!(
+            verify(&parse(&json), &ZkLoginEnv::Test),
+            Err(FastCryptoError::InvalidInput)
+        );
+    }
 
     // Points with a wrong number of coordinates parse, but don't verify.
     for (point, path) in [("a", None), ("b", None), ("b", Some(0)), ("c", None)] {
@@ -1043,11 +1065,8 @@ fn test_verify_zk_login_equivalent_encodings() {
     let mut x_plus_p = google_json();
     x_plus_p["proofPoints"]["a"][0] = add(a[0].as_str().unwrap(), &p).into();
     let mut scaled = google_json();
-    scaled["proofPoints"]["a"] = serde_json::json!([
-        (x * z * z).to_string(),
-        (y * z * z * z).to_string(),
-        z.to_string()
-    ]);
+    scaled["proofPoints"]["a"] =
+        serde_json::json!([decimal(x * z * z), decimal(y * z * z * z), decimal(z)]);
     let mut negated = google_json();
     negated["proofPoints"]["a"][1] = negate(a[1].as_str().unwrap()).into();
     for i in 0..2 {
@@ -1074,8 +1093,8 @@ fn test_verify_zk_login_equivalent_encodings() {
 
     // Scaling (x z, y z, z) is not the same point, and z = 0 is the identity.
     for a in [
-        serde_json::json!([(x * z).to_string(), (y * z).to_string(), z.to_string()]),
-        serde_json::json!([x.to_string(), y.to_string(), "0"]),
+        serde_json::json!([decimal(x * z), decimal(y * z), decimal(z)]),
+        serde_json::json!([decimal(x), decimal(y), "0"]),
     ] {
         let mut json = google_json();
         json["proofPoints"]["a"] = a;
@@ -1479,8 +1498,11 @@ proptest! {
 
     /// Changes to the BCS encoding of the Google inputs, as in a Sui transaction, never make
     /// decoding, [ZkLoginInputs::init] or verification panic, and only the original inputs verify.
+    /// The encoding is mostly decimal and base64 strings, so changes mostly set digits and letters.
     #[test]
-    fn test_verify_zk_login_bcs_changed(mutations in vec(arb_byte_mutation(), 1..4)) {
+    fn test_verify_zk_login_bcs_changed(
+        mutations in vec(arb_byte_mutation_of(prop_oneof![b'0'..=b'9', b'A'..=b'z', any::<u8>()]), 1..3)
+    ) {
         let original = bcs::to_bytes(&google_inputs()).unwrap();
         let mut bytes = original.clone();
         for mutation in &mutations {

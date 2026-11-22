@@ -10,6 +10,9 @@ use fastcrypto::groups::{GroupElement, MultiScalarMul, Pairing};
 
 pub mod api;
 
+#[cfg(test)]
+pub(crate) mod test_utils;
+
 #[derive(Debug, Deserialize)]
 pub struct Proof<G1: Pairing>
 where

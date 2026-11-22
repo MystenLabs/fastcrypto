@@ -23,10 +23,7 @@ use proptest::prelude::*;
 #[path = "./utils.rs"]
 mod utils;
 
-#[path = "../../groth16/test_utils.rs"]
-mod test_utils;
-
-use test_utils::{
+use crate::groth16::test_utils::{
     arb_byte_mutation, arb_mutation, compressed, decode, le_bytes, modulus, Inputs, PROOF_PART,
     PUBLIC_INPUTS_PART,
 };
@@ -100,7 +97,7 @@ fn verify(inputs: &Inputs) -> Result<bool, FastCryptoError> {
 fn statement(inputs: &Inputs) -> Option<(PreparedVerifyingKey, Vec<Fr>)> {
     let pvk = PreparedVerifyingKey::deserialize(&inputs.0[..4]).ok()?;
     let public_inputs = &inputs.0[PUBLIC_INPUTS_PART];
-    if public_inputs.len() % SCALAR_SIZE != 0 {
+    if !public_inputs.len().is_multiple_of(SCALAR_SIZE) {
         return None;
     }
     let public_inputs = public_inputs
@@ -532,11 +529,13 @@ fn test_invalid_points() {
         assert_eq!(verify(&inputs), Err(FastCryptoError::InvalidInput));
     }
 
-    // Three parts instead of four.
-    assert_eq!(
-        PreparedVerifyingKey::deserialize(&valid().0[..3]),
-        Err(FastCryptoError::InputLengthWrong(3))
-    );
+    // Three or five parts instead of four.
+    for parts in [3, 5] {
+        assert_eq!(
+            PreparedVerifyingKey::deserialize(&valid().0[..parts]),
+            Err(FastCryptoError::InputLengthWrong(parts))
+        );
+    }
 
     // Each part one byte too short.
     for part in [0, 1, 2, 3, PROOF_PART] {
@@ -607,7 +606,7 @@ proptest! {
     /// [test_prepare_pvk_bytes_ignores_trailing_bytes], [prepare_pvk_bytes] may succeed when
     /// [get_public_inputs_num] fails.
     #[test]
-    fn test_prepare_mutated_vk(mutations in vec(arb_byte_mutation(), 1..4)) {
+    fn test_prepare_mutated_vk(mutations in vec(arb_byte_mutation(), 0..4)) {
         let mut vk = decode(VK);
         for mutation in &mutations {
             mutation.apply(&mut vk);

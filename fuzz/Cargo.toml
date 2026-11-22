@@ -20,6 +20,7 @@ curve25519-dalek = "4.1.3"
 # Used with p256 as an oracle for secp256r1 public key recovery.
 ecdsa = { version = "0.16.9", features = ["verifying"] }
 fastcrypto = { path = "../fastcrypto", features = ["experimental"] }
+fastcrypto-zkp = { path = "../fastcrypto-zkp" }
 hex-literal = "0.4.1"
 libfuzzer-sys = "0.4"
 once_cell = "1.17.0"
@@ -107,6 +108,20 @@ bench = false
 [[bin]]
 name = "secp256r1_ecrecover"
 path = "fuzz_targets/secp256r1_ecrecover.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "groth16_verify"
+path = "fuzz_targets/groth16_verify.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "poseidon_bytes"
+path = "fuzz_targets/poseidon_bytes.rs"
 test = false
 doc = false
 bench = false

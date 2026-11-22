@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Helpers for the tests of `verify_groth16_in_bytes` and `prepare_pvk_bytes` on both curves, and
-//! byte mutations for proptests. Test modules include this file.
-
-// Not every module that includes this file uses all of it.
-#![allow(dead_code)]
+//! byte mutations for proptests.
 
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::CanonicalSerialize;
@@ -127,9 +124,15 @@ impl ByteMutation {
 }
 
 pub(crate) fn arb_byte_mutation() -> impl Strategy<Value = ByteMutation> {
+    arb_byte_mutation_of(any::<u8>())
+}
+
+/// A [ByteMutation] that sets bytes to the given values.
+pub(crate) fn arb_byte_mutation_of(
+    values: impl Strategy<Value = u8>,
+) -> impl Strategy<Value = ByteMutation> {
     prop_oneof![
-        (any::<Index>(), any::<u8>())
-            .prop_map(|(index, value)| ByteMutation::SetByte(index, value)),
+        (any::<Index>(), values).prop_map(|(index, value)| ByteMutation::SetByte(index, value)),
         any::<Index>().prop_map(ByteMutation::Truncate),
         vec(any::<u8>(), 1..100).prop_map(ByteMutation::Append),
     ]
