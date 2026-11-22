@@ -8,7 +8,7 @@
 //! result with p256, an independent implementation. ECDSA verification and recovery compute
 //! u1 * G + u2 * Q with `two_scalar_mul`, where the signer controls u1, u2 and Q. Here the operands
 //! are earlier results, so the sequences reach the identity, ±G, repeated and negated points and
-//! the scalars 0 and ±1. The multipliers use the parameters of ECDSA and others, with windows of 2
+//! the scalars 0 and ±1. The multipliers use the parameters of ECDSA and others, with windows of 1
 //! to 10 bits.
 //!
 //! Invariants: nothing panics; scalar decoding accepts exactly the little-endian encodings of the
@@ -42,6 +42,8 @@ const MAX_TERMS: usize = 4;
 enum Parameters {
     /// The multiplier of ECDSA in fastcrypto::secp256r1.
     Ecdsa,
+    /// 1-bit windows for both scalars of `two_scalar_mul`.
+    Cache2Window1,
     Cache4Window2,
     Cache32Window3,
     Cache1024Window9,
@@ -57,6 +59,7 @@ fn with_generator<const CACHE_SIZE: usize, const WINDOW: usize>() -> Multiplier<
 
 static ECDSA: Lazy<Multiplier<PRECOMPUTED_POINTS, SLIDING_WINDOW_WIDTH>> =
     Lazy::new(with_generator);
+static CACHE_2_WINDOW_1: Lazy<Multiplier<2, 1>> = Lazy::new(with_generator);
 static CACHE_4_WINDOW_2: Lazy<Multiplier<4, 2>> = Lazy::new(with_generator);
 static CACHE_32_WINDOW_3: Lazy<Multiplier<32, 3>> = Lazy::new(with_generator);
 static CACHE_1024_WINDOW_9: Lazy<Multiplier<1024, 9>> = Lazy::new(with_generator);
@@ -271,6 +274,7 @@ fn run(state: &mut State, op: Op) {
                 Parameters::Ecdsa => {
                     mul_with_base::<PRECOMPUTED_POINTS, SLIDING_WINDOW_WIDTH>(p, &s)
                 }
+                Parameters::Cache2Window1 => mul_with_base::<2, 1>(p, &s),
                 Parameters::Cache4Window2 => mul_with_base::<4, 2>(p, &s),
                 Parameters::Cache32Window3 => mul_with_base::<32, 3>(p, &s),
                 Parameters::Cache1024Window9 => mul_with_base::<1024, 9>(p, &s),
@@ -282,6 +286,7 @@ fn run(state: &mut State, op: Op) {
                 (state.scalar(u1), state.point(q), state.scalar(u2));
             let result = match parameters {
                 Parameters::Ecdsa => ECDSA.two_scalar_mul(&u1, &q, &u2),
+                Parameters::Cache2Window1 => CACHE_2_WINDOW_1.two_scalar_mul(&u1, &q, &u2),
                 Parameters::Cache4Window2 => CACHE_4_WINDOW_2.two_scalar_mul(&u1, &q, &u2),
                 Parameters::Cache32Window3 => CACHE_32_WINDOW_3.two_scalar_mul(&u1, &q, &u2),
                 Parameters::Cache1024Window9 => CACHE_1024_WINDOW_9.two_scalar_mul(&u1, &q, &u2),
@@ -305,9 +310,9 @@ fn run(state: &mut State, op: Op) {
                 .iter()
                 .map(|((s, _), (p, _))| (*s, *p))
                 .collect::<Vec<_>>();
-            let width = 2 + width as usize % 9;
+            let width = 1 + width as usize % 10;
             let table = table
-                .map(|(i, table_width)| (i as usize % terms.len(), 2 + table_width as usize % 7));
+                .map(|(i, table_width)| (i as usize % terms.len(), 1 + table_width as usize % 8));
             let result = match terms.len() {
                 1 => msm::<1>(&terms, width, table),
                 2 => msm::<2>(&terms, width, table),
