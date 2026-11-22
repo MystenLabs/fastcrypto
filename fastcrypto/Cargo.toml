@@ -145,3 +145,5 @@ rust-base58 = "0.0.4"
 secp256k1 = { version = "0.31.1", features = ["global-context"] }
 # Independent BLS12-381 implementation, used as a test oracle for the blst-based groups.
 ark-bls12-381 = "0.4.0"
+# Enables p256::test_vectors (NIST k·G known answers); only pulls hex-literal, already a dependency.
+p256 = { version = "0.13.2", features = ["test-vectors"] }
