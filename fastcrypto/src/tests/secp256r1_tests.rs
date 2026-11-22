@@ -55,7 +55,7 @@ const HALF_GROUP_ORDER: [u8; 32] =
     hex_literal::hex!("7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8");
 
 /// The P-256 field modulus p, big-endian.
-const FIELD_MODULUS: [u8; 32] =
+pub(crate) const FIELD_MODULUS: [u8; 32] =
     hex_literal::hex!("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff");
 
 /// The compressed encoding of the generator, which is the public key of the private key 1.
@@ -63,7 +63,7 @@ const GENERATOR_COMPRESSED: [u8; PK_LENGTH] =
     hex_literal::hex!("036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296");
 
 /// The compressed encoding of the point with x = 0, the smallest x-coordinate on the curve.
-const X_ZERO_COMPRESSED: [u8; PK_LENGTH] =
+pub(crate) const X_ZERO_COMPRESSED: [u8; PK_LENGTH] =
     hex_literal::hex!("020000000000000000000000000000000000000000000000000000000000000000");
 
 /// `X_ZERO_COMPRESSED` with x = p instead of 0, that is, the same field element not reduced

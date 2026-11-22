@@ -13,6 +13,9 @@ arbitrary = { version = "1", features = ["derive"] }
 # Independent BLS12-381 implementation, used as an oracle for decoding.
 ark-bls12-381 = "0.4.0"
 ark-ec = "0.4.1"
+# arkworks P-256 field elements, to compare p256 results with fastcrypto secp256r1 points.
+ark-ff = "0.4.2"
+ark-secp256r1 = "0.4.0"
 ark-serialize = "0.4.1"
 bcs = "0.1.4"
 bincode = "1.3.3"
@@ -107,6 +110,13 @@ bench = false
 [[bin]]
 name = "secp256r1_ecrecover"
 path = "fuzz_targets/secp256r1_ecrecover.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "secp256r1_group_ops"
+path = "fuzz_targets/secp256r1_group_ops.rs"
 test = false
 doc = false
 bench = false

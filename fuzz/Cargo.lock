@@ -781,6 +781,8 @@ dependencies = [
  "arbitrary",
  "ark-bls12-381",
  "ark-ec",
+ "ark-ff",
+ "ark-secp256r1",
  "ark-serialize",
  "bcs",
  "bincode",

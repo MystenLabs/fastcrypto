@@ -16,6 +16,7 @@ This crate is not part of the main workspace because cargo-fuzz needs a nightly 
 | `secp256r1_deserialize` | Decoding of secp256r1 keys, signatures and recoverable signatures through `from_bytes`, BCS, bincode, JSON and `*AsBytes`, compared with p256 |
 | `secp256r1_verify` | Signature verification the way Sui's `secp256r1_verify` Move native does it, compared with p256 restricted to a low s |
 | `secp256r1_ecrecover` | Public key recovery the way Sui's `secp256r1_ecrecover` Move native does it, current and legacy, compared with the ecdsa crate |
+| `secp256r1_group_ops` | Sequences of secp256r1 scalar and point operations, including the windowed multipliers that ECDSA uses with several window sizes, compared with p256 |
 
 Run a target with:
 
