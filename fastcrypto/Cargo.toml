@@ -132,7 +132,8 @@ wasm = ["dep:getrandom"]
 
 [dev-dependencies]
 criterion = "0.5.1"
-k256 = { version = "0.11.6", features = ["ecdsa", "sha256", "keccak256"] }
+# The test-vectors feature provides known multiples of the generator for the secp256k1 group tests.
+k256 = { version = "0.11.6", features = ["ecdsa", "sha256", "keccak256", "test-vectors"] }
 proptest = "1.1.0"
 wycheproof.workspace = true
 faster-hex = "0.10.1"

@@ -1444,7 +1444,7 @@ dependencies = [
  "generic-array",
  "getrandom 0.2.17",
  "hex",
- "hex-literal",
+ "hex-literal 0.4.1",
  "hkdf",
  "itertools 0.12.1",
  "k256",
@@ -1959,6 +1959,12 @@ dependencies = [
 
 [[package]]
 name = "hex-literal"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ebdb29d2ea9ed0083cd8cece49bbd968021bd99b0849edb4a9a7ee0fdf6a4e0"
+
+[[package]]
+name = "hex-literal"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
@@ -2312,6 +2318,7 @@ dependencies = [
  "cfg-if 1.0.4",
  "ecdsa 0.14.8",
  "elliptic-curve 0.12.3",
+ "hex-literal 0.3.4",
  "sha2 0.10.9",
  "sha3",
 ]
