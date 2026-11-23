@@ -34,15 +34,6 @@ a pair of byte strings `x ≠ y` with `H(x) = H(y)`.
 
 4. **`verify_for_trusted_tree_complete`.** As 2, and the proofs have `⌈log₂ n⌉` siblings.
 
-### Facts the theorems rest on
-
-* `expected_proof_length(n)`, computed with `leading_zeros`, is `⌈log₂ n⌉`: the number of siblings
-  `get_proof` returns.
-* `verify` accepts exactly when `i < n`, the proof has `⌈log₂ n⌉` siblings (fewer than
-  `usize::BITS`), `i < 2^len`, and hashing the leaf up the path gives `root`. So for
-  `n > 2^(usize::BITS - 1)` it rejects every proof, which is why completeness needs a bound on
-  `n`.
-
 ## Files
 
 | File | Contents |
