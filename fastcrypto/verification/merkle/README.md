@@ -25,14 +25,19 @@ a pair of byte strings `x ≠ y` with `H(x) = H(y)`.
    not panic, and for every leaf, `get_proof` returns a proof that `verify` accepts against that
    root.
 
+3. **`verify_no_panic`: `verify` does not panic.** For every proof, root, leaf, index and `n`, it
+   returns `Ok(())` or an error.
+
 ### `MerkleProof::verify_for_trusted_tree(root, leaf, i)`, which does not check the proof length
 
-3. **`verify_for_trusted_tree_binding`.** As 1, but only for two proofs of the same length.
+4. **`verify_for_trusted_tree_binding`.** As 1, but only for two proofs of the same length.
    Without equal lengths it is false: a proof for index `1` of length 1, `[s]`, and one of length
    2, `[s', t]`, give the same root if `s = inner_hash(s', leaf_hash(leaf'))` and
    `t = leaf_hash(leaf)`. This is why `verify` checks the length.
 
-4. **`verify_for_trusted_tree_complete`.** As 2, and the proofs have `⌈log₂ n⌉` siblings.
+5. **`verify_for_trusted_tree_complete`.** As 2, and the proofs have `⌈log₂ n⌉` siblings.
+
+6. **`verify_for_trusted_tree_no_panic`.** As 3.
 
 ## Files
 

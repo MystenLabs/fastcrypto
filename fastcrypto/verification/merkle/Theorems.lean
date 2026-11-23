@@ -12,11 +12,13 @@ some `H`.
   `verify` accepts against the tree's root.
 * `verify_binding`: if `verify` accepts two proofs for the same `root`, index and `n`, they are
   for the same leaf, or `H` has a collision.
+* `verify_no_panic`: `verify` returns, without panicking, on every input.
 
 `MerkleProof::verify_for_trusted_tree(root, leaf, i)`, for a root built by `MerkleTree`:
 * `verify_for_trusted_tree_complete`: as `verify_complete`, and the proof has `depth n`
   siblings.
 * `verify_for_trusted_tree_binding`: as `verify_binding`, for proofs of the same length.
+* `verify_for_trusted_tree_no_panic`: as `verify_no_panic`.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -110,5 +112,21 @@ theorem verify_binding (hm : HashModel inst H) (n : Usize) (root : Node) (i : Us
       (hl.trans hl'.symm) trivial trivial (e.trans e'.symm) with hc | hc
   · exact leafN_inj H _ _ hc
   · exact Or.inr hc
+
+/-- `verify` does not panic: for every proof, root, leaf, index and `n`, it returns `Ok(())` or
+an error. -/
+theorem verify_no_panic (hm : HashModel inst H) (p : merkle.MerkleProof T) (root : Node)
+    (leaf : Slice U8) (i n : Usize) :
+    ∃ r, merkle.MerkleProof.verify inst p root leaf i n = ok r := by
+  obtain ⟨r, hr, -⟩ := spec_eq_ok (verify_spec hm p root leaf i n)
+  exact ⟨r, hr⟩
+
+/-- `verify_for_trusted_tree` does not panic: for every proof, root, leaf and index, it returns
+`Ok(())` or an error. -/
+theorem verify_for_trusted_tree_no_panic (hm : HashModel inst H) (p : merkle.MerkleProof T)
+    (root : Node) (leaf : Slice U8) (i : Usize) :
+    ∃ r, merkle.MerkleProof.verify_for_trusted_tree inst p root leaf i = ok r := by
+  obtain ⟨r, hr, -⟩ := spec_eq_ok (verify_for_trusted_tree_spec hm p root leaf i)
+  exact ⟨r, hr⟩
 
 end MerkleProofs
