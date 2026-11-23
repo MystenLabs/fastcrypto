@@ -10,32 +10,38 @@ The theorems are in `Theorems.lean`. Everything else is a lemma.
 
 ## Theorems
 
-They hold for every hash function `T: HashFunction<32>` whose impl satisfies `HashModel inst H`
-for some function `H` from byte strings to 32-byte arrays (see [assumptions](#what-is-assumed)).
-A collision of `H` is a pair of byte strings `x ≠ y` with `H(x) = H(y)`.
+`H` is the function the hash computes (see [assumptions](#what-is-assumed)), and a *collision* is
+a pair of byte strings `x ≠ y` with `H(x) = H(y)`.
 
-| Theorem | Statement |
-|---|---|
-| `verify_binding` | For any `n`, any `root` and any index `i`: if `p.verify(&root, leaf, i, n)` and `p'.verify(&root, leaf', i, n)` both return `Ok(())`, then `leaf = leaf'` or `H` has a collision. |
-| `verify_complete` | For leaf hashes `hs` with `4 · hs.len() ≤ usize::MAX`, `MerkleTree::build_from_leaf_hashes(hs)` returns a tree `t` and `t.root()` returns a node `root`, both without panicking. For every `i < hs.len()` and every `leaf` with `leaf_hash(leaf) = hs[i]`, `t.get_proof(i)` returns `Ok(p)` and `p.verify(&root, leaf, i, hs.len())` returns `Ok(())`. |
-| `verify_for_trusted_tree_binding` | If `p.verify_for_trusted_tree(&root, leaf, i)` and `p'.verify_for_trusted_tree(&root, leaf', i)` both return `Ok(())` and `p.len() = p'.len()`, then `leaf = leaf'` or `H` has a collision. |
-| `verify_for_trusted_tree_complete` | As `verify_complete`, with `verify_for_trusted_tree`, and `p.len() = depth(hs.len())`. |
+### `MerkleProof::verify(root, leaf, i, n)`, for a root that is not trusted
 
-`verify_binding` says the root is a commitment to the leaves: it assumes nothing about where
-`root`, `p` and `p'` come from, so it holds against a prover that never runs `MerkleTree`. Its
-proof is a reduction: it finds the colliding inputs.
+1. **`verify_binding`: the root is a commitment to the leaves.** If `verify` accepts two proofs
+   for the same `root`, index `i` and number of leaves `n`, they are for the same leaf, or `H` has
+   a collision. This holds for any `root` and any proofs, also ones not made by `MerkleTree`. The
+   proof finds the colliding inputs.
 
-`verify_for_trusted_tree_binding` needs the equal lengths. Without them it is false: a proof for
-index `1` of length 1, `[s]`, and one of length 2, `[s', t]`, give the same root if
-`s = inner_hash(s', leaf_hash(leaf'))` and `t = leaf_hash(leaf)`. This is why `verify` checks the
-length.
+2. **`verify_complete`: honest proofs are accepted.** Build a tree from `n` leaf hashes with
+   `build_from_leaf_hashes`, where `4n ≤ usize::MAX`. Then building it and taking its `root()` do
+   not panic, and for every leaf, `get_proof` returns a proof that `verify` accepts against that
+   root.
 
-`depth(n)` is `0` for `n ≤ 1`, and `depth(⌈n/2⌉) + 1` otherwise, which is `⌈log₂ n⌉`. The lemma
-`verify_spec` shows that `verify` accepts exactly when `i < n`, `p.len() = depth(n)`,
-`p.len() < usize::BITS`, `i < 2^p.len()`, and the leaf hashed up the path is `root`. So for
-`n > 2^(usize::BITS - 1)`, where `depth(n) = usize::BITS`, `verify` rejects every proof.
-`verify_complete` needs `4n ≤ usize::MAX` for this reason, and for the tree's nodes to fit in a
-`Vec`.
+### `MerkleProof::verify_for_trusted_tree(root, leaf, i)`, which does not check the proof length
+
+3. **`verify_for_trusted_tree_binding`.** As 1, but only for two proofs of the same length.
+   Without equal lengths it is false: a proof for index `1` of length 1, `[s]`, and one of length
+   2, `[s', t]`, give the same root if `s = inner_hash(s', leaf_hash(leaf'))` and
+   `t = leaf_hash(leaf)`. This is why `verify` checks the length.
+
+4. **`verify_for_trusted_tree_complete`.** As 2, and the proofs have `⌈log₂ n⌉` siblings.
+
+### Facts the theorems rest on
+
+* `expected_proof_length(n)`, computed with `leading_zeros`, is `⌈log₂ n⌉`: the number of siblings
+  `get_proof` returns.
+* `verify` accepts exactly when `i < n`, the proof has `⌈log₂ n⌉` siblings (fewer than
+  `usize::BITS`), `i < 2^len`, and hashing the leaf up the path gives `root`. So for
+  `n > 2^(usize::BITS - 1)` it rejects every proof, which is why completeness needs a bound on
+  `n`.
 
 ## Files
 
