@@ -112,8 +112,8 @@ it needs as hypotheses.
   reflexive, transitive and antisymmetric (`OrdModel`, `LinearOrd`). Rust requires all of these of
   an `Ord` impl. `==` is false for different values (`EqModel`), and `clone` returns its argument
   (`CloneIsId`).
-* **BCS**, for leaves serialized with BCS. `bcs::to_bytes` returns on every value (`BcsReturns`) and is
-  injective (`BcsInjective`).
+* **BCS.** `bcs::to_bytes` returns on every value (`BcsReturns`) and is injective
+  (`BcsInjective`).
 * **`partition_point`**, for `non_inclusion_complete`. It returns the partition index of a
   partitioned slice, as Rust documents (`PartitionPointSpec`).
 * **Caller.** The leaves are sorted by `<=` (`SortedLe`), and `hs` are their leaf hashes.
