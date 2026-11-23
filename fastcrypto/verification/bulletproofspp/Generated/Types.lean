@@ -147,13 +147,13 @@ inductive bulletproofspp.transcript.Label where
 | NFinal : bulletproofspp.transcript.Label
 
 /-- [fastcrypto::bulletproofspp::norm_linear::Weights]
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 404:0-404:37 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 414:0-414:37 -/
 @[reducible]
 def bulletproofspp.norm_linear.Weights :=
   alloc.vec.Vec groups.ristretto255.RistrettoScalar
 
 /-- [fastcrypto::bulletproofspp::norm_linear::BasePoints]
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 395:0-401:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 405:0-411:1 -/
 @[discriminant isize]
 inductive bulletproofspp.norm_linear.BasePoints where
 | Crs : bulletproofspp.norm_linear.BasePoints

@@ -1814,7 +1814,7 @@ def bulletproofspp.util.weighted_norm
   bulletproofspp.util.weighted_inner_product n n mu
 
 /-- [fastcrypto::bulletproofspp::norm_linear::odd_only]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 530:4-534:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 540:4-544:5 -/
 @[rust_loop_body]
 def bulletproofspp.norm_linear.odd_only_loop.body
   (odd : Slice groups.ristretto255.RistrettoScalar)
@@ -1835,7 +1835,7 @@ def bulletproofspp.norm_linear.odd_only_loop.body
   else ok (done out)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::odd_only]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 530:4-534:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 540:4-544:5 -/
 @[rust_loop]
 def bulletproofspp.norm_linear.odd_only_loop
   (odd : Slice groups.ristretto255.RistrettoScalar)
@@ -1848,7 +1848,7 @@ def bulletproofspp.norm_linear.odd_only_loop
     (out, i)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::odd_only]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 527:0-536:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 537:0-546:1 -/
 def bulletproofspp.norm_linear.odd_only
   (odd : Slice groups.ristretto255.RistrettoScalar) :
   Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
@@ -1859,7 +1859,7 @@ def bulletproofspp.norm_linear.odd_only
   bulletproofspp.norm_linear.odd_only_loop odd out 0#usize
 
 /-- [fastcrypto::bulletproofspp::norm_linear::interleave]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 518:4-522:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 528:4-532:5 -/
 @[rust_loop_body]
 def bulletproofspp.norm_linear.interleave_loop.body
   (even : Slice groups.ristretto255.RistrettoScalar)
@@ -1884,7 +1884,7 @@ def bulletproofspp.norm_linear.interleave_loop.body
   else ok (done out)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::interleave]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 518:4-522:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 528:4-532:5 -/
 @[rust_loop]
 def bulletproofspp.norm_linear.interleave_loop
   (even : Slice groups.ristretto255.RistrettoScalar)
@@ -1898,7 +1898,7 @@ def bulletproofspp.norm_linear.interleave_loop
     (out, i)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::interleave]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 514:0-524:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 524:0-534:1 -/
 def bulletproofspp.norm_linear.interleave
   (even : Slice groups.ristretto255.RistrettoScalar)
   (odd : Slice groups.ristretto255.RistrettoScalar) :
@@ -1913,7 +1913,7 @@ def bulletproofspp.norm_linear.interleave
   bulletproofspp.norm_linear.interleave_loop even odd out 0#usize
 
 /-- [fastcrypto::bulletproofspp::norm_linear::split_even_odd]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 505:4-509:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 515:4-519:5 -/
 @[rust_loop_body]
 def bulletproofspp.norm_linear.split_even_odd_loop.body
   (v : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
@@ -1941,7 +1941,7 @@ def bulletproofspp.norm_linear.split_even_odd_loop.body
   else ok (done (even, odd))
 
 /-- [fastcrypto::bulletproofspp::norm_linear::split_even_odd]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 505:4-509:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 515:4-519:5 -/
 @[rust_loop]
 def bulletproofspp.norm_linear.split_even_odd_loop
   (v : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
@@ -1956,7 +1956,7 @@ def bulletproofspp.norm_linear.split_even_odd_loop
     (even, odd, i)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::split_even_odd]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 498:0-511:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 508:0-521:1 -/
 def bulletproofspp.norm_linear.split_even_odd
   (v : alloc.vec.Vec groups.ristretto255.RistrettoScalar) :
   Result ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
@@ -1982,7 +1982,7 @@ def bulletproofspp.norm_linear.split_even_odd
   bulletproofspp.norm_linear.split_even_odd_loop v1 even odd 0#usize
 
 /-- [fastcrypto::bulletproofspp::norm_linear::is_base_case]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 478:0-480:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 488:0-490:1 -/
 def bulletproofspp.norm_linear.is_base_case
   (l_len : Std.Usize) (n_len : Std.Usize) : Result Bool := do
   if l_len <= 1#usize
@@ -1992,7 +1992,7 @@ def bulletproofspp.norm_linear.is_base_case
   else ok false
 
 /-- [fastcrypto::bulletproofspp::norm_linear::round_challenge]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 467:0-475:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 477:0-485:1 -/
 def bulletproofspp.norm_linear.round_challenge
   (transcript : bulletproofspp.transcript.BpppTranscript)
   (x_point : groups.ristretto255.RistrettoPoint)
@@ -2009,96 +2009,14 @@ def bulletproofspp.norm_linear.round_challenge
   bulletproofspp.transcript.BpppTranscript.challenge_scalar transcript2
     bulletproofspp.transcript.Label.Gamma
 
-/-- Trait implementation: [fastcrypto::groups::ristretto255::{impl core::cmp::PartialEq<fastcrypto::groups::ristretto255::RistrettoScalar> for fastcrypto::groups::ristretto255::RistrettoScalar}]
-    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 268:29-268:38 -/
-@[reducible]
-impl_def
-  groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar :
-  core.cmp.PartialEq groups.ristretto255.RistrettoScalar
-  groups.ristretto255.RistrettoScalar := {
-  eq :=
-    groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar.eq
-  ne := core.cmp.PartialEq.ne.trait_default
-    groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar
-}
-
-/-- [fastcrypto::bulletproofspp::norm_linear::push_nonzero]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 546:4-552:5 -/
-@[rust_loop_body]
-def bulletproofspp.norm_linear.push_nonzero_loop.body
-  (scalars : Slice groups.ristretto255.RistrettoScalar)
-  (points : Slice groups.ristretto255.RistrettoPoint)
-  (sc : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  (pts : alloc.vec.Vec groups.ristretto255.RistrettoPoint) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
-    (alloc.vec.Vec groups.ristretto255.RistrettoPoint) × Std.Usize)
-    ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
-    groups.ristretto255.RistrettoPoint)))
-  := do
-  let i1 := Slice.len scalars
-  if i < i1
-  then
-    let i2 := Slice.len points
-    if i < i2
-    then
-      let rs ← Slice.index_usize scalars i
-      let rs1 ←
-        groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
-      let b ←
-        core.cmp.PartialEq.ne.trait_default
-          groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar
-          rs rs1
-      let (sc1, pts1) ←
-        if b
-        then
-          do
-          let sc2 ← alloc.vec.Vec.push sc rs
-          let rp ← Slice.index_usize points i
-          let pts2 ← alloc.vec.Vec.push pts rp
-          ok (sc2, pts2)
-        else ok (sc, pts)
-      let i3 ← i + 1#usize
-      ok (cont (sc1, pts1, i3))
-    else ok (done (sc, pts))
-  else ok (done (sc, pts))
-
-/-- [fastcrypto::bulletproofspp::norm_linear::push_nonzero]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 546:4-552:5 -/
-@[rust_loop]
-def bulletproofspp.norm_linear.push_nonzero_loop
-  (sc : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  (pts : alloc.vec.Vec groups.ristretto255.RistrettoPoint)
-  (scalars : Slice groups.ristretto255.RistrettoScalar)
-  (points : Slice groups.ristretto255.RistrettoPoint) (i : Std.Usize) :
-  Result ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
-    groups.ristretto255.RistrettoPoint))
-  := do
-  loop
-    (fun (sc1, pts1, i1) => bulletproofspp.norm_linear.push_nonzero_loop.body
-      scalars points sc1 pts1 i1)
-    (sc, pts, i)
-
-/-- [fastcrypto::bulletproofspp::norm_linear::push_nonzero]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 539:0-553:1 -/
-@[reducible]
-def bulletproofspp.norm_linear.push_nonzero
-  (sc : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  (pts : alloc.vec.Vec groups.ristretto255.RistrettoPoint)
-  (scalars : Slice groups.ristretto255.RistrettoScalar)
-  (points : Slice groups.ristretto255.RistrettoPoint) :
-  Result ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
-    groups.ristretto255.RistrettoPoint))
-  := do
-  bulletproofspp.norm_linear.push_nonzero_loop sc pts scalars points 0#usize
-
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::len]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 417:4-419:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 427:4-429:5 -/
 def bulletproofspp.norm_linear.Weights.len
   (self : bulletproofspp.norm_linear.Weights) : Result Std.Usize := do
   ok (alloc.vec.Vec.len self)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::contract]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 454:8-463:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 464:8-473:5 -/
 @[rust_loop_body]
 def bulletproofspp.norm_linear.Weights.contract_loop.body
   (points : Slice groups.ristretto255.RistrettoPoint)
@@ -2140,7 +2058,7 @@ def bulletproofspp.norm_linear.Weights.contract_loop.body
   else ok (done (core.result.Result.Ok out))
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::contract]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 454:8-463:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 464:8-473:5 -/
 @[rust_loop]
 def bulletproofspp.norm_linear.Weights.contract_loop
   (self : bulletproofspp.norm_linear.Weights)
@@ -2157,7 +2075,7 @@ def bulletproofspp.norm_linear.Weights.contract_loop
     (self, out, start)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::contract]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 451:4-463:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 461:4-473:5 -/
 def bulletproofspp.norm_linear.Weights.contract
   (self : bulletproofspp.norm_linear.Weights)
   (points : Slice groups.ristretto255.RistrettoPoint) :
@@ -2171,7 +2089,7 @@ def bulletproofspp.norm_linear.Weights.contract
   bulletproofspp.norm_linear.Weights.contract_loop self points out 0#usize
 
 /-- [fastcrypto::bulletproofspp::norm_linear::sparse_mul]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 557:0-563:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 567:0-573:1 -/
 def bulletproofspp.norm_linear.sparse_mul
   (a : groups.ristretto255.RistrettoScalar)
   (b : groups.ristretto255.RistrettoScalar) :
@@ -2189,7 +2107,7 @@ def bulletproofspp.norm_linear.sparse_mul
       a b
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::tensor]: loop body 1:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 427:12-430:13 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 437:12-440:13 -/
 @[rust_loop_body]
 def bulletproofspp.norm_linear.Weights.tensor_loop0_loop0.body
   (coeffs : Slice groups.ristretto255.RistrettoScalar) (len : Std.Usize)
@@ -2218,7 +2136,7 @@ def bulletproofspp.norm_linear.Weights.tensor_loop0_loop0.body
   else ok (done (self, out))
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::tensor]: loop 1:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 427:12-430:13 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 437:12-440:13 -/
 @[rust_loop]
 def bulletproofspp.norm_linear.Weights.tensor_loop0_loop0
   (self : bulletproofspp.norm_linear.Weights)
@@ -2235,7 +2153,7 @@ def bulletproofspp.norm_linear.Weights.tensor_loop0_loop0
     (self, out, j)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::tensor]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 425:8-432:9 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 435:8-442:9 -/
 @[rust_loop_body]
 def bulletproofspp.norm_linear.Weights.tensor_loop0.body
   (coeffs : Slice groups.ristretto255.RistrettoScalar) (len : Std.Usize)
@@ -2260,7 +2178,7 @@ def bulletproofspp.norm_linear.Weights.tensor_loop0.body
   else ok (done out)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::tensor]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 425:8-432:9 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 435:8-442:9 -/
 @[rust_loop]
 def bulletproofspp.norm_linear.Weights.tensor_loop0
   (self : bulletproofspp.norm_linear.Weights)
@@ -2275,7 +2193,7 @@ def bulletproofspp.norm_linear.Weights.tensor_loop0
     (self, out, i)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::tensor]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 422:4-434:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 432:4-444:5 -/
 def bulletproofspp.norm_linear.Weights.tensor
   (self : bulletproofspp.norm_linear.Weights)
   (coeffs : Slice groups.ristretto255.RistrettoScalar) (len : Std.Usize) :
@@ -2286,7 +2204,7 @@ def bulletproofspp.norm_linear.Weights.tensor
   bulletproofspp.norm_linear.Weights.tensor_loop0 self coeffs len out 0#usize
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::new]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 408:4-410:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 418:4-420:5 -/
 def bulletproofspp.norm_linear.Weights.new
   : Result bulletproofspp.norm_linear.Weights := do
   let rs ← bulletproofspp.util.one
@@ -2295,6 +2213,133 @@ def bulletproofspp.norm_linear.Weights.new
       groups.ristretto255.RistrettoScalar 1#usize))
   let ret := alloc.slice.Slice.into_vec y
   ok ret
+
+/-- Trait implementation: [fastcrypto::groups::ristretto255::{impl core::cmp::PartialEq<fastcrypto::groups::ristretto255::RistrettoScalar> for fastcrypto::groups::ristretto255::RistrettoScalar}]
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 268:29-268:38 -/
+@[reducible]
+impl_def
+  groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar :
+  core.cmp.PartialEq groups.ristretto255.RistrettoScalar
+  groups.ristretto255.RistrettoScalar := {
+  eq :=
+    groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar
+}
+
+/-- [fastcrypto::bulletproofspp::norm_linear::push_nonzero]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 556:4-562:5 -/
+@[rust_loop_body]
+def bulletproofspp.norm_linear.push_nonzero_loop.body
+  (scalars : Slice groups.ristretto255.RistrettoScalar)
+  (points : Slice groups.ristretto255.RistrettoPoint)
+  (sc : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (pts : alloc.vec.Vec groups.ristretto255.RistrettoPoint) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    (alloc.vec.Vec groups.ristretto255.RistrettoPoint) × Std.Usize)
+    ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
+    groups.ristretto255.RistrettoPoint)))
+  := do
+  let i1 := Slice.len scalars
+  if i < i1
+  then
+    let i2 := Slice.len points
+    if i < i2
+    then
+      let rs ← Slice.index_usize scalars i
+      let rs1 ←
+        groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
+      let b ←
+        core.cmp.PartialEq.ne.trait_default
+          groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar
+          rs rs1
+      let (sc1, pts1) ←
+        if b
+        then
+          do
+          let sc2 ← alloc.vec.Vec.push sc rs
+          let rp ← Slice.index_usize points i
+          let pts2 ← alloc.vec.Vec.push pts rp
+          ok (sc2, pts2)
+        else ok (sc, pts)
+      let i3 ← i + 1#usize
+      ok (cont (sc1, pts1, i3))
+    else ok (done (sc, pts))
+  else ok (done (sc, pts))
+
+/-- [fastcrypto::bulletproofspp::norm_linear::push_nonzero]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 556:4-562:5 -/
+@[rust_loop]
+def bulletproofspp.norm_linear.push_nonzero_loop
+  (sc : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (pts : alloc.vec.Vec groups.ristretto255.RistrettoPoint)
+  (scalars : Slice groups.ristretto255.RistrettoScalar)
+  (points : Slice groups.ristretto255.RistrettoPoint) (i : Std.Usize) :
+  Result ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
+    groups.ristretto255.RistrettoPoint))
+  := do
+  loop
+    (fun (sc1, pts1, i1) => bulletproofspp.norm_linear.push_nonzero_loop.body
+      scalars points sc1 pts1 i1)
+    (sc, pts, i)
+
+/-- [fastcrypto::bulletproofspp::norm_linear::push_nonzero]:
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 549:0-563:1 -/
+@[reducible]
+def bulletproofspp.norm_linear.push_nonzero
+  (sc : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (pts : alloc.vec.Vec groups.ristretto255.RistrettoPoint)
+  (scalars : Slice groups.ristretto255.RistrettoScalar)
+  (points : Slice groups.ristretto255.RistrettoPoint) :
+  Result ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
+    groups.ristretto255.RistrettoPoint))
+  := do
+  bulletproofspp.norm_linear.push_nonzero_loop sc pts scalars points 0#usize
+
+/-- [fastcrypto::bulletproofspp::norm_linear::folded_msm]:
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 383:0-400:1 -/
+def bulletproofspp.norm_linear.folded_msm
+  (sigma : groups.ristretto255.RistrettoScalar)
+  (g : groups.ristretto255.RistrettoPoint)
+  (h_vec : Slice groups.ristretto255.RistrettoPoint)
+  (g_vec : Slice groups.ristretto255.RistrettoPoint)
+  (h_scalars : Slice groups.ristretto255.RistrettoScalar)
+  (g_scalars : Slice groups.ristretto255.RistrettoScalar) :
+  Result (core.result.Result groups.ristretto255.RistrettoPoint
+    error.FastCryptoError)
+  := do
+  let i := Slice.len h_vec
+  let i1 ← 1#usize + i
+  let i2 := Slice.len g_vec
+  let i3 ← i1 + i2
+  let sc := alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i3
+  let i4 := Slice.len h_vec
+  let i5 ← 1#usize + i4
+  let i6 := Slice.len g_vec
+  let i7 ← i5 + i6
+  let pts := alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoPoint i7
+  let rs ←
+    groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
+  let b ←
+    core.cmp.PartialEq.ne.trait_default
+      groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar
+      sigma rs
+  let (sc1, pts1) ←
+    if b
+    then
+      do
+      let sc2 ← alloc.vec.Vec.push sc sigma
+      let pts2 ← alloc.vec.Vec.push pts g
+      ok (sc2, pts2)
+    else ok (sc, pts)
+  let (sc2, pts2) ←
+    bulletproofspp.norm_linear.push_nonzero sc1 pts1 h_scalars h_vec
+  let (sc3, pts3) ←
+    bulletproofspp.norm_linear.push_nonzero sc2 pts2 g_scalars g_vec
+  let s := alloc.vec.Vec.deref sc3
+  let s1 := alloc.vec.Vec.deref pts3
+  groups.ristretto255.RistrettoPoint.Insts.FastcryptoGroupsMultiScalarMul.multi_scalar_mul
+    s s1
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::LazyBases}::points]:
     Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 331:4-342:5 -/
@@ -2330,7 +2375,7 @@ def bulletproofspp.norm_linear.LazyBases.len
   ok (i, i1)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::LazyBases}::msm]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 352:4-389:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 352:4-378:5 -/
 def bulletproofspp.norm_linear.LazyBases.msm
   (self : bulletproofspp.norm_linear.LazyBases)
   (gens : bulletproofspp.crs.Generators)
@@ -2365,45 +2410,11 @@ def bulletproofspp.norm_linear.LazyBases.msm
             } gens
         let h_scalars ← bulletproofspp.norm_linear.Weights.tensor w l h_len
         let g_scalars ← bulletproofspp.norm_linear.Weights.tensor w n g_len
-        let i2 := alloc.vec.Vec.len val
-        let i3 ← 1#usize + i2
-        let i4 := alloc.vec.Vec.len val1
-        let i5 ← i3 + i4
-        let sc :=
-          alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i5
-        let i6 := alloc.vec.Vec.len val
-        let i7 ← 1#usize + i6
-        let i8 := alloc.vec.Vec.len val1
-        let i9 ← i7 + i8
-        let pts :=
-          alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoPoint i9
-        let rs ←
-          groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
-        let b ←
-          core.cmp.PartialEq.ne.trait_default
-            groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar
-            sigma rs
-        let (sc1, pts1) ←
-          if b
-          then
-            do
-            let sc2 ← alloc.vec.Vec.push sc sigma
-            let pts2 ← alloc.vec.Vec.push pts g
-            ok (sc2, pts2)
-          else ok (sc, pts)
-        let s := alloc.vec.Vec.deref h_scalars
-        let s1 := alloc.vec.Vec.deref val
-        let (sc2, pts2) ←
-          bulletproofspp.norm_linear.push_nonzero sc1 pts1 s s1
-        let s2 := alloc.vec.Vec.deref g_scalars
-        let s3 := alloc.vec.Vec.deref val1
-        let (sc3, pts3) ←
-          bulletproofspp.norm_linear.push_nonzero sc2 pts2 s2 s3
-        let s4 := alloc.vec.Vec.deref sc3
-        let s5 := alloc.vec.Vec.deref pts3
-        let r2 ←
-          groups.ristretto255.RistrettoPoint.Insts.FastcryptoGroupsMultiScalarMul.multi_scalar_mul
-            s4 s5
+        let s := alloc.vec.Vec.deref val
+        let s1 := alloc.vec.Vec.deref val1
+        let s2 := alloc.vec.Vec.deref h_scalars
+        let s3 := alloc.vec.Vec.deref g_scalars
+        let r2 ← bulletproofspp.norm_linear.folded_msm sigma g s s1 s2 s3
         ok (r2,
           {
             points :=
@@ -2443,48 +2454,15 @@ def bulletproofspp.norm_linear.LazyBases.msm
       ok (r, self)
     | bulletproofspp.norm_linear.BasePoints.Folded g p =>
       let (h_vec, g_vec) := p
-      let i2 := alloc.vec.Vec.len h_vec
-      let i3 ← 1#usize + i2
-      let i4 := alloc.vec.Vec.len g_vec
-      let i5 ← i3 + i4
-      let sc :=
-        alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i5
-      let i6 := alloc.vec.Vec.len h_vec
-      let i7 ← 1#usize + i6
-      let i8 := alloc.vec.Vec.len g_vec
-      let i9 ← i7 + i8
-      let pts :=
-        alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoPoint i9
-      let rs ←
-        groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
-      let b ←
-        core.cmp.PartialEq.ne.trait_default
-          groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar
-          sigma rs
-      let (sc1, pts1) ←
-        if b
-        then
-          do
-          let sc2 ← alloc.vec.Vec.push sc sigma
-          let pts2 ← alloc.vec.Vec.push pts g
-          ok (sc2, pts2)
-        else ok (sc, pts)
-      let s := alloc.vec.Vec.deref h_scalars
-      let s1 := alloc.vec.Vec.deref h_vec
-      let (sc2, pts2) ← bulletproofspp.norm_linear.push_nonzero sc1 pts1 s s1
-      let s2 := alloc.vec.Vec.deref g_scalars
-      let s3 := alloc.vec.Vec.deref g_vec
-      let (sc3, pts3) ←
-        bulletproofspp.norm_linear.push_nonzero sc2 pts2 s2 s3
-      let s4 := alloc.vec.Vec.deref sc3
-      let s5 := alloc.vec.Vec.deref pts3
-      let r ←
-        groups.ristretto255.RistrettoPoint.Insts.FastcryptoGroupsMultiScalarMul.multi_scalar_mul
-          s4 s5
+      let s := alloc.vec.Vec.deref h_vec
+      let s1 := alloc.vec.Vec.deref g_vec
+      let s2 := alloc.vec.Vec.deref h_scalars
+      let s3 := alloc.vec.Vec.deref g_scalars
+      let r ← bulletproofspp.norm_linear.folded_msm sigma g s s1 s2 s3
       ok (r, self)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::tensor_pair]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 413:4-415:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 423:4-425:5 -/
 def bulletproofspp.norm_linear.Weights.tensor_pair
   (self : bulletproofspp.norm_linear.Weights)
   (f0 : groups.ristretto255.RistrettoScalar)
@@ -2749,7 +2727,7 @@ def bulletproofspp.norm_linear.prove
     (groups.ristretto255.RistrettoPoint × groups.ristretto255.RistrettoPoint))
 
 /-- [fastcrypto::bulletproofspp::norm_linear::proof_shape]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 488:4-492:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 498:4-502:5 -/
 @[rust_loop_body]
 def bulletproofspp.norm_linear.proof_shape_loop.body
   (l_len : Std.Usize) (n_len : Std.Usize) (rounds : Std.Usize) :
@@ -2766,7 +2744,7 @@ def bulletproofspp.norm_linear.proof_shape_loop.body
     ok (cont (l_len1, n_len1, rounds1))
 
 /-- [fastcrypto::bulletproofspp::norm_linear::proof_shape]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 488:4-492:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 498:4-502:5 -/
 @[rust_loop]
 def bulletproofspp.norm_linear.proof_shape_loop
   (l_len : Std.Usize) (n_len : Std.Usize) (rounds : Std.Usize) :
@@ -2778,7 +2756,7 @@ def bulletproofspp.norm_linear.proof_shape_loop
     (l_len, n_len, rounds)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::proof_shape]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 486:0-494:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 496:0-504:1 -/
 @[reducible]
 def bulletproofspp.norm_linear.proof_shape
   (l_len : Std.Usize) (n_len : Std.Usize) :
@@ -2787,7 +2765,7 @@ def bulletproofspp.norm_linear.proof_shape
   bulletproofspp.norm_linear.proof_shape_loop l_len n_len 0#usize
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::scale]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 440:8-443:9 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 450:8-453:9 -/
 @[rust_loop_body]
 def bulletproofspp.norm_linear.Weights.scale_loop.body
   (s : groups.ristretto255.RistrettoScalar) (len : Std.Usize)
@@ -2814,7 +2792,7 @@ def bulletproofspp.norm_linear.Weights.scale_loop.body
   else ok (done out)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::scale]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 440:8-443:9 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 450:8-453:9 -/
 @[rust_loop]
 def bulletproofspp.norm_linear.Weights.scale_loop
   (self : bulletproofspp.norm_linear.Weights)
@@ -2828,7 +2806,7 @@ def bulletproofspp.norm_linear.Weights.scale_loop
     (self, out, j)
 
 /-- [fastcrypto::bulletproofspp::norm_linear::{fastcrypto::bulletproofspp::norm_linear::Weights}::scale]:
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 437:4-445:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 447:4-455:5 -/
 def bulletproofspp.norm_linear.Weights.scale
   (self : bulletproofspp.norm_linear.Weights)
   (s : groups.ristretto255.RistrettoScalar) (len : Std.Usize) :

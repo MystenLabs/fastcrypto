@@ -373,20 +373,30 @@ impl LazyBases {
             BasePoints::Folded {
                 g,
                 folded: (h_vec, g_vec),
-            } => {
-                // The terms with a nonzero scalar.
-                let mut sc = Vec::with_capacity(1 + h_vec.len() + g_vec.len());
-                let mut pts = Vec::with_capacity(1 + h_vec.len() + g_vec.len());
-                if sigma != RistrettoScalar::zero() {
-                    sc.push(sigma);
-                    pts.push(*g);
-                }
-                push_nonzero(&mut sc, &mut pts, &h_scalars, h_vec);
-                push_nonzero(&mut sc, &mut pts, &g_scalars, g_vec);
-                RistrettoPoint::multi_scalar_mul(&sc, &pts)
-            }
+            } => folded_msm(sigma, g, h_vec, g_vec, &h_scalars, &g_scalars),
         }
     }
+}
+
+/// `sigma*g + <h_scalars, h_vec> + <g_scalars, g_vec>`, skipping the terms
+/// with a zero scalar.
+fn folded_msm(
+    sigma: RistrettoScalar,
+    g: &RistrettoPoint,
+    h_vec: &[RistrettoPoint],
+    g_vec: &[RistrettoPoint],
+    h_scalars: &[RistrettoScalar],
+    g_scalars: &[RistrettoScalar],
+) -> FastCryptoResult<RistrettoPoint> {
+    let mut sc = Vec::with_capacity(1 + h_vec.len() + g_vec.len());
+    let mut pts = Vec::with_capacity(1 + h_vec.len() + g_vec.len());
+    if sigma != RistrettoScalar::zero() {
+        sc.push(sigma);
+        pts.push(*g);
+    }
+    push_nonzero(&mut sc, &mut pts, h_scalars, h_vec);
+    push_nonzero(&mut sc, &mut pts, g_scalars, g_vec);
+    RistrettoPoint::multi_scalar_mul(&sc, &pts)
 }
 
 /// The points the pending fold weights of [LazyBases] apply to: those of the

@@ -2,6 +2,7 @@
 import bulletproofspp.Points
 import bulletproofspp.Constraints
 import bulletproofspp.Model.NormLinear
+import bulletproofspp.Proofs.Weights
 
 /-!
 The generated functions of `norm_linear.rs` compute the functions of `Model/NormLinear.lean`.
@@ -477,5 +478,174 @@ lemma push_nonzero_spec (hs : ScalarModel F φ) (sc : alloc.vec.Vec S) (pts : al
         simp
       exact ⟨by rw [ha, hZn], by rw [hb, hZn], by scalar_tac, by scalar_tac⟩
   · refine ⟨by simp, by simp [nonzero], by simp [nonzero], by simp, by simp⟩
+
+lemma extend_spec (hs : ScalarModel F φ) (v : alloc.vec.Vec S) (sl : Slice S)
+    (h : v.length + sl.length ≤ Usize.max) :
+    alloc.vec.Vec.extend_from_slice groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone v sl
+      ⦃ r => r.val = v.val ++ sl.val ⦄ := by
+  unfold alloc.vec.Vec.extend_from_slice
+  rw [dif_pos h]
+  apply WP.spec_bind (List.clone_spec (fun x _ => hs.clone x))
+  rintro l ⟨hl, -⟩
+  simp [hl]
+
+lemma gens_msm_spec (hs : ScalarModel F φ) (gens : bulletproofspp.crs.Generators)
+    (hg : GensOK φ ψ gens) (sigma : S) (l n ds : Slice S) (dp : Slice P)
+    (hlen : 1 + gens.h_vec.length + gens.g_vec.length ≤ Usize.max)
+    (hln : 1 + l.length + n.length ≤ Usize.max) :
+    bulletproofspp.crs.Generators.msm gens sigma l n ds dp ⦃ r =>
+      MsmMatches ψ r ((toGens ψ gens).msm (φ sigma) (l.val.map φ) (n.val.map φ) (ds.val.map φ)
+        (dp.val.map ψ)) ⦄ := by
+  unfold bulletproofspp.crs.Generators.msm
+  step*
+  all_goals try (simp; scalar_tac; done)
+  apply WP.spec_bind (extend_spec hs scalars1 l (by simp [alloc.vec.Vec.length, scalars1_post]; scalar_tac))
+  intro s2 hs2
+  apply WP.spec_bind (extend_spec hs s2 n (by simp [alloc.vec.Vec.length, hs2, scalars1_post]; scalar_tac))
+  intro s3 hs3
+  obtain ⟨r, hr, hm⟩ := hg (alloc.vec.Vec.deref s3) ds dp
+  rw [hr, WP.spec_ok]
+  convert hm using 2
+  simp [Bppp.Generators.msm, toGens, alloc.vec.Vec.deref, hs3, hs2, scalars1_post]
+
+/-- The model of a generated opening. -/
+def toO (φ : S → F) (o : bulletproofspp.norm_linear.Opening) : Bppp.Opening F :=
+  ⟨φ o.sigma, o.l.val.map φ, o.n.val.map φ⟩
+
+lemma commit_spec (hs : ScalarModel F φ) (gens : bulletproofspp.crs.Generators)
+    (hg : GensOK φ ψ gens) (o : bulletproofspp.norm_linear.Opening)
+    (hl : o.l.length = gens.h_vec.length) (hn : o.n.length = gens.g_vec.length)
+    (hlen : 1 + gens.h_vec.length + gens.g_vec.length ≤ Usize.max) :
+    bulletproofspp.norm_linear.Generators.commit gens o ⦃ r =>
+      MsmMatches ψ r ((toGens ψ gens).commit (toO φ o)) ⦄ := by
+  unfold bulletproofspp.norm_linear.Generators.commit
+  step*
+  apply WP.spec_mono (gens_msm_spec hs gens hg o.sigma _ _ s2 s3 hlen
+    (by
+      have e1 : gens.h_vec.length = gens.h_vec.val.length := rfl
+      have e2 : gens.g_vec.length = gens.g_vec.val.length := rfl
+      have e3 : o.l.length = o.l.val.length := rfl
+      have e4 : o.n.length = o.n.val.length := rfl
+      simp [alloc.vec.Vec.deref, Slice.length]; omega))
+  intro r hr
+  convert hr using 2
+  simp [Bppp.Generators.commit, toO, alloc.vec.Vec.deref, s2_post, s3_post]
+  rfl
+
+/-- The values of the model's `Weights::contract`, which never fails. -/
+def contractM (w : List F) (pts : List E) : List E :=
+  (Bppp.NormLinear.chunks w.length pts).map fun ch =>
+    (List.zipWith (· • ·) (w.take ch.length) ch).sum
+
+lemma chunks_length_le {α : Type} (n : ℕ) (l : List α) : ∀ ch ∈ Bppp.NormLinear.chunks n l,
+    ch.length ≤ n := by
+  induction l using Bppp.NormLinear.chunks.induct n with
+  | case1 l h =>
+    intro ch hch; rw [Bppp.NormLinear.chunks, dif_pos h] at hch; simp at hch
+  | case2 l h ih =>
+    intro ch hch
+    rw [Bppp.NormLinear.chunks, dif_neg h] at hch
+    rcases List.mem_cons.1 hch with rfl | hch
+    · simp
+    · exact ih ch hch
+
+lemma mapM_ok {α β ε : Type} (f : α → Except ε β) (g : α → β) (l : List α)
+    (h : ∀ x ∈ l, f x = .ok (g x)) : l.mapM f = .ok (l.map g) := by
+  induction l with
+  | nil => rfl
+  | cons x l ih =>
+    rw [List.mapM_cons, h x (by simp), ih (fun y hy => h y (by simp [hy]))]
+    rfl
+
+lemma contract_model (w : List F) (pts : List E) :
+    (Bppp.NormLinear.Weights.contract ⟨w⟩ pts : Bppp.Result (List E)) = .ok (contractM w pts) := by
+  unfold Bppp.NormLinear.Weights.contract contractM Bppp.NormLinear.Weights.len
+  apply mapM_ok
+  intro ch hch
+  have hle : ch.length ≤ w.length := chunks_length_le _ _ ch hch
+  have hm : min w.length ch.length = ch.length := Nat.min_eq_right hle
+  simp [Bppp.multi_scalar_mul, hm]
+  exact hle
+
+lemma take_min_length {α : Type} (l : List α) (n : ℕ) : l.take (min n l.length) = l.take n := by
+  rcases Nat.le_total n l.length with h | h
+  · rw [Nat.min_eq_left h]
+  · rw [Nat.min_eq_right h, List.take_length, List.take_of_length_le h]
+
+lemma drop_min_length {α : Type} (l : List α) (n : ℕ) : l.drop (min n l.length) = l.drop n := by
+  rcases Nat.le_total n l.length with h | h
+  · rw [Nat.min_eq_left h]
+  · rw [Nat.min_eq_right h, List.drop_length, List.drop_of_length_le h]
+
+lemma contractM_drop (w : List F) (pts : List E) (k : ℕ) (hw : 0 < w.length) (hk : k < pts.length) :
+    contractM w (pts.drop k) =
+      (List.zipWith (· • ·) (w.take (min w.length (pts.length - k))) ((pts.drop k).take w.length)).sum ::
+        contractM w (pts.drop (k + w.length)) := by
+  unfold contractM
+  rw [Bppp.NormLinear.chunks_cons hw (by simp; omega)]
+  simp [List.drop_drop, Nat.add_comm]
+
+lemma contract_spec (hp : PointModel φ ψ)
+    (w : bulletproofspp.norm_linear.Weights) (hw : 0 < w.length) (points : Slice P)
+    (hpw : points.length + w.length ≤ Usize.max) :
+    bulletproofspp.norm_linear.Weights.contract w points ⦃ r =>
+      ∃ out, r = .Ok out ∧ out.val.map ψ = contractM (w.val.map φ) (points.val.map ψ) ⦄ := by
+  unfold bulletproofspp.norm_linear.Weights.contract bulletproofspp.norm_linear.Weights.contract_loop
+    bulletproofspp.norm_linear.Weights.len
+  have ew : w.length = w.val.length := rfl
+  have ep : points.length = points.val.length := rfl
+  have hpm : points.val.length ≤ Usize.max := points.property
+  step*
+  apply loop.spec_decr_nat (fun q => points.length - q.2.2.val)
+    (fun q => q.1 = w ∧ q.2.2.val ≤ points.length ∧ q.2.1.length ≤ q.2.2.val ∧
+      q.2.1.val.map ψ ++ contractM (w.val.map φ) ((points.val.map ψ).drop q.2.2.val) =
+        contractM (w.val.map φ) (points.val.map ψ))
+  · rintro ⟨w', o, st⟩ ⟨hw', hst, hol, heq⟩
+    dsimp only at hw' hst hol heq
+    subst w'
+    unfold bulletproofspp.norm_linear.Weights.contract_loop.body bulletproofspp.norm_linear.Weights.len
+    have eo : o.length = o.val.length := rfl
+    have hwl : (alloc.vec.Vec.len w).val = w.val.length := rfl
+    step*
+    · have hstl : st.val < points.val.length := by scalar_tac
+      have hend : «end».val = min (st.val + w.val.length) points.val.length := by
+        rw [end_post]; simp [i2_post, hwl]
+      obtain ⟨r, hr, hm⟩ := hp.msm s s1
+      have hsl : (s.val.map φ).length = (s1.val.map ψ).length := by
+        simp only [List.length_map]
+        have h1 : s.val.length = s.length := rfl
+        have h2 : s1.val.length = s1.length := rfl
+        rw [h1, h2, s_post1, s1_post1, i4_post]
+      unfold MsmMatches at hm
+      rw [Bppp.multi_scalar_mul, if_neg (by omega)] at hm
+      obtain ⟨p, rfl, hpv⟩ := hm
+      rw [hr]
+      simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+      step*
+      refine ⟨by scalar_tac, by simp [alloc.vec.Vec.length, out1_post]; scalar_tac, ?_, by scalar_tac⟩
+      rw [← heq, out1_post, contractM_drop _ _ st.val (by simpa using hw) (by simpa using hstl)]
+      simp only [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
+        List.singleton_append]
+      have hw' : (w.val.map φ).length = w.val.length := by simp
+      congr 2
+      · rw [hpv, s_post, s1_post]
+        simp only [List.slice, List.drop_zero, Nat.sub_zero, List.map_take, List.map_drop,
+          List.length_map]
+        have he1 : i4.val = min w.val.length (points.val.length - st.val) := by
+          rw [i4_post, hend]; omega
+        have he2 : «end».val - st.val = min w.val.length (points.val.length - st.val) := by
+          rw [hend]; omega
+        rw [he1, he2]
+        congr 1
+        have hD : ((points.val.map ψ).drop st.val).length = points.val.length - st.val := by simp
+        rw [← hD, take_min_length]
+      · rw [hend]
+        have := drop_min_length (points.val.map ψ) (st.val + w.val.length)
+        simp only [List.length_map] at this ⊢
+        rw [this]
+    · refine ⟨o, rfl, ?_⟩
+      rw [← heq, List.drop_of_length_le (by simp; scalar_tac)]
+      simp [contractM, Bppp.NormLinear.chunks_nil]
+  · exact ⟨rfl, by simp, by simp, by simp⟩
 
 end BpppProofs
