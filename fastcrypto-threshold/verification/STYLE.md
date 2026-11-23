@@ -8,7 +8,7 @@ exactly what is assumed and what is proved, without reading proofs.
 
 The protocol files assume their lemmas about the code (`Contracts` and the like) and state no proof
 of them. Whether the code satisfies them is proved, where it is, by a `Link*.lean` file from the
-lemmas about the code in the module's folder, and listed in each folder's `README.md`. Keeping
+results about the code in the module's folder, and listed in the module's `README.md`. Keeping
 this out of the black-box files means that a change to the code changes the link, not the
 protocol theorems.
 
@@ -59,8 +59,9 @@ Leave out what does not add such an assurance:
 ## Docs
 
 6. Documentation lives on the Lean declaration it describes, never in a separate file. The
-   exception is each folder's `README.md`, which indexes its files, theorems and lemmas with a
-   one-line summary each and how each lemma holds for the code; the Lean docs stay authoritative.
+   exception is each module's `README.md`, which lists its theorems and what they assume, with a
+   short summary each and whether each contract holds for the code; the Lean docs stay
+   authoritative.
 7. A contract's doc is its statement as a short formula over the Rust calls, e.g.
    `` `recover_i(m, vs) = Ok(o)` ⇒ `verify_i(m, o.my_shares)` ``. Notation such as `f_i` is defined
    once, in the doc of the enclosing structure.
