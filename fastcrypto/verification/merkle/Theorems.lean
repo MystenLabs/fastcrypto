@@ -22,6 +22,8 @@ some `H`.
 * `verify_for_trusted_tree_sound`: against the root of a tree built by `MerkleTree`, it accepts
   a proof for index `i` only for the `i`th leaf, or `H` has a collision or a zero output.
 * `verify_for_trusted_tree_no_panic`: as `verify_no_panic`.
+* `verify_for_trusted_tree_with_unserialized_leaf_sound`: as `verify_for_trusted_tree_sound`, for
+  leaves serialized with BCS.
 
 `MerkleNonInclusionProof::verify_for_trusted_tree(root, target)`, for a root built by
 `MerkleTree` over sorted leaves:
@@ -222,5 +224,37 @@ theorem non_inclusion_no_panic (hm : HashModel inst H) {L : Type} (ord : core.cm
   have hle : ∀ a b, ∃ r, ord.partialOrdInst.le a b = ok r := fun a b => by
     rcases hlin.le_ok a b with h | h <;> exact ⟨_, h⟩
   exact ni_returns hm ord ser hb hle (fun a b => by rw [ho.ge_eq_le]; exact hle b a) pr root target
+
+/-- Soundness of `verify_for_trusted_tree_with_unserialized_leaf`. Let `hs` be the leaf hashes of
+the BCS serializations of `ls` (as `build_from_unserialized(ls)` computes them), and `root` the
+root of `build_from_leaf_hashes(hs)`. If `verify_for_trusted_tree_with_unserialized_leaf(root, l,
+i)` accepts a proof, of any length, then `i < ls.len()` and `l = ls[i]`, or `H` has a collision or
+a zero output. -/
+theorem verify_for_trusted_tree_with_unserialized_leaf_sound (hm : HashModel inst H) {L : Type}
+    (ser : serde_core.ser.Serialize L) (hser : BcsInjective ser) (ls : List L)
+    (hs : alloc.vec.Vec Node) (hlen : hs.val.length = ls.length)
+    (hleaves : ∀ j (hj : j < ls.length), ∃ v, bcs.ser.to_bytes ser ls[j] = ok (.Ok v) ∧
+      merkle.leaf_hash inst (alloc.vec.Vec.deref v) = ok (hs.val[j]'(by omega)))
+    (hn : 4 * hs.length ≤ Usize.max) (t : merkle.MerkleTree T)
+    (ht : merkle.MerkleTree.build_from_leaf_hashes inst hs = ok t) (root : Node)
+    (hr : merkle.MerkleTree.root inst t = ok root) (p : merkle.MerkleProof T) (l : L) (i : Usize)
+    (h : merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf inst ser p root l i =
+      ok (.Ok ())) :
+    (∃ hi : i.val < ls.length, l = ls[i.val]) ∨ Collision H ∨ ZeroHash H := by
+  have hroot := tree_root hm hs hn t ht root hr
+  obtain ⟨ys, hser', hys⟩ := exists_serialized hm ser ls hs.val hlen hleaves
+  rw [hroot, hys] at h
+  by_cases hy : ys = []
+  · subst hy
+    obtain ⟨v, -, hv⟩ := unserialized_ok ser p _ l i h
+    obtain ⟨-, -, hfold⟩ :=
+      (spec_of_eq_ok (verify_for_trusted_tree_spec hm p _ _ i) hv).mp rfl
+    have := isDigest_fold (H := H) (leafN H (alloc.vec.Vec.deref v).val) p.path.val i.val trivial
+    rw [hfold] at this
+    simp [rootOf, IsDigest] at this
+  rcases neighbor_sound hm ser hser ls ys hser' hy p l i h with hc | hz | ⟨hi, hl, -⟩
+  · exact Or.inr (Or.inl hc)
+  · exact Or.inr (Or.inr hz)
+  · exact Or.inl ⟨hi, hl⟩
 
 end MerkleProofs

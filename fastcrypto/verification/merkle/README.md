@@ -44,22 +44,28 @@ treats as `Node::Empty`.
 
 6. **`verify_for_trusted_tree_no_panic`.** As 3.
 
+7. **`verify_for_trusted_tree_with_unserialized_leaf_sound`.** As 4, for leaves serialized with
+   BCS: if `root` is the root of the tree that `build_from_unserialized(ls)` builds and
+   `verify_for_trusted_tree_with_unserialized_leaf` accepts a proof for index `i` and `l`, then
+   `i < n` and `l = ls[i]`, or `H` has a collision or a zero output. This needs `BcsInjective`,
+   listed [below](#what-is-assumed).
+
 ### `MerkleNonInclusionProof::verify_for_trusted_tree(root, target)`
 
-7. **`non_inclusion_sound`: a non-inclusion proof shows that the target is not a leaf.** Let `ls`
+8. **`non_inclusion_sound`: a non-inclusion proof shows that the target is not a leaf.** Let `ls`
    be sorted by `L`'s `<=`, and `root` the root of the tree that `build_from_unserialized(ls)`
    builds: `build_from_leaf_hashes` of the leaf hashes of `bcs::to_bytes(ls[j])`, with
    `4n ≤ usize::MAX`. If `verify_for_trusted_tree(root, target)` accepts a non-inclusion proof,
    then `target` is not in `ls`, or `H` has a collision or a zero output. This needs
    `OrdModel` and `BcsInjective`, listed [below](#what-is-assumed).
 
-8. **`non_inclusion_complete`: honest non-inclusion proofs are accepted.** For `ls`, the tree and
-   `4n ≤ usize::MAX` as in 7, and a `target` that is not in `ls`: building the tree and taking its
+9. **`non_inclusion_complete`: honest non-inclusion proofs are accepted.** For `ls`, the tree and
+   `4n ≤ usize::MAX` as in 8, and a `target` that is not in `ls`: building the tree and taking its
    `root()` do not panic, and `compute_non_inclusion_proof(ls, target)` returns a proof that
    `verify_for_trusted_tree(root, target)` accepts. This needs `OrdModel`, `LinearOrd`, `EqModel`,
    `CloneIsId` and `PartitionPointSpec`, listed [below](#what-is-assumed).
 
-9. **`non_inclusion_no_panic`: the verifier does not panic.** For every proof, root and target,
+10. **`non_inclusion_no_panic`: the verifier does not panic.** For every proof, root and target,
    `verify_for_trusted_tree` returns `Ok(())` or an error. This needs `BcsReturns`, `OrdModel` and
    `LinearOrd`, listed [below](#what-is-assumed).
 
@@ -106,7 +112,7 @@ it needs as hypotheses.
   reflexive, transitive and antisymmetric (`OrdModel`, `LinearOrd`). Rust requires all of these of
   an `Ord` impl. `==` is false for different values (`EqModel`), and `clone` returns its argument
   (`CloneIsId`).
-* **BCS**, for non-inclusion. `bcs::to_bytes` returns on every value (`BcsReturns`) and is
+* **BCS**, for leaves serialized with BCS. `bcs::to_bytes` returns on every value (`BcsReturns`) and is
   injective (`BcsInjective`).
 * **`partition_point`**, for `non_inclusion_complete`. It returns the partition index of a
   partitioned slice, as Rust documents (`PartitionPointSpec`).
