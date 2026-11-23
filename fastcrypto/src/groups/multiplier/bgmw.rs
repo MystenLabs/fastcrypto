@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::groups::multiplier::integer_utils::{compute_base_2w_expansion, div_ceil};
-use crate::groups::multiplier::ScalarMultiplier;
+use crate::groups::multiplier::{ScalarMultiplier, ToLittleEndianBytes};
 use crate::groups::{Doubling, GroupElement};
 use crate::serde_helpers::ToFromByteArray;
 
@@ -46,7 +46,7 @@ impl<
 
 impl<
         G: GroupElement<ScalarType = S> + Doubling,
-        S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
+        S: GroupElement + ToFromByteArray<SCALAR_SIZE> + ToLittleEndianBytes,
         const WIDTH: usize,
         const HEIGHT: usize,
         const SCALAR_SIZE: usize,
@@ -82,7 +82,7 @@ impl<
 
     fn mul(&self, scalar: &S) -> G {
         // Scalar as bytes in little-endian representation.
-        let scalar_bytes = scalar.to_byte_array();
+        let scalar_bytes = scalar.to_le_bytes();
 
         let base_2w_expansion = compute_base_2w_expansion(&scalar_bytes, Self::WINDOW_WIDTH);
 
