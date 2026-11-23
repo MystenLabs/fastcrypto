@@ -56,12 +56,14 @@ others also say that the call returns.
 | `response_verifies` | `ResponseVerifies.lean` | For receivers with the same `nodes`: `Rⱼ.process_message(m) = Ok(Valid(o))` and `Rⱼ.handle_complaint(m, i, c, o) = Ok(r)` ⇒ `Rᵢ.verify_complaint_response(m, j, r) = Ok(_)`. |
 | `recover_complete` | `RecoverComplete.lean` | `Rᵢ.process_message(m)` is not `Err`, each response in `vs` was returned by `Rᵢ.verify_complaint_response(m, …)`, the responders are distinct, `weight_of(j) = Ok(W(j))` with `t ≤ Σ W(j) ≤ u16::MAX`, and `share_ids_of(i)` is `Ok` ⇒ `Rᵢ.recover(m, vs)` returns `Ok(_)`. |
 | `feldman_binding` | `FeldmanBinding.lean` | `Rᵢ.process_message(m)` is not `Err` ⇒ there is a scalar polynomial `p` with `p.degree() < t` such that `sh.verify(m, ids, j) = Ok` ⇒ `sh.shares` and `ids` have the same length and the `n`-th share's value is `p.eval(ids[n]).value`. |
+| `recover_commitment` | `OutputCommitment.lean` | With `Poly::clone` the identity, `Rᵢ.recover(m, vs) = Ok(o)` ⇒ `o.feldman_commitment = m.feldman_commitment`. |
 | `verify_complete` | `VerifyComplete.lean` | `sh.verify(m, ids, j) = Ok` when the shares' indices are `ids`, in order, and each share passes `verify_share`. |
 | `complete_key_rotation_ok` | `KeyRotation.lean` | `complete_key_rotation(t, i, nodes, outputs) = Ok(dk)` ⇒ there are `t` outputs, and with `(c, λ)` the Lagrange coefficients for their indices, `dk`'s share at each `k` in `share_ids_of(i)` is `Σᵤ Vᵤ(k)·λᵤ·c`, where `Vᵤ(k)` is output `u`'s share at `k`. |
 
 Smaller lemmas on the way: the loops of `recover` and `all_distinct` (`Loops.lean`), and
 `check_message_commitment`, `check_message_degree` and `process_message_check`, which say what a
-message that passes `check_message` satisfies. `Result.lean` has the `ok_inv` tactic most proofs
+message that passes `check_message` satisfies, and `verify_message_commitment`: an output of
+`verify_message` carries the message's commitment. `Result.lean` has the `ok_inv` tactic most proofs
 use.
 
 ### What is assumed
@@ -72,7 +74,7 @@ lemma that needs it. They are about code outside `avss.rs`, which the translatio
 | Hypothesis | Statement | Lemmas |
 |---|---|---|
 | `CloneIsId` | `SharesForNode::clone` returns an equal value (it calls the `Clone` impls of opaque types). | `response_verifies`, `handle_accepts` |
-| `PolyCloneIsId` | `Poly::clone` returns an equal value. | `handle_accepts`, `recover_complete` |
+| `PolyCloneIsId` | `Poly::clone` returns an equal value. | `handle_accepts`, `recover_complete`, `recover_commitment` |
 | `PolyEqRefl` | `Poly::eq` of a polynomial with itself is `true`. | `handle_accepts` |
 | `RecoveryComplete` | The recovery proof is complete: for receivers configured alike, a complaint `Rᵢ.create_complaint` makes about a message whose shares `Rᵢ.verify_message` rejected is accepted by `Rⱼ.check_recovery_proof`. | `handle_accepts` |
 | `InterpolationComplete` | For a message that passes `Rᵢ.check_message`, the shares of responses `Rᵢ.verify_complaint_response` returned for distinct responders of total weight `≥ t` make `SharesForNode::recover` return shares that verify for `Rᵢ`. This rests on the `Nodes` functions and on interpolation. | `recover_complete` |

@@ -14,8 +14,10 @@ built on it, with the link to the code. Each file builds on the ones above it.
 | `Tob.lean` | Reading dealer certificates from the total-order broadcast (`Cert`, `accepted`, `Tob`, `TobRun`). |
 | `KeyRotation.lean` | Key rotation: receivers with a `commitment` and `complete_key_rotation` as black boxes (`RotationApi`, `RotationContracts`), and the instance resharing a share `s` (`RotationApi.at`). |
 | `Liveness.lean` | The TOB over time (`TobLive`) and DKG liveness. |
-| `Link.lean` | The `Api` of the generated code (`Link.api`), the proof of `Contracts` for it, and liveness, agreement and the honest-dealer theorem for the code. |
-| `LinkRotation.lean` | `process_matches_commitment` and `rotation_interpolates` for the generated code. |
+| `Link.lean` | The `Api` of the generated code (`Link.api`) and the proof of `Contracts` for it (`Link.contracts`). |
+| `LinkCommitment.lean` | The lemmas about Feldman commitments for the generated code: `output_commitment` and `process_matches_commitment`. |
+| `LinkRotation.lean` | `rotation_interpolates` for the generated code. |
+| `LinkTheorems.lean` | The hypotheses of the link together (`Link.Assumptions`), and liveness, agreement and the honest-dealer theorem for the generated code. |
 
 The group is not modelled: a commitment `G::generator() * x` is represented by `x`
 (`Api.committed`, `DkgApi.commitmentForIndex`).
@@ -64,11 +66,11 @@ column says how each holds for the generated code (`Link.api`): proved in `Link.
 | `feldman_binding` | A message accepted by any receiver binds all verifying shares to one polynomial of degree `< t`. | Proved (`feldman_binding`) |
 | `create_valid` | A message from `create_message` is valid for all receivers except with probability `≤ 1/|S|`. | Hypothesis (`CreateValid`) |
 | `create_secret` | The polynomial a message from `create_message` binds to has the dealer's `secret` as constant term. | Hypothesis (`CreateSecret`) |
-| `output_commitment` | An output's Feldman commitment at `k` commits to the value at `k` of the polynomial the message binds to. | Hypothesis (`OutputCommitment`) |
+| `output_commitment` | An output's Feldman commitment at `k` commits to the value at `k` of the polynomial the message binds to. | Proved (`LinkCommitment.output_commitment`, from `verify_message_commitment` and `recover_commitment`) |
 | `complete_sum` | `complete_dkg`'s shares are the sums of the dealers' shares. | Not linked: `complete_dkg` is not translated (it uses a `HashMap`) |
 | `complete_ok` | `complete_dkg` succeeds on distinct dealers of weight `≥ t` with shares at the same indices. | Not linked, as above |
 | `complete_commitments` | `complete_dkg`'s `commitment_for_index(k)` is the sum of the outputs' Feldman commitments at `k`. | Not linked, as above |
-| `process_matches_commitment` | A message accepted by a receiver with `commitment = g^s` binds to a polynomial with constant term `s`. | Proved (`LinkRotation.process_matches_commitment`) |
+| `process_matches_commitment` | A message accepted by a receiver with `commitment = g^s` binds to a polynomial with constant term `s`. | Proved (`LinkCommitment.process_matches_commitment`) |
 | `rotation_interpolates` | Each share from `complete_key_rotation` is `recover_c0` of the outputs' shares at that index. | Proved (`LinkRotation.rotation_interpolates`, from `complete_key_rotation_ok`) |
 | `rotation_commitments` | `complete_key_rotation`'s `commitment_for_index(k)` is the Lagrange combination of the outputs' Feldman commitments at `k`. | Not proved yet |
 
@@ -89,36 +91,42 @@ code.
   `process_message`).
 * The dealers stay abstract (`Link.Dealers`): their type, `create_message`'s distribution and their
   `secret`. So do `complete_dkg` and `commitment_for_index` (`LinkRotation.dkgApi`).
+* `committed o k` is the `x` with `o.feldman_commitment.eval(k) = G::generator() * x`.
 * `Link.Scalars` gives what `Api` needs and the code does not: the scalar field `F` and a map from
   secp256k1 scalars to it, `G::generator() * x` for `x` in `F` (`gen`), how a share index becomes a
   `NonZeroU16` (`ofIndex`), and the scalar-polynomial functions AVSS does not call
   (`rand_fixed_c0`, `add`, `mul`, `recover_c0`). `eval`, `degree_bound` and `c0` are the generated
   `Poly::eval`, `Poly::degree` and `Poly::c0`.
 
-`Link.contracts` proves `Contracts` for `Link.api` from the primitive lemmas, under their
-hypotheses (`../README.md`) and these, together `Link.Assumptions`:
+`Link.contracts` proves `Contracts` for `Link.api` from the lemmas about the code, under their
+hypotheses (`../README.md`) and these, which `LinkTheorems.lean` bundles as `Link.Assumptions`:
 
-* `CreateValid`, `CreateSecret`, `OutputCommitment`: the three lemmas the table lists as
-  hypotheses. The first two are about `create_message`'s distribution and the dealer, which is not
-  translated.
+* `CreateValid`, `CreateSecret`: the two lemmas the table lists as hypotheses. They are about
+  `create_message`'s distribution and the dealer, which is not translated.
+* `CommitmentOpening`: a commitment `c` of degree `d` opens to a scalar polynomial `p` of degree
+  `≤ d` such that `p.eval(k)` returns and `c.eval(k) = G::generator() * p.eval(k)` for every `k`, a
+  share passes `verify_share` exactly when its value is `p.eval` at its index, and
+  `c.c0() = G::generator() * p.c0()`. It implies `CommitmentBinding`, which `feldman_binding`
+  needs.
+* `gen` is injective.
+* `SharesCoverT`: the parties' share ids include `t` distinct indices.
+* `EvalDetermined`: scalar polynomials of degree `< t` that agree at `t` distinct indices agree at
+  every index. Shamir's lemmas only give this for `c0`; `output_commitment` needs it at every
+  index.
 * `NonZeroModel`: `NonZeroU16::get` returns a positive value that determines the `NonZeroU16`, and
   `get()` of `ofIndex(k)` is `k`.
 * Every party has share ids (`share_ids_of(j)` is `Ok`), and the weights of any set of parties add
   up to at most `u16::MAX`.
 * `process_message` returns, without a panic, for every party and message.
 
-`LinkRotation.process_matches_commitment` also assumes:
+`LinkCommitment.process_matches_commitment` assumes `CommitmentOpening`, `gen` injective,
+`SharesCoverT` and `NonZeroModel`, and also `PointEqSound` (`==` on secp256k1 points is `true`
+only for equal points) and `Shamir.Contracts` for the link's scalar-polynomial functions (only
+`recover_c0` is used).
 
-* `CommitmentOpening` (which implies `CommitmentBinding`): a commitment `c` of degree `d` opens to a
-  scalar polynomial `p` of degree `≤ d` whose `eval` returns, a share passes `verify_share` exactly
-  when its value is `p.eval` at its index, and `c.c0() = G::generator() * p.c0()`.
-* `gen` is injective, and `PointEqSound`: `==` on secp256k1 points is `true` only for equal points.
-* `SharesCoverT`: the parties' share ids include `t` distinct indices.
-* `Shamir.Contracts` for the link's scalar-polynomial functions (only `recover_c0` is used).
-
-`LinkRotation.rotation_interpolates` also assumes `ScalarHom` and `LagrangeRecover`: `recover_c0` is
-`Σⱼ yⱼ·λⱼ·c` for the coefficients `(c, λ)` that `get_lagrange_coefficients_for_c0` returns for the
-same indices, as `recover_c0` computes it.
+`LinkRotation.rotation_interpolates` assumes `ScalarHom`, `NonZeroModel` and `LagrangeRecover`:
+`recover_c0` is `Σⱼ yⱼ·λⱼ·c` for the coefficients `(c, λ)` that
+`get_lagrange_coefficients_for_c0` returns for the same indices, as `recover_c0` computes it.
 
 The Verus proofs of some of the lemmas are in
 [MystenLabs/fastcrypto#1155](https://github.com/MystenLabs/fastcrypto/pull/1155).
