@@ -392,4 +392,62 @@ lemma isDigest_fold : ∀ (c : Node) (ps : List Node) (i : Nat), IsDigest c → 
   | _, [], _, h => h
   | c, s :: ps, i, _ => isDigest_fold (step H c s i) ps (i / 2) (isDigest_step H c s i)
 
+/-! ## No panics -/
+
+/-- `bcs::to_bytes` returns, `Ok` or `Err`, on every value. -/
+def BcsReturns {L : Type} (ser : serde_core.ser.Serialize L) : Prop :=
+  ∀ a, ∃ r, bcs.ser.to_bytes ser a = ok r
+
+lemma ret_bind {α β : Type _} {m : Result α} {f : α → Result β} (hm : ∃ x, m = ok x)
+    (hf : ∀ x, ∃ y, f x = ok y) : ∃ y, (m >>= f) = ok y := by
+  obtain ⟨x, rfl⟩ := hm
+  simpa using hf x
+
+lemma unserialized_returns (hm : HashModel inst H) {L : Type} (ser : serde_core.ser.Serialize L)
+    (hb : BcsReturns ser) (p : merkle.MerkleProof T) (root : Node) (l : L) (i : Usize) :
+    ∃ r, merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf inst ser p root l i =
+      ok r := by
+  unfold merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf
+  obtain ⟨r, hr⟩ := hb l
+  rw [hr, bind_ok]
+  cases r with
+  | Ok v =>
+    obtain ⟨x, hx, -⟩ := spec_eq_ok (verify_for_trusted_tree_spec hm p root (alloc.vec.Vec.deref v) i)
+    simp [core.result.Result.map_err, core.result.Result.Insts.CoreOpsTry.branch, hx]
+  | Err e =>
+    simp [core.result.Result.map_err, core.result.Result.Insts.CoreOpsTry.branch, from_residual_eq,
+      merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf.closure.Insts.CoreOpsFunctionFnOnceTupleErrorFastCryptoError.call_once]
+
+/-- `MerkleNonInclusionProof::verify_for_trusted_tree` returns on every input if `bcs::to_bytes`,
+`<=` and `>=` do. -/
+lemma ni_returns (hm : HashModel inst H) {L : Type} (ord : core.cmp.Ord L)
+    (ser : serde_core.ser.Serialize L) (hb : BcsReturns ser)
+    (hle : ∀ a b, ∃ r, ord.partialOrdInst.le a b = ok r)
+    (hge : ∀ a b, ∃ r, ord.partialOrdInst.ge a b = ok r)
+    (pr : merkle.MerkleNonInclusionProof L T) (root : Node) (t : L) :
+    ∃ r, merkle.MerkleNonInclusionProof.verify_for_trusted_tree inst ord ser pr root t = ok r := by
+  have hu := unserialized_returns hm ser hb
+  have hrm : ∀ (p : merkle.MerkleProof T) j, ∃ r, merkle.MerkleProof.is_right_most inst p j = ok r :=
+    fun p j => by obtain ⟨r, hr, -⟩ := spec_eq_ok (is_right_most_spec (inst := inst) p j); exact ⟨r, hr⟩
+  have hbr : ∀ (w : core.result.Result Unit error.FastCryptoError),
+      ∃ r, core.result.Result.Insts.CoreOpsTry.branch w = ok r := fun w => by
+    cases w <;> exact ⟨_, rfl⟩
+  obtain ⟨s, hs, s1, hs1, heq⟩ := root_check root
+  unfold merkle.MerkleNonInclusionProof.verify_for_trusted_tree
+  simp only [hs, hs1, heq, bind_ok, merkle.MerkleNonInclusionProof.is_valid_neighbor,
+    core.cmp.impls.PartialOrdShared.ge, core.cmp.impls.PartialOrdShared.le, lift, from_residual_eq]
+  rcases checked_sub_one pr.index with ⟨j, hj, -⟩ | ⟨hj, -⟩ <;> rw [hj] <;>
+    simp only [bind_ok] <;>
+    rcases hl : pr.left_leaf with _ | ⟨l, lp⟩ <;> simp only [bind_ok, Std.uncurry_apply_pair]
+  all_goals repeat' (first
+    | exact ⟨_, rfl⟩
+    | exact hu _ _ _ _
+    | exact hle _ _
+    | exact hge _ _
+    | exact hrm _ _
+    | exact hbr _
+    | apply ret_bind
+    | intro _
+    | split)
+
 end MerkleProofs

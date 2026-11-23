@@ -63,6 +63,10 @@ bytes.
    `verify_for_trusted_tree(root, target)` accepts. This needs `OrdModel`, `LinearOrd`, `EqModel`,
    `CloneIsId` and `PartitionPointSpec`, listed [below](#what-is-assumed).
 
+9. **`non_inclusion_no_panic`: the verifier does not panic.** For every proof, root and target,
+   `verify_for_trusted_tree` returns `Ok(())` or an error. This needs `BcsReturns`, `OrdModel` and
+   `LinearOrd`, listed [below](#what-is-assumed).
+
 ## Files
 
 | File | Contents |
@@ -74,7 +78,7 @@ bytes.
 | `Build.lean` | `build_from_leaf_hashes` returns the concatenated `levels` of the leaf hashes, and `root` returns `rootOf` (`build_spec`, `root_spec`). |
 | `GetProof.lean` | `get_proof(i)` returns `pathOf(i)` (`get_proof_spec`). |
 | `Verify.lean` | What `hash_along_path`, `expected_proof_length`, `compute_root`, `verify` and `verify_for_trusted_tree` return (`verify_spec`, `verify_for_trusted_tree_spec`, `expected_proof_length_spec`, ...). |
-| `NonInclusion.lean` | What `is_right_most`, `verify_for_trusted_tree_with_unserialized_leaf` and `MerkleNonInclusionProof::verify_for_trusted_tree` check (`is_right_most_spec`, `ni_accepts`), the assumptions `OrdModel` and `BcsInjective`, and soundness against the model root (`ni_sound`). |
+| `NonInclusion.lean` | What `is_right_most`, `verify_for_trusted_tree_with_unserialized_leaf` and `MerkleNonInclusionProof::verify_for_trusted_tree` check (`is_right_most_spec`, `ni_accepts`), the assumptions `OrdModel`, `BcsInjective` and `BcsReturns`, soundness against the model root (`ni_sound`), and that the verifier returns (`ni_returns`). |
 | `NonInclusionComplete.lean` | What `compute_non_inclusion_proof` returns (`compute_spec`), that `verify_for_trusted_tree` accepts it (`ni_complete`), and the assumptions `PartitionPointSpec`, `LinearOrd`, `EqModel` and `CloneIsId`. |
 | `Result.lean` | From a Hoare triple about a generated function to what it returns, and the `ok_inv` tactic. |
 | `Generated/` | The translation of `merkle.rs`, made by `extract.sh`. The `hash` module is opaque except for `Digest`, and so are `bcs` and serde. |
@@ -100,11 +104,13 @@ release named in `extract.sh` and run `CHARON=... AENEAS=... ./extract.sh`.
 * For the non-inclusion theorems, hypotheses about the leaf type `L` and the standard library.
   Each is a `def` or `structure` in the file named, and each theorem lists the ones it takes.
   * `OrdModel` (`NonInclusion.lean`): `L`'s `PartialOrd` impl has `a >= b` equal to `b <= a`, and
-    `a <= a`. Rust requires both of any `Ord` impl. Used by 7 and 8.
+    `a <= a`. Rust requires both of any `Ord` impl. Used by 7, 8 and 9.
   * `BcsInjective` (`NonInclusion.lean`): `bcs::to_bytes` does not serialize two different values
     to the same bytes. Used by 7. `bcs::to_bytes` itself stays an axiom.
+  * `BcsReturns` (`NonInclusion.lean`): `bcs::to_bytes` returns, `Ok` or `Err`, on every value.
+    Used by 9.
   * `LinearOrd` (`NonInclusionComplete.lean`): `L`'s `<=` returns, and is transitive and
-    antisymmetric. Rust requires both of any `Ord` impl. Used by 8.
+    antisymmetric. Rust requires both of any `Ord` impl. Used by 8 and 9.
   * `EqModel` (`NonInclusionComplete.lean`): `L`'s `==` returns `false` for different values.
     Used by 8.
   * `CloneIsId` (`NonInclusionComplete.lean`): `L`'s `clone` returns its argument. Used by 8.
@@ -124,5 +130,3 @@ release named in `extract.sh` and run `CHARON=... AENEAS=... ./extract.sh`.
   translate their loops over a generic `IntoIterator`. Both push `leaf_hash` of each leaf and call
   `build_from_leaf_hashes`, which is why the completeness theorems are stated for leaves whose
   `leaf_hash` is the `i`th leaf hash.
-* That `MerkleNonInclusionProof::verify_for_trusted_tree` does not panic. It calls
-  `bcs::to_bytes` and `L`'s `<=` and `>=`, which are opaque.

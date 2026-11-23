@@ -29,6 +29,7 @@ some `H`.
   output.
 * `non_inclusion_complete`: for a `target` that is not a leaf, `compute_non_inclusion_proof`
   returns a proof that it accepts.
+* `non_inclusion_no_panic`: it returns on every input.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -209,5 +210,17 @@ theorem non_inclusion_complete (hm : HashModel inst H) (hpp : PartitionPointSpec
   rw [hys] at hnodes
   exact ni_complete hm hpp ord ser cl ho hlin heqm hcl leaves hsort ys hser (by omega) t hnodes
     (by rw [hnl, hyl]) target hnot
+
+/-- `MerkleNonInclusionProof::verify_for_trusted_tree` does not panic: for every proof, root and
+target, it returns `Ok(())` or an error. -/
+theorem non_inclusion_no_panic (hm : HashModel inst H) {L : Type} (ord : core.cmp.Ord L)
+    (ser : serde_core.ser.Serialize L) (hb : BcsReturns ser) (ho : OrdModel ord.partialOrdInst)
+    (hlin : LinearOrd ord.partialOrdInst) (pr : merkle.MerkleNonInclusionProof L T) (root : Node)
+    (target : L) :
+    ∃ r, merkle.MerkleNonInclusionProof.verify_for_trusted_tree inst ord ser pr root target =
+      ok r := by
+  have hle : ∀ a b, ∃ r, ord.partialOrdInst.le a b = ok r := fun a b => by
+    rcases hlin.le_ok a b with h | h <;> exact ⟨_, h⟩
+  exact ni_returns hm ord ser hb hle (fun a b => by rw [ho.ge_eq_le]; exact hle b a) pr root target
 
 end MerkleProofs
