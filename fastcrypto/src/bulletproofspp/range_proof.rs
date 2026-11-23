@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use crate::bulletproofspp::circuit::{self, CircuitParams, CircuitProof};
 use crate::bulletproofspp::crs::Generators;
-use crate::bulletproofspp::transcript::BpppTranscript;
+use crate::bulletproofspp::transcript::{BpppTranscript, Label};
 
 pub use crate::pedersen::Range;
 
@@ -29,10 +29,10 @@ pub struct RangeProof {
 /// The Fiat-Shamir transcript, binding the caller's domain separation tag
 /// and the statement dimensions before any commitment is absorbed.
 fn transcript(dst: &[u8], n_bits: usize, m: usize) -> BpppTranscript {
-    let mut t = BpppTranscript::new(b"fastcrypto-bppp-range-proof-01");
-    t.append_message(b"dst", dst);
-    t.append_u64(b"n_bits", n_bits as u64);
-    t.append_u64(b"m", m as u64);
+    let mut t = BpppTranscript::new(Label::RangeProof);
+    t.append_message(Label::Dst, dst);
+    t.append_u64(Label::NBits, n_bits as u64);
+    t.append_u64(Label::M, m as u64);
     t
 }
 

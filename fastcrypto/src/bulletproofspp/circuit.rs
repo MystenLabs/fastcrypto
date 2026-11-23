@@ -21,7 +21,7 @@ use crate::bulletproofspp::constraints::Constraints;
 use crate::bulletproofspp::crs::{compatible_with_pedersen_commitments, Generators, BASE, H_LEN};
 use crate::bulletproofspp::laurent::Laurent;
 use crate::bulletproofspp::norm_linear::{self, NormLinearProof, Opening};
-use crate::bulletproofspp::transcript::BpppTranscript;
+use crate::bulletproofspp::transcript::{BpppTranscript, Label};
 use crate::bulletproofspp::util::*;
 
 type S = RistrettoScalar;
@@ -424,40 +424,40 @@ fn prove_witness(
     reciprocals_of: &dyn Fn(S) -> FastCryptoResult<Vec<S>>,
 ) -> FastCryptoResult<(CircuitProof, Vec<PedersenCommitment>)> {
     let v_commitments = witness.input_commitments(gens)?;
-    transcript.domain_sep(b"bppp_circuit");
-    transcript.append_commits(b"V", &v_commitments);
+    transcript.domain_sep(Label::Circuit);
+    transcript.append_commits(Label::V, &v_commitments);
 
     // Step 1: commit digits (C_L) and shared multiplicities (C_O).
     let c_l = gens.commit(&message_opening(&witness.r_l, witness.n_l.clone()))?;
     let c_o = gens.commit(&message_opening(&witness.r_o, witness.n_o.clone()))?;
-    transcript.append_point(b"C_L", &c_l);
-    transcript.append_point(b"C_O", &c_o);
+    transcript.append_point(Label::CL, &c_l);
+    transcript.append_point(Label::CO, &c_o);
 
     // Step 2: reciprocal challenge, drawn after the digits and
     // multiplicities are committed.
-    let alpha = transcript.challenge_scalar(b"alpha");
+    let alpha = transcript.challenge_scalar(Label::Alpha);
 
     // Step 3: commit the reciprocals (C_R).
     let n_r = reciprocals_of(alpha)?;
     let c_r = gens.commit(&message_opening(&witness.r_r, n_r.clone()))?;
-    transcript.append_point(b"C_R", &c_r);
+    transcript.append_point(Label::CR, &c_r);
 
     // Step 4: constraint challenges. The paper's `delta`, which scales C_O,
     // is fixed to 1: the shape rows already force the input coordinates it
     // separates C_O from to zero.
-    let rho = transcript.challenge_scalar(b"rho");
-    let lambda = transcript.challenge_scalar(b"lambda");
-    let beta = transcript.challenge_scalar(b"beta");
+    let rho = transcript.challenge_scalar(Label::Rho);
+    let lambda = transcript.challenge_scalar(Label::Lambda);
+    let beta = transcript.challenge_scalar(Label::Beta);
     let mu = rho * rho;
     let constraints = Constraints::new(params, alpha, mu, lambda)?;
 
     // Step 5: commit to C_S.
     let c = c(&constraints, beta);
     let (c_s, opening) = commit_c_s(gens, params, &constraints, witness, n_r, &c, beta)?;
-    transcript.append_point(b"C_S", &c_s);
+    transcript.append_point(Label::CS, &c_s);
 
     // Step 6: evaluation point, drawn after every commitment.
-    let tau = transcript.challenge_scalar(b"tau");
+    let tau = transcript.challenge_scalar(Label::Tau);
 
     // Step 7: evaluate the opening of C(tau) and run the norm-linear argument.
     let nl_proof = norm_linear::prove(transcript, gens, &c.eval(tau)?, rho, &opening.eval(tau)?)?;
@@ -485,18 +485,18 @@ pub(crate) fn verify(
     if v_commitments.len() != params.m || gens.g_vec.len() != params.nm {
         return Err(FastCryptoError::InvalidInput);
     }
-    transcript.domain_sep(b"bppp_circuit");
-    transcript.append_commits(b"V", v_commitments);
-    transcript.append_point(b"C_L", &proof.c_l);
-    transcript.append_point(b"C_O", &proof.c_o);
-    let alpha = transcript.challenge_scalar(b"alpha");
-    transcript.append_point(b"C_R", &proof.c_r);
-    let rho = transcript.challenge_scalar(b"rho");
-    let lambda = transcript.challenge_scalar(b"lambda");
-    let beta = transcript.challenge_scalar(b"beta");
+    transcript.domain_sep(Label::Circuit);
+    transcript.append_commits(Label::V, v_commitments);
+    transcript.append_point(Label::CL, &proof.c_l);
+    transcript.append_point(Label::CO, &proof.c_o);
+    let alpha = transcript.challenge_scalar(Label::Alpha);
+    transcript.append_point(Label::CR, &proof.c_r);
+    let rho = transcript.challenge_scalar(Label::Rho);
+    let lambda = transcript.challenge_scalar(Label::Lambda);
+    let beta = transcript.challenge_scalar(Label::Beta);
     let mu = rho * rho;
-    transcript.append_point(b"C_S", &proof.c_s);
-    let tau = transcript.challenge_scalar(b"tau");
+    transcript.append_point(Label::CS, &proof.c_s);
+    let tau = transcript.challenge_scalar(Label::Tau);
     let tau_pow = |power: i32| Laurent::monomial(power, one()).eval(tau);
 
     let constraints = Constraints::new(params, alpha, mu, lambda)?;
@@ -589,7 +589,7 @@ mod tests {
         let params = CircuitParams::new(range, values.len()).unwrap();
         let gens = Generators::new(params.nm).unwrap();
         let blindings: Vec<S> = (0..values.len()).map(|_| S::rand(&mut rng)).collect();
-        let mut t = BpppTranscript::new(b"test");
+        let mut t = BpppTranscript::new(Label::Test(b"test"));
         let (proof, v_commitments) =
             prove(&mut t, &gens, &params, &mut rng, values, &blindings).unwrap();
         (gens, params, proof, v_commitments)
@@ -601,7 +601,7 @@ mod tests {
         proof: &CircuitProof,
         v_commitments: &[PedersenCommitment],
     ) -> FastCryptoResult<()> {
-        let mut t = BpppTranscript::new(b"test");
+        let mut t = BpppTranscript::new(Label::Test(b"test"));
         verify(&mut t, gens, params, proof, v_commitments)
     }
 
@@ -730,7 +730,7 @@ mod tests {
         let params = CircuitParams::new(Range::Bits16, 2).unwrap();
         let gens = Generators::new(params.nm).unwrap();
         let blindings = vec![S::rand(&mut rng), S::rand(&mut rng)];
-        let mut t = BpppTranscript::new(b"test");
+        let mut t = BpppTranscript::new(Label::Test(b"test"));
         assert_eq!(
             prove(&mut t, &gens, &params, &mut rng, &[1, 1 << 16], &blindings).unwrap_err(),
             FastCryptoError::InvalidInput
@@ -774,7 +774,7 @@ mod tests {
     #[test]
     fn test_transcript_binding() {
         let (gens, params, proof, v_commitments) = prove_batch(Range::Bits64, &[42]);
-        let mut t = BpppTranscript::new(b"other");
+        let mut t = BpppTranscript::new(Label::Test(b"other"));
         assert!(verify(&mut t, &gens, &params, &proof, &v_commitments).is_err());
     }
 
@@ -802,7 +802,7 @@ mod tests {
         let m = witness.values.len();
         let params = CircuitParams::new(range, m).unwrap();
         let gens = Generators::new(params.nm).unwrap();
-        let mut t = BpppTranscript::new(b"test");
+        let mut t = BpppTranscript::new(Label::Test(b"test"));
         let honest = |alpha| reciprocals(&params, &witness.n_l, alpha);
         let (proof, v_commitments) = prove_witness(
             &mut t,
@@ -812,7 +812,7 @@ mod tests {
             bad_reciprocals.unwrap_or(&honest),
         )
         .unwrap();
-        let mut t = BpppTranscript::new(b"test");
+        let mut t = BpppTranscript::new(Label::Test(b"test"));
         verify(&mut t, &gens, &params, &proof, &v_commitments)
     }
 

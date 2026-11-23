@@ -10,7 +10,7 @@
 //! than 6 scalars remain, which are then sent in the clear.
 
 use crate::bulletproofspp::crs::{Generators, BASE, H_LEN};
-use crate::bulletproofspp::transcript::BpppTranscript;
+use crate::bulletproofspp::transcript::{BpppTranscript, Label};
 use crate::bulletproofspp::util::*;
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
@@ -138,8 +138,8 @@ pub(crate) fn prove(
     debug_assert_eq!(l.len(), c.len());
     debug_assert_eq!(l.len(), gens.h_vec.len());
     debug_assert_eq!(n.len(), gens.g_vec.len());
-    transcript.domain_sep(b"norm_linear");
-    let mut bases = LazyBases::new(gens);
+    transcript.domain_sep(Label::NormLinear);
+    let mut bases = LazyBases::new();
     let (mut c, mut rho, mut l, mut n) = (c.to_vec(), rho, l.to_vec(), n.to_vec());
     let mut rounds = Vec::new();
     while !is_base_case(l.len(), n.len()) {
@@ -160,15 +160,14 @@ pub(crate) fn prove(
 
         // X carries the cross terms and R the odd-odd terms.
         let x_point = bases.msm(
+            gens,
             vx,
             &interleave(&l1, &l0),
             &interleave(&vec_scalar_mul(rho, &n1), &vec_scalar_mul(rho_inv, &n0)),
         )?;
-        let r_point = bases.msm(vr, &odd_only(&l1), &odd_only(&n1))?;
+        let r_point = bases.msm(gens, vr, &odd_only(&l1), &odd_only(&n1))?;
 
-        transcript.append_point(b"X", &x_point);
-        transcript.append_point(b"R", &r_point);
-        let gamma = transcript.challenge_scalar(b"gamma");
+        let gamma = round_challenge(transcript, &x_point, &r_point);
 
         bases = bases.fold(rho, gamma);
         c = vec_add(&c0, &vec_scalar_mul(gamma, &c1));
@@ -177,8 +176,8 @@ pub(crate) fn prove(
         rho = mu;
         rounds.push((x_point, r_point));
     }
-    transcript.append_scalars(b"l_final", &l);
-    transcript.append_scalars(b"n_final", &n);
+    transcript.append_scalars(Label::LFinal, &l);
+    transcript.append_scalars(Label::NFinal, &n);
     debug_assert_eq!(l.len(), 1);
     Ok(NormLinearProof {
         rounds,
@@ -235,14 +234,12 @@ pub(crate) fn verify(
     let mut w_h = Weights::new();
     let mut w_g = Weights::new();
 
-    transcript.domain_sep(b"norm_linear");
+    transcript.domain_sep(Label::NormLinear);
 
     let mut r = 0;
     while r < proof.rounds.len() {
-        let (x_point, r_point) = &proof.rounds[r];
-        transcript.append_point(b"X", x_point);
-        transcript.append_point(b"R", r_point);
-        let gamma = transcript.challenge_scalar(b"gamma");
+        let (x_point, r_point) = proof.rounds[r];
+        let gamma = round_challenge(transcript, &x_point, &r_point);
         gammas.push(gamma);
         w_h = w_h.tensor_pair(one(), gamma);
         w_g = w_g.tensor_pair(rho, gamma);
@@ -256,8 +253,8 @@ pub(crate) fn verify(
         r += 1;
     }
 
-    transcript.append_scalars(b"l_final", std::slice::from_ref(&proof.l_final));
-    transcript.append_scalars(b"n_final", &proof.n_final);
+    transcript.append_scalars(Label::LFinal, std::slice::from_ref(&proof.l_final));
+    transcript.append_scalars(Label::NFinal, &proof.n_final);
 
     // `c` folds exactly as `l` did, so it is a single scalar here too.
     debug_assert_eq!(c.len(), 1);
@@ -303,16 +300,16 @@ pub(crate) fn verify(
 
 /// The current round's bases `H`, `G_vec`, folded lazily: folds are kept
 /// as weights and materialised every [FOLD_BATCH_ROUNDS] rounds.
-struct LazyBases<'a> {
-    points: BasePoints<'a>,
+struct LazyBases {
+    points: BasePoints,
     w_h: Weights,
     w_g: Weights,
 }
 
-impl<'a> LazyBases<'a> {
-    fn new(gens: &'a Generators) -> Self {
+impl LazyBases {
+    fn new() -> Self {
         LazyBases {
-            points: BasePoints::Crs(gens),
+            points: BasePoints::Crs,
             w_h: Weights::new(),
             w_g: Weights::new(),
         }
@@ -330,10 +327,13 @@ impl<'a> LazyBases<'a> {
     }
 
     /// The base `G` and the `(h_vec, g_vec)` vectors the weights currently
-    /// apply to.
-    fn points(&self) -> (RistrettoPoint, (&[RistrettoPoint], &[RistrettoPoint])) {
+    /// apply to, where `gens` is the CRS the bases started from.
+    fn points<'a>(
+        &'a self,
+        gens: &'a Generators,
+    ) -> (RistrettoPoint, (&'a [RistrettoPoint], &'a [RistrettoPoint])) {
         match &self.points {
-            BasePoints::Crs(gens) => (gens.g, (&gens.h_vec, &gens.g_vec)),
+            BasePoints::Crs => (gens.g, (&gens.h_vec, &gens.g_vec)),
             BasePoints::Folded {
                 g,
                 folded: (h_vec, g_vec),
@@ -343,32 +343,33 @@ impl<'a> LazyBases<'a> {
 
     /// The lengths of the `(h_vec, g_vec)` vectors the weights currently
     /// apply to.
-    fn len(&self) -> (usize, usize) {
-        let (_, (h_vec, g_vec)) = self.points();
+    fn len(&self, gens: &Generators) -> (usize, usize) {
+        let (_, (h_vec, g_vec)) = self.points(gens);
         (h_vec.len(), g_vec.len())
     }
 
     /// `sigma*G + <l, H> + <n, G_vec>` over the current bases.
     fn msm(
         &mut self,
+        gens: &Generators,
         sigma: RistrettoScalar,
         l: &[RistrettoScalar],
         n: &[RistrettoScalar],
     ) -> FastCryptoResult<RistrettoPoint> {
         // Fold the points every few rounds to keep the MSMs small.
         if self.w_h.len() == 1 << FOLD_BATCH_ROUNDS {
-            let (g, (h_vec, g_vec)) = self.points();
+            let (g, (h_vec, g_vec)) = self.points(gens);
             let folded = (self.w_h.contract(h_vec)?, self.w_g.contract(g_vec)?);
             self.points = BasePoints::Folded { g, folded };
             self.w_h = Weights::new();
             self.w_g = Weights::new();
         }
 
-        let (h_len, g_len) = self.len();
+        let (h_len, g_len) = self.len(gens);
         let h_scalars = self.w_h.tensor(l, h_len);
         let g_scalars = self.w_g.tensor(n, g_len);
         match &self.points {
-            BasePoints::Crs(gens) => gens.msm(sigma, &h_scalars, &g_scalars, &[], &[]),
+            BasePoints::Crs => gens.msm(sigma, &h_scalars, &g_scalars, &[], &[]),
             BasePoints::Folded {
                 g,
                 folded: (h_vec, g_vec),
@@ -388,9 +389,11 @@ impl<'a> LazyBases<'a> {
     }
 }
 
-/// The points the pending fold weights of [LazyBases] apply to.
-enum BasePoints<'a> {
-    Crs(&'a Generators),
+/// The points the pending fold weights of [LazyBases] apply to: those of the
+/// CRS, or folded ones. There is one per proof, so its size does not matter.
+#[allow(clippy::large_enum_variant)]
+enum BasePoints {
+    Crs,
     Folded {
         g: RistrettoPoint,
         folded: (Vec<RistrettoPoint>, Vec<RistrettoPoint>),
@@ -458,6 +461,17 @@ impl Weights {
         }
         Ok(out)
     }
+}
+
+/// Absorb a round's `(X, R)` and draw its challenge `gamma`.
+fn round_challenge(
+    transcript: &mut BpppTranscript,
+    x_point: &RistrettoPoint,
+    r_point: &RistrettoPoint,
+) -> RistrettoScalar {
+    transcript.append_point(Label::X, x_point);
+    transcript.append_point(Label::R, r_point);
+    transcript.challenge_scalar(Label::Gamma)
 }
 
 /// Whether vectors of these lengths are sent in the clear instead of folded.
@@ -615,12 +629,12 @@ mod tests {
     }
 
     fn prove_instance(inst: &Instance) -> NormLinearProof {
-        let mut t = BpppTranscript::new(b"test");
+        let mut t = BpppTranscript::new(Label::Test(b"test"));
         prove(&mut t, &inst.gens, &inst.c, inst.rho, &inst.opening).unwrap()
     }
 
     fn verify_instance(inst: &Instance, proof: &NormLinearProof) -> FastCryptoResult<()> {
-        let mut t = BpppTranscript::new(b"test");
+        let mut t = BpppTranscript::new(Label::Test(b"test"));
         verify(
             &mut t,
             &inst.gens,
@@ -779,19 +793,19 @@ mod tests {
     fn test_folded_generators_are_nondegenerate() {
         for (l_len, n_len) in [(8, 15), (8, 16), (3, 5), (7, 13), (5, 31)] {
             let inst = random_instance(l_len, n_len);
-            let mut t = BpppTranscript::new(b"test");
+            let mut t = BpppTranscript::new(Label::Test(b"test"));
             let mut h_vec = inst.gens.h_vec.clone();
             let mut g_vec = inst.gens.g_vec.clone();
             let mut rho = inst.rho;
             let mut mu = rho * rho;
             let proof = prove(&mut t, &inst.gens, &inst.c, inst.rho, &inst.opening).unwrap();
 
-            let mut t = BpppTranscript::new(b"test");
-            t.domain_sep(b"norm_linear");
+            let mut t = BpppTranscript::new(Label::Test(b"test"));
+            t.domain_sep(Label::NormLinear);
             for (x, r) in &proof.rounds {
-                t.append_point(b"X", x);
-                t.append_point(b"R", r);
-                let gamma = t.challenge_scalar(b"gamma");
+                t.append_point(Label::X, x);
+                t.append_point(Label::R, r);
+                let gamma = t.challenge_scalar(Label::Gamma);
                 h_vec = fold_points(&h_vec, one(), gamma);
                 g_vec = fold_points(&g_vec, rho, gamma);
                 rho = mu;
