@@ -17,6 +17,9 @@ set_option linter.unusedSectionVars false
 variable {F : Type} [Field F] [DecidableEq F] {φ : groups.ristretto255.RistrettoScalar → F}
 
 local notation "S" => groups.ristretto255.RistrettoScalar
+local notation "P" => groups.ristretto255.RistrettoPoint
+
+variable {E : Type} [AddCommGroup E] [Module F E] [DecidableEq E] {ψ : P → E}
 
 lemma odd_only_spec (hs : ScalarModel F φ) (odd : Slice S) (h : 2 * odd.length ≤ Usize.max) :
     bulletproofspp.norm_linear.odd_only odd ⦃ r =>
@@ -350,5 +353,129 @@ lemma tensor_pair_spec (hs : ScalarModel F φ) (w : bulletproofspp.norm_linear.W
     have : (alloc.vec.Vec.len w).val = w.val.length := rfl
     simp [this]
   · rw [hrl, hsl, i1_post]; simp
+
+lemma scale_spec' (hs : ScalarModel F φ) (w : bulletproofspp.norm_linear.Weights) (c : S)
+    (len : Usize) :
+    bulletproofspp.norm_linear.Weights.scale w c len ⦃ r =>
+      r.val.map φ = ((toW φ w).scale (φ c)).take len.val ∧ r.length = min w.length len.val ⦄ := by
+  unfold bulletproofspp.norm_linear.Weights.scale bulletproofspp.norm_linear.Weights.scale_loop
+  have ew : w.length = w.val.length := rfl
+  set g := fun x => Bppp.NormLinear.sparse_mul (φ c) x with hg
+  have hmod : (toW φ w).scale (φ c) = (w.val.map φ).map g := by
+    simp [toW, Bppp.NormLinear.Weights.scale, hg]
+  rw [hmod]
+  apply loop.spec_decr_nat (fun q => w.length - q.2.2.val)
+    (fun q => q.1 = w ∧ q.2.2.val ≤ w.length ∧
+      q.2.1.val.map φ = (((w.val.map φ).take q.2.2.val).map g).take len.val ∧
+      q.2.1.length = min q.2.2.val len.val)
+  · rintro ⟨w', o, k⟩ ⟨hw', hk, heq, hol'⟩
+    dsimp only at hw' hk heq hol'
+    subst w'
+    unfold bulletproofspp.norm_linear.Weights.scale_loop.body
+    have eo : o.length = o.val.length := rfl
+    step*
+    · have hkl : k.val < w.val.length := by scalar_tac
+      have hlt : o.val.length < len.val := by scalar_tac
+      have hnot : k.val < len.val := by omega
+      apply WP.spec_bind (sparse_mul_spec hs c rs)
+      intro x hx
+      step*
+      have hlk : (((w.val.map φ).take k.val).map g).length = k.val := by simp; omega
+      have heq' := heq.trans (List.take_of_length_le (by rw [hlk]; omega))
+      have hj1 : j1.val = k.val + 1 := j1_post
+      refine ⟨by rw [hj1, ew]; omega, ?_, ?_, by rw [hj1]; omega⟩
+      · rw [out1_post, hj1, List.map_append, heq']
+        refine Eq.trans ?_ (List.take_of_length_le (by simp; omega)).symm
+        rw [List.take_succ_eq_append_getElem (by simpa using hkl)]
+        simp [hx, rs_post, hg]
+      · have : out1.val.length = o.val.length + 1 := by simp [out1_post]
+        show out1.val.length = _
+        rw [this, hj1, ← eo, hol']
+        omega
+    · have hge : len.val ≤ o.val.length := by scalar_tac
+      refine ⟨?_, ?_⟩
+      · rw [heq]
+        conv_rhs => rw [← List.take_append_drop k.val (w.val.map φ), List.map_append]
+        rw [List.take_append_of_le_length (by simp; omega)]
+      · rw [hol']; omega
+    · have hk' : k.val = w.val.length := by scalar_tac
+      have htk : (w.val.map φ).take k.val = w.val.map φ := List.take_of_length_le (by simp [hk'])
+      rw [htk] at heq
+      exact ⟨heq, by rw [hol', hk', ew]⟩
+  · exact ⟨rfl, by simp, by simp, by simp⟩
+
+/-- The pairs of `scalars` and `points` whose scalar is not zero, unzipped. -/
+def nonzero (sc : List F) (pts : List E) : List F × List E :=
+  (((List.zip sc pts).filter fun (s, _) => s ≠ 0).map Prod.fst,
+    ((List.zip sc pts).filter fun (s, _) => s ≠ 0).map Prod.snd)
+
+lemma nonzero_take_succ (sc : List F) (pts : List E) (k : ℕ) (hk1 : k < sc.length)
+    (hk2 : k < pts.length) :
+    nonzero (sc.take (k + 1)) (pts.take (k + 1)) =
+      if sc[k] ≠ 0 then ((nonzero (sc.take k) (pts.take k)).1 ++ [sc[k]],
+        (nonzero (sc.take k) (pts.take k)).2 ++ [pts[k]])
+      else nonzero (sc.take k) (pts.take k) := by
+  unfold nonzero
+  rw [List.take_succ_eq_append_getElem hk1, List.take_succ_eq_append_getElem hk2,
+    List.zip_append (by simp; omega), List.filter_append]
+  by_cases h : sc[k] = 0 <;> simp [h]
+
+lemma push_nonzero_spec (hs : ScalarModel F φ) (sc : alloc.vec.Vec S) (pts : alloc.vec.Vec P)
+    (scalars : Slice S) (points : Slice P)
+    (hsc : sc.length + scalars.length ≤ Usize.max) (hpts : pts.length + scalars.length ≤ Usize.max) :
+    bulletproofspp.norm_linear.push_nonzero sc pts scalars points ⦃ r =>
+      r.1.val.map φ = sc.val.map φ ++ (nonzero (scalars.val.map φ) (points.val.map ψ)).1 ∧
+      r.2.val.map ψ = pts.val.map ψ ++ (nonzero (scalars.val.map φ) (points.val.map ψ)).2 ∧
+      r.1.length ≤ sc.length + scalars.length ∧ r.2.length ≤ pts.length + scalars.length ⦄ := by
+  unfold bulletproofspp.norm_linear.push_nonzero bulletproofspp.norm_linear.push_nonzero_loop
+  have es : scalars.length = scalars.val.length := rfl
+  have ep : points.length = points.val.length := rfl
+  set n := min scalars.val.length points.val.length with hn
+  apply loop.spec_decr_nat (fun q => scalars.length - q.2.2.val)
+    (fun q => q.2.2.val ≤ n ∧
+      q.1.val.map φ = sc.val.map φ ++ (nonzero ((scalars.val.map φ).take q.2.2.val) ((points.val.map ψ).take q.2.2.val)).1 ∧
+      q.2.1.val.map ψ = pts.val.map ψ ++ (nonzero ((scalars.val.map φ).take q.2.2.val) ((points.val.map ψ).take q.2.2.val)).2 ∧
+      q.1.length ≤ sc.length + q.2.2.val ∧ q.2.1.length ≤ pts.length + q.2.2.val)
+  · rintro ⟨a, b, k⟩ ⟨hk, ha, hb, hal, hbl⟩
+    dsimp only at hk ha hb hal hbl
+    unfold bulletproofspp.norm_linear.push_nonzero_loop.body
+    simp only [hs.zero_eq, core.cmp.PartialEq.ne.trait_default, core.cmp.PartialEq.ne.default,
+      hs.eq, bind_ok, hs.φ_z]
+    have ea : a.length = a.val.length := rfl
+    have eb : b.length = b.val.length := rfl
+    have esc : sc.length = sc.val.length := rfl
+    have ept : pts.length = pts.val.length := rfl
+    step*
+    · have hk1 : k.val < scalars.val.length := by scalar_tac
+      have hk2 : k.val < points.val.length := by scalar_tac
+      have hZ := nonzero_take_succ ((scalars.val.map φ)) ((points.val.map ψ)) k.val
+        (by simpa using hk1) (by simpa using hk2)
+      by_cases h0 : φ rs = 0
+      · have : ¬ (φ (scalars.val[k.val]) ≠ 0) := by rw [← rs_post]; simpa using h0
+        simp only [h0, decide_true]
+        rw [if_neg (by decide)]
+        step*
+        refine ⟨by scalar_tac, ?_, ?_, by scalar_tac, by scalar_tac, by scalar_tac⟩
+        · rw [ha, i3_post, hZ]; simp [this]
+        · rw [hb, i3_post, hZ]; simp [this]
+      · have : φ (scalars.val[k.val]) ≠ 0 := by rw [← rs_post]; exact h0
+        simp only [h0, decide_false]
+        rw [if_pos (by decide)]
+        step*
+        rename_i sc2 _ hsc2 rp _ hrp _
+        refine ⟨by scalar_tac, ?_, ?_, ?_, ?_, by scalar_tac⟩
+        · rw [hsc2, i3_post, hZ]; simp [this, ha, rs_post]
+        · rw [x_post, i3_post, hZ]; simp [this, hb, hrp]
+        · simp [alloc.vec.Vec.length, hsc2]; scalar_tac
+        · simp [alloc.vec.Vec.length, x_post]; scalar_tac
+    all_goals
+      have hkn : k.val = n := by scalar_tac
+      have hZn : nonzero ((scalars.val.map φ).take k.val) ((points.val.map ψ).take k.val) =
+          nonzero (scalars.val.map φ) (points.val.map ψ) := by
+        simp only [nonzero, hkn, hn]
+        rw [@List.zip_eq_zip_take_min _ _ (scalars.val.map φ) (points.val.map ψ)]
+        simp
+      exact ⟨by rw [ha, hZn], by rw [hb, hZn], by scalar_tac, by scalar_tac⟩
+  · refine ⟨by simp, by simp [nonzero], by simp [nonzero], by simp, by simp⟩
 
 end BpppProofs
