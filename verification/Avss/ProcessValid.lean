@@ -1,6 +1,6 @@
-import Avss.Funs
-import AvssProofs.Result
-import AvssProofs.RecoverSound
+import Avss.Generated.Funs
+import Avss.Result
+import Avss.RecoverSound
 
 /-!
 `process_valid` for the code Aeneas generated from `Receiver::process_message`: if it returns

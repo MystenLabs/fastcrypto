@@ -1,7 +1,7 @@
-import Avss.Funs
-import AvssProofs.Result
-import AvssProofs.RecoverSound
-import AvssProofs.ProcessValid
+import Avss.Generated.Funs
+import Avss.Result
+import Avss.RecoverSound
+import Avss.ProcessValid
 
 /-!
 `response_verifies` for the code Aeneas generated: if `Rⱼ.process_message(m)` returns

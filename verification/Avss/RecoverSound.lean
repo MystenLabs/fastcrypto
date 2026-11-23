@@ -1,5 +1,5 @@
-import Avss.Funs
-import AvssProofs.Result
+import Avss.Generated.Funs
+import Avss.Result
 
 /-!
 `recover_sound` for the code Aeneas generated from `Receiver::recover`: if it returns `Ok(o)`,

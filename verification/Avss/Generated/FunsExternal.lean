@@ -3,7 +3,7 @@
 -- This is a template file: rename it to "FunsExternal.lean" and fill the holes.
 module
 public import Aeneas
-public import Avss.Types
+public import Avss.Generated.Types
 @[expose] public section
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false

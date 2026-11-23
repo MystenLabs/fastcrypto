@@ -1,4 +1,4 @@
-import Avss.Funs
+import Avss.Generated.Funs
 
 /-!
 What the loops of the generated `Receiver::recover` compute.

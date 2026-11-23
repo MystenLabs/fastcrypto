@@ -1,7 +1,7 @@
-import Avss.Funs
-import AvssProofs.Result
-import AvssProofs.FeldmanBinding
-import AvssProofs.RecoverComplete
+import Avss.Generated.Funs
+import Avss.Result
+import Avss.FeldmanBinding
+import Avss.RecoverComplete
 
 /-!
 What the generated `DkOutput::complete_key_rotation` returns.

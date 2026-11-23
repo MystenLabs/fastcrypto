@@ -1,8 +1,8 @@
-import Avss.Funs
-import AvssProofs.Result
-import AvssProofs.Loops
-import AvssProofs.ProcessInvalidIff
-import AvssProofs.HandleAccepts
+import Avss.Generated.Funs
+import Avss.Result
+import Avss.Loops
+import Avss.ProcessInvalidIff
+import Avss.HandleAccepts
 
 /-!
 `recover_complete` for the code Aeneas generated from `Receiver::recover`.

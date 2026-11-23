@@ -1,8 +1,8 @@
-import Avss.Funs
-import AvssProofs.Result
-import AvssProofs.Loops
-import AvssProofs.RecoverComplete
-import AvssProofs.FeldmanBinding
+import Avss.Generated.Funs
+import Avss.Result
+import Avss.Loops
+import Avss.RecoverComplete
+import Avss.FeldmanBinding
 
 /-!
 `SharesForNode::verify` accepts shares whose indices are the expected ids and that each pass

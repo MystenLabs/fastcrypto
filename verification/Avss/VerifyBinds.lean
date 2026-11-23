@@ -1,4 +1,4 @@
-import Avss.Funs
+import Avss.Generated.Funs
 
 /-!
 `verify_binds` for the code Aeneas generated from `Receiver::verify_complaint_response`:

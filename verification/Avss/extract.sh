@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Regenerate `Avss/` from fastcrypto-threshold's `threshold_schnorr::avss` with Charon and Aeneas.
+# Regenerate `Generated/` from fastcrypto-threshold's `threshold_schnorr::avss` with Charon and Aeneas.
 #
 # Uses the `charon` and `aeneas` binaries of the Aeneas nightly release `nightly-2026.11.18-1dc8ad3`
 # (https://github.com/AeneasVerif/aeneas/releases), which matches the Aeneas commit in
-# `lakefile.lean`. Set CHARON and AENEAS to their paths, or put them on PATH.
+# `../lakefile.lean`. Set CHARON and AENEAS to their paths, or put them on PATH.
 #
 # Code outside `avss.rs` is kept opaque: Lean only sees the signatures of the functions it calls
 # from other modules and crates, and of `Poly::eval`, which the proofs use.
@@ -37,9 +37,11 @@ RUSTFLAGS="--cfg aeneas" CARGO_TARGET_DIR="$root/target/charon" "$charon" cargo 
 # `fix_aeneas_output.py` turns into axioms: `check_recovery_proof` (its closure) and serde's derives.
 "$aeneas" -backend lean -split-files -dest "$out/lean" "$out/avss.llbc" || true
 
-rm -rf "$here/Avss" && mkdir "$here/Avss"
-cp "$out/lean/Types.lean" "$out/lean/Funs.lean" "$here/Avss/"
-cp "$out/lean/TypesExternal_Template.lean" "$here/Avss/TypesExternal.lean"
-cp "$out/lean/FunsExternal_Template.lean" "$here/Avss/FunsExternal.lean"
-sed -i.bak 's/import lean\./import Avss./g' "$here"/Avss/*.lean && rm "$here"/Avss/*.bak
-python3 -I "$here/fix_aeneas_output.py" "$here/Avss"
+gen="$here/Generated"
+rm -rf "$gen" && mkdir "$gen"
+cp "$out/lean/Types.lean" "$out/lean/Funs.lean" "$gen/"
+cp "$out/lean/TypesExternal_Template.lean" "$gen/TypesExternal.lean"
+cp "$out/lean/FunsExternal_Template.lean" "$gen/FunsExternal.lean"
+sed -i.bak -E 's/import Avss\.(Types|TypesExternal|Funs|FunsExternal)$/import Avss.Generated.\1/' \
+  "$gen"/*.lean && rm "$gen"/*.bak
+python3 -I "$here/fix_aeneas_output.py" "$gen"

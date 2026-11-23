@@ -1,7 +1,7 @@
-import Avss.Funs
-import AvssProofs.Result
-import AvssProofs.ProcessInvalidIff
-import AvssProofs.RecoverComplete
+import Avss.Generated.Funs
+import Avss.Result
+import Avss.ProcessInvalidIff
+import Avss.RecoverComplete
 
 /-!
 `feldman_binding` for the code Aeneas generated from `Receiver::process_message` and

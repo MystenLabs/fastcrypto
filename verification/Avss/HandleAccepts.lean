@@ -1,6 +1,6 @@
-import Avss.Funs
-import AvssProofs.Result
-import AvssProofs.ResponseVerifies
+import Avss.Generated.Funs
+import Avss.Result
+import Avss.ResponseVerifies
 
 /-!
 `handle_accepts` for the code Aeneas generated: if `Rᵢ.process_message(m)` returns

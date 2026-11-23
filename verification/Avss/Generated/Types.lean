@@ -2,7 +2,7 @@
 -- [fastcrypto_threshold]: type definitions
 module
 public import Aeneas
-public import Avss.TypesExternal
+public import Avss.Generated.TypesExternal
 @[expose] public section
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false

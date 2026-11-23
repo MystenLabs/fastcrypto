@@ -1,10 +1,10 @@
-import AvssProofs.Link
-import AvssProofs.VerifyComplete
-import AvssProofs.KeyRotation
-import FastcryptoSpecs.Avss.KeyRotation
+import Avss.Protocol.Link
+import Avss.VerifyComplete
+import Avss.KeyRotation
+import Avss.Protocol.KeyRotation
 
 /-!
-The contracts of fastcrypto-specs' `RotationContracts`, for the generated code:
+The lemmas of `RotationContracts`, for the generated code:
 `process_matches_commitment` (a receiver created with `commitment = Some(G::generator() * s)` that
 accepts a message gets only polynomials with constant term `s`) and `rotation_interpolates` (each
 share from `complete_key_rotation` is `recover_c0` of the outputs' shares at its index).
@@ -15,15 +15,12 @@ open fastcrypto_threshold
 
 namespace AvssProofs.Link
 
-/-- `G::generator() * s` for `s` in the spec's field. -/
-abbrev Generator (Z : Scalars) := Z.F → fastcrypto.groups.secp256k1.ProjectivePoint
-
 /-- Feldman commitments over secp256k1 open to a polynomial, which depends on the group and on
 `Poly::verify_share`, `Poly::eval` and `Poly::c0`: a commitment `c` of degree `d` commits to a
 polynomial `p` over the scalars of degree at most `d` whose `eval` returns, such that a share
 passes `verify_share` exactly when its value is `p.eval` at its index, and
 `c.c0() = G::generator() * p.c0()`. This implies `CommitmentBinding`. -/
-def CommitmentOpening (Z : Scalars) (gen : Generator Z) : Prop :=
+def CommitmentOpening (Z : Scalars) : Prop :=
   ∀ (c : polynomial.Poly fastcrypto.groups.secp256k1.ProjectivePoint) d, degreeG c = ok d →
     ∃ p e, degreeS p = ok e ∧ e.val ≤ d.val ∧ (∀ k, ∃ iv, evalS p k = ok iv) ∧
       (∀ k v, verifyShare c k v = ok (core.result.Result.Ok ()) ↔
@@ -33,7 +30,7 @@ def CommitmentOpening (Z : Scalars) (gen : Generator Z) : Prop :=
           p = ok x ∧
         polynomial.Poly.c0
           fastcrypto.groups.secp256k1.ProjectivePoint.Insts.FastcryptoGroupsAdditiveGroup c = ok y ∧
-        gen (Z.toF x) = y
+        Z.gen (Z.toF x) = y
 
 /-- `PartialEq` for secp256k1 points returns `true` only for equal points. -/
 def PointEqSound : Prop :=
@@ -42,7 +39,7 @@ def PointEqSound : Prop :=
 
 /-- The parties' share ids include `t` distinct indices. -/
 def SharesCoverT (C : Receivers) (Z : Scalars) (D : Dealers Z) : Prop :=
-  ∃ l : List FastcryptoSpecs.Shamir.ShareIndex, l.Nodup ∧ l.length = (setup C).t ∧
+  ∃ l : List Protocol.Shamir.ShareIndex, l.Nodup ∧ l.length = (setup C).t ∧
     ∀ k ∈ l, ∃ j, k ∈ (api C Z D).shareIds j
 
 /-- A `process_message` result that is not `invalid` is a returned `Ok`. -/
@@ -58,10 +55,10 @@ theorem not_invalid' {R E : Type _}
   · exact absurd rfl h
 
 theorem process_matches_commitment (C : Receivers) (Z : Scalars) (D : Dealers Z)
-    (gen : Generator Z) (s : Z.F) (hcomm : ∀ j, (C.recv j).commitment = some (gen s))
-    (hopen : CommitmentOpening Z gen) (hinj : Function.Injective gen) (hpeq : PointEqSound)
+    (s : Z.F) (hcomm : ∀ j, (C.recv j).commitment = some (Z.gen s))
+    (hopen : CommitmentOpening Z) (hinj : Function.Injective Z.gen) (hpeq : PointEqSound)
     (hnz : NonZeroModel Z) (hcover : SharesCoverT C Z D)
-    (hSh : FastcryptoSpecs.Shamir.Contracts (api C Z D).Sh)
+    (hSh : Protocol.Shamir.Contracts (api C Z D).Sh)
     (i : Party C.ns) (m : threshold_schnorr.avss.Message)
     (hpm : (api C Z D).processMessage i m ≠ .invalid)
     (p : (api C Z D).Sh.Poly) (hp : (api C Z D).Sh.degreeBound p < (setup C).t)
@@ -71,8 +68,8 @@ theorem process_matches_commitment (C : Receivers) (Z : Scalars) (D : Dealers Z)
   obtain ⟨⟨x, g⟩, hx, hnx⟩ := not_invalid' hpm
   have hcheck := process_message_check C.rngInst _ m _ g x hx hnx
   obtain ⟨d, hd, hdt⟩ := check_message_degree _ m hcheck
-  obtain ⟨pp, hpp, hne⟩ := check_message_commitment _ m (gen s) hcheck (hcomm i.val)
-  have hpps : pp = gen s := by
+  obtain ⟨pp, hpp, hne⟩ := check_message_commitment _ m (Z.gen s) hcheck (hcomm i.val)
+  have hpps : pp = Z.gen s := by
     apply hpeq
     simp only [core.cmp.PartialEq.ne.trait_default, core.cmp.PartialEq.ne.default] at hne
     obtain ⟨b, hb, hne⟩ := bind_eq_ok hne
@@ -146,19 +143,23 @@ theorem process_matches_commitment (C : Receivers) (Z : Scalars) (D : Dealers Z)
   rw [hmap, h2] at h1
   simpa using h1.symm
 
-/-- `complete_dkg`, which the generated code does not include, stays abstract. -/
+/-- `complete_dkg` and `commitment_for_index`, which the generated code does not include, stay
+abstract. -/
 noncomputable def dkgApi (C : Receivers) (Z : Scalars) (D : Dealers Z)
     (completeDkg : List (Party C.ns × threshold_schnorr.avss.AvssOutput) →
-      Option threshold_schnorr.avss.DkOutput) :
-    FastcryptoSpecs.Avss.DkgApi (Party C.ns) (api C Z D) where
+      Option threshold_schnorr.avss.DkOutput)
+    (commitmentForIndex : threshold_schnorr.avss.DkOutput → Protocol.Shamir.ShareIndex →
+      Option Z.F) :
+    Protocol.Avss.DkgApi (Party C.ns) (api C Z D) where
   DkOutput := threshold_schnorr.avss.DkOutput
   completeDkg := completeDkg
   shares dk := dk.my_shares
+  commitmentForIndex := commitmentForIndex
 
 /-- `DkOutput::complete_key_rotation(t, i, nodes, outputs)` as the spec's `completeKeyRotation`,
 with the outputs' share indices made into `NonZeroU16`s by `ofIndex`. -/
 noncomputable def completeKeyRotation (C : Receivers) (Z : Scalars) (t : ℕ) (i : Party C.ns)
-    (os : List (FastcryptoSpecs.Shamir.ShareIndex × threshold_schnorr.avss.AvssOutput)) :
+    (os : List (Protocol.Shamir.ShareIndex × threshold_schnorr.avss.AvssOutput)) :
     Option threshold_schnorr.avss.DkOutput :=
   if h : t < 2 ^ 16 ∧ os.length ≤ Usize.max then
     toOption (threshold_schnorr.avss.DkOutput.complete_key_rotation
@@ -171,7 +172,7 @@ noncomputable def completeKeyRotation (C : Receivers) (Z : Scalars) (t : ℕ) (i
 def LagrangeRecover (Z : Scalars) : Prop :=
   ∀ t s c lambdas, lagrangeC0 t s = ok (core.result.Result.Ok (c, lambdas)) →
     ∀ ys : List Z.F, ys.length = s.val.length →
-      Z.recoverC0 t.val (List.zipWith FastcryptoSpecs.Shamir.Eval.mk (s.val.map idx) ys) =
+      Z.recoverC0 t.val (List.zipWith Protocol.Shamir.Eval.mk (s.val.map idx) ys) =
         .ok (List.zipWith (· * ·) ys (lambdas.val.map fun l => Z.toF l * Z.toF c)).sum
 
 theorem idx_ofIndex (Z : Scalars) (hnz : NonZeroModel Z) k : idx (Z.ofIndex k) = k := by
@@ -190,17 +191,19 @@ theorem idx_ofIndex (Z : Scalars) (hnz : NonZeroModel Z) k : idx (Z.ofIndex k) =
 theorem rotation_interpolates (C : Receivers) (Z : Scalars) (D : Dealers Z)
     (completeDkg : List (Party C.ns × threshold_schnorr.avss.AvssOutput) →
       Option threshold_schnorr.avss.DkOutput)
+    (commitmentForIndex : threshold_schnorr.avss.DkOutput → Protocol.Shamir.ShareIndex →
+      Option Z.F)
     (hf : ScalarHom Z.toF) (hnz : NonZeroModel Z) (hlr : LagrangeRecover Z)
     (t : ℕ) (i : Party C.ns)
-    (os : List (FastcryptoSpecs.Shamir.ShareIndex × threshold_schnorr.avss.AvssOutput))
+    (os : List (Protocol.Shamir.ShareIndex × threshold_schnorr.avss.AvssOutput))
     (dk : threshold_schnorr.avss.DkOutput)
-    (v : FastcryptoSpecs.Shamir.ShareIndex × threshold_schnorr.avss.AvssOutput →
-      FastcryptoSpecs.Shamir.ShareIndex → Z.F)
+    (v : Protocol.Shamir.ShareIndex × threshold_schnorr.avss.AvssOutput →
+      Protocol.Shamir.ShareIndex → Z.F)
     (h : completeKeyRotation C Z t i os = some dk)
     (hos : ∀ o ∈ os, (api C Z D).shareList ((api C Z D).shares o.2) =
       ((api C Z D).shareIds i).map fun k => ⟨k, v o k⟩) :
-    ∃ w : FastcryptoSpecs.Shamir.ShareIndex → Z.F,
-      (api C Z D).shareList ((dkgApi C Z D completeDkg).shares dk) =
+    ∃ w : Protocol.Shamir.ShareIndex → Z.F,
+      (api C Z D).shareList ((dkgApi C Z D completeDkg commitmentForIndex).shares dk) =
         ((api C Z D).shareIds i).map (fun k => ⟨k, w k⟩) ∧
       ∀ k ∈ (api C Z D).shareIds i,
         (api C Z D).Sh.recoverC0 t (os.map fun o => ⟨o.1, v o k⟩) = .ok (w k) := by
@@ -220,14 +223,14 @@ theorem rotation_interpolates (C : Receivers) (Z : Scalars) (D : Dealers Z)
     rw [Slice.from_val, hL, List.mem_map] at ho
     obtain ⟨⟨u, out⟩, hmem, rfl⟩ := ho
     have hsl := hos _ hmem
-    have hin : (⟨idx s.index, Z.toF s.value⟩ : FastcryptoSpecs.Shamir.Eval Z.F) ∈
+    have hin : (⟨idx s.index, Z.toF s.value⟩ : Protocol.Shamir.Eval Z.F) ∈
         (api C Z D).shareList ((api C Z D).shares (u, out).2) := by
       show _ ∈ out.my_shares.shares.val.map _
       exact List.mem_map_of_mem hs
     rw [hsl] at hin
     obtain ⟨k, -, hk⟩ := List.mem_map.mp hin
-    have hk1 := congrArg FastcryptoSpecs.Shamir.Eval.index hk
-    have hk2 := congrArg FastcryptoSpecs.Shamir.Eval.value hk
+    have hk1 := congrArg Protocol.Shamir.Eval.index hk
+    have hk2 := congrArg Protocol.Shamir.Eval.value hk
     simp only at hk1 hk2
     simp only [V, idx_ofIndex Z hnz]
     rw [← hk1, hk2]
@@ -241,8 +244,8 @@ theorem rotation_interpolates (C : Receivers) (Z : Scalars) (D : Dealers Z)
   refine ⟨fun k => (List.zipWith (fun o l => v o k * l) os lam).sum, ?_, ?_⟩
   · rw [hsids]
     show dk.my_shares.shares.val.map
-      (fun s => (⟨idx s.index, Z.toF s.value⟩ : FastcryptoSpecs.Shamir.Eval Z.F)) = _
-    have := congrArg (List.map fun p => (⟨idx p.1, p.2⟩ : FastcryptoSpecs.Shamir.Eval Z.F)) hmap
+      (fun s => (⟨idx s.index, Z.toF s.value⟩ : Protocol.Shamir.Eval Z.F)) = _
+    have := congrArg (List.map fun p => (⟨idx p.1, p.2⟩ : Protocol.Shamir.Eval Z.F)) hmap
     simp only [List.map_map, Function.comp_def] at this
     rw [this, List.map_map]
     apply List.map_congr_left
@@ -261,7 +264,7 @@ theorem rotation_interpolates (C : Receivers) (Z : Scalars) (D : Dealers Z)
       intro o _
       simp [idx_ofIndex Z hnz]
     rw [hidx] at hr
-    have hzip : List.zipWith FastcryptoSpecs.Shamir.Eval.mk (os.map (·.1)) (os.map fun o => v o k) =
+    have hzip : List.zipWith Protocol.Shamir.Eval.mk (os.map (·.1)) (os.map fun o => v o k) =
         os.map fun o => ⟨o.1, v o k⟩ := by
       rw [List.zipWith_map_left, List.zipWith_map_right, List.zipWith_self]
     rw [hzip, List.zipWith_map_left] at hr

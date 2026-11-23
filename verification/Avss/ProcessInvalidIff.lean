@@ -1,5 +1,5 @@
-import Avss.Funs
-import AvssProofs.Result
+import Avss.Generated.Funs
+import Avss.Result
 
 /-!
 `process_invalid_iff` for the code Aeneas generated from `Receiver::process_message`: two
