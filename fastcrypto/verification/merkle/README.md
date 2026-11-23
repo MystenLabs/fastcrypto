@@ -90,39 +90,28 @@ release named in `extract.sh` and run `CHARON=... AENEAS=... ./extract.sh`.
 
 ## What is assumed
 
-* The translation: Charon, Aeneas and `fix_aeneas_output.py`. The script replaces the axioms that
-  Aeneas emits for two `AsRef` impls of the standard library with their definitions:
-  `<[T] as AsRef<[T]>>::as_ref` returns its argument, and `<&T as AsRef<U>>::as_ref` calls `T`'s
-  `as_ref`. It also empties serde's trait structures, which are mutually recursive and which Lean
-  rejects. The generated code only passes a `Serialize` impl on to `bcs::to_bytes`.
-* `HashModel inst H`, defined in `Hash.lean`, about the `HashFunction` impl, which Lean sees as a
-  structure of opaque functions: there is a map `absorbed` from hasher states to byte strings such
-  that `T::default()` has absorbed nothing, `update(data)` appends `data.as_ref()`, and
-  `finalize()` returns `H` of the bytes absorbed. None of the three panics.
-* Nothing else is assumed about `H`. In particular, collision resistance is not assumed: the
-  binding and soundness theorems conclude that a collision or a zero output exists.
-* For the non-inclusion theorems, hypotheses about the leaf type `L` and the standard library.
-  Each is a `def` or `structure` in the file named, and each theorem lists the ones it takes.
-  * `OrdModel` (`NonInclusion.lean`): `L`'s `PartialOrd` impl has `a >= b` equal to `b <= a`, and
-    `a <= a`. Rust requires both of any `Ord` impl. Used by 7, 8 and 9.
-  * `BcsInjective` (`NonInclusion.lean`): `bcs::to_bytes` does not serialize two different values
-    to the same bytes. Used by 7. `bcs::to_bytes` itself stays an axiom.
-  * `BcsReturns` (`NonInclusion.lean`): `bcs::to_bytes` returns, `Ok` or `Err`, on every value.
-    Used by 9.
-  * `LinearOrd` (`NonInclusionComplete.lean`): `L`'s `<=` returns, and is transitive and
-    antisymmetric. Rust requires both of any `Ord` impl. Used by 8 and 9.
-  * `EqModel` (`NonInclusionComplete.lean`): `L`'s `==` returns `false` for different values.
-    Used by 8.
-  * `CloneIsId` (`NonInclusionComplete.lean`): `L`'s `clone` returns its argument. Used by 8.
-  * `PartitionPointSpec` (`NonInclusionComplete.lean`): `<[A]>::partition_point(f)` returns `p`
-    if `f` is true exactly at the indices below `p` and does not change its state. This is what
-    Rust documents for a partitioned slice. `partition_point` itself stays an axiom. Used by 8.
-* The caller obligations are hypotheses of the theorems: the leaves are sorted by `<=`
-  (`SortedLe`), and `hs` are the leaf hashes of their BCS serializations.
-* `alloc::fmt::format`, `core::hint::must_use`, `<str as Display>::fmt` and `ToString::to_string`
-  stay axioms. They are only called in the error branches of `get_proof` and
-  `compute_non_inclusion_proof`, and nothing is assumed about them.
-* `usize` has 32 or 64 bits, as in Aeneas' library. The theorems hold for both.
+Each named assumption is a `def` or `structure` in the Lean files, and each theorem takes the ones
+it needs as hypotheses.
+
+* **Translation.** Charon, Aeneas and `fix_aeneas_output.py`, which defines two `AsRef` impls of
+  the standard library (`<[T]>::as_ref` returns its argument, `<&T>::as_ref` calls `T`'s) and
+  empties serde's trait structures, which Lean rejects.
+* **Hash function** (`HashModel`). `HashFunction` hashes the concatenation of its `update` inputs
+  with some function `H`, and does not panic. Nothing else, in particular not collision resistance:
+  the theorems conclude that `H` has a collision or a zero output.
+* **Leaf type `L`**, for non-inclusion. `>=` is the flipped `<=`, and `<=` returns and is
+  reflexive, transitive and antisymmetric (`OrdModel`, `LinearOrd`). Rust requires all of these of
+  an `Ord` impl. `==` is false for different values (`EqModel`), and `clone` returns its argument
+  (`CloneIsId`).
+* **BCS**, for non-inclusion. `bcs::to_bytes` returns on every value (`BcsReturns`) and is
+  injective (`BcsInjective`).
+* **`partition_point`**, for `non_inclusion_complete`. It returns the partition index of a
+  partitioned slice, as Rust documents (`PartitionPointSpec`).
+* **Caller.** The leaves are sorted by `<=` (`SortedLe`), and `hs` are their leaf hashes.
+* **Error branches.** `format`, `must_use`, `<str as Display>::fmt` and `to_string` stay axioms,
+  with nothing assumed. They are only called when `get_proof` or `compute_non_inclusion_proof`
+  returns an error.
+* **`usize`** has 32 or 64 bits. The theorems hold for both.
 
 ## What is not proved
 
