@@ -56,14 +56,14 @@ axiom fastcrypto.groups.ristretto255.RistrettoPoint : Type
 axiom fastcrypto.groups.ristretto255.RistrettoScalar : Type
 
 /-- [fastcrypto::groups::secp256k1::ProjectivePoint]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 39:0-39:26
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 61:0-61:26
     Name pattern: [fastcrypto::groups::secp256k1::ProjectivePoint]
     Visibility: public -/
 @[rust_type "fastcrypto::groups::secp256k1::ProjectivePoint"]
 axiom fastcrypto.groups.secp256k1.ProjectivePoint : Type
 
 /-- [fastcrypto::groups::secp256k1::Scalar]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 183:0-183:17
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 258:0-258:17
     Name pattern: [fastcrypto::groups::secp256k1::Scalar]
     Visibility: public -/
 @[rust_type "fastcrypto::groups::secp256k1::Scalar"]

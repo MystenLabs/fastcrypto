@@ -658,7 +658,7 @@ axiom
   : Slice Std.U8 → Result fastcrypto.groups.ristretto255.RistrettoScalar
 
 /-- [fastcrypto::groups::secp256k1::{impl core::clone::Clone for fastcrypto::groups::secp256k1::ProjectivePoint}::clone]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:18-38:23
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:18-60:23
     Name pattern: [fastcrypto::groups::secp256k1::{core::clone::Clone<fastcrypto::groups::secp256k1::ProjectivePoint>}::clone]
     Visibility: public -/
 @[rust_fun
@@ -669,7 +669,7 @@ axiom fastcrypto.groups.secp256k1.ProjectivePoint.Insts.CoreCloneClone.clone
     fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- [fastcrypto::groups::secp256k1::{impl core::fmt::Debug for fastcrypto::groups::secp256k1::ProjectivePoint}::fmt]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:31-38:36
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:31-60:36
     Name pattern: [fastcrypto::groups::secp256k1::{core::fmt::Debug<fastcrypto::groups::secp256k1::ProjectivePoint>}::fmt]
     Visibility: public -/
 @[rust_fun
@@ -680,7 +680,7 @@ axiom fastcrypto.groups.secp256k1.ProjectivePoint.Insts.CoreFmtDebug.fmt
     ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
 
 /-- [fastcrypto::groups::secp256k1::{impl core::cmp::PartialEq<fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}::eq]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:38-38:47
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:38-60:47
     Name pattern: [fastcrypto::groups::secp256k1::{core::cmp::PartialEq<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -692,7 +692,7 @@ axiom
     fastcrypto.groups.secp256k1.ProjectivePoint → Result Bool
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Add<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}::add]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:59-38:62
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:59-60:62
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Add<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>}::add]
     Visibility: public -/
 @[rust_fun
@@ -705,7 +705,7 @@ axiom
     fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Sub<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}::sub]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:64-38:67
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:64-60:67
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Sub<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>}::sub]
     Visibility: public -/
 @[rust_fun
@@ -718,7 +718,7 @@ axiom
     fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Neg<fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}::neg]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:69-38:72
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:69-60:72
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Neg<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>}::neg]
     Visibility: public -/
 @[rust_fun
@@ -730,7 +730,7 @@ axiom
     fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::AddAssign<fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}::add_assign]:
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 29:12-29:47; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 38:74-38:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 29:12-29:47; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 60:74-60:88
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::AddAssign<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>}::add_assign]
     Visibility: public -/
 @[rust_fun
@@ -743,7 +743,7 @@ axiom
     fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Add<&'_0 fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}::add]:
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-63:59; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 38:74-38:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-63:59; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 60:74-60:88
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Add<fastcrypto::groups::secp256k1::ProjectivePoint, &'0 fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>}::add]
     Visibility: public -/
 @[rust_fun
@@ -756,7 +756,7 @@ axiom
     fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::SubAssign<fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}::sub_assign]:
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 29:12-29:47; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 38:74-38:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 29:12-29:47; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 60:74-60:88
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::SubAssign<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>}::sub_assign]
     Visibility: public -/
 @[rust_fun
@@ -769,7 +769,7 @@ axiom
     fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Sub<&'_0 fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}::sub]:
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-63:59; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 38:74-38:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-63:59; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 60:74-60:88
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Sub<fastcrypto::groups::secp256k1::ProjectivePoint, &'0 fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>}::sub]
     Visibility: public -/
 @[rust_fun
@@ -782,7 +782,7 @@ axiom
     fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Mul<&'_0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}::mul]:
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-63:59; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 38:74-38:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-63:59; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 60:74-60:88
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Mul<fastcrypto::groups::secp256k1::ProjectivePoint, &'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::ProjectivePoint>}::mul]
     Visibility: public -/
 @[rust_fun
@@ -795,7 +795,7 @@ axiom
     fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::AdditiveGroup for fastcrypto::groups::secp256k1::ProjectivePoint}::generator]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 107:4-107:26
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 167:4-167:26
     Name pattern: [fastcrypto::groups::secp256k1::{fastcrypto::groups::AdditiveGroup<fastcrypto::groups::secp256k1::ProjectivePoint>}::generator]
     Visibility: public -/
 @[rust_fun
@@ -805,7 +805,7 @@ axiom
   : Result fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::AdditiveGroup for fastcrypto::groups::secp256k1::ProjectivePoint}::zero]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 103:4-103:21
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 163:4-163:21
     Name pattern: [fastcrypto::groups::secp256k1::{fastcrypto::groups::AdditiveGroup<fastcrypto::groups::secp256k1::ProjectivePoint>}::zero]
     Visibility: public -/
 @[rust_fun
@@ -815,7 +815,7 @@ axiom
   : Result fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Mul<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}::mul]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 127:4-127:48
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 187:4-187:48
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Mul<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::ProjectivePoint>}::mul]
     Visibility: public -/
 @[rust_fun
@@ -828,7 +828,7 @@ axiom
     fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- [fastcrypto::groups::secp256k1::{impl serde_core::de::Deserialize<'de> for fastcrypto::groups::secp256k1::Scalar}::deserialize]:
-    Source: 'fastcrypto/src/serde_helpers.rs', lines 92:12-94:39; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 274:0-274:54
+    Source: 'fastcrypto/src/serde_helpers.rs', lines 92:12-94:39; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 351:0-351:54
     Name pattern: [fastcrypto::groups::secp256k1::{serde_core::de::Deserialize<'de, fastcrypto::groups::secp256k1::Scalar>}::deserialize]
     Visibility: public -/
 @[rust_fun
@@ -841,7 +841,7 @@ axiom
     Clause0_Error)
 
 /-- [fastcrypto::groups::secp256k1::{impl serde_core::ser::Serialize for fastcrypto::groups::secp256k1::Scalar}::serialize]:
-    Source: 'fastcrypto/src/serde_helpers.rs', lines 77:12-77:97; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 274:0-274:54
+    Source: 'fastcrypto/src/serde_helpers.rs', lines 77:12-77:97; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 351:0-351:54
     Name pattern: [fastcrypto::groups::secp256k1::{serde_core::ser::Serialize<fastcrypto::groups::secp256k1::Scalar>}::serialize]
     Visibility: public -/
 @[rust_fun
@@ -860,7 +860,7 @@ axiom fastcrypto.groups.secp256k1.Scalar.Insts.Serde_coreSerSerialize.serialize
     Clause0_Ok Clause0_Error)
 
 /-- [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::Scalar for fastcrypto::groups::secp256k1::Scalar}::inverse]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 240:4-240:47
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 315:4-315:47
     Name pattern: [fastcrypto::groups::secp256k1::{fastcrypto::groups::Scalar<fastcrypto::groups::secp256k1::Scalar>}::inverse]
     Visibility: public -/
 @[rust_fun
@@ -871,7 +871,7 @@ axiom fastcrypto.groups.secp256k1.Scalar.Insts.FastcryptoGroupsScalar.inverse
     fastcrypto.groups.secp256k1.Scalar fastcrypto.error.FastCryptoError)
 
 /-- [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::Scalar for fastcrypto::groups::secp256k1::Scalar}::rand]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 236:4-236:47
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 311:4-311:47
     Name pattern: [fastcrypto::groups::secp256k1::{fastcrypto::groups::Scalar<fastcrypto::groups::secp256k1::Scalar>}::rand]
     Visibility: public -/
 @[rust_fun
@@ -881,7 +881,7 @@ axiom fastcrypto.groups.secp256k1.Scalar.Insts.FastcryptoGroupsScalar.rand
   R → Result (fastcrypto.groups.secp256k1.Scalar × R)
 
 /-- [fastcrypto::groups::secp256k1::{impl core::convert::From<u128> for fastcrypto::groups::secp256k1::Scalar}::from]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 230:4-230:32
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 305:4-305:32
     Name pattern: [fastcrypto::groups::secp256k1::{core::convert::From<fastcrypto::groups::secp256k1::Scalar, u128>}::from]
     Visibility: public -/
 @[rust_fun
@@ -890,7 +890,7 @@ axiom fastcrypto.groups.secp256k1.Scalar.Insts.CoreConvertFromU128.from
   : Std.U128 → Result fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Div<fastcrypto::groups::secp256k1::Scalar, core::result::Result<fastcrypto::groups::secp256k1::Scalar, fastcrypto::error::FastCryptoError>> for fastcrypto::groups::secp256k1::Scalar}::div]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 224:4-224:64
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 299:4-299:64
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Div<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, core::result::Result<fastcrypto::groups::secp256k1::Scalar, fastcrypto::error::FastCryptoError>>}::div]
     Visibility: public -/
 @[rust_fun
@@ -903,7 +903,7 @@ axiom
     fastcrypto.error.FastCryptoError)
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Mul<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}::mul]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 215:4-215:45
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 290:4-290:45
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Mul<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>}::mul]
     Visibility: public -/
 @[rust_fun
@@ -914,7 +914,7 @@ axiom fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithMulScalarScalar.mul
     Result fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::AdditiveGroup for fastcrypto::groups::secp256k1::Scalar}::generator]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 201:4-201:26
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 276:4-276:26
     Name pattern: [fastcrypto::groups::secp256k1::{fastcrypto::groups::AdditiveGroup<fastcrypto::groups::secp256k1::Scalar>}::generator]
     Visibility: public -/
 @[rust_fun
@@ -924,7 +924,7 @@ axiom
   : Result fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::AdditiveGroup for fastcrypto::groups::secp256k1::Scalar}::zero]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 197:4-197:21
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 272:4-272:21
     Name pattern: [fastcrypto::groups::secp256k1::{fastcrypto::groups::AdditiveGroup<fastcrypto::groups::secp256k1::Scalar>}::zero]
     Visibility: public -/
 @[rust_fun
@@ -934,7 +934,7 @@ axiom
   : Result fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Sub<&'_0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}::sub]:
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-63:59; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 182:74-182:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-63:59; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 257:74-257:88
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Sub<fastcrypto::groups::secp256k1::Scalar, &'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>}::sub]
     Visibility: public -/
 @[rust_fun
@@ -946,7 +946,7 @@ axiom
     Result fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::SubAssign<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}::sub_assign]:
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 29:12-29:47; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 182:74-182:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 29:12-29:47; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 257:74-257:88
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::SubAssign<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>}::sub_assign]
     Visibility: public -/
 @[rust_fun
@@ -958,7 +958,7 @@ axiom
     Result fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Add<&'_0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}::add]:
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-63:59; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 182:74-182:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-63:59; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 257:74-257:88
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Add<fastcrypto::groups::secp256k1::Scalar, &'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>}::add]
     Visibility: public -/
 @[rust_fun
@@ -970,7 +970,7 @@ axiom
     Result fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::AddAssign<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}::add_assign]:
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 29:12-29:47; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 182:74-182:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 29:12-29:47; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 257:74-257:88
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::AddAssign<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>}::add_assign]
     Visibility: public -/
 @[rust_fun
@@ -982,7 +982,7 @@ axiom
     Result fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Neg<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}::neg]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:69-182:72
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:69-257:72
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Neg<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>}::neg]
     Visibility: public -/
 @[rust_fun
@@ -993,7 +993,7 @@ axiom fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithNegScalar.neg
     fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Sub<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}::sub]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:64-182:67
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:64-257:67
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Sub<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>}::sub]
     Visibility: public -/
 @[rust_fun
@@ -1004,7 +1004,7 @@ axiom fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithSubScalarScalar.sub
     Result fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Add<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}::add]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:59-182:62
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:59-257:62
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Add<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>}::add]
     Visibility: public -/
 @[rust_fun
@@ -1015,7 +1015,7 @@ axiom fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithAddScalarScalar.add
     Result fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl core::cmp::PartialEq<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}::eq]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:38-182:47
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:38-257:47
     Name pattern: [fastcrypto::groups::secp256k1::{core::cmp::PartialEq<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -1026,7 +1026,7 @@ axiom fastcrypto.groups.secp256k1.Scalar.Insts.CoreCmpPartialEqScalar.eq
     Result Bool
 
 /-- [fastcrypto::groups::secp256k1::{impl core::fmt::Debug for fastcrypto::groups::secp256k1::Scalar}::fmt]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:31-182:36
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:31-257:36
     Name pattern: [fastcrypto::groups::secp256k1::{core::fmt::Debug<fastcrypto::groups::secp256k1::Scalar>}::fmt]
     Visibility: public -/
 @[rust_fun
@@ -1037,7 +1037,7 @@ axiom fastcrypto.groups.secp256k1.Scalar.Insts.CoreFmtDebug.fmt
     ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
 
 /-- [fastcrypto::groups::secp256k1::{impl core::clone::Clone for fastcrypto::groups::secp256k1::Scalar}::clone]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:18-182:23
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:18-257:23
     Name pattern: [fastcrypto::groups::secp256k1::{core::clone::Clone<fastcrypto::groups::secp256k1::Scalar>}::clone]
     Visibility: public -/
 @[rust_fun
@@ -1048,7 +1048,7 @@ axiom fastcrypto.groups.secp256k1.Scalar.Insts.CoreCloneClone.clone
     fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Mul<&'_0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}::mul]:
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-63:59; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 182:74-182:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-63:59; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 257:74-257:88
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Mul<fastcrypto::groups::secp256k1::Scalar, &'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>}::mul]
     Visibility: public -/
 @[rust_fun
@@ -1060,7 +1060,7 @@ axiom
     Result fastcrypto.groups.secp256k1.Scalar
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Div<fastcrypto::groups::secp256k1::Scalar, core::result::Result<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::error::FastCryptoError>> for fastcrypto::groups::secp256k1::ProjectivePoint}::div]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 136:4-136:73
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 196:4-196:73
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Div<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar, core::result::Result<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::error::FastCryptoError>>}::div]
     Visibility: public -/
 @[rust_fun
@@ -1074,7 +1074,7 @@ axiom
     fastcrypto.error.FastCryptoError)
 
 /-- [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::MultiScalarMul<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::ProjectivePoint}::multi_scalar_mul]:
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 161:4-164:38
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 232:4-235:38
     Name pattern: [fastcrypto::groups::secp256k1::{fastcrypto::groups::MultiScalarMul<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar>}::multi_scalar_mul]
     Visibility: public -/
 @[rust_fun
@@ -1088,7 +1088,7 @@ axiom
     fastcrypto.error.FastCryptoError)
 
 /-- [fastcrypto::groups::secp256k1::{impl core::ops::arith::Mul<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for &'_0 fastcrypto::groups::secp256k1::Scalar}::mul]:
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 78:12-78:58; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 182:74-182:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 78:12-78:58; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 257:74-257:88
     Name pattern: [fastcrypto::groups::secp256k1::{core::ops::arith::Mul<&'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>}::mul]
     Visibility: public -/
 @[rust_fun

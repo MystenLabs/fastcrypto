@@ -825,7 +825,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::clone::Clone for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:18-38:23
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:18-60:23
     Name pattern: [core::clone::Clone<fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::clone::Clone<fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -836,7 +836,7 @@ def fastcrypto.groups.secp256k1.ProjectivePoint.Insts.CoreCloneClone :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::marker::Copy for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:25-38:29
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:25-60:29
     Name pattern: [core::marker::Copy<fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::marker::Copy<fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -846,7 +846,7 @@ def fastcrypto.groups.secp256k1.ProjectivePoint.Insts.CoreMarkerCopy :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::fmt::Debug for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:31-38:36
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:31-60:36
     Name pattern: [core::fmt::Debug<fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::fmt::Debug<fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -856,14 +856,14 @@ def fastcrypto.groups.secp256k1.ProjectivePoint.Insts.CoreFmtDebug :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::cmp::PartialEq<fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:38-38:47
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:38-60:47
     Name pattern: [core::cmp::PartialEq<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 axiom fastcrypto.groups.secp256k1.ProjectivePoint.Insts.CoreCmpPartialEqProjectivePoint
   : core.cmp.PartialEq fastcrypto.groups.secp256k1.ProjectivePoint
   fastcrypto.groups.secp256k1.ProjectivePoint
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::cmp::Eq for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:49-38:51
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:49-60:51
     Name pattern: [core::cmp::Eq<fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::cmp::Eq<fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -874,7 +874,7 @@ def fastcrypto.groups.secp256k1.ProjectivePoint.Insts.CoreCmpEq : core.cmp.Eq
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Add<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:59-38:62
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:59-60:62
     Name pattern: [core::ops::arith::Add<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Add<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -888,7 +888,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Sub<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:64-38:67
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:64-60:67
     Name pattern: [core::ops::arith::Sub<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Sub<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -902,7 +902,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Neg<fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 38:69-38:72
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 60:69-60:72
     Name pattern: [core::ops::arith::Neg<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Neg<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -915,7 +915,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::AddAssign<fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 28:8-28:50; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 38:74-38:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 28:8-28:50; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 60:74-60:88
     Name pattern: [core::ops::arith::AddAssign<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::AddAssign<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -928,7 +928,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Add<&'_0 fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 60:8-60:51; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 38:74-38:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 60:8-60:51; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 60:74-60:88
     Name pattern: [core::ops::arith::Add<fastcrypto::groups::secp256k1::ProjectivePoint, &'0 fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Add<fastcrypto::groups::secp256k1::ProjectivePoint, &'0 fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -942,7 +942,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::SubAssign<fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 28:8-28:50; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 38:74-38:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 28:8-28:50; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 60:74-60:88
     Name pattern: [core::ops::arith::SubAssign<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::SubAssign<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -955,7 +955,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Sub<&'_0 fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 60:8-60:51; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 38:74-38:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 60:8-60:51; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 60:74-60:88
     Name pattern: [core::ops::arith::Sub<fastcrypto::groups::secp256k1::ProjectivePoint, &'0 fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Sub<fastcrypto::groups::secp256k1::ProjectivePoint, &'0 fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -969,7 +969,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Mul<&'_0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 60:8-60:51; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 38:74-38:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 60:8-60:51; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 60:74-60:88
     Name pattern: [core::ops::arith::Mul<fastcrypto::groups::secp256k1::ProjectivePoint, &'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Mul<fastcrypto::groups::secp256k1::ProjectivePoint, &'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -983,7 +983,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::AdditiveGroup for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 102:0-102:38
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 162:0-162:38
     Name pattern: [fastcrypto::groups::AdditiveGroup<fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "fastcrypto::groups::AdditiveGroup<fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -1019,7 +1019,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Mul<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::ProjectivePoint> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 124:0-124:36
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 184:0-184:36
     Name pattern: [core::ops::arith::Mul<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::ProjectivePoint>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Mul<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::ProjectivePoint>"]
@@ -1033,7 +1033,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::Module<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 112:0-112:39
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 172:0-172:39
     Name pattern: [fastcrypto::groups::Module<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "fastcrypto::groups::Module<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1050,7 +1050,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl serde_core::de::Deserialize<'de> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/serde_helpers.rs', lines 91:8-91:53; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 274:0-274:54
+    Source: 'fastcrypto/src/serde_helpers.rs', lines 91:8-91:53; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 351:0-351:54
     Name pattern: [serde_core::de::Deserialize<'de, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "serde_core::de::Deserialize<'de, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1058,7 +1058,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.Serde_coreDeDeserialize :
   serde_core.de.Deserialize fastcrypto.groups.secp256k1.Scalar := {}
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl serde_core::ser::Serialize for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/serde_helpers.rs', lines 76:8-76:41; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 274:0-274:54
+    Source: 'fastcrypto/src/serde_helpers.rs', lines 76:8-76:41; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 351:0-351:54
     Name pattern: [serde_core::ser::Serialize<fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "serde_core::ser::Serialize<fastcrypto::groups::secp256k1::Scalar>"]
@@ -1066,7 +1066,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.Serde_coreSerSerialize :
   serde_core.ser.Serialize fastcrypto.groups.secp256k1.Scalar := {}
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::convert::From<u128> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 229:0-229:26
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 304:0-304:26
     Name pattern: [core::convert::From<fastcrypto::groups::secp256k1::Scalar, u128>] -/
 @[reducible, rust_trait_impl
   "core::convert::From<fastcrypto::groups::secp256k1::Scalar, u128>"]
@@ -1076,7 +1076,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreConvertFromU128 :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Div<fastcrypto::groups::secp256k1::Scalar, core::result::Result<fastcrypto::groups::secp256k1::Scalar, fastcrypto::error::FastCryptoError>> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 220:0-220:27
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 295:0-295:27
     Name pattern: [core::ops::arith::Div<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, core::result::Result<fastcrypto::groups::secp256k1::Scalar, fastcrypto::error::FastCryptoError>>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Div<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, core::result::Result<fastcrypto::groups::secp256k1::Scalar, fastcrypto::error::FastCryptoError>>"]
@@ -1090,7 +1090,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Mul<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 212:0-212:27
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 287:0-287:27
     Name pattern: [core::ops::arith::Mul<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Mul<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1102,7 +1102,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithMulScalarScalar :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Sub<&'_0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 60:8-60:51; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 182:74-182:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 60:8-60:51; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 257:74-257:88
     Name pattern: [core::ops::arith::Sub<fastcrypto::groups::secp256k1::Scalar, &'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Sub<fastcrypto::groups::secp256k1::Scalar, &'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1114,7 +1114,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithSubShared0ScalarScalar
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::SubAssign<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 28:8-28:50; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 182:74-182:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 28:8-28:50; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 257:74-257:88
     Name pattern: [core::ops::arith::SubAssign<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::SubAssign<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1126,7 +1126,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithSubAssignScalar :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Add<&'_0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 60:8-60:51; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 182:74-182:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 60:8-60:51; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 257:74-257:88
     Name pattern: [core::ops::arith::Add<fastcrypto::groups::secp256k1::Scalar, &'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Add<fastcrypto::groups::secp256k1::Scalar, &'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1138,7 +1138,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithAddShared0ScalarScalar
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::AddAssign<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 28:8-28:50; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 182:74-182:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 28:8-28:50; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 257:74-257:88
     Name pattern: [core::ops::arith::AddAssign<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::AddAssign<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1150,7 +1150,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithAddAssignScalar :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Neg<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:69-182:72
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:69-257:72
     Name pattern: [core::ops::arith::Neg<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Neg<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1161,7 +1161,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithNegScalar :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Sub<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:64-182:67
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:64-257:67
     Name pattern: [core::ops::arith::Sub<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Sub<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1173,7 +1173,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithSubScalarScalar :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Add<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:59-182:62
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:59-257:62
     Name pattern: [core::ops::arith::Add<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Add<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1185,14 +1185,14 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithAddScalarScalar :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::cmp::PartialEq<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:38-182:47
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:38-257:47
     Name pattern: [core::cmp::PartialEq<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>] -/
 axiom fastcrypto.groups.secp256k1.Scalar.Insts.CoreCmpPartialEqScalar :
   core.cmp.PartialEq fastcrypto.groups.secp256k1.Scalar
   fastcrypto.groups.secp256k1.Scalar
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::cmp::Eq for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:49-182:51
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:49-257:51
     Name pattern: [core::cmp::Eq<fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::cmp::Eq<fastcrypto::groups::secp256k1::Scalar>"]
@@ -1203,7 +1203,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreCmpEq : core.cmp.Eq
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::fmt::Debug for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:31-182:36
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:31-257:36
     Name pattern: [core::fmt::Debug<fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::fmt::Debug<fastcrypto::groups::secp256k1::Scalar>"]
@@ -1213,7 +1213,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::clone::Clone for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:18-182:23
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:18-257:23
     Name pattern: [core::clone::Clone<fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::clone::Clone<fastcrypto::groups::secp256k1::Scalar>"]
@@ -1223,7 +1223,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::marker::Copy for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 182:25-182:29
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 257:25-257:29
     Name pattern: [core::marker::Copy<fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::marker::Copy<fastcrypto::groups::secp256k1::Scalar>"]
@@ -1233,7 +1233,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreMarkerCopy : core.marker.Copy
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::AdditiveGroup for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 196:0-196:29
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 271:0-271:29
     Name pattern: [fastcrypto::groups::AdditiveGroup<fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "fastcrypto::groups::AdditiveGroup<fastcrypto::groups::secp256k1::Scalar>"]
@@ -1264,7 +1264,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.FastcryptoGroupsAdditiveGroup :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Mul<&'_0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 60:8-60:51; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 182:74-182:88
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 60:8-60:51; this code is generated from a macro invocation at: 'fastcrypto/src/groups/secp256k1.rs', lines 257:74-257:88
     Name pattern: [core::ops::arith::Mul<fastcrypto::groups::secp256k1::Scalar, &'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Mul<fastcrypto::groups::secp256k1::Scalar, &'0 fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1276,7 +1276,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.CoreOpsArithMulShared0ScalarScalar
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::Module<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 206:0-206:30
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 281:0-281:30
     Name pattern: [fastcrypto::groups::Module<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "fastcrypto::groups::Module<fastcrypto::groups::secp256k1::Scalar, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1292,7 +1292,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.FastcryptoGroupsModuleScalar :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::Scalar for fastcrypto::groups::secp256k1::Scalar}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 235:0-235:27
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 310:0-310:27
     Name pattern: [fastcrypto::groups::Scalar<fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "fastcrypto::groups::Scalar<fastcrypto::groups::secp256k1::Scalar>"]
@@ -1318,7 +1318,7 @@ def fastcrypto.groups.secp256k1.Scalar.Insts.FastcryptoGroupsScalar :
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl core::ops::arith::Div<fastcrypto::groups::secp256k1::Scalar, core::result::Result<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::error::FastCryptoError>> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 132:0-132:36
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 192:0-192:36
     Name pattern: [core::ops::arith::Div<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar, core::result::Result<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::error::FastCryptoError>>] -/
 @[reducible, rust_trait_impl
   "core::ops::arith::Div<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar, core::result::Result<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::error::FastCryptoError>>"]
@@ -1333,7 +1333,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::GroupElement<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 114:0-114:37
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 174:0-174:37
     Name pattern: [fastcrypto::groups::GroupElement<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "fastcrypto::groups::GroupElement<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar>"]
@@ -1349,7 +1349,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto::groups::secp256k1::{impl fastcrypto::groups::MultiScalarMul<fastcrypto::groups::secp256k1::Scalar> for fastcrypto::groups::secp256k1::ProjectivePoint}]
-    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 160:0-160:39
+    Source: 'fastcrypto/src/groups/secp256k1.rs', lines 231:0-231:39
     Name pattern: [fastcrypto::groups::MultiScalarMul<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar>] -/
 @[reducible, rust_trait_impl
   "fastcrypto::groups::MultiScalarMul<fastcrypto::groups::secp256k1::ProjectivePoint, fastcrypto::groups::secp256k1::Scalar>"]
