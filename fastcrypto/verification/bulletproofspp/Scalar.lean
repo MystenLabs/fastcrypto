@@ -11,8 +11,9 @@ open fastcrypto
 
 namespace BpppProofs
 
-/-- `RistrettoScalar` as a field `F`: its operations return, and `φ` maps them to `F`'s. -/
-structure ScalarModel (F : Type) [Field F] (φ : groups.ristretto255.RistrettoScalar → F) : Prop where
+/-- `RistrettoScalar` as a field `F`: its operations return, and `φ` maps them to `F`'s. `==`
+is equality in `F`, so `φ` is injective up to what the code can observe. -/
+structure ScalarModel (F : Type) [Field F] [DecidableEq F] (φ : groups.ristretto255.RistrettoScalar → F) : Prop where
   zero : ∃ z, groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero = ok z ∧
     φ z = 0
   one : ∃ o, groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.generator =
@@ -34,6 +35,11 @@ structure ScalarModel (F : Type) [Field F] (φ : groups.ristretto255.RistrettoSc
       a b = ok c ∧ φ c = φ a + φ b
   neg : ∀ a, ∃ c, groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithNegRistrettoScalar.neg a =
     ok c ∧ φ c = -φ a
+  sub : ∀ a b, ∃ c,
+    groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithSubRistrettoScalarRistrettoScalar.sub
+      a b = ok c ∧ φ c = φ a - φ b
+  eq : ∀ a b, groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar.eq a b =
+    ok (decide (φ a = φ b))
   clone : ∀ a, groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone.clone a = ok a
   from_u64 : ∀ x : U64, ∃ s, groups.ristretto255.RistrettoScalar.Insts.CoreConvertFrom.from
     curve25519_dalek.scalar.Scalar.Insts.CoreConvertFromU64 x = ok s ∧ φ s = (x.val : F)
@@ -46,7 +52,7 @@ structure ScalarModel (F : Type) [Field F] (φ : groups.ristretto255.RistrettoSc
 
 namespace ScalarModel
 
-variable {F : Type} [Field F] {φ : groups.ristretto255.RistrettoScalar → F} (hs : ScalarModel F φ)
+variable {F : Type} [Field F] [DecidableEq F] {φ : groups.ristretto255.RistrettoScalar → F} (hs : ScalarModel F φ)
 
 local notation "S" => groups.ristretto255.RistrettoScalar
 
@@ -64,6 +70,8 @@ noncomputable def addAF (a b : S) : S := (hs.add_assign a b).choose
 noncomputable def mulAF (a b : S) : S := (hs.mul_assign a b).choose
 /-- What `a + &b` returns. -/
 noncomputable def addRF (a b : S) : S := (hs.add_ref a b).choose
+/-- What `a - b` returns. -/
+noncomputable def subF (a b : S) : S := (hs.sub a b).choose
 /-- What `-a` returns. -/
 noncomputable def negF (a : S) : S := (hs.neg a).choose
 /-- What `RistrettoScalar::from(x)` returns. -/
@@ -99,6 +107,10 @@ lemma add_ref_eq (a b : S) :
     groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddShared0RistrettoScalarRistrettoScalar.add
       a b = ok (hs.addRF a b) := (hs.add_ref a b).choose_spec.1
 @[simp] lemma φ_addRF (a b : S) : φ (hs.addRF a b) = φ a + φ b := (hs.add_ref a b).choose_spec.2
+lemma sub_eq (a b : S) :
+    groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithSubRistrettoScalarRistrettoScalar.sub
+      a b = ok (hs.subF a b) := (hs.sub a b).choose_spec.1
+@[simp] lemma φ_subF (a b : S) : φ (hs.subF a b) = φ a - φ b := (hs.sub a b).choose_spec.2
 lemma neg_eq (a : S) : groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithNegRistrettoScalar.neg
     a = ok (hs.negF a) := (hs.neg a).choose_spec.1
 @[simp] lemma φ_negF (a : S) : φ (hs.negF a) = -φ a := (hs.neg a).choose_spec.2

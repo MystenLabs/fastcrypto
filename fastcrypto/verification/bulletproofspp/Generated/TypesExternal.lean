@@ -44,3 +44,17 @@ axiom pedersen.Range : Type
     Visibility: public -/
 axiom groups.ristretto255.RistrettoScalar : Type
 
+/-- [fastcrypto::groups::ristretto255::RistrettoPrecomputation]
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 142:0-146:1
+    Visibility: public -/
+axiom groups.ristretto255.RistrettoPrecomputation : Type
+
+/-- [fastcrypto::groups::ristretto255::RistrettoPoint]
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 39:0-39:52
+    Visibility: public -/
+axiom groups.ristretto255.RistrettoPoint : Type
+
+/-- [fastcrypto::bulletproofspp::transcript::BpppTranscript]
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 73:0-75:1 -/
+axiom bulletproofspp.transcript.BpppTranscript : Type
+

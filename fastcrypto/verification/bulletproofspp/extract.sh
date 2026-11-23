@@ -6,8 +6,9 @@
 # (https://github.com/AeneasVerif/aeneas/releases), which matches the Aeneas commit in
 # `lakefile.lean`. Set CHARON and AENEAS to their paths, or put them on PATH.
 #
-# `groups`, `pedersen`, `serde_helpers` and `merlin` are opaque: Lean sees their types and
-# functions as axioms, about which the proofs assume only what `ScalarModel` states.
+# `groups`, `pedersen`, `serde_helpers`, `merlin` and `transcript` (except `Label`) are opaque:
+# Lean sees their types and functions as axioms, about which the proofs assume only what
+# `ScalarModel`, `PointModel` and `TranscriptModel` state.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../../.." && pwd)
@@ -34,7 +35,11 @@ CARGO_TARGET_DIR="$root/target/charon" "$charon" cargo --preset aeneas \
   --start-from "crate::bulletproofspp::laurent" \
   --start-from "crate::bulletproofspp::constraints::Constraints::new" \
   --start-from "crate::bulletproofspp::constraints::Constraints::p_n" \
+  --start-from "crate::bulletproofspp::norm_linear::prove" \
+  --start-from "crate::bulletproofspp::norm_linear::verify" \
+  --start-from "crate::bulletproofspp::crs::Generators::commit" \
   --opaque crate::groups --opaque crate::pedersen --opaque crate::serde_helpers --opaque merlin \
+  --opaque crate::bulletproofspp::transcript --include crate::bulletproofspp::transcript::Label \
   --dest-file "$out/bppp.llbc" -- --features experimental
 
 "$aeneas" -backend lean -split-files -dest "$out/lean" "$out/bppp.llbc"

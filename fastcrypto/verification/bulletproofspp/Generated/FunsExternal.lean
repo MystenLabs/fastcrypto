@@ -38,6 +38,14 @@ def core.num.I32.unsigned_abs (x : Std.I32) : Result Std.U32 :=
 def core.num.U64.ilog2 (x : Std.U64) : Result Std.U32 :=
   if x.val = 0 then fail .panic else ok ⟨BitVec.ofNat _ x.val.log2⟩
 
+/-- [core::slice::raw::from_ref]:
+    Source: '/rustc/library/core/src/slice/raw.rs', lines 203:0-203:39
+    Name pattern: [core::slice::raw::from_ref]
+    Visibility: public -/
+@[rust_fun "core::slice::raw::from_ref"]
+def core.slice.raw.from_ref {T : Type _} (x : T) : Result (Slice T) :=
+  ok (Slice.from [x] (by scalar_tac))
+
 /-- [curve25519_dalek::scalar::{impl core::convert::From<u64> for curve25519_dalek::scalar::Scalar}::from]:
     Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/curve25519-dalek-4.1.3/src/scalar.rs', lines 538:4-538:29
     Name pattern: [curve25519_dalek::scalar::{core::convert::From<curve25519_dalek::scalar::Scalar, u64>}::from]
@@ -121,6 +129,18 @@ axiom
   groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.generator
   : Result groups.ristretto255.RistrettoScalar
 
+/-- [fastcrypto::groups::ristretto255::{impl fastcrypto::groups::MixedMultiScalarMul<fastcrypto::groups::ristretto255::RistrettoPoint> for fastcrypto::groups::ristretto255::RistrettoPrecomputation}::mixed_multi_scalar_mul]:
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 169:4-200:5
+    Visibility: public -/
+axiom
+  groups.ristretto255.RistrettoPrecomputation.Insts.FastcryptoGroupsMixedMultiScalarMulRistrettoPoint.mixed_multi_scalar_mul
+  :
+  groups.ristretto255.RistrettoPrecomputation → Slice
+    groups.ristretto255.RistrettoScalar → Slice
+    groups.ristretto255.RistrettoScalar → Slice
+    groups.ristretto255.RistrettoPoint → Result (core.result.Result
+    groups.ristretto255.RistrettoPoint error.FastCryptoError)
+
 /-- [fastcrypto::groups::ristretto255::{impl core::ops::arith::Neg<fastcrypto::groups::ristretto255::RistrettoScalar> for fastcrypto::groups::ristretto255::RistrettoScalar}::neg]:
     Source: 'fastcrypto/src/groups/ristretto255.rs', lines 268:65-268:68
     Visibility: public -/
@@ -138,4 +158,79 @@ axiom
   :
   groups.ristretto255.RistrettoScalar → groups.ristretto255.RistrettoScalar
     → Result groups.ristretto255.RistrettoScalar
+
+/-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::append_scalars]:
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 116:4-120:5 -/
+axiom bulletproofspp.transcript.BpppTranscript.append_scalars
+  :
+  bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
+    → Slice groups.ristretto255.RistrettoScalar → Result
+    bulletproofspp.transcript.BpppTranscript
+
+/-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::domain_sep]:
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 87:4-89:5 -/
+axiom bulletproofspp.transcript.BpppTranscript.domain_sep
+  :
+  bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
+    → Result bulletproofspp.transcript.BpppTranscript
+
+/-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::challenge_scalar]:
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 130:4-134:5 -/
+axiom bulletproofspp.transcript.BpppTranscript.challenge_scalar
+  :
+  bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
+    → Result (groups.ristretto255.RistrettoScalar ×
+    bulletproofspp.transcript.BpppTranscript)
+
+/-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::append_point]:
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 97:4-100:5 -/
+axiom bulletproofspp.transcript.BpppTranscript.append_point
+  :
+  bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
+    → groups.ristretto255.RistrettoPoint → Result
+    bulletproofspp.transcript.BpppTranscript
+
+/-- [fastcrypto::groups::ristretto255::{impl core::cmp::PartialEq<fastcrypto::groups::ristretto255::RistrettoScalar> for fastcrypto::groups::ristretto255::RistrettoScalar}::eq]:
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 268:29-268:38
+    Visibility: public -/
+axiom
+  groups.ristretto255.RistrettoScalar.Insts.CoreCmpPartialEqRistrettoScalar.eq
+  :
+  groups.ristretto255.RistrettoScalar → groups.ristretto255.RistrettoScalar
+    → Result Bool
+
+/-- [fastcrypto::groups::ristretto255::{impl fastcrypto::groups::MultiScalarMul for fastcrypto::groups::ristretto255::RistrettoPoint}::multi_scalar_mul]:
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 94:4-103:5
+    Visibility: public -/
+axiom
+  groups.ristretto255.RistrettoPoint.Insts.FastcryptoGroupsMultiScalarMul.multi_scalar_mul
+  :
+  Slice groups.ristretto255.RistrettoScalar → Slice
+    groups.ristretto255.RistrettoPoint → Result (core.result.Result
+    groups.ristretto255.RistrettoPoint error.FastCryptoError)
+
+/-- [fastcrypto::groups::ristretto255::{impl core::ops::arith::Sub<fastcrypto::groups::ristretto255::RistrettoScalar, fastcrypto::groups::ristretto255::RistrettoScalar> for fastcrypto::groups::ristretto255::RistrettoScalar}::sub]:
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 268:55-268:58
+    Visibility: public -/
+axiom
+  groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithSubRistrettoScalarRistrettoScalar.sub
+  :
+  groups.ristretto255.RistrettoScalar → groups.ristretto255.RistrettoScalar
+    → Result groups.ristretto255.RistrettoScalar
+
+/-- [fastcrypto::groups::ristretto255::{impl fastcrypto::groups::GroupElement for fastcrypto::groups::ristretto255::RistrettoPoint}::zero]:
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 223:4-225:5
+    Visibility: public -/
+axiom
+  groups.ristretto255.RistrettoPoint.Insts.FastcryptoGroupsGroupElement.zero
+  : Result groups.ristretto255.RistrettoPoint
+
+/-- [fastcrypto::groups::ristretto255::{impl core::cmp::PartialEq<fastcrypto::groups::ristretto255::RistrettoPoint> for fastcrypto::groups::ristretto255::RistrettoPoint}::eq]:
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 38:38-38:47
+    Visibility: public -/
+axiom
+  groups.ristretto255.RistrettoPoint.Insts.CoreCmpPartialEqRistrettoPoint.eq
+  :
+  groups.ristretto255.RistrettoPoint → groups.ristretto255.RistrettoPoint →
+    Result Bool
 

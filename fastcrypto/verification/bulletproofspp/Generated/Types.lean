@@ -96,4 +96,78 @@ structure bulletproofspp.laurent.Laurent (C : Type _) where
   low : Std.I32
   coeffs : alloc.vec.Vec C
 
+/-- [fastcrypto::bulletproofspp::crs::Generators]
+    Source: 'fastcrypto/src/bulletproofspp/crs.rs', lines 39:0-45:1 -/
+structure bulletproofspp.crs.Generators where
+  g : groups.ristretto255.RistrettoPoint
+  h_vec : alloc.vec.Vec groups.ristretto255.RistrettoPoint
+  g_vec : alloc.vec.Vec groups.ristretto255.RistrettoPoint
+  precomp : groups.ristretto255.RistrettoPrecomputation
+
+/-- [fastcrypto::bulletproofspp::norm_linear::NormLinearProof]
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 39:0-43:1 -/
+structure bulletproofspp.norm_linear.NormLinearProof where
+  rounds : alloc.vec.Vec (groups.ristretto255.RistrettoPoint ×
+    groups.ristretto255.RistrettoPoint)
+  l_final : groups.ristretto255.RistrettoScalar
+  n_final : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+
+/-- [fastcrypto::bulletproofspp::norm_linear::Opening]
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 104:0-108:1 -/
+structure bulletproofspp.norm_linear.Opening where
+  sigma : groups.ristretto255.RistrettoScalar
+  l : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  n : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+
+/-- [fastcrypto::bulletproofspp::transcript::Label]
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 14:0-39:1 -/
+@[discriminant isize]
+inductive bulletproofspp.transcript.Label where
+| RangeProof : bulletproofspp.transcript.Label
+| Dst : bulletproofspp.transcript.Label
+| NBits : bulletproofspp.transcript.Label
+| M : bulletproofspp.transcript.Label
+| Circuit : bulletproofspp.transcript.Label
+| V : bulletproofspp.transcript.Label
+| CL : bulletproofspp.transcript.Label
+| CO : bulletproofspp.transcript.Label
+| CR : bulletproofspp.transcript.Label
+| CS : bulletproofspp.transcript.Label
+| Alpha : bulletproofspp.transcript.Label
+| Rho : bulletproofspp.transcript.Label
+| Lambda : bulletproofspp.transcript.Label
+| Beta : bulletproofspp.transcript.Label
+| Delta : bulletproofspp.transcript.Label
+| Tau : bulletproofspp.transcript.Label
+| NormLinear : bulletproofspp.transcript.Label
+| X : bulletproofspp.transcript.Label
+| R : bulletproofspp.transcript.Label
+| Gamma : bulletproofspp.transcript.Label
+| LFinal : bulletproofspp.transcript.Label
+| NFinal : bulletproofspp.transcript.Label
+
+/-- [fastcrypto::bulletproofspp::norm_linear::Weights]
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 404:0-404:37 -/
+@[reducible]
+def bulletproofspp.norm_linear.Weights :=
+  alloc.vec.Vec groups.ristretto255.RistrettoScalar
+
+/-- [fastcrypto::bulletproofspp::norm_linear::BasePoints]
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 395:0-401:1 -/
+@[discriminant isize]
+inductive bulletproofspp.norm_linear.BasePoints where
+| Crs : bulletproofspp.norm_linear.BasePoints
+| Folded :
+  groups.ristretto255.RistrettoPoint →
+  ((alloc.vec.Vec groups.ristretto255.RistrettoPoint) × (alloc.vec.Vec
+    groups.ristretto255.RistrettoPoint)) →
+  bulletproofspp.norm_linear.BasePoints
+
+/-- [fastcrypto::bulletproofspp::norm_linear::LazyBases]
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 303:0-307:1 -/
+structure bulletproofspp.norm_linear.LazyBases where
+  points : bulletproofspp.norm_linear.BasePoints
+  w_h : bulletproofspp.norm_linear.Weights
+  w_g : bulletproofspp.norm_linear.Weights
+
 end fastcrypto
