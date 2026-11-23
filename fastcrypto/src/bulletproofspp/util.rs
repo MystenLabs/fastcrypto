@@ -31,9 +31,13 @@ pub(crate) fn decode_next<T: ToFromByteArray<32>>(
 /// Inner product `<a, b> = sum_i a_i * b_i`.
 pub(crate) fn inner_product(a: &[RistrettoScalar], b: &[RistrettoScalar]) -> RistrettoScalar {
     debug_assert_eq!(a.len(), b.len());
-    a.iter()
-        .zip(b)
-        .fold(RistrettoScalar::zero(), |acc, (x, y)| acc + *x * y)
+    let mut acc = RistrettoScalar::zero();
+    let mut i = 0;
+    while i < a.len() && i < b.len() {
+        acc += a[i] * b[i];
+        i += 1;
+    }
+    acc
 }
 
 /// Weighted inner product `<a, b>_mu = sum_i a_i * b_i * mu^{i+1}`.
@@ -45,9 +49,11 @@ pub(crate) fn weighted_inner_product(
     debug_assert_eq!(a.len(), b.len());
     let mut weight = mu;
     let mut result = RistrettoScalar::zero();
-    for (x, y) in a.iter().zip(b) {
-        result += *x * y * weight;
+    let mut i = 0;
+    while i < a.len() && i < b.len() {
+        result += a[i] * b[i] * weight;
         weight *= mu;
+        i += 1;
     }
     result
 }
@@ -59,16 +65,24 @@ pub(crate) fn weighted_norm(n: &[RistrettoScalar], mu: RistrettoScalar) -> Ristr
 
 /// The scalars `(x_0, x_1, ...)` of the integers `xs`.
 pub(crate) fn to_scalars(xs: &[u64]) -> Vec<RistrettoScalar> {
-    xs.iter().map(|&x| RistrettoScalar::from(x)).collect()
+    let mut out = Vec::with_capacity(xs.len());
+    let mut i = 0;
+    while i < xs.len() {
+        out.push(RistrettoScalar::from(xs[i]));
+        i += 1;
+    }
+    out
 }
 
 /// Power vector `(1, x, x^2, ..., x^{n-1})`.
 pub(crate) fn power_vector(x: RistrettoScalar, n: usize) -> Vec<RistrettoScalar> {
     let mut v = Vec::with_capacity(n);
     let mut cur = one();
-    for _ in 0..n {
+    let mut i = 0;
+    while i < n {
         v.push(cur);
         cur *= x;
+        i += 1;
     }
     v
 }
@@ -76,18 +90,36 @@ pub(crate) fn power_vector(x: RistrettoScalar, n: usize) -> Vec<RistrettoScalar>
 /// Component-wise sum `a + b`.
 pub(crate) fn vec_add(a: &[RistrettoScalar], b: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
     debug_assert_eq!(a.len(), b.len());
-    a.iter().zip(b).map(|(x, y)| *x + y).collect()
+    let mut out = Vec::with_capacity(a.len().min(b.len()));
+    let mut i = 0;
+    while i < a.len() && i < b.len() {
+        out.push(a[i] + b[i]);
+        i += 1;
+    }
+    out
 }
 
 /// Scalar multiple `s * a`.
 pub(crate) fn vec_scalar_mul(s: RistrettoScalar, a: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
-    a.iter().map(|x| s * x).collect()
+    let mut out = Vec::with_capacity(a.len());
+    let mut i = 0;
+    while i < a.len() {
+        out.push(s * a[i]);
+        i += 1;
+    }
+    out
 }
 
 /// Component-wise (Hadamard) product `a ∘ b`.
 pub(crate) fn hadamard(a: &[RistrettoScalar], b: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
     debug_assert_eq!(a.len(), b.len());
-    a.iter().zip(b).map(|(x, y)| *x * y).collect()
+    let mut out = Vec::with_capacity(a.len().min(b.len()));
+    let mut i = 0;
+    while i < a.len() && i < b.len() {
+        out.push(a[i] * b[i]);
+        i += 1;
+    }
+    out
 }
 
 /// `v` padded to length `n` with zeros on the right.
@@ -109,15 +141,19 @@ pub(crate) fn batch_invert(inputs: &[RistrettoScalar]) -> FastCryptoResult<Vec<R
     // prefix[i] = inputs[0] * ... * inputs[i-1]
     let mut prefix = Vec::with_capacity(inputs.len());
     let mut acc = one();
-    for x in inputs {
+    let mut i = 0;
+    while i < inputs.len() {
         prefix.push(acc);
-        acc *= x;
+        acc *= inputs[i];
+        i += 1;
     }
     // A single zero input makes the total product zero, so this errors.
     let mut suffix_inv = acc.inverse()?;
     // suffix_inv = (inputs[i] * ... * inputs[n-1])^{-1} going backwards.
     let mut out = vec![RistrettoScalar::zero(); inputs.len()];
-    for i in (0..inputs.len()).rev() {
+    let mut i = inputs.len();
+    while i > 0 {
+        i -= 1;
         out[i] = suffix_inv * prefix[i];
         suffix_inv *= inputs[i];
     }
@@ -128,19 +164,27 @@ pub(crate) fn batch_invert(inputs: &[RistrettoScalar]) -> FastCryptoResult<Vec<R
 /// [BASE] must be a power of 2.
 pub(crate) fn to_digits(value: u64, d: usize) -> Vec<u64> {
     let bits = BASE.ilog2();
-    (0..d as u32)
-        .map(|t| (value >> (bits * t)) & (BASE - 1))
-        .collect()
+    let mut out = Vec::with_capacity(d);
+    let n = d as u32;
+    let mut t = 0;
+    while t < n {
+        out.push((value >> (bits * t)) & (BASE - 1));
+        t += 1;
+    }
+    out
 }
 
 /// Shared multiplicities `m_j = |{(i,t) : d_{i,t} = j}|` of the digits for
 /// `j = 1, ..., BASE - 1` (`m_0` implicit), with [BASE] the digit base.
 pub(crate) fn multiplicities(digits: &[u64]) -> Vec<u64> {
     let mut m = vec![0u64; (BASE - 1) as usize];
-    for &digit in digits {
+    let mut i = 0;
+    while i < digits.len() {
+        let digit = digits[i];
         if digit > 0 {
             m[(digit - 1) as usize] += 1;
         }
+        i += 1;
     }
     m
 }

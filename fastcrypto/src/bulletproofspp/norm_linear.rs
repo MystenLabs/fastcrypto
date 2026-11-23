@@ -16,7 +16,6 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::{GroupElement, MultiScalarMul, Scalar};
 use crate::serde_helpers::ToFromByteArray;
-use itertools::Itertools;
 
 /// Fold until fewer than this many scalars remain; the remaining opening is
 /// sent in the clear. 6 balances rounds (2 points each) against final scalars.
@@ -114,13 +113,7 @@ impl Generators {
     pub(crate) fn commit(&self, opening: &Opening) -> FastCryptoResult<RistrettoPoint> {
         debug_assert_eq!(opening.l.len(), self.h_vec.len());
         debug_assert_eq!(opening.n.len(), self.g_vec.len());
-        self.msm(
-            opening.sigma,
-            opening.l.iter().copied(),
-            opening.n.iter().copied(),
-            &[],
-            &[],
-        )
+        self.msm(opening.sigma, &opening.l, &opening.n, &[], &[])
     }
 }
 
@@ -244,7 +237,9 @@ pub(crate) fn verify(
 
     transcript.domain_sep(b"norm_linear");
 
-    for (x_point, r_point) in &proof.rounds {
+    let mut r = 0;
+    while r < proof.rounds.len() {
+        let (x_point, r_point) = &proof.rounds[r];
         transcript.append_point(b"X", x_point);
         transcript.append_point(b"R", r_point);
         let gamma = transcript.challenge_scalar(b"gamma");
@@ -258,6 +253,7 @@ pub(crate) fn verify(
 
         rho = mu;
         mu = mu * mu;
+        r += 1;
     }
 
     transcript.append_scalars(b"l_final", std::slice::from_ref(&proof.l_final));
@@ -267,27 +263,36 @@ pub(crate) fn verify(
     debug_assert_eq!(c.len(), 1);
     let sigma = c[0] * proof.l_final + weighted_norm(&proof.n_final, mu);
 
-    let l = w_h.scale(proof.l_final).take(gens.h_vec.len());
-    let n = w_g
-        .tensor(&proof.n_final)
-        .take(gens.g_vec.len())
-        .zip(p_n)
-        .map(|(w, p_n_i)| w - p_n_i);
+    let l = w_h.scale(proof.l_final, gens.h_vec.len());
+    let w_n = w_g.tensor(&proof.n_final, gens.g_vec.len());
+    let mut n = Vec::with_capacity(gens.g_vec.len());
+    let mut i = 0;
+    while i < w_n.len() && i < p_n.len() {
+        n.push(w_n[i] - p_n[i]);
+        i += 1;
+    }
 
     let mut dynamic_scalars = Vec::with_capacity(extra.len() + 2 * k);
     let mut dynamic_points = Vec::with_capacity(extra.len() + 2 * k);
-    for (s, p) in extra {
+    let mut i = 0;
+    while i < extra.len() {
+        let (s, p) = &extra[i];
         dynamic_scalars.push(-*s);
         dynamic_points.push(*p);
+        i += 1;
     }
-    for ((x_point, r_point), gamma) in proof.rounds.iter().zip(&gammas) {
-        dynamic_scalars.push(-*gamma);
+    let mut r = 0;
+    while r < proof.rounds.len() && r < gammas.len() {
+        let (x_point, r_point) = &proof.rounds[r];
+        let gamma = gammas[r];
+        dynamic_scalars.push(-gamma);
         dynamic_points.push(*x_point);
-        dynamic_scalars.push(one() - *gamma * *gamma);
+        dynamic_scalars.push(one() - gamma * gamma);
         dynamic_points.push(*r_point);
+        r += 1;
     }
 
-    let result = gens.msm(sigma - p_s, l, n, &dynamic_scalars, &dynamic_points)?;
+    let result = gens.msm(sigma - p_s, &l, &n, &dynamic_scalars, &dynamic_points)?;
 
     if result == RistrettoPoint::zero() {
         Ok(())
@@ -360,20 +365,23 @@ impl<'a> LazyBases<'a> {
         }
 
         let (h_len, g_len) = self.len();
-        let h_scalars = self.w_h.tensor(l).take(h_len);
-        let g_scalars = self.w_g.tensor(n).take(g_len);
+        let h_scalars = self.w_h.tensor(l, h_len);
+        let g_scalars = self.w_g.tensor(n, g_len);
         match &self.points {
-            BasePoints::Crs(gens) => gens.msm(sigma, h_scalars, g_scalars, &[], &[]),
+            BasePoints::Crs(gens) => gens.msm(sigma, &h_scalars, &g_scalars, &[], &[]),
             BasePoints::Folded {
                 g,
                 folded: (h_vec, g_vec),
             } => {
-                let (sc, pts): (Vec<RistrettoScalar>, Vec<RistrettoPoint>) =
-                    std::iter::once((sigma, *g))
-                        .chain(h_scalars.zip(h_vec.iter().copied()))
-                        .chain(g_scalars.zip(g_vec.iter().copied()))
-                        .filter(|(s, _)| *s != RistrettoScalar::zero())
-                        .unzip();
+                // The terms with a nonzero scalar.
+                let mut sc = Vec::with_capacity(1 + h_vec.len() + g_vec.len());
+                let mut pts = Vec::with_capacity(1 + h_vec.len() + g_vec.len());
+                if sigma != RistrettoScalar::zero() {
+                    sc.push(sigma);
+                    pts.push(*g);
+                }
+                push_nonzero(&mut sc, &mut pts, &h_scalars, h_vec);
+                push_nonzero(&mut sc, &mut pts, &g_scalars, g_vec);
                 RistrettoPoint::multi_scalar_mul(&sc, &pts)
             }
         }
@@ -400,26 +408,37 @@ impl Weights {
 
     /// The weights `(f0, f1) ⊗ w`.
     fn tensor_pair(&self, f0: RistrettoScalar, f1: RistrettoScalar) -> Self {
-        Weights(self.tensor(&[f0, f1]).collect())
+        Weights(self.tensor(&[f0, f1], 2 * self.len()))
     }
 
     fn len(&self) -> usize {
         self.0.len()
     }
 
-    /// `coeffs ⊗ w`.
-    fn tensor<'b>(
-        &'b self,
-        coeffs: &'b [RistrettoScalar],
-    ) -> impl Iterator<Item = RistrettoScalar> + 'b {
-        coeffs
-            .iter()
-            .flat_map(move |c| self.0.iter().map(move |w| sparse_mul(*c, *w)))
+    /// The first `len` entries of `coeffs ⊗ w`.
+    fn tensor(&self, coeffs: &[RistrettoScalar], len: usize) -> Vec<RistrettoScalar> {
+        let mut out = Vec::with_capacity(len);
+        let mut i = 0;
+        while i < coeffs.len() && out.len() < len {
+            let mut j = 0;
+            while j < self.0.len() && out.len() < len {
+                out.push(sparse_mul(coeffs[i], self.0[j]));
+                j += 1;
+            }
+            i += 1;
+        }
+        out
     }
 
-    /// `s * w`.
-    fn scale(&self, s: RistrettoScalar) -> impl Iterator<Item = RistrettoScalar> + '_ {
-        self.0.iter().map(move |w| sparse_mul(s, *w))
+    /// The first `len` entries of `s * w`.
+    fn scale(&self, s: RistrettoScalar, len: usize) -> Vec<RistrettoScalar> {
+        let mut out = Vec::with_capacity(len);
+        let mut j = 0;
+        while j < self.0.len() && out.len() < len {
+            out.push(sparse_mul(s, self.0[j]));
+            j += 1;
+        }
+        out
     }
 
     /// The tensor contraction
@@ -427,10 +446,17 @@ impl Weights {
     /// the transpose of [Weights::tensor]:
     /// `<coeffs ⊗ w, points> = <coeffs, contract(points)>`.
     fn contract(&self, points: &[RistrettoPoint]) -> FastCryptoResult<Vec<RistrettoPoint>> {
-        points
-            .chunks(self.len())
-            .map(|chunk| RistrettoPoint::multi_scalar_mul(&self.0[..chunk.len()], chunk))
-            .collect()
+        let mut out = Vec::with_capacity(points.len().div_ceil(self.len()));
+        let mut start = 0;
+        while start < points.len() {
+            let end = (start + self.len()).min(points.len());
+            out.push(RistrettoPoint::multi_scalar_mul(
+                &self.0[..end - start],
+                &points[start..end],
+            )?);
+            start = end;
+        }
+        Ok(out)
     }
 }
 
@@ -459,20 +485,57 @@ fn split_even_odd(mut v: Vec<RistrettoScalar>) -> (Vec<RistrettoScalar>, Vec<Ris
     if !v.len().is_multiple_of(2) {
         v.push(RistrettoScalar::zero());
     }
-    v.into_iter().tuples().unzip()
+    let mut even = Vec::with_capacity(v.len() / 2);
+    let mut odd = Vec::with_capacity(v.len() / 2);
+    let mut i = 0;
+    while i + 1 < v.len() {
+        even.push(v[i]);
+        odd.push(v[i + 1]);
+        i += 2;
+    }
+    (even, odd)
 }
 
 /// The vector with even-indexed entries `even` and odd-indexed entries `odd`.
 fn interleave(even: &[RistrettoScalar], odd: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
     debug_assert_eq!(even.len(), odd.len());
-    even.iter().zip(odd).flat_map(|(x, y)| [*x, *y]).collect()
+    let mut out = Vec::with_capacity(2 * even.len());
+    let mut i = 0;
+    while i < even.len() && i < odd.len() {
+        out.push(even[i]);
+        out.push(odd[i]);
+        i += 1;
+    }
+    out
 }
 
 /// The vector with odd-indexed entries `odd` and zeros at the even indices.
 fn odd_only(odd: &[RistrettoScalar]) -> Vec<RistrettoScalar> {
-    odd.iter()
-        .flat_map(|y| [RistrettoScalar::zero(), *y])
-        .collect()
+    let mut out = Vec::with_capacity(2 * odd.len());
+    let mut i = 0;
+    while i < odd.len() {
+        out.push(RistrettoScalar::zero());
+        out.push(odd[i]);
+        i += 1;
+    }
+    out
+}
+
+/// Push the terms `(scalars[i], points[i])` whose scalar is not zero.
+fn push_nonzero(
+    sc: &mut Vec<RistrettoScalar>,
+    pts: &mut Vec<RistrettoPoint>,
+    scalars: &[RistrettoScalar],
+    points: &[RistrettoPoint],
+) {
+    let mut i = 0;
+    while i < scalars.len() && i < points.len() {
+        if scalars[i] != RistrettoScalar::zero() {
+            sc.push(scalars[i]);
+            pts.push(points[i]);
+        }
+        i += 1;
+    }
 }
 
 /// `a * b`, skipping the multiplication when `a` is zero.

@@ -115,15 +115,15 @@ impl Generators {
     pub(crate) fn msm(
         &self,
         sigma: RistrettoScalar,
-        l: impl IntoIterator<Item = RistrettoScalar>,
-        n: impl IntoIterator<Item = RistrettoScalar>,
+        l: &[RistrettoScalar],
+        n: &[RistrettoScalar],
         dynamic_scalars: &[RistrettoScalar],
         dynamic_points: &[RistrettoPoint],
     ) -> FastCryptoResult<RistrettoPoint> {
         let mut scalars = Vec::with_capacity(1 + self.h_vec.len() + self.g_vec.len());
         scalars.push(sigma);
-        scalars.extend(l);
-        scalars.extend(n);
+        scalars.extend_from_slice(l);
+        scalars.extend_from_slice(n);
         self.precomp
             .mixed_multi_scalar_mul(&scalars, dynamic_scalars, dynamic_points)
     }

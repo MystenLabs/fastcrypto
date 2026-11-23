@@ -33,21 +33,27 @@ impl<C: Coefficient> Laurent<C> {
 
     /// The sum `sum_i c_i*T^{p_i}` of the `terms` `(p_i, c_i)`. Panics if
     /// there are none.
-    pub(crate) fn from_terms(terms: impl IntoIterator<Item = (i32, C)>) -> Self {
-        terms
-            .into_iter()
-            .map(|(power, c)| Self::monomial(power, c))
-            .reduce(Add::add)
-            .expect("at least one term")
+    pub(crate) fn from_terms(terms: Vec<(i32, C)>) -> Self {
+        assert!(!terms.is_empty(), "at least one term");
+        let (power, c) = terms[0].clone();
+        let mut result = Self::monomial(power, c);
+        let mut i = 1;
+        while i < terms.len() {
+            let (power, c) = terms[i].clone();
+            result = result + Self::monomial(power, c);
+            i += 1;
+        }
+        result
     }
 
     /// The coefficient of `T^power`, zero if out of range.
     pub(crate) fn coeff(&self, power: i32) -> C {
-        usize::try_from(power - self.low)
-            .ok()
-            .and_then(|i| self.coeffs.get(i))
-            .cloned()
-            .unwrap_or_else(|| self.coeffs[0].scale(S::zero()))
+        let offset = power - self.low;
+        if offset >= 0 && (offset as usize) < self.coeffs.len() {
+            self.coeffs[offset as usize].clone()
+        } else {
+            self.coeffs[0].scale(S::zero())
+        }
     }
 
     /// The highest power.
@@ -57,17 +63,30 @@ impl<C: Coefficient> Laurent<C> {
 
     /// `s` times this polynomial.
     pub(crate) fn scale(&self, s: S) -> Self {
-        Self::new(self.low, self.coeffs.iter().map(|c| c.scale(s)).collect())
+        let mut coeffs = Vec::with_capacity(self.coeffs.len());
+        let mut i = 0;
+        while i < self.coeffs.len() {
+            coeffs.push(self.coeffs[i].scale(s));
+            i += 1;
+        }
+        Self::new(self.low, coeffs)
     }
 
     /// The value at `T = x`. Fails if `x` is zero and there are negative powers.
     pub(crate) fn eval(&self, x: S) -> FastCryptoResult<C> {
         let base = if self.low < 0 { x.inverse()? } else { x };
-        let mut x_pow = (0..self.low.unsigned_abs()).fold(one(), |acc, _| acc * base);
+        let mut x_pow = one();
+        let mut k = 0;
+        while k < self.low.unsigned_abs() {
+            x_pow *= base;
+            k += 1;
+        }
         let mut result = self.coeffs[0].scale(x_pow);
-        for c in &self.coeffs[1..] {
+        let mut i = 1;
+        while i < self.coeffs.len() {
             x_pow *= x;
-            result = result.add(&c.scale(x_pow));
+            result = result.add(&self.coeffs[i].scale(x_pow));
+            i += 1;
         }
         Ok(result)
     }
@@ -86,9 +105,16 @@ impl<C: Coefficient> Add for Laurent<C> {
 
     fn add(self, other: Self) -> Self {
         let low = self.low.min(other.low);
-        let coeffs = (low..=self.degree().max(other.degree()))
-            .map(|p| self.coeff(p).add(&other.coeff(p)))
-            .collect();
+        let high = self.degree().max(other.degree());
+        let mut coeffs = Vec::new();
+        let mut p = low;
+        while p <= high {
+            coeffs.push(self.coeff(p).add(&other.coeff(p)));
+            if p == high {
+                break;
+            }
+            p += 1;
+        }
         Self::new(low, coeffs)
     }
 }
@@ -105,20 +131,27 @@ impl Laurent<Vec<S>> {
     /// The scalar polynomial `<self(T), other(T)>`.
     pub(crate) fn inner_product(&self, other: &Self) -> Laurent<S> {
         let mut coeffs = vec![S::zero(); self.coeffs.len() + other.coeffs.len() - 1];
-        for (i, a) in self.coeffs.iter().enumerate() {
-            for (j, b) in other.coeffs.iter().enumerate() {
-                coeffs[i + j] += inner_product(a, b);
+        let mut i = 0;
+        while i < self.coeffs.len() {
+            let mut j = 0;
+            while j < other.coeffs.len() {
+                coeffs[i + j] += inner_product(&self.coeffs[i], &other.coeffs[j]);
+                j += 1;
             }
+            i += 1;
         }
         Laurent::new(self.low + other.low, coeffs)
     }
 
     /// The scalar polynomial `<self(T) ∘ weights, other(T)>`.
     pub(crate) fn weighted_inner_product(&self, other: &Self, weights: &[S]) -> Laurent<S> {
-        let weighted = Laurent::new(
-            self.low,
-            self.coeffs.iter().map(|a| hadamard(a, weights)).collect(),
-        );
+        let mut coeffs = Vec::with_capacity(self.coeffs.len());
+        let mut i = 0;
+        while i < self.coeffs.len() {
+            coeffs.push(hadamard(&self.coeffs[i], weights));
+            i += 1;
+        }
+        let weighted = Laurent::new(self.low, coeffs);
         weighted.inner_product(other)
     }
 }
@@ -170,7 +203,7 @@ mod tests {
     #[test]
     fn test_from_terms() {
         // Repeated powers add up; gaps are zero.
-        let p = Laurent::from_terms([(2, s(1)), (-1, s(2)), (2, s(3))]);
+        let p = Laurent::from_terms(vec![(2, s(1)), (-1, s(2)), (2, s(3))]);
         assert_eq!(p, Laurent::new(-1, vec![s(2), s(0), s(0), s(4)]));
     }
 

@@ -113,13 +113,15 @@ impl CircuitParams {
 /// `j`-th unit vector and `cl_v` the H shape rows (slot 8 carries only the
 /// shape entry).
 fn c(constraints: &Constraints, beta: S) -> Laurent<Vec<S>> {
-    Laurent::from_terms(once((0, constraints.cl_v.clone())).chain(
-        CR_POWERS.iter().enumerate().map(|(j, &a)| {
-            let mut beta_e_j = vec![S::zero(); H_LEN];
-            beta_e_j[j] = beta;
-            (a, beta_e_j)
-        }),
-    ))
+    Laurent::from_terms(
+        once((0, constraints.cl_v.clone()))
+            .chain(CR_POWERS.iter().enumerate().map(|(j, &a)| {
+                let mut beta_e_j = vec![S::zero(); H_LEN];
+                beta_e_j[j] = beta;
+                (a, beta_e_j)
+            }))
+            .collect(),
+    )
 }
 
 /// The opening `(sigma, l, n) = (r[0], (r[1], ..., r[7], 0), n)` of the
@@ -246,9 +248,9 @@ impl CombinedOpening {
     /// The opening `sum_i T^{p_i}*o_i` of the `terms` `(p_i, o_i)`.
     fn from_terms(terms: &[(i32, Opening)]) -> Self {
         CombinedOpening {
-            sigma: Laurent::from_terms(terms.iter().map(|(p, o)| (*p, o.sigma))),
-            l: Laurent::from_terms(terms.iter().map(|(p, o)| (*p, o.l.clone()))),
-            n: Laurent::from_terms(terms.iter().map(|(p, o)| (*p, o.n.clone()))),
+            sigma: Laurent::from_terms(terms.iter().map(|(p, o)| (*p, o.sigma)).collect()),
+            l: Laurent::from_terms(terms.iter().map(|(p, o)| (*p, o.l.clone())).collect()),
+            n: Laurent::from_terms(terms.iter().map(|(p, o)| (*p, o.n.clone())).collect()),
         }
     }
 
