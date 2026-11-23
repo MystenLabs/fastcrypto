@@ -6,8 +6,8 @@ exactly what is assumed and what is proved, without reading proofs.
 
 ## Scope
 
-The protocol files assume their lemmas about the code (`Contracts` and the like) and state no proof
-of them. Whether the code satisfies them is proved, where it is, by a `Link*.lean` file from the
+The protocol files assume properties of the Rust functions (`Contracts` and the like) and state no
+proof of them. Whether the code satisfies them is proved, where it is, by a `Link*.lean` file from the
 results about the code in the module's folder, and listed in the module's `README.md`. Keeping
 this out of the black-box files means that a change to the code changes the link, not the
 protocol theorems.
@@ -31,8 +31,8 @@ Leave out what does not add such an assurance:
 - Restatements of a single contract, or theorems a reviewer can check at a glance, unless another
   theorem builds on them.
 - Anything the link to the code already gives, e.g. example instances showing that the
-  assumptions are consistent (the Rust code satisfying its lemmas already shows that).
-- Notes on how a lemma is proved for the code or how a caller meets its obligations. They belong
+  assumptions are consistent (the Rust code having the properties already shows that).
+- Notes on how a property is proved for the code or how a caller meets its obligations. They belong
   with the link or the caller and change with the code; here they would go stale.
 - Duplicate statements of the same fact. Define it once and refer to it.
 
