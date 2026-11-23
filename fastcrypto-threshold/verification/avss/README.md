@@ -162,7 +162,7 @@ by the `Protocol/Link*.lean` files.
 | `recover_sound` | `recover` returning `Ok(o)` ⇒ `o`'s shares verify. | Proved (13) |
 | `feldman_binding` | A message accepted by any receiver binds all verifying shares to one polynomial of degree `< t`. | Proved (10) |
 | `output_commitment` | An output's Feldman commitment at `k` commits to the value at `k` of the polynomial the message binds to. | Proved |
-| `create_valid` | A message from `create_message` is valid for all receivers except with probability `≤ 1/|S|`. | Assumed (`CreateValid`) |
+| `create_valid` | A message from `create_message` is valid for all receivers except with probability `≤ 1/\|S\|`. | Assumed (`CreateValid`) |
 | `create_secret` | The polynomial a message from `create_message` binds to has the dealer's `secret` as constant term. | Assumed (`CreateSecret`) |
 | `complete_sum` | `complete_dkg`'s shares are the sums of the dealers' shares. | Not linked: `complete_dkg` is not translated (it takes a `HashMap`) |
 | `complete_ok` | `complete_dkg` succeeds on distinct dealers of weight `≥ t` with shares at the same indices. | Not linked, as above |
