@@ -11,7 +11,7 @@
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use crate::groups::{GroupElement, MultiScalarMul, Scalar};
+use crate::groups::{AdditiveGroup, MultiScalarMul, Scalar};
 use crate::pedersen::{Blinding, PedersenCommitment, Range};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;

@@ -44,7 +44,7 @@ use crate::bulletproofspp::laurent::Laurent;
 use crate::bulletproofspp::util::*;
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::RistrettoScalar;
-use crate::groups::{GroupElement, Scalar};
+use crate::groups::{AdditiveGroup, Scalar};
 use itertools::iterate;
 
 type S = RistrettoScalar;

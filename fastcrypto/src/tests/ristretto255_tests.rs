@@ -6,7 +6,7 @@ use crate::groups::ristretto255::MixedMsmStrategy;
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::ristretto255::RistrettoScalar;
 use crate::groups::{
-    GroupElement, HashToGroupElement, MixedMultiScalarMul, MultiScalarMul,
+    AdditiveGroup, HashToGroupElement, MixedMultiScalarMul, MultiScalarMul,
     PrecomputableMultiScalarMul, Scalar,
 };
 use crate::serde_helpers::ToFromByteArray;

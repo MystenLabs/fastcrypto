@@ -6,7 +6,7 @@ use crate::threshold_schnorr::S;
 use crate::types::{get_uniform_value, to_scalar, ShareIndex};
 use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, TooManyErrors};
 use fastcrypto::error::FastCryptoResult;
-use fastcrypto::groups::GroupElement;
+use fastcrypto::groups::AdditiveGroup;
 use itertools::Itertools;
 use reed_solomon_erasure::galois_16::ReedSolomon;
 use serde::{Deserialize, Serialize};

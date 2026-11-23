@@ -3,7 +3,7 @@
 
 use crate::random_oracle::RandomOracle;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
+use fastcrypto::groups::{AdditiveGroup, FiatShamirChallenge, GroupElement, Scalar};
 use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Deserializer, Serialize};
 use tracing::debug;
@@ -88,7 +88,6 @@ where
 impl<'de, G> Deserialize<'de> for DdhTupleNizk<G>
 where
     G: GroupElement + Deserialize<'de>,
-    G::ScalarType: Deserialize<'de>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -157,7 +156,6 @@ where
 impl<'de, G> Deserialize<'de> for DLNizk<G>
 where
     G: GroupElement + Deserialize<'de>,
-    G::ScalarType: Deserialize<'de>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

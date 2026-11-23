@@ -96,7 +96,7 @@ mod tests {
         G1Element, G2Element, GTElement, Scalar, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
         GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
     };
-    use fastcrypto::groups::GroupElement;
+    use fastcrypto::groups::{AdditiveGroup, GroupElement};
     use fastcrypto::serde_helpers::ToFromByteArray;
 
     #[test]

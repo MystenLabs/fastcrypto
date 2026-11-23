@@ -4,7 +4,7 @@
 use crate::polynomial::{Eval, PublicPoly};
 use crate::tbls;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing, Scalar};
+use fastcrypto::groups::{bls12381, AdditiveGroup, HashToGroupElement, Pairing, Scalar};
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::num::NonZeroU16;

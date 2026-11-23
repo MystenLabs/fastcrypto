@@ -6,8 +6,8 @@ use crate::bls12381::min_sig::DST_G1;
 use crate::encoding::{Encoding, Hex};
 use crate::error::{FastCryptoError, FastCryptoError::InvalidInput, FastCryptoResult};
 use crate::groups::{
-    FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul,
-    Pairing, Scalar as ScalarType,
+    AdditiveGroup, FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement,
+    Module, MultiScalarMul, Pairing, Scalar as ScalarType,
 };
 use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
@@ -200,9 +200,7 @@ fn to_blst_type_slice<From, To>(points: &[From]) -> &[To] {
     unsafe { std::slice::from_raw_parts(points.as_ptr() as *const To, points.len()) }
 }
 
-impl GroupElement for G1Element {
-    type ScalarType = Scalar;
-
+impl AdditiveGroup for G1Element {
     fn zero() -> Self {
         Self(blst_p1::default())
     }
@@ -214,6 +212,12 @@ impl GroupElement for G1Element {
         }
         Self(ret)
     }
+}
+
+impl Module<Scalar> for G1Element {}
+
+impl GroupElement for G1Element {
+    type ScalarType = Scalar;
 }
 
 impl Pairing for G1Element {
@@ -545,9 +549,7 @@ impl MultiScalarMul for G2Element {
     }
 }
 
-impl GroupElement for G2Element {
-    type ScalarType = Scalar;
-
+impl AdditiveGroup for G2Element {
     fn zero() -> Self {
         Self(blst_p2::default())
     }
@@ -559,6 +561,12 @@ impl GroupElement for G2Element {
         }
         Self(ret)
     }
+}
+
+impl Module<Scalar> for G2Element {}
+
+impl GroupElement for G2Element {
+    type ScalarType = Scalar;
 }
 
 impl HashToGroupElement for G2Element {
@@ -699,9 +707,7 @@ impl Mul<Scalar> for GTElement {
     }
 }
 
-impl GroupElement for GTElement {
-    type ScalarType = Scalar;
-
+impl AdditiveGroup for GTElement {
     fn zero() -> Self {
         unsafe { Self(*blst_fp12_one()) }
     }
@@ -710,6 +716,12 @@ impl GroupElement for GTElement {
         static G: OnceCell<blst_fp12> = OnceCell::new();
         Self(*G.get_or_init(Self::compute_generator))
     }
+}
+
+impl Module<Scalar> for GTElement {}
+
+impl GroupElement for GTElement {
+    type ScalarType = Scalar;
 }
 
 impl GTElement {
@@ -779,9 +791,7 @@ impl Debug for GTElement {
 
 serialize_deserialize_with_to_from_byte_array!(GTElement);
 
-impl GroupElement for Scalar {
-    type ScalarType = Self;
-
+impl AdditiveGroup for Scalar {
     fn zero() -> Self {
         Self(blst_fr::default())
     }
@@ -789,6 +799,12 @@ impl GroupElement for Scalar {
     fn generator() -> Self {
         Self(BLST_FR_ONE)
     }
+}
+
+impl Module<Scalar> for Scalar {}
+
+impl GroupElement for Scalar {
+    type ScalarType = Scalar;
 }
 
 impl Zeroize for Scalar {

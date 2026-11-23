@@ -20,7 +20,7 @@ pub mod recoverable;
 
 pub mod conversion;
 
-use crate::groups::GroupElement;
+use crate::groups::{AdditiveGroup, GroupElement};
 use crate::serde_helpers::BytesRepresentation;
 use crate::{
     generate_bytes_representation, impl_base64_display_fmt,

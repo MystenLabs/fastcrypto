@@ -11,8 +11,8 @@ use crate::groups::bls12381::{
     GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
 };
 use crate::groups::{
-    FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul,
-    Pairing, Scalar as ScalarTrait,
+    AdditiveGroup, FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement,
+    MultiScalarMul, Pairing, Scalar as ScalarTrait,
 };
 use crate::hash::{HashFunction, Sha256};
 use crate::serde_helpers::{BytesRepresentation, ToFromByteArray};
@@ -438,10 +438,10 @@ fn test_scalar_arithmetic() {
     assert_eq!(Scalar::product(factors.into_iter()), Scalar::from(42));
     assert_eq!(Scalar::product(std::iter::empty()), one);
     assert_eq!(
-        <Scalar as GroupElement>::sum(factors.into_iter()),
+        <Scalar as AdditiveGroup>::sum(factors.into_iter()),
         Scalar::from(12)
     );
-    assert_eq!(<Scalar as GroupElement>::sum(std::iter::empty()), zero);
+    assert_eq!(<Scalar as AdditiveGroup>::sum(std::iter::empty()), zero);
 
     // Zeroize clears a secret scalar.
     let mut secret = Scalar::rand(&mut rng);
