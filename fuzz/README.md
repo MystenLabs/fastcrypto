@@ -16,6 +16,8 @@ This crate is not part of the main workspace because cargo-fuzz needs a nightly 
 | `secp256r1_deserialize` | Decoding of secp256r1 keys, signatures and recoverable signatures through `from_bytes`, BCS, bincode, JSON and `*AsBytes`, compared with p256 |
 | `secp256r1_verify` | Signature verification the way Sui's `secp256r1_verify` Move native does it, compared with p256 restricted to a low s |
 | `secp256r1_ecrecover` | Public key recovery the way Sui's `secp256r1_ecrecover` Move native does it, current and legacy, compared with the ecdsa crate |
+| `groth16_verify` | Groth16 verification and verifying key preparation on BN254 and BLS12-381 the way Sui's `groth16` Move natives do it, compared with arkworks on BLS12-381 |
+| `poseidon_bytes` | Poseidon hashing the way Sui's `poseidon_bn254` Move native does it |
 
 Run a target with:
 
