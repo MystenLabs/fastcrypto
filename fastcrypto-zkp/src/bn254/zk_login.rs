@@ -166,6 +166,8 @@ pub enum OIDCProvider {
     EveFrontier,
     /// <https://test.auth.evefrontier.com/.well-known/jwks.json>
     TestEveFrontier,
+    /// <https://ptu.auth.evefrontier.com/.well-known/jwks.json>
+    PtuEveFrontier,
 }
 
 impl FromStr for OIDCProvider {
@@ -191,6 +193,7 @@ impl FromStr for OIDCProvider {
             "Arden" => Ok(Self::Arden),
             "EveFrontier" => Ok(Self::EveFrontier),
             "TestEveFrontier" => Ok(Self::TestEveFrontier),
+            "PtuEveFrontier" => Ok(Self::PtuEveFrontier),
             _ => {
                 let re = Regex::new(
                     r"AwsTenant-region:(?P<region>[^.]+)-tenant_id:(?P<tenant_id>[^/]+)",
@@ -229,6 +232,7 @@ impl Display for OIDCProvider {
             Self::Arden => write!(f, "Arden"),
             Self::EveFrontier => write!(f, "EveFrontier"),
             Self::TestEveFrontier => write!(f, "TestEveFrontier"),
+            Self::PtuEveFrontier => write!(f, "PtuEveFrontier"),
             Self::AwsTenant((region, tenant_id)) => {
                 write!(f, "AwsTenant-region:{}-tenant_id:{}", region, tenant_id)
             }
@@ -317,6 +321,10 @@ impl OIDCProvider {
             OIDCProvider::TestEveFrontier => ProviderConfig::new(
                 "test.auth.evefrontier.com",
                 "https://test.auth.evefrontier.com/.well-known/jwks.json"
+            ),
+            OIDCProvider::PtuEveFrontier => ProviderConfig::new(
+                "ptu.auth.evefrontier.com",
+                "https://ptu.auth.evefrontier.com/.well-known/jwks.json"
             )
         }
     }
@@ -343,6 +351,7 @@ impl OIDCProvider {
             "https://oidc.arden.cc" => Ok(Self::Arden),
             "auth.evefrontier.com" => Ok(Self::EveFrontier),
             "test.auth.evefrontier.com" => Ok(Self::TestEveFrontier),
+            "ptu.auth.evefrontier.com" => Ok(Self::PtuEveFrontier),
             iss if match_microsoft_iss_substring(iss) => Ok(Self::Microsoft),
             _ => match parse_aws_iss_substring(iss) {
                 Ok((region, tenant_id)) => {
