@@ -7,9 +7,10 @@ protocol of [ePrint 2026/2648](https://eprint.iacr.org/2026/2648) §5. There are
 * `Model/` is a Lean model of the Rust code, one file per module and function by function, over
   any field `F` and any `F`-module `E`. The theorems below are about this model.
 * `Generated/` is a Lean translation of the Rust code made by
-  [Charon and Aeneas](https://github.com/AeneasVerif/aeneas). `Util.lean` proves that the
-  translated functions of `util.rs` compute the model's, with scalars mapped to `F`. The other
-  modules are not linked to their translation yet (see [below](#what-is-not-proved)).
+  [Charon and Aeneas](https://github.com/AeneasVerif/aeneas). `Util.lean`, `Laurent.lean` and
+  `Constraints.lean` prove that the translated functions of `util.rs`, `laurent.rs` and
+  `constraints.rs` compute the model's, with scalars mapped to `F`. The other modules are not
+  linked to their translation yet (see [below](#what-is-not-proved)).
 
 The Rust code carries no annotations. It is written in a style Aeneas can translate: index loops
 instead of iterator chains and closures.
@@ -52,10 +53,18 @@ it returns `H_LEN` and `nm` generators, with `g = pedersen::H` and `h_vec[0] = p
 6. **`RangeProof.challengeLogs_nodup`: no challenge is drawn twice.** Within a run, no two
    challenges are drawn at the same log.
 
-The `util.rs` lemmas in `Util.lean` say, for each function, that the translation returns what the
-model returns: `inner_product`, `weighted_inner_product`, `weighted_norm`, `to_scalars`,
-`power_vector`, `vec_add`, `vec_scalar_mul`, `hadamard`, `pad_to`, `batch_invert` (including its
-error when an input is zero), `to_digits` for `d ≤ 16` and `multiplicities` for digits below 16.
+The lemmas in `Util.lean`, `Laurent.lean` and `Constraints.lean` say, for each function, that the
+translation returns what the model returns, including the same errors:
+
+* `util.rs`: `inner_product`, `weighted_inner_product`, `weighted_norm`, `to_scalars`,
+  `power_vector`, `vec_add`, `vec_scalar_mul`, `hadamard`, `pad_to`, `batch_invert`, `to_digits`
+  for `d ≤ 16` and `multiplicities` for digits below 16.
+* `laurent.rs`: `new`, `monomial`, `degree`, `coeff`, `scale`, `+`, `-`, `from_terms`, `eval`,
+  `inner_product` and `weighted_inner_product`, for polynomials whose powers lie within `2^29`
+  (`2^28` for the inner products), and the `Coefficient` impl of `Vec<RistrettoScalar>` on
+  vectors of one length.
+* `constraints.rs`: `Constraints::new`, for parameters with `d > 0`, `n_d = m d` and `nm ≥ 15`
+  (`ParamsOK`), and `p_n`.
 
 ## Files
 
@@ -66,11 +75,11 @@ error when an input is zero), `to_digits` for `d ≤ 16` and `multiplicities` fo
 | `Proofs/` | Lemmas about each module of the model, and completeness and special soundness of `norm_linear` and `circuit`. |
 | `Spec/` | The protocol of the paper, used inside the proofs. |
 | `Scalar.lean` | `ScalarModel`: what is assumed about `RistrettoScalar`. |
-| `Util.lean` | The translation of `util.rs` computes `Model/Util.lean`. |
+| `Util.lean`, `Laurent.lean`, `Constraints.lean` | The translations of `util.rs`, `laurent.rs` and `constraints.rs` compute the model. |
 | `Theorems.lean` | Imports everything. |
-| `Generated/` | The translation of `util.rs`, made by `extract.sh`. `groups`, `pedersen`, `serde_helpers` and `merlin` are opaque. |
+| `Generated/` | The translation of `util.rs`, `laurent.rs` and `constraints.rs`, made by `extract.sh`. `groups`, `pedersen`, `serde_helpers` and `merlin` are opaque. |
 | `extract.sh` | Regenerates `Generated/`. |
-| `fix_aeneas_output.py` | Defines `u64::ilog2`, which Aeneas leaves as an axiom. Called by `extract.sh`. |
+| `fix_aeneas_output.py` | Defines `u64::ilog2` and `i32::unsigned_abs`, which Aeneas leaves as axioms. Called by `extract.sh`. |
 
 To check the proofs, install Lean with `elan` and run, here:
 
@@ -95,13 +104,15 @@ and run `CHARON=... AENEAS=... ./extract.sh`.
   * the prover's random draws are an input, indexed by slot; for zero-knowledge they are uniform,
     and `protocol` (`ZeroKnowledge.lean`), which casts `range_proof` as a VCVio protocol, is part
     of the model.
-* **Translation.** `Util.lean` is about the Lean code in `Generated/`, so it trusts that Charon and
-  Aeneas translate `util.rs` faithfully, and the definition of `u64::ilog2` that
-  `fix_aeneas_output.py` adds. `debug_assert!`s are translated as checks that fail, so the lemmas
-  assume equal lengths where `util.rs` asserts them.
+* **Translation.** The lemmas about the translation are about the Lean code in `Generated/`, so
+  they trust that Charon and Aeneas translate the Rust code faithfully, and the definitions of
+  `u64::ilog2` and `i32::unsigned_abs` that `fix_aeneas_output.py` adds. `debug_assert!`s are
+  translated as checks that fail, so the lemmas assume equal lengths where the Rust code asserts
+  them. Aeneas clones tuples by copying, so cloning `(i32, C)` in `Laurent::from_terms` is
+  assumed to return its argument.
 * **Scalars** (`ScalarModel`). `RistrettoScalar` maps to the field `F` by some `φ`, under which
-  `zero`, `generator`, `+`, `*`, `+=`, `*=` and `From<u64>` are `F`'s, `clone` returns its
-  argument, and `inverse` fails exactly on zero.
+  `zero`, `generator`, `+` (also by reference), `-x`, `*`, `+=`, `*=` and `From<u64>` are `F`'s,
+  `clone` returns its argument, and `inverse` fails exactly on zero.
 * **Merlin and Ristretto.** Merlin frames `(label, message)` pairs unambiguously, and Ristretto
   points have a canonical encoding.
 * **Generators.** `Generators::new` returns generators with no known linear relation. They are
@@ -109,8 +120,9 @@ and run `CHARON=... AENEAS=... ./extract.sh`.
 
 ## What is not proved
 
-* The translations of `laurent.rs`, `constraints.rs`, `transcript.rs`, `crs.rs`, `norm_linear.rs`,
-  `circuit.rs` and `range_proof.rs` are not yet shown to compute the model.
+* The translations of `transcript.rs`, `crs.rs`, `norm_linear.rs`, `circuit.rs` and
+  `range_proof.rs` are not yet shown to compute the model, so the theorems are not yet about the
+  Rust code.
 * `Generators::new` (hash-to-curve), the MSM precomputation tables, serialization and test-only
   code are not modelled.
 * From special soundness to knowledge soundness of the non-interactive proof (tree extraction and
