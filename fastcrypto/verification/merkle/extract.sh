@@ -27,6 +27,7 @@ CARGO_TARGET_DIR="$root/target/charon" "$charon" cargo --preset aeneas \
   --start-from "$M::MerkleProof::verify_for_trusted_tree" \
   --start-from "$M::MerkleProof::is_right_most" \
   --start-from "$M::MerkleNonInclusionProof::verify_for_trusted_tree" \
+  --start-from "$M::MerkleTree::compute_non_inclusion_proof" \
   --opaque crate::hash --include crate::hash::Digest \
   --opaque serde_core --opaque serde --opaque bcs \
   --dest-file "$out/merkle.llbc"

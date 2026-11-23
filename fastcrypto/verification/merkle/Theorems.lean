@@ -2,6 +2,7 @@
 import merkle.GetProof
 import merkle.Verify
 import merkle.NonInclusion
+import merkle.NonInclusionComplete
 import merkle.Result
 
 /-!
@@ -26,6 +27,8 @@ some `H`.
 `MerkleTree` over sorted leaves:
 * `non_inclusion_sound`: if it accepts, `target` is not a leaf, or `H` has a collision or a zero
   output.
+* `non_inclusion_complete`: for a `target` that is not a leaf, `compute_non_inclusion_proof`
+  returns a proof that it accepts.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -173,5 +176,38 @@ theorem non_inclusion_sound (hm : HashModel inst H) {L : Type} (ord : core.cmp.O
   obtain ⟨ys, hser', hys⟩ := exists_serialized hm ser ls hs.val hlen hleaves
   rw [hroot, hys] at h
   exact ni_sound hm ord ser ho hser ls ys hser' hsort pr target h
+
+/-- Completeness of non-inclusion proofs. Let `leaves` be sorted by `L`'s `<=`, `hs` the leaf
+hashes of their BCS serializations (as `build_from_unserialized(leaves)` computes them), with
+`4 · hs.len() ≤ usize::MAX`, and `target` not in `leaves`. Then `build_from_leaf_hashes(hs)`
+returns a tree `t` and `t.root()` a node `root` such that
+`t.compute_non_inclusion_proof(leaves, target)` returns a proof that
+`verify_for_trusted_tree(root, target)` accepts. -/
+theorem non_inclusion_complete (hm : HashModel inst H) (hpp : PartitionPointSpec) {L : Type}
+    (ord : core.cmp.Ord L) (ser : serde_core.ser.Serialize L) (cl : core.clone.Clone L)
+    (ho : OrdModel ord.partialOrdInst) (hlin : LinearOrd ord.partialOrdInst)
+    (heqm : EqModel ord.eqInst.partialEqInst) (hcl : CloneIsId cl) (leaves : Slice L)
+    (hsort : SortedLe ord.partialOrdInst leaves.val) (hs : alloc.vec.Vec Node)
+    (hlen : hs.val.length = leaves.val.length)
+    (hleaves : ∀ j (hj : j < leaves.val.length), ∃ v,
+      bcs.ser.to_bytes ser leaves.val[j] = ok (.Ok v) ∧
+      merkle.leaf_hash inst (alloc.vec.Vec.deref v) = ok (hs.val[j]'(by omega)))
+    (hn : 4 * hs.length ≤ Usize.max) (target : L) (hnot : target ∉ leaves.val) :
+    ∃ t, merkle.MerkleTree.build_from_leaf_hashes inst hs = ok t ∧
+    ∃ root, merkle.MerkleTree.root inst t = ok root ∧
+    ∃ pr, merkle.MerkleTree.compute_non_inclusion_proof inst ord ser cl t leaves target =
+      ok (.Ok pr) ∧
+    merkle.MerkleNonInclusionProof.verify_for_trusted_tree inst ord ser pr root target =
+      ok (.Ok ()) := by
+  obtain ⟨ys, hser, hys⟩ := exists_serialized hm ser leaves.val hs.val hlen hleaves
+  obtain ⟨t, ht, hnodes, hnl⟩ := spec_eq_ok (build_spec hm hs hn)
+  obtain ⟨root, hr, hroot⟩ := spec_eq_ok (root_spec (inst := inst) hs.val t hnodes)
+  refine ⟨t, ht, root, hr, ?_⟩
+  have hyl : ys.length = hs.length := by
+    simp only [alloc.vec.Vec.length, hys, List.length_map]
+  rw [hroot, hys]
+  rw [hys] at hnodes
+  exact ni_complete hm hpp ord ser cl ho hlin heqm hcl leaves hsort ys hser (by omega) t hnodes
+    (by rw [hnl, hyl]) target hnot
 
 end MerkleProofs

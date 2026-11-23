@@ -40,6 +40,16 @@ def Slice.Insts.CoreConvertAsRefSlice.as_ref
   {T : Type _} (s : Slice T) : Result (Slice T) :=
   ok s
 
+/-- [core::fmt::{impl core::fmt::Display for str}::fmt]:
+    Source: '/rustc/library/core/src/fmt/mod.rs', lines 2965:4-2965:50
+    Name pattern: [core::fmt::{core::fmt::Display<str>}::fmt]
+    Visibility: public -/
+@[rust_fun "core::fmt::{core::fmt::Display<str>}::fmt"]
+axiom Str.Insts.CoreFmtDisplay.fmt
+  :
+  Str → core.fmt.Formatter → Result ((core.result.Result Unit
+    core.fmt.Error) × core.fmt.Formatter)
+
 /-- [core::hint::must_use]:
     Source: '/rustc/library/core/src/hint.rs', lines 613:0-613:39
     Name pattern: [core::hint::must_use]
@@ -47,12 +57,30 @@ def Slice.Insts.CoreConvertAsRefSlice.as_ref
 @[rust_fun "core::hint::must_use"]
 axiom core.hint.must_use {T : Type _} : T → Result T
 
+/-- [core::slice::{[T]}::partition_point]:
+    Source: '/rustc/library/core/src/slice/mod.rs', lines 4877:4-4879:56
+    Name pattern: [core::slice::{[@T]}::partition_point]
+    Visibility: public -/
+@[rust_fun "core::slice::{[@T]}::partition_point"]
+axiom core.slice.Slice.partition_point
+  {T : Type _} {P : Type _} (opsfunctionFnMutPTupleShared0TBoolInst :
+  core.ops.function.FnMut P T Bool) :
+  Slice T → P → Result Std.Usize
+
 /-- [alloc::fmt::format]:
     Source: '/rustc/library/alloc/src/fmt.rs', lines 651:0-651:52
     Name pattern: [alloc::fmt::format]
     Visibility: public -/
 @[rust_fun "alloc::fmt::format"]
 axiom alloc.fmt.format : core.fmt.Arguments → Result String
+
+/-- [alloc::string::{impl alloc::string::ToString for T}::to_string]:
+    Source: '/rustc/library/alloc/src/string.rs', lines 2965:4-2965:33
+    Name pattern: [alloc::string::{alloc::string::ToString<@T>}::to_string]
+    Visibility: public -/
+@[rust_fun "alloc::string::{alloc::string::ToString<@T>}::to_string"]
+axiom alloc.string.ToString.Blanket.to_string
+  {T : Type _} (corefmtDisplayInst : core.fmt.Display T) : T → Result String
 
 /-- [bcs::ser::to_bytes]:
     Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bcs-0.1.6/src/ser.rs', lines 49:0-51:26

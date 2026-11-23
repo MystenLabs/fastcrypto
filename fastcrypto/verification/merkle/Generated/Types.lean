@@ -192,4 +192,11 @@ structure merkle.MerkleTree (T : Type _) where
   nodes : alloc.vec.Vec merkle.Node
   n_leaves : Std.Usize
 
+/-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::compute_non_inclusion_proof::{closure}]
+    Source: 'fastcrypto/src/merkle.rs', lines 517:46-517:66 -/
+@[reducible]
+def merkle.MerkleTree.compute_non_inclusion_proof.closure (T : Type _) (L :
+  Type _) :=
+  L
+
 end fastcrypto

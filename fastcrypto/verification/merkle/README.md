@@ -54,8 +54,14 @@ bytes.
    be sorted by `L`'s `<=`, and `root` the root of the tree that `build_from_unserialized(ls)`
    builds: `build_from_leaf_hashes` of the leaf hashes of `bcs::to_bytes(ls[j])`, with
    `4n ≤ usize::MAX`. If `verify_for_trusted_tree(root, target)` accepts a non-inclusion proof,
-   then `target` is not in `ls`, or `H` has a collision or a zero output. This needs two
-   assumptions on `L`, listed [below](#what-is-assumed).
+   then `target` is not in `ls`, or `H` has a collision or a zero output. This needs
+   `OrdModel` and `BcsInjective`, listed [below](#what-is-assumed).
+
+8. **`non_inclusion_complete`: honest non-inclusion proofs are accepted.** For `ls`, the tree and
+   `4n ≤ usize::MAX` as in 7, and a `target` that is not in `ls`: building the tree and taking its
+   `root()` do not panic, and `compute_non_inclusion_proof(ls, target)` returns a proof that
+   `verify_for_trusted_tree(root, target)` accepts. This needs `OrdModel`, `LinearOrd`, `EqModel`,
+   `CloneIsId` and `PartitionPointSpec`, listed [below](#what-is-assumed).
 
 ## Files
 
@@ -69,6 +75,7 @@ bytes.
 | `GetProof.lean` | `get_proof(i)` returns `pathOf(i)` (`get_proof_spec`). |
 | `Verify.lean` | What `hash_along_path`, `expected_proof_length`, `compute_root`, `verify` and `verify_for_trusted_tree` return (`verify_spec`, `verify_for_trusted_tree_spec`, `expected_proof_length_spec`, ...). |
 | `NonInclusion.lean` | What `is_right_most`, `verify_for_trusted_tree_with_unserialized_leaf` and `MerkleNonInclusionProof::verify_for_trusted_tree` check (`is_right_most_spec`, `ni_accepts`), the assumptions `OrdModel` and `BcsInjective`, and soundness against the model root (`ni_sound`). |
+| `NonInclusionComplete.lean` | What `compute_non_inclusion_proof` returns (`compute_spec`), that `verify_for_trusted_tree` accepts it (`ni_complete`), and the assumptions `PartitionPointSpec`, `LinearOrd`, `EqModel` and `CloneIsId`. |
 | `Result.lean` | From a Hoare triple about a generated function to what it returns, and the `ok_inv` tactic. |
 | `Generated/` | The translation of `merkle.rs`, made by `extract.sh`. The `hash` module is opaque except for `Digest`, and so are `bcs` and serde. |
 | `extract.sh` | Regenerates `Generated/`. |
@@ -90,13 +97,25 @@ release named in `extract.sh` and run `CHARON=... AENEAS=... ./extract.sh`.
   `finalize()` returns `H` of the bytes absorbed. None of the three panics.
 * Nothing else is assumed about `H`. In particular, collision resistance is not assumed: the
   binding and soundness theorems conclude that a collision or a zero output exists.
-* For `non_inclusion_sound`, two hypotheses about the leaf type `L`, defined in `NonInclusion.lean`:
-  * `OrdModel`: `L`'s `PartialOrd` impl has `a >= b` equal to `b <= a`, and `a <= a`. Rust
-    requires both of any `Ord` impl.
-  * `BcsInjective`: `bcs::to_bytes` does not serialize two different values to the same bytes.
-    `bcs::to_bytes` itself stays an axiom.
-* `alloc::fmt::format` and `core::hint::must_use` stay axioms. They are only called in the error
-  branch of `get_proof`, and nothing is assumed about them.
+* For the non-inclusion theorems, hypotheses about the leaf type `L` and the standard library.
+  Each is a `def` or `structure` in the file named, and each theorem lists the ones it takes.
+  * `OrdModel` (`NonInclusion.lean`): `L`'s `PartialOrd` impl has `a >= b` equal to `b <= a`, and
+    `a <= a`. Rust requires both of any `Ord` impl. Used by 7 and 8.
+  * `BcsInjective` (`NonInclusion.lean`): `bcs::to_bytes` does not serialize two different values
+    to the same bytes. Used by 7. `bcs::to_bytes` itself stays an axiom.
+  * `LinearOrd` (`NonInclusionComplete.lean`): `L`'s `<=` returns, and is transitive and
+    antisymmetric. Rust requires both of any `Ord` impl. Used by 8.
+  * `EqModel` (`NonInclusionComplete.lean`): `L`'s `==` returns `false` for different values.
+    Used by 8.
+  * `CloneIsId` (`NonInclusionComplete.lean`): `L`'s `clone` returns its argument. Used by 8.
+  * `PartitionPointSpec` (`NonInclusionComplete.lean`): `<[A]>::partition_point(f)` returns `p`
+    if `f` is true exactly at the indices below `p` and does not change its state. This is what
+    Rust documents for a partitioned slice. `partition_point` itself stays an axiom. Used by 8.
+* The caller obligations are hypotheses of the theorems: the leaves are sorted by `<=`
+  (`SortedLe`), and `hs` are the leaf hashes of their BCS serializations.
+* `alloc::fmt::format`, `core::hint::must_use`, `<str as Display>::fmt` and `ToString::to_string`
+  stay axioms. They are only called in the error branches of `get_proof` and
+  `compute_non_inclusion_proof`, and nothing is assumed about them.
 * `usize` has 32 or 64 bits, as in Aeneas' library. The theorems hold for both.
 
 ## What is not proved
@@ -105,8 +124,5 @@ release named in `extract.sh` and run `CHARON=... AENEAS=... ./extract.sh`.
   translate their loops over a generic `IntoIterator`. Both push `leaf_hash` of each leaf and call
   `build_from_leaf_hashes`, which is why the completeness theorems are stated for leaves whose
   `leaf_hash` is the `i`th leaf hash.
-* Completeness of non-inclusion proofs: that `compute_non_inclusion_proof` returns a proof that
-  `verify_for_trusted_tree` accepts. It is not translated: it calls `<[T]>::partition_point`, which
-  Aeneas' library does not model.
 * That `MerkleNonInclusionProof::verify_for_trusted_tree` does not panic. It calls
   `bcs::to_bytes` and `L`'s `<=` and `>=`, which are opaque.

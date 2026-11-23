@@ -55,6 +55,14 @@ def Slice.Insts.CoreConvertAsRefSlice (T : Type _) : core.convert.AsRef (Slice
   as_ref := Slice.Insts.CoreConvertAsRefSlice.as_ref
 }
 
+/-- Trait implementation: [core::fmt::{impl core::fmt::Display for str}]
+    Source: '/rustc/library/core/src/fmt/mod.rs', lines 2964:0-2964:20
+    Name pattern: [core::fmt::Display<str>] -/
+@[reducible, rust_trait_impl "core::fmt::Display<str>"]
+def Str.Insts.CoreFmtDisplay : core.fmt.Display Str := {
+  fmt := Str.Insts.CoreFmtDisplay.fmt
+}
+
 /-- Trait implementation: [core::fmt::num::imp::{impl core::fmt::Display for usize}]
     Source: '/rustc/library/core/src/fmt/num.rs', lines 134:8-134:39; this code is generated from a macro invocation at: '/rustc/library/core/src/fmt/num.rs', lines 606:4-606:94
     Name pattern: [core::fmt::Display<usize>] -/
@@ -467,6 +475,19 @@ def merkle.MerkleProof.is_right_most
   := do
   merkle.MerkleProof.is_right_most_loop self leaf_index 0#usize
 
+/-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleNonInclusionProof<L, T>}::new]:
+    Source: 'fastcrypto/src/merkle.rs', lines 261:4-271:5
+    Visibility: public -/
+def merkle.MerkleNonInclusionProof.new
+  {L : Type _} {T : Type _} (hashHashFunctionT32Inst : hash.HashFunction T
+  32#usize) (corecmpOrdInst : core.cmp.Ord L) (serde_coreserSerializeInst :
+  serde_core.ser.Serialize L)
+  (left_leaf : Option (L × (merkle.MerkleProof T)))
+  (right_leaf : Option (L × (merkle.MerkleProof T))) (index : Std.Usize) :
+  Result (merkle.MerkleNonInclusionProof L T)
+  := do
+  ok { index, left_leaf, right_leaf }
+
 /-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleNonInclusionProof<L, T>}::is_valid_neighbor]:
     Source: 'fastcrypto/src/merkle.rs', lines 298:4-306:5 -/
 def merkle.MerkleNonInclusionProof.is_valid_neighbor
@@ -783,5 +804,228 @@ def merkle.MerkleTree.get_proof
       merkle.MerkleTree.get_proof_loop self.nodes (alloc.vec.Vec.new
         merkle.Node) leaf_index self.n_leaves 0#usize
     ok (core.result.Result.Ok { _hash_type := (), path })
+
+/-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::compute_non_inclusion_proof::{impl core::ops::function::FnMut<(&'_1 L,), bool> for fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::compute_non_inclusion_proof::{closure}<'_0, T, L>}::call_mut]:
+    Source: 'fastcrypto/src/merkle.rs', lines 517:46-517:66 -/
+def
+  merkle.MerkleTree.compute_non_inclusion_proof.closure.Insts.CoreOpsFunctionFnMutTupleShared1LBool.call_mut
+  {T : Type _} {L : Type _} (hashHashFunctionT32Inst : hash.HashFunction T
+  32#usize) (corecmpOrdInst : core.cmp.Ord L) (serde_coreserSerializeInst :
+  serde_core.ser.Serialize L) (corecloneCloneInst : core.clone.Clone L)
+  (c : merkle.MerkleTree.compute_non_inclusion_proof.closure T L)
+  (tupled_args : L) :
+  Result (Bool × (merkle.MerkleTree.compute_non_inclusion_proof.closure T L))
+  := do
+  let b ←
+    core.cmp.impls.PartialOrdShared.le corecmpOrdInst.partialOrdInst
+      tupled_args c
+  ok (b, c)
+
+/-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::compute_non_inclusion_proof::{impl core::ops::function::FnOnce<(&'_1 L,), bool> for fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::compute_non_inclusion_proof::{closure}<'_0, T, L>}::call_once]:
+    Source: 'fastcrypto/src/merkle.rs', lines 517:46-517:66 -/
+def
+  merkle.MerkleTree.compute_non_inclusion_proof.closure.Insts.CoreOpsFunctionFnOnceTupleShared1LBool.call_once
+  {T : Type _} {L : Type _} (hashHashFunctionT32Inst : hash.HashFunction T
+  32#usize) (corecmpOrdInst : core.cmp.Ord L) (serde_coreserSerializeInst :
+  serde_core.ser.Serialize L) (corecloneCloneInst : core.clone.Clone L)
+  (c : merkle.MerkleTree.compute_non_inclusion_proof.closure T L) (t : L) :
+  Result Bool
+  := do
+  let (b, _) ←
+    merkle.MerkleTree.compute_non_inclusion_proof.closure.Insts.CoreOpsFunctionFnMutTupleShared1LBool.call_mut
+      hashHashFunctionT32Inst corecmpOrdInst serde_coreserSerializeInst
+      corecloneCloneInst c t
+  ok b
+
+/-- Trait implementation: [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::compute_non_inclusion_proof::{impl core::ops::function::FnOnce<(&'_1 L,), bool> for fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::compute_non_inclusion_proof::{closure}<'_0, T, L>}]
+    Source: 'fastcrypto/src/merkle.rs', lines 517:46-517:66 -/
+@[reducible]
+def
+  merkle.MerkleTree.compute_non_inclusion_proof.closure.Insts.CoreOpsFunctionFnOnceTupleShared1LBool
+  {T : Type _} {L : Type _} (hashHashFunctionT32Inst : hash.HashFunction T
+  32#usize) (corecmpOrdInst : core.cmp.Ord L) (serde_coreserSerializeInst :
+  serde_core.ser.Serialize L) (corecloneCloneInst : core.clone.Clone L) :
+  core.ops.function.FnOnce
+  (merkle.MerkleTree.compute_non_inclusion_proof.closure T L) L Bool := {
+  call_once :=
+    merkle.MerkleTree.compute_non_inclusion_proof.closure.Insts.CoreOpsFunctionFnOnceTupleShared1LBool.call_once
+    hashHashFunctionT32Inst corecmpOrdInst serde_coreserSerializeInst
+    corecloneCloneInst
+}
+
+/-- Trait implementation: [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::compute_non_inclusion_proof::{impl core::ops::function::FnMut<(&'_1 L,), bool> for fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::compute_non_inclusion_proof::{closure}<'_0, T, L>}]
+    Source: 'fastcrypto/src/merkle.rs', lines 517:46-517:66 -/
+@[reducible]
+def
+  merkle.MerkleTree.compute_non_inclusion_proof.closure.Insts.CoreOpsFunctionFnMutTupleShared1LBool
+  {T : Type _} {L : Type _} (hashHashFunctionT32Inst : hash.HashFunction T
+  32#usize) (corecmpOrdInst : core.cmp.Ord L) (serde_coreserSerializeInst :
+  serde_core.ser.Serialize L) (corecloneCloneInst : core.clone.Clone L) :
+  core.ops.function.FnMut
+  (merkle.MerkleTree.compute_non_inclusion_proof.closure T L) L Bool := {
+  FnOnceInst :=
+    merkle.MerkleTree.compute_non_inclusion_proof.closure.Insts.CoreOpsFunctionFnOnceTupleShared1LBool
+    hashHashFunctionT32Inst corecmpOrdInst serde_coreserSerializeInst
+    corecloneCloneInst
+  call_mut :=
+    merkle.MerkleTree.compute_non_inclusion_proof.closure.Insts.CoreOpsFunctionFnMutTupleShared1LBool.call_mut
+    hashHashFunctionT32Inst corecmpOrdInst serde_coreserSerializeInst
+    corecloneCloneInst
+}
+
+/-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::compute_non_inclusion_proof]:
+    Source: 'fastcrypto/src/merkle.rs', lines 512:4-541:5
+    Visibility: public -/
+def merkle.MerkleTree.compute_non_inclusion_proof
+  {T : Type _} {L : Type _} (hashHashFunctionT32Inst : hash.HashFunction T
+  32#usize) (corecmpOrdInst : core.cmp.Ord L) (serde_coreserSerializeInst :
+  serde_core.ser.Serialize L) (corecloneCloneInst : core.clone.Clone L)
+  (self : merkle.MerkleTree T) (leaves : Slice L) (target_leaf : L) :
+  Result (core.result.Result (merkle.MerkleNonInclusionProof L T)
+    error.FastCryptoError)
+  := do
+  let position ←
+    core.slice.Slice.partition_point
+      (merkle.MerkleTree.compute_non_inclusion_proof.closure.Insts.CoreOpsFunctionFnMutTupleShared1LBool
+      hashHashFunctionT32Inst corecmpOrdInst serde_coreserSerializeInst
+      corecloneCloneInst) leaves target_leaf
+  if position > 0#usize
+  then
+    let i ← position - 1#usize
+    let t ← Slice.index_usize leaves i
+    let b ← corecmpOrdInst.eqInst.partialEqInst.eq t target_leaf
+    if b
+    then
+      let s ←
+        alloc.string.ToString.Blanket.to_string Str.Insts.CoreFmtDisplay (toStr
+          "Target leaf is already in the tree")
+      ok (core.result.Result.Err (error.FastCryptoError.GeneralError s))
+    else
+      if position > 0#usize
+      then
+        let t1 ← Slice.index_usize leaves i
+        let t2 ← corecloneCloneInst.clone t1
+        let r ← merkle.MerkleTree.get_proof hashHashFunctionT32Inst self i
+        let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+        match cf with
+        | core.ops.control_flow.ControlFlow.Continue val =>
+          let i1 := Slice.len leaves
+          if position < i1
+          then
+            let t3 ← Slice.index_usize leaves position
+            let t4 ← corecloneCloneInst.clone t3
+            let r1 ←
+              merkle.MerkleTree.get_proof hashHashFunctionT32Inst self position
+            let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+            match cf1 with
+            | core.ops.control_flow.ControlFlow.Continue val1 =>
+              let mnip ←
+                merkle.MerkleNonInclusionProof.new hashHashFunctionT32Inst
+                  corecmpOrdInst serde_coreserSerializeInst (some (t2, val))
+                  (some (t4, val1)) position
+              ok (core.result.Result.Ok mnip)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                (merkle.MerkleNonInclusionProof L T) (core.convert.FromSame
+                error.FastCryptoError) residual
+          else
+            let mnip ←
+              merkle.MerkleNonInclusionProof.new hashHashFunctionT32Inst
+                corecmpOrdInst serde_coreserSerializeInst (some (t2, val)) none
+                position
+            ok (core.result.Result.Ok mnip)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            (merkle.MerkleNonInclusionProof L T) (core.convert.FromSame
+            error.FastCryptoError) residual
+      else
+        let i1 := Slice.len leaves
+        if position < i1
+        then
+          let t1 ← Slice.index_usize leaves position
+          let t2 ← corecloneCloneInst.clone t1
+          let r ←
+            merkle.MerkleTree.get_proof hashHashFunctionT32Inst self position
+          let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+          match cf with
+          | core.ops.control_flow.ControlFlow.Continue val =>
+            let mnip ←
+              merkle.MerkleNonInclusionProof.new hashHashFunctionT32Inst
+                corecmpOrdInst serde_coreserSerializeInst none (some (t2, val))
+                position
+            ok (core.result.Result.Ok mnip)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              (merkle.MerkleNonInclusionProof L T) (core.convert.FromSame
+              error.FastCryptoError) residual
+        else
+          let mnip ←
+            merkle.MerkleNonInclusionProof.new hashHashFunctionT32Inst
+              corecmpOrdInst serde_coreserSerializeInst none none position
+          ok (core.result.Result.Ok mnip)
+  else
+    if position > 0#usize
+    then
+      let i ← position - 1#usize
+      let t ← Slice.index_usize leaves i
+      let t1 ← corecloneCloneInst.clone t
+      let r ← merkle.MerkleTree.get_proof hashHashFunctionT32Inst self i
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        let i1 := Slice.len leaves
+        if position < i1
+        then
+          let t2 ← Slice.index_usize leaves position
+          let t3 ← corecloneCloneInst.clone t2
+          let r1 ←
+            merkle.MerkleTree.get_proof hashHashFunctionT32Inst self position
+          let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+          match cf1 with
+          | core.ops.control_flow.ControlFlow.Continue val1 =>
+            let mnip ←
+              merkle.MerkleNonInclusionProof.new hashHashFunctionT32Inst
+                corecmpOrdInst serde_coreserSerializeInst (some (t1, val))
+                (some (t3, val1)) position
+            ok (core.result.Result.Ok mnip)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              (merkle.MerkleNonInclusionProof L T) (core.convert.FromSame
+              error.FastCryptoError) residual
+        else
+          let mnip ←
+            merkle.MerkleNonInclusionProof.new hashHashFunctionT32Inst
+              corecmpOrdInst serde_coreserSerializeInst (some (t1, val)) none
+              position
+          ok (core.result.Result.Ok mnip)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          (merkle.MerkleNonInclusionProof L T) (core.convert.FromSame
+          error.FastCryptoError) residual
+    else
+      let i := Slice.len leaves
+      if position < i
+      then
+        let t ← Slice.index_usize leaves position
+        let t1 ← corecloneCloneInst.clone t
+        let r ←
+          merkle.MerkleTree.get_proof hashHashFunctionT32Inst self position
+        let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+        match cf with
+        | core.ops.control_flow.ControlFlow.Continue val =>
+          let mnip ←
+            merkle.MerkleNonInclusionProof.new hashHashFunctionT32Inst
+              corecmpOrdInst serde_coreserSerializeInst none (some (t1, val))
+              position
+          ok (core.result.Result.Ok mnip)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            (merkle.MerkleNonInclusionProof L T) (core.convert.FromSame
+            error.FastCryptoError) residual
+      else
+        let mnip ←
+          merkle.MerkleNonInclusionProof.new hashHashFunctionT32Inst
+            corecmpOrdInst serde_coreserSerializeInst none none position
+        ok (core.result.Result.Ok mnip)
 
 end fastcrypto
