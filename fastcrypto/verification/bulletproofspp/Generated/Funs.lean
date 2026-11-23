@@ -36,14 +36,1310 @@ def curve25519_dalek.scalar.Scalar.Insts.CoreConvertFromU64 : core.convert.From
   «from» := curve25519_dalek.scalar.Scalar.Insts.CoreConvertFromU64.from
 }
 
-/-- [fastcrypto::bulletproofspp::crs::BASE]
-    Source: 'fastcrypto/src/bulletproofspp/crs.rs', lines 15:0-15:32 -/
-@[global_simps, irreducible] def bulletproofspp.crs.BASE : Std.U64 := 16#u64
+/-- Trait implementation: [fastcrypto::groups::ristretto255::{impl core::clone::Clone for fastcrypto::groups::ristretto255::RistrettoScalar}]
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 268:9-268:14 -/
+@[reducible]
+def groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone : core.clone.Clone
+  groups.ristretto255.RistrettoScalar := {
+  clone := groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone.clone
+}
 
 /-- [fastcrypto::bulletproofspp::util::one]:
     Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 15:0-17:1 -/
 def bulletproofspp.util.one : Result groups.ristretto255.RistrettoScalar := do
   groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.generator
+
+/-- [fastcrypto::bulletproofspp::util::batch_invert]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 145:4-149:5 -/
+@[rust_loop_body]
+def bulletproofspp.util.batch_invert_loop0.body
+  (inputs : Slice groups.ristretto255.RistrettoScalar)
+  («prefix» : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (acc : groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    groups.ristretto255.RistrettoScalar × Std.Usize) ((alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar) ×
+    groups.ristretto255.RistrettoScalar))
+  := do
+  let i1 := Slice.len inputs
+  if i < i1
+  then
+    let prefix1 ← alloc.vec.Vec.push «prefix» acc
+    let rs ← Slice.index_usize inputs i
+    let acc1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+        acc rs
+    let i2 ← i + 1#usize
+    ok (cont (prefix1, acc1, i2))
+  else ok (done («prefix», acc))
+
+/-- [fastcrypto::bulletproofspp::util::batch_invert]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 145:4-149:5 -/
+@[rust_loop]
+def bulletproofspp.util.batch_invert_loop0
+  (inputs : Slice groups.ristretto255.RistrettoScalar)
+  («prefix» : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (acc : groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (prefix1, acc1, i1) => bulletproofspp.util.batch_invert_loop0.body
+      inputs prefix1 acc1 i1)
+    («prefix», acc, i)
+
+/-- [fastcrypto::bulletproofspp::util::batch_invert]: loop body 1:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 155:4-159:5 -/
+@[rust_loop_body]
+def bulletproofspp.util.batch_invert_loop1.body
+  (inputs : Slice groups.ristretto255.RistrettoScalar)
+  («prefix» : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (suffix_inv : groups.ristretto255.RistrettoScalar)
+  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (ControlFlow (groups.ristretto255.RistrettoScalar × (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar) × Std.Usize) (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar))
+  := do
+  if i > 0#usize
+  then
+    let i1 ← i - 1#usize
+    let rs ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        groups.ristretto255.RistrettoScalar) «prefix» i1
+    let rs1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+        suffix_inv rs
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        groups.ristretto255.RistrettoScalar) out i1
+    let rs2 ← Slice.index_usize inputs i1
+    let suffix_inv1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+        suffix_inv rs2
+    let out1 := index_mut_back rs1
+    ok (cont (suffix_inv1, out1, i1))
+  else ok (done out)
+
+/-- [fastcrypto::bulletproofspp::util::batch_invert]: loop 1:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 155:4-159:5 -/
+@[rust_loop]
+def bulletproofspp.util.batch_invert_loop1
+  (inputs : Slice groups.ristretto255.RistrettoScalar)
+  («prefix» : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (suffix_inv : groups.ristretto255.RistrettoScalar)
+  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (suffix_inv1, out1, i1) => bulletproofspp.util.batch_invert_loop1.body
+      inputs «prefix» suffix_inv1 out1 i1)
+    (suffix_inv, out, i)
+
+/-- [fastcrypto::bulletproofspp::util::batch_invert]:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 140:0-161:1 -/
+def bulletproofspp.util.batch_invert
+  (inputs : Slice groups.ristretto255.RistrettoScalar) :
+  Result (core.result.Result (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar) error.FastCryptoError)
+  := do
+  let i := Slice.len inputs
+  let «prefix» :=
+    alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i
+  let acc ← bulletproofspp.util.one
+  let (prefix1, acc1) ←
+    bulletproofspp.util.batch_invert_loop0 inputs «prefix» acc 0#usize
+  let r ←
+    groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsScalar.inverse
+      acc1
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let rs ←
+      groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
+    let i1 := Slice.len inputs
+    let out ←
+      alloc.vec.from_elem
+        groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone rs i1
+    let i2 := Slice.len inputs
+    let out1 ←
+      bulletproofspp.util.batch_invert_loop1 inputs prefix1 val out i2
+    ok (core.result.Result.Ok out1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+      (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+      (core.convert.FromSame error.FastCryptoError) residual
+
+/-- [fastcrypto::bulletproofspp::util::power_vector]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 82:4-86:5 -/
+@[rust_loop_body]
+def bulletproofspp.util.power_vector_loop.body
+  (x : groups.ristretto255.RistrettoScalar) (n : Std.Usize)
+  (v : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (cur : groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    groups.ristretto255.RistrettoScalar × Std.Usize) (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar))
+  := do
+  if i < n
+  then
+    let v1 ← alloc.vec.Vec.push v cur
+    let cur1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+        cur x
+    let i1 ← i + 1#usize
+    ok (cont (v1, cur1, i1))
+  else ok (done v)
+
+/-- [fastcrypto::bulletproofspp::util::power_vector]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 82:4-86:5 -/
+@[rust_loop]
+def bulletproofspp.util.power_vector_loop
+  (x : groups.ristretto255.RistrettoScalar) (n : Std.Usize)
+  (v : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (cur : groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (v1, cur1, i1) => bulletproofspp.util.power_vector_loop.body x n v1
+      cur1 i1)
+    (v, cur, i)
+
+/-- [fastcrypto::bulletproofspp::util::power_vector]:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 78:0-88:1 -/
+def bulletproofspp.util.power_vector
+  (x : groups.ristretto255.RistrettoScalar) (n : Std.Usize) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  let v := alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar n
+  let cur ← bulletproofspp.util.one
+  bulletproofspp.util.power_vector_loop x n v cur 0#usize
+
+/-- [fastcrypto::bulletproofspp::crs::H_LEN]
+    Source: 'fastcrypto/src/bulletproofspp/crs.rs', lines 18:0-18:34 -/
+@[global_simps, irreducible]
+def bulletproofspp.crs.H_LEN : Std.Usize := 8#usize
+
+/-- [fastcrypto::bulletproofspp::crs::BASE]
+    Source: 'fastcrypto/src/bulletproofspp/crs.rs', lines 15:0-15:32 -/
+@[global_simps, irreducible] def bulletproofspp.crs.BASE : Std.U64 := 16#u64
+
+/-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::new]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 92:8-96:9 -/
+@[rust_loop_body]
+def bulletproofspp.constraints.Constraints.new_loop0.body
+  (lam_m : groups.ristretto255.RistrettoScalar) (shape_len : Std.Usize)
+  (shape : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (x : groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    groups.ristretto255.RistrettoScalar × Std.Usize) (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar))
+  := do
+  if i < shape_len
+  then
+    let shape1 ← alloc.vec.Vec.push shape x
+    let x1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+        x lam_m
+    let i1 ← i + 1#usize
+    ok (cont (shape1, x1, i1))
+  else ok (done shape)
+
+/-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::new]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 92:8-96:9 -/
+@[rust_loop]
+def bulletproofspp.constraints.Constraints.new_loop0
+  (lam_m : groups.ristretto255.RistrettoScalar) (shape_len : Std.Usize)
+  (shape : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (x : groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (shape1, x1, i1) =>
+      bulletproofspp.constraints.Constraints.new_loop0.body lam_m shape_len
+      shape1 x1 i1)
+    (shape, x, i)
+
+/-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::new]: loop body 1:
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 108:8-126:9 -/
+@[rust_loop_body]
+def bulletproofspp.constraints.Constraints.new_loop1.body
+  (mu_am : groups.ristretto255.RistrettoScalar)
+  (mu_pow : groups.ristretto255.RistrettoScalar)
+  (alpha : groups.ristretto255.RistrettoScalar)
+  (mu : groups.ristretto255.RistrettoScalar) (d : Std.Usize) (n_d : Std.Usize)
+  (nm : Std.Usize) (mu_inv : groups.ristretto255.RistrettoScalar)
+  (lambdas : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (lam_m : groups.ristretto255.RistrettoScalar)
+  (shape : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (base : groups.ristretto255.RistrettoScalar)
+  (norm_weights : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (cn_l : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (cn_r : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (cn_v : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (mu_am1 : groups.ristretto255.RistrettoScalar)
+  (mu_pow1 : groups.ristretto255.RistrettoScalar)
+  (mu_inv_pow : groups.ristretto255.RistrettoScalar)
+  (base_pow : groups.ristretto255.RistrettoScalar) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    (alloc.vec.Vec groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar) × groups.ristretto255.RistrettoScalar
+    × groups.ristretto255.RistrettoScalar ×
+    groups.ristretto255.RistrettoScalar × groups.ristretto255.RistrettoScalar
+    × Std.Usize) ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    (alloc.vec.Vec groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar) ×
+    groups.ristretto255.RistrettoScalar))
+  := do
+  if k < nm
+  then
+    let mu_pow2 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+        mu_pow1 mu
+    let mu_inv_pow1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+        mu_inv_pow mu_inv
+    let norm_weights1 ← alloc.vec.Vec.push norm_weights mu_pow2
+    let (cn_l1, cn_r1, mu_am2, base_pow1) ←
+      if k < n_d
+      then
+        do
+        let mu_am3 ←
+          groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddAssignRistrettoScalar.add_assign
+            mu_am1 mu_pow2
+        let i ← k % d
+        let base_pow2 ← if i = 0#usize
+                          then ok mu_pow
+                          else ok base_pow
+        let i1 ← k / d
+        let rs ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            groups.ristretto255.RistrettoScalar) lambdas i1
+        let rs1 ←
+          groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+            rs base_pow2
+        let rs2 ←
+          groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+            rs1 mu_inv_pow1
+        let cn_l2 ← alloc.vec.Vec.push cn_l rs2
+        let base_pow3 ←
+          groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+            base_pow2 base
+        let rs3 ←
+          groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+            lam_m mu_inv_pow1
+        let rs4 ←
+          groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddRistrettoScalarRistrettoScalar.add
+            rs3 alpha
+        let cn_r2 ← alloc.vec.Vec.push cn_r rs4
+        ok (cn_l2, cn_r2, mu_am3, base_pow3)
+      else
+        do
+        let cn_l2 ← alloc.vec.Vec.push cn_l mu_am
+        let cn_r2 ← alloc.vec.Vec.push cn_r mu_am
+        ok (cn_l2, cn_r2, mu_am1, base_pow)
+    let rs ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        groups.ristretto255.RistrettoScalar) shape k
+    let rs1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+        rs mu_inv_pow1
+    let cn_v1 ← alloc.vec.Vec.push cn_v rs1
+    let k1 ← k + 1#usize
+    ok (cont (norm_weights1, cn_l1, cn_r1, cn_v1, mu_am2, mu_pow2, mu_inv_pow1,
+      base_pow1, k1))
+  else ok (done (norm_weights, cn_l, cn_r, cn_v, mu_am1))
+
+/-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::new]: loop 1:
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 108:8-126:9 -/
+@[rust_loop]
+def bulletproofspp.constraints.Constraints.new_loop1
+  (mu_am : groups.ristretto255.RistrettoScalar)
+  (mu_pow : groups.ristretto255.RistrettoScalar)
+  (alpha : groups.ristretto255.RistrettoScalar)
+  (mu : groups.ristretto255.RistrettoScalar) (d : Std.Usize) (n_d : Std.Usize)
+  (nm : Std.Usize) (mu_inv : groups.ristretto255.RistrettoScalar)
+  (lambdas : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (lam_m : groups.ristretto255.RistrettoScalar)
+  (shape : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (base : groups.ristretto255.RistrettoScalar)
+  (norm_weights : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (cn_l : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (cn_r : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (cn_v : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (mu_am1 : groups.ristretto255.RistrettoScalar)
+  (mu_pow1 : groups.ristretto255.RistrettoScalar)
+  (mu_inv_pow : groups.ristretto255.RistrettoScalar)
+  (base_pow : groups.ristretto255.RistrettoScalar) (k : Std.Usize) :
+  Result ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar) × (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar) ×
+    groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (norm_weights1, cn_l1, cn_r1, cn_v1, mu_am2, mu_pow2, mu_inv_pow1,
+      base_pow1, k1) => bulletproofspp.constraints.Constraints.new_loop1.body
+      mu_am mu_pow alpha mu d n_d nm mu_inv lambdas lam_m shape base
+      norm_weights1 cn_l1 cn_r1 cn_v1 mu_am2 mu_pow2 mu_inv_pow1 base_pow1 k1)
+    (norm_weights, cn_l, cn_r, cn_v, mu_am1, mu_pow1, mu_inv_pow, base_pow, k)
+
+/-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::new]: loop body 2:
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 132:8-135:9 -/
+@[rust_loop_body]
+def bulletproofspp.constraints.Constraints.new_loop2.body
+  (alpha : groups.ristretto255.RistrettoScalar)
+  (norm_weights : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (bm1 : Std.Usize)
+  (denominators : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    Std.Usize) (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  := do
+  if k < bm1
+  then
+    let i ← lift (UScalar.cast .U64 k)
+    let i1 ← i + 1#u64
+    let rs ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreConvertFrom.from
+        curve25519_dalek.scalar.Scalar.Insts.CoreConvertFromU64 i1
+    let rs1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddRistrettoScalarRistrettoScalar.add
+        alpha rs
+    let rs2 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+        alpha rs1
+    let rs3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        groups.ristretto255.RistrettoScalar) norm_weights k
+    let rs4 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+        rs2 rs3
+    let denominators1 ← alloc.vec.Vec.push denominators rs4
+    let k1 ← k + 1#usize
+    ok (cont (denominators1, k1))
+  else ok (done denominators)
+
+/-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::new]: loop 2:
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 132:8-135:9 -/
+@[rust_loop]
+def bulletproofspp.constraints.Constraints.new_loop2
+  (alpha : groups.ristretto255.RistrettoScalar)
+  (norm_weights : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (bm1 : Std.Usize)
+  (denominators : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (k : Std.Usize) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (denominators1, k1) =>
+      bulletproofspp.constraints.Constraints.new_loop2.body alpha norm_weights
+      bm1 denominators1 k1)
+    (denominators, k)
+
+/-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::new]: loop body 3:
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 139:8-142:9 -/
+@[rust_loop_body]
+def bulletproofspp.constraints.Constraints.new_loop3.body
+  (lam_m : groups.ristretto255.RistrettoScalar) (bm1 : Std.Usize)
+  (inverses : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (cn_o : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    Std.Usize) (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  := do
+  if k < bm1
+  then
+    let i ← lift (UScalar.cast .U64 k)
+    let i1 ← i + 1#u64
+    let rs ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreConvertFrom.from
+        curve25519_dalek.scalar.Scalar.Insts.CoreConvertFromU64 i1
+    let rs1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+        rs lam_m
+    let rs2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        groups.ristretto255.RistrettoScalar) inverses k
+    let rs3 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+        rs1 rs2
+    let cn_o1 ← alloc.vec.Vec.push cn_o rs3
+    let k1 ← k + 1#usize
+    ok (cont (cn_o1, k1))
+  else ok (done cn_o)
+
+/-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::new]: loop 3:
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 139:8-142:9 -/
+@[rust_loop]
+def bulletproofspp.constraints.Constraints.new_loop3
+  (lam_m : groups.ristretto255.RistrettoScalar) (bm1 : Std.Usize)
+  (inverses : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (cn_o : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (k : Std.Usize) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (cn_o1, k1) => bulletproofspp.constraints.Constraints.new_loop3.body
+      lam_m bm1 inverses cn_o1 k1)
+    (cn_o, k)
+
+/-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::new]: loop body 4:
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 150:8-153:9 -/
+@[rust_loop_body]
+def bulletproofspp.constraints.Constraints.new_loop4.body
+  (nm : Std.Usize) (shape : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (cl_v : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (p : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    Std.Usize) (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  := do
+  if p < bulletproofspp.crs.H_LEN
+  then
+    let i ← nm + p
+    let i1 ← i - 1#usize
+    let rs ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        groups.ristretto255.RistrettoScalar) shape i1
+    let cl_v1 ← alloc.vec.Vec.push cl_v rs
+    let p1 ← p + 1#usize
+    ok (cont (cl_v1, p1))
+  else ok (done cl_v)
+
+/-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::new]: loop 4:
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 150:8-153:9 -/
+@[rust_loop]
+def bulletproofspp.constraints.Constraints.new_loop4
+  (nm : Std.Usize) (shape : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (cl_v : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (p : Std.Usize) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (cl_v1, p1) => bulletproofspp.constraints.Constraints.new_loop4.body
+      nm shape cl_v1 p1)
+    (cl_v, p)
+
+/-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::new]:
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 76:4-166:5 -/
+def bulletproofspp.constraints.Constraints.new
+  (params : bulletproofspp.circuit.CircuitParams)
+  (alpha : groups.ristretto255.RistrettoScalar)
+  (mu : groups.ristretto255.RistrettoScalar)
+  (lambda : groups.ristretto255.RistrettoScalar) :
+  Result (core.result.Result bulletproofspp.constraints.Constraints
+    error.FastCryptoError)
+  := do
+  let r ←
+    groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsScalar.inverse mu
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let i ← params.m + 1#usize
+    let lambdas ← bulletproofspp.util.power_vector lambda i
+    let lam_m ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        groups.ristretto255.RistrettoScalar) lambdas params.m
+    let i1 ← params.nm + bulletproofspp.crs.H_LEN
+    let shape_len ← i1 - 1#usize
+    let shape :=
+      alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar shape_len
+    let x ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+        lambda lam_m
+    let shape1 ←
+      bulletproofspp.constraints.Constraints.new_loop0 lam_m shape_len shape x
+        0#usize
+    let base ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreConvertFrom.from
+        curve25519_dalek.scalar.Scalar.Insts.CoreConvertFromU64
+        bulletproofspp.crs.BASE
+    let norm_weights :=
+      alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar params.nm
+    let cn_l :=
+      alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar params.nm
+    let cn_r :=
+      alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar params.nm
+    let cn_v :=
+      alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar params.nm
+    let mu_am ←
+      groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
+    let mu_pow ← bulletproofspp.util.one
+    let (norm_weights1, cn_l1, cn_r1, cn_v1, mu_am1) ←
+      bulletproofspp.constraints.Constraints.new_loop1 mu_am mu_pow alpha mu
+        params.d params.n_d params.nm val lambdas lam_m shape1 base
+        norm_weights cn_l cn_r cn_v mu_am mu_pow mu_pow mu_pow 0#usize
+    let i2 ← bulletproofspp.crs.BASE - 1#u64
+    let bm1 ← lift (UScalar.cast .Usize i2)
+    let denominators :=
+      alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar bm1
+    let denominators1 ←
+      bulletproofspp.constraints.Constraints.new_loop2 alpha norm_weights1 bm1
+        denominators 0#usize
+    let s := alloc.vec.Vec.deref denominators1
+    let r1 ← bulletproofspp.util.batch_invert s
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let cn_o :=
+        alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar
+          params.nm
+      let cn_o1 ←
+        bulletproofspp.constraints.Constraints.new_loop3 lam_m bm1 val1 cn_o
+          0#usize
+      let cn_o2 ←
+        alloc.vec.Vec.resize
+          groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone cn_o1
+          params.nm mu_am
+      let i3 ← lift (UScalar.cast .U64 params.n_d)
+      let rs ←
+        groups.ristretto255.RistrettoScalar.Insts.CoreConvertFrom.from
+          curve25519_dalek.scalar.Scalar.Insts.CoreConvertFromU64 i3
+      let rs1 ←
+        groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+          rs lam_m
+      let r2 ←
+        groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsScalar.inverse
+          alpha
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val2 =>
+        let lambda_al ←
+          groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+            rs1 val2
+        let cl_v :=
+          alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar
+            bulletproofspp.crs.H_LEN
+        let cl_v1 ← alloc.vec.Vec.push cl_v mu_am
+        let cl_v2 ←
+          bulletproofspp.constraints.Constraints.new_loop4 params.nm shape1
+            cl_v1 1#usize
+        ok (core.result.Result.Ok
+          {
+            norm_weights := norm_weights1,
+            cn_l := cn_l1,
+            cn_r := cn_r1,
+            cn_o := cn_o2,
+            cn_v := cn_v1,
+            cl_v := cl_v2,
+            lambda_al,
+            mu_am := mu_am1,
+            lambdas
+          })
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          bulletproofspp.constraints.Constraints (core.convert.FromSame
+          error.FastCryptoError) residual
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        bulletproofspp.constraints.Constraints (core.convert.FromSame
+        error.FastCryptoError) residual
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+      bulletproofspp.constraints.Constraints (core.convert.FromSame
+      error.FastCryptoError) residual
+
+/-- [fastcrypto::bulletproofspp::util::vec_scalar_mul]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 106:4-109:5 -/
+@[rust_loop_body]
+def bulletproofspp.util.vec_scalar_mul_loop.body
+  (s : groups.ristretto255.RistrettoScalar)
+  (a : Slice groups.ristretto255.RistrettoScalar)
+  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    Std.Usize) (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  := do
+  let i1 := Slice.len a
+  if i < i1
+  then
+    let rs ← Slice.index_usize a i
+    let rs1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+        s rs
+    let out1 ← alloc.vec.Vec.push out rs1
+    let i2 ← i + 1#usize
+    ok (cont (out1, i2))
+  else ok (done out)
+
+/-- [fastcrypto::bulletproofspp::util::vec_scalar_mul]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 106:4-109:5 -/
+@[rust_loop]
+def bulletproofspp.util.vec_scalar_mul_loop
+  (s : groups.ristretto255.RistrettoScalar)
+  (a : Slice groups.ristretto255.RistrettoScalar)
+  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (out1, i1) => bulletproofspp.util.vec_scalar_mul_loop.body s a out1
+      i1)
+    (out, i)
+
+/-- [fastcrypto::bulletproofspp::util::vec_scalar_mul]:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 103:0-111:1 -/
+def bulletproofspp.util.vec_scalar_mul
+  (s : groups.ristretto255.RistrettoScalar)
+  (a : Slice groups.ristretto255.RistrettoScalar) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  let i := Slice.len a
+  let out := alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i
+  bulletproofspp.util.vec_scalar_mul_loop s a out 0#usize
+
+/-- [fastcrypto::bulletproofspp::laurent::{impl fastcrypto::bulletproofspp::laurent::Coefficient for alloc::vec::Vec<fastcrypto::groups::ristretto255::RistrettoScalar>}::scale]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 180:4-182:5 -/
+def
+  alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient.scale
+  (self : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (s : groups.ristretto255.RistrettoScalar) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  let s1 := alloc.vec.Vec.deref self
+  bulletproofspp.util.vec_scalar_mul s s1
+
+/-- [fastcrypto::bulletproofspp::util::vec_add]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 95:4-98:5 -/
+@[rust_loop_body]
+def bulletproofspp.util.vec_add_loop.body
+  (a : Slice groups.ristretto255.RistrettoScalar)
+  (b : Slice groups.ristretto255.RistrettoScalar)
+  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    Std.Usize) (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  := do
+  let i1 := Slice.len a
+  if i < i1
+  then
+    let i2 := Slice.len b
+    if i < i2
+    then
+      let rs ← Slice.index_usize a i
+      let rs1 ← Slice.index_usize b i
+      let rs2 ←
+        groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddRistrettoScalarRistrettoScalar.add
+          rs rs1
+      let out1 ← alloc.vec.Vec.push out rs2
+      let i3 ← i + 1#usize
+      ok (cont (out1, i3))
+    else ok (done out)
+  else ok (done out)
+
+/-- [fastcrypto::bulletproofspp::util::vec_add]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 95:4-98:5 -/
+@[rust_loop]
+def bulletproofspp.util.vec_add_loop
+  (a : Slice groups.ristretto255.RistrettoScalar)
+  (b : Slice groups.ristretto255.RistrettoScalar)
+  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (out1, i1) => bulletproofspp.util.vec_add_loop.body a b out1 i1)
+    (out, i)
+
+/-- [fastcrypto::bulletproofspp::util::vec_add]:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 91:0-100:1 -/
+def bulletproofspp.util.vec_add
+  (a : Slice groups.ristretto255.RistrettoScalar)
+  (b : Slice groups.ristretto255.RistrettoScalar) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  let left_val := Slice.len a
+  let right_val := Slice.len b
+  massert (left_val = right_val)
+  let i := Slice.len a
+  let i1 := Slice.len b
+  let i2 ← lift (core.cmp.impls.OrdUsize.min i i1)
+  let out := alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i2
+  bulletproofspp.util.vec_add_loop a b out 0#usize
+
+/-- [fastcrypto::bulletproofspp::laurent::{impl fastcrypto::bulletproofspp::laurent::Coefficient for alloc::vec::Vec<fastcrypto::groups::ristretto255::RistrettoScalar>}::add]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 176:4-178:5 -/
+def
+  alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient.add
+  (self : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (other : alloc.vec.Vec groups.ristretto255.RistrettoScalar) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  let s := alloc.vec.Vec.deref self
+  let s1 := alloc.vec.Vec.deref other
+  bulletproofspp.util.vec_add s s1
+
+/-- Trait implementation: [fastcrypto::bulletproofspp::laurent::{impl fastcrypto::bulletproofspp::laurent::Coefficient for alloc::vec::Vec<fastcrypto::groups::ristretto255::RistrettoScalar>}]
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 175:0-183:1 -/
+@[reducible]
+def
+  alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
+  : bulletproofspp.laurent.Coefficient (alloc.vec.Vec
+  groups.ristretto255.RistrettoScalar) := {
+  corecloneCloneInst := core.clone.CloneallocvecVec
+    groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone
+  add :=
+    alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient.add
+  scale :=
+    alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient.scale
+}
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::new]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 24:4-27:5 -/
+def bulletproofspp.laurent.Laurent.new
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (low : Std.I32) (coeffs : alloc.vec.Vec C) :
+  Result (bulletproofspp.laurent.Laurent C)
+  := do
+  let b ← alloc.vec.Vec.is_empty coeffs
+  massert (¬ b)
+  ok { low, coeffs }
+
+/-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::p_n]:
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 169:4-179:5 -/
+def bulletproofspp.constraints.Constraints.p_n
+  (self : bulletproofspp.constraints.Constraints)
+  (delta_inv : groups.ristretto255.RistrettoScalar) :
+  Result (bulletproofspp.laurent.Laurent (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar))
+  := do
+  let v ←
+    alloc.vec.CloneVec.clone
+      groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone self.cn_v
+  let v1 ←
+    alloc.vec.CloneVec.clone
+      groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone self.cn_r
+  let v2 ←
+    alloc.vec.CloneVec.clone
+      groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone self.cn_l
+  let s := alloc.vec.Vec.deref self.cn_o
+  let v3 ← bulletproofspp.util.vec_scalar_mul delta_inv s
+  let y ←
+    lift (Std.Array.to_slice (Array.make 4#usize [ v, v1, v2, v3 ] : Array
+      (alloc.vec.Vec groups.ristretto255.RistrettoScalar) 4#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  bulletproofspp.laurent.Laurent.new
+    alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
+    0#i32 ret
+
+/-- [fastcrypto::bulletproofspp::laurent::{impl core::clone::Clone for fastcrypto::bulletproofspp::laurent::Laurent<C>}::clone]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 16:9-16:14
+    Visibility: public -/
+def bulletproofspp.laurent.Laurent.Insts.CoreCloneClone.clone
+  {C : Type _} (corecloneCloneInst : core.clone.Clone C)
+  (self : bulletproofspp.laurent.Laurent C) :
+  Result (bulletproofspp.laurent.Laurent C)
+  := do
+  let i ← lift (core.clone.impls.CloneI32.clone self.low)
+  let v ← alloc.vec.CloneVec.clone corecloneCloneInst self.coeffs
+  ok { low := i, coeffs := v }
+
+/-- Trait implementation: [fastcrypto::bulletproofspp::laurent::{impl core::clone::Clone for fastcrypto::bulletproofspp::laurent::Laurent<C>}]
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 16:9-16:14 -/
+@[reducible]
+def bulletproofspp.laurent.Laurent.Insts.CoreCloneClone {C : Type _}
+  (corecloneCloneInst : core.clone.Clone C) : core.clone.Clone
+  (bulletproofspp.laurent.Laurent C) := {
+  clone := bulletproofspp.laurent.Laurent.Insts.CoreCloneClone.clone
+    corecloneCloneInst
+}
+
+/-- [fastcrypto::bulletproofspp::laurent::{impl core::fmt::Debug for fastcrypto::bulletproofspp::laurent::Laurent<C>}::fmt]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 16:16-16:21
+    Visibility: public -/
+def bulletproofspp.laurent.Laurent.Insts.CoreFmtDebug.fmt
+  {C : Type _} (corefmtDebugInst : core.fmt.Debug C)
+  (self : bulletproofspp.laurent.Laurent C) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let dyn := Dyn.mk _ core.fmt.DebugI32 self.low
+  let dyn1 :=
+    Dyn.mk _ (core.fmt.DebugShared (core.fmt.DebugVec corefmtDebugInst))
+      self.coeffs
+  core.fmt.Formatter.debug_struct_field2_finish f (toStr "Laurent") (toStr
+    "low") dyn (toStr "coeffs") dyn1
+
+/-- Trait implementation: [fastcrypto::bulletproofspp::laurent::{impl core::fmt::Debug for fastcrypto::bulletproofspp::laurent::Laurent<C>}]
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 16:16-16:21 -/
+@[reducible]
+def bulletproofspp.laurent.Laurent.Insts.CoreFmtDebug {C : Type _}
+  (corefmtDebugInst : core.fmt.Debug C) : core.fmt.Debug
+  (bulletproofspp.laurent.Laurent C) := {
+  fmt := bulletproofspp.laurent.Laurent.Insts.CoreFmtDebug.fmt corefmtDebugInst
+}
+
+/-- Trait implementation: [fastcrypto::bulletproofspp::laurent::{impl core::marker::StructuralPartialEq for fastcrypto::bulletproofspp::laurent::Laurent<C>}]
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 16:23-16:32 -/
+@[reducible]
+def bulletproofspp.laurent.Laurent.Insts.CoreMarkerStructuralPartialEq {C :
+  Type _} (corecmpPartialEqInst : core.cmp.PartialEq C C) :
+  core.marker.StructuralPartialEq (bulletproofspp.laurent.Laurent C) := {
+}
+
+/-- [fastcrypto::bulletproofspp::laurent::{impl core::cmp::PartialEq<fastcrypto::bulletproofspp::laurent::Laurent<C>> for fastcrypto::bulletproofspp::laurent::Laurent<C>}::eq]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 16:23-16:32
+    Visibility: public -/
+def bulletproofspp.laurent.Laurent.Insts.CoreCmpPartialEqLaurent.eq
+  {C : Type _} (corecmpPartialEqInst : core.cmp.PartialEq C C)
+  (self : bulletproofspp.laurent.Laurent C)
+  (other : bulletproofspp.laurent.Laurent C) :
+  Result Bool
+  := do
+  if self.low = other.low
+  then
+    alloc.vec.partial_eq.PartialEqVec.eq corecmpPartialEqInst self.coeffs
+      other.coeffs
+  else ok false
+
+/-- Trait implementation: [fastcrypto::bulletproofspp::laurent::{impl core::cmp::PartialEq<fastcrypto::bulletproofspp::laurent::Laurent<C>> for fastcrypto::bulletproofspp::laurent::Laurent<C>}]
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 16:23-16:32 -/
+@[reducible]
+def bulletproofspp.laurent.Laurent.Insts.CoreCmpPartialEqLaurent {C : Type _}
+  (corecmpPartialEqInst : core.cmp.PartialEq C C) : core.cmp.PartialEq
+  (bulletproofspp.laurent.Laurent C) (bulletproofspp.laurent.Laurent C) := {
+  eq := bulletproofspp.laurent.Laurent.Insts.CoreCmpPartialEqLaurent.eq
+    corecmpPartialEqInst
+}
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::monomial]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 30:4-32:5 -/
+def bulletproofspp.laurent.Laurent.monomial
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (power : Std.I32) (c : C) :
+  Result (bulletproofspp.laurent.Laurent C)
+  := do
+  let y ←
+    lift (Std.Array.to_slice (Array.make 1#usize [ c ] : Array C 1#usize))
+  let ret := alloc.slice.Slice.into_vec y
+  bulletproofspp.laurent.Laurent.new CoefficientInst power ret
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::degree]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 60:4-62:5 -/
+def bulletproofspp.laurent.Laurent.degree
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (self : bulletproofspp.laurent.Laurent C) :
+  Result Std.I32
+  := do
+  let i := alloc.vec.Vec.len self.coeffs
+  let i1 ← lift (UScalar.hcast .I32 i)
+  let i2 ← self.low + i1
+  i2 - 1#i32
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::coeff]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 50:4-57:5 -/
+def bulletproofspp.laurent.Laurent.coeff
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (self : bulletproofspp.laurent.Laurent C) (power : Std.I32) :
+  Result C
+  := do
+  let offset ← power - self.low
+  if offset >= 0#i32
+  then
+    let i ← lift (IScalar.hcast .Usize offset)
+    let i1 := alloc.vec.Vec.len self.coeffs
+    if i < i1
+    then
+      let i2 ← lift (IScalar.hcast .Usize offset)
+      let t ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice C)
+          self.coeffs i2
+      CoefficientInst.corecloneCloneInst.clone t
+    else
+      let t ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice C)
+          self.coeffs 0#usize
+      let rs ←
+        groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
+      CoefficientInst.scale t rs
+  else
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice C) self.coeffs
+        0#usize
+    let rs ←
+      groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
+    CoefficientInst.scale t rs
+
+/-- [fastcrypto::bulletproofspp::laurent::{impl core::ops::arith::Add<fastcrypto::bulletproofspp::laurent::Laurent<C>, fastcrypto::bulletproofspp::laurent::Laurent<C>> for fastcrypto::bulletproofspp::laurent::Laurent<C>}::add]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 111:8-117:9
+    Visibility: public -/
+@[rust_loop_body]
+def
+  bulletproofspp.laurent.Laurent.Insts.CoreOpsArithAddLaurentLaurent.add_loop.body
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (i : Std.I32) (v : alloc.vec.Vec C) (i1 : Std.I32) (v1 : alloc.vec.Vec C)
+  (high : Std.I32) (coeffs : alloc.vec.Vec C) (p : Std.I32) :
+  Result (ControlFlow ((alloc.vec.Vec C) × Std.I32) (alloc.vec.Vec C))
+  := do
+  if p <= high
+  then
+    let t ←
+      bulletproofspp.laurent.Laurent.coeff CoefficientInst
+        { low := i, coeffs := v } p
+    let t1 ←
+      bulletproofspp.laurent.Laurent.coeff CoefficientInst
+        { low := i1, coeffs := v1 } p
+    let t2 ← CoefficientInst.add t t1
+    let coeffs1 ← alloc.vec.Vec.push coeffs t2
+    if p = high
+    then ok (done coeffs1)
+    else let p1 ← p + 1#i32
+         ok (cont (coeffs1, p1))
+  else ok (done coeffs)
+
+/-- [fastcrypto::bulletproofspp::laurent::{impl core::ops::arith::Add<fastcrypto::bulletproofspp::laurent::Laurent<C>, fastcrypto::bulletproofspp::laurent::Laurent<C>> for fastcrypto::bulletproofspp::laurent::Laurent<C>}::add]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 111:8-117:9
+    Visibility: public -/
+@[rust_loop]
+def bulletproofspp.laurent.Laurent.Insts.CoreOpsArithAddLaurentLaurent.add_loop
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (i : Std.I32) (v : alloc.vec.Vec C) (i1 : Std.I32) (v1 : alloc.vec.Vec C)
+  (high : Std.I32) (coeffs : alloc.vec.Vec C) (p : Std.I32) :
+  Result (alloc.vec.Vec C)
+  := do
+  loop
+    (fun (coeffs1, p1) =>
+      bulletproofspp.laurent.Laurent.Insts.CoreOpsArithAddLaurentLaurent.add_loop.body
+      CoefficientInst i v i1 v1 high coeffs1 p1)
+    (coeffs, p)
+
+/-- [fastcrypto::bulletproofspp::laurent::{impl core::ops::arith::Add<fastcrypto::bulletproofspp::laurent::Laurent<C>, fastcrypto::bulletproofspp::laurent::Laurent<C>> for fastcrypto::bulletproofspp::laurent::Laurent<C>}::add]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 106:4-119:5
+    Visibility: public -/
+def bulletproofspp.laurent.Laurent.Insts.CoreOpsArithAddLaurentLaurent.add
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (self : bulletproofspp.laurent.Laurent C)
+  (other : bulletproofspp.laurent.Laurent C) :
+  Result (bulletproofspp.laurent.Laurent C)
+  := do
+  let low ← lift (core.cmp.impls.OrdI32.min self.low other.low)
+  let i ← bulletproofspp.laurent.Laurent.degree CoefficientInst self
+  let i1 ← bulletproofspp.laurent.Laurent.degree CoefficientInst other
+  let high ← lift (core.cmp.impls.OrdI32.max i i1)
+  let coeffs ←
+    bulletproofspp.laurent.Laurent.Insts.CoreOpsArithAddLaurentLaurent.add_loop
+      CoefficientInst self.low self.coeffs other.low other.coeffs high
+      (alloc.vec.Vec.new C) low
+  bulletproofspp.laurent.Laurent.new CoefficientInst low coeffs
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::from_terms]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 41:8-45:9 -/
+@[rust_loop_body]
+def bulletproofspp.laurent.Laurent.from_terms_loop.body
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (terms : alloc.vec.Vec (Std.I32 × C))
+  (result : bulletproofspp.laurent.Laurent C) (i : Std.Usize) :
+  Result (ControlFlow ((bulletproofspp.laurent.Laurent C) × Std.Usize)
+    (bulletproofspp.laurent.Laurent C))
+  := do
+  let i1 := alloc.vec.Vec.len terms
+  if i < i1
+  then
+    let p ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.I32 ×
+        C)) terms i
+    let (power, c) ← (BuiltinClone (Std.I32 × C)).clone p
+    let l ← bulletproofspp.laurent.Laurent.monomial CoefficientInst power c
+    let result1 ←
+      bulletproofspp.laurent.Laurent.Insts.CoreOpsArithAddLaurentLaurent.add
+        CoefficientInst result l
+    let i2 ← i + 1#usize
+    ok (cont (result1, i2))
+  else ok (done result)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::from_terms]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 41:8-45:9 -/
+@[rust_loop]
+def bulletproofspp.laurent.Laurent.from_terms_loop
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (terms : alloc.vec.Vec (Std.I32 × C))
+  (result : bulletproofspp.laurent.Laurent C) (i : Std.Usize) :
+  Result (bulletproofspp.laurent.Laurent C)
+  := do
+  loop
+    (fun (result1, i1) => bulletproofspp.laurent.Laurent.from_terms_loop.body
+      CoefficientInst terms result1 i1)
+    (result, i)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::from_terms]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 36:4-47:5 -/
+def bulletproofspp.laurent.Laurent.from_terms
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (terms : alloc.vec.Vec (Std.I32 × C)) :
+  Result (bulletproofspp.laurent.Laurent C)
+  := do
+  let b ← alloc.vec.Vec.is_empty terms
+  massert (¬ b)
+  let p ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.I32 × C))
+      terms 0#usize
+  let (power, c) ← (BuiltinClone (Std.I32 × C)).clone p
+  let result ←
+    bulletproofspp.laurent.Laurent.monomial CoefficientInst power c
+  bulletproofspp.laurent.Laurent.from_terms_loop CoefficientInst terms result
+    1#usize
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::scale]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 68:8-71:9 -/
+@[rust_loop_body]
+def bulletproofspp.laurent.Laurent.scale_loop.body
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (v : alloc.vec.Vec C) (s : groups.ristretto255.RistrettoScalar)
+  (coeffs : alloc.vec.Vec C) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec C) × Std.Usize) (alloc.vec.Vec C))
+  := do
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let t ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice C) v i
+    let t1 ← CoefficientInst.scale t s
+    let coeffs1 ← alloc.vec.Vec.push coeffs t1
+    let i2 ← i + 1#usize
+    ok (cont (coeffs1, i2))
+  else ok (done coeffs)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::scale]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 68:8-71:9 -/
+@[rust_loop]
+def bulletproofspp.laurent.Laurent.scale_loop
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (v : alloc.vec.Vec C) (s : groups.ristretto255.RistrettoScalar)
+  (coeffs : alloc.vec.Vec C) (i : Std.Usize) :
+  Result (alloc.vec.Vec C)
+  := do
+  loop
+    (fun (coeffs1, i1) => bulletproofspp.laurent.Laurent.scale_loop.body
+      CoefficientInst v s coeffs1 i1)
+    (coeffs, i)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::scale]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 65:4-73:5 -/
+def bulletproofspp.laurent.Laurent.scale
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (self : bulletproofspp.laurent.Laurent C)
+  (s : groups.ristretto255.RistrettoScalar) :
+  Result (bulletproofspp.laurent.Laurent C)
+  := do
+  let i := alloc.vec.Vec.len self.coeffs
+  let coeffs := alloc.vec.Vec.with_capacity C i
+  let coeffs1 ←
+    bulletproofspp.laurent.Laurent.scale_loop CoefficientInst self.coeffs s
+      coeffs 0#usize
+  bulletproofspp.laurent.Laurent.new CoefficientInst self.low coeffs1
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::eval]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 80:8-83:9 -/
+@[rust_loop_body]
+def bulletproofspp.laurent.Laurent.eval_loop0.body
+  (i : Std.I32) (base : groups.ristretto255.RistrettoScalar)
+  (x_pow : groups.ristretto255.RistrettoScalar) (k : Std.U32) :
+  Result (ControlFlow (groups.ristretto255.RistrettoScalar × Std.U32)
+    groups.ristretto255.RistrettoScalar)
+  := do
+  let i1 ← core.num.I32.unsigned_abs i
+  if k < i1
+  then
+    let x_pow1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+        x_pow base
+    let k1 ← k + 1#u32
+    ok (cont (x_pow1, k1))
+  else ok (done x_pow)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::eval]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 80:8-83:9 -/
+@[rust_loop]
+def bulletproofspp.laurent.Laurent.eval_loop0
+  (i : Std.I32) (base : groups.ristretto255.RistrettoScalar)
+  (x_pow : groups.ristretto255.RistrettoScalar) (k : Std.U32) :
+  Result groups.ristretto255.RistrettoScalar
+  := do
+  loop
+    (fun (x_pow1, k1) => bulletproofspp.laurent.Laurent.eval_loop0.body i base
+      x_pow1 k1)
+    (x_pow, k)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::eval]: loop body 1:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 86:8-90:9 -/
+@[rust_loop_body]
+def bulletproofspp.laurent.Laurent.eval_loop1.body
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (v : alloc.vec.Vec C) (x : groups.ristretto255.RistrettoScalar)
+  (x_pow : groups.ristretto255.RistrettoScalar) (result : C) (i : Std.Usize) :
+  Result (ControlFlow (groups.ristretto255.RistrettoScalar × C × Std.Usize)
+    C)
+  := do
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let x_pow1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+        x_pow x
+    let t ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice C) v i
+    let t1 ← CoefficientInst.scale t x_pow1
+    let result1 ← CoefficientInst.add result t1
+    let i2 ← i + 1#usize
+    ok (cont (x_pow1, result1, i2))
+  else ok (done result)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::eval]: loop 1:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 86:8-90:9 -/
+@[rust_loop]
+def bulletproofspp.laurent.Laurent.eval_loop1
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (v : alloc.vec.Vec C) (x : groups.ristretto255.RistrettoScalar)
+  (x_pow : groups.ristretto255.RistrettoScalar) (result : C) (i : Std.Usize) :
+  Result C
+  := do
+  loop
+    (fun (x_pow1, result1, i1) =>
+      bulletproofspp.laurent.Laurent.eval_loop1.body CoefficientInst v x x_pow1
+      result1 i1)
+    (x_pow, result, i)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::eval]: loop body 2:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 80:8-83:9 -/
+@[rust_loop_body]
+def bulletproofspp.laurent.Laurent.eval_loop2.body
+  (i : Std.I32) (base : groups.ristretto255.RistrettoScalar)
+  (x_pow : groups.ristretto255.RistrettoScalar) (k : Std.U32) :
+  Result (ControlFlow (groups.ristretto255.RistrettoScalar × Std.U32)
+    groups.ristretto255.RistrettoScalar)
+  := do
+  let i1 ← core.num.I32.unsigned_abs i
+  if k < i1
+  then
+    let x_pow1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+        x_pow base
+    let k1 ← k + 1#u32
+    ok (cont (x_pow1, k1))
+  else ok (done x_pow)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::eval]: loop 2:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 80:8-83:9 -/
+@[rust_loop]
+def bulletproofspp.laurent.Laurent.eval_loop2
+  (i : Std.I32) (base : groups.ristretto255.RistrettoScalar)
+  (x_pow : groups.ristretto255.RistrettoScalar) (k : Std.U32) :
+  Result groups.ristretto255.RistrettoScalar
+  := do
+  loop
+    (fun (x_pow1, k1) => bulletproofspp.laurent.Laurent.eval_loop2.body i base
+      x_pow1 k1)
+    (x_pow, k)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::eval]: loop body 3:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 86:8-90:9 -/
+@[rust_loop_body]
+def bulletproofspp.laurent.Laurent.eval_loop3.body
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (v : alloc.vec.Vec C) (x : groups.ristretto255.RistrettoScalar)
+  (x_pow : groups.ristretto255.RistrettoScalar) (result : C) (i : Std.Usize) :
+  Result (ControlFlow (groups.ristretto255.RistrettoScalar × C × Std.Usize)
+    C)
+  := do
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let x_pow1 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+        x_pow x
+    let t ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice C) v i
+    let t1 ← CoefficientInst.scale t x_pow1
+    let result1 ← CoefficientInst.add result t1
+    let i2 ← i + 1#usize
+    ok (cont (x_pow1, result1, i2))
+  else ok (done result)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::eval]: loop 3:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 86:8-90:9 -/
+@[rust_loop]
+def bulletproofspp.laurent.Laurent.eval_loop3
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (v : alloc.vec.Vec C) (x : groups.ristretto255.RistrettoScalar)
+  (x_pow : groups.ristretto255.RistrettoScalar) (result : C) (i : Std.Usize) :
+  Result C
+  := do
+  loop
+    (fun (x_pow1, result1, i1) =>
+      bulletproofspp.laurent.Laurent.eval_loop3.body CoefficientInst v x x_pow1
+      result1 i1)
+    (x_pow, result, i)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<C>}::eval]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 76:4-92:5 -/
+def bulletproofspp.laurent.Laurent.eval
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (self : bulletproofspp.laurent.Laurent C)
+  (x : groups.ristretto255.RistrettoScalar) :
+  Result (core.result.Result C error.FastCryptoError)
+  := do
+  if self.low < 0#i32
+  then
+    let r ←
+      groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsScalar.inverse
+        x
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let x_pow ← bulletproofspp.util.one
+      let x_pow1 ←
+        bulletproofspp.laurent.Laurent.eval_loop0 self.low val x_pow 0#u32
+      let t ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice C)
+          self.coeffs 0#usize
+      let result ← CoefficientInst.scale t x_pow1
+      let result1 ←
+        bulletproofspp.laurent.Laurent.eval_loop1 CoefficientInst self.coeffs x
+          x_pow1 result 1#usize
+      ok (core.result.Result.Ok result1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        C (core.convert.FromSame error.FastCryptoError) residual
+  else
+    let x_pow ← bulletproofspp.util.one
+    let x_pow1 ←
+      bulletproofspp.laurent.Laurent.eval_loop2 self.low x x_pow 0#u32
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice C) self.coeffs
+        0#usize
+    let result ← CoefficientInst.scale t x_pow1
+    let result1 ←
+      bulletproofspp.laurent.Laurent.eval_loop3 CoefficientInst self.coeffs x
+        x_pow1 result 1#usize
+    ok (core.result.Result.Ok result1)
+
+/-- Trait implementation: [fastcrypto::bulletproofspp::laurent::{impl core::ops::arith::Add<fastcrypto::bulletproofspp::laurent::Laurent<C>, fastcrypto::bulletproofspp::laurent::Laurent<C>> for fastcrypto::bulletproofspp::laurent::Laurent<C>}]
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 103:0-120:1 -/
+@[reducible]
+def bulletproofspp.laurent.Laurent.Insts.CoreOpsArithAddLaurentLaurent {C :
+  Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C) :
+  core.ops.arith.Add (bulletproofspp.laurent.Laurent C)
+  (bulletproofspp.laurent.Laurent C) (bulletproofspp.laurent.Laurent C) := {
+  add := bulletproofspp.laurent.Laurent.Insts.CoreOpsArithAddLaurentLaurent.add
+    CoefficientInst
+}
+
+/-- [fastcrypto::bulletproofspp::laurent::{impl core::ops::arith::Sub<fastcrypto::bulletproofspp::laurent::Laurent<C>, fastcrypto::bulletproofspp::laurent::Laurent<C>> for fastcrypto::bulletproofspp::laurent::Laurent<C>}::sub]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 125:4-127:5
+    Visibility: public -/
+def bulletproofspp.laurent.Laurent.Insts.CoreOpsArithSubLaurentLaurent.sub
+  {C : Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C)
+  (self : bulletproofspp.laurent.Laurent C)
+  (other : bulletproofspp.laurent.Laurent C) :
+  Result (bulletproofspp.laurent.Laurent C)
+  := do
+  let rs ← bulletproofspp.util.one
+  let rs1 ←
+    groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithNegRistrettoScalar.neg
+      rs
+  let l ← bulletproofspp.laurent.Laurent.scale CoefficientInst other rs1
+  bulletproofspp.laurent.Laurent.Insts.CoreOpsArithAddLaurentLaurent.add
+    CoefficientInst self l
+
+/-- Trait implementation: [fastcrypto::bulletproofspp::laurent::{impl core::ops::arith::Sub<fastcrypto::bulletproofspp::laurent::Laurent<C>, fastcrypto::bulletproofspp::laurent::Laurent<C>> for fastcrypto::bulletproofspp::laurent::Laurent<C>}]
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 122:0-128:1 -/
+@[reducible]
+def bulletproofspp.laurent.Laurent.Insts.CoreOpsArithSubLaurentLaurent {C :
+  Type _} (CoefficientInst : bulletproofspp.laurent.Coefficient C) :
+  core.ops.arith.Sub (bulletproofspp.laurent.Laurent C)
+  (bulletproofspp.laurent.Laurent C) (bulletproofspp.laurent.Laurent C) := {
+  sub := bulletproofspp.laurent.Laurent.Insts.CoreOpsArithSubLaurentLaurent.sub
+    CoefficientInst
+}
 
 /-- [fastcrypto::bulletproofspp::util::inner_product]: loop body 0:
     Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 36:4-39:5 -/
@@ -100,6 +1396,279 @@ def bulletproofspp.util.inner_product
   let acc ←
     groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
   bulletproofspp.util.inner_product_loop a b acc 0#usize
+
+/-- [fastcrypto::bulletproofspp::laurent::{impl fastcrypto::bulletproofspp::laurent::Coefficient for fastcrypto::groups::ristretto255::RistrettoScalar}::scale]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 170:4-172:5 -/
+def
+  groups.ristretto255.RistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient.scale
+  (self : groups.ristretto255.RistrettoScalar)
+  (s : groups.ristretto255.RistrettoScalar) :
+  Result groups.ristretto255.RistrettoScalar
+  := do
+  groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+    self s
+
+/-- [fastcrypto::bulletproofspp::laurent::{impl fastcrypto::bulletproofspp::laurent::Coefficient for fastcrypto::groups::ristretto255::RistrettoScalar}::add]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 166:4-168:5 -/
+def
+  groups.ristretto255.RistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient.add
+  (self : groups.ristretto255.RistrettoScalar)
+  (other : groups.ristretto255.RistrettoScalar) :
+  Result groups.ristretto255.RistrettoScalar
+  := do
+  groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddShared0RistrettoScalarRistrettoScalar.add
+    self other
+
+/-- Trait implementation: [fastcrypto::bulletproofspp::laurent::{impl fastcrypto::bulletproofspp::laurent::Coefficient for fastcrypto::groups::ristretto255::RistrettoScalar}]
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 165:0-173:1 -/
+@[reducible]
+def
+  groups.ristretto255.RistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
+  : bulletproofspp.laurent.Coefficient groups.ristretto255.RistrettoScalar := {
+  corecloneCloneInst :=
+    groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone
+  add :=
+    groups.ristretto255.RistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient.add
+  scale :=
+    groups.ristretto255.RistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient.scale
+}
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<alloc::vec::Vec<fastcrypto::groups::ristretto255::RistrettoScalar>>}::inner_product]: loop body 1:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 137:12-140:13 -/
+@[rust_loop_body]
+def
+  bulletproofspp.laurent.LaurentVecRistrettoScalar.inner_product_loop0_loop0.body
+  (v : alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  (v1 : alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  (i : Std.Usize) (coeffs : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    Std.Usize) (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  := do
+  let i1 := alloc.vec.Vec.len v1
+  if j < i1
+  then
+    let i2 ← i + j
+    let (rs, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        groups.ristretto255.RistrettoScalar) coeffs i2
+    let v2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        groups.ristretto255.RistrettoScalar)) v i
+    let s := alloc.vec.Vec.deref v2
+    let v3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        groups.ristretto255.RistrettoScalar)) v1 j
+    let s1 := alloc.vec.Vec.deref v3
+    let rs1 ← bulletproofspp.util.inner_product s s1
+    let rs2 ←
+      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddAssignRistrettoScalar.add_assign
+        rs rs1
+    let j1 ← j + 1#usize
+    let coeffs1 := index_mut_back rs2
+    ok (cont (coeffs1, j1))
+  else ok (done coeffs)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<alloc::vec::Vec<fastcrypto::groups::ristretto255::RistrettoScalar>>}::inner_product]: loop 1:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 137:12-140:13 -/
+@[rust_loop]
+def bulletproofspp.laurent.LaurentVecRistrettoScalar.inner_product_loop0_loop0
+  (v : alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  (v1 : alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  (coeffs : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize)
+  (j : Std.Usize) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (coeffs1, j1) =>
+      bulletproofspp.laurent.LaurentVecRistrettoScalar.inner_product_loop0_loop0.body
+      v v1 i coeffs1 j1)
+    (coeffs, j)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<alloc::vec::Vec<fastcrypto::groups::ristretto255::RistrettoScalar>>}::inner_product]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 135:8-142:9 -/
+@[rust_loop_body]
+def bulletproofspp.laurent.LaurentVecRistrettoScalar.inner_product_loop0.body
+  (v : alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  (v1 : alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  (coeffs : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize)
+  :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    Std.Usize) (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  := do
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let coeffs1 ←
+      bulletproofspp.laurent.LaurentVecRistrettoScalar.inner_product_loop0_loop0
+        v v1 coeffs i 0#usize
+    let i2 ← i + 1#usize
+    ok (cont (coeffs1, i2))
+  else ok (done coeffs)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<alloc::vec::Vec<fastcrypto::groups::ristretto255::RistrettoScalar>>}::inner_product]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 135:8-142:9 -/
+@[rust_loop]
+def bulletproofspp.laurent.LaurentVecRistrettoScalar.inner_product_loop0
+  (v : alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  (v1 : alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  (coeffs : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize)
+  :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (coeffs1, i1) =>
+      bulletproofspp.laurent.LaurentVecRistrettoScalar.inner_product_loop0.body
+      v v1 coeffs1 i1)
+    (coeffs, i)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<alloc::vec::Vec<fastcrypto::groups::ristretto255::RistrettoScalar>>}::inner_product]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 132:4-144:5 -/
+def bulletproofspp.laurent.LaurentVecRistrettoScalar.inner_product
+  (self : bulletproofspp.laurent.Laurent (alloc.vec.Vec
+  groups.ristretto255.RistrettoScalar))
+  (other : bulletproofspp.laurent.Laurent (alloc.vec.Vec
+  groups.ristretto255.RistrettoScalar)) :
+  Result (bulletproofspp.laurent.Laurent groups.ristretto255.RistrettoScalar)
+  := do
+  let rs ←
+    groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
+  let i := alloc.vec.Vec.len self.coeffs
+  let i1 := alloc.vec.Vec.len other.coeffs
+  let i2 ← i + i1
+  let i3 ← i2 - 1#usize
+  let coeffs ←
+    alloc.vec.from_elem
+      groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone rs i3
+  let coeffs1 ←
+    bulletproofspp.laurent.LaurentVecRistrettoScalar.inner_product_loop0
+      self.coeffs other.coeffs coeffs 0#usize
+  let i4 ← self.low + other.low
+  bulletproofspp.laurent.Laurent.new
+    groups.ristretto255.RistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
+    i4 coeffs1
+
+/-- [fastcrypto::bulletproofspp::util::hadamard]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 118:4-121:5 -/
+@[rust_loop_body]
+def bulletproofspp.util.hadamard_loop.body
+  (a : Slice groups.ristretto255.RistrettoScalar)
+  (b : Slice groups.ristretto255.RistrettoScalar)
+  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    Std.Usize) (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  := do
+  let i1 := Slice.len a
+  if i < i1
+  then
+    let i2 := Slice.len b
+    if i < i2
+    then
+      let rs ← Slice.index_usize a i
+      let rs1 ← Slice.index_usize b i
+      let rs2 ←
+        groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+          rs rs1
+      let out1 ← alloc.vec.Vec.push out rs2
+      let i3 ← i + 1#usize
+      ok (cont (out1, i3))
+    else ok (done out)
+  else ok (done out)
+
+/-- [fastcrypto::bulletproofspp::util::hadamard]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 118:4-121:5 -/
+@[rust_loop]
+def bulletproofspp.util.hadamard_loop
+  (a : Slice groups.ristretto255.RistrettoScalar)
+  (b : Slice groups.ristretto255.RistrettoScalar)
+  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (out1, i1) => bulletproofspp.util.hadamard_loop.body a b out1 i1)
+    (out, i)
+
+/-- [fastcrypto::bulletproofspp::util::hadamard]:
+    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 114:0-123:1 -/
+def bulletproofspp.util.hadamard
+  (a : Slice groups.ristretto255.RistrettoScalar)
+  (b : Slice groups.ristretto255.RistrettoScalar) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  let left_val := Slice.len a
+  let right_val := Slice.len b
+  massert (left_val = right_val)
+  let i := Slice.len a
+  let i1 := Slice.len b
+  let i2 ← lift (core.cmp.impls.OrdUsize.min i i1)
+  let out := alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i2
+  bulletproofspp.util.hadamard_loop a b out 0#usize
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<alloc::vec::Vec<fastcrypto::groups::ristretto255::RistrettoScalar>>}::weighted_inner_product]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 150:8-153:9 -/
+@[rust_loop_body]
+def
+  bulletproofspp.laurent.LaurentVecRistrettoScalar.weighted_inner_product_loop.body
+  (v : alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  (weights : Slice groups.ristretto255.RistrettoScalar)
+  (coeffs : alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar)) × Std.Usize) (alloc.vec.Vec
+    (alloc.vec.Vec groups.ristretto255.RistrettoScalar)))
+  := do
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let v1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        groups.ristretto255.RistrettoScalar)) v i
+    let s := alloc.vec.Vec.deref v1
+    let v2 ← bulletproofspp.util.hadamard s weights
+    let coeffs1 ← alloc.vec.Vec.push coeffs v2
+    let i2 ← i + 1#usize
+    ok (cont (coeffs1, i2))
+  else ok (done coeffs)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<alloc::vec::Vec<fastcrypto::groups::ristretto255::RistrettoScalar>>}::weighted_inner_product]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 150:8-153:9 -/
+@[rust_loop]
+def
+  bulletproofspp.laurent.LaurentVecRistrettoScalar.weighted_inner_product_loop
+  (v : alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  (weights : Slice groups.ristretto255.RistrettoScalar)
+  (coeffs : alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  := do
+  loop
+    (fun (coeffs1, i1) =>
+      bulletproofspp.laurent.LaurentVecRistrettoScalar.weighted_inner_product_loop.body
+      v weights coeffs1 i1)
+    (coeffs, i)
+
+/-- [fastcrypto::bulletproofspp::laurent::{fastcrypto::bulletproofspp::laurent::Laurent<alloc::vec::Vec<fastcrypto::groups::ristretto255::RistrettoScalar>>}::weighted_inner_product]:
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 147:4-156:5 -/
+def bulletproofspp.laurent.LaurentVecRistrettoScalar.weighted_inner_product
+  (self : bulletproofspp.laurent.Laurent (alloc.vec.Vec
+  groups.ristretto255.RistrettoScalar))
+  (other : bulletproofspp.laurent.Laurent (alloc.vec.Vec
+  groups.ristretto255.RistrettoScalar))
+  (weights : Slice groups.ristretto255.RistrettoScalar) :
+  Result (bulletproofspp.laurent.Laurent groups.ristretto255.RistrettoScalar)
+  := do
+  let i := alloc.vec.Vec.len self.coeffs
+  let coeffs :=
+    alloc.vec.Vec.with_capacity (alloc.vec.Vec
+      groups.ristretto255.RistrettoScalar) i
+  let coeffs1 ←
+    bulletproofspp.laurent.LaurentVecRistrettoScalar.weighted_inner_product_loop
+      self.coeffs weights coeffs 0#usize
+  let weighted ←
+    bulletproofspp.laurent.Laurent.new
+      alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
+      self.low coeffs1
+  bulletproofspp.laurent.LaurentVecRistrettoScalar.inner_product weighted other
 
 /-- [fastcrypto::bulletproofspp::util::weighted_inner_product]: loop body 0:
     Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 53:4-57:5 -/
@@ -223,218 +1792,6 @@ def bulletproofspp.util.to_scalars
   let out := alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i
   bulletproofspp.util.to_scalars_loop xs out 0#usize
 
-/-- [fastcrypto::bulletproofspp::util::power_vector]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 82:4-86:5 -/
-@[rust_loop_body]
-def bulletproofspp.util.power_vector_loop.body
-  (x : groups.ristretto255.RistrettoScalar) (n : Std.Usize)
-  (v : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  (cur : groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
-    groups.ristretto255.RistrettoScalar × Std.Usize) (alloc.vec.Vec
-    groups.ristretto255.RistrettoScalar))
-  := do
-  if i < n
-  then
-    let v1 ← alloc.vec.Vec.push v cur
-    let cur1 ←
-      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
-        cur x
-    let i1 ← i + 1#usize
-    ok (cont (v1, cur1, i1))
-  else ok (done v)
-
-/-- [fastcrypto::bulletproofspp::util::power_vector]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 82:4-86:5 -/
-@[rust_loop]
-def bulletproofspp.util.power_vector_loop
-  (x : groups.ristretto255.RistrettoScalar) (n : Std.Usize)
-  (v : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  (cur : groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
-  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  := do
-  loop
-    (fun (v1, cur1, i1) => bulletproofspp.util.power_vector_loop.body x n v1
-      cur1 i1)
-    (v, cur, i)
-
-/-- [fastcrypto::bulletproofspp::util::power_vector]:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 78:0-88:1 -/
-def bulletproofspp.util.power_vector
-  (x : groups.ristretto255.RistrettoScalar) (n : Std.Usize) :
-  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  := do
-  let v := alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar n
-  let cur ← bulletproofspp.util.one
-  bulletproofspp.util.power_vector_loop x n v cur 0#usize
-
-/-- [fastcrypto::bulletproofspp::util::vec_add]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 95:4-98:5 -/
-@[rust_loop_body]
-def bulletproofspp.util.vec_add_loop.body
-  (a : Slice groups.ristretto255.RistrettoScalar)
-  (b : Slice groups.ristretto255.RistrettoScalar)
-  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
-    Std.Usize) (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
-  := do
-  let i1 := Slice.len a
-  if i < i1
-  then
-    let i2 := Slice.len b
-    if i < i2
-    then
-      let rs ← Slice.index_usize a i
-      let rs1 ← Slice.index_usize b i
-      let rs2 ←
-        groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddRistrettoScalarRistrettoScalar.add
-          rs rs1
-      let out1 ← alloc.vec.Vec.push out rs2
-      let i3 ← i + 1#usize
-      ok (cont (out1, i3))
-    else ok (done out)
-  else ok (done out)
-
-/-- [fastcrypto::bulletproofspp::util::vec_add]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 95:4-98:5 -/
-@[rust_loop]
-def bulletproofspp.util.vec_add_loop
-  (a : Slice groups.ristretto255.RistrettoScalar)
-  (b : Slice groups.ristretto255.RistrettoScalar)
-  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
-  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  := do
-  loop
-    (fun (out1, i1) => bulletproofspp.util.vec_add_loop.body a b out1 i1)
-    (out, i)
-
-/-- [fastcrypto::bulletproofspp::util::vec_add]:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 91:0-100:1 -/
-def bulletproofspp.util.vec_add
-  (a : Slice groups.ristretto255.RistrettoScalar)
-  (b : Slice groups.ristretto255.RistrettoScalar) :
-  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  := do
-  let left_val := Slice.len a
-  let right_val := Slice.len b
-  massert (left_val = right_val)
-  let i := Slice.len a
-  let i1 := Slice.len b
-  let i2 ← lift (core.cmp.impls.OrdUsize.min i i1)
-  let out := alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i2
-  bulletproofspp.util.vec_add_loop a b out 0#usize
-
-/-- [fastcrypto::bulletproofspp::util::vec_scalar_mul]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 106:4-109:5 -/
-@[rust_loop_body]
-def bulletproofspp.util.vec_scalar_mul_loop.body
-  (s : groups.ristretto255.RistrettoScalar)
-  (a : Slice groups.ristretto255.RistrettoScalar)
-  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
-    Std.Usize) (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
-  := do
-  let i1 := Slice.len a
-  if i < i1
-  then
-    let rs ← Slice.index_usize a i
-    let rs1 ←
-      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
-        s rs
-    let out1 ← alloc.vec.Vec.push out rs1
-    let i2 ← i + 1#usize
-    ok (cont (out1, i2))
-  else ok (done out)
-
-/-- [fastcrypto::bulletproofspp::util::vec_scalar_mul]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 106:4-109:5 -/
-@[rust_loop]
-def bulletproofspp.util.vec_scalar_mul_loop
-  (s : groups.ristretto255.RistrettoScalar)
-  (a : Slice groups.ristretto255.RistrettoScalar)
-  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
-  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  := do
-  loop
-    (fun (out1, i1) => bulletproofspp.util.vec_scalar_mul_loop.body s a out1
-      i1)
-    (out, i)
-
-/-- [fastcrypto::bulletproofspp::util::vec_scalar_mul]:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 103:0-111:1 -/
-def bulletproofspp.util.vec_scalar_mul
-  (s : groups.ristretto255.RistrettoScalar)
-  (a : Slice groups.ristretto255.RistrettoScalar) :
-  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  := do
-  let i := Slice.len a
-  let out := alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i
-  bulletproofspp.util.vec_scalar_mul_loop s a out 0#usize
-
-/-- [fastcrypto::bulletproofspp::util::hadamard]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 118:4-121:5 -/
-@[rust_loop_body]
-def bulletproofspp.util.hadamard_loop.body
-  (a : Slice groups.ristretto255.RistrettoScalar)
-  (b : Slice groups.ristretto255.RistrettoScalar)
-  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
-    Std.Usize) (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
-  := do
-  let i1 := Slice.len a
-  if i < i1
-  then
-    let i2 := Slice.len b
-    if i < i2
-    then
-      let rs ← Slice.index_usize a i
-      let rs1 ← Slice.index_usize b i
-      let rs2 ←
-        groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
-          rs rs1
-      let out1 ← alloc.vec.Vec.push out rs2
-      let i3 ← i + 1#usize
-      ok (cont (out1, i3))
-    else ok (done out)
-  else ok (done out)
-
-/-- [fastcrypto::bulletproofspp::util::hadamard]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 118:4-121:5 -/
-@[rust_loop]
-def bulletproofspp.util.hadamard_loop
-  (a : Slice groups.ristretto255.RistrettoScalar)
-  (b : Slice groups.ristretto255.RistrettoScalar)
-  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
-  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  := do
-  loop
-    (fun (out1, i1) => bulletproofspp.util.hadamard_loop.body a b out1 i1)
-    (out, i)
-
-/-- [fastcrypto::bulletproofspp::util::hadamard]:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 114:0-123:1 -/
-def bulletproofspp.util.hadamard
-  (a : Slice groups.ristretto255.RistrettoScalar)
-  (b : Slice groups.ristretto255.RistrettoScalar) :
-  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  := do
-  let left_val := Slice.len a
-  let right_val := Slice.len b
-  massert (left_val = right_val)
-  let i := Slice.len a
-  let i1 := Slice.len b
-  let i2 ← lift (core.cmp.impls.OrdUsize.min i i1)
-  let out := alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i2
-  bulletproofspp.util.hadamard_loop a b out 0#usize
-
-/-- Trait implementation: [fastcrypto::groups::ristretto255::{impl core::clone::Clone for fastcrypto::groups::ristretto255::RistrettoScalar}]
-    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 268:9-268:14 -/
-@[reducible]
-def groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone : core.clone.Clone
-  groups.ristretto255.RistrettoScalar := {
-  clone := groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone.clone
-}
-
 /-- [fastcrypto::bulletproofspp::util::pad_to]:
     Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 126:0-131:1 -/
 def bulletproofspp.util.pad_to
@@ -450,126 +1807,6 @@ def bulletproofspp.util.pad_to
     groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
   alloc.vec.Vec.resize groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone
     out n rs
-
-/-- [fastcrypto::bulletproofspp::util::batch_invert]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 145:4-149:5 -/
-@[rust_loop_body]
-def bulletproofspp.util.batch_invert_loop0.body
-  (inputs : Slice groups.ristretto255.RistrettoScalar)
-  («prefix» : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  (acc : groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
-    groups.ristretto255.RistrettoScalar × Std.Usize) ((alloc.vec.Vec
-    groups.ristretto255.RistrettoScalar) ×
-    groups.ristretto255.RistrettoScalar))
-  := do
-  let i1 := Slice.len inputs
-  if i < i1
-  then
-    let prefix1 ← alloc.vec.Vec.push «prefix» acc
-    let rs ← Slice.index_usize inputs i
-    let acc1 ←
-      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
-        acc rs
-    let i2 ← i + 1#usize
-    ok (cont (prefix1, acc1, i2))
-  else ok (done («prefix», acc))
-
-/-- [fastcrypto::bulletproofspp::util::batch_invert]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 145:4-149:5 -/
-@[rust_loop]
-def bulletproofspp.util.batch_invert_loop0
-  (inputs : Slice groups.ristretto255.RistrettoScalar)
-  («prefix» : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  (acc : groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
-  Result ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
-    groups.ristretto255.RistrettoScalar)
-  := do
-  loop
-    (fun (prefix1, acc1, i1) => bulletproofspp.util.batch_invert_loop0.body
-      inputs prefix1 acc1 i1)
-    («prefix», acc, i)
-
-/-- [fastcrypto::bulletproofspp::util::batch_invert]: loop body 1:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 155:4-159:5 -/
-@[rust_loop_body]
-def bulletproofspp.util.batch_invert_loop1.body
-  (inputs : Slice groups.ristretto255.RistrettoScalar)
-  («prefix» : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  (suffix_inv : groups.ristretto255.RistrettoScalar)
-  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
-  Result (ControlFlow (groups.ristretto255.RistrettoScalar × (alloc.vec.Vec
-    groups.ristretto255.RistrettoScalar) × Std.Usize) (alloc.vec.Vec
-    groups.ristretto255.RistrettoScalar))
-  := do
-  if i > 0#usize
-  then
-    let i1 ← i - 1#usize
-    let rs ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        groups.ristretto255.RistrettoScalar) «prefix» i1
-    let rs1 ←
-      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
-        suffix_inv rs
-    let (_, index_mut_back) ←
-      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
-        groups.ristretto255.RistrettoScalar) out i1
-    let rs2 ← Slice.index_usize inputs i1
-    let suffix_inv1 ←
-      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
-        suffix_inv rs2
-    let out1 := index_mut_back rs1
-    ok (cont (suffix_inv1, out1, i1))
-  else ok (done out)
-
-/-- [fastcrypto::bulletproofspp::util::batch_invert]: loop 1:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 155:4-159:5 -/
-@[rust_loop]
-def bulletproofspp.util.batch_invert_loop1
-  (inputs : Slice groups.ristretto255.RistrettoScalar)
-  («prefix» : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  (suffix_inv : groups.ristretto255.RistrettoScalar)
-  (out : alloc.vec.Vec groups.ristretto255.RistrettoScalar) (i : Std.Usize) :
-  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  := do
-  loop
-    (fun (suffix_inv1, out1, i1) => bulletproofspp.util.batch_invert_loop1.body
-      inputs «prefix» suffix_inv1 out1 i1)
-    (suffix_inv, out, i)
-
-/-- [fastcrypto::bulletproofspp::util::batch_invert]:
-    Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 140:0-161:1 -/
-def bulletproofspp.util.batch_invert
-  (inputs : Slice groups.ristretto255.RistrettoScalar) :
-  Result (core.result.Result (alloc.vec.Vec
-    groups.ristretto255.RistrettoScalar) error.FastCryptoError)
-  := do
-  let i := Slice.len inputs
-  let «prefix» :=
-    alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i
-  let acc ← bulletproofspp.util.one
-  let (prefix1, acc1) ←
-    bulletproofspp.util.batch_invert_loop0 inputs «prefix» acc 0#usize
-  let r ←
-    groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsScalar.inverse
-      acc1
-  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-  match cf with
-  | core.ops.control_flow.ControlFlow.Continue val =>
-    let rs ←
-      groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
-    let i1 := Slice.len inputs
-    let out ←
-      alloc.vec.from_elem
-        groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone rs i1
-    let i2 := Slice.len inputs
-    let out1 ←
-      bulletproofspp.util.batch_invert_loop1 inputs prefix1 val out i2
-    ok (core.result.Result.Ok out1)
-  | core.ops.control_flow.ControlFlow.Break residual =>
-    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-      (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-      (core.convert.FromSame error.FastCryptoError) residual
 
 /-- [fastcrypto::bulletproofspp::util::to_digits]: loop body 0:
     Source: 'fastcrypto/src/bulletproofspp/util.rs', lines 170:4-173:5 -/

@@ -20,12 +20,24 @@ set_option maxHeartbeats 1000000
 /- You can set the `maxRecDepth` value with the `-max-recdepth` CLI option -/
 set_option maxRecDepth 2048
 
+/-- [core::mem::maybe_uninit::MaybeUninit]
+    Source: '/rustc/library/core/src/mem/maybe_uninit.rs', lines 355:0-355:24
+    Name pattern: [core::mem::maybe_uninit::MaybeUninit]
+    Visibility: public -/
+@[rust_type "core::mem::maybe_uninit::MaybeUninit"]
+axiom core.mem.maybe_uninit.MaybeUninit (T : Type _) : Type
+
 /-- [curve25519_dalek::scalar::Scalar]
     Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/curve25519-dalek-4.1.3/src/scalar.rs', lines 195:0-195:17
     Name pattern: [curve25519_dalek::scalar::Scalar]
     Visibility: public -/
 @[rust_type "curve25519_dalek::scalar::Scalar"]
 axiom curve25519_dalek.scalar.Scalar : Type
+
+/-- [fastcrypto::pedersen::Range]
+    Source: 'fastcrypto/src/pedersen.rs', lines 78:0-87:1
+    Visibility: public -/
+axiom pedersen.Range : Type
 
 /-- [fastcrypto::groups::ristretto255::RistrettoScalar]
     Source: 'fastcrypto/src/groups/ristretto255.rs', lines 271:0-271:54

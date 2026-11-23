@@ -31,6 +31,9 @@ CARGO_TARGET_DIR="$root/target/charon" "$charon" cargo --preset aeneas \
   --start-from "$U::batch_invert" \
   --start-from "$U::to_digits" \
   --start-from "$U::multiplicities" \
+  --start-from "crate::bulletproofspp::laurent" \
+  --start-from "crate::bulletproofspp::constraints::Constraints::new" \
+  --start-from "crate::bulletproofspp::constraints::Constraints::p_n" \
   --opaque crate::groups --opaque crate::pedersen --opaque crate::serde_helpers --opaque merlin \
   --dest-file "$out/bppp.llbc" -- --features experimental
 

@@ -24,5 +24,5 @@ lean_lib bulletproofspp where
   globs := #[.one `bulletproofspp.Theorems, .submodules `bulletproofspp.Generated,
     .submodules `bulletproofspp.Model, .submodules `bulletproofspp.Spec,
     .submodules `bulletproofspp.Proofs] ++
-    #[`Correctness, `Soundness, `ZeroKnowledge, `Scalar, `Util].map
+    #[`Correctness, `Soundness, `ZeroKnowledge, `Scalar, `Util, `Laurent].map
       fun n => .one (`bulletproofspp ++ n)

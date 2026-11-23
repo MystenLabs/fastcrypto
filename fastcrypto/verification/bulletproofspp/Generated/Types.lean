@@ -22,6 +22,46 @@ set_option maxRecDepth 2048
 
 namespace fastcrypto
 
+/-- Trait declaration: [core::ops::arith::Add]
+    Source: '/rustc/library/core/src/ops/arith.rs', lines 76:0-76:31
+    Name pattern: [core::ops::arith::Add]
+    Visibility: public -/
+@[rust_trait "core::ops::arith::Add"]
+structure core.ops.arith.Add (Self : Type _) (Rhs : Type _) (Self_Output :
+  Type _) where
+  add : Self → Rhs → Result Self_Output
+
+/-- Trait declaration: [core::ops::arith::Sub]
+    Source: '/rustc/library/core/src/ops/arith.rs', lines 188:0-188:31
+    Name pattern: [core::ops::arith::Sub]
+    Visibility: public -/
+@[rust_trait "core::ops::arith::Sub"]
+structure core.ops.arith.Sub (Self : Type _) (Rhs : Type _) (Self_Output :
+  Type _) where
+  sub : Self → Rhs → Result Self_Output
+
+/-- [fastcrypto::bulletproofspp::circuit::CircuitParams]
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 83:0-89:1 -/
+structure bulletproofspp.circuit.CircuitParams where
+  range : pedersen.Range
+  m : Std.Usize
+  d : Std.Usize
+  n_d : Std.Usize
+  nm : Std.Usize
+
+/-- [fastcrypto::bulletproofspp::constraints::Constraints]
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 52:0-73:1 -/
+structure bulletproofspp.constraints.Constraints where
+  norm_weights : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  cn_l : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  cn_r : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  cn_o : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  cn_v : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  cl_v : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  lambda_al : groups.ristretto255.RistrettoScalar
+  mu_am : groups.ristretto255.RistrettoScalar
+  lambdas : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+
 /-- [fastcrypto::error::FastCryptoError]
     Source: 'fastcrypto/src/error.rs', lines 18:0-78:1
     Visibility: public -/
@@ -42,5 +82,18 @@ inductive error.FastCryptoError where
 | NotEnoughWeight : Std.Usize → error.FastCryptoError
 | GeneralError : String → error.FastCryptoError
 | GeneralOpaqueError : error.FastCryptoError
+
+/-- Trait declaration: [fastcrypto::bulletproofspp::laurent::Coefficient]
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 160:0-163:1 -/
+structure bulletproofspp.laurent.Coefficient (Self : Type _) where
+  corecloneCloneInst : core.clone.Clone Self
+  add : Self → Self → Result Self
+  scale : Self → groups.ristretto255.RistrettoScalar → Result Self
+
+/-- [fastcrypto::bulletproofspp::laurent::Laurent]
+    Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 17:0-20:1 -/
+structure bulletproofspp.laurent.Laurent (C : Type _) where
+  low : Std.I32
+  coeffs : alloc.vec.Vec C
 
 end fastcrypto

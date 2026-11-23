@@ -29,6 +29,11 @@ structure ScalarModel (F : Type) [Field F] (φ : groups.ristretto255.RistrettoSc
   mul_assign : ∀ a b, ∃ c,
     groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
       a b = ok c ∧ φ c = φ a * φ b
+  add_ref : ∀ a b, ∃ c,
+    groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddShared0RistrettoScalarRistrettoScalar.add
+      a b = ok c ∧ φ c = φ a + φ b
+  neg : ∀ a, ∃ c, groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithNegRistrettoScalar.neg a =
+    ok c ∧ φ c = -φ a
   clone : ∀ a, groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone.clone a = ok a
   from_u64 : ∀ x : U64, ∃ s, groups.ristretto255.RistrettoScalar.Insts.CoreConvertFrom.from
     curve25519_dalek.scalar.Scalar.Insts.CoreConvertFromU64 x = ok s ∧ φ s = (x.val : F)
@@ -57,6 +62,10 @@ noncomputable def mulF (a b : S) : S := (hs.mul a b).choose
 noncomputable def addAF (a b : S) : S := (hs.add_assign a b).choose
 /-- What `a *= b` returns. -/
 noncomputable def mulAF (a b : S) : S := (hs.mul_assign a b).choose
+/-- What `a + &b` returns. -/
+noncomputable def addRF (a b : S) : S := (hs.add_ref a b).choose
+/-- What `-a` returns. -/
+noncomputable def negF (a : S) : S := (hs.neg a).choose
 /-- What `RistrettoScalar::from(x)` returns. -/
 noncomputable def fromF (x : U64) : S := (hs.from_u64 x).choose
 
@@ -86,6 +95,13 @@ lemma mul_assign_eq (a b : S) :
       a b = ok (hs.mulAF a b) := (hs.mul_assign a b).choose_spec.1
 @[simp] lemma φ_mulAF (a b : S) : φ (hs.mulAF a b) = φ a * φ b :=
   (hs.mul_assign a b).choose_spec.2
+lemma add_ref_eq (a b : S) :
+    groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddShared0RistrettoScalarRistrettoScalar.add
+      a b = ok (hs.addRF a b) := (hs.add_ref a b).choose_spec.1
+@[simp] lemma φ_addRF (a b : S) : φ (hs.addRF a b) = φ a + φ b := (hs.add_ref a b).choose_spec.2
+lemma neg_eq (a : S) : groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithNegRistrettoScalar.neg
+    a = ok (hs.negF a) := (hs.neg a).choose_spec.1
+@[simp] lemma φ_negF (a : S) : φ (hs.negF a) = -φ a := (hs.neg a).choose_spec.2
 lemma from_u64_eq (x : U64) :
     groups.ristretto255.RistrettoScalar.Insts.CoreConvertFrom.from
       curve25519_dalek.scalar.Scalar.Insts.CoreConvertFromU64 x = ok (hs.fromF x) :=

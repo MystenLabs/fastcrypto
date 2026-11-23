@@ -22,6 +22,14 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 2048
 open fastcrypto
 
+/-- [core::num::{i32}::unsigned_abs]:
+    Source: '/rustc/library/core/src/num/int_macros.rs', lines 2514:8-2514:53; this code is generated from a macro invocation at: '/rustc/library/core/src/num/mod.rs', lines 430:4-449:5
+    Name pattern: [core::num::{i32}::unsigned_abs]
+    Visibility: public -/
+@[rust_fun "core::num::{i32}::unsigned_abs"]
+def core.num.I32.unsigned_abs (x : Std.I32) : Result Std.U32 :=
+  ok ⟨BitVec.ofNat _ x.val.natAbs⟩
+
 /-- [core::num::{u64}::ilog2]:
     Source: '/rustc/library/core/src/num/uint_macros.rs', lines 1838:8-1838:39; this code is generated from a macro invocation at: '/rustc/library/core/src/num/mod.rs', lines 1324:4-1348:5
     Name pattern: [core::num::{u64}::ilog2]
@@ -39,12 +47,13 @@ def core.num.U64.ilog2 (x : Std.U64) : Result Std.U32 :=
 axiom curve25519_dalek.scalar.Scalar.Insts.CoreConvertFromU64.from
   : Std.U64 → Result curve25519_dalek.scalar.Scalar
 
-/-- [fastcrypto::groups::ristretto255::{impl fastcrypto::groups::GroupElement for fastcrypto::groups::ristretto255::RistrettoScalar}::generator]:
-    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 300:4-302:5
+/-- [fastcrypto::groups::ristretto255::{impl fastcrypto::groups::Scalar for fastcrypto::groups::ristretto255::RistrettoScalar}::inverse]:
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 310:4-315:5
     Visibility: public -/
-axiom
-  groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.generator
-  : Result groups.ristretto255.RistrettoScalar
+axiom groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsScalar.inverse
+  :
+  groups.ristretto255.RistrettoScalar → Result (core.result.Result
+    groups.ristretto255.RistrettoScalar error.FastCryptoError)
 
 /-- [fastcrypto::groups::ristretto255::{impl fastcrypto::groups::GroupElement for fastcrypto::groups::ristretto255::RistrettoScalar}::zero]:
     Source: 'fastcrypto/src/groups/ristretto255.rs', lines 297:4-299:5
@@ -52,6 +61,15 @@ axiom
 axiom
   groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.zero
   : Result groups.ristretto255.RistrettoScalar
+
+/-- [fastcrypto::groups::ristretto255::{impl core::ops::arith::MulAssign<fastcrypto::groups::ristretto255::RistrettoScalar> for fastcrypto::groups::ristretto255::RistrettoScalar}::mul_assign]:
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 29:12-32:13; this code is generated from a macro invocation at: 'fastcrypto/src/groups/ristretto255.rs', lines 268:70-268:84
+    Visibility: public -/
+axiom
+  groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+  :
+  groups.ristretto255.RistrettoScalar → groups.ristretto255.RistrettoScalar
+    → Result groups.ristretto255.RistrettoScalar
 
 /-- [fastcrypto::groups::ristretto255::{impl core::ops::arith::AddAssign<fastcrypto::groups::ristretto255::RistrettoScalar> for fastcrypto::groups::ristretto255::RistrettoScalar}::add_assign]:
     Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 29:12-32:13; this code is generated from a macro invocation at: 'fastcrypto/src/groups/ristretto255.rs', lines 268:70-268:84
@@ -71,11 +89,11 @@ axiom
   groups.ristretto255.RistrettoScalar → groups.ristretto255.RistrettoScalar
     → Result groups.ristretto255.RistrettoScalar
 
-/-- [fastcrypto::groups::ristretto255::{impl core::ops::arith::MulAssign<fastcrypto::groups::ristretto255::RistrettoScalar> for fastcrypto::groups::ristretto255::RistrettoScalar}::mul_assign]:
-    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/assignment.rs', lines 29:12-32:13; this code is generated from a macro invocation at: 'fastcrypto/src/groups/ristretto255.rs', lines 268:70-268:84
+/-- [fastcrypto::groups::ristretto255::{impl core::ops::arith::Add<fastcrypto::groups::ristretto255::RistrettoScalar, fastcrypto::groups::ristretto255::RistrettoScalar> for fastcrypto::groups::ristretto255::RistrettoScalar}::add]:
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 268:50-268:53
     Visibility: public -/
 axiom
-  groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulAssignRistrettoScalar.mul_assign
+  groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddRistrettoScalarRistrettoScalar.add
   :
   groups.ristretto255.RistrettoScalar → groups.ristretto255.RistrettoScalar
     → Result groups.ristretto255.RistrettoScalar
@@ -88,15 +106,6 @@ axiom groups.ristretto255.RistrettoScalar.Insts.CoreConvertFrom.from
   curve25519_dalek.scalar.Scalar __FromT0) :
   __FromT0 → Result groups.ristretto255.RistrettoScalar
 
-/-- [fastcrypto::groups::ristretto255::{impl core::ops::arith::Add<fastcrypto::groups::ristretto255::RistrettoScalar, fastcrypto::groups::ristretto255::RistrettoScalar> for fastcrypto::groups::ristretto255::RistrettoScalar}::add]:
-    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 268:50-268:53
-    Visibility: public -/
-axiom
-  groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddRistrettoScalarRistrettoScalar.add
-  :
-  groups.ristretto255.RistrettoScalar → groups.ristretto255.RistrettoScalar
-    → Result groups.ristretto255.RistrettoScalar
-
 /-- [fastcrypto::groups::ristretto255::{impl core::clone::Clone for fastcrypto::groups::ristretto255::RistrettoScalar}::clone]:
     Source: 'fastcrypto/src/groups/ristretto255.rs', lines 268:9-268:14
     Visibility: public -/
@@ -105,11 +114,28 @@ axiom groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone.clone
   groups.ristretto255.RistrettoScalar → Result
     groups.ristretto255.RistrettoScalar
 
-/-- [fastcrypto::groups::ristretto255::{impl fastcrypto::groups::Scalar for fastcrypto::groups::ristretto255::RistrettoScalar}::inverse]:
-    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 310:4-315:5
+/-- [fastcrypto::groups::ristretto255::{impl fastcrypto::groups::GroupElement for fastcrypto::groups::ristretto255::RistrettoScalar}::generator]:
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 300:4-302:5
     Visibility: public -/
-axiom groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsScalar.inverse
+axiom
+  groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsGroupElement.generator
+  : Result groups.ristretto255.RistrettoScalar
+
+/-- [fastcrypto::groups::ristretto255::{impl core::ops::arith::Neg<fastcrypto::groups::ristretto255::RistrettoScalar> for fastcrypto::groups::ristretto255::RistrettoScalar}::neg]:
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 268:65-268:68
+    Visibility: public -/
+axiom
+  groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithNegRistrettoScalar.neg
   :
-  groups.ristretto255.RistrettoScalar → Result (core.result.Result
-    groups.ristretto255.RistrettoScalar error.FastCryptoError)
+  groups.ristretto255.RistrettoScalar → Result
+    groups.ristretto255.RistrettoScalar
+
+/-- [fastcrypto::groups::ristretto255::{impl core::ops::arith::Add<&'_0 fastcrypto::groups::ristretto255::RistrettoScalar, fastcrypto::groups::ristretto255::RistrettoScalar> for fastcrypto::groups::ristretto255::RistrettoScalar}::add]:
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/auto_ops-0.3.0/src/binary.rs', lines 63:12-66:13; this code is generated from a macro invocation at: 'fastcrypto/src/groups/ristretto255.rs', lines 268:70-268:84
+    Visibility: public -/
+axiom
+  groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddShared0RistrettoScalarRistrettoScalar.add
+  :
+  groups.ristretto255.RistrettoScalar → groups.ristretto255.RistrettoScalar
+    → Result groups.ristretto255.RistrettoScalar
 
