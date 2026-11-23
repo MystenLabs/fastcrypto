@@ -3,8 +3,8 @@
 -- [fastcrypto]: function definitions
 module
 public import Aeneas
-public import Merkle.Types
-public import Merkle.FunsExternal
+public import merkle.Generated.Types
+public import merkle.Generated.FunsExternal
 @[expose] public section
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false

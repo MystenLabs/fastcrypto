@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # THIS FILE IS AI-ONLY
-# Regenerate `Merkle/` from fastcrypto's `merkle` module with Charon and Aeneas.
+# Regenerate `Generated/` from fastcrypto's `merkle` module with Charon and Aeneas.
 #
 # Uses the `charon` and `aeneas` binaries of the Aeneas nightly release `nightly-2026.11.18-1dc8ad3`
 # (https://github.com/AeneasVerif/aeneas/releases), which matches the Aeneas commit in
@@ -10,7 +10,7 @@
 # structure of functions that the generated code takes as a parameter.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-root=$(cd "$here/../.." && pwd)
+root=$(cd "$here/../../.." && pwd)
 charon=${CHARON:-charon}
 aeneas=${AENEAS:-aeneas}
 out=$(mktemp -d)
@@ -31,11 +31,12 @@ CARGO_TARGET_DIR="$root/target/charon" "$charon" cargo --preset aeneas \
 
 "$aeneas" -backend lean -split-files -dest "$out/lean" "$out/merkle.llbc"
 
-rm -rf "$here/Merkle" && mkdir "$here/Merkle"
-cp "$out/lean/Types.lean" "$out/lean/Funs.lean" "$here/Merkle/"
-cp "$out/lean/FunsExternal_Template.lean" "$here/Merkle/FunsExternal.lean"
-sed -i.bak 's/import lean\./import Merkle./g' "$here"/Merkle/*.lean && rm "$here"/Merkle/*.bak
-python3 -I "$here/fix_aeneas_output.py" "$here/Merkle"
-for f in "$here"/Merkle/*.lean; do
+gen="$here/Generated"
+rm -rf "$gen" && mkdir "$gen"
+cp "$out/lean/Types.lean" "$out/lean/Funs.lean" "$gen/"
+cp "$out/lean/FunsExternal_Template.lean" "$gen/FunsExternal.lean"
+sed -i.bak 's/import Merkle\./import merkle.Generated./g' "$gen"/*.lean && rm "$gen"/*.bak
+python3 -I "$here/fix_aeneas_output.py" "$gen"
+for f in "$gen"/*.lean; do
   { echo "-- THIS FILE IS AI-ONLY"; cat "$f"; } > "$f.tmp" && mv "$f.tmp" "$f"
 done

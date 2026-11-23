@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import MerkleProofs.Model
+import merkle.Model
 
 /-!
 What the generated `MerkleProof::verify` and `MerkleProof::verify_for_trusted_tree` compute, and
@@ -13,7 +13,7 @@ namespace MerkleProofs
 
 variable {T : Type} {inst : hash.HashFunction T 32#usize} {H : List U8 → Array U8 32#usize}
 
-theorem hash_along_path_loop_spec (hm : HashModel inst H) (v : alloc.vec.Vec Node) (c : Node)
+lemma hash_along_path_loop_spec (hm : HashModel inst H) (v : alloc.vec.Vec Node) (c : Node)
     (li lvl : Usize) (hl : lvl.val ≤ v.length) :
     merkle.MerkleProof.hash_along_path_loop inst v c li lvl ⦃ r =>
       r = fold H c (v.val.drop lvl.val) li.val ⦄ := by
@@ -39,7 +39,7 @@ theorem hash_along_path_loop_spec (hm : HashModel inst H) (v : alloc.vec.Vec Nod
 
 /-- `hash_along_path` returns `none` for proofs of `usize::BITS` or more levels and for indices not
 below `2 ^ path.len()`, and otherwise the hash of the leaf up the path. -/
-theorem hash_along_path_spec (hm : HashModel inst H) (p : merkle.MerkleProof T) (leaf : Slice U8)
+lemma hash_along_path_spec (hm : HashModel inst H) (p : merkle.MerkleProof T) (leaf : Slice U8)
     (i : Usize) :
     merkle.MerkleProof.hash_along_path inst p leaf i ⦃ r =>
       r = if p.path.length < System.Platform.numBits ∧ i.val < 2 ^ p.path.length
@@ -60,7 +60,7 @@ theorem hash_along_path_spec (hm : HashModel inst H) (p : merkle.MerkleProof T) 
     intro r hr
     simp [hr]
 
-theorem allM_eq : ∀ l l' : List U8, l.length = l'.length →
+lemma allM_eq : ∀ l l' : List U8, l.length = l'.length →
     List.allM (fun p : U8 × U8 => (ok (decide (p.1.val = p.2.val)) : Result Bool)) (l.zip l') =
       ok (decide (l = l')) := by
   intro l
@@ -77,7 +77,7 @@ theorem allM_eq : ∀ l l' : List U8, l.length = l'.length →
       · have : x.val ≠ y.val := fun e => hxy (UScalar.eq_of_val_eq e)
         simp [this, hxy]; rfl
 
-theorem arr_eq (x y : Array U8 32#usize) :
+lemma arr_eq (x y : Array U8 32#usize) :
     core.array.equality.PartialEqArray.eq core.cmp.PartialEqU8 x y = ok (decide (x = y)) := by
   unfold core.array.equality.PartialEqArray.eq
   simp [liftFun2]
@@ -85,13 +85,13 @@ theorem arr_eq (x y : Array U8 32#usize) :
   simp [Aeneas.Std.Array.eq_iff]
 
 /-- `PartialEq` for nodes is equality. -/
-theorem node_eq_spec (a b : merkle.Node) :
+lemma node_eq_spec (a b : merkle.Node) :
     ∃ r, merkle.Node.Insts.CoreCmpPartialEqNode.eq a b = ok r ∧ (r = true ↔ a = b) := by
   cases a <;> cases b <;>
     simp [merkle.Node.Insts.CoreCmpPartialEqNode.eq, merkle.Node.read_discriminant, arr_eq]
 
 /-- `verify_for_trusted_tree` accepts exactly when `hash_along_path` returns `root`. -/
-theorem verify_for_trusted_tree_spec (hm : HashModel inst H) (p : merkle.MerkleProof T) (root : Node)
+lemma verify_for_trusted_tree_spec (hm : HashModel inst H) (p : merkle.MerkleProof T) (root : Node)
     (leaf : Slice U8) (i : Usize) :
     merkle.MerkleProof.verify_for_trusted_tree inst p root leaf i ⦃ r =>
       (r = .Ok ()) ↔ (p.path.length < System.Platform.numBits ∧ i.val < 2 ^ p.path.length ∧
@@ -116,7 +116,7 @@ theorem verify_for_trusted_tree_spec (hm : HashModel inst H) (p : merkle.MerkleP
     · simp at h
 
 /-- For `n ≥ 2`, `depth(n)` is `⌈log₂ n⌉ = ⌊log₂ (n - 1)⌋ + 1`. -/
-theorem depth_eq_log (n : Nat) (h : 2 ≤ n) : depth n = Nat.log 2 (n - 1) + 1 := by
+lemma depth_eq_log (n : Nat) (h : 2 ≤ n) : depth n = Nat.log 2 (n - 1) + 1 := by
   rw [depth, ite_eq_right (by omega)]
   by_cases h2 : n = 2
   · subst h2; simp [depth]
@@ -128,7 +128,7 @@ termination_by n
 decreasing_by omega
 
 /-- `(n.saturating_sub(1)).leading_zeros()`. -/
-theorem lz_spec (n : Usize) :
+lemma lz_spec (n : Usize) :
     BitVec.leadingZeros (core.num.Usize.saturating_sub n 1#usize).bv =
       if n.val ≤ 1 then UScalarTy.Usize.numBits
       else UScalarTy.Usize.numBits - Nat.log 2 (n.val - 1) - 1 := by
@@ -147,7 +147,7 @@ theorem lz_spec (n : Usize) :
   · rw [ite_eq_right (mt h0.mp h1), ite_eq_right h1, hx]
 
 /-- `expected_proof_length(n)` is `depth(n)`. -/
-theorem expected_proof_length_spec (n : Usize) :
+lemma expected_proof_length_spec (n : Usize) :
     merkle.MerkleProof.expected_proof_length inst n ⦃ r => r.val = depth n.val ⦄ := by
   unfold merkle.MerkleProof.expected_proof_length
   simp only [lift, bind_ok, core.num.Usize.leading_zeros]
@@ -191,7 +191,7 @@ theorem expected_proof_length_spec (n : Usize) :
 
 /-- `compute_root` returns `none` unless the index is below `n_leaves` and the proof has
 `depth(n_leaves)` siblings, and otherwise what `hash_along_path` returns. -/
-theorem compute_root_spec (hm : HashModel inst H) (p : merkle.MerkleProof T) (leaf : Slice U8)
+lemma compute_root_spec (hm : HashModel inst H) (p : merkle.MerkleProof T) (leaf : Slice U8)
     (i n : Usize) :
     merkle.MerkleProof.compute_root inst p leaf i n ⦃ r =>
       r = if i.val < n.val ∧ p.path.length = depth n.val ∧
@@ -223,7 +223,7 @@ theorem compute_root_spec (hm : HashModel inst H) (p : merkle.MerkleProof T) (le
 
 /-- `verify(root, leaf, i, n_leaves)` accepts exactly when the index is below `n_leaves`, the
 proof has `depth(n_leaves)` siblings, and the leaf hashed up the path is `root`. -/
-theorem verify_spec (hm : HashModel inst H) (p : merkle.MerkleProof T) (root : Node)
+lemma verify_spec (hm : HashModel inst H) (p : merkle.MerkleProof T) (root : Node)
     (leaf : Slice U8) (i n : Usize) :
     merkle.MerkleProof.verify inst p root leaf i n ⦃ r =>
       (r = .Ok ()) ↔ (i.val < n.val ∧ p.path.length = depth n.val ∧
@@ -254,5 +254,16 @@ theorem verify_spec (hm : HashModel inst H) (p : merkle.MerkleProof T) (root : N
         intro ⟨_, _, _, _, he⟩
         exact hbf (hbi.mpr he)
     · simp at h
+
+/-- With at most `usize::MAX / 4` leaves, the tree has fewer than `usize::BITS` levels. -/
+lemma depth_lt_numBits (n : Nat) (hn : 4 * n ≤ Usize.max) :
+    depth n < System.Platform.numBits := by
+  have hmax : Usize.max = 2 ^ System.Platform.numBits - 1 := by
+    simp [Usize.max, Usize.numBits]
+  have h := depth_le n (System.Platform.numBits - 2) (by
+    rcases System.Platform.numBits_eq with h | h <;> rw [h] at hmax ⊢ <;> omega)
+  have : 2 ≤ System.Platform.numBits := by
+    rcases System.Platform.numBits_eq with h | h <;> omega
+  omega
 
 end MerkleProofs

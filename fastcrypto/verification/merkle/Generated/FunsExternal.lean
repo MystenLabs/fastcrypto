@@ -4,7 +4,7 @@
 -- This is a template file: rename it to "FunsExternal.lean" and fill the holes.
 module
 public import Aeneas
-public import Merkle.Types
+public import merkle.Generated.Types
 @[expose] public section
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false

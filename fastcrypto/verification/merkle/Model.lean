@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import MerkleProofs.Hash
+import merkle.Hash
 
 /-!
 A model of `MerkleTree` as lists, and the two facts about it that the theorems on the generated
@@ -36,19 +36,19 @@ def parents : List Node → List Node
   | a :: b :: r => innerN H a b :: parents r
   | _ => []
 
-theorem length_pad (l : List Node) : (pad l).length = l.length + l.length % 2 := by
+lemma length_pad (l : List Node) : (pad l).length = l.length + l.length % 2 := by
   unfold pad; split <;> simp <;> omega
 
-theorem getElem_pad (l : List Node) (i : Nat) (h : i < l.length) :
+lemma getElem_pad (l : List Node) (i : Nat) (h : i < l.length) :
     (pad l)[i]'(by rw [length_pad]; omega) = l[i] := by
   unfold pad; split <;> simp [List.getElem_append_left h]
 
-theorem length_parents : ∀ l : List Node, (parents H l).length = l.length / 2
+lemma length_parents : ∀ l : List Node, (parents H l).length = l.length / 2
   | a :: b :: r => by simp [parents, length_parents r]; omega
   | [] => rfl
   | [_] => by simp [parents]
 
-theorem getElem_parents : ∀ (l : List Node) (j : Nat) (h : j < l.length / 2),
+lemma getElem_parents : ∀ (l : List Node) (j : Nat) (h : j < l.length / 2),
     (parents H l)[j]'(by rw [length_parents]; exact h) =
       innerN H (l[2 * j]'(by omega)) (l[2 * j + 1]'(by omega))
   | a :: b :: r, 0, _ => by simp [parents]
@@ -62,10 +62,10 @@ theorem getElem_parents : ∀ (l : List Node) (j : Nat) (h : j < l.length / 2),
 /-- The level above `l`. -/
 def up (l : List Node) : List Node := parents H (pad l)
 
-theorem length_up (l : List Node) : (up H l).length = (l.length + l.length % 2) / 2 := by
+lemma length_up (l : List Node) : (up H l).length = (l.length + l.length % 2) / 2 := by
   simp [up, length_parents, length_pad]
 
-theorem length_up_lt (l : List Node) (h : ¬ l.length ≤ 1) : (up H l).length < l.length := by
+lemma length_up_lt (l : List Node) (h : ¬ l.length ≤ 1) : (up H l).length < l.length := by
   rw [length_up]; omega
 
 /-- The padded levels of the tree over `l`, from the leaves up. The last one is the root alone,
@@ -101,7 +101,7 @@ def fold : Node → List Node → Nat → Node
   | c, [], _ => c
   | c, s :: ps, i => fold (step H c s i) ps (i / 2)
 
-theorem fold_pathOf (l : List Node) (i : Nat) (hi : i < l.length) :
+lemma fold_pathOf (l : List Node) (i : Nat) (hi : i < l.length) :
     fold H l[i] (pathOf H l i) i = rootOf H l := by
   rw [pathOf, rootOf]
   split
@@ -140,7 +140,7 @@ theorem fold_pathOf (l : List Node) (i : Nat) (hi : i < l.length) :
 termination_by l.length
 decreasing_by all_goals (apply length_up_lt; assumption)
 
-theorem length_pathOf (l : List Node) (i : Nat) : (pathOf H l i).length = depth l.length := by
+lemma length_pathOf (l : List Node) (i : Nat) : (pathOf H l i).length = depth l.length := by
   rw [pathOf, depth]
   split
   · simp_all
@@ -149,7 +149,7 @@ theorem length_pathOf (l : List Node) (i : Nat) : (pathOf H l i).length = depth 
 termination_by l.length
 decreasing_by all_goals (apply length_up_lt; assumption)
 
-theorem lt_two_pow_depth (n : Nat) : n ≤ 2 ^ depth n := by
+lemma lt_two_pow_depth (n : Nat) : n ≤ 2 ^ depth n := by
   rw [depth]
   split
   · simp; omega
@@ -158,7 +158,7 @@ theorem lt_two_pow_depth (n : Nat) : n ≤ 2 ^ depth n := by
 termination_by n
 decreasing_by omega
 
-theorem depth_le (n k : Nat) (h : n ≤ 2 ^ k) : depth n ≤ k := by
+lemma depth_le (n k : Nat) (h : n ≤ 2 ^ k) : depth n ≤ k := by
   rw [depth]
   split
   · omega
@@ -171,7 +171,7 @@ termination_by n
 decreasing_by omega
 
 /-- The nodes of `MerkleTree` hold at most `4 n` nodes for `n` leaves. -/
-theorem length_flatten_levels (l : List Node) :
+lemma length_flatten_levels (l : List Node) :
     (levels H l).flatten.length ≤ 4 * l.length := by
   rw [levels]
   split
@@ -184,7 +184,7 @@ theorem length_flatten_levels (l : List Node) :
 termination_by l.length
 decreasing_by all_goals (apply length_up_lt; assumption)
 
-theorem getLast_flatten_levels (l : List Node) (hl : l ≠ []) :
+lemma getLast_flatten_levels (l : List Node) (hl : l ≠ []) :
     ∃ h, (levels H l).flatten.getLast h = rootOf H l := by
   rw [levels, rootOf]
   split
@@ -211,10 +211,10 @@ def IsDigest : Node → Prop
   | .Digest _ => True
   | .Empty => False
 
-theorem isDigest_step (c s : Node) (i : Nat) : IsDigest (step H c s i) := by
+lemma isDigest_step (c s : Node) (i : Nat) : IsDigest (step H c s i) := by
   unfold step innerN; split <;> trivial
 
-theorem eq_of_bytesOf (c c' : Node) (hc : IsDigest c) (hc' : IsDigest c')
+lemma eq_of_bytesOf (c c' : Node) (hc : IsDigest c) (hc' : IsDigest c')
     (h : bytesOf c = bytesOf c') : c = c' := by
   cases c with
   | Empty => exact absurd hc id
@@ -223,7 +223,7 @@ theorem eq_of_bytesOf (c c' : Node) (hc : IsDigest c) (hc' : IsDigest c')
     | Empty => exact absurd hc' id
     | Digest v' => simp only [bytesOf] at h; exact congrArg merkle.Node.Digest ((Aeneas.Std.Array.eq_iff _ _).mpr h)
 
-theorem innerN_inj (a b a' b' : Node) (h : innerN H a b = innerN H a' b') :
+lemma innerN_inj (a b a' b' : Node) (h : innerN H a b = innerN H a' b') :
     (bytesOf a = bytesOf a' ∧ bytesOf b = bytesOf b') ∨ Collision H := by
   simp only [innerN, merkle.Node.Digest.injEq] at h
   by_cases hx : (1#u8 :: (bytesOf a ++ bytesOf b)) = (1#u8 :: (bytesOf a' ++ bytesOf b'))
@@ -232,7 +232,7 @@ theorem innerN_inj (a b a' b' : Node) (h : innerN H a b = innerN H a' b') :
     exact List.append_inj hx (by rw [bytesOf_length, bytesOf_length])
   · exact Or.inr ⟨_, _, hx, h⟩
 
-theorem step_inj (c s c' s' : Node) (i : Nat) (hc : IsDigest c) (hc' : IsDigest c')
+lemma step_inj (c s c' s' : Node) (i : Nat) (hc : IsDigest c) (hc' : IsDigest c')
     (h : step H c s i = step H c' s' i) : c = c' ∨ Collision H := by
   unfold step at h
   split at h
@@ -245,7 +245,7 @@ theorem step_inj (c s c' s' : Node) (i : Nat) (hc : IsDigest c) (hc' : IsDigest 
 
 /-- Hashing two nodes up paths of the same length to the same root: the nodes are equal or `H`
 has a collision. -/
-theorem fold_binding : ∀ (ps ps' : List Node) (c c' : Node) (i : Nat),
+lemma fold_binding : ∀ (ps ps' : List Node) (c c' : Node) (i : Nat),
     ps.length = ps'.length → IsDigest c → IsDigest c' →
     fold H c ps i = fold H c' ps' i → c = c' ∨ Collision H
   | [], [], c, c', i, _, _, _, h => Or.inl h
@@ -258,7 +258,7 @@ theorem fold_binding : ∀ (ps ps' : List Node) (c c' : Node) (i : Nat),
   | [], _ :: _, _, _, _, hl, _, _, _ => by simp at hl
   | _ :: _, [], _, _, _, hl, _, _, _ => by simp at hl
 
-theorem leafN_inj (l l' : List U8) (h : leafN H l = leafN H l') : l = l' ∨ Collision H := by
+lemma leafN_inj (l l' : List U8) (h : leafN H l = leafN H l') : l = l' ∨ Collision H := by
   simp only [leafN, merkle.Node.Digest.injEq] at h
   by_cases hx : (0#u8 :: l) = (0#u8 :: l')
   · exact Or.inl (by simpa using hx)

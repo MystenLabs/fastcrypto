@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import MerkleProofs.Model
+import merkle.Model
 
 /-!
 What the generated `MerkleTree::build_from_leaf_hashes` and `MerkleTree::root` compute: the
@@ -13,16 +13,16 @@ namespace MerkleProofs
 
 variable {T : Type} {inst : hash.HashFunction T 32#usize} {H : List U8 → Array U8 32#usize}
 
-theorem length_pad_even (l : List Node) : (pad l).length % 2 = 0 := by
+lemma length_pad_even (l : List Node) : (pad l).length % 2 = 0 := by
   rw [length_pad]; omega
 
-theorem length_le_flatten_levels (l : List Node) : l.length ≤ (levels H l).flatten.length := by
+lemma length_le_flatten_levels (l : List Node) : l.length ≤ (levels H l).flatten.length := by
   rw [levels]; split
   · simp
   · simp [length_pad]; omega
 
 /-- The inner loop appends the parents of the padded level `pl` that starts at `pre.length`. -/
-theorem build_inner_spec (hm : HashModel inst H) (pre pl : List Node) (hpl : pl.length % 2 = 0)
+lemma build_inner_spec (hm : HashModel inst H) (pre pl : List Node) (hpl : pl.length % 2 = 0)
     (hb : pre.length + pl.length + pl.length / 2 ≤ Usize.max)
     (nodes : alloc.vec.Vec Node) (hn : nodes.val = pre ++ pl)
     (new_level_index index : Usize) (hnew : new_level_index.val = pre.length + pl.length)
@@ -66,7 +66,7 @@ theorem build_inner_spec (hm : HashModel inst H) (pre pl : List Node) (hpl : pl.
   · exact ⟨0, by omega, by simp [hidx], by simp [hn]⟩
 
 /-- The padding step of the outer loop. -/
-theorem pad_step_spec (pre l : List Node) (nodes : alloc.vec.Vec Node) (hn : nodes.val = pre ++ l)
+lemma pad_step_spec (pre l : List Node) (nodes : alloc.vec.Vec Node) (hn : nodes.val = pre ++ l)
     (ln i : Usize) (hln : ln.val = l.length) (hi : i.val = ln.val % 2)
     (hb : pre.length + (pad l).length ≤ Usize.max) :
     (if i = 1#usize then do
@@ -86,7 +86,7 @@ theorem pad_step_spec (pre l : List Node) (nodes : alloc.vec.Vec Node) (hn : nod
 
 /-- The outer loop: from `pre ++ l`, where `l` is the current level, it appends the levels above
 `l`. -/
-theorem build_outer_spec (hm : HashModel inst H) (F : List Node) (hF : F.length ≤ Usize.max)
+lemma build_outer_spec (hm : HashModel inst H) (F : List Node) (hF : F.length ≤ Usize.max)
     (pre l : List Node) (hpre : pre ++ (levels H l).flatten = F)
     (nodes : alloc.vec.Vec Node) (hn : nodes.val = pre ++ l)
     (level_nodes prev : Usize) (hln : level_nodes.val = l.length) (hprev : prev.val = pre.length) :
@@ -132,7 +132,7 @@ theorem build_outer_spec (hm : HashModel inst H) (F : List Node) (hF : F.length 
 
 /-- `build_from_leaf_hashes` returns the tree whose nodes are the levels over the leaf hashes,
 for at most `usize::MAX / 4` leaves. -/
-theorem build_spec (hm : HashModel inst H) (hs : alloc.vec.Vec Node)
+lemma build_spec (hm : HashModel inst H) (hs : alloc.vec.Vec Node)
     (hn : 4 * hs.length ≤ Usize.max) :
     merkle.MerkleTree.build_from_leaf_hashes inst hs ⦃ t =>
       t.nodes.val = (levels H hs.val).flatten ∧ t.n_leaves.val = hs.length ⦄ := by
@@ -145,7 +145,7 @@ theorem build_spec (hm : HashModel inst H) (hs : alloc.vec.Vec Node)
   intro r hr
   simp [hr]
 
-theorem node_clone_spec (n : Node) : merkle.Node.Insts.CoreCloneClone.clone n ⦃ r => r = n ⦄ := by
+lemma node_clone_spec (n : Node) : merkle.Node.Insts.CoreCloneClone.clone n ⦃ r => r = n ⦄ := by
   cases n with
   | Empty => simp [merkle.Node.Insts.CoreCloneClone.clone, WP.spec_ok]
   | Digest v =>
@@ -155,7 +155,7 @@ theorem node_clone_spec (n : Node) : merkle.Node.Insts.CoreCloneClone.clone n �
     simp [ha, WP.spec_ok]
 
 /-- `root` returns `rootOf` the leaf hashes. -/
-theorem root_spec (hs : List Node) (t : merkle.MerkleTree T)
+lemma root_spec (hs : List Node) (t : merkle.MerkleTree T)
     (ht : t.nodes.val = (levels H hs).flatten) :
     merkle.MerkleTree.root inst t ⦃ r => r = rootOf H hs ⦄ := by
   unfold merkle.MerkleTree.root

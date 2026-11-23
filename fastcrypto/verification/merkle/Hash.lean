@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import Merkle.Funs
+import merkle.Generated.Funs
 
 /-!
 The hash function. The generated code takes the `HashFunction` impl as a parameter `inst`, a
@@ -30,14 +30,14 @@ def bytesOf : merkle.Node → List U8
   | .Empty => List.replicate 32 0#u8
   | .Digest v => v.val
 
-theorem bytes_eq (n : merkle.Node) : ∃ a, merkle.Node.bytes n = ok a ∧ a.val = bytesOf n := by
+lemma bytes_eq (n : merkle.Node) : ∃ a, merkle.Node.bytes n = ok a ∧ a.val = bytesOf n := by
   cases n with
   | Empty =>
     refine ⟨_, rfl, ?_⟩
     simp [bytesOf, merkle.EMPTY_NODE]
   | Digest v => exact ⟨v, rfl, rfl⟩
 
-theorem bytesOf_length (n : merkle.Node) : (bytesOf n).length = 32 := by
+lemma bytesOf_length (n : merkle.Node) : (bytesOf n).length = 32 := by
   cases n with
   | Empty => simp [bytesOf]
   | Digest v => simp [bytesOf]
@@ -52,7 +52,7 @@ def leafN (H : List U8 → Array U8 32#usize) (leaf : List U8) : merkle.Node :=
 def innerN (H : List U8 → Array U8 32#usize) (l r : merkle.Node) : merkle.Node :=
   .Digest (H (1#u8 :: (bytesOf l ++ bytesOf r)))
 
-theorem leaf_hash_eq (hm : HashModel inst H) (leaf : Slice U8) :
+lemma leaf_hash_eq (hm : HashModel inst H) (leaf : Slice U8) :
     merkle.leaf_hash inst leaf = ok (leafN H leaf.val) := by
   obtain ⟨s0, h0, a0⟩ := hm.default_ok
   obtain ⟨s1, h1, a1⟩ := hm.update_ok (Array.Insts.CoreConvertAsRefSlice U8 1#usize) s0
@@ -63,7 +63,7 @@ theorem leaf_hash_eq (hm : HashModel inst H) (leaf : Slice U8) :
     merkle.Node.Insts.CoreConvertFromDigest32.from, leafN, a2, a1, a0]
   simp [merkle.LEAF_PREFIX]
 
-theorem inner_hash_eq (hm : HashModel inst H) (l r : merkle.Node) :
+lemma inner_hash_eq (hm : HashModel inst H) (l r : merkle.Node) :
     merkle.inner_hash inst l r = ok (innerN H l r) := by
   obtain ⟨s0, h0, a0⟩ := hm.default_ok
   obtain ⟨s1, h1, a1⟩ := hm.update_ok (Array.Insts.CoreConvertAsRefSlice U8 1#usize) s0

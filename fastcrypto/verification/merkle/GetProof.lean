@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import MerkleProofs.Build
+import merkle.Build
 
 /-!
 What the generated `MerkleTree::get_proof` returns: the path `pathOf` of the leaf.
@@ -12,13 +12,13 @@ namespace MerkleProofs
 
 variable {T : Type} {inst : hash.HashFunction T 32#usize} {H : List U8 → Array U8 32#usize}
 
-theorem depth_lt (n : Nat) (h : 1 ≤ n) : depth n < n := by
+lemma depth_lt (n : Nat) (h : 1 ≤ n) : depth n < n := by
   have := depth_le n (n - 1) (by
     obtain ⟨k, rfl⟩ : ∃ k, n = k + 1 := ⟨n - 1, by omega⟩
     simpa using Nat.lt_two_pow_self (n := k))
   omega
 
-theorem get_proof_loop_spec (P : List Node) (v : alloc.vec.Vec Node)
+lemma get_proof_loop_spec (P : List Node) (v : alloc.vec.Vec Node)
     (pre l : List Node) (hv : v.val = pre ++ (levels H l).flatten)
     (path : alloc.vec.Vec Node) (li nl base : Usize) (hP : path.val ++ pathOf H l li.val = P)
     (hPl : P.length < Usize.max) (hli : li.val < l.length) (hnl : nl.val = l.length)
@@ -97,7 +97,7 @@ theorem get_proof_loop_spec (P : List Node) (v : alloc.vec.Vec Node)
   · exact ⟨pre, l, hv, hP, hli, hnl, hbase⟩
 
 /-- For a tree built from `hs` and `i < hs.len()`, `get_proof(i)` returns the path `pathOf`. -/
-theorem get_proof_spec (hs : List Node) (t : merkle.MerkleTree T)
+lemma get_proof_spec (hs : List Node) (t : merkle.MerkleTree T)
     (ht : t.nodes.val = (levels H hs).flatten) (hn : t.n_leaves.val = hs.length)
     (i : Usize) (hi : i.val < hs.length) :
     merkle.MerkleTree.get_proof inst t i ⦃ r =>

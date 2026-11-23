@@ -1,6 +1,7 @@
 -- THIS FILE IS AI-ONLY
-import MerkleProofs.Proof
-import MerkleProofs.Verify
+import merkle.GetProof
+import merkle.Verify
+import merkle.Result
 
 /-!
 The theorems about `fastcrypto::merkle`, for any `HashFunction` that satisfies `HashModel` with
@@ -24,28 +25,6 @@ open fastcrypto
 namespace MerkleProofs
 
 variable {T : Type} {inst : hash.HashFunction T 32#usize} {H : List U8 → Array U8 32#usize}
-
-theorem spec_eq_ok {α : Type _} {m : Result α} {p : α → Prop} (h : m ⦃ x => p x ⦄) :
-    ∃ x, m = ok x ∧ p x := by
-  cases m with
-  | ret a => exact ⟨a, rfl, (WP.spec_ok a).mp h⟩
-  | vis e k => exact absurd h (by simp)
-  | div => exact absurd h (by simp)
-
-theorem spec_of_eq_ok {α : Type _} {m : Result α} {p : α → Prop} {x : α}
-    (h : m ⦃ x => p x ⦄) (hm : m = ok x) : p x := by
-  rw [hm] at h; exact (WP.spec_ok x).mp h
-
-/-- With at most `usize::MAX / 4` leaves, the tree has fewer than `usize::BITS` levels. -/
-theorem depth_lt_numBits (n : Nat) (hn : 4 * n ≤ Usize.max) :
-    depth n < System.Platform.numBits := by
-  have hmax : Usize.max = 2 ^ System.Platform.numBits - 1 := by
-    simp [Usize.max, Usize.numBits]
-  have h := depth_le n (System.Platform.numBits - 2) (by
-    rcases System.Platform.numBits_eq with h | h <;> rw [h] at hmax ⊢ <;> omega)
-  have : 2 ≤ System.Platform.numBits := by
-    rcases System.Platform.numBits_eq with h | h <;> omega
-  omega
 
 /-- Completeness of `verify_for_trusted_tree`. `build_from_leaf_hashes(hs)` returns a tree `t`, and
 `t.root()` returns a node `root`, such that for every `i < hs.len()` and every `leaf` whose
