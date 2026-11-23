@@ -1772,7 +1772,7 @@ def threshold_schnorr.avss.SharesForNode.verify
     ok (core.result.Result.Err fastcrypto.error.FastCryptoError.InvalidMessage)
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::all_distinct]: loop body 0:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 840:4-845:5 -/
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 847:4-852:5 -/
 @[rust_loop_body]
 def threshold_schnorr.avss.all_distinct_loop.body
   (iter : core.slice.iter.Iter Std.U16) (seen : alloc.vec.Vec Bool)
@@ -1798,7 +1798,7 @@ def threshold_schnorr.avss.all_distinct_loop.body
     ok (cont (iter1, seen1, distinct1))
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::all_distinct]: loop 0:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 840:4-845:5 -/
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 847:4-852:5 -/
 @[rust_loop]
 def threshold_schnorr.avss.all_distinct_loop
   (iter : core.slice.iter.Iter Std.U16) (seen : alloc.vec.Vec Bool)
@@ -1811,7 +1811,7 @@ def threshold_schnorr.avss.all_distinct_loop
     (iter, seen, distinct)
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::all_distinct]:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 837:0-847:1 -/
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 844:0-854:1 -/
 def threshold_schnorr.avss.all_distinct
   (values : Slice Std.U16) : Result Bool := do
   let i ← 1#usize <<< 16#i32
@@ -2950,8 +2950,68 @@ def threshold_schnorr.avss.Receiver.recover
         ok (core.result.Result.Err
           fastcrypto.error.FastCryptoError.InvalidInput)
 
+/-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::commitment_for_index]: loop body 0:
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 644:8-650:5
+    Visibility: public -/
+@[rust_loop_body]
+def threshold_schnorr.avss.DkOutput.commitment_for_index_loop.body
+  (index : core.num.nonzero.NonZero Std.U16
+  core.num.niche_types.NonZeroU16Inner)
+  (iter : core.slice.iter.Iter (types.IndexedValue
+  fastcrypto.groups.secp256k1.ProjectivePoint)) :
+  Result (ControlFlow (core.slice.iter.Iter (types.IndexedValue
+    fastcrypto.groups.secp256k1.ProjectivePoint)) (Option (types.IndexedValue
+    fastcrypto.groups.secp256k1.ProjectivePoint)))
+  := do
+  let (o, iter1) ← core.slice.iter.IteratorSliceIter.next iter
+  match o with
+  | none => ok (done none)
+  | some c =>
+    let i ←
+      core.num.nonzero.NonZero.get
+        U16.Insts.CoreNumNonzeroZeroablePrimitiveNonZeroU16Inner c.index
+    let i1 ←
+      core.num.nonzero.NonZero.get
+        U16.Insts.CoreNumNonzeroZeroablePrimitiveNonZeroU16Inner index
+    if i = i1
+    then ok (done o)
+    else ok (cont iter1)
+
+/-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::commitment_for_index]: loop 0:
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 644:8-650:5
+    Visibility: public -/
+@[rust_loop]
+def threshold_schnorr.avss.DkOutput.commitment_for_index_loop
+  (iter : core.slice.iter.Iter (types.IndexedValue
+  fastcrypto.groups.secp256k1.ProjectivePoint))
+  (index : core.num.nonzero.NonZero Std.U16
+  core.num.niche_types.NonZeroU16Inner) :
+  Result (Option (types.IndexedValue
+    fastcrypto.groups.secp256k1.ProjectivePoint))
+  := do
+  loop
+    (fun iter1 =>
+      threshold_schnorr.avss.DkOutput.commitment_for_index_loop.body index
+      iter1)
+    iter
+
+/-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::commitment_for_index]:
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 643:4-650:5
+    Visibility: public -/
+def threshold_schnorr.avss.DkOutput.commitment_for_index
+  (self : threshold_schnorr.avss.DkOutput)
+  (index : core.num.nonzero.NonZero Std.U16
+  core.num.niche_types.NonZeroU16Inner) :
+  Result (Option (types.IndexedValue
+    fastcrypto.groups.secp256k1.ProjectivePoint))
+  := do
+  let iter ←
+    SharedAVec.Insts.CoreIterTraitsCollectIntoIteratorSharedATIter.into_iter
+      alloc.alloc.Global self.commitments
+  threshold_schnorr.avss.DkOutput.commitment_for_index_loop iter index
+
 /-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::AvssOutput}::share_for_index]:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 799:4-801:5 -/
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 806:4-808:5 -/
 def threshold_schnorr.avss.AvssOutput.share_for_index
   (self : threshold_schnorr.avss.AvssOutput)
   (index : core.num.nonzero.NonZero Std.U16
@@ -2961,7 +3021,7 @@ def threshold_schnorr.avss.AvssOutput.share_for_index
   threshold_schnorr.avss.SharesForNode.share_for_index self.my_shares index
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::complete_key_rotation]: loop body 0:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 723:8-726:9
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 730:8-733:9
     Visibility: public -/
 @[rust_loop_body]
 def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop0.body
@@ -2988,7 +3048,7 @@ def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop0.body
     ok (cont (iter1, output_indices1, output_index_values1))
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::complete_key_rotation]: loop 0:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 723:8-726:9
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 730:8-733:9
     Visibility: public -/
 @[rust_loop]
 def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop0
@@ -3007,7 +3067,7 @@ def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop0
     (iter, output_indices, output_index_values)
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::complete_key_rotation]: loop body 1:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 736:8-738:9
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 743:8-745:9
     Visibility: public -/
 @[rust_loop_body]
 def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop1.body
@@ -3028,7 +3088,7 @@ def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop1.body
     ok (cont (iter1, lagrange_coefficients1))
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::complete_key_rotation]: loop 1:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 736:8-738:9
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 743:8-745:9
     Visibility: public -/
 @[rust_loop]
 def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop1
@@ -3044,7 +3104,7 @@ def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop1
     (iter, lagrange_coefficients)
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::complete_key_rotation]: loop body 2:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 742:8-745:9
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 749:8-752:9
     Visibility: public -/
 @[rust_loop_body]
 def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop2.body
@@ -3077,7 +3137,7 @@ def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop2.body
     ok (cont (iter1, output_commitments1, output_c0s1))
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::complete_key_rotation]: loop 2:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 742:8-745:9
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 749:8-752:9
     Visibility: public -/
 @[rust_loop]
 def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop2
@@ -3097,7 +3157,7 @@ def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop2
     (iter, output_commitments, output_c0s)
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::complete_key_rotation]: loop body 4:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 757:12-762:13
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 764:12-769:13
     Visibility: public -/
 @[rust_loop_body]
 def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop3_loop0.body
@@ -3137,7 +3197,7 @@ def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop3_loop0.body
       ok (cont (iter1, missing_share, value1))
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::complete_key_rotation]: loop 4:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 757:12-762:13
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 764:12-769:13
     Visibility: public -/
 @[rust_loop]
 def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop3_loop0
@@ -3156,7 +3216,7 @@ def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop3_loop0
     (iter, missing_share, value)
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::complete_key_rotation]: loop body 3:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 755:8-767:9
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 762:8-774:9
     Visibility: public -/
 @[rust_loop_body]
 def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop3.body
@@ -3195,7 +3255,7 @@ def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop3.body
     ok (cont (iter1, shares1, missing_share1))
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::complete_key_rotation]: loop 3:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 755:8-767:9
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 762:8-774:9
     Visibility: public -/
 @[rust_loop]
 def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop3
@@ -3215,7 +3275,7 @@ def threshold_schnorr.avss.DkOutput.complete_key_rotation_loop3
     (iter, shares, missing_share)
 
 /-- [fastcrypto_threshold::threshold_schnorr::avss::{fastcrypto_threshold::threshold_schnorr::avss::DkOutput}::complete_key_rotation]:
-    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 709:4-779:5
+    Source: 'fastcrypto-threshold/src/threshold_schnorr/avss.rs', lines 716:4-786:5
     Visibility: public -/
 def threshold_schnorr.avss.DkOutput.complete_key_rotation
   (t : Std.U16) (my_id : Std.U16)

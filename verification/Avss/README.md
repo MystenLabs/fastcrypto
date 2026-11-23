@@ -59,8 +59,10 @@ others also say that the call returns.
 | `recover_commitment` | `OutputCommitment.lean` | With `Poly::clone` the identity, `Rᵢ.recover(m, vs) = Ok(o)` ⇒ `o.feldman_commitment = m.feldman_commitment`. |
 | `verify_complete` | `VerifyComplete.lean` | `sh.verify(m, ids, j) = Ok` when the shares' indices are `ids`, in order, and each share passes `verify_share`. |
 | `complete_key_rotation_ok` | `KeyRotation.lean` | `complete_key_rotation(t, i, nodes, outputs) = Ok(dk)` ⇒ there are `t` outputs, and with `(c, λ)` the Lagrange coefficients for their indices, `dk`'s share at each `k` in `share_ids_of(i)` is `Σᵤ Vᵤ(k)·λᵤ·c`, where `Vᵤ(k)` is output `u`'s share at `k`. |
+| `complete_key_rotation_commitment` | `RotationCommitment.lean` | `complete_key_rotation(t, i, nodes, outputs) = Ok(dk)` and `dk.commitment_for_index(k) = Some(e)` ⇒ with `(c, λ)` the Lagrange coefficients for the outputs' indices, `e.value = G::generator() * Σᵤ yᵤ·λᵤ·c`, where `outputs[u].feldman_commitment.eval(k) = G::generator() * yᵤ`. |
 
-Smaller lemmas on the way: the loops of `recover` and `all_distinct` (`Loops.lean`), and
+Smaller lemmas on the way: the loops of `recover` and `all_distinct` (`Loops.lean`) and of
+`complete_key_rotation` (`KeyRotation.lean`, `RotationCommitment.lean`), `commitment_for_index_some`, and
 `check_message_commitment`, `check_message_degree` and `process_message_check`, which say what a
 message that passes `check_message` satisfies, and `verify_message_commitment`: an output of
 `verify_message` carries the message's commitment. `Result.lean` has the `ok_inv` tactic most proofs
@@ -74,10 +76,12 @@ lemma that needs it. They are about code outside `avss.rs`, which the translatio
 | Hypothesis | Statement | Lemmas |
 |---|---|---|
 | `CloneIsId` | `SharesForNode::clone` returns an equal value (it calls the `Clone` impls of opaque types). | `response_verifies`, `handle_accepts` |
-| `PolyCloneIsId` | `Poly::clone` returns an equal value. | `handle_accepts`, `recover_complete`, `recover_commitment` |
+| `PolyCloneIsId` | `Poly::clone` returns an equal value. | `handle_accepts`, `recover_complete`, `recover_commitment`, `complete_key_rotation_commitment` |
 | `PolyEqRefl` | `Poly::eq` of a polynomial with itself is `true`. | `handle_accepts` |
 | `RecoveryComplete` | The recovery proof is complete: for receivers configured alike, a complaint `Rᵢ.create_complaint` makes about a message whose shares `Rᵢ.verify_message` rejected is accepted by `Rⱼ.check_recovery_proof`. | `handle_accepts` |
 | `InterpolationComplete` | For a message that passes `Rᵢ.check_message`, the shares of responses `Rᵢ.verify_complaint_response` returned for distinct responders of total weight `≥ t` make `SharesForNode::recover` return shares that verify for `Rᵢ`. This rests on the `Nodes` functions and on interpolation. | `recover_complete` |
 | `CommitmentBinding` | Feldman commitments over secp256k1 bind: a commitment of degree `d` commits to a scalar polynomial `p` of degree `≤ d`, and a share passes `verify_share` only if its value is `p.eval` at its index. | `feldman_binding` |
-| `NonZeroGetInj` | Two `NonZeroU16`s with the same `get()` are equal (Lean sees `NonZero` as opaque). | `feldman_binding`, `complete_key_rotation_ok` |
-| `ScalarHom` | A map `f` from secp256k1 scalars to a field takes the `zero`, `+=` and both forms of `*` that `complete_key_rotation` uses to the field's. | `complete_key_rotation_ok` |
+| `NonZeroGetInj` | Two `NonZeroU16`s with the same `get()` are equal (Lean sees `NonZero` as opaque). | `feldman_binding`, `complete_key_rotation_ok`, `complete_key_rotation_commitment` |
+| `ScalarHom` | A map `f` from secp256k1 scalars to a field takes the `zero`, `+=` and both forms of `*` that `complete_key_rotation` uses to the field's. | `complete_key_rotation_ok`, `complete_key_rotation_commitment` |
+| `MsmEval` | `Poly::multi_scalar_mul(ps, ss) = Ok(q)` ⇒ if each `ps[j].eval(k)` returns `G::generator() * yⱼ`, `q.eval(k)` returns `G::generator() * Σⱼ yⱼ·ss[j]`. | `complete_key_rotation_commitment` |
+| `EvalRangeSound` | Each entry `e` of `p.eval_range(m).to_vec()` is `p.eval(e.index)`. | `complete_key_rotation_commitment` |

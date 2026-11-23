@@ -1,10 +1,12 @@
 import Avss.Protocol.Link
 import Avss.KeyRotation
+import Avss.RotationCommitment
 import Avss.Protocol.KeyRotation
 
 /-!
-`rotation_interpolates` of `RotationContracts`, for the generated code: each share from
-`complete_key_rotation` is `recover_c0` of the outputs' shares at its index.
+`rotation_interpolates` and `rotation_commitments` of `RotationContracts`, for the generated code:
+each share from `complete_key_rotation` is `recover_c0` of the outputs' shares at its index, and
+each of its commitments is the same combination of the outputs' commitments there.
 (`process_matches_commitment` is in `LinkCommitment.lean`.)
 -/
 
@@ -13,18 +15,26 @@ open fastcrypto_threshold
 
 namespace AvssProofs.Link
 
-/-- `complete_dkg` and `commitment_for_index`, which the generated code does not include, stay
+/-- `dk.commitment_for_index(k)` as an element of `F`: `some x` if it returns
+`Some(G::generator() * x)`, and `none` if it returns `None` (or a point that is not a multiple of
+`G::generator()`, which does not happen in secp256k1). -/
+noncomputable def commitmentForIndexOf (Z : Scalars) (dk : threshold_schnorr.avss.DkOutput)
+    (k : Protocol.Shamir.ShareIndex) : Option Z.F :=
+  open Classical in
+  match okVal (threshold_schnorr.avss.DkOutput.commitment_for_index dk (Z.ofIndex k)) with
+  | some (some e) => if h : ∃ x, e.value = Z.gen x then some h.choose else none
+  | _ => none
+
+/-- `complete_dkg`, which the generated code does not include (it takes a `HashMap`), stays
 abstract. -/
 noncomputable def dkgApi (C : Receivers) (Z : Scalars) (D : Dealers Z)
     (completeDkg : List (Party C.ns × threshold_schnorr.avss.AvssOutput) →
-      Option threshold_schnorr.avss.DkOutput)
-    (commitmentForIndex : threshold_schnorr.avss.DkOutput → Protocol.Shamir.ShareIndex →
-      Option Z.F) :
+      Option threshold_schnorr.avss.DkOutput) :
     Protocol.Avss.DkgApi (Party C.ns) (api C Z D) where
   DkOutput := threshold_schnorr.avss.DkOutput
   completeDkg := completeDkg
   shares dk := dk.my_shares
-  commitmentForIndex := commitmentForIndex
+  commitmentForIndex := commitmentForIndexOf Z
 
 /-- `DkOutput::complete_key_rotation(t, i, nodes, outputs)` as the spec's `completeKeyRotation`,
 with the outputs' share indices made into `NonZeroU16`s by `ofIndex`. -/
@@ -61,8 +71,6 @@ theorem idx_ofIndex (Z : Scalars) (hnz : NonZeroModel Z) k : idx (Z.ofIndex k) =
 theorem rotation_interpolates (C : Receivers) (Z : Scalars) (D : Dealers Z)
     (completeDkg : List (Party C.ns × threshold_schnorr.avss.AvssOutput) →
       Option threshold_schnorr.avss.DkOutput)
-    (commitmentForIndex : threshold_schnorr.avss.DkOutput → Protocol.Shamir.ShareIndex →
-      Option Z.F)
     (hf : ScalarHom Z.toF) (hnz : NonZeroModel Z) (hlr : LagrangeRecover Z)
     (t : ℕ) (i : Party C.ns)
     (os : List (Protocol.Shamir.ShareIndex × threshold_schnorr.avss.AvssOutput))
@@ -73,7 +81,7 @@ theorem rotation_interpolates (C : Receivers) (Z : Scalars) (D : Dealers Z)
     (hos : ∀ o ∈ os, (api C Z D).shareList ((api C Z D).shares o.2) =
       ((api C Z D).shareIds i).map fun k => ⟨k, v o k⟩) :
     ∃ w : Protocol.Shamir.ShareIndex → Z.F,
-      (api C Z D).shareList ((dkgApi C Z D completeDkg commitmentForIndex).shares dk) =
+      (api C Z D).shareList ((dkgApi C Z D completeDkg).shares dk) =
         ((api C Z D).shareIds i).map (fun k => ⟨k, w k⟩) ∧
       ∀ k ∈ (api C Z D).shareIds i,
         (api C Z D).Sh.recoverC0 t (os.map fun o => ⟨o.1, v o k⟩) = .ok (w k) := by
@@ -139,5 +147,73 @@ theorem rotation_interpolates (C : Receivers) (Z : Scalars) (D : Dealers Z)
       rw [List.zipWith_map_left, List.zipWith_map_right, List.zipWith_self]
     rw [hzip, List.zipWith_map_left] at hr
     exact hr
+
+/-- `Poly::eval` on commitments over secp256k1 returns, and returns a multiple of
+`G::generator()` (the group has prime order). -/
+def EvalInGroup (Z : Scalars) : Prop :=
+  ∀ p k, ∃ x iv, evalG p k = ok iv ∧ iv.value = Z.gen x
+
+theorem rotation_commitments (C : Receivers) (Z : Scalars) (D : Dealers Z)
+    (completeDkg : List (Party C.ns × threshold_schnorr.avss.AvssOutput) →
+      Option threshold_schnorr.avss.DkOutput)
+    (hf : ScalarHom Z.toF) (hnz : NonZeroModel Z) (hlr : LagrangeRecover Z)
+    (hpclone : PolyCloneIsId) (hmsm : MsmEval Z.toF Z.gen) (hrange : EvalRangeSound)
+    (hgrp : EvalInGroup Z) (hinj : Function.Injective Z.gen)
+    (t : ℕ) (i : Party C.ns)
+    (os : List (Protocol.Shamir.ShareIndex × threshold_schnorr.avss.AvssOutput))
+    (dk : threshold_schnorr.avss.DkOutput) (k : Protocol.Shamir.ShareIndex) (x : Z.F)
+    (h : completeKeyRotation C Z t i os = some dk)
+    (hx : (dkgApi C Z D completeDkg).commitmentForIndex dk k = some x) :
+    (api C Z D).Sh.recoverC0 t (os.map fun o => ⟨o.1, (api C Z D).committed o.2 k⟩) = .ok x := by
+  unfold completeKeyRotation at h
+  split at h
+  swap
+  · simp at h
+  rename_i ht
+  have hck := toOption_eq_some.mp h
+  change commitmentForIndexOf Z dk k = some x at hx
+  unfold commitmentForIndexOf at hx
+  split at hx
+  swap
+  · simp at hx
+  rename_i e he
+  split at hx
+  swap
+  · simp at hx
+  rename_i hex
+  simp only [Option.some.injEq] at hx
+  have hgx : e.value = Z.gen x := hx ▸ hex.choose_spec
+  have he' := okVal_eq_some.mp he
+  set L := os.map fun o =>
+    (⟨Z.ofIndex o.1, o.2⟩ : types.IndexedValue threshold_schnorr.avss.AvssOutput) with hL
+  -- `y p`: the `x` with `p.eval(k) = G::generator() * x`, as `committedOf` takes it.
+  let y := fun (p : polynomial.Poly Point) =>
+    open Classical in
+    if h : ∃ x iv, evalG p (Z.ofIndex k) = ok iv ∧ iv.value = Z.gen x then h.choose else 0
+  have hy : ∀ o ∈ (Slice.from L (by simpa [hL] using ht.2)).val,
+      ∃ iv, evalG (o : types.IndexedValue _).value.feldman_commitment (Z.ofIndex k) = ok iv ∧
+        iv.value = Z.gen (y o.value.feldman_commitment) := by
+    intro o _
+    have hex := hgrp o.value.feldman_commitment (Z.ofIndex k)
+    simp only [y, dite_eq_left_of_eq_true (eq_true hex)]
+    obtain ⟨iv, hiv, hv⟩ := hex.choose_spec
+    exact ⟨iv, hiv, hv⟩
+  obtain ⟨c, lambdas, oi, hoi, hlag, hval⟩ :=
+    complete_key_rotation_commitment hf hnz.2.1 hpclone hmsm hrange _ _ _ _ dk _ e y hy hck he'
+  have hys : (os.map fun o => y o.2.feldman_commitment).length =
+      (alloc.vec.Vec.deref oi).val.length := by
+    rw [vec_deref_val, hoi, Slice.from_val]; simp [hL]
+  have hr := hlr _ _ c lambdas hlag (os.map fun o => y o.2.feldman_commitment) hys
+  have hidx : (alloc.vec.Vec.deref oi).val.map idx = os.map (·.1) := by
+    rw [vec_deref_val, hoi, Slice.from_val, hL, List.map_map, List.map_map]
+    apply List.map_congr_left
+    intro o _
+    simp [idx_ofIndex Z hnz]
+  rw [hidx, List.zipWith_map_left, List.zipWith_map_right, List.zipWith_self] at hr
+  have hsum : Z.gen x = Z.gen (List.zipWith (fun o l => y o.2.feldman_commitment * l) os
+      (lambdas.val.map fun l => Z.toF l * Z.toF c)).sum := by
+    rw [← hgx, hval, Slice.from_val, hL, List.zipWith_map_left]
+  rw [hinj hsum, ← List.zipWith_map_left]
+  exact hr
 
 end AvssProofs.Link

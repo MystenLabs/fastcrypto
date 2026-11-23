@@ -1,6 +1,7 @@
 import Avss.Protocol.Link
 import Avss.VerifyComplete
 import Avss.OutputCommitment
+import Avss.RotationCommitment
 
 /-!
 The lemmas about Feldman commitments, for the generated code: `output_commitment` of `Contracts`
@@ -14,12 +15,6 @@ open Aeneas Aeneas.Std Result
 open fastcrypto_threshold
 
 namespace AvssProofs.Link
-
-/-- `Poly::eval` on a commitment over secp256k1. -/
-noncomputable abbrev evalG := @polynomial.Poly.eval _ _
-  fastcrypto.groups.secp256k1.ProjectivePoint.Insts.FastcryptoGroupsAdditiveGroup
-  fastcrypto.groups.secp256k1.Scalar.Insts.FastcryptoGroupsScalar
-  fastcrypto.groups.secp256k1.ProjectivePoint.Insts.FastcryptoGroupsModuleScalar
 
 /-- Feldman commitments over secp256k1 open to a polynomial, which depends on the group and on
 `Poly::verify_share`, `Poly::eval` and `Poly::c0`: a commitment `c` of degree `d` commits to a

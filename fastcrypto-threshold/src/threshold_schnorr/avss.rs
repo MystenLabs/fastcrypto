@@ -638,8 +638,15 @@ impl DkOutput {
         self.my_shares.share_for_index(index)
     }
 
+    // A loop rather than `Iterator::find`, which Aeneas does not translate.
+    #[allow(clippy::manual_find)]
     pub fn commitment_for_index(&self, index: ShareIndex) -> Option<&Eval<G>> {
-        self.commitments.iter().find(|c| c.index == index)
+        for c in &self.commitments {
+            if c.index.get() == index.get() {
+                return Some(c);
+            }
+        }
+        None
     }
 
     /// Combine multiple AVSS outputs from different dealers into a single output by summing.

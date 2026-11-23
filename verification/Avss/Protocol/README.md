@@ -16,7 +16,7 @@ built on it, with the link to the code. Each file builds on the ones above it.
 | `Liveness.lean` | The TOB over time (`TobLive`) and DKG liveness. |
 | `Link.lean` | The `Api` of the generated code (`Link.api`) and the proof of `Contracts` for it (`Link.contracts`). |
 | `LinkCommitment.lean` | The lemmas about Feldman commitments for the generated code: `output_commitment` and `process_matches_commitment`. |
-| `LinkRotation.lean` | `rotation_interpolates` for the generated code. |
+| `LinkRotation.lean` | `rotation_interpolates` and `rotation_commitments` for the generated code. |
 | `LinkTheorems.lean` | The hypotheses of the link together (`Link.Assumptions`), and liveness, agreement and the honest-dealer theorem for the generated code. |
 
 The group is not modelled: a commitment `G::generator() * x` is represented by `x`
@@ -72,10 +72,10 @@ column says how each holds for the generated code (`Link.api`): proved in `Link.
 | `complete_commitments` | `complete_dkg`'s `commitment_for_index(k)` is the sum of the outputs' Feldman commitments at `k`. | Not linked, as above |
 | `process_matches_commitment` | A message accepted by a receiver with `commitment = g^s` binds to a polynomial with constant term `s`. | Proved (`LinkCommitment.process_matches_commitment`) |
 | `rotation_interpolates` | Each share from `complete_key_rotation` is `recover_c0` of the outputs' shares at that index. | Proved (`LinkRotation.rotation_interpolates`, from `complete_key_rotation_ok`) |
-| `rotation_commitments` | `complete_key_rotation`'s `commitment_for_index(k)` is the Lagrange combination of the outputs' Feldman commitments at `k`. | Not proved yet |
+| `rotation_commitments` | `complete_key_rotation`'s `commitment_for_index(k)` is the Lagrange combination of the outputs' Feldman commitments at `k`. | Proved (`LinkRotation.rotation_commitments`, from `complete_key_rotation_commitment`) |
 
 Key rotation also assumes all of `Contracts` for each resharing instance (`RotationApi.at s`): its
-receivers have `commitment = g^s` and its dealers have `secret = s`. The two rotation lemmas are
+receivers have `commitment = g^s` and its dealers have `secret = s`. The three rotation lemmas are
 proved as separate theorems; `RotationApi` and `RotationContracts` are not yet assembled for the
 code.
 
@@ -90,7 +90,8 @@ code.
 * A Rust `Err`, a panic and a call that does not return all become `none` (or `invalid` for
   `process_message`).
 * The dealers stay abstract (`Link.Dealers`): their type, `create_message`'s distribution and their
-  `secret`. So do `complete_dkg` and `commitment_for_index` (`LinkRotation.dkgApi`).
+  `secret`. So does `complete_dkg` (`LinkRotation.dkgApi`), which takes a `HashMap`.
+* `commitmentForIndex dk k` is the `x` with `dk.commitment_for_index(k) = Some(G::generator() * x)`.
 * `committed o k` is the `x` with `o.feldman_commitment.eval(k) = G::generator() * x`.
 * `Link.Scalars` gives what `Api` needs and the code does not: the scalar field `F` and a map from
   secp256k1 scalars to it, `G::generator() * x` for `x` in `F` (`gen`), how a share index becomes a
@@ -127,6 +128,11 @@ only for equal points) and `Shamir.Contracts` for the link's scalar-polynomial f
 `LinkRotation.rotation_interpolates` assumes `ScalarHom`, `NonZeroModel` and `LagrangeRecover`:
 `recover_c0` is `Σⱼ yⱼ·λⱼ·c` for the coefficients `(c, λ)` that
 `get_lagrange_coefficients_for_c0` returns for the same indices, as `recover_c0` computes it.
+
+`LinkRotation.rotation_commitments` assumes those, `gen` injective, the hypotheses of
+`complete_key_rotation_commitment` (`PolyCloneIsId`, `MsmEval`, `EvalRangeSound`), and
+`EvalInGroup`: `Poly::eval` on a commitment returns a multiple of `G::generator()` (secp256k1's
+group has prime order).
 
 The Verus proofs of some of the lemmas are in
 [MystenLabs/fastcrypto#1155](https://github.com/MystenLabs/fastcrypto/pull/1155).
