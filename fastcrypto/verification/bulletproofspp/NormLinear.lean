@@ -648,4 +648,80 @@ lemma contract_spec (hp : PointModel φ ψ)
       simp [contractM, Bppp.NormLinear.chunks_nil]
   · exact ⟨rfl, by simp, by simp, by simp⟩
 
+/-- The model of the MSM over folded bases in `LazyBases::msm`. -/
+def foldedM (sigma : F) (g : E) (h_vec g_vec : List E) (h_scalars g_scalars : List F) :
+    Bppp.Result E :=
+  let (sc, pts) := (((sigma, g) :: List.zip h_scalars h_vec ++ List.zip g_scalars g_vec).filter
+    fun (s, _) => s ≠ 0).unzip
+  Bppp.multi_scalar_mul sc pts
+
+lemma foldedM_eq (sigma : F) (g : E) (h_vec g_vec : List E) (h_scalars g_scalars : List F) :
+    foldedM sigma g h_vec g_vec h_scalars g_scalars = Bppp.multi_scalar_mul
+      ((if sigma ≠ 0 then [sigma] else []) ++ (nonzero h_scalars h_vec).1 ++
+        (nonzero g_scalars g_vec).1)
+      ((if sigma ≠ 0 then [g] else []) ++ (nonzero h_scalars h_vec).2 ++
+        (nonzero g_scalars g_vec).2) := by
+  unfold foldedM nonzero
+  by_cases h : sigma = 0 <;> simp [h, List.filter_append]
+
+lemma folded_msm_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ) (sigma : S) (g : P)
+    (h_vec g_vec : Slice P) (h_scalars g_scalars : Slice S)
+    (hlen : 1 + h_vec.length + g_vec.length ≤ Usize.max)
+    (hh : h_scalars.length ≤ h_vec.length) (hg : g_scalars.length ≤ g_vec.length) :
+    bulletproofspp.norm_linear.folded_msm sigma g h_vec g_vec h_scalars g_scalars ⦃ r =>
+      MsmMatches ψ r (foldedM (φ sigma) (ψ g) (h_vec.val.map ψ) (g_vec.val.map ψ)
+        (h_scalars.val.map φ) (g_scalars.val.map φ)) ⦄ := by
+  unfold bulletproofspp.norm_linear.folded_msm
+  simp only [hs.zero_eq, core.cmp.PartialEq.ne.trait_default, core.cmp.PartialEq.ne.default,
+    hs.eq, bind_ok, hs.φ_z]
+  rw [foldedM_eq]
+  step*
+  -- the first terms, `sigma` and `g` when `sigma` is not zero
+  have hfirst : ∀ (sc1 : alloc.vec.Vec S) (pts1 : alloc.vec.Vec P),
+      sc1.val.map φ = (if φ sigma ≠ 0 then [φ sigma] else []) →
+      pts1.val.map ψ = (if φ sigma ≠ 0 then [ψ g] else []) → sc1.length ≤ 1 → pts1.length ≤ 1 →
+      (do
+        let (sc2, pts2) ← bulletproofspp.norm_linear.push_nonzero sc1 pts1 h_scalars h_vec
+        let (sc3, pts3) ← bulletproofspp.norm_linear.push_nonzero sc2 pts2 g_scalars g_vec
+        groups.ristretto255.RistrettoPoint.Insts.FastcryptoGroupsMultiScalarMul.multi_scalar_mul
+          (alloc.vec.Vec.deref sc3) (alloc.vec.Vec.deref pts3)) ⦃ r =>
+      MsmMatches ψ r (Bppp.multi_scalar_mul
+        ((if φ sigma ≠ 0 then [φ sigma] else []) ++
+          (nonzero (h_scalars.val.map φ) (h_vec.val.map ψ)).1 ++
+          (nonzero (g_scalars.val.map φ) (g_vec.val.map ψ)).1)
+        ((if φ sigma ≠ 0 then [ψ g] else []) ++
+          (nonzero (h_scalars.val.map φ) (h_vec.val.map ψ)).2 ++
+          (nonzero (g_scalars.val.map φ) (g_vec.val.map ψ)).2)) ⦄ := by
+    intro sc1 pts1 h1 h2 h3 h4
+    have eh : h_scalars.length = h_scalars.val.length := rfl
+    have eg : g_scalars.length = g_scalars.val.length := rfl
+    have ehv : h_vec.length = h_vec.val.length := rfl
+    have egv : g_vec.length = g_vec.val.length := rfl
+    apply WP.spec_bind (push_nonzero_spec (ψ := ψ) hs sc1 pts1 h_scalars h_vec (by omega) (by omega))
+    rintro ⟨sc2, pts2⟩ ⟨h5, h6, h7, h8⟩
+    dsimp only at h5 h6 h7 h8 ⊢
+    apply WP.spec_bind (push_nonzero_spec (ψ := ψ) hs sc2 pts2 g_scalars g_vec (by omega) (by omega))
+    rintro ⟨sc3, pts3⟩ ⟨h9, h10, -, -⟩
+    dsimp only at h9 h10 ⊢
+    simp only [Std.uncurry_apply_pair]
+    obtain ⟨r, hr, hm⟩ := hp.msm (alloc.vec.Vec.deref sc3) (alloc.vec.Vec.deref pts3)
+    rw [hr, WP.spec_ok]
+    have e1 : (alloc.vec.Vec.deref sc3).val = sc3.val := by simp [alloc.vec.Vec.deref]
+    have e2 : (alloc.vec.Vec.deref pts3).val = pts3.val := by simp [alloc.vec.Vec.deref]
+    rw [e1, e2, h9, h10, h5, h6, h1, h2] at hm
+    simpa only [List.append_assoc] using hm
+  by_cases h0 : φ sigma = 0
+  · rw [show (decide ¬decide (φ sigma = 0) = true) = false by simp [h0]]
+    simp only [Bool.false_eq_true, ite_false, bind_ok]
+    exact hfirst (alloc.vec.Vec.with_capacity S i3) (alloc.vec.Vec.with_capacity P i7)
+      (by simp [h0]) (by simp [h0]) (by simp [alloc.vec.Vec.length])
+      (by simp [alloc.vec.Vec.length])
+  · rw [show (decide ¬decide (φ sigma = 0) = true) = true by simp [h0]]
+    simp only [ite_true]
+    step*
+    · simp; scalar_tac
+    · simp; scalar_tac
+    · exact hfirst ‹alloc.vec.Vec S› x (by simp [h0, *]) (by simp [h0, x_post])
+        (by simp [alloc.vec.Vec.length, *]) (by simp [alloc.vec.Vec.length, x_post])
+
 end BpppProofs
