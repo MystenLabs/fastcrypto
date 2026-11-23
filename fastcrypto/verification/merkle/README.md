@@ -93,9 +93,16 @@ release named in `extract.sh` and run `CHARON=... AENEAS=... ./extract.sh`.
 Each named assumption is a `def` or `structure` in the Lean files, and each theorem takes the ones
 it needs as hypotheses.
 
-* **Translation.** Charon, Aeneas and `fix_aeneas_output.py`, which defines two `AsRef` impls of
-  the standard library (`<[T]>::as_ref` returns its argument, `<&T>::as_ref` calls `T`'s) and
-  empties serde's trait structures, which Lean rejects.
+* **Translation.** The proofs are about the Lean code in `Generated/`, so they trust that Charon
+  and Aeneas translate `merkle.rs` faithfully. They also trust the two changes
+  `fix_aeneas_output.py` makes to that code:
+  * Aeneas emits an axiom, a function with no body, for standard-library functions its Lean
+    library does not model. The script gives two of them their obvious bodies:
+    `<[T] as AsRef<[T]>>::as_ref` returns its argument, and `<&T as AsRef<U>>::as_ref` calls `T`'s
+    `as_ref`.
+  * serde's traits refer to each other, which Lean does not accept for structures. The script
+    replaces them with empty structures. This loses nothing: the generated code never calls a serde
+    method, it only passes a `Serialize` impl on to `bcs::to_bytes`, which is opaque.
 * **Hash function** (`HashModel`). `HashFunction` hashes the concatenation of its `update` inputs
   with some function `H`, and does not panic. Nothing else, in particular not collision resistance:
   the theorems conclude that `H` has a collision or a zero output.
