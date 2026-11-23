@@ -10,12 +10,8 @@ The theorems are in `Theorems.lean`. Everything else is a lemma.
 
 ## Theorems
 
-`H` is the function the hash computes (see [assumptions](#what-is-assumed)). A *collision* is a
-pair of byte strings `x ≠ y` with `H(x) = H(y)`, and a *zero output* is a byte string `x` with
-`H(x) = [0; 32]`, the bytes of `Node::Empty`. The theorems about trusted trees have zero outputs
-as an extra case because the code treats a node of 32 zero bytes as empty, e.g.
-`MerkleNonInclusionProof::verify_for_trusted_tree` accepts any proof against a root of zero
-bytes.
+`H` is the hash function. A *zero output* is an input `x` with `H(x) = [0; 32]`, which the code
+treats as `Node::Empty`.
 
 ### `MerkleProof::verify(root, leaf, i, n)`, for a root that is not trusted
 
