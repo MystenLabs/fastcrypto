@@ -54,6 +54,15 @@ axiom core.hint.must_use {T : Type _} : T → Result T
 @[rust_fun "alloc::fmt::format"]
 axiom alloc.fmt.format : core.fmt.Arguments → Result String
 
+/-- [bcs::ser::to_bytes]:
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bcs-0.1.6/src/ser.rs', lines 49:0-51:26
+    Name pattern: [bcs::ser::to_bytes]
+    Visibility: public -/
+@[rust_fun "bcs::ser::to_bytes"]
+axiom bcs.ser.to_bytes
+  {T : Type _} (serde_coreserSerializeInst : serde_core.ser.Serialize T) :
+  T → Result (core.result.Result (alloc.vec.Vec Std.U8) bcs.error.Error)
+
 /-- [fastcrypto::hash::HashFunction::OUTPUT_SIZE]
     Source: 'fastcrypto/src/hash.rs', lines 82:4-82:45
     Visibility: public -/

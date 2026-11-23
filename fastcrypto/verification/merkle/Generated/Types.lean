@@ -3,6 +3,7 @@
 -- [fastcrypto]: type definitions
 module
 public import Aeneas
+public import merkle.Generated.TypesExternal
 @[expose] public section
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false
@@ -27,6 +28,94 @@ namespace fastcrypto
     Visibility: public -/
 @[reducible, rust_type "core::marker::PhantomData"]
 def core.marker.PhantomData (T : Type _) := Unit
+
+/-- Trait declaration: [serde_core::ser::Error]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs', lines 148:8-148:48; this code is generated from a macro invocation at: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs', lines 192:0-192:45
+    Name pattern: [serde_core::ser::Error]
+    Visibility: public -/
+@[rust_trait "serde_core::ser::Error"
+  (parentClauses := ["coreerrorErrorInst"])]
+structure serde_core.ser.Error (Self : Type _) where
+
+/-- Trait declaration: [serde_core::ser::Serialize]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs', lines 234:0-234:19
+    Name pattern: [serde_core::ser::Serialize]
+    Visibility: public -/
+@[rust_trait "serde_core::ser::Serialize"]
+structure serde_core.ser.Serialize (Self : Type _) where
+
+/-- Trait declaration: [serde_core::ser::Serializer]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs', lines 355:0-355:27
+    Name pattern: [serde_core::ser::Serializer]
+    Visibility: public -/
+@[rust_trait "serde_core::ser::Serializer"
+  (parentClauses := ["ErrorInst", "SerializeSeqInst", "SerializeTupleInst", "SerializeTupleStructInst", "SerializeTupleVariantInst", "SerializeMapInst", "SerializeStructInst", "SerializeStructVariantInst"])]
+structure serde_core.ser.Serializer (Self : Type _) (Self_Ok : Type _)
+  (Self_Error : Type _) (Self_SerializeSeq : Type _) (Self_SerializeTuple :
+  Type _) (Self_SerializeTupleStruct : Type _) (Self_SerializeTupleVariant :
+  Type _) (Self_SerializeMap : Type _) (Self_SerializeStruct : Type _)
+  (Self_SerializeStructVariant : Type _) where
+
+/-- Trait declaration: [serde_core::ser::SerializeSeq]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs', lines 1518:0-1518:22
+    Name pattern: [serde_core::ser::SerializeSeq]
+    Visibility: public -/
+@[rust_trait "serde_core::ser::SerializeSeq" (parentClauses := ["ErrorInst"])]
+structure serde_core.ser.SerializeSeq (Self : Type _) (Self_Ok : Type _)
+  (Self_Error : Type _) where
+
+/-- Trait declaration: [serde_core::ser::SerializeTuple]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs', lines 1624:0-1624:24
+    Name pattern: [serde_core::ser::SerializeTuple]
+    Visibility: public -/
+@[rust_trait "serde_core::ser::SerializeTuple"
+  (parentClauses := ["ErrorInst"])]
+structure serde_core.ser.SerializeTuple (Self : Type _) (Self_Ok : Type _)
+  (Self_Error : Type _) where
+
+/-- Trait declaration: [serde_core::ser::SerializeTupleStruct]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs', lines 1675:0-1675:30
+    Name pattern: [serde_core::ser::SerializeTupleStruct]
+    Visibility: public -/
+@[rust_trait "serde_core::ser::SerializeTupleStruct"
+  (parentClauses := ["ErrorInst"])]
+structure serde_core.ser.SerializeTupleStruct (Self : Type _) (Self_Ok :
+  Type _) (Self_Error : Type _) where
+
+/-- Trait declaration: [serde_core::ser::SerializeTupleVariant]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs', lines 1739:0-1739:31
+    Name pattern: [serde_core::ser::SerializeTupleVariant]
+    Visibility: public -/
+@[rust_trait "serde_core::ser::SerializeTupleVariant"
+  (parentClauses := ["ErrorInst"])]
+structure serde_core.ser.SerializeTupleVariant (Self : Type _) (Self_Ok :
+  Type _) (Self_Error : Type _) where
+
+/-- Trait declaration: [serde_core::ser::SerializeMap]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs', lines 1811:0-1811:22
+    Name pattern: [serde_core::ser::SerializeMap]
+    Visibility: public -/
+@[rust_trait "serde_core::ser::SerializeMap" (parentClauses := ["ErrorInst"])]
+structure serde_core.ser.SerializeMap (Self : Type _) (Self_Ok : Type _)
+  (Self_Error : Type _) where
+
+/-- Trait declaration: [serde_core::ser::SerializeStruct]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs', lines 1907:0-1907:25
+    Name pattern: [serde_core::ser::SerializeStruct]
+    Visibility: public -/
+@[rust_trait "serde_core::ser::SerializeStruct"
+  (parentClauses := ["ErrorInst"])]
+structure serde_core.ser.SerializeStruct (Self : Type _) (Self_Ok : Type _)
+  (Self_Error : Type _) where
+
+/-- Trait declaration: [serde_core::ser::SerializeStructVariant]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs', lines 1977:0-1977:32
+    Name pattern: [serde_core::ser::SerializeStructVariant]
+    Visibility: public -/
+@[rust_trait "serde_core::ser::SerializeStructVariant"
+  (parentClauses := ["ErrorInst"])]
+structure serde_core.ser.SerializeStructVariant (Self : Type _) (Self_Ok :
+  Type _) (Self_Error : Type _) where
 
 /-- [fastcrypto::error::FastCryptoError]
     Source: 'fastcrypto/src/error.rs', lines 18:0-78:1
@@ -80,8 +169,23 @@ structure merkle.MerkleProof (T : Type _) where
   _hash_type : core.marker.PhantomData T
   path : alloc.vec.Vec merkle.Node
 
+/-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleProof<T>}::verify_for_trusted_tree_with_unserialized_leaf::{closure}]
+    Source: 'fastcrypto/src/merkle.rs', lines 148:48-148:81 -/
+@[reducible]
+def merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf.closure
+  (T : Type _) (L : Type _) :=
+Unit
+
+/-- [fastcrypto::merkle::MerkleNonInclusionProof]
+    Source: 'fastcrypto/src/merkle.rs', lines 247:0-254:1
+    Visibility: public -/
+structure merkle.MerkleNonInclusionProof (L : Type _) (T : Type _) where
+  index : Std.Usize
+  left_leaf : Option (L × (merkle.MerkleProof T))
+  right_leaf : Option (L × (merkle.MerkleProof T))
+
 /-- [fastcrypto::merkle::MerkleTree]
-    Source: 'fastcrypto/src/merkle.rs', lines 367:0-373:1
+    Source: 'fastcrypto/src/merkle.rs', lines 370:0-376:1
     Visibility: public -/
 structure merkle.MerkleTree (T : Type _) where
   _hash_type : core.marker.PhantomData T

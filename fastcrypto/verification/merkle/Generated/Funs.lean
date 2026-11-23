@@ -63,6 +63,18 @@ def Usize.Insts.CoreFmtDisplay : core.fmt.Display Std.Usize := {
   fmt := core.fmt.num.imp.DisplayUsize.fmt
 }
 
+/-- Trait implementation: [core::slice::cmp::{impl core::cmp::PartialEq<[U]> for [T]}]
+    Source: '/rustc/library/core/src/slice/cmp.rs', lines 14:0-16:28
+    Name pattern: [core::cmp::PartialEq<[@T], [@U]>] -/
+@[reducible, rust_trait_impl "core::cmp::PartialEq<[@T], [@U]>"]
+impl_def Slice.Insts.CoreCmpPartialEqSlice {T : Type _} {U : Type _}
+  (cmpPartialEqInst : core.cmp.PartialEq T U) : core.cmp.PartialEq (Slice T)
+  (Slice U) := {
+  eq := core.slice.cmp.PartialEqSlice.eq cmpPartialEqInst
+  ne := core.cmp.PartialEq.ne.trait_default (Slice.Insts.CoreCmpPartialEqSlice
+    cmpPartialEqInst)
+}
+
 /-- [fastcrypto::merkle::LEAF_PREFIX]
     Source: 'fastcrypto/src/merkle.rs', lines 18:0-18:37
     Visibility: public -/
@@ -135,6 +147,16 @@ def merkle.Node.Insts.CoreConvertFromDigest32 : core.convert.From merkle.Node
   «from» := merkle.Node.Insts.CoreConvertFromDigest32.from
 }
 
+/-- [fastcrypto::merkle::{impl core::convert::AsRef<[u8]> for fastcrypto::merkle::Node}::as_ref]:
+    Source: 'fastcrypto/src/merkle.rs', lines 54:4-59:5
+    Visibility: public -/
+def merkle.Node.Insts.CoreConvertAsRefSliceU8.as_ref
+  (self : merkle.Node) : Result (Slice Std.U8) := do
+  match self with
+  | merkle.Node.Empty =>
+    Array.Insts.CoreConvertAsRefSlice.as_ref merkle.EMPTY_NODE
+  | merkle.Node.Digest val => Array.Insts.CoreConvertAsRefSlice.as_ref val
+
 /-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleProof<T>}::len]:
     Source: 'fastcrypto/src/merkle.rs', lines 228:4-230:5
     Visibility: public -/
@@ -146,7 +168,7 @@ def merkle.MerkleProof.len
   ok (alloc.vec.Vec.len self.path)
 
 /-- [fastcrypto::merkle::inner_hash]:
-    Source: 'fastcrypto/src/merkle.rs', lines 552:0-561:1 -/
+    Source: 'fastcrypto/src/merkle.rs', lines 555:0-564:1 -/
 def merkle.inner_hash
   {T : Type _} (hashHashFunctionT32Inst : hash.HashFunction T 32#usize)
   (left : merkle.Node) (right : merkle.Node) :
@@ -168,7 +190,7 @@ def merkle.inner_hash
   core.convert.IntoFrom.into merkle.Node.Insts.CoreConvertFromDigest32 d
 
 /-- [fastcrypto::merkle::leaf_hash]:
-    Source: 'fastcrypto/src/merkle.rs', lines 542:0-550:1 -/
+    Source: 'fastcrypto/src/merkle.rs', lines 545:0-553:1 -/
 def merkle.leaf_hash
   {T : Type _} (hashHashFunctionT32Inst : hash.HashFunction T 32#usize)
   (input : Slice Std.U8) :
@@ -333,6 +355,59 @@ def merkle.MerkleProof.verify_for_trusted_tree
     then ok (core.result.Result.Ok ())
     else ok (core.result.Result.Err error.FastCryptoError.InvalidProof)
 
+/-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleProof<T>}::verify_for_trusted_tree_with_unserialized_leaf::{impl core::ops::function::FnOnce<(bcs::error::Error,), fastcrypto::error::FastCryptoError> for fastcrypto::merkle::{fastcrypto::merkle::MerkleProof<T>}::verify_for_trusted_tree_with_unserialized_leaf::{closure}<T, L>}::call_once]:
+    Source: 'fastcrypto/src/merkle.rs', lines 148:48-148:81 -/
+def
+  merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf.closure.Insts.CoreOpsFunctionFnOnceTupleErrorFastCryptoError.call_once
+  {T : Type _} {L : Type _} (hashHashFunctionT32Inst : hash.HashFunction T
+  32#usize) (serde_coreserSerializeInst : serde_core.ser.Serialize L)
+  (c :
+  merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf.closure T
+  L) (tupled_args : bcs.error.Error) :
+  Result error.FastCryptoError
+  := do
+  ok error.FastCryptoError.InvalidInput
+
+/-- Trait implementation: [fastcrypto::merkle::{fastcrypto::merkle::MerkleProof<T>}::verify_for_trusted_tree_with_unserialized_leaf::{impl core::ops::function::FnOnce<(bcs::error::Error,), fastcrypto::error::FastCryptoError> for fastcrypto::merkle::{fastcrypto::merkle::MerkleProof<T>}::verify_for_trusted_tree_with_unserialized_leaf::{closure}<T, L>}]
+    Source: 'fastcrypto/src/merkle.rs', lines 148:48-148:81 -/
+@[reducible]
+def
+  merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf.closure.Insts.CoreOpsFunctionFnOnceTupleErrorFastCryptoError
+  {T : Type _} {L : Type _} (hashHashFunctionT32Inst : hash.HashFunction T
+  32#usize) (serde_coreserSerializeInst : serde_core.ser.Serialize L) :
+  core.ops.function.FnOnce
+  (merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf.closure T
+  L) bcs.error.Error error.FastCryptoError := {
+  call_once :=
+    merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf.closure.Insts.CoreOpsFunctionFnOnceTupleErrorFastCryptoError.call_once
+    hashHashFunctionT32Inst serde_coreserSerializeInst
+}
+
+/-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleProof<T>}::verify_for_trusted_tree_with_unserialized_leaf]:
+    Source: 'fastcrypto/src/merkle.rs', lines 142:4-150:5
+    Visibility: public -/
+def merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf
+  {T : Type _} {L : Type _} (hashHashFunctionT32Inst : hash.HashFunction T
+  32#usize) (serde_coreserSerializeInst : serde_core.ser.Serialize L)
+  (self : merkle.MerkleProof T) (root : merkle.Node) (leaf : L)
+  (leaf_index : Std.Usize) :
+  Result (core.result.Result Unit error.FastCryptoError)
+  := do
+  let r ← bcs.ser.to_bytes serde_coreserSerializeInst leaf
+  let r1 ←
+    core.result.Result.map_err
+      (merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf.closure.Insts.CoreOpsFunctionFnOnceTupleErrorFastCryptoError
+      hashHashFunctionT32Inst serde_coreserSerializeInst) r ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let s := alloc.vec.Vec.deref val
+    merkle.MerkleProof.verify_for_trusted_tree hashHashFunctionT32Inst self
+      root s leaf_index
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+      Unit (core.convert.FromSame error.FastCryptoError) residual
+
 /-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleProof<T>}::is_right_most]: loop body 0:
     Source: 'fastcrypto/src/merkle.rs', lines 211:8-224:5
     Visibility: public -/
@@ -392,8 +467,129 @@ def merkle.MerkleProof.is_right_most
   := do
   merkle.MerkleProof.is_right_most_loop self leaf_index 0#usize
 
+/-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleNonInclusionProof<L, T>}::is_valid_neighbor]:
+    Source: 'fastcrypto/src/merkle.rs', lines 298:4-306:5 -/
+def merkle.MerkleNonInclusionProof.is_valid_neighbor
+  {L : Type _} {T : Type _} (hashHashFunctionT32Inst : hash.HashFunction T
+  32#usize) (corecmpOrdInst : core.cmp.Ord L) (serde_coreserSerializeInst :
+  serde_core.ser.Serialize L) (self : merkle.MerkleNonInclusionProof L T)
+  (neighbor : L) (proof : merkle.MerkleProof T) (neighbor_index : Std.Usize)
+  (root : merkle.Node) :
+  Result (core.result.Result Unit error.FastCryptoError)
+  := do
+  merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf
+    hashHashFunctionT32Inst serde_coreserSerializeInst proof root neighbor
+    neighbor_index
+
+/-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleNonInclusionProof<L, T>}::verify_for_trusted_tree]:
+    Source: 'fastcrypto/src/merkle.rs', lines 315:4-361:5
+    Visibility: public -/
+def merkle.MerkleNonInclusionProof.verify_for_trusted_tree
+  {L : Type _} {T : Type _} (hashHashFunctionT32Inst : hash.HashFunction T
+  32#usize) (corecmpOrdInst : core.cmp.Ord L) (serde_coreserSerializeInst :
+  serde_core.ser.Serialize L) (self : merkle.MerkleNonInclusionProof L T)
+  (root : merkle.Node) (target_leaf : L) :
+  Result (core.result.Result Unit error.FastCryptoError)
+  := do
+  let s ← merkle.Node.Insts.CoreConvertAsRefSliceU8.as_ref root
+  let s1 ← Array.Insts.CoreConvertAsRefSlice.as_ref merkle.EMPTY_NODE
+  let b ← core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 s s1
+  if b
+  then ok (core.result.Result.Ok ())
+  else
+    let o ← lift (Usize.checked_sub self.index 1#usize)
+    let (o1, left_leaf_with_idx) ←
+      match self.left_leaf with
+      | none => ok (none, none)
+      | some left_leaf =>
+        do
+        let o2 ←
+          match o with
+          | none => ok none
+          | some left_leaf_index => ok (some (left_leaf, left_leaf_index))
+        ok (self.left_leaf, o2)
+    match left_leaf_with_idx with
+    | none =>
+      if self.index != 0#usize
+      then ok (core.result.Result.Err error.FastCryptoError.InvalidProof)
+      else
+        let b1 := core.option.Option.is_none self.right_leaf
+        if b1
+        then ok (core.result.Result.Err error.FastCryptoError.InvalidProof)
+        else
+          match self.right_leaf with
+          | none =>
+            ok (core.result.Result.Err error.FastCryptoError.InvalidProof)
+          | some p =>
+            let (right_leaf, right_proof) := p
+            let r ←
+              merkle.MerkleNonInclusionProof.is_valid_neighbor
+                hashHashFunctionT32Inst corecmpOrdInst
+                serde_coreserSerializeInst { self with left_leaf := o1 }
+                right_leaf right_proof self.index root
+            let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+            match cf with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              let b2 ←
+                core.cmp.impls.PartialOrdShared.le
+                  corecmpOrdInst.partialOrdInst right_leaf target_leaf
+              if b2
+              then
+                ok (core.result.Result.Err error.FastCryptoError.InvalidProof)
+              else ok (core.result.Result.Ok ())
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Unit (core.convert.FromSame error.FastCryptoError) residual
+    | some p =>
+      let ((left_leaf, left_proof), left_leaf_index) := p
+      let r ←
+        merkle.MerkleNonInclusionProof.is_valid_neighbor
+          hashHashFunctionT32Inst corecmpOrdInst serde_coreserSerializeInst
+          { self with left_leaf := o1 } left_leaf left_proof left_leaf_index
+          root
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let b1 ←
+          core.cmp.impls.PartialOrdShared.ge corecmpOrdInst.partialOrdInst
+            left_leaf target_leaf
+        if b1
+        then ok (core.result.Result.Err error.FastCryptoError.InvalidProof)
+        else
+          match self.right_leaf with
+          | none =>
+            let b2 ←
+              merkle.MerkleProof.is_right_most hashHashFunctionT32Inst
+                left_proof left_leaf_index
+            if b2
+            then ok (core.result.Result.Ok ())
+            else ok (core.result.Result.Err error.FastCryptoError.InvalidProof)
+          | some p1 =>
+            let (right_leaf, right_proof) := p1
+            let r1 ←
+              merkle.MerkleNonInclusionProof.is_valid_neighbor
+                hashHashFunctionT32Inst corecmpOrdInst
+                serde_coreserSerializeInst { self with left_leaf := o1 }
+                right_leaf right_proof self.index root
+            let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+            match cf1 with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              let b2 ←
+                core.cmp.impls.PartialOrdShared.le
+                  corecmpOrdInst.partialOrdInst right_leaf target_leaf
+              if b2
+              then
+                ok (core.result.Result.Err error.FastCryptoError.InvalidProof)
+              else ok (core.result.Result.Ok ())
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                Unit (core.convert.FromSame error.FastCryptoError) residual
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame error.FastCryptoError) residual
+
 /-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::build_from_leaf_hashes]: loop body 1:
-    Source: 'fastcrypto/src/merkle.rs', lines 443:12-447:13 -/
+    Source: 'fastcrypto/src/merkle.rs', lines 446:12-450:13 -/
 @[rust_loop_body]
 def merkle.MerkleTree.build_from_leaf_hashes_loop0_loop0.body
   {T : Type _} (hashHashFunctionT32Inst : hash.HashFunction T 32#usize)
@@ -418,7 +614,7 @@ def merkle.MerkleTree.build_from_leaf_hashes_loop0_loop0.body
   else ok (done nodes)
 
 /-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::build_from_leaf_hashes]: loop 1:
-    Source: 'fastcrypto/src/merkle.rs', lines 443:12-447:13 -/
+    Source: 'fastcrypto/src/merkle.rs', lines 446:12-450:13 -/
 @[rust_loop]
 def merkle.MerkleTree.build_from_leaf_hashes_loop0_loop0
   {T : Type _} (hashHashFunctionT32Inst : hash.HashFunction T 32#usize)
@@ -433,7 +629,7 @@ def merkle.MerkleTree.build_from_leaf_hashes_loop0_loop0
     (nodes, index)
 
 /-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::build_from_leaf_hashes]: loop body 0:
-    Source: 'fastcrypto/src/merkle.rs', lines 433:8-451:9 -/
+    Source: 'fastcrypto/src/merkle.rs', lines 436:8-454:9 -/
 @[rust_loop_body]
 def merkle.MerkleTree.build_from_leaf_hashes_loop0.body
   {T : Type _} (hashHashFunctionT32Inst : hash.HashFunction T 32#usize)
@@ -462,7 +658,7 @@ def merkle.MerkleTree.build_from_leaf_hashes_loop0.body
   else ok (done nodes)
 
 /-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::build_from_leaf_hashes]: loop 0:
-    Source: 'fastcrypto/src/merkle.rs', lines 433:8-451:9 -/
+    Source: 'fastcrypto/src/merkle.rs', lines 436:8-454:9 -/
 @[rust_loop]
 def merkle.MerkleTree.build_from_leaf_hashes_loop0
   {T : Type _} (hashHashFunctionT32Inst : hash.HashFunction T 32#usize)
@@ -477,7 +673,7 @@ def merkle.MerkleTree.build_from_leaf_hashes_loop0
     (nodes, level_nodes, prev_level_index)
 
 /-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::build_from_leaf_hashes]:
-    Source: 'fastcrypto/src/merkle.rs', lines 427:4-458:5 -/
+    Source: 'fastcrypto/src/merkle.rs', lines 430:4-461:5 -/
 def merkle.MerkleTree.build_from_leaf_hashes
   {T : Type _} (hashHashFunctionT32Inst : hash.HashFunction T 32#usize)
   (nodes : alloc.vec.Vec merkle.Node) :
@@ -490,7 +686,7 @@ def merkle.MerkleTree.build_from_leaf_hashes
   ok { _hash_type := (), nodes := nodes1, n_leaves }
 
 /-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::root]:
-    Source: 'fastcrypto/src/merkle.rs', lines 466:4-472:5
+    Source: 'fastcrypto/src/merkle.rs', lines 469:4-475:5
     Visibility: public -/
 def merkle.MerkleTree.root
   {T : Type _} (hashHashFunctionT32Inst : hash.HashFunction T 32#usize)
@@ -509,7 +705,7 @@ def merkle.MerkleTree.root
     merkle.Node.Insts.CoreCloneClone.clone n
 
 /-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::get_proof]: loop body 0:
-    Source: 'fastcrypto/src/merkle.rs', lines 487:8-500:9
+    Source: 'fastcrypto/src/merkle.rs', lines 490:8-503:9
     Visibility: public -/
 @[rust_loop_body]
 def merkle.MerkleTree.get_proof_loop.body
@@ -544,7 +740,7 @@ def merkle.MerkleTree.get_proof_loop.body
   else ok (done path)
 
 /-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::get_proof]: loop 0:
-    Source: 'fastcrypto/src/merkle.rs', lines 487:8-500:9
+    Source: 'fastcrypto/src/merkle.rs', lines 490:8-503:9
     Visibility: public -/
 @[rust_loop]
 def merkle.MerkleTree.get_proof_loop
@@ -560,7 +756,7 @@ def merkle.MerkleTree.get_proof_loop
     (path, level_index, n_level, level_base_index)
 
 /-- [fastcrypto::merkle::{fastcrypto::merkle::MerkleTree<T>}::get_proof]:
-    Source: 'fastcrypto/src/merkle.rs', lines 476:4-505:5
+    Source: 'fastcrypto/src/merkle.rs', lines 479:4-508:5
     Visibility: public -/
 def merkle.MerkleTree.get_proof
   {T : Type _} (hashHashFunctionT32Inst : hash.HashFunction T 32#usize)

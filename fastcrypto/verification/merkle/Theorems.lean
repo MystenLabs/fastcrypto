@@ -1,6 +1,7 @@
 -- THIS FILE IS AI-ONLY
 import merkle.GetProof
 import merkle.Verify
+import merkle.NonInclusion
 import merkle.Result
 
 /-!
@@ -17,8 +18,14 @@ some `H`.
 `MerkleProof::verify_for_trusted_tree(root, leaf, i)`, for a root built by `MerkleTree`:
 * `verify_for_trusted_tree_complete`: as `verify_complete`, and the proof has `depth n`
   siblings.
-* `verify_for_trusted_tree_binding`: as `verify_binding`, for proofs of the same length.
+* `verify_for_trusted_tree_sound`: against the root of a tree built by `MerkleTree`, it accepts
+  a proof for index `i` only for the `i`th leaf, or `H` has a collision or a zero output.
 * `verify_for_trusted_tree_no_panic`: as `verify_no_panic`.
+
+`MerkleNonInclusionProof::verify_for_trusted_tree(root, target)`, for a root built by
+`MerkleTree` over sorted leaves:
+* `non_inclusion_sound`: if it accepts, `target` is not a leaf, or `H` has a collision or a zero
+  output.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -59,22 +66,37 @@ theorem verify_for_trusted_tree_complete (hm : HashModel inst H) (hs : alloc.vec
     exact lt_of_lt_of_le hi (lt_two_pow_depth _)
   · rw [hp, hl, fold_pathOf H hs.val i.val hi, hroot]
 
-/-- Binding of `verify_for_trusted_tree`, for proofs of the same length. If it accepts proofs `p`
-and `p'` with `p.len() = p'.len()` for `root` and index `i`, for leaves `leaf` and `leaf'`, then
-`leaf = leaf'` or `H` has a collision. -/
-theorem verify_for_trusted_tree_binding (hm : HashModel inst H) (p p' : merkle.MerkleProof T)
-    (root : Node) (leaf leaf' : Slice U8) (i : Usize) (hlen : p.path.length = p'.path.length)
-    (h : merkle.MerkleProof.verify_for_trusted_tree inst p root leaf i = ok (.Ok ()))
-    (h' : merkle.MerkleProof.verify_for_trusted_tree inst p' root leaf' i = ok (.Ok ())) :
-    leaf.val = leaf'.val ∨ Collision H := by
-  obtain ⟨-, -, e⟩ := (spec_of_eq_ok (verify_for_trusted_tree_spec hm p root leaf i) h).mp rfl
-  obtain ⟨-, -, e'⟩ :=
-    (spec_of_eq_ok (verify_for_trusted_tree_spec hm p' root leaf' i) h').mp rfl
-  rcases fold_binding H p.path.val p'.path.val (leafN H leaf.val) (leafN H leaf'.val) i.val hlen
-      trivial trivial (e.trans e'.symm)
-    with hc | hc
-  · exact leafN_inj H _ _ hc
-  · exact Or.inr hc
+/-- Soundness of `verify_for_trusted_tree`. Let `hs` be leaf hashes, `root` the root of
+`build_from_leaf_hashes(hs)`. If `verify_for_trusted_tree(root, leaf, i)` accepts a proof, of any
+length, then `i < hs.len()` and `leaf_hash(leaf) = hs[i]`, or `H` has a collision or maps some
+input to 32 zero bytes. -/
+theorem verify_for_trusted_tree_sound (hm : HashModel inst H) (hs : alloc.vec.Vec Node)
+    (hleaves : ∀ a ∈ hs.val, ∃ y : Slice U8, merkle.leaf_hash inst y = ok a)
+    (hn : 4 * hs.length ≤ Usize.max) (t : merkle.MerkleTree T)
+    (ht : merkle.MerkleTree.build_from_leaf_hashes inst hs = ok t) (root : Node)
+    (hr : merkle.MerkleTree.root inst t = ok root) (p : merkle.MerkleProof T) (leaf : Slice U8)
+    (i : Usize) (h : merkle.MerkleProof.verify_for_trusted_tree inst p root leaf i = ok (.Ok ())) :
+    (∃ hi : i.val < hs.length, merkle.leaf_hash inst leaf = ok (hs.val[i.val]'hi)) ∨
+      Collision H ∨ ZeroHash H := by
+  have hroot := tree_root hm hs hn t ht root hr
+  obtain ⟨ys, hys⟩ := exists_leaves hm hs.val hleaves
+  obtain ⟨-, hi, hfold⟩ := (spec_of_eq_ok (verify_for_trusted_tree_spec hm p root leaf i) h).mp rfl
+  rw [hroot, hys] at hfold
+  by_cases hy : ys = []
+  · subst hy
+    have := isDigest_fold (H := H) (leafN H leaf.val) p.path.val i.val trivial
+    rw [hfold] at this
+    simp [rootOf, IsDigest] at this
+  rcases trusted_opening H ys hy _ _ _ hi (congrArg bytesOf hfold) with hc | hz | ⟨-, hi', hx, -⟩
+  · exact Or.inr (Or.inl hc)
+  · exact Or.inr (Or.inr hz)
+  · left
+    have hil : i.val < hs.length := by
+      simp only [alloc.vec.Vec.length, hys, List.length_map]; exact hi'
+    refine ⟨hil, ?_⟩
+    rw [leaf_hash_eq hm]
+    congr 1
+    simp only [hys, List.getElem_map, hx, List.getD_eq_getElem _ _ hi']
 
 /-- Completeness of `verify`. For leaf hashes `hs` with `4 · hs.len() ≤ usize::MAX`, the tree
 built from them has a root `root` such that, for every `i < hs.len()` and every `leaf` whose `leaf_hash` is
@@ -128,5 +150,28 @@ theorem verify_for_trusted_tree_no_panic (hm : HashModel inst H) (p : merkle.Mer
     ∃ r, merkle.MerkleProof.verify_for_trusted_tree inst p root leaf i = ok r := by
   obtain ⟨r, hr, -⟩ := spec_eq_ok (verify_for_trusted_tree_spec hm p root leaf i)
   exact ⟨r, hr⟩
+
+/-- Soundness of `MerkleNonInclusionProof::verify_for_trusted_tree`. Let `ls` be sorted by `L`'s
+`<=`, `hs` the leaf hashes of their BCS serializations (as `build_from_unserialized(ls)` computes
+them) and `root` the root of `build_from_leaf_hashes(hs)`. If `verify_for_trusted_tree(root,
+target)` accepts a non-inclusion proof, then `target` is not in `ls`, or `H` has a collision or
+maps some input to 32 zero bytes. -/
+theorem non_inclusion_sound (hm : HashModel inst H) {L : Type} (ord : core.cmp.Ord L)
+    (ser : serde_core.ser.Serialize L) (ho : OrdModel ord.partialOrdInst)
+    (hser : BcsInjective ser) (ls : List L) (hsort : SortedLe ord.partialOrdInst ls)
+    (hs : alloc.vec.Vec Node) (hlen : hs.val.length = ls.length)
+    (hleaves : ∀ j (hj : j < ls.length), ∃ v, bcs.ser.to_bytes ser ls[j] = ok (.Ok v) ∧
+      merkle.leaf_hash inst (alloc.vec.Vec.deref v) = ok (hs.val[j]'(by omega)))
+    (hn : 4 * hs.length ≤ Usize.max) (t : merkle.MerkleTree T)
+    (ht : merkle.MerkleTree.build_from_leaf_hashes inst hs = ok t) (root : Node)
+    (hr : merkle.MerkleTree.root inst t = ok root) (pr : merkle.MerkleNonInclusionProof L T)
+    (target : L)
+    (h : merkle.MerkleNonInclusionProof.verify_for_trusted_tree inst ord ser pr root target =
+      ok (.Ok ())) :
+    target ∉ ls ∨ Collision H ∨ ZeroHash H := by
+  have hroot := tree_root hm hs hn t ht root hr
+  obtain ⟨ys, hser', hys⟩ := exists_serialized hm ser ls hs.val hlen hleaves
+  rw [hroot, hys] at h
+  exact ni_sound hm ord ser ho hser ls ys hser' hsort pr target h
 
 end MerkleProofs

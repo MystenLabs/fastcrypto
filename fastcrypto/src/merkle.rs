@@ -321,7 +321,10 @@ where
         let right_leaf_index = self.index;
 
         // left_leaf_with_idx is None if either left_leaf is None or if index is zero
-        let left_leaf_with_idx = self.left_leaf.as_ref().zip(self.index.checked_sub(1));
+        let left_leaf_with_idx = match (&self.left_leaf, self.index.checked_sub(1)) {
+            (Some(left_leaf), Some(left_leaf_index)) => Some((left_leaf, left_leaf_index)),
+            _ => None,
+        };
 
         if let Some(((left_leaf, left_proof), left_leaf_index)) = &left_leaf_with_idx {
             // Check that the left leaf is a valid neighbor
