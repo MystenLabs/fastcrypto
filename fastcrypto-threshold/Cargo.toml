@@ -7,6 +7,8 @@ authors = ["Mysten Labs <build@mystenlabs.com>"]
 readme = "README.md"
 description = "Threshold BLS, threshold Schnorr and DKG protocols"
 repository = "https://github.com/MystenLabs/fastcrypto"
+# Lean proofs, see verification/README.md.
+exclude = ["verification"]
 
 [dependencies]
 fastcrypto = { workspace = true, features = ["aes"] }
@@ -58,3 +60,7 @@ harness = false
 [features]
 default = []
 experimental = []
+
+[lints.rust]
+# Set when Charon translates this crate for Aeneas, see verification/lean.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(aeneas)"] }

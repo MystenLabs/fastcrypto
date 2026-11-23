@@ -40,8 +40,14 @@ use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tap::TapFallible;
+#[cfg(not(aeneas))]
 use tracing::warn;
+
+// Aeneas cannot translate `tracing`'s macros, so its translation of this module drops the logging.
+#[cfg(aeneas)]
+macro_rules! warn {
+    ($($t:tt)*) => {};
+}
 
 pub struct Dealer {
     nodes: Nodes<EG>,
@@ -140,8 +146,15 @@ impl SharesForNode {
         self.shares.len()
     }
 
+    // A loop rather than `Iterator::find`, which Aeneas does not translate.
+    #[allow(clippy::manual_find)]
     pub fn share_for_index(&self, index: ShareIndex) -> Option<&Eval<S>> {
-        self.shares.iter().find(|s| s.index == index)
+        for s in &self.shares {
+            if s.index.get() == index.get() {
+                return Some(s);
+            }
+        }
+        None
     }
 
     /// Verify a set of shares received from a Dealer: that the share indices are exactly
@@ -154,12 +167,13 @@ impl SharesForNode {
     ) -> FastCryptoResult<()> {
         // TODO: this function returns an error both in case verify failed and in case there is a bug in the impl.
         // For now we assume that impl bugs are detected by the tests.
-        if !self
-            .shares
-            .iter()
-            .map(|s| s.index)
-            .eq(expected_share_ids.iter().copied())
-        {
+        let mut indices_match = self.shares.len() == expected_share_ids.len();
+        for (share, id) in self.shares.iter().zip(expected_share_ids.iter()) {
+            if share.index.get() != id.get() {
+                indices_match = false;
+            }
+        }
+        if !indices_match {
             warn!(
                 "AVSS SharesForNode::verify: share indices do not match the receiver's assigned indices for receiver {}",
                 receiver,
@@ -168,15 +182,16 @@ impl SharesForNode {
         }
         for share in &self.shares {
             // TODO[possible optimization]: all shares can be verified at once
-            message
+            if let Err(e) = message
                 .feldman_commitment
                 .verify_share(share.index, &share.value)
-                .tap_err(|e| {
-                    warn!(
-                        "AVSS SharesForNode::verify: cryptographic share verification failed for receiver {}: {e:?}",
-                        receiver,
-                    );
-                })?
+            {
+                warn!(
+                    "AVSS SharesForNode::verify: cryptographic share verification failed for receiver {}: {e:?}",
+                    receiver,
+                );
+                return Err(e);
+            }
         }
         Ok(())
     }
@@ -187,15 +202,23 @@ impl SharesForNode {
         threshold: u16,
         other_shares: &[Self],
     ) -> FastCryptoResult<Self> {
-        if !indices.iter().all_unique() {
+        let mut index_values = Vec::new();
+        for index in &indices {
+            index_values.push(index.get());
+        }
+        if !all_distinct(&index_values) {
             return Err(InvalidInput);
         }
 
-        let evaluations = other_shares
-            .iter()
-            .flat_map(|share| share.shares.iter().cloned())
-            .collect_vec();
-        if !evaluations.iter().map(|e| e.index).all_unique() {
+        let mut evaluations = Vec::new();
+        let mut evaluation_indices = Vec::new();
+        for share in other_shares {
+            for e in &share.shares {
+                evaluations.push(e.clone());
+                evaluation_indices.push(e.index.get());
+            }
+        }
+        if !all_distinct(&evaluation_indices) {
             return Err(InvalidInput);
         }
         if evaluations.len() < threshold as usize {
@@ -203,15 +226,12 @@ impl SharesForNode {
                 "Not enough valid responses".to_string(),
             ));
         }
-        let evaluations = evaluations
-            .into_iter()
-            .take(threshold as usize)
-            .collect_vec();
+        evaluations.truncate(threshold as usize);
 
-        let shares = indices
-            .into_iter()
-            .map(|index| Poly::recover_at(threshold, index, &evaluations))
-            .collect::<FastCryptoResult<Vec<_>>>()?;
+        let mut shares = Vec::new();
+        for index in indices {
+            shares.push(Poly::recover_at(threshold, index, &evaluations)?);
+        }
 
         Ok(Self { shares })
     }
@@ -376,6 +396,35 @@ impl Receiver {
     /// ([InvalidMessage]): the message is malformed and should be ignored. `Err` ([InvalidInput]):
     /// the dealing does not match this receiver's `commitment`.
     pub fn verify_message(&self, message: &Message) -> FastCryptoResult<Option<AvssOutput>> {
+        self.check_message(message)?;
+
+        let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
+        let plaintext = message.ciphertext.decrypt(
+            &self.enc_secret_key,
+            &random_oracle_encryption,
+            self.id as usize,
+        );
+
+        let my_shares = match SharesForNode::from_bytes(&plaintext) {
+            Ok(my_shares) => my_shares,
+            Err(_) => return Ok(None),
+        };
+        let my_share_ids = match self.nodes.share_ids_of(self.id) {
+            Ok(ids) => ids,
+            Err(_) => return Ok(None),
+        };
+        if my_shares.verify(message, &my_share_ids, self.id).is_err() {
+            return Ok(None);
+        }
+        Ok(Some(AvssOutput {
+            my_shares,
+            feldman_commitment: message.feldman_commitment.clone(),
+        }))
+    }
+
+    /// The checks of [Self::verify_message] on the message itself. They use only this receiver's
+    /// `nodes`, `params`, `sid` and `commitment`, so receivers configured alike agree on them.
+    fn check_message(&self, message: &Message) -> FastCryptoResult<()> {
         if message.feldman_commitment.degree() + 1 != self.params.t as usize
             || !message.feldman_commitment.is_reduced()
         {
@@ -410,23 +459,7 @@ impl Receiver {
                 warn!("AVSS verify_message: ciphertext verification failed: {e:?}");
                 InvalidMessage
             })?;
-
-        let plaintext = message.ciphertext.decrypt(
-            &self.enc_secret_key,
-            &random_oracle_encryption,
-            self.id as usize,
-        );
-
-        match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
-            my_shares.verify(message, &self.nodes.share_ids_of(self.id)?, self.id)?;
-            Ok(my_shares)
-        }) {
-            Ok(my_shares) => Ok(Some(AvssOutput {
-                my_shares,
-                feldman_commitment: message.feldman_commitment.clone(),
-            })),
-            Err(_) => Ok(None),
-        }
+        Ok(())
     }
 
     /// Build a complaint proving this receiver got invalid shares. This reveals this receiver's
@@ -470,6 +503,21 @@ impl Receiver {
             return Err(InvalidInput);
         }
         let accuser_share_ids = self.nodes.share_ids_of(accuser_id)?;
+        self.check_recovery_proof(message, accuser_id, complaint, &accuser_share_ids)?;
+        Ok(ComplaintResponse {
+            shares: my_output.my_shares.clone(),
+        })
+    }
+
+    /// Check the recovery proof of `accuser_id`'s complaint: that it decrypts the accuser's shares
+    /// and that they fail to verify for `accuser_share_ids`.
+    fn check_recovery_proof(
+        &self,
+        message: &Message,
+        accuser_id: PartyId,
+        complaint: &Complaint,
+        accuser_share_ids: &[ShareIndex],
+    ) -> FastCryptoResult<()> {
         complaint.proof.check(
             accuser_id,
             &self.nodes.node_id_to_node(accuser_id)?.pk,
@@ -480,11 +528,8 @@ impl Receiver {
                 .ok_or(InvalidInput)?, // Should never happen if the message has been validated.
             &message.ciphertext.shared(),
             &self.random_oracle(),
-            |shares: &SharesForNode| shares.verify(message, &accuser_share_ids, accuser_id),
-        )?;
-        Ok(ComplaintResponse {
-            shares: my_output.my_shares.clone(),
-        })
+            |shares: &SharesForNode| shares.verify(message, accuser_share_ids, accuser_id),
+        )
     }
 
     /// Verify a [ComplaintResponse] received from `responder_id` against the dealer's `message`,
@@ -528,30 +573,44 @@ impl Receiver {
             }
         }
 
-        if !responses.iter().map(|r| r.responder_id).all_unique() {
+        let mut responders = Vec::new();
+        for r in &responses {
+            responders.push(r.responder_id);
+        }
+        if !all_distinct(&responders) {
             return Err(InvalidInput);
         }
 
-        let total_response_weight = self
-            .nodes
-            .total_weight_of(responses.iter().map(|r| &r.responder_id))?;
+        let mut total_response_weight: u16 = 0;
+        let mut unknown_responder = false;
+        for responder in &responders {
+            match self.nodes.weight_of(*responder) {
+                Ok(w) => total_response_weight += w,
+                Err(_) => unknown_responder = true,
+            }
+        }
+        if unknown_responder {
+            return Err(InvalidInput);
+        }
         if total_response_weight < self.params.t {
             return Err(FastCryptoError::InputTooShort(self.params.t as usize));
         }
 
-        let valid_shares = responses.into_iter().map(|r| r.shares).collect_vec();
+        let mut valid_shares = Vec::new();
+        for r in responses {
+            valid_shares.push(r.shares);
+        }
         let my_shares = SharesForNode::recover(self.my_indices(), self.params.t, &valid_shares)?;
 
         // Interpolating shares that were verified against this message yields valid shares, so
         // this final verification is defense-in-depth. A failure means the responses were not all
         // verified against this message.
-        my_shares
-            .verify(message, &self.my_indices(), self.id)
-            .tap_err(|e| {
-                warn!(
-                    "AVSS recover: recovered shares failed verification, so the responses were not all verified against this message: {e:?}"
-                );
-            })?;
+        if let Err(e) = my_shares.verify(message, &self.my_indices(), self.id) {
+            warn!(
+                "AVSS recover: recovered shares failed verification, so the responses were not all verified against this message: {e:?}"
+            );
+            return Err(e);
+        }
 
         Ok(AvssOutput {
             my_shares,
@@ -579,8 +638,15 @@ impl DkOutput {
         self.my_shares.share_for_index(index)
     }
 
+    // A loop rather than `Iterator::find`, which Aeneas does not translate.
+    #[allow(clippy::manual_find)]
     pub fn commitment_for_index(&self, index: ShareIndex) -> Option<&Eval<G>> {
-        self.commitments.iter().find(|c| c.index == index)
+        for c in &self.commitments {
+            if c.index.get() == index.get() {
+                return Some(c);
+            }
+        }
+        None
     }
 
     /// Combine multiple AVSS outputs from different dealers into a single output by summing.
@@ -659,58 +725,58 @@ impl DkOutput {
         if outputs.is_empty() {
             return Err(InvalidInput);
         }
-        if !outputs.iter().map(|output| output.index).all_unique() {
+        let mut output_indices = Vec::new();
+        let mut output_index_values = Vec::new();
+        for output in outputs {
+            output_indices.push(output.index);
+            output_index_values.push(output.index.get());
+        }
+        if !all_distinct(&output_index_values) {
             return Err(InvalidInput);
         }
 
         let my_indices = nodes.share_ids_of(my_id)?;
 
-        let lagrange_coefficients: Vec<S> = Poly::<G>::get_lagrange_coefficients_for_c0::<S>(
-            t,
-            outputs.iter().map(|output| output.index),
-        )
-        .map(|c| c.1.iter().map(|s| s * c.0).collect_vec())?;
+        let (c, lambdas) =
+            Poly::<G>::get_lagrange_coefficients_for_c0::<S>(t, output_indices.iter())?;
+        let mut lagrange_coefficients: Vec<S> = Vec::new();
+        for lambda in &lambdas {
+            lagrange_coefficients.push(lambda * c);
+        }
 
-        let feldman_commitment = Poly::multi_scalar_mul(
-            &outputs
-                .iter()
-                .map(|output| output.value.feldman_commitment.clone())
-                .collect_vec(),
-            &lagrange_coefficients,
-        )?;
+        let mut output_commitments = Vec::new();
+        let mut output_c0s = Vec::new();
+        for output in outputs {
+            output_commitments.push(output.value.feldman_commitment.clone());
+            output_c0s.push(output.value.feldman_commitment.c0());
+        }
+        let feldman_commitment =
+            Poly::multi_scalar_mul(&output_commitments, &lagrange_coefficients)?;
 
         let commitments = feldman_commitment.eval_range(nodes.total_weight()).to_vec();
 
-        let shares = my_indices
-            .iter()
-            .map(|&index| {
-                let terms = outputs
-                    .iter()
-                    .zip(&lagrange_coefficients)
-                    .map(|(output, coeff)| {
-                        Ok(output
-                            .value
-                            .share_for_index(index)
-                            .ok_or(InvalidInput)?
-                            .value
-                            * coeff)
-                    })
-                    .collect::<FastCryptoResult<Vec<_>>>()?;
-                Ok(Eval {
-                    index,
-                    value: S::sum(terms.into_iter()),
-                })
-            })
-            .collect::<FastCryptoResult<Vec<_>>>()?;
+        // Each share is the sum of the outputs' shares at its index, weighted by the Lagrange
+        // coefficients.
+        let mut shares = Vec::new();
+        let mut missing_share = false;
+        for index in &my_indices {
+            let mut value = S::zero();
+            for (output, coeff) in outputs.iter().zip(&lagrange_coefficients) {
+                match output.value.share_for_index(*index) {
+                    Some(share) => value += share.value * coeff,
+                    None => missing_share = true,
+                }
+            }
+            shares.push(Eval {
+                index: *index,
+                value,
+            });
+        }
+        if missing_share {
+            return Err(InvalidInput);
+        }
 
-        let vk = G::multi_scalar_mul(
-            &lagrange_coefficients,
-            outputs
-                .iter()
-                .map(|o| o.value.feldman_commitment.c0())
-                .collect_vec()
-                .as_slice(),
-        )?;
+        let vk = G::multi_scalar_mul(&lagrange_coefficients, &output_c0s)?;
 
         Ok(Self {
             my_shares: SharesForNode { shares },
@@ -774,6 +840,18 @@ impl AvssOutput {
     }
 }
 
+/// Whether `values` are distinct.
+fn all_distinct(values: &[u16]) -> bool {
+    let mut seen = vec![false; 1 << 16];
+    let mut distinct = true;
+    for v in values {
+        if seen[*v as usize] {
+            distinct = false;
+        }
+        seen[*v as usize] = true;
+    }
+    distinct
+}
 #[cfg(test)]
 mod tests {
     use crate::ecies_v1;
