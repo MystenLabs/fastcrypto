@@ -1,27 +1,87 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Tests for the fastcrypto trait layer over ML-DSA-65.
+//! Tests for the fastcrypto trait layer over ML-DSA-65: decoding, serialization, key handling, the
+//! empty context and the error mapping. FIPS 204 itself (signature encoding, norm and hint bounds,
+//! byte-exact signing, agreement of the portable and assembly backends) is tested in
+//! mysten-mldsa-native-rs.
 
 use std::collections::hash_map::DefaultHasher;
+use std::collections::BTreeSet;
+use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
+use mysten_mldsa_native_rs as mldsa;
+use once_cell::sync::Lazy;
+use proptest::prelude::*;
 use rand::rngs::StdRng;
-use rand::SeedableRng as _;
+use rand::{RngCore, SeedableRng as _};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use fastcrypto::encoding::{Base64, Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
+use fastcrypto::hash::{HashFunction, Sha256};
+use fastcrypto::slip10::{derive_hardened, Slip10MasterKey, MAX_SEED_LENGTH, MIN_SEED_LENGTH};
 use fastcrypto::traits::{
     EncodeDecodeBase64, InsecureDefault, KeyPair, Signer, ToFromBytes, VerifyingKey,
 };
 
 use crate::mldsa65::{
-    MLDSA65KeyPair, MLDSA65PrivateKey, MLDSA65PublicKey, MLDSA65Signature,
-    MLDSA65_PRIVATE_KEY_LENGTH, MLDSA65_PUBLIC_KEY_LENGTH, MLDSA65_SIGNATURE_LENGTH,
+    MLDSA65KeyPair, MLDSA65PrivateKey, MLDSA65PublicKey, MLDSA65PublicKeyAsBytes, MLDSA65Signature,
+    MLDSA65SignatureAsBytes, MLDSA65_KEYPAIR_LENGTH, MLDSA65_PRIVATE_KEY_LENGTH,
+    MLDSA65_PUBLIC_KEY_LENGTH, MLDSA65_SIGNATURE_LENGTH,
 };
+use crate::slip10::derive_mldsa65_keypair;
+
+//
+// Helper functions
+//
 
 const MSG: &[u8] = b"Hello, world!";
+
+const SK_LENGTH: usize = MLDSA65_PRIVATE_KEY_LENGTH;
+const PK_LENGTH: usize = MLDSA65_PUBLIC_KEY_LENGTH;
+const SIG_LENGTH: usize = MLDSA65_SIGNATURE_LENGTH;
+
+/// A case of the cross-stack interop vectors, produced by the ts wallet stack
+/// (`@noble/post-quantum` 0.6.1).
+#[derive(serde::Deserialize)]
+struct TsCase {
+    name: String,
+    #[serde(deserialize_with = "hex_bytes")]
+    seed: Vec<u8>,
+    #[serde(deserialize_with = "hex_bytes")]
+    msg: Vec<u8>,
+    #[serde(deserialize_with = "hex_bytes")]
+    ctx: Vec<u8>,
+    #[serde(deserialize_with = "hex_bytes")]
+    rnd: Vec<u8>,
+    #[serde(deserialize_with = "hex_bytes")]
+    pk: Vec<u8>,
+    #[serde(deserialize_with = "hex_bytes")]
+    sig: Vec<u8>,
+}
+
+static TS_CASES: Lazy<Vec<TsCase>> = Lazy::new(|| {
+    #[derive(serde::Deserialize)]
+    struct Vectors {
+        scheme: String,
+        producer: String,
+        cases: Vec<TsCase>,
+    }
+    let vectors: Vectors = serde_json::from_str(include_str!("ts_interop_vectors.json")).unwrap();
+    assert_eq!(vectors.scheme, "ML-DSA-65");
+    assert_eq!(vectors.producer, "@noble/post-quantum");
+    assert_eq!(vectors.cases.len(), 5, "the vector file changed shape");
+    vectors.cases
+});
+
+fn hex_bytes<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
+    let s = <String as serde::Deserialize>::deserialize(deserializer)?;
+    Hex::decode(&s).map_err(serde::de::Error::custom)
+}
 
 fn keys() -> Vec<MLDSA65KeyPair> {
     let mut rng = StdRng::from_seed([0u8; 32]);
@@ -30,365 +90,237 @@ fn keys() -> Vec<MLDSA65KeyPair> {
 
 /// A key pair from a fixed seed
 fn keypair_from_seed(byte: u8) -> MLDSA65KeyPair {
-    MLDSA65PrivateKey::from_bytes(&[byte; MLDSA65_PRIVATE_KEY_LENGTH])
-        .unwrap()
-        .into()
+    MLDSA65KeyPair::from_bytes(&[byte; SK_LENGTH]).unwrap()
 }
 
-#[test]
-fn sign_verify_roundtrip() {
-    let keypair = keys().pop().unwrap();
-    let signature = keypair.sign(MSG);
-    assert!(keypair.public().verify(MSG, &signature).is_ok());
+fn json(bytes: &[u8]) -> String {
+    format!("\"{}\"", Base64::encode(bytes))
 }
 
-#[test]
-fn verify_rejects_wrong_message_and_wrong_key() {
-    let keypair = keys().pop().unwrap();
-    let other = keypair_from_seed(9);
-    let signature = keypair.sign(MSG);
-
-    assert_eq!(
-        keypair.public().verify(b"Hello, world?", &signature),
-        Err(FastCryptoError::InvalidSignature)
-    );
-    assert_eq!(
-        other.public().verify(MSG, &signature),
-        Err(FastCryptoError::InvalidSignature)
-    );
+fn hash(value: &impl Hash) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
 }
 
-#[test]
-fn verify_rejects_tampered_signature() {
-    let keypair = keys().pop().unwrap();
-    let signature = keypair.sign(MSG);
-
-    // Flip a bit in each region of the FIPS 204 encoding (c~, z, hints), not just the head.
-    for offset in [
-        0,
-        MLDSA65_SIGNATURE_LENGTH / 2,
-        MLDSA65_SIGNATURE_LENGTH - 1,
-    ] {
-        let mut bytes = signature.as_ref().to_vec();
-        bytes[offset] ^= 1;
-        let tampered = MLDSA65Signature::from_bytes(&bytes).unwrap();
-        assert_eq!(
-            keypair.public().verify(MSG, &tampered),
-            Err(FastCryptoError::InvalidSignature),
-            "tampering at offset {offset} was accepted"
-        );
-    }
-}
-
-#[test]
-fn signing_is_hedged() {
-    // Signing draws fresh randomness per call (the FIPS 204 default), so two signatures over
-    // the same message differ while both verify. Deterministic signing does not guarantee signature uniqueness.
-    let keypair = keys().pop().unwrap();
-    let first = keypair.sign(MSG);
-    let second = keypair.sign(MSG);
-    assert_ne!(first, second);
-    assert!(keypair.public().verify(MSG, &first).is_ok());
-    assert!(keypair.public().verify(MSG, &second).is_ok());
-}
-
-#[test]
-fn private_key_is_the_seed_and_expansion_is_deterministic() {
-    // The private key's serialized form is the 32-byte FIPS 204 seed, and FIPS 204 fixes the
-    // seed to key expansion. The core idea is: wallets store the seed, and
-    // the same recovery phrase must yield the same account everywhere.
-    let seed = [7u8; MLDSA65_PRIVATE_KEY_LENGTH];
-    let first = MLDSA65PrivateKey::from_bytes(&seed).unwrap();
-    let second = MLDSA65PrivateKey::from_bytes(&seed).unwrap();
-
-    assert_eq!(first.as_ref(), &seed);
-    assert_eq!(first, second);
-    assert_eq!(
-        MLDSA65PublicKey::from(&first),
-        MLDSA65PublicKey::from(&second)
-    );
-}
-
-#[test]
-fn keypair_bytes_are_only_the_private_key() {
-    // Deserializing a keypair always re-derives the public key rather than trusting bytes
-    // on the wire
-    let keypair = keys().pop().unwrap();
-    assert_eq!(keypair.as_ref().len(), MLDSA65_PRIVATE_KEY_LENGTH);
-
-    let restored = MLDSA65KeyPair::from_bytes(keypair.as_ref()).unwrap();
-    assert_eq!(restored.public(), keypair.public());
-    assert!(restored.public().verify(MSG, &restored.sign(MSG)).is_ok());
-}
-
-#[test]
-fn to_from_bytes_roundtrip() {
-    let keypair = keys().pop().unwrap();
-    let signature = keypair.sign(MSG);
-
-    let pk = MLDSA65PublicKey::from_bytes(keypair.public().as_ref()).unwrap();
-    assert_eq!(&pk, keypair.public());
-
-    let sig = MLDSA65Signature::from_bytes(signature.as_ref()).unwrap();
-    assert_eq!(sig, signature);
-
-    let sk = MLDSA65PrivateKey::from_bytes(keypair.as_ref()).unwrap();
-    assert_eq!(sk.as_ref(), keypair.as_ref());
-}
-
-#[test]
-fn from_bytes_rejects_wrong_lengths() {
-    let keypair = keys().pop().unwrap();
-    let signature = keypair.sign(MSG);
-
-    for len in [
-        0,
-        MLDSA65_PUBLIC_KEY_LENGTH - 1,
-        MLDSA65_PUBLIC_KEY_LENGTH + 1,
-    ] {
-        assert!(MLDSA65PublicKey::from_bytes(&vec![0u8; len]).is_err());
-    }
-    for len in [
-        0,
-        MLDSA65_SIGNATURE_LENGTH - 1,
-        MLDSA65_SIGNATURE_LENGTH + 1,
-    ] {
-        assert!(MLDSA65Signature::from_bytes(&vec![0u8; len]).is_err());
-    }
-    for len in [
-        0,
-        MLDSA65_PRIVATE_KEY_LENGTH - 1,
-        MLDSA65_PRIVATE_KEY_LENGTH + 1,
-    ] {
-        assert!(MLDSA65PrivateKey::from_bytes(&vec![0u8; len]).is_err());
-    }
-
-    // A correct-length signature that is not a valid encoding parses but must not verify.
-    let mut bytes = signature.as_ref().to_vec();
-    bytes.iter_mut().for_each(|b| *b = 0xff);
-    if let Ok(sig) = MLDSA65Signature::from_bytes(&bytes) {
-        assert!(keypair.public().verify(MSG, &sig).is_err());
-    }
-}
-
-#[test]
-fn serialize_deserialize() {
-    let keypair = keys().pop().unwrap();
-    let signature = keypair.sign(MSG);
-
-    verify_serialization(keypair.public(), Some(keypair.public().as_ref()));
-    verify_serialization(&signature, Some(signature.as_ref()));
-
-    // The secret side serializes as the 32-byte seed
-    let private = keypair.copy().private();
-    verify_serialization(&private, Some(private.as_ref()));
-    let kp_bytes = bincode::serialize(&keypair).unwrap();
-    assert_eq!(kp_bytes, keypair.as_ref());
-    let restored: MLDSA65KeyPair = bincode::deserialize(&kp_bytes).unwrap();
-    assert_eq!(restored.public(), keypair.public());
-    assert_eq!(restored.as_ref(), keypair.as_ref());
-}
-
-/// Mirrors `fastcrypto::tests::test_helpers::verify_serialization`
-fn verify_serialization<T>(obj: &T, expected: Option<&[u8]>)
+/// Mirrors `fastcrypto::tests::test_helpers::verify_serialization`. The binary formats are the raw
+/// bytes and JSON is their base64 form.
+fn verify_serialization<T>(obj: &T, expected: &[u8])
 where
-    T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
+    T: Serialize + DeserializeOwned + PartialEq + Debug,
 {
-    let bytes = bincode::serialize(obj).unwrap();
-    let restored: T = bincode::deserialize(&bytes).unwrap();
-    if let Some(exp) = expected {
-        assert_eq!(bytes, exp);
+    assert_eq!(bincode::serialize(obj).unwrap(), expected);
+    assert_eq!(*obj, bincode::deserialize(expected).unwrap());
+    assert_eq!(bcs::to_bytes(obj).unwrap(), expected);
+    assert_eq!(*obj, bcs::from_bytes(expected).unwrap());
+    assert_eq!(serde_json::to_string(obj).unwrap(), json(expected));
+    assert_eq!(*obj, serde_json::from_str(&json(expected)).unwrap());
+}
+
+/// Every way to decode `T` accepts `bytes` if and only if there are `N` of them, and keeps them.
+fn check_decoding<T, const N: usize>(bytes: &[u8])
+where
+    T: ToFromBytes + Serialize + DeserializeOwned + PartialEq + Debug,
+{
+    let from_bytes = T::from_bytes(bytes);
+    let from_base64 = T::decode_base64(&Base64::encode(bytes));
+    let from_bcs = bcs::from_bytes::<T>(bytes);
+    let from_json = serde_json::from_str::<T>(&json(bytes));
+    if bytes.len() == N {
+        let decoded = from_bytes.unwrap();
+        assert_eq!(decoded.as_ref(), bytes);
+        assert_eq!(decoded, from_base64.unwrap());
+        assert_eq!(decoded, from_bcs.unwrap());
+        assert_eq!(decoded, from_json.unwrap());
+        verify_serialization(&decoded, bytes);
+    } else {
+        assert_eq!(from_bytes.unwrap_err(), FastCryptoError::InvalidInput);
+        assert!(from_base64.is_err());
+        assert!(from_bcs.is_err());
+        assert!(from_json.is_err());
     }
-    assert_eq!(*obj, restored);
-    // bincode and bcs must agree, so either can be swapped in later.
-    assert_eq!(bytes, bcs::to_bytes(obj).unwrap());
-    assert_eq!(restored, bcs::from_bytes::<T>(&bytes).unwrap());
+}
+
+/// [check_decoding] for all types, including the `*AsBytes` ones.
+fn check_decoding_all(bytes: &[u8]) {
+    check_decoding::<MLDSA65PrivateKey, SK_LENGTH>(bytes);
+    check_decoding::<MLDSA65KeyPair, SK_LENGTH>(bytes);
+    check_decoding::<MLDSA65PublicKey, PK_LENGTH>(bytes);
+    check_decoding::<MLDSA65Signature, SIG_LENGTH>(bytes);
+
+    let pk = bcs::from_bytes::<MLDSA65PublicKeyAsBytes>(bytes);
+    let pk_json = serde_json::from_str::<MLDSA65PublicKeyAsBytes>(&json(bytes));
+    assert_eq!(pk.is_ok(), bytes.len() == PK_LENGTH);
+    assert_eq!(pk.clone().ok(), pk_json.ok());
+    if let Ok(pk) = pk {
+        verify_serialization(&pk, bytes);
+        let decoded = MLDSA65PublicKey::try_from(&pk).unwrap();
+        assert_eq!(decoded.as_ref(), bytes);
+        assert_eq!(MLDSA65PublicKeyAsBytes::from(&decoded), pk);
+    }
+
+    let sig = bcs::from_bytes::<MLDSA65SignatureAsBytes>(bytes);
+    let sig_json = serde_json::from_str::<MLDSA65SignatureAsBytes>(&json(bytes));
+    assert_eq!(sig.is_ok(), bytes.len() == SIG_LENGTH);
+    assert_eq!(sig.clone().ok(), sig_json.ok());
+    if let Ok(sig) = sig {
+        verify_serialization(&sig, bytes);
+        let decoded = MLDSA65Signature::try_from(&sig).unwrap();
+        assert_eq!(decoded.as_ref(), bytes);
+        assert_eq!(MLDSA65SignatureAsBytes::from(&decoded), sig);
+    }
+}
+
+/// The result of verifying raw bytes.
+fn verify(pk: &[u8], msg: &[u8], sig: &[u8]) -> Result<(), FastCryptoError> {
+    MLDSA65PublicKey::from_bytes(pk)?.verify(msg, &MLDSA65Signature::from_bytes(sig)?)
+}
+
+//
+// Serialization tests
+//
+
+#[test]
+fn lengths_match_the_scheme() {
+    assert_eq!(MLDSA65_PRIVATE_KEY_LENGTH, 32);
+    assert_eq!(MLDSA65_KEYPAIR_LENGTH, 32);
+    assert_eq!(MLDSA65_PUBLIC_KEY_LENGTH, 1952);
+    assert_eq!(MLDSA65_SIGNATURE_LENGTH, 3309);
 }
 
 #[test]
-fn serde_human_readable_is_base64() {
-    let keypair = keys().pop().unwrap();
-    let signature = keypair.sign(MSG);
-
-    let json = serde_json::to_string(&signature).unwrap();
-    assert_eq!(json, format!("\"{}\"", Base64::encode(signature.as_ref())));
-    let restored: MLDSA65Signature = serde_json::from_str(&json).unwrap();
-    assert_eq!(restored, signature);
-
-    let json = serde_json::to_string(keypair.public()).unwrap();
-    assert_eq!(
-        json,
-        format!("\"{}\"", Base64::encode(keypair.public().as_ref()))
-    );
-}
-
-#[test]
-fn base64_encode_decode_roundtrip() {
-    let keypair = keys().pop().unwrap();
-    let encoded = keypair.public().encode_base64();
-    let decoded = MLDSA65PublicKey::decode_base64(&encoded).unwrap();
-    assert_eq!(&decoded, keypair.public());
-
-    assert!(MLDSA65PublicKey::decode_base64("not base64!").is_err());
-}
-
-#[test]
-fn keypair_from_str_roundtrip() {
-    let keypair = keys().pop().unwrap();
-    let encoded = keypair.encode_base64();
-    let restored = MLDSA65KeyPair::from_str(&encoded).unwrap();
-    assert_eq!(restored.public(), keypair.public());
-}
-
-#[test]
-fn copy_key_pair_preserves_identity() {
-    let keypair = keys().pop().unwrap();
-    let copied = keypair.copy();
-    assert_eq!(copied.public(), keypair.public());
-    assert_eq!(copied.as_ref(), keypair.as_ref());
-    assert!(keypair.public().verify(MSG, &copied.sign(MSG)).is_ok());
-}
-
-#[test]
-fn generate_is_random() {
-    let generated = keys();
-    for (i, a) in generated.iter().enumerate() {
-        for b in generated.iter().skip(i + 1) {
-            assert_ne!(a.public(), b.public());
+fn decoding_accepts_exactly_one_length() {
+    for len in [SK_LENGTH, PK_LENGTH, SIG_LENGTH] {
+        for len in [0, len - 1, len, len + 1, 2 * len] {
+            // All values of the right length are accepted, also when they aren't valid encodings of
+            // a signature: those are only rejected by verify.
+            check_decoding_all(&vec![0; len]);
+            check_decoding_all(&vec![0xff; len]);
         }
     }
+
+    // The encodings of a public key and a signature don't decode as one, in either order.
+    let keypair = keypair_from_seed(1);
+    let sig = keypair.sign(MSG);
+    check_decoding_all(&[keypair.public().as_ref(), sig.as_ref()].concat());
+    check_decoding_all(&[sig.as_ref(), keypair.public().as_ref()].concat());
 }
 
 #[test]
-fn insecure_default_is_not_a_usable_key() {
-    let default = MLDSA65PublicKey::insecure_default();
-    assert_eq!(default.as_ref(), &[0u8; MLDSA65_PUBLIC_KEY_LENGTH]);
+fn base64_is_strict() {
+    // The last two bytes are encoded as "+/s=", where the lowest two bits of "s" are unused.
+    let encoded = Base64::encode([0xfb; PK_LENGTH]);
+    let public = MLDSA65PublicKey::decode_base64(&encoded).unwrap();
+    assert_eq!(public.as_ref(), [0xfb; PK_LENGTH]);
+    assert_eq!(public.encode_base64(), encoded);
 
-    let keypair = keys().pop().unwrap();
+    let without_end = encoded.strip_suffix("s=").unwrap();
+    for invalid in [
+        "not base64!".to_string(),
+        format!("{without_end}s"),
+        format!("{without_end}t="),
+        format!("{encoded}="),
+        format!("{encoded}\n"),
+        format!(" {encoded}"),
+        encoded.replace('+', "-"),
+        encoded.replace('/', "_"),
+    ] {
+        assert!(MLDSA65PublicKey::decode_base64(&invalid).is_err());
+        assert!(serde_json::from_value::<MLDSA65PublicKey>(invalid.into()).is_err());
+    }
+}
+
+#[test]
+fn public_key_ordering_and_hashing_follow_the_bytes() {
+    let mut keypairs = keys();
+    keypairs.sort_by(|a, b| a.public().as_ref().cmp(b.public().as_ref()));
+    let sorted: BTreeSet<_> = keypairs.iter().map(|kp| kp.public().clone()).collect();
+    assert!(sorted.iter().eq(keypairs.iter().map(|kp| kp.public())));
+
+    // Keys that differ only in the last byte
+    let pk = MLDSA65PublicKey::from_bytes(&[0; PK_LENGTH]).unwrap();
+    let mut bytes = [0; PK_LENGTH];
+    bytes[PK_LENGTH - 1] = 1;
+    let next = MLDSA65PublicKey::from_bytes(&bytes).unwrap();
+    assert!(pk < next);
+    assert_ne!(pk, next);
+    assert_ne!(hash(&pk), hash(&next));
     assert_eq!(
-        default.verify(MSG, &keypair.sign(MSG)),
-        Err(FastCryptoError::InvalidSignature)
+        hash(&pk),
+        hash(&MLDSA65PublicKey::from_bytes(pk.as_ref()).unwrap())
     );
-}
-
-#[test]
-fn public_key_ordering_and_hashing() {
-    let keypair = keys().pop().unwrap();
-    let same = MLDSA65PublicKey::from_bytes(keypair.public().as_ref()).unwrap();
-
-    let hash = |pk: &MLDSA65PublicKey| {
-        let mut h = DefaultHasher::new();
-        pk.hash(&mut h);
-        h.finish()
-    };
-    assert_eq!(hash(keypair.public()), hash(&same));
-    assert_eq!(keypair.public().cmp(&same), std::cmp::Ordering::Equal);
 }
 
 #[test]
 fn debug_output_is_redacted_for_secrets() {
     let keypair = keys().pop().unwrap();
-
-    // Secret material must never appear in formatted output.
-    let private = keypair.copy().private();
-    assert!(!format!("{private:?}").contains(&Base64::encode(keypair.as_ref())));
+    let signature = keypair.sign(MSG);
+    let secret = Base64::encode(keypair.as_ref());
 
     // Public types print their base64 form, which assertion failures rely on.
-    assert_eq!(
-        format!("{:?}", keypair.public()),
-        Base64::encode(keypair.public().as_ref())
-    );
+    let public = Base64::encode(keypair.public().as_ref());
+    assert_eq!(format!("{:?}", keypair.public()), public);
+    assert_eq!(format!("{}", keypair.public()), public);
+    assert_eq!(format!("{signature:?}"), Base64::encode(signature.as_ref()));
+    assert_eq!(format!("{signature}"), Base64::encode(signature.as_ref()));
+
+    // Secret material must never appear in formatted output.
+    assert!(!format!("{keypair:?}").contains(&secret));
+    let private = keypair.private();
+    assert!(!format!("{private:?}").contains(&secret));
+    assert!(!format!("{private}").contains(&secret));
 }
 
-/// Cross-stack interop vectors, produced by the ts wallet stack (`@noble/post-quantum` 0.6.1)
+//
+// Key tests
+//
+
 #[test]
-fn matches_typescript_interop_vectors() {
-    use mysten_mldsa_native_rs as mldsa;
+fn generate_is_random() {
+    let generated: BTreeSet<_> = keys().iter().map(|kp| kp.public().clone()).collect();
+    assert_eq!(generated.len(), keys().len());
+}
 
-    #[derive(serde::Deserialize)]
-    struct Case {
-        name: String,
-        seed: String,
-        msg: String,
-        ctx: String,
-        rnd: String,
-        pk: String,
-        sig: String,
-    }
-    #[derive(serde::Deserialize)]
-    struct Vectors {
-        scheme: String,
-        producer: String,
-        cases: Vec<Case>,
-    }
+/// The private key is the 32-byte FIPS 204 seed and the public key is always derived from it: the
+/// same recovery phrase must yield the same account everywhere.
+#[test]
+fn key_pairs_are_determined_by_the_seed() {
+    let seed = [7u8; SK_LENGTH];
+    let keypair = MLDSA65KeyPair::from_bytes(&seed).unwrap();
+    let private = MLDSA65PrivateKey::from_bytes(&seed).unwrap();
+    assert_eq!(private.as_ref(), &seed);
+    assert_eq!(&MLDSA65PublicKey::from(&private), keypair.public());
 
-    let vectors: Vectors = serde_json::from_str(include_str!("ts_interop_vectors.json")).unwrap();
-    assert_eq!(vectors.scheme, "ML-DSA-65");
-    assert_eq!(vectors.producer, "@noble/post-quantum");
-    assert_eq!(vectors.cases.len(), 5, "the vector file changed shape");
-
-    for case in &vectors.cases {
-        let seed = Hex::decode(&case.seed).unwrap();
-        let msg = Hex::decode(&case.msg).unwrap();
-        let ctx = Hex::decode(&case.ctx).unwrap();
-        let rnd: [u8; 32] = Hex::decode(&case.rnd).unwrap().try_into().unwrap();
-        let pk = Hex::decode(&case.pk).unwrap();
-        let sig = Hex::decode(&case.sig).unwrap();
-
-        // Same seed, same account, on both stacks.
-        let private = MLDSA65PrivateKey::from_bytes(&seed).unwrap();
-        let public = MLDSA65PublicKey::from(&private);
-        assert_eq!(public.as_ref(), &pk[..], "{}: seed->pk diverged", case.name);
-
-        // Fixed rnd makes signing deterministic: the wrapper must reproduce the
-        // ts-produced signature exactly.
-        let (wrapper_key, wrapper_public) =
-            mldsa::SigningKeySeed::from_bytes(&seed).unwrap().expand();
-        let ours = wrapper_key.sign(&msg, &ctx, &rnd).unwrap();
+    for other in [
+        keypair.copy(),
+        MLDSA65KeyPair::from(private),
+        MLDSA65KeyPair::from_str(&keypair.encode_base64()).unwrap(),
+        bcs::from_bytes(&bcs::to_bytes(&keypair).unwrap()).unwrap(),
+        serde_json::from_str(&serde_json::to_string(&keypair).unwrap()).unwrap(),
+        // A private key that has already been used to sign
+        {
+            let used = keypair.copy();
+            used.sign(MSG);
+            used.private().into()
+        },
+    ] {
+        assert_eq!(other, keypair);
+        assert_eq!(other.as_ref(), &seed);
+        assert_eq!(keypair.public().verify(MSG, &other.sign(MSG)), Ok(()));
         assert_eq!(
-            ours.as_bytes()[..],
-            sig[..],
-            "{}: signature bytes diverged",
-            case.name
+            other.private(),
+            MLDSA65PrivateKey::from_bytes(&seed).unwrap()
         );
-
-        if ctx.is_empty() {
-            let parsed = MLDSA65Signature::from_bytes(&sig).unwrap();
-            assert!(
-                public.verify(&msg, &parsed).is_ok(),
-                "{}: TS signature rejected",
-                case.name
-            );
-            // The wire format is the raw bytes: no serialization envelope may sneak in.
-            verify_serialization(&public, Some(public.as_ref()));
-            verify_serialization(&parsed, Some(parsed.as_ref()));
-        } else {
-            let parsed = mldsa::Signature::from_bytes(&sig).unwrap();
-            assert!(wrapper_public.verify(&msg, &ctx, &parsed).is_ok());
-        }
     }
-}
 
-#[test]
-fn lengths_match_the_scheme() {
-    assert_eq!(MLDSA65_PRIVATE_KEY_LENGTH, 32);
-    assert_eq!(MLDSA65_PUBLIC_KEY_LENGTH, 1952);
-    assert_eq!(MLDSA65_SIGNATURE_LENGTH, 3309);
-
-    let keypair = keys().pop().unwrap();
-    assert_eq!(keypair.public().as_ref().len(), MLDSA65_PUBLIC_KEY_LENGTH);
-    assert_eq!(keypair.sign(MSG).as_ref().len(), MLDSA65_SIGNATURE_LENGTH);
+    assert_ne!(keypair, keypair_from_seed(8));
+    assert_ne!(keypair.private(), keypair_from_seed(8).private());
 }
 
 /// The ML-DSA-65 vectors from satoshilabs/slips#1968: chain codes pin the
 /// HMAC walk, and the public-key digests pin FIPS 204 key expansion.
 #[test]
 fn slip10_slips1968_vectors() {
-    use crate::slip10::derive_mldsa65_keypair;
-    use fastcrypto::encoding::{Encoding, Hex};
-    use fastcrypto::hash::{HashFunction, Sha256};
-    use fastcrypto::slip10::{derive_hardened, Slip10MasterKey};
-
     const SEED_1: &str = "000102030405060708090a0b0c0d0e0f";
     const SEED_2: &str = concat!(
         "fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a2",
@@ -454,6 +386,96 @@ fn slip10_slips1968_vectors() {
             *want_pk_digest,
             "pk digest, path {indexes:?}"
         );
+    }
+
+    // Seeds outside the SLIP-0010 range are rejected.
+    for (seed_length, expected) in [
+        (0, FastCryptoError::InputTooShort(MIN_SEED_LENGTH)),
+        (15, FastCryptoError::InputTooShort(MIN_SEED_LENGTH)),
+        (65, FastCryptoError::InputTooLong(MAX_SEED_LENGTH)),
+    ] {
+        assert_eq!(
+            derive_mldsa65_keypair(&vec![1; seed_length], &[0]).unwrap_err(),
+            expected
+        );
+    }
+}
+
+//
+// Signature verification tests
+//
+
+#[test]
+fn signing_is_hedged() {
+    // Signing draws fresh randomness per call (the FIPS 204 default), so two signatures over
+    // the same message differ while both verify.
+    let keypair = keys().pop().unwrap();
+    let first = keypair.sign(MSG);
+    let second = keypair.sign(MSG);
+    assert_ne!(first, second);
+    assert_eq!(keypair.public().verify(MSG, &first), Ok(()));
+    assert_eq!(keypair.public().verify(MSG, &second), Ok(()));
+}
+
+#[test]
+fn verify_rejects_wrong_message_and_wrong_key() {
+    let keypair = keys().pop().unwrap();
+    let other = keypair_from_seed(9);
+    let signature = keypair.sign(MSG);
+
+    assert_eq!(
+        keypair.public().verify(b"Hello, world?", &signature),
+        Err(FastCryptoError::InvalidSignature)
+    );
+    assert_eq!(
+        other.public().verify(MSG, &signature),
+        Err(FastCryptoError::InvalidSignature)
+    );
+}
+
+#[test]
+fn insecure_default_is_all_zeros() {
+    let default = MLDSA65PublicKey::insecure_default();
+    assert_eq!(default.as_ref(), &[0u8; PK_LENGTH]);
+    assert_eq!(
+        default.verify(MSG, &keypair_from_seed(1).sign(MSG)),
+        Err(FastCryptoError::InvalidSignature)
+    );
+}
+
+#[test]
+fn matches_typescript_interop_vectors() {
+    for case in TS_CASES.iter() {
+        // Same seed, same account, on both stacks.
+        let private = MLDSA65PrivateKey::from_bytes(&case.seed).unwrap();
+        let public = MLDSA65PublicKey::from(&private);
+        assert_eq!(public.as_ref(), case.pk, "{}: seed->pk diverged", case.name);
+        verify_serialization(&public, &case.pk);
+
+        // Fixed rnd makes signing deterministic: the wrapper must reproduce the
+        // ts-produced signature exactly.
+        let (wrapper_key, wrapper_public) = mldsa::SigningKeySeed::from_bytes(&case.seed)
+            .unwrap()
+            .expand();
+        let rnd = case.rnd.as_slice().try_into().unwrap();
+        let ours = wrapper_key.sign(&case.msg, &case.ctx, rnd).unwrap();
+        assert_eq!(
+            ours.as_bytes()[..],
+            case.sig,
+            "{}: signature bytes diverged",
+            case.name
+        );
+        assert_eq!(wrapper_public.verify(&case.msg, &case.ctx, &ours), Ok(()));
+
+        // The trait layer only accepts signatures with the empty context.
+        let parsed = MLDSA65Signature::from_bytes(&case.sig).unwrap();
+        let expected = if case.ctx.is_empty() {
+            Ok(())
+        } else {
+            Err(FastCryptoError::InvalidSignature)
+        };
+        assert_eq!(public.verify(&case.msg, &parsed), expected, "{}", case.name);
+        verify_serialization(&parsed, &case.sig);
     }
 }
 
@@ -545,4 +567,154 @@ fn wycheproof_sign_seed_vectors() {
         }
     }
     assert_eq!((keys, verified), (39, 81), "the vector set changed shape");
+}
+
+//
+// Proptests
+//
+
+/// A valid public key, message and signature with the empty context: the message has 32 bytes, like
+/// the digests that Sui signs.
+static VALID: Lazy<&TsCase> = Lazy::new(|| {
+    let case = TS_CASES.iter().find(|c| c.name == "digest-msg").unwrap();
+    assert!(case.ctx.is_empty());
+    case
+});
+
+/// The start of the hints in a signature.
+const HINTS: usize = 3248;
+
+/// The start of each part of a public key, a 32-byte message and a signature, concatenated. The parts
+/// of a signature are the commitment hash, z, the hint positions and the hint counts.
+const PARTS: [usize; 7] = [
+    0,
+    MSG_OFFSET,
+    SIG_OFFSET,
+    SIG_OFFSET + 48,
+    SIG_OFFSET + HINTS,
+    SIG_OFFSET + 3303,
+    SIG_OFFSET + SIG_LENGTH,
+];
+const MSG_OFFSET: usize = PK_LENGTH;
+const SIG_OFFSET: usize = MSG_OFFSET + 32;
+
+/// Arbitrary bytes, most of the time with a length that one of the types accepts or that is off by
+/// one.
+fn arb_bytes() -> impl Strategy<Value = Vec<u8>> {
+    let near = (
+        prop::sample::select(vec![SK_LENGTH, PK_LENGTH, SIG_LENGTH]),
+        0..4usize,
+    )
+        .prop_map(|(len, i)| [len, len, len - 1, len + 1][i]);
+    let len = prop_oneof![4 => near, 1 => 0..2 * SIG_LENGTH];
+    (len, any::<u64>()).prop_map(|(len, seed)| {
+        let mut bytes = vec![0; len];
+        StdRng::seed_from_u64(seed).fill_bytes(&mut bytes);
+        bytes
+    })
+}
+
+/// A change to a byte string.
+#[derive(Clone, Debug)]
+enum Edit {
+    FlipBit(usize, u8),
+    SetByte(usize, u8),
+    Swap(usize, usize),
+    Fill(usize, usize, u8),
+}
+
+impl Edit {
+    fn apply(&self, bytes: &mut [u8]) {
+        match *self {
+            Edit::FlipBit(i, bit) => bytes[i] ^= 1 << bit,
+            Edit::SetByte(i, value) => bytes[i] = value,
+            Edit::Swap(i, j) => bytes.swap(i, j),
+            Edit::Fill(i, j, value) => bytes[i.min(j)..=i.max(j)].fill(value),
+        }
+    }
+}
+
+/// Byte values, with a higher chance for the extreme ones and for small ones.
+fn arb_byte() -> impl Strategy<Value = u8> {
+    prop_oneof![Just(0), Just(0xff), 0..64u8, any::<u8>()]
+}
+
+/// An edit of the bytes in `start..end`.
+fn arb_edit(start: usize, end: usize) -> impl Strategy<Value = Edit> {
+    prop_oneof![
+        (start..end, 0..8u8).prop_map(|(i, bit)| Edit::FlipBit(i, bit)),
+        (start..end, arb_byte()).prop_map(|(i, value)| Edit::SetByte(i, value)),
+        (start..end, start..end).prop_map(|(i, j)| Edit::Swap(i, j)),
+        (start..end, start..end, arb_byte()).prop_map(|(i, j, value)| Edit::Fill(i, j, value)),
+    ]
+}
+
+/// An edit of one of the [PARTS].
+fn arb_part_edit() -> impl Strategy<Value = Edit> {
+    prop::sample::select(PARTS.windows(2).collect::<Vec<_>>())
+        .prop_flat_map(|part| arb_edit(part[0], part[1]))
+}
+
+proptest! {
+    #[test]
+    fn decoding_agrees_on_arbitrary_bytes(bytes in arb_bytes()) {
+        check_decoding_all(&bytes);
+    }
+
+    /// Nobody can turn a signature into another one, or into one for another message or public key.
+    #[test]
+    fn verify_accepts_only_the_original(edits in prop::collection::vec(arb_part_edit(), 1..4)) {
+        let valid = [VALID.pk.as_slice(), &VALID.msg, &VALID.sig].concat();
+        let mut edited = valid.clone();
+        edits.iter().for_each(|edit| edit.apply(&mut edited));
+
+        let expected = if edited == valid {
+            Ok(())
+        } else {
+            Err(FastCryptoError::InvalidSignature)
+        };
+        let (pk, rest) = edited.split_at(MSG_OFFSET);
+        let (msg, sig) = rest.split_at(SIG_OFFSET - MSG_OFFSET);
+        prop_assert_eq!(verify(pk, msg, sig), expected);
+    }
+
+    /// Verification never panics, for any public key, message and signature. Without valid hints, a
+    /// signature is rejected before it is hashed.
+    #[test]
+    fn verify_rejects_arbitrary_bytes(
+        seed in any::<u64>(),
+        msg in prop::collection::vec(any::<u8>(), 0..100),
+        valid_hints in any::<bool>(),
+        edits in prop::collection::vec(arb_edit(0, SIG_LENGTH), 0..4),
+    ) {
+        let (mut pk, mut sig) = (vec![0; PK_LENGTH], vec![0; SIG_LENGTH]);
+        let mut rng = StdRng::seed_from_u64(seed);
+        rng.fill_bytes(&mut pk);
+        rng.fill_bytes(&mut sig);
+        if valid_hints {
+            sig[HINTS..].copy_from_slice(&VALID.sig[HINTS..]);
+        }
+        edits.iter().for_each(|edit| edit.apply(&mut sig));
+        prop_assert_eq!(verify(&pk, &msg, &sig), Err(FastCryptoError::InvalidSignature));
+    }
+
+    #[test]
+    fn any_seed_is_a_private_key(
+        seed in any::<[u8; SK_LENGTH]>(),
+        msg in prop::collection::vec(any::<u8>(), 0..100),
+        other_msg in prop::collection::vec(any::<u8>(), 0..100),
+    ) {
+        let keypair = MLDSA65KeyPair::from_bytes(&seed).unwrap();
+        let private = MLDSA65PrivateKey::from_bytes(&seed).unwrap();
+        prop_assert_eq!(&MLDSA65PublicKey::from(&private), keypair.public());
+
+        let signature = keypair.sign(&msg);
+        prop_assert_eq!(keypair.public().verify(&msg, &signature), Ok(()));
+        if msg != other_msg {
+            prop_assert_eq!(
+                keypair.public().verify(&other_msg, &signature),
+                Err(FastCryptoError::InvalidSignature)
+            );
+        }
+    }
 }
