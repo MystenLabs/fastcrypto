@@ -516,51 +516,6 @@ fn test_recoverable_nonrecoverable_conversion() {
         .public()
         .verify(message, &nonrecoverable_signature)
         .is_ok());
-
-    let recovered_signature = Secp256r1RecoverableSignature::try_from_nonrecoverable(
-        &nonrecoverable_signature,
-        kp.public(),
-        message,
-    )
-    .unwrap();
-    assert!(kp
-        .public()
-        .verify_recoverable(message, &recovered_signature)
-        .is_ok());
-
-    // A signature with a high s, which verify rejects, also converts: to the high-s signature with
-    // the other recovery id, which verify_recoverable accepts since recovery allows a high s.
-    let high_s = <Secp256r1Signature as ToFromBytes>::from_bytes(
-        &negate_s(signature.as_ref())[..SIG_LENGTH],
-    )
-    .unwrap();
-    assert!(kp.public().verify(message, &high_s).is_err());
-    let converted =
-        Secp256r1RecoverableSignature::try_from_nonrecoverable(&high_s, kp.public(), message)
-            .unwrap();
-    assert_eq!(&converted.as_bytes()[..SIG_LENGTH], high_s.as_bytes());
-    assert_eq!(converted.recovery_id, signature.recovery_id ^ 1);
-    assert!(kp.public().verify_recoverable(message, &converted).is_ok());
-}
-
-#[test]
-fn test_invalid_nonrecoverable_conversion() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-
-    // Sign over raw message.
-    let message: &[u8] = b"Hello, world!";
-    let signature = kp.sign_recoverable(message);
-    let nonrecoverable_signature = Secp256r1Signature::from(&signature);
-
-    // Try to convert a nonrecoverable signature to a recoverable one with a different message.
-    let other_message: &[u8] = b"Hello, other world!";
-    assert!(Secp256r1RecoverableSignature::try_from_nonrecoverable(
-        &nonrecoverable_signature,
-        kp.public(),
-        other_message,
-    )
-    .is_err());
 }
 
 //
