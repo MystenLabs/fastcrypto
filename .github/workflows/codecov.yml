@@ -16,7 +16,9 @@ permissions:
 jobs:
   coverage:
     name: Collect test coverage
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: on ubuntu-26.04, mysten-mldsa-native-rs 0.2.0 fails to build because the C
+    # compiler enables AVX2 by default, which its x86-64 build rejects.
+    runs-on: ubuntu-24.04
     # nightly rust might break from time to time
     continue-on-error: true
     env:
