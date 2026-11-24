@@ -44,11 +44,12 @@ structure LBInv (gens : bulletproofspp.crs.Generators) (lb : bulletproofspp.norm
   g_le : (lbLen gens lb).2 ≤ gens.g_vec.length
 
 /-- The result of a generated `LazyBases::msm` matches the model's. -/
-def LazyMatches (φ : S → F) (ψ : P → E) (gens : bulletproofspp.crs.Generators)
+def LazyMatches (φ : S → F) (ψ : P → E) (gens : bulletproofspp.crs.Generators) (wl : ℕ)
     (r : core.result.Result P error.FastCryptoError × bulletproofspp.norm_linear.LazyBases)
     (m : Bppp.Result (E × Bppp.NormLinear.LazyBases F E)) : Prop :=
   match m with
-  | .ok (e, lbm) => ∃ p, r.1 = .Ok p ∧ ψ p = e ∧ toLB φ ψ gens r.2 = lbm ∧ LBInv gens r.2
+  | .ok (e, lbm) => ∃ p, r.1 = .Ok p ∧ ψ p = e ∧ toLB φ ψ gens r.2 = lbm ∧ LBInv gens r.2 ∧
+    r.2.w_h.length = wl
   | .error _ => r.1 = .Err .InvalidInput
 
 lemma lazy_msm_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
@@ -56,7 +57,8 @@ lemma lazy_msm_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
     (hgl : 1 + gens.h_vec.length + gens.g_vec.length + 8 ≤ Usize.max)
     (lb : bulletproofspp.norm_linear.LazyBases) (hlb : LBInv gens lb) (sigma : S) (l n : Slice S) :
     bulletproofspp.norm_linear.LazyBases.msm lb gens sigma l n ⦃ r =>
-      LazyMatches φ ψ gens r ((toLB φ ψ gens lb).msm (φ sigma) (l.val.map φ) (n.val.map φ)) ⦄ := by
+      LazyMatches φ ψ gens (if lb.w_h.length = 8 then 1 else lb.w_h.length) r
+        ((toLB φ ψ gens lb).msm (φ sigma) (l.val.map φ) (n.val.map φ)) ⦄ := by
   obtain ⟨hpos, heqw, hle8, hhle, hgle⟩ := hlb
   unfold bulletproofspp.norm_linear.LazyBases.msm bulletproofspp.norm_linear.Weights.len
   simp only [bind_ok, bulletproofspp.norm_linear.FOLD_BATCH_ROUNDS]
@@ -154,7 +156,7 @@ lemma lazy_msm_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
     | ok e =>
       rw [hf] at hr2
       obtain ⟨p, hp1, hp2⟩ := hr2
-      refine ⟨p, hp1, hp2, rfl, ?_⟩
+      refine ⟨p, hp1, hp2, rfl, ?_, by show w.length = _; rw [if_pos hw8]; omega⟩
       have ewl : w.length = w.val.length := rfl
       refine ⟨?_, rfl, ?_, ?_, ?_⟩
       · show 0 < w.length; omega
@@ -228,7 +230,7 @@ lemma lazy_msm_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
       | ok e =>
         rw [hm2] at hr
         obtain ⟨p, hp1, hp2⟩ := hr
-        exact ⟨p, hp1, hp2, rfl, ⟨hpos, heqw, hle8, hhle, hgle⟩⟩
+        exact ⟨p, hp1, hp2, rfl, ⟨hpos, heqw, hle8, hhle, hgle⟩, by rw [if_neg hw8]⟩
     | Folded g p =>
       obtain ⟨hv, gv⟩ := p
       simp only [hpts]
@@ -253,6 +255,6 @@ lemma lazy_msm_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
         rw [hm2] at hr
         obtain ⟨p, hp1, hp2⟩ := hr
         exact ⟨p, hp1, hp2, rfl, ⟨hpos, heqw, hle8, by simp [lbLen, hpts]; omega,
-          by simp [lbLen, hpts]; omega⟩⟩
+          by simp [lbLen, hpts]; omega⟩, by rw [if_neg hw8]⟩
 
 end BpppProofs
