@@ -31,8 +31,19 @@ of scalars, points, the transcript and the generators listed [below](#what-is-as
    the challenges and the unambiguity of the logs below hold for the Rust verifier.
 
 3. **`RangeProof.prove_batch_refines`: the prover is the model's.** `RangeProof::prove_batch`
-   returns the model's proof for some choice of the prover's random draws, or fails when the
-   model's does.
+   returns the model's proof for the draws `rngD` of its random number generator, or fails when
+   the model's does. The first 15 draws are the blindings of `C_O`, `C_L` and `C_R`, the next `nm`
+   the mask `n_S` and the last `ℓ_S`.
+
+4. **`RangeProof.prove_batch_distribution`: the prover's distribution is the model's.** For valid
+   inputs and an ideal random number generator (`IdealRng`), the output of
+   `RangeProof::prove_batch` has the distribution of the model's `prove_batch` with uniform masks
+   and blindings, for any transcript hash.
+
+5. **`RangeProof.zero_knowledge_rust`: zero-knowledge of the prover.** If the transcript hash
+   returns the challenges `c` of an honest verifier, the output of `RangeProof::prove_batch` has
+   the distribution of the response at `c` of `protocol`, whose transcripts
+   `RangeProof.zero_knowledge` simulates.
 
 ## Theorems about the model
 
@@ -156,6 +167,10 @@ and run `CHARON=... AENEAS=... ./extract.sh`.
   transcript by some `τ`, under which `new`, `domain_sep`, `append_message`, `append_u64`,
   `append_point`, `append_commits`, `append_scalars` and `challenge_scalar` act as the model's,
   with each `Label` as its byte string, and with some `oracle` as the hash.
+* **Random number generator** (`IdealRng`, for theorems 4 and 5). The states of the random number
+  generator follow a distribution under which the draws of `RistrettoScalar::rand`, mapped to `F`
+  by `φ`, are uniform and independent. This idealizes a cryptographic random number generator; for
+  a real one the zero-knowledge is computational rather than statistical.
 * **`Generators::new`** (`GensNewModel`). It does not panic, succeeds for powers of two at least
   16, and returns `H_LEN` and `nm` generators with `g = pedersen::H` and
   `h_vec[0] = pedersen::G`, whose MSM tables satisfy `GensOK`. The model's `generators` is
@@ -169,8 +184,11 @@ and run `CHARON=... AENEAS=... ./extract.sh`.
 
 * `transcript.rs`, `Generators::new` and `PedersenCommitment::new` are assumed rather than
   translated.
-* Zero-knowledge is proved for the model, with uniform draws. The Rust prover computes the model's
-  proof for the draws it makes, but nothing links its random number generator to uniform draws.
+* Theorems 4 and 5 are about the output of the prover under the models of scalars and points.
+  They determine the distribution of the Rust proofs themselves when `ψ` is injective, as it is
+  for the Ristretto group.
+* Theorem 5 reads the Merlin transcript as an honest verifier's challenges. Zero-knowledge of the
+  non-interactive proof, with the hash as a random oracle, is the standard step cited below.
 * `circuit::prove_witness` is proved for the honest reciprocals and witness, the only ones the
   Rust prover uses.
 * `Generators::new` (hash-to-curve), the MSM precomputation tables, serialization and test-only
