@@ -5,17 +5,36 @@ Proofs about the batched Bulletproofs++ range proof (`fastcrypto/src/bulletproof
 protocol of [ePrint 2026/2648](https://eprint.iacr.org/2026/2648) §5. There are two layers:
 
 * `Model/` is a Lean model of the Rust code, one file per module and function by function, over
-  any field `F` and any `F`-module `E`. The theorems below are about this model.
+  any field `F` and any `F`-module `E`. The protocol theorems are about this model.
 * `Generated/` is a Lean translation of the Rust code made by
   [Charon and Aeneas](https://github.com/AeneasVerif/aeneas). The other Lean files at the top
-  level prove that the translated functions of `util.rs`, `laurent.rs`, `constraints.rs` and
-  `norm_linear.rs` compute the model's, with scalars mapped to `F` and points to `E`. The other
-  modules are not linked to their translation yet (see [below](#what-is-not-proved)).
+  level prove that the translated functions compute the model's, with scalars mapped to `F` and
+  points to `E`, up to `RangeProof::prove_batch` and `RangeProof::verify_batch`. This links the
+  protocol theorems to the Rust code.
 
 The Rust code carries no annotations. It is written in a style Aeneas can translate: index loops
 instead of iterator chains and closures.
 
-## Theorems
+## Theorems about the Rust code
+
+These are in `Theorems.lean`, about the translation of `range_proof.rs`. They assume the models
+of scalars, points, the transcript and the generators listed [below](#what-is-assumed)
+(`Models`), and batches of at most `(usize::MAX - 256) / 256` values.
+
+1. **`RangeProof.completeness_rust`: honest proofs are accepted.** For values in `range` and
+   blindings of the same length, `RangeProof::prove_batch` returns a proof, for every state of
+   the random number generator, and `RangeProof::verify_batch` accepts it for the Pedersen
+   commitments to the values. This needs a transcript hash that never outputs `-j` for `j < 16`.
+
+2. **`RangeProof.verify_batch_refines`: the verifier is the model's.** `RangeProof::verify_batch`
+   accepts exactly when the model's `verify_batch` accepts. So special soundness, the locality of
+   the challenges and the unambiguity of the logs below hold for the Rust verifier.
+
+3. **`RangeProof.prove_batch_refines`: the prover is the model's.** `RangeProof::prove_batch`
+   returns the model's proof for some choice of the prover's random draws, or fails when the
+   model's does.
+
+## Theorems about the model
 
 `Generators::new` is an input, a function of `nm`. Most results assume that for the batch's `nm`
 it returns `H_LEN` and `nm` generators, with `g = pedersen::H` and `h_vec[0] = pedersen::G`:
@@ -54,7 +73,8 @@ it returns `H_LEN` and `nm` generators, with `g = pedersen::H` and `h_vec[0] = p
    challenges are drawn at the same log.
 
 The lemmas about the translation say, for each function, that it returns what the model returns,
-including the same errors and, for `norm_linear`, the same transcript:
+including the same errors (or, from `circuit.rs` on, an error exactly when the model errs) and
+the same transcript:
 
 * `util.rs`: `inner_product`, `weighted_inner_product`, `weighted_norm`, `to_scalars`,
   `power_vector`, `vec_add`, `vec_scalar_mul`, `hadamard`, `pad_to`, `batch_invert`, `to_digits`
@@ -68,6 +88,10 @@ including the same errors and, for `norm_linear`, the same transcript:
 * `norm_linear.rs`: `prove` and `verify` (`prove_spec`, `verify_spec`), for generators with at
   least one point in `h_vec` and lengths for which no `usize` arithmetic overflows, and with them
   `LazyBases`, `Weights` and `Generators::commit`.
+* `circuit.rs`: `CircuitParams::new`, `prove` for some draws of the random number generator
+  (`circuit_prove_spec`, through `Witness::new`, `commit_c_s` and `prove_witness` with the honest
+  reciprocals), and `verify` (`circuit_verify_spec`).
+* `range_proof.rs`: `setup`, `prove_batch` and `verify_batch`.
 
 ## Files
 
@@ -78,13 +102,15 @@ including the same errors and, for `norm_linear`, the same transcript:
 | `Proofs/` | Lemmas about each module of the model, and completeness and special soundness of `norm_linear` and `circuit`. |
 | `Spec/` | The protocol of the paper, used inside the proofs. |
 | `Scalar.lean` | `ScalarModel`: what is assumed about `RistrettoScalar`. |
-| `Points.lean` | `PointModel`, `GensOK` and `TranscriptModel`: what is assumed about `RistrettoPoint`, the MSM tables of `Generators` and the Merlin transcript. |
+| `Points.lean` | `PointModel`, `GensOK`, `TranscriptModel` and `PedersenModel`: what is assumed about `RistrettoPoint`, the MSM tables of `Generators`, the Merlin transcript and `PedersenCommitment::new`. |
 | `Util.lean`, `Laurent.lean`, `Constraints.lean` | The translations of `util.rs`, `laurent.rs` and `constraints.rs` compute the model. |
 | `NormLinear.lean`, `LazyBases.lean`, `Prove.lean`, `Verify.lean` | The translation of `norm_linear.rs` computes the model: its helpers, `LazyBases::msm`, `prove` and `verify`. |
-| `Theorems.lean` | Imports everything. |
-| `Generated/` | The translation of `util.rs`, `laurent.rs`, `constraints.rs`, `norm_linear.rs` and `Generators::msm`, made by `extract.sh`. `groups`, `pedersen`, `serde_helpers`, `merlin` and `transcript.rs` (except `Label`) are opaque. |
+| `Circuit.lean`, `CircuitWitness.lean`, `CircuitOpening.lean`, `CircuitProve.lean`, `CircuitVerify.lean` | The translation of `circuit.rs` computes the model: its helpers, `Witness::new`, the opening of `C(T)`, `prove` and `verify`. `Circuit.lean` also has `RandOK`, what is assumed about `RistrettoScalar::rand`. |
+| `RangeProof.lean` | The translation of `range_proof.rs` computes the model, with `TranscriptInit` and `GensNewModel`, what is assumed about creating transcripts and `Generators::new`. |
+| `Theorems.lean` | The theorems about the Rust code. |
+| `Generated/` | The translation of the Rust code from `RangeProof::prove_batch` and `RangeProof::verify_batch` down, made by `extract.sh`. `groups`, `pedersen` (except `Range`), `serde_helpers`, `merlin`, `transcript.rs` (except `Label`), `crs::compatible_with_pedersen_commitments` and `crs::cached_generators` are opaque. |
 | `extract.sh` | Regenerates `Generated/`. |
-| `fix_aeneas_output.py` | Defines `u64::ilog2`, `i32::unsigned_abs` and `slice::from_ref`, which Aeneas leaves as axioms. Called by `extract.sh`. |
+| `fix_aeneas_output.py` | Defines `u64::ilog2`, `i32::unsigned_abs`, `slice::from_ref`, `usize::next_power_of_two`, `Range::bits` and `Range::is_in_range`, which Aeneas leaves as axioms. Called by `extract.sh`. |
 
 To check the proofs, install Lean with `elan` and run, here:
 
@@ -99,8 +125,8 @@ and run `CHARON=... AENEAS=... ./extract.sh`.
 
 ## What is assumed
 
-* **The model.** The theorems are about `Model/`, so they trust that it matches the Rust code,
-  except where `Util.lean` proves it does. In the model:
+* **The model.** The theorems about the model are about `Model/`. The theorems about the Rust
+  code use it only through the lemmas about the translation. In the model:
   * scalars are a field and points a module over it, `Vec` is `List`, `FastCryptoResult` is
     `Except`, and `&mut BpppTranscript` is a state monad;
   * the Merlin transcript is a log of labelled entries and an arbitrary function from logs to
@@ -110,22 +136,30 @@ and run `CHARON=... AENEAS=... ./extract.sh`.
     and `protocol` (`ZeroKnowledge.lean`), which casts `range_proof` as a VCVio protocol, is part
     of the model.
 * **Translation.** The lemmas about the translation are about the Lean code in `Generated/`, so
-  they trust that Charon and Aeneas translate the Rust code faithfully, and the definitions of
-  `u64::ilog2`, `i32::unsigned_abs` and `slice::from_ref` that `fix_aeneas_output.py` adds. `debug_assert!`s are
+  they trust that Charon and Aeneas translate the Rust code faithfully, and the definitions that
+  `fix_aeneas_output.py` adds. `debug_assert!`s are
   translated as checks that fail, so the lemmas assume equal lengths where the Rust code asserts
   them. Aeneas clones tuples by copying, so cloning `(i32, C)` in `Laurent::from_terms` is
   assumed to return its argument.
 * **Scalars** (`ScalarModel`). `RistrettoScalar` maps to the field `F` by some `φ`, under which
   `zero`, `generator`, `+` (also by reference), `-x`, `*`, `+=`, `*=` and `From<u64>` are `F`'s,
-  `clone` returns its argument, and `inverse` fails exactly on zero.
+  `clone` returns its argument, and `inverse` fails exactly on zero. `rand` does not fail
+  (`RandOK`).
 * **Points** (`PointModel`). `RistrettoPoint` maps to the module `E` by some `ψ`, under which
   `zero` is `0`, `==` is equality and `multi_scalar_mul` is the sum of the products, failing
   with `InvalidInput` exactly on different lengths.
 * **MSM tables** (`GensOK`). The mixed MSM over the precomputed tables of `Generators` is the
   model's over `[g, h_vec.., g_vec..]`.
-* **Transcript** (`TranscriptModel`). `transcript.rs` maps to the model's transcript by some `τ`,
-  under which `domain_sep`, `append_point`, `append_scalars` and `challenge_scalar` act as the
-  model's, with each `Label` as its byte string.
+* **Pedersen commitments** (`PedersenModel`). `PedersenCommitment::new` commits to `v` with
+  blinding `b` as `v H + b G` for the images `G`, `H` of `pedersen::G`, `pedersen::H`.
+* **Transcript** (`TranscriptModel`, `TranscriptInit`). `transcript.rs` maps to the model's
+  transcript by some `τ`, under which `new`, `domain_sep`, `append_message`, `append_u64`,
+  `append_point`, `append_commits`, `append_scalars` and `challenge_scalar` act as the model's,
+  with each `Label` as its byte string, and with some `oracle` as the hash.
+* **`Generators::new`** (`GensNewModel`). It does not panic, succeeds for powers of two at least
+  16, and returns `H_LEN` and `nm` generators with `g = pedersen::H` and
+  `h_vec[0] = pedersen::G`, whose MSM tables satisfy `GensOK`. The model's `generators` is
+  `Generators::new` under `ψ` (`genM`).
 * **Merlin and Ristretto.** Merlin frames `(label, message)` pairs unambiguously, and Ristretto
   points have a canonical encoding.
 * **Generators.** `Generators::new` returns generators with no known linear relation. They are
@@ -133,9 +167,12 @@ and run `CHARON=... AENEAS=... ./extract.sh`.
 
 ## What is not proved
 
-* The translations of `circuit.rs` and `range_proof.rs` are not yet shown to compute the model,
-  so the theorems are not yet about the Rust code. `transcript.rs` and the rest of `crs.rs` are
-  assumed rather than translated.
+* `transcript.rs`, `Generators::new` and `PedersenCommitment::new` are assumed rather than
+  translated.
+* Zero-knowledge is proved for the model, with uniform draws. The Rust prover computes the model's
+  proof for the draws it makes, but nothing links its random number generator to uniform draws.
+* `circuit::prove_witness` is proved for the honest reciprocals and witness, the only ones the
+  Rust prover uses.
 * `Generators::new` (hash-to-curve), the MSM precomputation tables, serialization and test-only
   code are not modelled.
 * From special soundness to knowledge soundness of the non-interactive proof (tree extraction and
