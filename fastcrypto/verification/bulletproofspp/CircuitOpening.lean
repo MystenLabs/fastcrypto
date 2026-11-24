@@ -16,6 +16,9 @@ set_option linter.unusedSectionVars false
 variable {F : Type} [Field F] [DecidableEq F] {φ : groups.ristretto255.RistrettoScalar → F}
 
 local notation "S" => groups.ristretto255.RistrettoScalar
+local notation "P" => groups.ristretto255.RistrettoPoint
+
+variable {E : Type} [AddCommGroup E] [Module F E] [DecidableEq E] {ψ : P → E}
 
 /-- The model of a generated combined opening. -/
 def toCO (φ : S → F) (co : bulletproofspp.circuit.CombinedOpening) :
@@ -156,9 +159,9 @@ lemma with_r_s_spec (hs : ScalarModel F φ) (nm : ℕ) (co : bulletproofspp.circ
       COK (φ := φ) nm (min lo (-1)) (max hi 0) r ∧
       toCO φ r = (toCO φ co).with_r_s (φ r_s0) (h.val.map φ) ⦄ := by
   unfold bulletproofspp.circuit.CombinedOpening.with_r_s
-  have tk : ∀ {C : Type} (P : C → Prop) (c : C), P c →
-      TermOK P (bulletproofspp.circuit.C_S_POWER, c) := by
-    intro C P c hc
+  have tk : ∀ {C : Type} (Pr : C → Prop) (c : C), Pr c →
+      TermOK Pr (bulletproofspp.circuit.C_S_POWER, c) := by
+    intro C Pr c hc
     exact ⟨hc, by rw [c_s_power_val]; norm_num [powBound], by rw [c_s_power_val]; norm_num [powBound]⟩
   apply WP.spec_bind (monomial_wf (ψ := φ) _ (tk (fun _ => True) r_s0 trivial))
   rintro m1 ⟨hw1, hm1⟩
@@ -540,5 +543,66 @@ lemma opening_without_r_s_spec (hs : ScalarModel F φ) (pm : Bppp.CircuitParams)
       simp [toC]
     · rw [hl5e, hl4e, hm2e, hpe]
       rfl
+
+lemma commit_c_s_spec (hs : ScalarModel F φ) (gens : bulletproofspp.crs.Generators)
+    (hg : GensOK φ ψ gens) (pm : Bppp.CircuitParams) (p : bulletproofspp.circuit.CircuitParams)
+    (hp : ParamsOK pm p) (hgh : gens.h_vec.length = 8) (hgg : gens.g_vec.length = p.nm.val)
+    (hlen : 1 + gens.h_vec.length + gens.g_vec.length ≤ Usize.max)
+    (cons : bulletproofspp.constraints.Constraints) (hc : ConsLen p.m.val p.nm.val cons)
+    (w : bulletproofspp.circuit.Witness) (hw : WitLen p.m.val p.nm.val w)
+    (n_r : alloc.vec.Vec S) (hnr : n_r.length = p.nm.val)
+    (c : bulletproofspp.laurent.Laurent (alloc.vec.Vec S)) (hcw : WF (VecLen 8) c) (hch : Half c)
+    (beta delta delta_inv : S) :
+    bulletproofspp.circuit.commit_c_s gens p cons w n_r c beta delta delta_inv ⦃ r =>
+      match Bppp.Circuit.commit_c_s (toGens ψ gens) pm (toC φ cons) (toWit φ w) (n_r.val.map φ)
+          (toL (vecψ φ) c) (φ beta) (φ delta) (φ delta_inv) with
+      | .ok (cs, co) => ∃ cs' co', r = .Ok (cs', co') ∧ ψ cs' = cs ∧ toCO φ co' = co ∧
+          COK (φ := φ) p.nm.val (-1) 7 co'
+      | .error _ => r = .Err .InvalidInput ⦄ := by
+  unfold bulletproofspp.circuit.commit_c_s
+  apply WP.spec_bind (opening_without_r_s_spec hs pm p hp cons hc w hw n_r hnr delta delta_inv)
+  rintro op ⟨hok, hope⟩
+  apply WP.spec_bind (f_spec hs p.nm.val op (-1) 7 hok (by norm_num [powBound])
+    (by norm_num [powBound]) c hcw hch _ (by
+      simp only [Slice.length, deref_val]; exact hc.norm_weights))
+  rintro fb ⟨hfw, hfe⟩
+  apply WP.spec_bind (solve_r_s_spec hs cons hc.cl_v fb hfw w.l_s beta)
+  intro r hr
+  simp only [Bppp.Circuit.commit_c_s, ← hope, deref_val] at hfe ⊢
+  have hnw : (toC φ cons).norm_weights = cons.norm_weights.val.map φ := rfl
+  have hls : (toWit φ w).l_s = φ w.l_s := rfl
+  rw [hnw, ← hfe, hls]
+  split at hr
+  · rename_i a h hsol
+    obtain ⟨a', h', rfl, ha, hh, hhl⟩ := hr
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, vec_clone_eq hs, hsol,
+      except_ok_bind]
+    apply WP.spec_bind (commit_spec (ψ := ψ) hs gens hg ⟨a', h', w.n_s⟩ (hhl.trans hgh.symm)
+      (hw.n_s.trans hgg.symm) hlen)
+    intro r1 hr1
+    have hto : toO φ ⟨a', h', w.n_s⟩ = ⟨a, h, (toWit φ w).n_s⟩ := by
+      simp only [toO, ha, hh]; rfl
+    rw [hto] at hr1
+    rcases hcm : (toGens ψ gens).commit ⟨a, h, (toWit φ w).n_s⟩ with e | cs
+    · rw [hcm] at hr1
+      simp only [MsmMatches] at hr1
+      subst hr1
+      simp [core.result.Result.Insts.CoreOpsTry.branch,
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+        except_error_bind]
+    · rw [hcm] at hr1
+      obtain ⟨pt, rfl, hpt⟩ := hr1
+      simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, except_ok_bind]
+      apply WP.spec_bind (with_r_s_spec hs p.nm.val op (-1) 7 hok a' h' hhl)
+      rintro co ⟨hcok, hcoe⟩
+      rw [WP.spec_ok]
+      refine ⟨pt, co, rfl, hpt, ?_, ?_⟩
+      · rw [hcoe, ha, hh]
+      · simpa using hcok
+  · rename_i e he
+    subst hr
+    simp [core.result.Result.Insts.CoreOpsTry.branch,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, he,
+      except_error_bind]
 
 end BpppProofs
