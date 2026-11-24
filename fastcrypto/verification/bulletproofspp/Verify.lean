@@ -58,6 +58,30 @@ lemma proof_shape_spec' (a b : Usize) (hab : a.val + b.val ≤ Usize.max) :
       exact ⟨by omega, trivial⟩
   · simp
 
+/-- `x` halved, rounding up, `k` times. -/
+def halveN : ℕ → ℕ → ℕ
+  | 0, x => x
+  | k + 1, x => halveN k ((x + 1) / 2)
+
+lemma halveN_pos : ∀ (k x : ℕ), 1 ≤ x → 1 ≤ halveN k x
+  | 0, x, h => h
+  | k + 1, x, h => halveN_pos k _ (by omega)
+
+/-- The rounds of `proof_shape` halve the `l` length down to 1. -/
+lemma proof_shape_halve : ∀ (a b : ℕ), 1 ≤ a →
+    halveN (Bppp.NormLinear.proof_shape a b).1 a = 1 := by
+  intro a b
+  induction a, b using Bppp.NormLinear.proof_shape.induct with
+  | case1 a b h =>
+    intro ha
+    rw [Bppp.NormLinear.proof_shape, dif_pos h]
+    rw [Bppp.NormLinear.is_base_case_iff] at h
+    simp [halveN]; omega
+  | case2 a b h _ _ _ ih =>
+    intro ha
+    rw [Bppp.NormLinear.proof_shape_step h]
+    exact ih (by omega)
+
 /-- The model of the state of the round loop of `verify`. -/
 def toVSt (φ : S → F) (c : alloc.vec.Vec S) (rho mu : S) (gammas : alloc.vec.Vec S)
     (w_h w_g : bulletproofspp.norm_linear.Weights) :
@@ -80,7 +104,8 @@ lemma verify_rounds_spec (hs : ScalarModel F φ)
           toW φ q.2.2.2.2.1, toW φ q.2.2.2.2.2), τ q.1) ∧
       q.2.2.2.1.val.length = rounds.val.length ∧ q.2.2.2.2.1.length = 2 ^ rounds.val.length ∧
       q.2.2.2.2.2.length = 2 ^ rounds.val.length ∧
-      q.2.1.val.length ≤ c.val.length ⦄ := by
+      q.2.1.val.length ≤ c.val.length ∧
+      q.2.1.val.length = halveN (rounds.val.length - r.val) c.val.length ⦄ := by
   unfold bulletproofspp.norm_linear.verify_loop0
   have erl : rounds.length = rounds.val.length := rfl
   apply loop.spec_decr_nat (fun q => rounds.length - q.2.2.2.2.2.2.2.val)
@@ -89,12 +114,14 @@ lemma verify_rounds_spec (hs : ScalarModel F φ)
       q.2.2.2.2.2.1.length = 2 ^ q.2.2.2.2.2.2.2.val ∧
       q.2.2.2.2.2.2.1.length = 2 ^ q.2.2.2.2.2.2.2.val ∧
       q.2.1.val.length ≤ c.val.length ∧
+      halveN (rounds.val.length - q.2.2.2.2.2.2.2.val) q.2.1.val.length =
+        halveN (rounds.val.length - r.val) c.val.length ∧
       ((roundsψ ψ (rounds.val.drop q.2.2.2.2.2.2.2.val)).foldlM Bppp.NormLinear.verify_round
         (toVSt φ q.2.1 q.2.2.1 q.2.2.2.1 q.2.2.2.2.1 q.2.2.2.2.2.1 q.2.2.2.2.2.2.1)).run (τ q.1) =
       ((roundsψ ψ (rounds.val.drop r.val)).foldlM Bppp.NormLinear.verify_round
         (toVSt φ c rho mu gammas w_h w_g)).run (τ t))
-  · rintro ⟨t', c', rho', mu', g', wh', wg', k⟩ ⟨hk, hgl, hwhl, hwgl, hcl, heq⟩
-    dsimp only at hk hgl hwhl hwgl hcl heq
+  · rintro ⟨t', c', rho', mu', g', wh', wg', k⟩ ⟨hk, hgl, hwhl, hwgl, hcl, hhalf, heq⟩
+    dsimp only at hk hgl hwhl hwgl hcl hhalf heq
     simp only [Std.uncurry_apply_pair]
     unfold bulletproofspp.norm_linear.verify_loop0.body
     step*
@@ -132,8 +159,16 @@ lemma verify_rounds_spec (hs : ScalarModel F φ)
         have h2 := congrArg List.length hv1
         simp [Bppp.vec_add, Bppp.vec_scalar_mul] at this h2
         omega
+      have hc2e : c2.val.length = (c'.val.length + 1) / 2 := by
+        have := congrArg List.length hc2
+        have h2 := congrArg List.length hv1
+        simp [Bppp.vec_add, Bppp.vec_scalar_mul] at this h2
+        omega
       refine ⟨by scalar_tac, by simp [gammas1_post]; scalar_tac, by rw [hwh1l, hwhl, r1_post]; ring,
-        by rw [hwg1l, hwgl, r1_post]; ring, by omega, ?_, by scalar_tac⟩
+        by rw [hwg1l, hwgl, r1_post]; ring, by omega, ?_, ?_, by scalar_tac⟩
+      · rw [← hhalf, r1_post, hc2e,
+          show rounds.val.length - k.val = (rounds.val.length - (k.val + 1)) + 1 by omega]
+        rfl
       rw [← heq, r1_post]
       conv_rhs => rw [show roundsψ ψ (rounds.val.drop k.val) =
           (ψ x_point, ψ r_point) :: roundsψ ψ (rounds.val.drop (k.val + 1)) by
@@ -159,10 +194,12 @@ lemma verify_rounds_spec (hs : ScalarModel F φ)
       · exact hwg1
     · have hkv : rounds.val.length ≤ k.val := by scalar_tac
       refine ⟨φ rho', ?_, by omega, by rw [hwhl]; congr 1; omega,
-        by rw [hwgl]; congr 1; omega, hcl⟩
+        by rw [hwgl]; congr 1; omega, hcl, ?_⟩
+      swap
+      · rw [← hhalf, show rounds.val.length - k.val = 0 by omega]; rfl
       rw [← heq, List.drop_of_length_le (by simpa using hkv)]
       rfl
-  · exact ⟨hr, hg, hwh, hwg, le_refl _, rfl⟩
+  · exact ⟨hr, hg, hwh, hwg, le_refl _, rfl, rfl⟩
 
 lemma verify_n_spec (hs : ScalarModel F φ) (p_n : Slice S) (w_n : alloc.vec.Vec S)
     (out : alloc.vec.Vec S) (hout : out.val = []) :
