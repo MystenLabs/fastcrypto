@@ -293,4 +293,48 @@ mod tests {
         let actual = multiplier.two_scalar_mul(&a, &other_point, &b);
         assert_eq!(expected, actual);
     }
+
+    #[test]
+    fn test_one_bit_windows() {
+        let scalars = [
+            RistrettoScalar::from(0u64),
+            RistrettoScalar::from(1u64),
+            RistrettoScalar::from(2u64),
+            RistrettoScalar::from(5u64),
+            RistrettoScalar::from(0xffffffffffffffffu64),
+            RistrettoScalar::from_byte_array(&GROUP_ORDER_MINUS_ONE).unwrap(),
+        ];
+        let g = RistrettoPoint::generator();
+        let other_point = g * RistrettoScalar::from(3u64);
+
+        // CACHE_SIZE = 2 gives the base element 1-bit windows, and SLIDING_WINDOW_WIDTH = 1 gives
+        // the other element 1-bit windows.
+        let multiplier = WindowedScalarMultiplier::<RistrettoPoint, RistrettoScalar, 2, 1>::new(
+            g,
+            RistrettoPoint::zero(),
+        );
+        for a in scalars {
+            for b in scalars {
+                let expected = g * a + other_point * b;
+                assert_eq!(multiplier.two_scalar_mul(&a, &other_point, &b), expected);
+            }
+        }
+
+        // 1-bit windows for every element of multi_scalar_mul.
+        let elements = [g, other_point, g * RistrettoScalar::from(7u64)];
+        for a in scalars {
+            for b in scalars {
+                let scalars = [a, b, a + b];
+                let expected = elements[0] * a + elements[1] * b + elements[2] * (a + b);
+                let actual = multi_scalar_mul(
+                    &scalars,
+                    &elements,
+                    &HashMap::new(),
+                    1,
+                    RistrettoPoint::zero(),
+                );
+                assert_eq!(actual, expected);
+            }
+        }
+    }
 }
