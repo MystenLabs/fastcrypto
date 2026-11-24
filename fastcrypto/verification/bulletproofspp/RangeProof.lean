@@ -137,14 +137,17 @@ structure TranscriptInit (τ : bulletproofspp.transcript.BpppTranscript → Bppp
     bulletproofspp.transcript.BpppTranscript.append_u64 t l v = ok t' ∧
     τ t' = { τ t with log := (τ t).log ++ [.message (labelStr l) (Bppp.BpppTranscript.u64_le_bytes v.val)] }
 
-/-- `Generators::new` does not panic, and the generators it returns have the right shape,
-precomputed MSM tables over themselves (`GensOK`) and the Pedersen bases. -/
-structure GensNewModel (φ : S → F) (ψ : P → E) : Prop where
+/-- `Generators::new` does not panic and succeeds for powers of two at least `16`, and the
+generators it returns have the right shape, precomputed MSM tables over themselves (`GensOK`)
+and the Pedersen bases `G`, `H`. -/
+structure GensNewModel (φ : S → F) (ψ : P → E) (G H : E) : Prop where
   total : ∀ n, ∃ r, bulletproofspp.crs.cached_generators n = ok r
+  ok_pow : ∀ n : Usize, (∃ k, 4 ≤ k ∧ n.val = 2 ^ k) → ∃ a,
+    bulletproofspp.crs.cached_generators n = ok (.Ok a)
   gens : ∀ n a, bulletproofspp.crs.cached_generators n = ok (.Ok a) → ∃ g,
     alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global a = ok g ∧ GensOK φ ψ g ∧
     bulletproofspp.crs.compatible_with_pedersen_commitments g = ok true ∧
-    g.h_vec.length = 8 ∧ g.g_vec.length = n.val
+    g.h_vec.length = 8 ∧ g.g_vec.length = n.val ∧ ψ g.g = H ∧ (g.h_vec.val.map ψ).getD 0 0 = G
 
 /-- The generators `Generators::new` returns for `n`, if it returns some. -/
 def GenAt (n : ℕ) (g : bulletproofspp.crs.Generators) : Prop :=
@@ -213,7 +216,7 @@ def SetupOK (φ : S → F) (ψ : P → E) (τ : bulletproofspp.transcript.BpppTr
     bulletproofspp.crs.compatible_with_pedersen_commitments g = ok true ∧
     g.h_vec.length = 8 ∧ g.g_vec.length = r.1.nm.val
 
-lemma setup_spec (hgn : GensNewModel φ ψ)
+lemma setup_spec {G H : E} (hgn : GensNewModel φ ψ G H)
     {τ : bulletproofspp.transcript.BpppTranscript → Bppp.BpppTranscript F E}
     {oracle : List (Bppp.Entry F E) → F} (hti : TranscriptInit τ oracle) (range : pedersen.Range)
     (m : Usize) (hm : 64 * m.val + 64 ≤ Usize.max) (dst : Slice U8) :
@@ -243,7 +246,7 @@ lemma setup_spec (hgn : GensNewModel φ ψ)
   have hpnm : pm.nm = p.nm.val := hpo.nm
   rw [hrg, bind_ok]
   rcases rg with a | e
-  · obtain ⟨g, hdg, hgok, hcomp, hh, hgl⟩ := hgn.gens _ _ hrg
+  · obtain ⟨g, hdg, hgok, hcomp, hh, hgl, -, -⟩ := hgn.gens _ _ hrg
     have hgen : GenAt pm.nm g := ⟨a, by rw [hpnm]; scalar_tac,
       by rw [hpnm, usize_of_val]; exact hrg, hdg⟩
     rw [genM_ok _ _ hgen, except_ok_bind]
@@ -296,7 +299,7 @@ lemma prove_batch_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
     {τ : bulletproofspp.transcript.BpppTranscript → Bppp.BpppTranscript F E}
     (ht : TranscriptModel φ ψ τ) {oracle : List (Bppp.Entry F E) → F}
     (hti : TranscriptInit τ oracle) {G H : E} (hped : PedersenModel φ ψ G H) (hr : RandOK)
-    (hgn : GensNewModel φ ψ) {R : Type} (inst : traits.AllowedRng R) (values : Slice U64)
+    (hgn : GensNewModel φ ψ G H) {R : Type} (inst : traits.AllowedRng R) (values : Slice U64)
     (blindings : Slice pedersen.Blinding) (range : pedersen.Range) (dst : Slice U8) (rng : R)
     (hm : 256 * values.length + 256 ≤ Usize.max) :
     bulletproofspp.range_proof.RangeProof.prove_batch inst values blindings range dst rng ⦃ r =>
@@ -392,7 +395,7 @@ lemma prove_batch_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
 lemma verify_batch_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
     {τ : bulletproofspp.transcript.BpppTranscript → Bppp.BpppTranscript F E}
     (ht : TranscriptModel φ ψ τ) {oracle : List (Bppp.Entry F E) → F}
-    (hti : TranscriptInit τ oracle) (hgn : GensNewModel φ ψ)
+    (hti : TranscriptInit τ oracle) {G H : E} (hgn : GensNewModel φ ψ G H)
     (rp : bulletproofspp.range_proof.RangeProof) (commitments : Slice pedersen.PedersenCommitment)
     (range : pedersen.Range) (dst : Slice U8) (hm : 256 * commitments.length + 256 ≤ Usize.max) :
     bulletproofspp.range_proof.RangeProof.verify_batch rp commitments range dst ⦃ r =>
