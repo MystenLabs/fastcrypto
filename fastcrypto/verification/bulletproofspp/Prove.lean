@@ -392,4 +392,98 @@ lemma prove_round_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
           simp [roundsψ, rounds1_post]
         rw [hr1, withPre_snoc]
 
+lemma prove_loop_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
+    {τ : bulletproofspp.transcript.BpppTranscript → Bppp.BpppTranscript F E}
+    (ht : TranscriptModel φ ψ τ) (gens : bulletproofspp.crs.Generators) (hg : GensOK φ ψ gens)
+    (B : ℕ) (hB : 4 * B + 8 ≤ Usize.max)
+    (hgl : 1 + gens.h_vec.length + gens.g_vec.length + 8 ≤ Usize.max)
+    (t : bulletproofspp.transcript.BpppTranscript) (bases : bulletproofspp.norm_linear.LazyBases)
+    (c : alloc.vec.Vec S) (rho : S) (l n : alloc.vec.Vec S) (rounds : alloc.vec.Vec (P × P))
+    (hinv : ProveInv gens B bases c l n rounds) :
+    bulletproofspp.norm_linear.prove_loop t gens.g gens.h_vec gens.g_vec gens.precomp bases c rho
+      l n rounds ⦃ r =>
+      ProveMatches φ ψ τ [] r (withPre (roundsψ ψ rounds.val)
+        (proveM φ ψ τ gens t bases c rho l n)) ⦄ := by
+  unfold bulletproofspp.norm_linear.prove_loop
+  apply loop.spec_decr_nat (fun q => q.2.2.2.2.1.val.length + q.2.2.2.2.2.1.val.length)
+    (fun q => ProveInv gens B q.2.1 q.2.2.1 q.2.2.2.2.1 q.2.2.2.2.2.1 q.2.2.2.2.2.2 ∧
+      withPre (roundsψ ψ q.2.2.2.2.2.2.val)
+        (proveM φ ψ τ gens q.1 q.2.1 q.2.2.1 q.2.2.2.1 q.2.2.2.2.1 q.2.2.2.2.2.1) =
+      withPre (roundsψ ψ rounds.val) (proveM φ ψ τ gens t bases c rho l n))
+  · rintro ⟨t', b', c', rho', l', n', r'⟩ ⟨hi, heq⟩
+    dsimp only at hi heq ⊢
+    by_cases hb : Bppp.NormLinear.is_base_case (l'.val.length) (n'.val.length) = true
+    · have hl1 : l'.val.length = 1 := by
+        have := hi.l_pos
+        simp [Bppp.NormLinear.is_base_case] at hb; omega
+      apply WP.spec_mono (prove_base_spec ht gens t' b' c' rho' l' n' r' hl1 hb
+        (by have := hi.size; omega))
+      intro cf hcf
+      cases cf with
+      | done r => dsimp only; rw [← heq, ← proveMatches_withPre]; exact hcf
+      | cont _ => exact hcf.elim
+    · apply WP.spec_mono (prove_round_spec hs hp ht gens hg B hB hgl t' b' c' rho' l' n' r' hi
+        (by simpa using hb))
+      intro cf hcf
+      cases cf with
+      | done r => dsimp only; rw [← heq, ← proveMatches_withPre]; exact hcf
+      | cont q =>
+        obtain ⟨t2, b2, c2, rho2, l2, n2, r2⟩ := q
+        obtain ⟨hi2, hdec, heq2⟩ := hcf
+        dsimp only
+        exact ⟨⟨hi2, heq2.trans heq⟩, hdec⟩
+  · exact ⟨hinv, rfl⟩
+
+lemma prove_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
+    {τ : bulletproofspp.transcript.BpppTranscript → Bppp.BpppTranscript F E}
+    (ht : TranscriptModel φ ψ τ) (gens : bulletproofspp.crs.Generators) (hg : GensOK φ ψ gens)
+    (hgl : 1 + gens.h_vec.length + gens.g_vec.length + 8 ≤ Usize.max)
+    (hgB : 4 * (gens.h_vec.length + gens.g_vec.length) + 8 ≤ Usize.max)
+    (t : bulletproofspp.transcript.BpppTranscript) (c : Slice S) (rho : S)
+    (opening : bulletproofspp.norm_linear.Opening)
+    (hl : opening.l.length = gens.h_vec.length) (hc : c.length = gens.h_vec.length)
+    (hn : opening.n.length = gens.g_vec.length) (hl1 : 1 ≤ gens.h_vec.length) :
+    bulletproofspp.norm_linear.prove t gens c rho opening ⦃ r =>
+      ProveMatches φ ψ τ [] r ((Bppp.NormLinear.prove (toGens ψ gens) (c.val.map φ) (φ rho)
+        (toO φ opening)).run (τ t)) ⦄ := by
+  unfold bulletproofspp.norm_linear.prove
+  have e1 : opening.l.length = opening.l.val.length := rfl
+  have e2 : opening.n.length = opening.n.val.length := rfl
+  have e3 : c.length = c.val.length := rfl
+  have e4 : gens.h_vec.length = gens.h_vec.val.length := rfl
+  have e5 : gens.g_vec.length = gens.g_vec.val.length := rfl
+  obtain ⟨t1, h1, m1⟩ := ht.domain_sep t .NormLinear
+  step*
+  rw [h1, bind_ok]
+  apply WP.spec_bind (lazy_new_spec (ψ := ψ) hs gens)
+  rintro bases ⟨hb, hbh, hbg, hbp⟩
+  apply WP.spec_bind (alloc.slice.Slice.to_vec_spec _ c (fun x _ => hs.clone x))
+  intro c1 hc1
+  apply WP.spec_bind (alloc.slice.Slice.to_vec_spec _ _ (fun x _ => hs.clone x))
+  intro l hl'
+  apply WP.spec_bind (alloc.slice.Slice.to_vec_spec _ _ (fun x _ => hs.clone x))
+  intro n hn'
+  have hc1v : c1.val = c.val := by
+    have := congrArg (fun s : Slice S => s.val) hc1; rw [this]; rfl
+  have hlv : l.val = opening.l.val := by
+    have := congrArg (fun s : Slice S => s.val) hl'
+    rw [deref_val] at this; exact this.symm
+  have hnv : n.val = opening.n.val := by
+    have := congrArg (fun s : Slice S => s.val) hn'
+    rw [deref_val] at this; exact this.symm
+  apply WP.spec_mono (prove_loop_spec hs hp ht gens hg (gens.h_vec.length + gens.g_vec.length)
+    hgB hgl t1 bases c1 rho l n (alloc.vec.Vec.new _)
+    ⟨⟨by omega, by omega, by omega, by simp [lbLen, hbp], by simp [lbLen, hbp]⟩,
+      by unfold WPow; omega, by rw [hc1v, hlv]; omega, by rw [hlv]; omega,
+      by simp [hlv, hnv]; omega⟩)
+  intro r hr
+  convert hr using 2
+  simp only [withPre, roundsψ, alloc.vec.Vec.new, List.map_nil, List.nil_append]
+  simp only [Bppp.NormLinear.prove, StateT.run_bind]
+  simp only [labelStr] at m1
+  rw [m1]
+  simp [proveM, hb, hc1v, hlv, hnv, toO, Except.map]
+  generalize StateT.run _ (τ t1) = R
+  cases R <;> rfl
+
 end BpppProofs
