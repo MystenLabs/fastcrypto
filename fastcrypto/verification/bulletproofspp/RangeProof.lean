@@ -303,12 +303,13 @@ lemma prove_batch_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
     (blindings : Slice pedersen.Blinding) (range : pedersen.Range) (dst : Slice U8) (rng : R)
     (hm : 256 * values.length + 256 ≤ Usize.max) :
     bulletproofspp.range_proof.RangeProof.prove_batch inst values blindings range dst rng ⦃ r =>
-      ∃ rnd : Bppp.Circuit.Randomness F,
+      ∀ N, (∀ pm, Bppp.CircuitParams.new (toRange range) values.val.length = .ok pm →
+          N = pm.nm) →
         match Bppp.RangeProof.prove_batch oracle (genM ψ) G H (values.val.map (·.val))
-            (blindings.val.map φ) (toRange range) (dst.val.map (·.val)) rnd with
+            (blindings.val.map φ) (toRange range) (dst.val.map (·.val))
+            (rngD φ hr inst rng N) with
         | .ok rp => ∃ rp', r.1 = .Ok rp' ∧ toRP φ ψ rp' = rp
         | .error _ => ∃ e, r.1 = .Err e ⦄ := by
-  have rnd0 : Bppp.Circuit.Randomness F := ⟨fun _ => 0, fun _ => 0, fun _ => 0, fun _ => 0, 0⟩
   have ev : values.len.val = values.val.length := rfl
   have evl : values.length = values.val.length := rfl
   have eb : blindings.len.val = blindings.val.length := rfl
@@ -317,14 +318,14 @@ lemma prove_batch_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
   by_cases h0 : values.val = []
   · have : decide (values.length = 0) = true := by simp [evl, h0]
     rw [if_pos this, WP.spec_ok]
-    exact ⟨rnd0, by simp [h0, except_throw']⟩
+    exact fun N _ => by simp [h0, except_throw']
   rw [if_neg (by simpa [evl] using h0)]
   by_cases h1 : values.val.length = blindings.val.length
   swap
   · have : (values.len != blindings.len) = true := by
       simp only [bne_iff_ne, ne_eq]; intro h; apply h1; rw [← ev, ← eb, h]
     rw [if_pos this, WP.spec_ok]
-    exact ⟨rnd0, by simp [h1, except_throw']⟩
+    exact fun N _ => by simp [h1, except_throw']
   have : (values.len != blindings.len) = false := by
     simp only [bne_eq_false_iff_eq]; apply UScalar.eq_of_val_eq; rw [ev, eb, h1]
   rw [if_neg (by simp [this])]
@@ -335,7 +336,7 @@ lemma prove_batch_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
   swap
   · rename_i hnall
     rw [WP.spec_ok]
-    refine ⟨rnd0, ?_⟩
+    intro N _
     simp only [Bool.not_eq_true', Bool.not_eq_false'] at hnall
     simp [hnall, except_throw']
   rename_i hall
@@ -354,7 +355,7 @@ lemma prove_batch_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
     simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
       core.convert.FromSame.from, bind_tc_ok, WP.spec_ok]
-    refine ⟨rnd0, ?_⟩
+    intro N _
     rw [ev] at he
     simp [he, except_error_bind]
   rename_i x hx
@@ -369,18 +370,27 @@ lemma prove_batch_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
     rw [hh, hgl]; rw [ev] at hnm; omega
   apply WP.spec_bind (circuit_prove_spec (G := G) (H := H) hs hp ht hped hr inst g hgok hcomp x.1 p hpo
     hpr hd hnd hh hgB t rng values (alloc.vec.Vec.deref bs))
-  rintro ⟨r1, t', rng1⟩ ⟨rnd, hcp⟩
+  rintro ⟨r1, t', rng1⟩ hcp
+  have hpx : Bppp.CircuitParams.new (toRange range) values.val.length = .ok x.1 := by
+    have h := hx'
+    simp only [List.length_map, Bppp.RangeProof.setup] at h
+    obtain ⟨pm', hpm', h2⟩ := except_bind_ok_inv h
+    obtain ⟨gm, -, h3⟩ := except_bind_ok_inv h2
+    simp only [pure, Except.pure, Except.ok.injEq] at h3
+    rw [hpm', ← h3]
   rw [deref_val, hbs] at hcp
   simp only at hcp
   simp only [Std.uncurry_apply_pair]
-  rcases hm' : (Bppp.Circuit.prove G H (toGens ψ g) x.1 rnd (values.val.map (·.val))
+  rcases hm' : (Bppp.Circuit.prove G H (toGens ψ g) x.1 (rngD φ hr inst rng p.nm.val)
+    (values.val.map (·.val))
     (blindings.val.map φ)).run (τ t) with e | ⟨⟨cp, vs⟩, T⟩
   · rw [hm'] at hcp
     obtain ⟨e', he'⟩ := hcp
     simp only at he'
     subst he'
     rw [WP.spec_ok]
-    refine ⟨rnd, ?_⟩
+    intro N hN
+    rw [hN _ hpx, hpo.nm]
     rw [hx', except_ok_bind, ← hgx, ← htx, StateT.run'_eq, hm']
     simp [except_throw']
   · rw [hm'] at hcp
@@ -388,7 +398,8 @@ lemma prove_batch_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
     simp only at h1'
     subst h1'
     simp only [Std.uncurry_apply_pair, WP.spec_ok]
-    refine ⟨rnd, ?_⟩
+    intro N hN
+    rw [hN _ hpx, hpo.nm]
     rw [hx', except_ok_bind, ← hgx, ← htx, StateT.run'_eq, hm']
     exact ⟨_, rfl, by simp [toRP, h2']⟩
 

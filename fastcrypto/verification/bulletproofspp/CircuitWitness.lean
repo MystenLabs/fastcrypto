@@ -1,5 +1,6 @@
 -- THIS FILE IS AI-ONLY
 import bulletproofspp.Circuit
+import bulletproofspp.Spec.ZeroKnowledge
 
 /-!
 `Witness::new` computes `Bppp.Circuit.Witness.new`, for some draws of the random number
@@ -104,21 +105,219 @@ lemma digits_loop_spec (params : bulletproofspp.circuit.CircuitParams) (values :
       · rw [hl1, hk']
   · exact ⟨hdl, hi, hdig⟩
 
-lemma rand_loop_spec (hr : RandOK) {R : Type} (inst : traits.AllowedRng R) (i : Usize) (rng : R)
-    (n_s : alloc.vec.Vec S) (j : Usize) (hl : n_s.val.length = j.val) (hj : j.val ≤ i.val) :
-    bulletproofspp.circuit.Witness.new_loop1 inst i rng n_s j ⦃ r => r.2.val.length = i.val ⦄ := by
+section Stream
+
+variable {R : Type} (hr : RandOK) (inst : traits.AllowedRng R)
+
+/-- The draw of `RistrettoScalar::rand` from the state `rng`, and the next state. -/
+noncomputable def rnext (rng : R) : S × R :=
+  ((hr inst rng).choose, (hr inst rng).choose_spec.choose)
+
+lemma rnext_spec (rng : R) :
+    groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsScalar.rand inst rng =
+      ok (rnext hr inst rng) :=
+  (hr inst rng).choose_spec.choose_spec
+
+/-- The state after `k` draws from `rng`. -/
+noncomputable def rstate : ℕ → R → R
+  | 0, rng => rng
+  | k + 1, rng => (rnext hr inst (rstate k rng)).2
+
+/-- Draw `k` (from `0`) from `rng`. -/
+noncomputable def rdraw (k : ℕ) (rng : R) : S := (rnext hr inst (rstate hr inst k rng)).1
+
+lemma rstate_add (b a : ℕ) (rng : R) :
+    rstate hr inst (b + a) rng = rstate hr inst a (rstate hr inst b rng) := by
+  induction a with
+  | zero => rfl
+  | succ a ih => show (rnext hr inst (rstate hr inst (b + a) rng)).2 = _; rw [ih]; rfl
+
+lemma rdraw_add (b i : ℕ) (rng : R) :
+    rdraw hr inst i (rstate hr inst b rng) = rdraw hr inst (b + i) rng := by
+  unfold rdraw; rw [rstate_add]
+
+end Stream
+
+instance (e : ℤ) (q : ℕ) : Decidable (bvCond e q) := by unfold bvCond; infer_instance
+
+/-- One iteration of `blinding_vector`'s loop on the draws `g`: the vector so far and the
+number of draws so far. -/
+def bvStep (e : ℤ) (g : ℕ → F) (acc : List F × ℕ) (p : ℕ) : List F × ℕ :=
+  if bvCond e p then (acc.1 ++ [g acc.2], acc.2 + 1) else (acc.1 ++ [0], acc.2)
+
+/-- `blinding_vector` after `k` iterations of its loop, on the draws `g`. -/
+def bvA (e : ℤ) (g : ℕ → F) (k : ℕ) : List F × ℕ :=
+  (List.range k).foldl (bvStep e g) ([g 0], 1)
+
+lemma bvA_succ (e : ℤ) (g : ℕ → F) (k : ℕ) : bvA e g (k + 1) = bvStep e g (bvA e g k) k := by
+  simp [bvA, List.range_succ, List.foldl_append]
+
+lemma bvA_zero (g : ℕ → F) : bvA 0 g 7 = ([g 0, g 1, g 2, g 3, 0, g 4, g 5, 0], 6) := by
+  simp [bvA, bvStep, bvCond, Bppp.Circuit.CR_POWERS, List.range_succ]
+
+lemma bvA_one (g : ℕ → F) : bvA 1 g 7 = ([g 0, g 1, g 2, 0, g 3, g 4, 0, 0], 5) := by
+  simp [bvA, bvStep, bvCond, Bppp.Circuit.CR_POWERS, List.range_succ]
+
+lemma bvA_two (g : ℕ → F) : bvA 2 g 7 = ([g 0, g 1, 0, g 2, g 3, 0, 0, 0], 4) := by
+  simp [bvA, bvStep, bvCond, Bppp.Circuit.CR_POWERS, List.range_succ]
+
+lemma bvx_step (e : ℤ) (G : ℕ → F) {R : Type} (st : ℕ → R) {rA x : List S} {pA p1 : ℕ} {y : S}
+    {rngB : R} (hx : x = rA ++ [y]) (hp : p1 = pA + 1) (hl1 : rA.length = pA + 1)
+    (hpA : pA < 7) (hA : rA.map φ = (bvA e G pA).1)
+    (hy : (bvCond e pA ∧ φ y = G (bvA e G pA).2 ∧ rngB = st ((bvA e G pA).2 + 1)) ∨
+      (¬ bvCond e pA ∧ φ y = 0 ∧ rngB = st (bvA e G pA).2)) :
+    x.length = p1 + 1 ∧ p1 ≤ 7 ∧ x.map φ = (bvA e G p1).1 ∧ rngB = st (bvA e G p1).2 ∧
+      7 - p1 < 7 - pA := by
+  subst hx hp
+  rw [bvA_succ]
+  rcases hy with ⟨hc, hy, hb⟩ | ⟨hc, hy, hb⟩ <;>
+    simp only [bvStep, hc, if_true, if_false] <;>
+    exact ⟨by simp [hl1], by omega, by simp [hA, hy], hb, by omega⟩
+
+lemma blinding_vector_exact (hs : ScalarModel F φ) (hr : RandOK) {R : Type}
+    (inst : traits.AllowedRng R) (e : I32) (he : -8 ≤ e.val ∧ e.val ≤ 8) (rng : R) :
+    bulletproofspp.circuit.blinding_vector inst rng e ⦃ res =>
+      res.1.val.map φ = (bvA e.val (fun i => φ (rdraw hr inst i rng)) 7).1 ∧
+      res.2 = rstate hr inst (bvA e.val (fun i => φ (rdraw hr inst i rng)) 7).2 rng ⦄ := by
+  set G : ℕ → F := fun i => φ (rdraw hr inst i rng) with hG
+  unfold bulletproofspp.circuit.blinding_vector bulletproofspp.circuit.blinding_vector_loop
+  simp only [rnext_spec hr inst, bind_ok]
+  have h0 : (alloc.vec.Vec.with_capacity S bulletproofspp.crs.H_LEN).val.length = 0 := rfl
+  have hd0 : rdraw hr inst 0 rng = (rnext hr inst rng).1 := rfl
+  have hs0 : rstate hr inst 1 rng = (rnext hr inst rng).2 := rfl
+  rcases hn : rnext hr inst rng with ⟨d0, s0⟩
+  rw [hn] at hd0 hs0
+  simp only [Std.uncurry_apply_pair]
+  step*
+  apply loop.spec_decr_nat (fun x : R × alloc.vec.Vec S × Usize => 7 - x.2.2.val)
+    (fun x : R × alloc.vec.Vec S × Usize => x.2.1.val.length = x.2.2.val + 1 ∧ x.2.2.val ≤ 7 ∧
+      x.2.1.val.map φ = (bvA e.val G x.2.2.val).1 ∧ x.1 = rstate hr inst (bvA e.val G x.2.2.val).2 rng)
+  · rintro ⟨rngA, rA, pA⟩ ⟨hl1, hp1, hA, hst⟩
+    simp only at hl1 hp1 hA hst
+    subst hst
+    unfold bulletproofspp.circuit.blinding_vector_loop.body
+    have hdc : rdraw hr inst (bvA e.val G pA.val).2 rng =
+        (rnext hr inst (rstate hr inst (bvA e.val G pA.val).2 rng)).1 := rfl
+    have hsc : rstate hr inst ((bvA e.val G pA.val).2 + 1) rng =
+        (rnext hr inst (rstate hr inst (bvA e.val G pA.val).2 rng)).2 := rfl
+    rcases hn : rnext hr inst (rstate hr inst (bvA e.val G pA.val).2 rng) with ⟨d, s'⟩
+    rw [hn] at hdc hsc
+    simp only [rnext_spec hr inst, hn, hs.zero_eq]
+    have hl : (Array.to_slice bulletproofspp.circuit.CR_POWERS).len.val = 7 := by
+      simp [cr_len]
+    step*
+    all_goals try (
+      have hp7 : pA.val < 7 := by scalar_tac
+      have := cr_getD_bounds pA.val
+      rw [cr_getD_eq _ hp7, ← i1_post] at this
+      scalar_tac; done)
+    · have hp7 : pA.val < 7 := by scalar_tac
+      have hi1 : i1.val = Bppp.Circuit.CR_POWERS.getD pA.val 0 := by
+        rw [cr_getD_eq _ hp7, i1_post]
+      by_cases hm1 : power = (-1)#i32
+      · have hcond : bvCond e.val pA.val := by
+          left
+          have : power.val = -1 := by rw [hm1]; rfl
+          rw [← hi1]; omega
+        simp only [hm1, if_true]
+        step*
+        all_goals first
+          | exact bvx_step e.val G (fun c => rstate hr inst c rng) (by assumption) (by assumption)
+              hl1 hp7 hA (Or.inl ⟨hcond, by simp [G, hdc], hsc.symm⟩)
+          | exact (bvx_step e.val G (fun c => rstate hr inst c rng) (by assumption)
+              (by assumption) hl1 hp7 hA (Or.inl ⟨hcond, by simp [G, hdc], hsc.symm⟩)).2
+      · simp only [hm1, if_false]
+        have hpv : power.val ≠ -1 := fun h => hm1 (IScalar.eq_of_val_eq (by rw [h]; rfl))
+        step*
+        all_goals try (have := cr_getD_bounds pA.val; scalar_tac; done)
+        simp only [is_cr_power_eq, bind_ok]
+        have hx := ‹(_ : I32).val = power.val + 1›
+        split
+        · rename_i hin
+          have hcond : bvCond e.val pA.val := by
+            right
+            simp only [decide_eq_true_eq] at hin
+            have : e.val + Bppp.Circuit.CR_POWERS.getD pA.val 0 + 1 = (‹I32›).val := by
+              rw [← hi1]; scalar_tac
+            rw [this]; exact hin
+          step*
+          all_goals first
+            | exact bvx_step e.val G (fun c => rstate hr inst c rng) (by assumption)
+                (by assumption) hl1 hp7 hA (Or.inl ⟨hcond, by simp [G, hdc], hsc.symm⟩)
+            | exact (bvx_step e.val G (fun c => rstate hr inst c rng) (by assumption)
+                (by assumption) hl1 hp7 hA (Or.inl ⟨hcond, by simp [G, hdc], hsc.symm⟩)).2
+        · rename_i hin
+          have hncond : ¬ bvCond e.val pA.val := by
+            simp only [decide_eq_true_eq] at hin
+            rintro (h | h)
+            · apply hpv; rw [← hi1] at h; scalar_tac
+            · apply hin
+              have : (‹I32›).val = e.val + Bppp.Circuit.CR_POWERS.getD pA.val 0 + 1 := by
+                rw [← hi1]; scalar_tac
+              rw [this]; exact h
+          step*
+          all_goals first
+            | exact bvx_step e.val G (fun c => rstate hr inst c rng) (by assumption)
+                (by assumption) hl1 hp7 hA (Or.inr ⟨hncond, by simp, rfl⟩)
+            | exact (bvx_step e.val G (fun c => rstate hr inst c rng) (by assumption)
+                (by assumption) hl1 hp7 hA (Or.inr ⟨hncond, by simp, rfl⟩)).2
+  · refine ⟨by simp [*], by simp, by simp [*, bvA, G], by simp [bvA, hs0]⟩
+
+
+lemma rand_loop_exact (hr : RandOK) {R : Type} (inst : traits.AllowedRng R) (i : Usize)
+    (rng : R) :
+    bulletproofspp.circuit.Witness.new_loop1 inst i rng (alloc.vec.Vec.with_capacity S i) 0#usize
+      ⦃ res => res.2.val.map φ = (List.range i.val).map (fun k => φ (rdraw hr inst k rng)) ∧
+        res.1 = rstate hr inst i.val rng ⦄ := by
   unfold bulletproofspp.circuit.Witness.new_loop1
-  apply loop.spec_decr_nat (fun x => i.val - x.2.2.val)
-    (fun x => x.2.1.val.length = x.2.2.val ∧ x.2.2.val ≤ i.val)
-  · rintro ⟨rngA, v, k⟩ ⟨hl1, hk⟩
-    simp only at hl1 hk
+  apply loop.spec_decr_nat (fun x : R × alloc.vec.Vec S × Usize => i.val - x.2.2.val)
+    (fun x : R × alloc.vec.Vec S × Usize => x.2.2.val ≤ i.val ∧ x.2.1.val.length = x.2.2.val ∧
+      x.2.1.val.map φ = (List.range x.2.2.val).map (fun k => φ (rdraw hr inst k rng)) ∧
+      x.1 = rstate hr inst x.2.2.val rng)
+  · rintro ⟨rngA, v, k⟩ ⟨hk, hl1, hv, hst⟩
+    simp only at hk hl1 hv hst
+    subst hst
     unfold bulletproofspp.circuit.Witness.new_loop1.body
-    obtain ⟨d, rng2, hd⟩ := hr inst rngA
-    simp only [hd]
+    have hdc : rdraw hr inst k.val rng = (rnext hr inst (rstate hr inst k.val rng)).1 := rfl
+    have hsc : rstate hr inst (k.val + 1) rng = (rnext hr inst (rstate hr inst k.val rng)).2 := rfl
+    rcases hn : rnext hr inst (rstate hr inst k.val rng) with ⟨d, s'⟩
+    rw [hn] at hdc hsc
+    simp only [rnext_spec hr inst, hn]
     have : v.length = v.val.length := rfl
     step*
-    exact ⟨by simp [*], by scalar_tac, by scalar_tac⟩
-  · exact ⟨hl, hj⟩
+    refine ⟨by scalar_tac, by simp [*], ?_, by rw [j1_post, hsc], by scalar_tac⟩
+    rw [n_s1_post, j1_post, List.map_append, hv, List.range_succ, List.map_append]
+    simp [hdc]
+  · exact ⟨by simp, by simp, by simp, rfl⟩
+
+/-- The draws of `Witness::new` from the random number generator in the state `rng`: `r_O`,
+`r_L` and `r_R` take draws `0, ..., 14` at the slots `blinding_vector` draws, `n_S` the next
+`nm` and `ℓ_S` the last. -/
+noncomputable def rngD (φ : S → F) (hr : RandOK) {R : Type} (inst : traits.AllowedRng R) (rng : R)
+    (nm : ℕ) : Bppp.Circuit.Randomness F where
+  r_o := Bppp.Spec.blindO (fun i : Fin 15 => φ (rdraw hr inst i rng))
+  r_l := Bppp.Spec.blindL (fun i : Fin 15 => φ (rdraw hr inst i rng))
+  r_r := Bppp.Spec.blindR (fun i : Fin 15 => φ (rdraw hr inst i rng))
+  n_s k := if k < nm then φ (rdraw hr inst (6 + 5 + 4 + k) rng) else 0
+  l_s := φ (rdraw hr inst (6 + 5 + 4 + nm) rng)
+
+lemma bv_model_O (B : Fin 15 → F) :
+    Bppp.Circuit.blinding_vector (Bppp.Spec.blindO B) Bppp.Circuit.C_O_POWER =
+      [B 0, B 1, B 2, B 3, 0, B 4, B 5, 0] := by
+  simp [Bppp.Circuit.blinding_vector, Bppp.Circuit.CR_POWERS, Bppp.Circuit.C_O_POWER,
+    List.zipIdx, Bppp.Spec.blindO]
+
+lemma bv_model_L (B : Fin 15 → F) :
+    Bppp.Circuit.blinding_vector (Bppp.Spec.blindL B) Bppp.Circuit.C_L_POWER =
+      [B 6, B 7, B 8, 0, B 9, B 10, 0, 0] := by
+  simp [Bppp.Circuit.blinding_vector, Bppp.Circuit.CR_POWERS, Bppp.Circuit.C_L_POWER,
+    List.zipIdx, Bppp.Spec.blindL]
+
+lemma bv_model_R (B : Fin 15 → F) :
+    Bppp.Circuit.blinding_vector (Bppp.Spec.blindR B) Bppp.Circuit.C_R_POWER =
+      [B 11, B 12, 0, B 13, B 14, 0, 0, 0] := by
+  simp [Bppp.Circuit.blinding_vector, Bppp.Circuit.CR_POWERS, Bppp.Circuit.C_R_POWER,
+    List.zipIdx, Bppp.Spec.blindR]
 
 lemma witness_new_spec (hs : ScalarModel F φ) (hr : RandOK) {R : Type}
     (inst : traits.AllowedRng R) (pm : Bppp.CircuitParams)
@@ -126,9 +325,8 @@ lemma witness_new_spec (hs : ScalarModel F φ) (hr : RandOK) {R : Type}
     (hnd : p.n_d.val ≤ p.nm.val) (rng : R) (values : Slice U64) (blindings : Slice S)
     (hv : values.length = p.m.val) :
     bulletproofspp.circuit.Witness.new inst p rng values blindings ⦃ res =>
-      ∃ rnd : Bppp.Circuit.Randomness F,
-        toWit φ res.1 = Bppp.Circuit.Witness.new pm rnd (values.val.map (·.val))
-          (blindings.val.map φ) ∧
+        toWit φ res.1 = Bppp.Circuit.Witness.new pm (rngD φ hr inst rng p.nm.val)
+          (values.val.map (·.val)) (blindings.val.map φ) ∧
         res.1.off_plane.val = [] ∧ res.1.n_l.length = p.nm.val ∧ res.1.n_o.length = p.nm.val ∧
         res.1.n_s.length = p.nm.val ∧ res.1.r_o.length = 8 ∧ res.1.r_l.length = 8 ∧
         res.1.r_r.length = 8 ∧ res.1.values.length = p.m.val ∧
@@ -148,17 +346,43 @@ lemma witness_new_spec (hs : ScalarModel F φ) (hr : RandOK) {R : Type}
     unfold bulletproofspp.circuit.C_L_POWER; rfl
   have h2 : (bulletproofspp.circuit.C_R_POWER).val = 2 := by
     unfold bulletproofspp.circuit.C_R_POWER; rfl
-  apply WP.spec_bind (blinding_vector_spec hs hr inst rng _ (by rw [h0]; norm_num))
-  rintro ⟨r_o, rng1⟩ ⟨hol, ho⟩
-  apply WP.spec_bind (blinding_vector_spec hs hr inst rng1 _ (by rw [h1]; norm_num))
-  rintro ⟨r_l, rng2⟩ ⟨hll, hl⟩
-  apply WP.spec_bind (blinding_vector_spec hs hr inst rng2 _ (by rw [h2]; norm_num))
-  rintro ⟨r_r, rng3⟩ ⟨hrl, hrr⟩
+  apply WP.spec_bind (blinding_vector_exact (φ := φ) hs hr inst _ (by rw [h0]; norm_num) rng)
+  rintro ⟨r_o, rng1⟩ ⟨ho, hs1⟩
+  rw [h0, bvA_zero] at ho hs1
+  simp only at ho hs1
+  subst hs1
+  apply WP.spec_bind (blinding_vector_exact (φ := φ) hs hr inst _ (by rw [h1]; norm_num)
+    (rstate hr inst 6 rng))
+  rintro ⟨r_l, rng2⟩ ⟨hl, hs2⟩
+  rw [h1, bvA_one] at hl hs2
+  simp only [rdraw_add, ← rstate_add] at hl hs2
+  subst hs2
+  apply WP.spec_bind (blinding_vector_exact (φ := φ) hs hr inst _ (by rw [h2]; norm_num)
+    (rstate hr inst (6 + 5) rng))
+  rintro ⟨r_r, rng3⟩ ⟨hrr, hs3⟩
+  rw [h2, bvA_two] at hrr hs3
+  simp only [rdraw_add, ← rstate_add] at hrr hs3
+  subst hs3
   simp only [Std.uncurry_apply_pair]
-  apply WP.spec_bind (rand_loop_spec hr inst p.nm rng3 _ 0#usize (by simp) (by simp))
-  rintro ⟨rng4, n_s⟩ hns
-  obtain ⟨l_s, rng5, hls⟩ := hr inst rng4
-  simp only [hls, bind_ok, Std.uncurry_apply_pair]
+  apply WP.spec_bind (rand_loop_exact (φ := φ) hr inst p.nm (rstate hr inst (6 + 5 + 4) rng))
+  rintro ⟨rng4, n_s⟩ ⟨hns, hs4⟩
+  simp only [rdraw_add] at hns hs4
+  subst hs4
+  have hls : rdraw hr inst (6 + 5 + 4 + p.nm.val) rng =
+      (rnext hr inst (rstate hr inst p.nm.val (rstate hr inst (6 + 5 + 4) rng))).1 := by
+    rw [← rdraw_add]; rfl
+  rcases hn : rnext hr inst (rstate hr inst p.nm.val (rstate hr inst (6 + 5 + 4) rng)) with
+    ⟨l_s, rng5⟩
+  rw [hn] at hls
+  simp only [rnext_spec hr inst, hn, bind_ok, Std.uncurry_apply_pair]
+  have hol : r_o.length = 8 := by
+    have := congrArg List.length ho; simpa using this
+  have hll : r_l.length = 8 := by
+    have := congrArg List.length hl; simpa using this
+  have hrl : r_r.length = 8 := by
+    have := congrArg List.length hrr; simpa using this
+  have hnsl : n_s.length = p.nm.val := by
+    have := congrArg List.length hns; simpa using this
   apply WP.spec_bind (to_scalars_spec hs values)
   intro v hv'
   have hclone : ∀ x ∈ blindings.val,
@@ -209,21 +433,22 @@ lemma witness_new_spec (hs : ScalarModel F φ) (hr : RandOK) {R : Type}
     have := congrArg List.length hv'
     simp only [List.length_map, Bppp.to_scalars] at this
     rw [this]; exact hv
-  refine ⟨⟨fun k => (r_o.val.map φ).getD k 0, fun k => (r_l.val.map φ).getD k 0,
-    fun k => (r_r.val.map φ).getD k 0, fun k => (n_s.val.map φ).getD k 0, φ l_s⟩,
-    ?_, rfl, hv3l, hv6l, hns, hol, hll, hrl, hvl, ?_⟩
+  refine ⟨?_, rfl, hv3l, hv6l, hnsl, hol, hll, hrl, hvl, ?_⟩
   · have hco : Bppp.Circuit.C_O_POWER = 0 := rfl
     have hcl : Bppp.Circuit.C_L_POWER = 1 := rfl
     have hcr : Bppp.Circuit.C_R_POWER = 2 := rfl
     simp only [toWit, Bppp.Circuit.Witness.new, Bppp.Circuit.Witness.mk.injEq]
-    rw [h0] at ho; rw [h1] at hl; rw [h2] at hrr
-    refine ⟨hv', by rw [blindings_post]; rfl, rfl, ?_, ?_, by rw [hco]; exact ho, by rw [hcl]; exact hl,
-      by rw [hcr]; exact hrr, ?_, trivial⟩
+    refine ⟨hv', by rw [blindings_post]; rfl, rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [hv3, deref_val, hv2, deref_val, hdig, hpd, hpnm, List.flatMap_map]
     · rw [hv6, deref_val, hv5, deref_val, hv4, deref_val, hdig, hpnm, hpd, List.flatMap_map]
-    · rw [hpnm]
-      refine List.ext_getElem (by simp [hns]) (fun k h1 h2 => ?_)
-      simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by simpa using h1)]
+    · rw [ho]; simp only [rngD]; rw [bv_model_O]; simp
+    · rw [hl]; simp only [rngD]; rw [bv_model_L]; simp
+    · rw [hrr]; simp only [rngD]; rw [bv_model_R]; simp
+    · rw [hns, hpnm]; simp only [rngD]
+      refine List.map_congr_left (fun k hk => ?_)
+      rw [if_pos (List.mem_range.mp hk)]
+    · simp only [rngD]; rw [hls]
   · rw [blindings_post]; rfl
+
 
 end BpppProofs

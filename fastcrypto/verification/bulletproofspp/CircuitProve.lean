@@ -490,15 +490,15 @@ lemma circuit_prove_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
     (t : bulletproofspp.transcript.BpppTranscript) (rng : R) (values : Slice U64)
     (blindings : Slice S) :
     bulletproofspp.circuit.prove inst t gens p rng values blindings ⦃ r =>
-      ∃ rnd : Bppp.Circuit.Randomness F, CPMatches φ ψ τ (r.1, r.2.1)
-        ((Bppp.Circuit.prove G H (toGens ψ gens) pm rnd (values.val.map (·.val))
+      CPMatches φ ψ τ (r.1, r.2.1)
+        ((Bppp.Circuit.prove G H (toGens ψ gens) pm (rngD φ hr inst rng p.nm.val)
+          (values.val.map (·.val))
           (blindings.val.map φ)).run (τ t)) ⦄ := by
   have hpo' := hpo
   obtain ⟨hm, hpd, hpnd, hpnm, hd0, hnde, hnm, hml, hnml⟩ := hpo'
   have ev : values.len.val = values.val.length := rfl
   have eb : blindings.len.val = blindings.val.length := rfl
   have eg : gens.g_vec.len.val = gens.g_vec.val.length := rfl
-  have rnd0 : Bppp.Circuit.Randomness F := ⟨fun _ => 0, fun _ => 0, fun _ => 0, fun _ => 0, 0⟩
   unfold bulletproofspp.circuit.prove
   unfold Bppp.Circuit.prove
   by_cases h1 : values.val.length = p.m.val
@@ -506,7 +506,7 @@ lemma circuit_prove_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
   · have : (values.len != p.m) = true := by
       simp only [bne_iff_ne, ne_eq]; intro h; apply h1; rw [← ev, h]
     rw [if_pos this, WP.spec_ok]
-    exact ⟨rnd0, by simp [CPMatches, hm, h1, except_throw']⟩
+    exact (by simp [CPMatches, hm, h1, except_throw'])
   have : (values.len != p.m) = false := by
     simp only [bne_eq_false_iff_eq]; apply UScalar.eq_of_val_eq; rw [ev, h1]
   rw [if_neg (by simp [this])]
@@ -515,7 +515,7 @@ lemma circuit_prove_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
   · have : (blindings.len != p.m) = true := by
       simp only [bne_iff_ne, ne_eq]; intro h; apply h2; rw [← eb, h]
     rw [if_pos this, WP.spec_ok]
-    exact ⟨rnd0, by simp [CPMatches, hm, h2, except_throw']⟩
+    exact (by simp [CPMatches, hm, h2, except_throw'])
   have : (blindings.len != p.m) = false := by
     simp only [bne_eq_false_iff_eq]; apply UScalar.eq_of_val_eq; rw [eb, h2]
   rw [if_neg (by simp [this])]
@@ -524,7 +524,7 @@ lemma circuit_prove_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
   · have : (gens.g_vec.len != p.nm) = true := by
       simp only [bne_iff_ne, ne_eq]; intro h; apply h3; rw [← eg, h]
     rw [if_pos this, WP.spec_ok]
-    exact ⟨rnd0, by simp [CPMatches, hpnm, h3, toGens, except_throw']⟩
+    exact (by simp [CPMatches, hpnm, h3, toGens, except_throw'])
   have : (gens.g_vec.len != p.nm) = false := by
     simp only [bne_eq_false_iff_eq]; apply UScalar.eq_of_val_eq; rw [eg, h3]
   rw [if_neg (by simp [this])]
@@ -535,19 +535,17 @@ lemma circuit_prove_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
   swap
   · rename_i hnall
     rw [WP.spec_ok]
-    refine ⟨rnd0, ?_⟩
     simp only [Bool.not_eq_true', Bool.not_eq_false'] at hnall
     simp [CPMatches, hrange, hnall, except_throw']
   rename_i hall
   apply WP.spec_bind (witness_new_spec hs hr inst pm p hpo hd hnd rng values blindings
     (by show values.val.length = _; exact h1))
-  rintro ⟨w, rng1⟩ ⟨rnd, hwit, hop, hnl, hno, hns, hro, hrl, hrr, hvl, hbl⟩
+  rintro ⟨w, rng1⟩ ⟨hwit, hop, hnl, hno, hns, hro, hrl, hrr, hvl, hbl⟩
   simp only [Std.uncurry_apply_pair]
   apply WP.spec_bind (prove_witness_spec (G := G) (H := H) hs hp ht hped gens hg hcomp pm p hpo hnd
     hgh h3 hgB w ⟨hvl, by rw [hbl]; exact h2, hop, hnl, hno, hns, hro, hrl, hrr⟩ t)
   rintro ⟨r, t'⟩ hr'
   simp only [Std.uncurry_apply_pair, WP.spec_ok]
-  refine ⟨rnd, ?_⟩
   have hcond : ¬ ((values.val.map (·.val)).length ≠ pm.m ∨ (blindings.val.map φ).length ≠ pm.m ∨
       (toGens ψ gens).g_vec.length ≠ pm.nm ∨
       ((values.val.map (·.val)).any fun v => !pm.range.is_in_range v) = true) := by
