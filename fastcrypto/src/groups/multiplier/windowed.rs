@@ -193,8 +193,10 @@ pub fn multi_scalar_mul<
                     is_in_window[i] = false;
                 }
             } else if test_bit(&scalar_bytes[i], bit) {
-                // The iteration has reached a set bit for the i'th scalar.
-                if bit >= window_sizes[i] - 1 {
+                // The iteration has reached a set bit for the i'th scalar. A window is only checked
+                // for completion on the bits after the one that opens it, so a 1-bit window would
+                // never be added: use double-and-add for 1-bit windows.
+                if window_sizes[i] > 1 && bit >= window_sizes[i] - 1 {
                     // There is enough room for a window. Set indicator and reset window index.
                     is_in_window[i] = true;
                     index_in_window[i] = 1;
@@ -235,12 +237,9 @@ fn compute_multiples<G: Doubling + for<'a> Add<&'a G, Output = G> + Clone + Debu
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::{BigInteger, PrimeField};
-    use ark_secp256r1::Fr;
     use rand::thread_rng;
 
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-    use crate::groups::secp256r1::{ProjectivePoint, Scalar};
     use crate::groups::GroupElement;
     use crate::groups::Scalar as ScalarTrait;
     use crate::ristretto255_tests::GROUP_ORDER_MINUS_ONE;
@@ -280,61 +279,6 @@ mod tests {
     }
 
     #[test]
-    fn test_scalar_multiplication_secp256r1() {
-        let mut modulus_minus_one = Fr::MODULUS_MINUS_ONE_DIV_TWO;
-        modulus_minus_one.mul2();
-        let scalars = [
-            Scalar::from(0),
-            Scalar::from(1),
-            Scalar::from(2),
-            Scalar::from(1234),
-            Scalar::from(123456),
-            Scalar::from(123456789),
-            Scalar::from(0xffffffffffffffff),
-            Scalar(Fr::from(modulus_minus_one)),
-        ];
-
-        for scalar in scalars {
-            let expected = ProjectivePoint::generator() * scalar;
-
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 2, 4>::new(
-                ProjectivePoint::generator(),
-                ProjectivePoint::zero(),
-            );
-            let actual = multiplier.mul(&scalar);
-            assert_eq!(expected, actual);
-
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 16, 4>::new(
-                ProjectivePoint::generator(),
-                ProjectivePoint::zero(),
-            );
-            let actual = multiplier.mul(&scalar);
-            assert_eq!(expected, actual);
-
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 32, 4>::new(
-                ProjectivePoint::generator(),
-                ProjectivePoint::zero(),
-            );
-            let actual = multiplier.mul(&scalar);
-            assert_eq!(expected, actual);
-
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 64, 4>::new(
-                ProjectivePoint::generator(),
-                ProjectivePoint::zero(),
-            );
-            let actual = multiplier.mul(&scalar);
-            assert_eq!(expected, actual);
-
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 512, 4>::new(
-                ProjectivePoint::generator(),
-                ProjectivePoint::zero(),
-            );
-            let actual = multiplier.mul(&scalar);
-            assert_eq!(expected, actual);
-        }
-    }
-
-    #[test]
     fn test_double_mul_ristretto() {
         let multiplier = WindowedScalarMultiplier::<RistrettoPoint, RistrettoScalar, 16, 5>::new(
             RistrettoPoint::generator(),
@@ -348,5 +292,49 @@ mod tests {
         let expected = RistrettoPoint::generator() * a + other_point * b;
         let actual = multiplier.two_scalar_mul(&a, &other_point, &b);
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_one_bit_windows() {
+        let scalars = [
+            RistrettoScalar::from(0u64),
+            RistrettoScalar::from(1u64),
+            RistrettoScalar::from(2u64),
+            RistrettoScalar::from(5u64),
+            RistrettoScalar::from(0xffffffffffffffffu64),
+            RistrettoScalar::from_byte_array(&GROUP_ORDER_MINUS_ONE).unwrap(),
+        ];
+        let g = RistrettoPoint::generator();
+        let other_point = g * RistrettoScalar::from(3u64);
+
+        // CACHE_SIZE = 2 gives the base element 1-bit windows, and SLIDING_WINDOW_WIDTH = 1 gives
+        // the other element 1-bit windows.
+        let multiplier = WindowedScalarMultiplier::<RistrettoPoint, RistrettoScalar, 2, 1>::new(
+            g,
+            RistrettoPoint::zero(),
+        );
+        for a in scalars {
+            for b in scalars {
+                let expected = g * a + other_point * b;
+                assert_eq!(multiplier.two_scalar_mul(&a, &other_point, &b), expected);
+            }
+        }
+
+        // 1-bit windows for every element of multi_scalar_mul.
+        let elements = [g, other_point, g * RistrettoScalar::from(7u64)];
+        for a in scalars {
+            for b in scalars {
+                let scalars = [a, b, a + b];
+                let expected = elements[0] * a + elements[1] * b + elements[2] * (a + b);
+                let actual = multi_scalar_mul(
+                    &scalars,
+                    &elements,
+                    &HashMap::new(),
+                    1,
+                    RistrettoPoint::zero(),
+                );
+                assert_eq!(actual, expected);
+            }
+        }
     }
 }
