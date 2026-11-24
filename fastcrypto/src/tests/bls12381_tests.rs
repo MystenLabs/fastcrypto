@@ -1448,7 +1448,12 @@ proptest! {
     }
 
     #[test]
-    fn test_deser_private_key_arbitrary_bytes(bytes in collection::vec(any::<u8>(), 0..=64)) {
+    fn test_deser_private_key_arbitrary_bytes(
+        bytes in prop_oneof![
+            collection::vec(any::<u8>(), BLS_PRIVATE_KEY_LENGTH),
+            collection::vec(any::<u8>(), 0..=64),
+        ]
+    ) {
         if let Ok(sk) = BLS12381PrivateKey::from_bytes(&bytes) {
             prop_assert_eq!(sk.as_bytes(), &bytes[..]);
             prop_assert!(bytes.len() == BLS_PRIVATE_KEY_LENGTH);

@@ -174,11 +174,13 @@ fn edge_point_logs() -> Vec<p256::Scalar> {
 }
 
 /// The points that the conversions treat specially: the identity, the generator, and points with
-/// x = 0, x = n + 3 and x = p - 3, with both y-coordinates.
+/// x = 0, x = n + 3 and x = p - 3, with both y-coordinates. Also 7 * G and an arbitrary point.
 fn edge_points() -> Vec<AffinePoint> {
     let mut points = vec![AffinePoint::IDENTITY];
     for point in [
         AffinePoint::GENERATOR,
+        (p256::ProjectivePoint::GENERATOR * p256::Scalar::from(7u64)).to_affine(),
+        (p256::ProjectivePoint::GENERATOR * reduce(&ARBITRARY_SCALAR)).to_affine(),
         decode_point(&X_ZERO_COMPRESSED),
         decode_point(&X_ORDER_PLUS_THREE_COMPRESSED),
         decode_point(&X_FIELD_MODULUS_MINUS_THREE_COMPRESSED),
@@ -526,6 +528,7 @@ fn test_field_element_to_scalar() {
     let order_minus_one = add_small(&GROUP_ORDER, -1);
     for (x, expected, is_reduced) in [
         ([0; 32], [0; 32], false),
+        (ARBITRARY_SCALAR, ARBITRARY_SCALAR, false),
         (order_minus_one, order_minus_one, false),
         (GROUP_ORDER, [0; 32], true),
         (add_small(&GROUP_ORDER, 1), add_small(&[0; 32], 1), true),

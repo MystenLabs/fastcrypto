@@ -223,9 +223,10 @@ fn sui_address(flag: u8, pk: &Secp256r1PublicKey) -> [u8; 32] {
 }
 
 /// Runs a Wycheproof ECDSA suite for P-256 and checks that `verify(pk, msg, signature)` accepts
-/// exactly the valid signatures, except those with a high s unless `accepts_high_s`. The signature
-/// is r || s, converted from DER unless `p1363`. Returns the number of accepted signatures and the
-/// number of valid signatures with a high s.
+/// exactly the valid signatures, except those with a high s unless `accepts_high_s`. If a high s is
+/// rejected, it must accept exactly the valid signatures once s is normalized. The signature is r || s,
+/// converted from DER unless `p1363`. Returns the number of accepted signatures and the number of
+/// valid signatures with a high s.
 pub(crate) fn check_wycheproof(
     name: TestName,
     p1363: bool,
@@ -251,6 +252,19 @@ pub(crate) fn check_wycheproof(
                 test.tc_id,
                 test.comment
             );
+            // Otherwise the invalid signatures with a high s would only be rejected for their s.
+            let normalized = Signature::from_slice(&signature)
+                .ok()
+                .and_then(|s| s.normalize_s());
+            if let (false, Some(normalized)) = (accepts_high_s, normalized) {
+                assert_eq!(
+                    verify(&pk, &test.msg, &normalized.to_bytes()),
+                    valid,
+                    "tc {} with a normalized s: {}",
+                    test.tc_id,
+                    test.comment
+                );
+            }
             accepted += ok as usize;
             valid_high_s += high_s as usize;
         }
@@ -625,6 +639,10 @@ fn to_from_bytes_signature() {
     }
     let der = signature.sig.to_der();
     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(der.as_bytes()).is_err());
+    // So are the 65 bytes of a recoverable signature.
+    for byte in [0, 4] {
+        assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[byte; SIG_LENGTH + 1]).is_err());
+    }
 
     // r and s must be in [1, n - 1], as in p256, and accepted values are encoded as given. Zero must
     // be rejected here since verification (split_scalars) panics if r or s is zero.

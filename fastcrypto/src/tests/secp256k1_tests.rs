@@ -172,15 +172,31 @@ pub(crate) fn wycheproof_tests(name: TestName, p1363: bool) -> Vec<WycheproofTes
     tests
 }
 
-/// Checks that `verify_with_hash::<H>` accepts a Wycheproof test iff it is valid and low-s.
-/// Returns the number of valid tests that were rejected because they are high-s.
+/// Checks that `verify_with_hash::<H>` accepts a Wycheproof test iff it is valid and low-s, and, for
+/// the test sets of plain ECDSA, that it accepts a test with s normalized iff it is valid. Returns the
+/// number of valid tests that were rejected because they are high-s.
 fn check_wycheproof<H: HashFunction<32>>(name: TestName, p1363: bool) -> usize {
     let mut rejected_high_s = 0;
     for (pk, msg, signature, result) in wycheproof_tests(name, p1363) {
-        let verified = signature.as_ref().is_some_and(|bytes| {
+        let verify = |bytes: &[u8]| {
             <Secp256k1Signature as ToFromBytes>::from_bytes(bytes)
                 .is_ok_and(|sig| pk.verify_with_hash::<H>(&msg, &sig).is_ok())
-        });
+        };
+        let verified = signature.as_deref().is_some_and(verify);
+        // Otherwise the invalid high-s tests would only be rejected for their s. The high-s tests of
+        // the Bitcoin test set are invalid, but valid with s normalized.
+        let parsed = signature
+            .as_deref()
+            .and_then(|bytes| Signature::from_compact(bytes).ok());
+        if let (Some(mut sig), false) = (parsed, name == TestName::EcdsaSecp256k1Sha256Bitcoin) {
+            sig.normalize_s();
+            assert_eq!(
+                verify(&sig.serialize_compact()),
+                result == TestResult::Valid,
+                "{:?}",
+                name
+            );
+        }
         match result {
             TestResult::Valid => {
                 // The DER encoding of valid tests always parses.

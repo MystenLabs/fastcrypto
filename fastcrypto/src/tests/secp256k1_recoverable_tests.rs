@@ -204,7 +204,8 @@ fn test_public_key_recovery() {
                 .is_ok(),
         ];
         for j in 0..signatures.len() {
-            assert_eq!(recovered[j].as_ref() == Some(pk), i == j);
+            // With another hash function, another key is recovered.
+            assert_eq!(recovered[j].as_ref().unwrap() == pk, i == j);
             assert_eq!(verified[j], i == j);
         }
         assert_eq!(sig.recover(MSG).ok(), recovered[0]);
@@ -248,6 +249,8 @@ fn test_public_key_recovery_error() {
         assert!(with_r(&[0; 32], v).recover(MSG).is_err());
         let mut bytes = with_recovery_id(sig.as_bytes(), v);
         bytes[32..64].fill(0);
+        assert!(decode(&bytes).unwrap().recover(MSG).is_err());
+        let bytes = with_recovery_id(&[0; SIG_LENGTH], v);
         assert!(decode(&bytes).unwrap().recover(MSG).is_err());
     }
 
@@ -517,6 +520,7 @@ proptest! {
 
         let digest = Keccak256::digest(&msg).digest;
         prop_assert_eq!(&sig.recover_with_hash::<Keccak256>(&msg).unwrap(), kp.public());
+        prop_assert!(kp.public().verify_recoverable_with_hash::<Keccak256>(&msg, &sig).is_ok());
         prop_assert_eq!(&k256_recover(&digest, sig.as_bytes()).unwrap(), kp.public());
         let other_v = decode(&with_recovery_id(sig.as_bytes(), sig.as_bytes()[SIG_LENGTH] ^ 1)).unwrap();
         prop_assert!(kp.public().verify_recoverable_with_hash::<Keccak256>(&msg, &other_v).is_err());

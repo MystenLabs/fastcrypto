@@ -372,6 +372,27 @@ fn test_msm() {
         assert!(ProjectivePoint::multi_scalar_mul(&scalars[1..], &points).is_err());
         assert!(ProjectivePoint::multi_scalar_mul(&scalars, &points[1..]).is_err());
     }
+
+    // Every length below 50, with random scalars and points.
+    let mut rng = StdRng::seed_from_u64(0);
+    let (scalars, points): (Vec<Scalar>, Vec<ProjectivePoint>) = (1..50)
+        .map(|_| {
+            (
+                Scalar::rand(&mut rng),
+                ProjectivePoint::generator() * Scalar::rand(&mut rng),
+            )
+        })
+        .unzip();
+    let mut expected = ProjectivePoint::zero();
+    for length in 1..50 {
+        expected += points[length - 1] * scalars[length - 1];
+        let (scalars, points) = (&scalars[..length], &points[..length]);
+        assert_eq!(
+            ProjectivePoint::multi_scalar_mul(scalars, points).unwrap(),
+            expected
+        );
+        assert!(ProjectivePoint::multi_scalar_mul(&scalars[1..], points).is_err());
+    }
 }
 
 #[test]

@@ -400,6 +400,13 @@ fn test_scalar_arithmetic() {
     assert_eq!(-zero, zero);
     assert_eq!(-minus_one(), one);
 
+    // Small integers.
+    assert_eq!(zero - zero, zero);
+    let four = one + zero + one + one + one;
+    assert_eq!(four, Scalar::from(4));
+    assert_eq!(four - one, one + one + one);
+    assert_eq!((four - one) * Scalar::from(2), Scalar::from(6));
+
     // Only inversion of and division by zero fail.
     assert!(zero.inverse().is_err());
     assert!((zero / zero).is_err());
@@ -432,6 +439,10 @@ fn test_scalar_arithmetic() {
         max + one,
         Scalar::from(1u128 << 64) * Scalar::from(1u128 << 64)
     );
+    assert_eq!(
+        (Scalar::from(2 << 66) / Scalar::from(8)).unwrap(),
+        Scalar::from(2 << 63)
+    );
 
     // The default implementations of the Scalar and GroupElement traits.
     let factors = [Scalar::from(2), Scalar::from(3), Scalar::from(7)];
@@ -462,6 +473,8 @@ macro_rules! test_group_arithmetic {
             for p in points {
                 assert_eq!(p + p, p * Scalar::from(2));
                 assert_eq!(p + p + p, p * Scalar::from(3));
+                assert_eq!(p * Scalar::from(5) / Scalar::from(5), Ok(p));
+                assert_eq!(p * (Scalar::from(7) - Scalar::from(2)), p + p + p + p + p);
                 assert_eq!(p + (-p), zero);
                 assert_eq!(p - p, zero);
                 assert_eq!(-(-p), p);
@@ -481,7 +494,9 @@ macro_rules! test_group_arithmetic {
                 assert_eq!((p / s).unwrap() * s, p);
                 assert_eq!((p * s / s).unwrap(), p);
 
-                let mut q = p;
+                let mut q = zero;
+                q += p;
+                assert_eq!(q, p);
                 q += p;
                 assert_eq!(q, p * Scalar::from(2));
                 q -= p;
@@ -562,6 +577,45 @@ macro_rules! test_msm {
                 );
                 assert_eq!(<$type>::inner_product(points, scalars), expected);
             }
+
+            // Every length below 50, with random scalars and points.
+            let (scalars, points): (Vec<Scalar>, Vec<$type>) = (1..50)
+                .map(|_| {
+                    (
+                        Scalar::rand(&mut rng),
+                        <$type>::generator() * Scalar::rand(&mut rng),
+                    )
+                })
+                .unzip();
+            let mut expected = zero;
+            for n in 1..50 {
+                expected += points[n - 1] * scalars[n - 1];
+                let (scalars, points) = (&scalars[..n], &points[..n]);
+                assert_eq!(
+                    <$type>::multi_scalar_mul(scalars, points).unwrap(),
+                    expected
+                );
+                assert!(<$type>::multi_scalar_mul(&scalars[1..], points).is_err());
+            }
+
+            // A single term, and two terms of which one is dropped.
+            let g = <$type>::generator();
+            let one = Scalar::generator();
+            assert_eq!(<$type>::multi_scalar_mul(&[one], &[g]).unwrap(), g);
+            assert_eq!(<$type>::multi_scalar_mul(&[s], &[g]).unwrap(), g * s);
+            assert_eq!(<$type>::multi_scalar_mul(&[one], &[zero]).unwrap(), zero);
+            assert_eq!(
+                <$type>::multi_scalar_mul(&[Scalar::zero()], &[g]).unwrap(),
+                zero
+            );
+            assert_eq!(
+                <$type>::multi_scalar_mul(&[Scalar::zero(), one], &[g, g]).unwrap(),
+                g
+            );
+            assert_eq!(
+                <$type>::multi_scalar_mul(&[one, Scalar::zero()], &[p, p]).unwrap(),
+                p
+            );
 
             // Terms that cancel exactly.
             assert_eq!(<$type>::multi_scalar_mul(&[s, s], &[p, -p]).unwrap(), zero);
@@ -683,6 +737,12 @@ fn test_multi_pairing() {
         G1Element::multi_pairing(&[zero1, zero1], &[zero2, zero2]).unwrap(),
         GTElement::zero()
     );
+    for (p, q) in [(zero1, zero2), (zero1, g2), (g1, zero2)] {
+        assert_eq!(
+            G1Element::multi_pairing(&[p], &[q]).unwrap(),
+            GTElement::zero()
+        );
+    }
 
     // Terms that cancel.
     assert_eq!(
@@ -821,18 +881,24 @@ fn test_serialization_scalar() {
         hex!("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000002");
     let twice_order_minus_one: [u8; SCALAR_LENGTH] =
         hex!("e7db4ea6533afa906673b0101343b00aa77b4805fffcb7fdfffffffe00000001");
+    // Larger than r in the middle of the encoding.
+    let above_order: [u8; SCALAR_LENGTH] =
+        hex!("73eda753299d9d483339d80809a1d80553bda402fffe5bfeffffffff11000001");
     let mut two_to_the_255 = [0u8; SCALAR_LENGTH];
     two_to_the_255[0] = 0x80;
     for bytes in [
         GROUP_ORDER,
         order_plus_one,
+        above_order,
         twice_order_minus_one,
         two_to_the_255,
         [0xff; SCALAR_LENGTH],
     ] {
         assert!(Scalar::from_byte_array(&bytes).is_err());
     }
-    for s in [Scalar::zero(), one, minus_one()] {
+    let mut rng = StdRng::from_seed([8; 32]);
+    let random = (0..100).map(|_| Scalar::rand(&mut rng));
+    for s in [Scalar::zero(), one, minus_one()].into_iter().chain(random) {
         assert_eq!(Scalar::from_byte_array(&s.to_byte_array()).unwrap(), s);
     }
 
@@ -892,6 +958,7 @@ macro_rules! test_point_encodings {
             for p in [zero, <$type>::generator(), h, -h] {
                 let canonical = p.to_byte_array();
                 assert_eq!(<$type>::from_byte_array(&canonical).unwrap(), p);
+                assert_eq!(<$type>::from_trusted_byte_array(&canonical).unwrap(), p);
 
                 for flags in 0..8u8 {
                     let mut bytes = canonical;
@@ -1008,6 +1075,12 @@ fn test_serialization_gt() {
     for element in [GTElement::zero(), GTElement::generator()] {
         let bytes = element.to_byte_array();
         assert_eq!(GTElement::from_byte_array(&bytes).unwrap(), element);
+        assert_eq!(GTElement::from_trusted_byte_array(&bytes).unwrap(), element);
+        // Changing the last coordinate gives an element of F_p^12 that is not in GT.
+        let mut not_in_group = bytes;
+        not_in_group[GT_ELEMENT_BYTE_LENGTH - 1] += 2;
+        assert!(GTElement::from_trusted_byte_array(&not_in_group).is_ok());
+        assert!(GTElement::from_byte_array(&not_in_group).is_err());
         for index in 0..GT_ELEMENT_BYTE_LENGTH / FP_BYTE_LENGTH {
             let unreduced: [u8; GT_ELEMENT_BYTE_LENGTH] = add_modulus(&bytes, index, false)
                 .unwrap()
@@ -1131,7 +1204,16 @@ fn test_g1_to_uncompressed() {
             let mut off_curve = canonical;
             off_curve[2 * G1_ELEMENT_BYTE_LENGTH - 1] ^= 1;
             assert_eq!(decode_uncompressed(off_curve), None);
+            // Changing x gives a point off the curve as well.
+            let mut off_curve = canonical;
+            off_curve[1] = off_curve[1].wrapping_add(1);
+            assert_eq!(decode_uncompressed(off_curve), None);
         }
+
+        // The compressed encoding padded with zeros is rejected.
+        let mut padded = [0; 2 * G1_ELEMENT_BYTE_LENGTH];
+        padded[..G1_ELEMENT_BYTE_LENGTH].copy_from_slice(&p.to_byte_array());
+        assert_eq!(decode_uncompressed(padded), None);
     }
 
     // Infinity with any other bit set is rejected.
