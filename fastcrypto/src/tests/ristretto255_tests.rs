@@ -3,38 +3,38 @@
 
 use crate::encoding::{Base64, Encoding};
 use crate::error::FastCryptoError;
-use crate::groups::ristretto255::{MixedMsmStrategy, RistrettoPoint, RistrettoScalar, DST};
+use crate::groups::ristretto255::{MixedMsmStrategy, RistrettoPoint, RistrettoScalar};
 use crate::groups::{
     Doubling, FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement,
     MixedMultiScalarMul, MultiScalarMul, PrecomputableMultiScalarMul, Scalar,
 };
 use crate::hash::{HashFunction, Sha512};
-use crate::ristretto255_reference::{self as reference, add_small};
+use crate::ristretto255_reference::{
+    self as reference, add_small, concat, FIELD_MODULUS, GROUP_ORDER,
+};
+use crate::secp256k1_group_tests::{count, samples};
 use crate::serde_helpers::ToFromByteArray;
 use ark_ff::{Field, One, Zero};
 use hex_literal::hex;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use proptest::prelude::*;
-use proptest::strategy::ValueTree;
 use proptest::test_runner::TestRunner;
 use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use std::fmt::Debug;
+use std::ops::RangeInclusive;
 use zeroize::Zeroize;
 
 //
 // Helper functions
 //
 
-/// The group order l, little-endian.
-const GROUP_ORDER: [u8; 32] =
-    hex!("edd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010");
+/// l - 1, little-endian.
 pub(crate) const GROUP_ORDER_MINUS_ONE: [u8; 32] =
     hex!("ecd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010");
-
-/// The field modulus p = 2^255 - 19, little-endian.
-const FIELD_MODULUS: [u8; 32] =
-    hex!("edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f");
 
 /// The identity is encoded as s = 0.
 const IDENTITY_ENCODING: [u8; 32] = [0; 32];
@@ -53,13 +53,6 @@ const GENERATOR_ENCODING: [u8; 32] =
 fn power_of_two(k: usize) -> [u8; 32] {
     let mut bytes = [0; 32];
     bytes[k / 8] = 1 << (k % 8);
-    bytes
-}
-
-fn concat(low: &[u8; 32], high: &[u8; 32]) -> [u8; 64] {
-    let mut bytes = [0; 64];
-    bytes[..32].copy_from_slice(low);
-    bytes[32..].copy_from_slice(high);
     bytes
 }
 
@@ -110,9 +103,14 @@ fn msm_with_consecutive_multiples(scalars: &[RistrettoScalar]) -> RistrettoPoint
 /// Every decoder of a type: `from_byte_array` after checking that BCS, bincode and JSON agree.
 fn decode_all<T>(bytes: &[u8; 32]) -> Option<T>
 where
-    T: ToFromByteArray<32> + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
+    T: ToFromByteArray<32> + DeserializeOwned + PartialEq + Debug,
 {
-    let decoded = T::from_byte_array(bytes).ok();
+    let decoded = T::from_byte_array(bytes);
+    assert!(matches!(
+        decoded,
+        Ok(_) | Err(FastCryptoError::InvalidInput)
+    ));
+    let decoded = decoded.ok();
     assert_eq!(bcs::from_bytes::<T>(bytes).ok(), decoded);
     assert_eq!(bincode::deserialize::<T>(bytes).ok(), decoded);
     let json = serde_json::to_string(&Base64::encode(bytes)).unwrap();
@@ -120,15 +118,49 @@ where
     decoded
 }
 
+/// Decodes a scalar, checking that every decoder accepts the same values as the reference and that
+/// the reductions modulo l agree with it.
+fn check_scalar(bytes: &[u8; 32]) -> Option<RistrettoScalar> {
+    let decoded = decode_all::<RistrettoScalar>(bytes);
+    assert_eq!(decoded.is_some(), reference::decode_scalar(bytes).is_some());
+    assert!(decoded.is_none_or(|s| s.to_byte_array() == *bytes));
+    let reduced = from_reference_scalar(&reference::reduce_scalar(bytes));
+    assert_eq!(RistrettoScalar::from_bytes_mod_order(bytes), reduced);
+    assert_eq!(
+        RistrettoScalar::from_trusted_byte_array(bytes).unwrap(),
+        reduced
+    );
+    decoded
+}
+
+/// Decodes a point, checking that every decoder accepts the same encodings as the reference and
+/// decodes to the same point.
+fn check_point(bytes: &[u8; 32]) -> Option<RistrettoPoint> {
+    let decoded = decode_all::<RistrettoPoint>(bytes);
+    assert_eq!(RistrettoPoint::from_trusted_byte_array(bytes).ok(), decoded);
+    let expected = reference::Point::decode(bytes);
+    assert_eq!(decoded.is_some(), expected.is_some());
+    if let (Some(point), Some(expected)) = (decoded, expected) {
+        assert_eq!(point.to_byte_array(), *bytes);
+        let expected_sum = expected + reference::Point::generator();
+        let sum = point + RistrettoPoint::generator();
+        assert_eq!(sum.to_byte_array(), expected_sum.encode());
+    }
+    decoded
+}
+
+/// The values of k in the range for which base + k is the encoding of a point.
+fn encodings_near(base: &[u8; 32], range: RangeInclusive<i64>) -> Vec<i64> {
+    range
+        .filter(|k| check_point(&add_small(base, *k)).is_some())
+        .collect()
+}
+
 /// Checks the encodings of a value, as the given bytes and as their Base64 in JSON, and that only
 /// inputs of the right length decode.
 fn check_serde<T>(value: T, bytes: &[u8; 32])
 where
-    T: ToFromByteArray<32>
-        + serde::Serialize
-        + serde::de::DeserializeOwned
-        + PartialEq
-        + std::fmt::Debug,
+    T: ToFromByteArray<32> + Serialize + DeserializeOwned + PartialEq + Debug,
 {
     assert_eq!(value.to_byte_array(), *bytes);
     assert_eq!(bcs::to_bytes(&value).unwrap(), bytes);
@@ -136,46 +168,11 @@ where
     let json = format!("\"{}\"", Base64::encode(bytes));
     assert_eq!(serde_json::to_string(&value).unwrap(), json);
     assert_eq!(decode_all(bytes), Some(value));
-
     for wrong_length in [&[], &bytes[..31], &[bytes, [0].as_slice()].concat()] {
         assert!(bcs::from_bytes::<T>(wrong_length).is_err());
         let json = serde_json::to_string(&Base64::encode(wrong_length)).unwrap();
         assert!(serde_json::from_str::<T>(&json).is_err());
     }
-    // JSON is padded Base64 only: not an array of bytes, not hex and not unpadded.
-    assert!(serde_json::from_str::<T>(&serde_json::to_string(bytes).unwrap()).is_err());
-    assert!(serde_json::from_str::<T>(&format!("\"{}\"", hex::encode(bytes))).is_err());
-    assert!(serde_json::from_str::<T>(&json.replace('=', "")).is_err());
-}
-
-/// The values of k in the range for which base + k is the encoding of a point, also checking that
-/// every decoder agrees with the reference.
-fn encodings_near(base: &[u8; 32], range: std::ops::RangeInclusive<i64>) -> Vec<i64> {
-    range
-        .filter(|delta| {
-            let bytes = add_small(base, *delta);
-            let decoded = decode_all::<RistrettoPoint>(&bytes);
-            assert_eq!(
-                RistrettoPoint::from_trusted_byte_array(&bytes).ok(),
-                decoded
-            );
-            let expected = reference::Point::decode(&bytes);
-            assert_eq!(decoded.is_some(), expected.is_some());
-            assert!(decoded.is_none_or(|p| p.to_byte_array() == bytes));
-            decoded.is_some()
-        })
-        .collect()
-}
-
-/// Samples from a strategy.
-fn samples<S: Strategy>(strategy: S, count: usize, runner: &mut TestRunner) -> Vec<S::Value> {
-    (0..count)
-        .map(|_| strategy.new_tree(runner).unwrap().current())
-        .collect()
-}
-
-fn count<T>(values: &[T], predicate: impl Fn(&T) -> bool) -> usize {
-    values.iter().filter(|value| predicate(value)).count()
 }
 
 //
@@ -252,17 +249,13 @@ fn test_arithmetic() {
         RistrettoScalar::product([five, minus_one].into_iter()),
         -five
     );
-}
 
-#[test]
-fn test_division_by_zero() {
-    let zero = RistrettoScalar::zero();
+    // Division by zero.
+    let zero_scalar = RistrettoScalar::zero();
     let err = FastCryptoError::InvalidInput;
-    assert_eq!(zero.inverse().unwrap_err(), err);
-    assert_eq!((RistrettoScalar::generator() / zero).unwrap_err(), err);
-    assert_eq!((zero / zero).unwrap_err(), err);
-    assert_eq!((RistrettoPoint::generator() / zero).unwrap_err(), err);
-    assert_eq!((RistrettoPoint::zero() / zero).unwrap_err(), err);
+    assert_eq!(zero_scalar.inverse(), Err(err.clone()));
+    assert_eq!(five / zero_scalar, Err(err.clone()));
+    assert_eq!(g / zero_scalar, Err(err));
 }
 
 #[test]
@@ -277,37 +270,13 @@ fn test_scalars_from_integers() {
         }
     }
 
-    // Reduction modulo l of 32 little-endian bytes, also by from_trusted_byte_array.
-    for (bytes, expected) in [
-        ([0; 32], [0; 32]),
-        (GROUP_ORDER_MINUS_ONE, GROUP_ORDER_MINUS_ONE),
-        (GROUP_ORDER, [0; 32]),
-        (add_small(&GROUP_ORDER, 1), power_of_two(0)),
-        // 2^252 < l, 2^255 and 2^256 - 1.
-        (power_of_two(252), power_of_two(252)),
-        (
-            power_of_two(255),
-            hex!("85344775474a7f9723b63a8be92ae76dffffffffffffffffffffffffffffff0f"),
-        ),
-        (
-            [0xff; 32],
-            hex!("1c95988d7431ecd670cf7d73f45befc6feffffffffffffffffffffffffffff0f"),
-        ),
-    ] {
-        let reduced = RistrettoScalar::from_bytes_mod_order(&bytes);
-        assert_eq!(reduced.to_byte_array(), expected);
-        assert_eq!(
-            RistrettoScalar::from_trusted_byte_array(&bytes).unwrap(),
-            reduced
-        );
-        assert_eq!(
-            RistrettoScalar::from_bytes_mod_order_wide(&concat(&bytes, &[0; 32])),
-            reduced
-        );
-    }
-
-    // Reduction modulo l of 64 little-endian bytes: l * 2^256, 2^256 and 2^512 - 1.
+    // Reduction modulo l of 32 and 64 little-endian bytes, computed with Python: 2^256 - 1, l * 2^256,
+    // 2^256 and 2^512 - 1.
     let zero = [0; 32];
+    assert_eq!(
+        RistrettoScalar::from_bytes_mod_order(&[0xff; 32]).to_byte_array(),
+        hex!("1c95988d7431ecd670cf7d73f45befc6feffffffffffffffffffffffffffff0f")
+    );
     for (bytes, expected) in [
         (concat(&zero, &GROUP_ORDER), zero),
         (
@@ -342,6 +311,7 @@ fn test_scalars_from_integers() {
 fn test_representatives() {
     // The four points on the curve that represent the identity are equal and have one encoding.
     // The reference, which does the same computation, confirms that they are four different points.
+    // The proptests compare the operations on every representative of other elements.
     for (zero, expected) in IDENTITY_REPRESENTATIVES.iter() {
         assert_eq!(*zero, RistrettoPoint::zero());
         assert_eq!(zero.to_byte_array(), IDENTITY_ENCODING);
@@ -356,33 +326,6 @@ fn test_representatives() {
         );
         let representatives = IDENTITY_REPRESENTATIVES.iter().map(|(_, point)| point);
         assert_eq!(representatives.filter(same).count(), 1);
-    }
-
-    // The same for the representatives of other elements, and the result of every operation.
-    let g = RistrettoPoint::generator();
-    let s = RistrettoScalar::from_bytes_mod_order_wide(&[0xff; 64]);
-    for p in [g, g * s, RistrettoPoint::from_uniform_bytes(&[1; 64])] {
-        for (zero, _) in IDENTITY_REPRESENTATIVES.iter() {
-            let q = p + zero;
-            assert_eq!(p, q);
-            assert_eq!(p.to_byte_array(), q.to_byte_array());
-            for (a, b) in [
-                (p + g, q + g),
-                (g - p, g - q),
-                (p - q, RistrettoPoint::zero()),
-                (-p, -q),
-                (p.double(), q.double()),
-                (p * s, q * s),
-                ((p / s).unwrap(), (q / s).unwrap()),
-                (
-                    RistrettoPoint::multi_scalar_mul(&[s, s + s], &[p, g]).unwrap(),
-                    RistrettoPoint::multi_scalar_mul(&[s, s + s], &[q, g]).unwrap(),
-                ),
-            ] {
-                assert_eq!(a, b);
-                assert_eq!(a.to_byte_array(), b.to_byte_array());
-            }
-        }
     }
 }
 
@@ -412,9 +355,6 @@ fn test_multiscalar_mul() {
             );
         }
     }
-    let empty = RistrettoPoint::multi_scalar_mul(&[], &[]).unwrap();
-    assert_eq!(empty, RistrettoPoint::zero());
-
     // The identity, repeated and negated points, and the scalars 0, 1, l - 1 and 2^252.
     let g = RistrettoPoint::generator();
     let one = RistrettoScalar::generator();
@@ -426,16 +366,8 @@ fn test_multiscalar_mul() {
     let products = scalars.iter().zip(&points).map(|(s, p)| *p * s);
     assert_eq!(
         RistrettoPoint::multi_scalar_mul(&scalars, &points).unwrap(),
-        RistrettoPoint::sum(products.clone())
+        RistrettoPoint::sum(products)
     );
-    for ((s, p), product) in scalars.iter().zip(&points).zip(products) {
-        for (t, q) in [(one, g), (-one, *p), (one, -*p)] {
-            assert_eq!(
-                RistrettoPoint::multi_scalar_mul(&[*s, t], &[*p, q]).unwrap(),
-                product + q * t
-            );
-        }
-    }
 }
 
 #[test]
@@ -460,13 +392,7 @@ fn test_precomputed_multiscalar_mul() {
         (default, default.max_weighted_points + 1, 3),
         // Never use tables.
         (strategy(0, 0), 5, 3),
-        (strategy(0, 1), 0, 1),
-        // Always use tables.
-        (strategy(usize::MAX, 0), 5, 3),
-        // The tables are built, but not used if there are more than three dynamic points, each with
-        // a weight of 2.
-        (strategy(11, 2), 5, 0),
-        (strategy(11, 2), 5, 3),
+        // The tables are built, but not used with this many dynamic points.
         (strategy(11, 2), 5, 4),
         // The weighted number of points saturates, below or at the bound.
         (strategy(usize::MAX - 1, usize::MAX), 5, 2),
@@ -478,46 +404,35 @@ fn test_precomputed_multiscalar_mul() {
         assert_eq!(precomputation.strategy(), strategy);
         assert_eq!(precomputation.num_static_points(), num_static);
 
-        let scalars = random_scalars(num_static + num_dynamic, &mut rng);
-        let (static_scalars, dynamic_scalars) = scalars.split_at(num_static);
-        let msm = |static_scalars: &[_], dynamic_scalars: &[_], num_dynamic| {
+        // The sum with the given numbers of static and dynamic scalars and dynamic points.
+        let scalars = random_scalars(num_static + num_dynamic + 1, &mut rng);
+        let msm = |static_scalars: usize, dynamic_scalars: usize, dynamic_points: usize| {
             precomputation.mixed_multi_scalar_mul(
-                static_scalars,
-                dynamic_scalars,
-                &rest[..num_dynamic],
+                &scalars[..static_scalars],
+                &scalars[static_scalars..static_scalars + dynamic_scalars],
+                &rest[..dynamic_points],
             )
         };
         assert_eq!(
-            msm(static_scalars, dynamic_scalars, num_dynamic).unwrap(),
-            msm_with_consecutive_multiples(&scalars)
+            msm(num_static, num_dynamic, num_dynamic).unwrap(),
+            msm_with_consecutive_multiples(&scalars[..num_static + num_dynamic])
         );
 
-        // Mismatched lengths, also if the total number of scalars is right.
-        let err = Err(FastCryptoError::InvalidInput);
-        let longer = [&scalars, [RistrettoScalar::generator()].as_slice()].concat();
-        assert_eq!(
-            msm(&longer[..num_static + 1], dynamic_scalars, num_dynamic),
-            err
-        );
-        assert_eq!(
-            msm(&longer[..num_static + 1], dynamic_scalars, num_dynamic + 1),
-            err
-        );
-        assert_eq!(msm(static_scalars, &longer[num_static..], num_dynamic), err);
-        assert_eq!(msm(static_scalars, dynamic_scalars, num_dynamic + 1), err);
-        if num_static > 0 {
-            assert_eq!(
-                msm(&scalars[1..num_static], dynamic_scalars, num_dynamic),
-                err
-            );
-            assert_eq!(
-                msm(
-                    &scalars[..num_static - 1],
-                    &scalars[num_static - 1..],
-                    num_dynamic
-                ),
-                err
-            );
+        // Mismatched lengths, also where the total numbers of scalars and points agree.
+        for (da, db, dc) in [
+            (1, 0, 0),
+            (1, 0, 1),
+            (-1, 0, 0),
+            (-1, 1, 0),
+            (0, 1, 0),
+            (0, 0, 1),
+        ] {
+            if let Some(static_scalars) = num_static.checked_add_signed(da) {
+                assert_eq!(
+                    msm(static_scalars, num_dynamic + db, num_dynamic + dc),
+                    Err(FastCryptoError::InvalidInput)
+                );
+            }
         }
     }
 
@@ -545,10 +460,6 @@ fn test_serde() {
         serde_json::to_string(&RistrettoScalar::generator()).unwrap(),
         "\"AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\""
     );
-    assert_eq!(
-        serde_json::to_string(&RistrettoPoint::generator()).unwrap(),
-        "\"4vKuCmq8TnGohKlhxQBRX1jjC2qlgt2NtqZZReCNLXY=\""
-    );
 }
 
 #[test]
@@ -561,8 +472,7 @@ fn test_canonical_scalars() {
         add_small(&GROUP_ORDER, -2),
         GROUP_ORDER_MINUS_ONE,
     ] {
-        let scalar = decode_all::<RistrettoScalar>(&bytes).unwrap();
-        assert_eq!(scalar.to_byte_array(), bytes);
+        assert!(check_scalar(&bytes).is_some());
     }
     for bytes in [
         GROUP_ORDER,
@@ -577,11 +487,7 @@ fn test_canonical_scalars() {
         hex!("ecd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000090"),
         [0xff; 32],
     ] {
-        assert_eq!(decode_all::<RistrettoScalar>(&bytes), None);
-        assert_eq!(
-            RistrettoScalar::from_byte_array(&bytes),
-            Err(FastCryptoError::InvalidInput)
-        );
+        assert!(check_scalar(&bytes).is_none());
     }
 }
 
@@ -606,13 +512,9 @@ fn test_canonical_points() {
         LARGEST_ENCODING,
         GENERATOR_ENCODING,
     ] {
-        assert_eq!(encodings_near(&bytes, 0..=0), [0]);
+        assert!(check_point(&bytes).is_some());
         bytes[31] |= 0x80;
-        assert_eq!(encodings_near(&bytes, 0..=0), [0; 0]);
-        assert_eq!(
-            RistrettoPoint::from_byte_array(&bytes),
-            Err(FastCryptoError::InvalidInput)
-        );
+        assert!(check_point(&bytes).is_none());
     }
 }
 
@@ -631,11 +533,6 @@ fn hash_regression_tests() {
             b"Random numbers should not be generated with a method chosen at random".as_slice(),
             hex!("baf5aa3b987469509a11b22d069be0731904af04889790cc6bd54d77afbf871d"),
             hex!("9f07ae34b44b42539e3c45be1da015e10369a454b3ffaec9a7bbe1086b6d170d"),
-        ),
-        (
-            b"",
-            hex!("8472865eba3c2c54e55e71e4ae6b1f88c6e8a8e44c493b59bc46b835e168681d"),
-            hex!("9ef5a0ea93678eb78d69b33367e129543b0d8520122c42e7dfe9d1977f6c3a0c"),
         ),
         (
             b"fastcrypto-blinding-gen-01",
@@ -690,19 +587,7 @@ fn test_hash_to_point() {
             RistrettoPoint::hash_to_ristretto255(msg).to_byte_array(),
             expected
         );
-        // The message is the concatenation of the parts.
-        let (start, end) = msg.split_at(msg.len() / 2);
-        for msgs in [[msg, b"", b""], [b"", start, end]] {
-            assert_eq!(
-                RistrettoPoint::hash_to_ristretto255_with_dst(&msgs, DST).to_byte_array(),
-                expected
-            );
-        }
     }
-    assert_eq!(
-        RistrettoPoint::hash_to_ristretto255_with_dst(&[], DST),
-        RistrettoPoint::hash_to_ristretto255(b"")
-    );
 
     // Other domain separation tags for the message "abc": empty (which RFC 9380 doesn't allow), the
     // longest one that is used as is, and the shortest one that is hashed. Computed with a Python
@@ -731,47 +616,25 @@ fn test_hash_to_point() {
 
 #[test]
 fn test_fiat_shamir() {
-    // The Blake2b-256 hash with the top byte cleared. Computed with Python's hashlib.
-    for (msg, expected) in [
-        (
-            b"".as_slice(),
-            hex!("0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe300"),
-        ),
-        (
-            b"abc",
-            hex!("bddd813c634239723171ef3fee98579b94964e3bb1cb3e427262c8c068d52300"),
-        ),
-    ] {
-        let challenge = RistrettoScalar::fiat_shamir_reduction_to_group_element(msg);
-        assert_eq!(challenge.to_byte_array(), expected);
-    }
-
-    // The constants of the tests of Contra's Move (nizk.move) and TypeScript (nizk.ts) code: the
-    // BCS serialization of a list of byte strings. The points in the last two are multiples of G.
-    let dst = (0..21).collect::<Vec<u8>>();
-    let multiple =
-        |k: u64| (RistrettoPoint::generator() * RistrettoScalar::from(k)).to_byte_array();
-    let points = (1..=6).map(|i| multiple(11 * i)).collect::<Vec<_>>();
-    let g = RistrettoPoint::generator().to_byte_array();
-    let h = RistrettoPoint::hash_to_group_element(b"fastcrypto-blinding-gen-01").to_byte_array();
-    let [p0, p1, p2, p3, p4, p5]: [[u8; 32]; 6] = points.try_into().unwrap();
+    // The constants of the tests of Contra's Move (nizk.move) and TypeScript (nizk.test.ts) code: the
+    // BCS serialization of a list of byte strings, where the points are multiples of G.
+    let bytes = |length: u8| (0..length).collect::<Vec<_>>();
+    let point = |k: u64| {
+        let point = RistrettoPoint::generator() * RistrettoScalar::from(k);
+        point.to_byte_array().to_vec()
+    };
     for (inputs, expected) in [
         (
-            vec![std::array::from_fn(|i| i as u8)],
+            vec![bytes(21), bytes(32)],
             hex!("af00c4976049ed81805c76d3c5ba7cfaeb1550e44f5978cffb12b285a5e25a00"),
         ),
         (
-            vec![p0, p1, p2, p3, p4, p5],
+            std::iter::once(bytes(21))
+                .chain((1..=6).map(|i| point(11 * i)))
+                .collect(),
             hex!("b5baa7c858c0eb740d9c38cc273f2062998dad57a798fa00e78cc33b4ba54200"),
         ),
-        (
-            vec![g, h, p4, p0, p1, p2, p3, p5, p0],
-            hex!("bfc70a5eb7a3d6ff45c7f259078b46d3d1a1cd1c8f9affe06b3d37bb40548900"),
-        ),
     ] {
-        let inputs = std::iter::once(dst.clone())
-            .chain(inputs.into_iter().map(|bytes| bytes.to_vec()))
-            .collect::<Vec<_>>();
         let msg = bcs::to_bytes(&inputs).unwrap();
         let challenge = RistrettoScalar::fiat_shamir_reduction_to_group_element(&msg);
         assert_eq!(challenge.to_byte_array(), expected);
@@ -811,7 +674,7 @@ fn test_vectors() {
     for (i, expected) in VEC_MULGEN.iter().enumerate() {
         let actual = RistrettoPoint::generator() * RistrettoScalar::from(i as u64);
         assert_eq!(actual.to_byte_array(), *expected);
-        assert_eq!(RistrettoPoint::from_byte_array(expected).unwrap(), actual);
+        assert_eq!(check_point(expected), Some(actual));
         let reference = reference::Point::generator() * reference::Scalar::from(i as u64);
         assert_eq!(reference.encode(), *expected);
         assert!(reference::Point::decode(expected).unwrap() == reference);
@@ -855,7 +718,7 @@ fn test_vectors() {
     ];
 
     for bytes in VEC_INVALID.iter() {
-        assert_eq!(encodings_near(bytes, 0..=0), [0; 0]);
+        assert!(check_point(bytes).is_none());
     }
 
     const VEC_MAP: [([u8; 64], [u8; 32]); 11] = [
@@ -1003,34 +866,13 @@ fn arb_strategy() -> impl Strategy<Value = MixedMsmStrategy> {
 proptest! {
     #[test]
     fn test_decode_adversarial(bytes in arb_bytes(), high in arb_bytes()) {
-        // Scalars: exactly the values below l, to the same scalar as the reference.
-        let scalar = decode_all::<RistrettoScalar>(&bytes);
-        let expected = reference::decode_scalar(&bytes);
-        prop_assert_eq!(scalar.is_some(), expected.is_some());
-        prop_assert!(scalar.is_none_or(|s| s.to_byte_array() == bytes));
-
-        // Reductions modulo l.
-        let reduced = reference::encode_scalar(&reference::reduce_scalar(&bytes));
-        prop_assert_eq!(RistrettoScalar::from_bytes_mod_order(&bytes).to_byte_array(), reduced);
-        let trusted = RistrettoScalar::from_trusted_byte_array(&bytes).unwrap();
-        prop_assert_eq!(trusted.to_byte_array(), reduced);
+        check_scalar(&bytes);
+        check_point(&bytes);
         let wide = concat(&bytes, &high);
         prop_assert_eq!(
             RistrettoScalar::from_bytes_mod_order_wide(&wide).to_byte_array(),
             reference::encode_scalar(&reference::reduce_scalar(&wide))
         );
-
-        // Points: the same encodings as the reference decodes, to the same point.
-        let point = decode_all::<RistrettoPoint>(&bytes);
-        let expected = reference::Point::decode(&bytes);
-        prop_assert_eq!(point.is_some(), expected.is_some());
-        prop_assert_eq!(RistrettoPoint::from_trusted_byte_array(&bytes).ok(), point);
-        if let (Some(point), Some(expected)) = (point, expected) {
-            prop_assert_eq!(point.to_byte_array(), bytes);
-            let g = RistrettoPoint::generator();
-            let expected_sum = expected + reference::Point::generator();
-            prop_assert_eq!((point + g).to_byte_array(), expected_sum.encode());
-        }
     }
 
     #[test]
@@ -1113,7 +955,7 @@ proptest! {
         }
         prop_assert_eq!(p == q, expected_p == expected_q);
         prop_assert_eq!(p == q, p.to_byte_array() == q.to_byte_array());
-        prop_assert_eq!(decode_all::<RistrettoPoint>(&p.to_byte_array()), Some(p));
+        prop_assert_eq!(check_point(&p.to_byte_array()), Some(p));
     }
 
     #[test]

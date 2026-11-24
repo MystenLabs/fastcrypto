@@ -36,8 +36,8 @@ use fastcrypto::groups::{
 use fastcrypto::serde_helpers::ToFromByteArray;
 use libfuzzer_sys::fuzz_target;
 use ristretto255_reference::{
-    add_small, decode_scalar, encode_scalar, hash_to_point, negate_field_element, reduce_scalar,
-    Point, Scalar,
+    add_small, concat, decode_scalar, encode_scalar, hash_to_point, negate_field_element,
+    reduce_scalar, Point, Scalar, FIELD_MODULUS, GROUP_ORDER,
 };
 use serde::de::DeserializeOwned;
 use sha2::{Digest, Sha512};
@@ -49,12 +49,6 @@ const MAX_OPS: usize = 32;
 const MAX_TERMS: usize = 8;
 /// Bounds the length of domain separation tags. Those longer than 255 bytes are hashed.
 const MAX_DST_LENGTH: usize = 300;
-
-/// The group order l and the field modulus p, little-endian.
-const GROUP_ORDER: [u8; 32] =
-    hex_literal::hex!("edd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010");
-const FIELD_MODULUS: [u8; 32] =
-    hex_literal::hex!("edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f");
 
 #[derive(Arbitrary, Debug)]
 enum Op {
@@ -194,13 +188,6 @@ fn decode<T: ToFromByteArray<32> + DeserializeOwned + PartialEq + Debug>(
     let json = serde_json::to_string(&Base64::encode(bytes)).unwrap();
     assert_eq!(serde_json::from_str::<T>(&json).ok(), decoded);
     decoded
-}
-
-fn concat(low: &[u8; 32], high: &[u8; 32]) -> [u8; 64] {
-    let mut bytes = [0; 64];
-    bytes[..32].copy_from_slice(low);
-    bytes[32..].copy_from_slice(high);
-    bytes
 }
 
 fn multi_scalar_mul(state: &mut State, terms: &[(u8, u8)], msm: Msm) {

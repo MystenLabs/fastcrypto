@@ -12,6 +12,7 @@
 #![allow(non_local_definitions, unexpected_cfgs)]
 
 use ark_ff::{BigInteger, Field, Fp256, MontBackend, MontConfig, MontFp, One, PrimeField, Zero};
+use hex_literal::hex;
 use sha2::{Digest, Sha512};
 use std::ops::{Add, Mul, Neg, Sub};
 
@@ -28,6 +29,12 @@ pub type FieldElement = Fp256<MontBackend<FieldConfig, 4>>;
 #[generator = "2"]
 pub struct ScalarConfig;
 pub type Scalar = Fp256<MontBackend<ScalarConfig, 4>>;
+
+/// The group order l and the field modulus p, little-endian.
+pub const GROUP_ORDER: [u8; 32] =
+    hex!("edd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010");
+pub const FIELD_MODULUS: [u8; 32] =
+    hex!("edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f");
 
 // The constants of RFC 9496, section 4.1.
 const D: FieldElement =
@@ -312,6 +319,13 @@ pub fn add_small(bytes: &[u8; 32], delta: i64) -> [u8; 32] {
         carry = digit.div_euclid(256);
         digit.rem_euclid(256) as u8
     })
+}
+
+pub fn concat(low: &[u8; 32], high: &[u8; 32]) -> [u8; 64] {
+    let mut bytes = [0; 64];
+    bytes[..32].copy_from_slice(low);
+    bytes[32..].copy_from_slice(high);
+    bytes
 }
 
 /// The encoding of p - s for the encoding of a field element s (or 0 for s = 0).

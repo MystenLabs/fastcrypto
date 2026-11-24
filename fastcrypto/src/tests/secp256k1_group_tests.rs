@@ -223,14 +223,18 @@ fn fastcrypto_verifies(public_key: &[u8; 32], message: &[u8], signature: &[u8; 6
 }
 
 /// `count` values drawn from a proptest strategy.
-fn samples<S: Strategy>(strategy: S, count: usize, runner: &mut TestRunner) -> Vec<S::Value> {
+pub(crate) fn samples<S: Strategy>(
+    strategy: S,
+    count: usize,
+    runner: &mut TestRunner,
+) -> Vec<S::Value> {
     (0..count)
         .map(|_| strategy.new_tree(runner).unwrap().current())
         .collect()
 }
 
 /// The number of values that satisfy the predicate.
-fn count<T>(values: &[T], predicate: impl Fn(&T) -> bool) -> usize {
+pub(crate) fn count<T>(values: &[T], predicate: impl Fn(&T) -> bool) -> usize {
     values.iter().filter(|v| predicate(v)).count()
 }
 
