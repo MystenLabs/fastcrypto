@@ -186,6 +186,56 @@ mod tests {
     }
 
     #[test]
+    fn test_bits_form_bytes_panics() {
+        for (start, end) in [(1, 0), (8, 8), (9, 100)] {
+            assert!(std::panic::catch_unwind(|| get_bits_from_bytes(&[0xff], start, end)).is_err());
+        }
+    }
+
+    #[test]
+    fn test_base_2w_expansion_panics() {
+        // The number of bits per digit must be in 1, ..., 64.
+        for bits_per_digit in [0, 65] {
+            assert!(
+                std::panic::catch_unwind(|| compute_base_2w_expansion(&[1], bits_per_digit))
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn test_test_bit() {
+        let bytes = [0b00000001, 0b10000010];
+        let set_bits = [0, 9, 15];
+        // Bits after the end of the bytes are zero.
+        for index in 0..100 {
+            assert_eq!(test_bit(&bytes, index), set_bits.contains(&index));
+        }
+        assert!(!test_bit(&[0xff], 8));
+        assert!(!test_bit(&[], 0));
+    }
+
+    #[test]
+    fn test_div_ceil() {
+        for (numerator, denominator, expected) in [
+            (0, 1, 0),
+            (0, 5, 0),
+            (1, 5, 1),
+            (5, 5, 1),
+            (6, 5, 2),
+            (10, 5, 2),
+        ] {
+            assert_eq!(div_ceil(numerator, denominator), expected);
+        }
+    }
+
+    #[test]
+    fn test_biguint_to_le_bytes() {
+        assert_eq!(BigUint::from(0u8).to_le_bytes(), [0]);
+        assert_eq!(BigUint::from(0x010203u32).to_le_bytes(), [3, 2, 1]);
+    }
+
+    #[test]
     fn test_is_power_of_two() {
         assert!(!is_power_of_2(0));
         assert!(is_power_of_2(1));

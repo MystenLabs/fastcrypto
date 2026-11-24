@@ -237,6 +237,7 @@ fn compute_multiples<G: Doubling + for<'a> Add<&'a G, Output = G> + Clone + Debu
 
 #[cfg(test)]
 mod tests {
+    use num_bigint::BigUint;
     use rand::thread_rng;
 
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
@@ -292,6 +293,72 @@ mod tests {
         let expected = RistrettoPoint::generator() * a + other_point * b;
         let actual = multiplier.two_scalar_mul(&a, &other_point, &b);
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_scalars_of_different_lengths() {
+        // Big integers have as many bytes as they need, so the scalars can have different lengths, as
+        // in fastcrypto-vdf.
+        let g = RistrettoPoint::generator();
+        let other_point = g * RistrettoScalar::from(3u64);
+        let multiplier = WindowedScalarMultiplier::<RistrettoPoint, BigUint, 16, 5>::new(
+            g,
+            RistrettoPoint::zero(),
+        );
+        let scalars = [0, 1, 2, 255, 256, 0x10000, u64::MAX as u128, u128::MAX];
+        for a in scalars {
+            for b in scalars {
+                assert_eq!(
+                    multiplier.two_scalar_mul(&BigUint::from(a), &other_point, &BigUint::from(b)),
+                    g * RistrettoScalar::from(a) + other_point * RistrettoScalar::from(b)
+                );
+            }
+            assert_eq!(
+                multiplier.mul(&BigUint::from(a)),
+                g * RistrettoScalar::from(a)
+            );
+        }
+    }
+
+    #[test]
+    fn test_invalid_parameters() {
+        // The cache size must be a power of two greater than one ...
+        fn new<const CACHE_SIZE: usize>() -> bool {
+            std::panic::catch_unwind(|| {
+                WindowedScalarMultiplier::<RistrettoPoint, RistrettoScalar, CACHE_SIZE, 4>::new(
+                    RistrettoPoint::generator(),
+                    RistrettoPoint::zero(),
+                )
+            })
+            .is_ok()
+        }
+        assert!(!new::<1>());
+        assert!(new::<2>());
+        assert!(!new::<3>());
+        assert!(!new::<15>());
+        assert!(new::<16>());
+
+        // ... a precomputed table must have a power of two elements, and the window width must be
+        // positive.
+        let g = RistrettoPoint::generator();
+        let msm = |table: HashMap<usize, Vec<RistrettoPoint>>, width: usize| {
+            std::panic::catch_unwind(|| {
+                multi_scalar_mul(
+                    &[RistrettoScalar::from(5u64)],
+                    &[g],
+                    &table,
+                    width,
+                    RistrettoPoint::zero(),
+                )
+            })
+        };
+        assert_eq!(
+            msm(HashMap::new(), 2).unwrap(),
+            g * RistrettoScalar::from(5u64)
+        );
+        assert!(msm(HashMap::new(), 0).is_err());
+        assert!(msm(HashMap::from([(0, vec![])]), 2).is_err());
+        assert!(msm(HashMap::from([(0, vec![g; 3])]), 2).is_err());
     }
 
     #[test]

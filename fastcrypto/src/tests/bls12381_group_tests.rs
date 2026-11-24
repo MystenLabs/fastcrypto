@@ -541,6 +541,41 @@ test_group_arithmetic!(
     ]
 );
 
+/// The operators on borrowed operands, which the GroupOpsExtend macro derives, agree with the ones
+/// on owned operands. The macro is the same for every group.
+#[test]
+fn test_operators_on_borrowed_operands() {
+    macro_rules! check {
+        ($type:ty) => {
+            let a = <$type>::generator() * Scalar::from(5);
+            let b = <$type>::generator() * Scalar::from(7);
+            let s = Scalar::from(12345);
+            assert_ne!(a + b, a - b);
+            for sum in [&a + &b, &a + b, a + &b] {
+                assert_eq!(sum, a + b);
+            }
+            for difference in [&a - &b, &a - b, a - &b] {
+                assert_eq!(difference, a - b);
+            }
+            for product in [&a * &s, &a * s, a * &s] {
+                assert_eq!(product, a * s);
+            }
+            assert_eq!(-&a, -a);
+
+            let mut c = a;
+            c += &b;
+            assert_eq!(c, a + b);
+            c -= &a;
+            assert_eq!(c, b);
+            c *= &s;
+            assert_eq!(c, b * s);
+        };
+    }
+    check!(G1Element);
+    check!(G2Element);
+    check!(GTElement);
+}
+
 /// MSM agrees with the naive sum for every length up to twice Sui's limit (32), with identity points,
 /// zero scalars, repeated points and points that cancel. multi_scalar_mul drops the terms with a zero
 /// scalar or an identity point before calling blst, which does not handle the identity, so those
@@ -837,10 +872,7 @@ fn test_serde_and_regression() {
 #[test]
 fn test_debug() {
     // Debug shows the encoding in hex.
-    fn check<T: Debug, const N: usize>(element: T)
-    where
-        T: ToFromByteArray<N>,
-    {
+    fn check<T: Debug + ToFromByteArray<N>, const N: usize>(element: T) {
         assert_eq!(
             format!("{element:?}"),
             format!("\"{}\"", hex::encode(element.to_byte_array()))
