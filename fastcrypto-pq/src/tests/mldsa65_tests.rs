@@ -26,7 +26,8 @@ use fastcrypto::error::FastCryptoError;
 use fastcrypto::hash::{HashFunction, Sha256};
 use fastcrypto::slip10::{derive_hardened, Slip10MasterKey, MAX_SEED_LENGTH, MIN_SEED_LENGTH};
 use fastcrypto::traits::{
-    EncodeDecodeBase64, InsecureDefault, KeyPair, Signer, ToFromBytes, VerifyingKey,
+    Authenticator, EncodeDecodeBase64, InsecureDefault, KeyPair, Signer, SigningKey, ToFromBytes,
+    VerifyingKey,
 };
 
 use crate::mldsa65::{
@@ -165,6 +166,10 @@ fn check_decoding_all(bytes: &[u8]) {
     check_decoding::<MLDSA65KeyPair, SK_LENGTH>(bytes);
     check_decoding::<MLDSA65PublicKey, PK_LENGTH>(bytes);
     check_decoding::<MLDSA65Signature, SIG_LENGTH>(bytes);
+    assert_eq!(
+        MLDSA65KeyPair::from_str(&Base64::encode(bytes)).ok(),
+        MLDSA65KeyPair::from_bytes(bytes).ok()
+    );
 
     let pk = bcs::from_bytes::<MLDSA65PublicKeyAsBytes>(bytes);
     let pk_json = serde_json::from_str::<MLDSA65PublicKeyAsBytes>(&json(bytes));
@@ -189,6 +194,17 @@ fn check_decoding_all(bytes: &[u8]) {
     }
 }
 
+/// Values are equal if and only if all of their bytes are.
+fn check_equality<T: ToFromBytes + PartialEq, const N: usize>() {
+    let value = T::from_bytes(&[7; N]).unwrap();
+    assert_eq!(value, T::from_bytes(&[7; N]).unwrap());
+    for i in 0..N {
+        let mut bytes = [7; N];
+        bytes[i] ^= 1;
+        assert_ne!(value, T::from_bytes(&bytes).unwrap(), "byte {i} is ignored");
+    }
+}
+
 /// The result of verifying raw bytes.
 fn verify(pk: &[u8], msg: &[u8], sig: &[u8]) -> Result<(), FastCryptoError> {
     MLDSA65PublicKey::from_bytes(pk)?.verify(msg, &MLDSA65Signature::from_bytes(sig)?)
@@ -204,6 +220,9 @@ fn lengths_match_the_scheme() {
     assert_eq!(MLDSA65_KEYPAIR_LENGTH, 32);
     assert_eq!(MLDSA65_PUBLIC_KEY_LENGTH, 1952);
     assert_eq!(MLDSA65_SIGNATURE_LENGTH, 3309);
+    assert_eq!(<MLDSA65PrivateKey as SigningKey>::LENGTH, 32);
+    assert_eq!(<MLDSA65PublicKey as VerifyingKey>::LENGTH, 1952);
+    assert_eq!(<MLDSA65Signature as Authenticator>::LENGTH, 3309);
 }
 
 #[test]
@@ -215,6 +234,11 @@ fn decoding_accepts_exactly_one_length() {
             check_decoding_all(&vec![0; len]);
             check_decoding_all(&vec![0xff; len]);
         }
+    }
+
+    // Other forms of a private key: with the public key, expanded (as in FIPS 204), and both.
+    for len in [SK_LENGTH + PK_LENGTH, 4032, SK_LENGTH + 4032] {
+        check_decoding_all(&vec![1; len]);
     }
 
     // The encodings of a public key and a signature don't decode as one, in either order.
@@ -270,6 +294,17 @@ fn base64_is_strict() {
         assert!(MLDSA65PublicKey::decode_base64(&invalid).is_err());
         assert!(serde_json::from_value::<MLDSA65PublicKey>(invalid.into()).is_err());
     }
+
+    // Hex isn't accepted instead.
+    assert!(MLDSA65KeyPair::from_str(&Hex::encode([1; SK_LENGTH])).is_err());
+}
+
+#[test]
+fn equality_follows_the_bytes() {
+    check_equality::<MLDSA65PrivateKey, SK_LENGTH>();
+    check_equality::<MLDSA65KeyPair, SK_LENGTH>();
+    check_equality::<MLDSA65PublicKey, PK_LENGTH>();
+    check_equality::<MLDSA65Signature, SIG_LENGTH>();
 }
 
 #[test]
@@ -300,7 +335,6 @@ fn public_key_ordering_and_hashing_follow_the_bytes() {
 fn debug_output_is_redacted_for_secrets() {
     let keypair = keys().pop().unwrap();
     let signature = keypair.sign(MSG);
-    let secret = Base64::encode(keypair.as_ref());
 
     // Public types print their base64 form, which assertion failures rely on.
     let public = Base64::encode(keypair.public().as_ref());
@@ -310,10 +344,14 @@ fn debug_output_is_redacted_for_secrets() {
     assert_eq!(format!("{signature}"), Base64::encode(signature.as_ref()));
 
     // Secret material must never appear in formatted output.
-    assert!(!format!("{keypair:?}").contains(&secret));
+    let elided = "<elided secret for MLDSA65PrivateKey>";
+    assert_eq!(
+        format!("{keypair:?}"),
+        format!("MLDSA65KeyPair {{ public: {public}, private: {elided} }}")
+    );
     let private = keypair.private();
-    assert!(!format!("{private:?}").contains(&secret));
-    assert!(!format!("{private}").contains(&secret));
+    assert_eq!(format!("{private:?}"), elided);
+    assert_eq!(format!("{private}"), elided);
 }
 
 //
@@ -324,6 +362,11 @@ fn debug_output_is_redacted_for_secrets() {
 fn generate_is_random() {
     let generated: BTreeSet<_> = keys().iter().map(|kp| kp.public().clone()).collect();
     assert_eq!(generated.len(), keys().len());
+
+    // All of the seed comes from the given RNG.
+    let mut seed = [0; SK_LENGTH];
+    StdRng::from_seed([0; 32]).fill_bytes(&mut seed);
+    assert_eq!(keys()[0].as_ref(), seed);
 }
 
 /// The private key is the 32-byte FIPS 204 seed and the public key is always derived from it: the
@@ -358,9 +401,6 @@ fn key_pairs_are_determined_by_the_seed() {
             MLDSA65PrivateKey::from_bytes(&seed).unwrap()
         );
     }
-
-    assert_ne!(keypair, keypair_from_seed(8));
-    assert_ne!(keypair.private(), keypair_from_seed(8).private());
 }
 
 /// The ML-DSA-65 vectors from satoshilabs/slips#1968: chain codes pin the
@@ -421,6 +461,10 @@ fn slip10_slips1968_vectors() {
         );
 
         let kp = derive_mldsa65_keypair(&seed, indexes).unwrap();
+        // The hardened bit may already be set.
+        let hardened: Vec<_> = indexes.iter().map(|index| index | 1 << 31).collect();
+        assert_eq!(derive_mldsa65_keypair(&seed, &hardened).unwrap(), kp);
+
         let digest = Sha256::digest(kp.public().as_ref());
         assert_eq!(
             kp.private().as_ref(),
@@ -456,11 +500,13 @@ fn signing_is_hedged() {
     // Signing draws fresh randomness per call (the FIPS 204 default), so two signatures over
     // the same message differ while both verify.
     let keypair = keys().pop().unwrap();
-    let first = keypair.sign(MSG);
-    let second = keypair.sign(MSG);
-    assert_ne!(first, second);
-    assert_eq!(keypair.public().verify(MSG, &first), Ok(()));
-    assert_eq!(keypair.public().verify(MSG, &second), Ok(()));
+    for msg in [b"", MSG, &[1; 32], &[1; 4096]] {
+        let first = keypair.sign(msg);
+        let second = keypair.sign(msg);
+        assert_ne!(first, second);
+        assert_eq!(keypair.public().verify(msg, &first), Ok(()));
+        assert_eq!(keypair.public().verify(msg, &second), Ok(()));
+    }
 }
 
 #[test]
@@ -477,13 +523,29 @@ fn verify_rejects_wrong_message_and_wrong_key() {
         other.public().verify(MSG, &signature),
         Err(FastCryptoError::InvalidSignature)
     );
+
+    // Shorter and longer messages
+    for msg in [MSG, &[0; 32]] {
+        let signature = keypair.sign(msg);
+        for other in [
+            b"",
+            &msg[1..],
+            &msg[..msg.len() - 1],
+            &[msg, &[0]].concat(),
+            &[&[0], msg].concat(),
+        ] {
+            assert_eq!(
+                keypair.public().verify(other, &signature),
+                Err(FastCryptoError::InvalidSignature)
+            );
+        }
+    }
 }
 
 #[test]
-fn verify_rejects_tampered_signature() {
+fn verify_rejects_tampered_and_extreme_inputs() {
     let keypair = keys().pop().unwrap();
     let signature = keypair.sign(MSG);
-    let verify = |sig: &[u8]| verify(keypair.public().as_ref(), MSG, sig);
 
     // The first and last byte of each part of the encoding, and one in the middle of z
     let offsets = PARTS[2..]
@@ -493,18 +555,22 @@ fn verify_rejects_tampered_signature() {
         let mut bytes = signature.as_ref().to_vec();
         bytes[offset] ^= 1;
         assert_eq!(
-            verify(&bytes),
+            verify(keypair.public().as_ref(), MSG, &bytes),
             Err(FastCryptoError::InvalidSignature),
             "tampering at offset {offset} was accepted"
         );
     }
 
-    // Signatures with the right length and z out of range
+    // Extreme signatures and public keys
     for byte in [0, 0xff] {
-        assert_eq!(
-            verify(&[byte; SIG_LENGTH]),
-            Err(FastCryptoError::InvalidSignature)
-        );
+        let (extreme_pk, extreme_sig) = ([byte; PK_LENGTH], [byte; SIG_LENGTH]);
+        for (pk, sig) in [
+            (keypair.public().as_ref(), &extreme_sig[..]),
+            (&extreme_pk, signature.as_ref()),
+            (&extreme_pk, &extreme_sig),
+        ] {
+            assert_eq!(verify(pk, MSG, sig), Err(FastCryptoError::InvalidSignature));
+        }
     }
 }
 
