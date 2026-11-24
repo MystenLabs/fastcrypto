@@ -684,6 +684,26 @@ fn verify_batch_missing_public_keys() {
         &signatures,
     );
     assert!(res.is_err(), "{:?}", res);
+
+    // Empty inputs and length mismatches are invalid inputs, also for different messages.
+    for (pks, sigs) in [
+        (&pubkeys[..0], &signatures[..0]),
+        (&pubkeys[1..], &signatures[..]),
+        (&pubkeys[..], &signatures[1..]),
+    ] {
+        assert_eq!(
+            BLS12381PublicKey::verify_batch_empty_fail(&digest, pks, sigs),
+            Err(FastCryptoError::InvalidInput)
+        );
+        assert_eq!(
+            BLS12381PublicKey::verify_batch_empty_fail_different_msg(
+                &vec![&digest[..]; sigs.len()],
+                pks,
+                sigs
+            ),
+            Err(FastCryptoError::InvalidInput)
+        );
+    }
 }
 
 #[test]
