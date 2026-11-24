@@ -389,4 +389,74 @@ lemma prove_batch_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
     rw [hx', except_ok_bind, ← hgx, ← htx, StateT.run'_eq, hm']
     exact ⟨_, rfl, by simp [toRP, h2']⟩
 
+lemma verify_batch_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
+    {τ : bulletproofspp.transcript.BpppTranscript → Bppp.BpppTranscript F E}
+    (ht : TranscriptModel φ ψ τ) {oracle : List (Bppp.Entry F E) → F}
+    (hti : TranscriptInit τ oracle) (hgn : GensNewModel φ ψ)
+    (rp : bulletproofspp.range_proof.RangeProof) (commitments : Slice pedersen.PedersenCommitment)
+    (range : pedersen.Range) (dst : Slice U8) (hm : 256 * commitments.length + 256 ≤ Usize.max) :
+    bulletproofspp.range_proof.RangeProof.verify_batch rp commitments range dst ⦃ r =>
+      match (toRP φ ψ rp).verify_batch oracle (genM ψ) (commitments.val.map (toPC ψ))
+          (toRange range) (dst.val.map (·.val)) with
+      | .ok () => r = .Ok ()
+      | .error _ => ∃ e, r = .Err e ⦄ := by
+  have ev : commitments.len.val = commitments.val.length := rfl
+  have evl : commitments.length = commitments.val.length := rfl
+  unfold bulletproofspp.range_proof.RangeProof.verify_batch Bppp.RangeProof.verify_batch
+  simp only [core.slice.Slice.is_empty, bind_ok]
+  by_cases h0 : commitments.val = []
+  · have : decide (commitments.length = 0) = true := by simp [evl, h0]
+    rw [if_pos this, WP.spec_ok]
+    simp [h0, except_throw']
+  rw [if_neg (by simpa [evl] using h0)]
+  have hc0 : ¬ (commitments.val.map (toPC ψ) = []) := by simpa using h0
+  simp only [hc0, if_false]
+  apply WP.spec_bind (setup_spec hgn hti range commitments.len
+    (by rw [ev]; rw [evl] at hm; omega) dst)
+  intro r hr
+  have hlen : (commitments.val.map (toPC ψ)).length = commitments.len.val := by simp [ev]
+  rw [hlen]
+  split at hr
+  rotate_left
+  · rename_i e he
+    obtain ⟨e', rfl⟩ := hr
+    rw [he, except_error_bind]
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+      core.convert.FromSame.from, bind_tc_ok, WP.spec_ok]
+    exact ⟨_, rfl⟩
+  rename_i x hx
+  obtain ⟨⟨p, a, t⟩, rfl, g, hdg, hgx, htx, hpo, hpr, hd, hnd, hk, hnm, hgok, hcomp, hh, hgl⟩ := hr
+  rw [hx, except_ok_bind]
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, Std.uncurry_apply_pair]
+  rw [hdg, bind_ok]
+  have hgB : 4 * (g.h_vec.length + g.g_vec.length) + 8 ≤ Usize.max := by
+    rw [hh, hgl]; rw [ev] at hnm; omega
+  have hR : 2 * 2 ^ (Bppp.NormLinear.proof_shape g.h_vec.length g.g_vec.length).1 ≤ Usize.max := by
+    obtain ⟨k, hk4, hkk⟩ := hk
+    have := proof_shape_eight_pow k (by omega)
+    rw [hh, hgl, hkk]
+    rw [hkk] at hnm
+    rw [ev] at hnm
+    omega
+  apply WP.spec_bind (circuit_verify_spec hs hp ht g hgok x.1 p hpo hnd hh hgB hR t rp.proof
+    commitments)
+  rintro ⟨r1, t'⟩ hv
+  rw [← hgx, ← htx, StateT.run'_eq]
+  have hcp : (toRP φ ψ rp).proof = toCP φ ψ rp.proof := rfl
+  rw [hcp]
+  rcases hm' : (Bppp.Circuit.verify (toGens ψ g) x.1 (toCP φ ψ rp.proof)
+    (commitments.val.map (toPC ψ))).run (τ t) with e | ⟨u, T⟩
+  · rw [hm'] at hv
+    obtain ⟨e', he'⟩ := hv
+    simp only at he'
+    subst he'
+    simp [except_throw']
+  · rw [hm'] at hv
+    obtain ⟨h1', -⟩ := hv
+    simp only at h1'
+    subst h1'
+    simp
+    trivial
+
 end BpppProofs
