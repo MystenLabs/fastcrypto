@@ -22,6 +22,9 @@ local notation "P" => groups.ristretto255.RistrettoPoint
 
 variable {E : Type} [AddCommGroup E] [Module F E] [DecidableEq E] {ψ : P → E}
 
+@[simp] lemma deref_val {α : Type} (v : alloc.vec.Vec α) : (alloc.vec.Vec.deref v).val = v.val := by
+  simp [alloc.vec.Vec.deref]
+
 lemma odd_only_spec (hs : ScalarModel F φ) (odd : Slice S) (h : 2 * odd.length ≤ Usize.max) :
     bulletproofspp.norm_linear.odd_only odd ⦃ r =>
       r.val.map φ = Bppp.NormLinear.odd_only (F := F) (odd.val.map φ) ⦄ := by
@@ -723,5 +726,69 @@ lemma folded_msm_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ) (sigma : S
     · simp; scalar_tac
     · exact hfirst ‹alloc.vec.Vec S› x (by simp [h0, *]) (by simp [h0, x_post])
         (by simp [alloc.vec.Vec.length, *]) (by simp [alloc.vec.Vec.length, x_post])
+
+/-- The model of generated lazy bases, which start from `gens`. -/
+def toLB (φ : S → F) (ψ : P → E) (gens : bulletproofspp.crs.Generators)
+    (lb : bulletproofspp.norm_linear.LazyBases) : Bppp.NormLinear.LazyBases F E :=
+  ⟨match lb.points with
+    | .Crs => .Crs (toGens ψ gens)
+    | .Folded g (h_vec, g_vec) => .Folded (ψ g) (h_vec.val.map ψ) (g_vec.val.map ψ),
+   toW φ lb.w_h, toW φ lb.w_g⟩
+
+/-- The `(h_vec, g_vec)` lengths of the points that lazy bases apply to. -/
+def lbLen (gens : bulletproofspp.crs.Generators) (lb : bulletproofspp.norm_linear.LazyBases) :
+    ℕ × ℕ :=
+  match lb.points with
+  | .Crs => (gens.h_vec.length, gens.g_vec.length)
+  | .Folded _ (h_vec, g_vec) => (h_vec.length, g_vec.length)
+
+lemma points_spec (gens : bulletproofspp.crs.Generators) (lb : bulletproofspp.norm_linear.LazyBases) :
+    bulletproofspp.norm_linear.LazyBases.impl.points lb gens ⦃ r =>
+      (ψ r.1, r.2.1.val.map ψ, r.2.2.val.map ψ) = (toLB φ ψ gens lb).points' ∧
+      (r.2.1.length, r.2.2.length) = lbLen gens lb ⦄ := by
+  unfold bulletproofspp.norm_linear.LazyBases.impl.points
+  cases h : lb.points with
+  | Crs => simp [toLB, lbLen, h, Bppp.NormLinear.LazyBases.points', toGens, alloc.vec.Vec.deref,
+      Slice.length, alloc.vec.Vec.length]
+  | Folded g p =>
+    obtain ⟨hv, gv⟩ := p
+    simp [toLB, lbLen, h, Bppp.NormLinear.LazyBases.points', alloc.vec.Vec.deref, Slice.length,
+      alloc.vec.Vec.length]
+
+lemma len_spec (gens : bulletproofspp.crs.Generators) (lb : bulletproofspp.norm_linear.LazyBases) :
+    bulletproofspp.norm_linear.LazyBases.len lb gens ⦃ r =>
+      (r.1.val, r.2.val) = lbLen gens lb ∧
+      (r.1.val, r.2.val) = (toLB φ ψ gens lb).len ⦄ := by
+  unfold bulletproofspp.norm_linear.LazyBases.len
+  apply WP.spec_bind (points_spec (φ := φ) (ψ := ψ) gens lb)
+  rintro ⟨g, hv, gv⟩ ⟨h1, h2⟩
+  show (ok (Slice.len hv, Slice.len gv) : Result (Usize × Usize)) ⦃ r => _ ⦄
+  rw [WP.spec_ok]
+  refine ⟨by simpa [Slice.length] using h2, ?_⟩
+  simp only [Bppp.NormLinear.LazyBases.len, ← h1]
+  simp [Slice.length]
+
+lemma lazy_new_spec (hs : ScalarModel F φ) (gens : bulletproofspp.crs.Generators) :
+    bulletproofspp.norm_linear.LazyBases.new ⦃ r =>
+      toLB φ ψ gens r = Bppp.NormLinear.LazyBases.new (toGens ψ gens) ∧
+      r.w_h.length = 1 ∧ r.w_g.length = 1 ∧ r.points = .Crs ⦄ := by
+  unfold bulletproofspp.norm_linear.LazyBases.new
+  apply WP.spec_bind (weights_new_spec hs)
+  rintro w ⟨hw, hwl⟩
+  simp [toLB, hw, hwl, Bppp.NormLinear.LazyBases.new]
+
+lemma fold_spec (hs : ScalarModel F φ) (gens : bulletproofspp.crs.Generators)
+    (lb : bulletproofspp.norm_linear.LazyBases) (rho gamma : S)
+    (hh : 2 * lb.w_h.length ≤ Usize.max) (hg : 2 * lb.w_g.length ≤ Usize.max) :
+    bulletproofspp.norm_linear.LazyBases.fold lb rho gamma ⦃ r =>
+      toLB φ ψ gens r = (toLB φ ψ gens lb).fold (φ rho) (φ gamma) ∧ r.points = lb.points ∧
+      r.w_h.length = 2 * lb.w_h.length ∧ r.w_g.length = 2 * lb.w_g.length ⦄ := by
+  unfold bulletproofspp.norm_linear.LazyBases.fold
+  simp only [one_spec hs, bind_ok]
+  apply WP.spec_bind (tensor_pair_spec hs lb.w_h hs.o gamma hh)
+  rintro wh ⟨hwh, hwhl⟩
+  apply WP.spec_bind (tensor_pair_spec hs lb.w_g rho gamma hg)
+  rintro wg ⟨hwg, hwgl⟩
+  simp [toLB, hwh, hwg, hwhl, hwgl, Bppp.NormLinear.LazyBases.fold, Bppp.one]
 
 end BpppProofs
