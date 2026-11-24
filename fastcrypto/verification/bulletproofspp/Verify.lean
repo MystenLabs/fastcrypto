@@ -164,4 +164,147 @@ lemma verify_rounds_spec (hs : ScalarModel F φ)
       rfl
   · exact ⟨hr, hg, hwh, hwg, le_refl _, rfl⟩
 
+lemma verify_n_spec (hs : ScalarModel F φ) (p_n : Slice S) (w_n : alloc.vec.Vec S)
+    (out : alloc.vec.Vec S) (hout : out.val = []) :
+    bulletproofspp.norm_linear.verify_loop1 p_n w_n out 0#usize ⦃ r =>
+      r.val.map φ = List.zipWith (fun w p => w - p) (w_n.val.map φ) (p_n.val.map φ) ⦄ := by
+  unfold bulletproofspp.norm_linear.verify_loop1
+  have ew : w_n.length = w_n.val.length := rfl
+  have ep : p_n.length = p_n.val.length := rfl
+  apply WP.spec_mono (push_loop_specψ (min w_n.val.length p_n.val.length) φ
+    (fun i => (w_n.val.map φ).getD i 0 - (p_n.val.map φ).getD i 0) _ _ out 0#usize
+    (by simp [alloc.vec.Vec.length, hout]) (by simp))
+  · intro r hr
+    rw [hr, hout]
+    apply List.ext_getElem (by simp)
+    intro k h1 h2
+    simp at h1
+    simp [List.getElem?_eq_getElem (show k < w_n.val.length by omega),
+      List.getElem?_eq_getElem (show k < p_n.val.length by omega)]
+  · intro v i hv hi
+    simp only [Std.uncurry_apply_pair]
+    unfold bulletproofspp.norm_linear.verify_loop1.body
+    simp only [hs.sub_eq]
+    step*
+    refine ⟨_, _, rfl, ⟨_, n1_post, ?_⟩, i3_post⟩
+    have hi1 : i.val < w_n.val.length := by omega
+    have hi2 : i.val < p_n.val.length := by omega
+    simp [rs_post, rs1_post, List.getElem?_eq_getElem hi1, List.getElem?_eq_getElem hi2]
+  · intro v i hv hi
+    simp only [Std.uncurry_apply_pair]
+    unfold bulletproofspp.norm_linear.verify_loop1.body
+    by_cases h : i.val < w_n.val.length
+    · have : ¬ i < p_n.len := by scalar_tac
+      have h' : i < w_n.len := by scalar_tac
+      simp [h', this]
+    · have : ¬ i < w_n.len := by scalar_tac
+      simp [this]
+
+lemma verify_extra_spec (hs : ScalarModel F φ) (extra : Slice (S × P))
+    (ds : alloc.vec.Vec S) (dp : alloc.vec.Vec P) (hds : ds.val = []) (hdp : dp.val = [])
+    (hlen : extra.length + 1 ≤ Usize.max) :
+    bulletproofspp.norm_linear.verify_loop2 extra ds dp 0#usize ⦃ r =>
+      r.1.val.map φ = extra.val.map (fun q => -φ q.1) ∧
+      r.2.val.map ψ = extra.val.map (fun q => ψ q.2) ∧
+      r.1.val.length = extra.val.length ∧ r.2.val.length = extra.val.length ⦄ := by
+  unfold bulletproofspp.norm_linear.verify_loop2
+  have ee : extra.length = extra.val.length := rfl
+  apply loop.spec_decr_nat (fun q => extra.length - q.2.2.val)
+    (fun q => q.2.2.val ≤ extra.length ∧
+      q.1.val.map φ = (extra.val.take q.2.2.val).map (fun q => -φ q.1) ∧
+      q.2.1.val.map ψ = (extra.val.take q.2.2.val).map (fun q => ψ q.2) ∧
+      q.1.val.length = q.2.2.val ∧ q.2.1.val.length = q.2.2.val)
+  · rintro ⟨a, b, i⟩ ⟨hi, ha, hb, hal, hbl⟩
+    dsimp only at hi ha hb hal hbl
+    simp only [Std.uncurry_apply_pair]
+    unfold bulletproofspp.norm_linear.verify_loop2.body
+    simp only [hs.neg_eq]
+    have ea : a.length = a.val.length := rfl
+    have eb : b.length = b.val.length := rfl
+    step*
+    · have hil : i.val < extra.val.length := by scalar_tac
+      have hq := ‹(_, _) = extra.val[i.val]›
+      refine ⟨by scalar_tac, ?_, ?_, by simp [dynamic_scalars1_post]; omega,
+        by simp [dynamic_points1_post]; omega, by scalar_tac⟩
+      · rw [dynamic_scalars1_post, i2_post, List.take_succ_eq_append_getElem hil, ← hq]
+        simp [ha]
+      · rw [dynamic_points1_post, i2_post, List.take_succ_eq_append_getElem hil, ← hq]
+        simp [hb]
+    · have hie : i.val = extra.val.length := by scalar_tac
+      rw [hie, List.take_length] at ha hb
+      exact ⟨ha, hb, by omega, by omega⟩
+  · exact ⟨by simp, by simp [hds], by simp [hdp], by simp [hds], by simp [hdp]⟩
+
+/-- The terms that the rounds add to the verifier's MSM. -/
+def roundTerms (rs : List (E × E)) (gs : List F) : List (F × E) :=
+  (List.zip rs gs).flatMap fun ((x, r), g) => [(-g, x), (Bppp.one - g * g, r)]
+
+lemma roundTerms_take_succ (rs : List (E × E)) (gs : List F) (k : ℕ) (h1 : k < rs.length)
+    (h2 : k < gs.length) :
+    roundTerms (rs.take (k + 1)) (gs.take (k + 1)) = roundTerms (rs.take k) (gs.take k) ++
+      [(-gs[k], rs[k].1), (Bppp.one - gs[k] * gs[k], rs[k].2)] := by
+  unfold roundTerms
+  rw [List.take_succ_eq_append_getElem h1, List.take_succ_eq_append_getElem h2,
+    List.zip_append (by simp; omega), List.flatMap_append]
+  simp
+
+lemma verify_round_terms_spec (hs : ScalarModel F φ) (rounds : alloc.vec.Vec (P × P))
+    (gammas : alloc.vec.Vec S) (ds : alloc.vec.Vec S) (dp : alloc.vec.Vec P)
+    (hlen : ds.val.length + 2 * rounds.val.length ≤ Usize.max)
+    (hlen' : dp.val.length + 2 * rounds.val.length ≤ Usize.max) :
+    bulletproofspp.norm_linear.verify_loop3 rounds gammas ds dp 0#usize ⦃ r =>
+      r.1.val.map φ = ds.val.map φ ++
+        (roundTerms (roundsψ ψ rounds.val) (gammas.val.map φ)).map Prod.fst ∧
+      r.2.val.map ψ = dp.val.map ψ ++
+        (roundTerms (roundsψ ψ rounds.val) (gammas.val.map φ)).map Prod.snd ⦄ := by
+  unfold bulletproofspp.norm_linear.verify_loop3
+  have er : rounds.length = rounds.val.length := rfl
+  have eg : gammas.length = gammas.val.length := rfl
+  set n := min rounds.val.length gammas.val.length with hn
+  apply loop.spec_decr_nat (fun q => rounds.length - q.2.2.val)
+    (fun q => q.2.2.val ≤ n ∧
+      q.1.val.map φ = ds.val.map φ ++ (roundTerms ((roundsψ ψ rounds.val).take q.2.2.val)
+        ((gammas.val.map φ).take q.2.2.val)).map Prod.fst ∧
+      q.2.1.val.map ψ = dp.val.map ψ ++ (roundTerms ((roundsψ ψ rounds.val).take q.2.2.val)
+        ((gammas.val.map φ).take q.2.2.val)).map Prod.snd ∧
+      q.1.val.length = ds.val.length + 2 * q.2.2.val ∧
+      q.2.1.val.length = dp.val.length + 2 * q.2.2.val)
+  · rintro ⟨a, b, k⟩ ⟨hk, ha, hb, hal, hbl⟩
+    dsimp only at hk ha hb hal hbl
+    simp only [Std.uncurry_apply_pair]
+    unfold bulletproofspp.norm_linear.verify_loop3.body
+    simp only [hs.neg_eq, hs.mul_eq, hs.sub_eq, one_spec hs, bind_ok]
+    have ea : a.length = a.val.length := rfl
+    have eb : b.length = b.val.length := rfl
+    step*
+    · have : k.val < rounds.val.length := by scalar_tac
+      simp [dynamic_scalars1_post]; omega
+    · have : k.val < rounds.val.length := by scalar_tac
+      simp [dynamic_points1_post]; omega
+    · have hk1 : k.val < (roundsψ ψ rounds.val).length := by simp [roundsψ]; scalar_tac
+      have hk2 : k.val < (gammas.val.map φ).length := by simp; scalar_tac
+      have hT := roundTerms_take_succ _ _ k.val hk1 hk2
+      have hxr : (roundsψ ψ rounds.val)[k.val] = (ψ x_point, ψ r_point) := by
+        simp [roundsψ, ← x_point_post]
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_, by scalar_tac⟩
+      · rw [dynamic_scalars2_post, dynamic_scalars1_post, r1_post, hT]
+        simp only [List.map_append, ha]
+        simp [hxr, gamma_post, Bppp.one]
+      · rw [dynamic_points2_post, dynamic_points1_post, r1_post, hT]
+        simp only [List.map_append, hb]
+        simp [hxr]
+      · simp [dynamic_scalars2_post, dynamic_scalars1_post, r1_post, hal]; omega
+      · simp [dynamic_points2_post, dynamic_points1_post, r1_post, hbl]; omega
+    all_goals
+      have hkn' : k.val = n := by scalar_tac
+      have e1 : (roundsψ ψ rounds.val).take k.val = (roundsψ ψ rounds.val).take n := by rw [hkn']
+      have hfull : roundTerms ((roundsψ ψ rounds.val).take n) ((gammas.val.map φ).take n) =
+          roundTerms (roundsψ ψ rounds.val) (gammas.val.map φ) := by
+        unfold roundTerms
+        rw [@List.zip_eq_zip_take_min _ _ (roundsψ ψ rounds.val) (gammas.val.map φ)]
+        simp [roundsψ, hn]
+      rw [hkn', hfull] at ha hb
+      exact ⟨ha, hb⟩
+  · exact ⟨by simp, by simp [roundTerms], by simp [roundTerms], by simp, by simp⟩
+
 end BpppProofs
