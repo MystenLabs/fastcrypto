@@ -815,6 +815,21 @@ fn verify_valid_batch_different_msg() {
 #[test]
 fn verify_invalid_batch_different_msg() {
     let mut inputs = test_helpers::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
+
+    // Empty inputs and length mismatches.
+    let (msgs, pks, sigs) = (&inputs.digests, &inputs.pubkeys, &inputs.signatures);
+    for (msgs, pks, sigs) in [
+        (&msgs[..0], &pks[..0], &sigs[..0]),
+        (&msgs[1..], &pks[..], &sigs[..]),
+        (&msgs[..], &pks[1..], &sigs[..]),
+        (&msgs[..], &pks[..], &sigs[1..]),
+    ] {
+        assert_eq!(
+            Secp256k1PublicKey::verify_batch_empty_fail_different_msg(msgs, pks, sigs),
+            Err(FastCryptoError::InvalidInput)
+        );
+    }
+
     inputs.signatures.swap(0, 1);
     let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,

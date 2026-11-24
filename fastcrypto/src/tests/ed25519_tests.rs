@@ -1609,6 +1609,20 @@ fn test_batch_verification_rejects_any_invalid_item() {
             assert!(!check_batch_agrees_with_individual(&items));
         }
     }
+
+    // Errors that cancel in the sum of the signatures: s + 1 in one and s - 1 in another one.
+    let add_to_s = |item: &mut VerificationInput, delta: Scalar| {
+        let s = Scalar::from_canonical_bytes(item.1[32..].try_into().unwrap()).unwrap();
+        item.1[32..].copy_from_slice((s + delta).as_bytes());
+    };
+    for i in 0..honest.len() {
+        for j in 0..i {
+            let mut items = honest.clone();
+            add_to_s(&mut items[i], Scalar::ONE);
+            add_to_s(&mut items[j], -Scalar::ONE);
+            assert!(!check_batch_agrees_with_individual(&items));
+        }
+    }
 }
 
 //
