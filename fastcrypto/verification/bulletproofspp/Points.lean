@@ -88,8 +88,20 @@ structure TranscriptModel (φ : S → F) (ψ : P → E)
   append_scalars : ∀ t l s, ∃ t',
     bulletproofspp.transcript.BpppTranscript.append_scalars t l s = ok t' ∧
     (Bppp.BpppTranscript.append_scalars (labelStr l) (s.val.map φ)).run (τ t) = .ok ((), τ t')
+  append_commits : ∀ t l (cs : Slice pedersen.PedersenCommitment), ∃ t',
+    bulletproofspp.transcript.BpppTranscript.append_commits t l cs = ok t' ∧
+    (Bppp.BpppTranscript.append_commits (labelStr l) (cs.val.map fun c => ⟨ψ c⟩)).run (τ t) =
+      .ok ((), τ t')
   challenge_scalar : ∀ t l, ∃ c t',
     bulletproofspp.transcript.BpppTranscript.challenge_scalar t l = ok (c, t') ∧
     (Bppp.BpppTranscript.challenge_scalar (labelStr l)).run (τ t) = .ok (φ c, τ t')
+
+/-- The model of a generated Pedersen commitment. -/
+def toPC (ψ : P → E) (c : pedersen.PedersenCommitment) : Bppp.PedersenCommitment E := ⟨ψ c⟩
+
+/-- `PedersenCommitment::new` commits under the bases `G` and `H` (`pedersen::G`, `pedersen::H`
+under `ψ`). -/
+structure PedersenModel (φ : S → F) (ψ : P → E) (G H : E) : Prop where
+  new : ∀ v b, ∃ c, pedersen.PedersenCommitment.new v b = ok c ∧ ψ c = φ v • H + φ b • G
 
 end BpppProofs
