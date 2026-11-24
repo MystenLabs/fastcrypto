@@ -635,7 +635,10 @@ fn to_from_bytes_signature() {
     for len in [0, 1, 32, 63, 65, 72] {
         let mut bytes = signature.as_ref().to_vec();
         bytes.resize(len, 0);
-        assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&bytes).is_err());
+        assert_eq!(
+            <Secp256r1Signature as ToFromBytes>::from_bytes(&bytes),
+            Err(FastCryptoError::InputLengthWrong(SIG_LENGTH))
+        );
     }
     let der = signature.sig.to_der();
     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(der.as_bytes()).is_err());

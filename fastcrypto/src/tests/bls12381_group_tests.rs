@@ -835,6 +835,24 @@ fn test_serde_and_regression() {
 }
 
 #[test]
+fn test_debug() {
+    // Debug shows the encoding in hex.
+    fn check<T: Debug, const N: usize>(element: T)
+    where
+        T: ToFromByteArray<N>,
+    {
+        assert_eq!(
+            format!("{element:?}"),
+            format!("\"{}\"", hex::encode(element.to_byte_array()))
+        );
+    }
+    check(Scalar::from(12345));
+    check(G1Element::generator());
+    check(G2Element::generator());
+    check(GTElement::generator());
+}
+
+#[test]
 fn test_consistent_bls12381_serialization() {
     // Generate with BLS signature APIs.
     let pair = BLS12381KeyPair::generate(&mut StdRng::from_seed([0; 32]));
@@ -943,6 +961,18 @@ fn test_reduce_mod_uniform_buffer() {
     assert_eq!(
         reduce_mod_uniform_buffer(&hex!("bd69132eca59d8eb6b2aeaab1bb0f4128ea2554a2a5fd5ed90cfa341311d63d2bddef3cf93ebbd3781dc09921ca8611e0db756164b297a90cff258")).to_byte_array(),
         hex!("21015212b5c7a44c04c39447bf7d2addc5035a9b118f07a29956bf00fa65bd74")
+    );
+
+    // Only 48 to 64 bytes are accepted.
+    assert_eq!(
+        buffer_to_scalar_mod_r(&[0; 47]),
+        Err(FastCryptoError::InputTooShort(48))
+    );
+    assert_eq!(buffer_to_scalar_mod_r(&[0; 48]), Ok(Scalar::zero()));
+    assert_eq!(buffer_to_scalar_mod_r(&[0; 64]), Ok(Scalar::zero()));
+    assert_eq!(
+        buffer_to_scalar_mod_r(&[0; 65]),
+        Err(FastCryptoError::InputTooLong(64))
     );
 }
 

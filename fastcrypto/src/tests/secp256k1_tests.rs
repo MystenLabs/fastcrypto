@@ -14,6 +14,7 @@ use wycheproof::ecdsa::{TestName, TestSet};
 use wycheproof::TestResult;
 
 use crate::encoding::{Base58, Base64};
+use crate::error::FastCryptoError;
 use crate::hash::{Blake2b256, Keccak256, Sha3_256};
 use crate::secp256k1::{Secp256k1PublicKeyAsBytes, Secp256k1SignatureAsBytes};
 use crate::test_helpers::verify_serialization;
@@ -530,7 +531,10 @@ fn to_from_bytes_signature() {
     // Only 64 bytes are accepted.
     for len in (0..=3 * SIG_LENGTH).filter(|&len| len != SIG_LENGTH) {
         let bytes: Vec<u8> = bytes.iter().cycle().take(len).copied().collect();
-        assert!(decode(&bytes).is_err(), "{}", len);
+        assert_eq!(
+            decode(&bytes),
+            Err(FastCryptoError::InputLengthWrong(SIG_LENGTH))
+        );
     }
 
     let with_r = |r: &[u8]| [r, &bytes[32..]].concat();

@@ -318,8 +318,11 @@ fn test_division_by_zero() {
 
 #[test]
 fn test_to_from_byte_array() {
-    let scalar = Scalar::rand(&mut StdRng::from_seed([0; 32]));
+    let mut rng = StdRng::from_seed([0; 32]);
+    let scalar = Scalar::rand(&mut rng);
     assert_eq!(Scalar::from_byte_array(&scalar.to_byte_array()), Ok(scalar));
+    assert_ne!(scalar, Scalar::zero());
+    assert_ne!(scalar, Scalar::rand(&mut rng));
 
     // Big-endian, like SEC1, p256 and the secp256k1 group. The windowed multiplier reads the
     // little-endian bytes instead.
