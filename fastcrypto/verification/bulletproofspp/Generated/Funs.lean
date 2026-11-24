@@ -2340,7 +2340,7 @@ def bulletproofspp.circuit.opening_without_r_s
   ok { co with sigma := l2, n := l5 }
 
 /-- [fastcrypto::bulletproofspp::crs::{fastcrypto::bulletproofspp::crs::Generators}::msm]:
-    Source: 'fastcrypto/src/bulletproofspp/crs.rs', lines 115:4-129:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/crs.rs', lines 87:4-101:5 -/
 def bulletproofspp.crs.Generators.msm
   (self : bulletproofspp.crs.Generators)
   (sigma : groups.ristretto255.RistrettoScalar)
@@ -4961,6 +4961,15 @@ def bulletproofspp.circuit.verify
             Unit (core.convert.FromSame error.FastCryptoError) residual
         ok (r1, transcript10)
 
+/-- [fastcrypto::bulletproofspp::crs::{fastcrypto::bulletproofspp::crs::Generators}::new]:
+    Source: 'fastcrypto/src/bulletproofspp/crs.rs', lines 61:4-63:5 -/
+def bulletproofspp.crs.Generators.new
+  (nm : Std.Usize) :
+  Result (core.result.Result (alloc.sync.Arc bulletproofspp.crs.Generators)
+    error.FastCryptoError)
+  := do
+  bulletproofspp.crs.cached_generators nm
+
 /-- Trait implementation: [fastcrypto::bulletproofspp::laurent::{impl core::clone::Clone for fastcrypto::bulletproofspp::laurent::Laurent<C>}]
     Source: 'fastcrypto/src/bulletproofspp/laurent.rs', lines 16:9-16:14 -/
 @[reducible]
@@ -5052,5 +5061,208 @@ def bulletproofspp.laurent.Laurent.Insts.CoreOpsArithSubLaurentLaurent {C :
   sub := bulletproofspp.laurent.Laurent.Insts.CoreOpsArithSubLaurentLaurent.sub
     CoefficientInst
 }
+
+/-- [fastcrypto::bulletproofspp::range_proof::transcript]:
+    Source: 'fastcrypto/src/bulletproofspp/range_proof.rs', lines 31:0-37:1 -/
+def bulletproofspp.range_proof.transcript
+  (dst : Slice Std.U8) (n_bits : Std.Usize) (m : Std.Usize) :
+  Result bulletproofspp.transcript.BpppTranscript
+  := do
+  let t ←
+    bulletproofspp.transcript.BpppTranscript.new
+      bulletproofspp.transcript.Label.RangeProof
+  let t1 ←
+    bulletproofspp.transcript.BpppTranscript.append_message t
+      bulletproofspp.transcript.Label.Dst dst
+  let i ← lift (UScalar.cast .U64 n_bits)
+  let t2 ←
+    bulletproofspp.transcript.BpppTranscript.append_u64 t1
+      bulletproofspp.transcript.Label.NBits i
+  let i1 ← lift (UScalar.cast .U64 m)
+  bulletproofspp.transcript.BpppTranscript.append_u64 t2
+    bulletproofspp.transcript.Label.M i1
+
+/-- [fastcrypto::bulletproofspp::range_proof::setup]:
+    Source: 'fastcrypto/src/bulletproofspp/range_proof.rs', lines 41:0-49:1 -/
+def bulletproofspp.range_proof.setup
+  (range : pedersen.Range) (m : Std.Usize) (dst : Slice Std.U8) :
+  Result (core.result.Result (bulletproofspp.circuit.CircuitParams ×
+    (alloc.sync.Arc bulletproofspp.crs.Generators) ×
+    bulletproofspp.transcript.BpppTranscript) error.FastCryptoError)
+  := do
+  let r ← bulletproofspp.circuit.CircuitParams.new range m
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let r1 ← bulletproofspp.crs.Generators.new val.nm
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let i ← pedersen.Range.bits range
+      let bt ← bulletproofspp.range_proof.transcript dst i m
+      ok (core.result.Result.Ok (val, val1, bt))
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        (bulletproofspp.circuit.CircuitParams × (alloc.sync.Arc
+        bulletproofspp.crs.Generators) ×
+        bulletproofspp.transcript.BpppTranscript) (core.convert.FromSame
+        error.FastCryptoError) residual
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+      (bulletproofspp.circuit.CircuitParams × (alloc.sync.Arc
+      bulletproofspp.crs.Generators) ×
+      bulletproofspp.transcript.BpppTranscript) (core.convert.FromSame
+      error.FastCryptoError) residual
+
+/-- [fastcrypto::bulletproofspp::range_proof::{fastcrypto::bulletproofspp::range_proof::RangeProof}::prove_batch]: loop body 0:
+    Source: 'fastcrypto/src/bulletproofspp/range_proof.rs', lines 97:8-100:9
+    Visibility: public -/
+@[rust_loop_body]
+def bulletproofspp.range_proof.RangeProof.prove_batch_loop.body
+  (blindings : Slice pedersen.Blinding)
+  (blinding_scalars : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
+    Std.Usize) (alloc.vec.Vec groups.ristretto255.RistrettoScalar))
+  := do
+  let i1 := Slice.len blindings
+  if i < i1
+  then
+    let b ← Slice.index_usize blindings i
+    let blinding_scalars1 ← alloc.vec.Vec.push blinding_scalars b
+    let i2 ← i + 1#usize
+    ok (cont (blinding_scalars1, i2))
+  else ok (done blinding_scalars)
+
+/-- [fastcrypto::bulletproofspp::range_proof::{fastcrypto::bulletproofspp::range_proof::RangeProof}::prove_batch]: loop 0:
+    Source: 'fastcrypto/src/bulletproofspp/range_proof.rs', lines 97:8-100:9
+    Visibility: public -/
+@[rust_loop]
+def bulletproofspp.range_proof.RangeProof.prove_batch_loop
+  (blindings : Slice pedersen.Blinding)
+  (blinding_scalars : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec groups.ristretto255.RistrettoScalar)
+  := do
+  loop
+    (fun (blinding_scalars1, i1) =>
+      bulletproofspp.range_proof.RangeProof.prove_batch_loop.body blindings
+      blinding_scalars1 i1)
+    (blinding_scalars, i)
+
+/-- [fastcrypto::bulletproofspp::range_proof::{fastcrypto::bulletproofspp::range_proof::RangeProof}::prove_batch]:
+    Source: 'fastcrypto/src/bulletproofspp/range_proof.rs', lines 81:4-113:5
+    Visibility: public -/
+def bulletproofspp.range_proof.RangeProof.prove_batch
+  {T0 : Type _} (traitsAllowedRngInst : traits.AllowedRng T0)
+  (values : Slice Std.U64) (blindings : Slice pedersen.Blinding)
+  (range : pedersen.Range) (dst : Slice Std.U8) (rng : T0) :
+  Result ((core.result.Result bulletproofspp.range_proof.RangeProof
+    error.FastCryptoError) × T0)
+  := do
+  let b ← core.slice.Slice.is_empty values
+  if b
+  then ok (core.result.Result.Err error.FastCryptoError.InvalidInput, rng)
+  else
+    let i := Slice.len values
+    let i1 := Slice.len blindings
+    if i != i1
+    then ok (core.result.Result.Err error.FastCryptoError.InvalidInput, rng)
+    else
+      let b1 ← bulletproofspp.circuit.all_in_range range values
+      if b1
+      then
+        let i2 := Slice.len values
+        let r ← bulletproofspp.range_proof.setup range i2 dst
+        let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+        match cf with
+        | core.ops.control_flow.ControlFlow.Continue val =>
+          let (params, gens, transcript) := val
+          let i3 := Slice.len blindings
+          let blinding_scalars :=
+            alloc.vec.Vec.with_capacity groups.ristretto255.RistrettoScalar i3
+          let blinding_scalars1 ←
+            bulletproofspp.range_proof.RangeProof.prove_batch_loop blindings
+              blinding_scalars 0#usize
+          let g ←
+            alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global
+              gens
+          let s := alloc.vec.Vec.deref blinding_scalars1
+          let (r1, _, rng1) ←
+            bulletproofspp.circuit.prove traitsAllowedRngInst transcript g
+              params rng values s
+          match r1 with
+          | core.result.Result.Ok p =>
+            let (proof, _) := p
+            ok (core.result.Result.Ok { proof }, rng1)
+          | core.result.Result.Err _ =>
+            ok (core.result.Result.Err
+              error.FastCryptoError.GeneralOpaqueError, rng1)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r1 ←
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+              bulletproofspp.range_proof.RangeProof (core.convert.FromSame
+              error.FastCryptoError) residual
+          ok (r1, rng)
+      else ok (core.result.Result.Err error.FastCryptoError.InvalidInput, rng)
+
+/-- [fastcrypto::bulletproofspp::range_proof::{fastcrypto::bulletproofspp::range_proof::RangeProof}::prove]:
+    Source: 'fastcrypto/src/bulletproofspp/range_proof.rs', lines 56:4-64:5
+    Visibility: public -/
+def bulletproofspp.range_proof.RangeProof.prove
+  {T0 : Type _} (traitsAllowedRngInst : traits.AllowedRng T0) (value : Std.U64)
+  (blinding : pedersen.Blinding) (range : pedersen.Range) (dst : Slice Std.U8)
+  (rng : T0) :
+  Result ((core.result.Result bulletproofspp.range_proof.RangeProof
+    error.FastCryptoError) × T0)
+  := do
+  let s ← lift (Array.to_slice (Array.make 1#usize [ value ]))
+  let s1 ← core.slice.raw.from_ref blinding
+  bulletproofspp.range_proof.RangeProof.prove_batch traitsAllowedRngInst s s1
+    range dst rng
+
+/-- [fastcrypto::bulletproofspp::range_proof::{fastcrypto::bulletproofspp::range_proof::RangeProof}::verify_batch]:
+    Source: 'fastcrypto/src/bulletproofspp/range_proof.rs', lines 120:4-134:5
+    Visibility: public -/
+def bulletproofspp.range_proof.RangeProof.verify_batch
+  (self : bulletproofspp.range_proof.RangeProof)
+  (commitments : Slice pedersen.PedersenCommitment) (range : pedersen.Range)
+  (dst : Slice Std.U8) :
+  Result (core.result.Result Unit error.FastCryptoError)
+  := do
+  let b ← core.slice.Slice.is_empty commitments
+  if b
+  then ok (core.result.Result.Err error.FastCryptoError.InvalidInput)
+  else
+    let i := Slice.len commitments
+    let r ← bulletproofspp.range_proof.setup range i dst
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let (params, gens, transcript) := val
+      let g ←
+        alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global gens
+      let (r1, _) ←
+        bulletproofspp.circuit.verify transcript g params self.proof
+          commitments
+      match r1 with
+      | core.result.Result.Ok _ => ok (core.result.Result.Ok ())
+      | core.result.Result.Err _ =>
+        ok (core.result.Result.Err error.FastCryptoError.InvalidProof)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame error.FastCryptoError) residual
+
+/-- [fastcrypto::bulletproofspp::range_proof::{fastcrypto::bulletproofspp::range_proof::RangeProof}::verify]:
+    Source: 'fastcrypto/src/bulletproofspp/range_proof.rs', lines 67:4-74:5
+    Visibility: public -/
+def bulletproofspp.range_proof.RangeProof.verify
+  (self : bulletproofspp.range_proof.RangeProof)
+  (commitment : pedersen.PedersenCommitment) (range : pedersen.Range)
+  (dst : Slice Std.U8) :
+  Result (core.result.Result Unit error.FastCryptoError)
+  := do
+  let s ← core.slice.raw.from_ref commitment
+  bulletproofspp.range_proof.RangeProof.verify_batch self s range dst
 
 end fastcrypto

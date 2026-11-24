@@ -59,35 +59,7 @@ impl Generators {
     /// retained for the lifetime of the process, so the dimensions must not
     /// be taken from untrusted input.
     pub(crate) fn new(nm: usize) -> FastCryptoResult<Arc<Self>> {
-        if !nm.is_power_of_two() || nm < BASE as usize {
-            return Err(FastCryptoError::InvalidInput);
-        }
-
-        if let Some(gens) = CRS_CACHE
-            .read()
-            .unwrap_or_else(PoisonError::into_inner)
-            .get(&nm)
-        {
-            return Ok(Arc::clone(gens));
-        }
-
-        let mut h_vec = Vec::with_capacity(H_LEN);
-        h_vec.push(*pedersen::G);
-        h_vec.extend((1..H_LEN).map(|i| hash_to_generator(DST_H, i)));
-
-        let gens = Arc::new(Self::from_parts(
-            *pedersen::H,
-            h_vec,
-            (0..nm).map(|i| hash_to_generator(DST_G, i)).collect(),
-        )?);
-
-        // Derivation is deterministic, so a concurrent double-build inserts
-        // an identical entry.
-        CRS_CACHE
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
-            .insert(nm, Arc::clone(&gens));
-        Ok(gens)
+        cached_generators(nm)
     }
 
     /// Assemble a CRS from explicit generators, building the precomputed MSM
@@ -127,6 +99,39 @@ impl Generators {
         self.precomp
             .mixed_multi_scalar_mul(&scalars, dynamic_scalars, dynamic_points)
     }
+}
+
+/// [Generators::new], with the CRS cached per `nm`.
+fn cached_generators(nm: usize) -> FastCryptoResult<Arc<Generators>> {
+    if !nm.is_power_of_two() || nm < BASE as usize {
+        return Err(FastCryptoError::InvalidInput);
+    }
+
+    if let Some(gens) = CRS_CACHE
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(&nm)
+    {
+        return Ok(Arc::clone(gens));
+    }
+
+    let mut h_vec = Vec::with_capacity(H_LEN);
+    h_vec.push(*pedersen::G);
+    h_vec.extend((1..H_LEN).map(|i| hash_to_generator(DST_H, i)));
+
+    let gens = Arc::new(Generators::from_parts(
+        *pedersen::H,
+        h_vec,
+        (0..nm).map(|i| hash_to_generator(DST_G, i)).collect(),
+    )?);
+
+    // Derivation is deterministic, so a concurrent double-build inserts
+    // an identical entry.
+    CRS_CACHE
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(nm, Arc::clone(&gens));
+    Ok(gens)
 }
 
 /// Whether `gens` uses the Pedersen value and blinding bases, so that

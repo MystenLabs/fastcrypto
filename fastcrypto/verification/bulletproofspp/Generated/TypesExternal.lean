@@ -27,6 +27,13 @@ set_option maxRecDepth 2048
 @[rust_type "core::mem::maybe_uninit::MaybeUninit"]
 axiom core.mem.maybe_uninit.MaybeUninit (T : Type _) : Type
 
+/-- [alloc::sync::Arc]
+    Source: '/rustc/library/alloc/src/sync.rs', lines 274:0-277:1
+    Name pattern: [alloc::sync::Arc]
+    Visibility: public -/
+@[rust_type "alloc::sync::Arc"]
+axiom alloc.sync.Arc (T : Type _) : Type
+
 /-- [curve25519_dalek::scalar::Scalar]
     Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/curve25519-dalek-4.1.3/src/scalar.rs', lines 195:0-195:17
     Name pattern: [curve25519_dalek::scalar::Scalar]

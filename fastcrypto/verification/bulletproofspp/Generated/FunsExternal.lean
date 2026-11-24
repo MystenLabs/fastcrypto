@@ -55,6 +55,15 @@ def core.num.Usize.next_power_of_two (x : Std.Usize) : Result Std.Usize :=
 def core.slice.raw.from_ref {T : Type _} (x : T) : Result (Slice T) :=
   ok (Slice.from [x] (by scalar_tac))
 
+/-- [alloc::sync::{impl core::ops::deref::Deref<T> for alloc::sync::Arc<T>}::deref]:
+    Source: '/rustc/library/alloc/src/sync.rs', lines 2570:4-2570:25
+    Name pattern: [alloc::sync::{core::ops::deref::Deref<alloc::sync::Arc<@T>, @T>}::deref]
+    Visibility: public -/
+@[rust_fun
+  "alloc::sync::{core::ops::deref::Deref<alloc::sync::Arc<@T>, @T>}::deref"]
+axiom alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref
+  {T : Type _} (A : Type _) : alloc.sync.Arc T → Result T
+
 /-- [curve25519_dalek::scalar::{impl core::convert::From<u64> for curve25519_dalek::scalar::Scalar}::from]:
     Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/curve25519-dalek-4.1.3/src/scalar.rs', lines 538:4-538:29
     Name pattern: [curve25519_dalek::scalar::{core::convert::From<curve25519_dalek::scalar::Scalar, u64>}::from]
@@ -182,7 +191,7 @@ axiom groups.ristretto255.RistrettoPoint.Insts.CoreCloneClone.clone
     groups.ristretto255.RistrettoPoint
 
 /-- [fastcrypto::bulletproofspp::crs::compatible_with_pedersen_commitments]:
-    Source: 'fastcrypto/src/bulletproofspp/crs.rs', lines 134:0-136:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/crs.rs', lines 139:0-141:1 -/
 axiom bulletproofspp.crs.compatible_with_pedersen_commitments
   : bulletproofspp.crs.Generators → Result Bool
 
@@ -304,4 +313,32 @@ axiom
   :
   groups.ristretto255.RistrettoPoint → groups.ristretto255.RistrettoPoint →
     Result Bool
+
+/-- [fastcrypto::bulletproofspp::crs::cached_generators]:
+    Source: 'fastcrypto/src/bulletproofspp/crs.rs', lines 105:0-135:1 -/
+axiom bulletproofspp.crs.cached_generators
+  :
+  Std.Usize → Result (core.result.Result (alloc.sync.Arc
+    bulletproofspp.crs.Generators) error.FastCryptoError)
+
+/-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::append_u64]:
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 123:4-126:5 -/
+axiom bulletproofspp.transcript.BpppTranscript.append_u64
+  :
+  bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
+    → Std.U64 → Result bulletproofspp.transcript.BpppTranscript
+
+/-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::append_message]:
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 92:4-94:5 -/
+axiom bulletproofspp.transcript.BpppTranscript.append_message
+  :
+  bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
+    → Slice Std.U8 → Result bulletproofspp.transcript.BpppTranscript
+
+/-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::new]:
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 78:4-82:5 -/
+axiom bulletproofspp.transcript.BpppTranscript.new
+  :
+  bulletproofspp.transcript.Label → Result
+    bulletproofspp.transcript.BpppTranscript
 

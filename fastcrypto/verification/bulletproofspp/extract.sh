@@ -7,7 +7,8 @@
 # `lakefile.lean`. Set CHARON and AENEAS to their paths, or put them on PATH.
 #
 # `groups`, `pedersen` (except `Range`), `serde_helpers`, `merlin` and `transcript` (except `Label`)
-# are opaque, as is `crs::compatible_with_pedersen_commitments`:
+# are opaque, as are `crs::compatible_with_pedersen_commitments` and `crs::cached_generators`
+# (hash-to-curve and the CRS cache):
 # Lean sees their types and functions as axioms, about which the proofs assume only what
 # `ScalarModel`, `PointModel` and `TranscriptModel` state.
 set -euo pipefail
@@ -42,6 +43,11 @@ CARGO_TARGET_DIR="$root/target/charon" "$charon" cargo --preset aeneas \
   --start-from "crate::bulletproofspp::circuit::CircuitParams::new" \
   --start-from "crate::bulletproofspp::circuit::prove" \
   --start-from "crate::bulletproofspp::circuit::verify" \
+  --start-from "crate::bulletproofspp::range_proof::RangeProof::prove_batch" \
+  --start-from "crate::bulletproofspp::range_proof::RangeProof::verify_batch" \
+  --start-from "crate::bulletproofspp::range_proof::RangeProof::prove" \
+  --start-from "crate::bulletproofspp::range_proof::RangeProof::verify" \
+  --opaque crate::bulletproofspp::crs::cached_generators \
   --opaque crate::groups --opaque crate::pedersen --opaque crate::serde_helpers --opaque merlin \
   --opaque crate::bulletproofspp::crs::compatible_with_pedersen_commitments \
   --include crate::pedersen::PedersenCommitment --include crate::pedersen::Blinding \

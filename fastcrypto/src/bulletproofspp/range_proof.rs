@@ -87,23 +87,29 @@ impl RangeProof {
     ) -> FastCryptoResult<RangeProof> {
         if values.is_empty()
             || values.len() != blindings.len()
-            || values.iter().any(|&v| !range.is_in_range(v))
+            || !circuit::all_in_range(*range, values)
         {
             return Err(FastCryptoError::InvalidInput);
         }
         let (params, gens, mut transcript) = setup(*range, values.len(), dst)?;
-        let blinding_scalars: Vec<RistrettoScalar> = blindings.iter().map(|b| b.0).collect();
-        let (proof, _) = circuit::prove(
+        let mut blinding_scalars: Vec<RistrettoScalar> = Vec::with_capacity(blindings.len());
+        let mut i = 0;
+        while i < blindings.len() {
+            blinding_scalars.push(blindings[i].0);
+            i += 1;
+        }
+        match circuit::prove(
             &mut transcript,
             &gens,
             &params,
             rng,
             values,
             &blinding_scalars,
-        )
-        // Fails only on a degenerate challenge, which depends on the witness.
-        .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
-        Ok(RangeProof { proof })
+        ) {
+            Ok((proof, _)) => Ok(RangeProof { proof }),
+            // Fails only on a degenerate challenge, which depends on the witness.
+            Err(_) => Err(FastCryptoError::GeneralOpaqueError),
+        }
     }
 
     /// Verify that all `commitments` open to values in `range`.
@@ -121,8 +127,10 @@ impl RangeProof {
             return Err(FastCryptoError::InvalidInput);
         }
         let (params, gens, mut transcript) = setup(*range, commitments.len(), dst)?;
-        circuit::verify(&mut transcript, &gens, &params, &self.proof, commitments)
-            .map_err(|_| FastCryptoError::InvalidProof)
+        match circuit::verify(&mut transcript, &gens, &params, &self.proof, commitments) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(FastCryptoError::InvalidProof),
+        }
     }
 
     /// Serialize: the four circuit commitments, the per-round `(X, R)`

@@ -265,4 +265,10 @@ structure bulletproofspp.circuit.ReciprocalsOf (Self : Type _) where
 @[reducible]
 def bulletproofspp.circuit.HonestReciprocals := Unit
 
+/-- [fastcrypto::bulletproofspp::range_proof::RangeProof]
+    Source: 'fastcrypto/src/bulletproofspp/range_proof.rs', lines 25:0-27:1
+    Visibility: public -/
+structure bulletproofspp.range_proof.RangeProof where
+  proof : bulletproofspp.circuit.CircuitProof
+
 end fastcrypto
