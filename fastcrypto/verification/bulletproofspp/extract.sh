@@ -6,7 +6,8 @@
 # (https://github.com/AeneasVerif/aeneas/releases), which matches the Aeneas commit in
 # `lakefile.lean`. Set CHARON and AENEAS to their paths, or put them on PATH.
 #
-# `groups`, `pedersen`, `serde_helpers`, `merlin` and `transcript` (except `Label`) are opaque:
+# `groups`, `pedersen` (except `Range`), `serde_helpers`, `merlin` and `transcript` (except `Label`)
+# are opaque, as is `crs::compatible_with_pedersen_commitments`:
 # Lean sees their types and functions as axioms, about which the proofs assume only what
 # `ScalarModel`, `PointModel` and `TranscriptModel` state.
 set -euo pipefail
@@ -38,7 +39,13 @@ CARGO_TARGET_DIR="$root/target/charon" "$charon" cargo --preset aeneas \
   --start-from "crate::bulletproofspp::norm_linear::prove" \
   --start-from "crate::bulletproofspp::norm_linear::verify" \
   --start-from "crate::bulletproofspp::crs::Generators::commit" \
+  --start-from "crate::bulletproofspp::circuit::CircuitParams::new" \
+  --start-from "crate::bulletproofspp::circuit::prove" \
+  --start-from "crate::bulletproofspp::circuit::verify" \
   --opaque crate::groups --opaque crate::pedersen --opaque crate::serde_helpers --opaque merlin \
+  --opaque crate::bulletproofspp::crs::compatible_with_pedersen_commitments \
+  --include crate::pedersen::PedersenCommitment --include crate::pedersen::Blinding \
+  --include crate::pedersen::Range \
   --opaque crate::bulletproofspp::transcript --include crate::bulletproofspp::transcript::Label \
   --dest-file "$out/bppp.llbc" -- --features experimental
 

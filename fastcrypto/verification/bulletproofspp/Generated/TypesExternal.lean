@@ -34,10 +34,17 @@ axiom core.mem.maybe_uninit.MaybeUninit (T : Type _) : Type
 @[rust_type "curve25519_dalek::scalar::Scalar"]
 axiom curve25519_dalek.scalar.Scalar : Type
 
-/-- [fastcrypto::pedersen::Range]
-    Source: 'fastcrypto/src/pedersen.rs', lines 78:0-87:1
+/-- [rand_core::error::Error]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/error.rs', lines 21:0-21:16
+    Name pattern: [rand_core::error::Error]
     Visibility: public -/
-axiom pedersen.Range : Type
+@[rust_type "rand_core::error::Error"]
+axiom rand_core.error.Error : Type
+
+/-- [fastcrypto::groups::ristretto255::RistrettoPoint]
+    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 39:0-39:52
+    Visibility: public -/
+axiom groups.ristretto255.RistrettoPoint : Type
 
 /-- [fastcrypto::groups::ristretto255::RistrettoScalar]
     Source: 'fastcrypto/src/groups/ristretto255.rs', lines 271:0-271:54
@@ -48,11 +55,6 @@ axiom groups.ristretto255.RistrettoScalar : Type
     Source: 'fastcrypto/src/groups/ristretto255.rs', lines 142:0-146:1
     Visibility: public -/
 axiom groups.ristretto255.RistrettoPrecomputation : Type
-
-/-- [fastcrypto::groups::ristretto255::RistrettoPoint]
-    Source: 'fastcrypto/src/groups/ristretto255.rs', lines 39:0-39:52
-    Visibility: public -/
-axiom groups.ristretto255.RistrettoPoint : Type
 
 /-- [fastcrypto::bulletproofspp::transcript::BpppTranscript]
     Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 73:0-75:1 -/

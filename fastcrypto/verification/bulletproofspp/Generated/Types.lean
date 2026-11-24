@@ -40,27 +40,60 @@ structure core.ops.arith.Sub (Self : Type _) (Rhs : Type _) (Self_Output :
   Type _) where
   sub : Self → Rhs → Result Self_Output
 
+/-- Trait declaration: [rand_core::RngCore]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs', lines 142:0-142:17
+    Name pattern: [rand_core::RngCore]
+    Visibility: public -/
+@[rust_trait "rand_core::RngCore"]
+structure rand_core.RngCore (Self : Type _) where
+  next_u32 : Self → Result (Std.U32 × Self)
+  next_u64 : Self → Result (Std.U64 × Self)
+  fill_bytes : Self → Slice Std.U8 → Result (Self × (Slice Std.U8))
+  try_fill_bytes : Self → Slice Std.U8 → Result ((core.result.Result Unit
+    rand_core.error.Error) × Self × (Slice Std.U8))
+
+/-- Trait declaration: [rand_core::CryptoRng]
+    Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs', lines 209:0-209:19
+    Name pattern: [rand_core::CryptoRng]
+    Visibility: public -/
+@[rust_trait "rand_core::CryptoRng"]
+structure rand_core.CryptoRng (Self : Type _) where
+
+/-- [fastcrypto::bulletproofspp::norm_linear::NormLinearProof]
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 39:0-43:1 -/
+structure bulletproofspp.norm_linear.NormLinearProof where
+  rounds : alloc.vec.Vec (groups.ristretto255.RistrettoPoint ×
+    groups.ristretto255.RistrettoPoint)
+  l_final : groups.ristretto255.RistrettoScalar
+  n_final : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+
+/-- [fastcrypto::bulletproofspp::circuit::CircuitProof]
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 43:0-49:1 -/
+structure bulletproofspp.circuit.CircuitProof where
+  c_l : groups.ristretto255.RistrettoPoint
+  c_o : groups.ristretto255.RistrettoPoint
+  c_r : groups.ristretto255.RistrettoPoint
+  c_s : groups.ristretto255.RistrettoPoint
+  nl_proof : bulletproofspp.norm_linear.NormLinearProof
+
+/-- [fastcrypto::pedersen::Range]
+    Source: 'fastcrypto/src/pedersen.rs', lines 78:0-87:1
+    Visibility: public -/
+@[discriminant isize]
+inductive pedersen.Range where
+| Bits8 : pedersen.Range
+| Bits16 : pedersen.Range
+| Bits32 : pedersen.Range
+| Bits64 : pedersen.Range
+
 /-- [fastcrypto::bulletproofspp::circuit::CircuitParams]
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 83:0-89:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 82:0-88:1 -/
 structure bulletproofspp.circuit.CircuitParams where
   range : pedersen.Range
   m : Std.Usize
   d : Std.Usize
   n_d : Std.Usize
   nm : Std.Usize
-
-/-- [fastcrypto::bulletproofspp::constraints::Constraints]
-    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 52:0-73:1 -/
-structure bulletproofspp.constraints.Constraints where
-  norm_weights : alloc.vec.Vec groups.ristretto255.RistrettoScalar
-  cn_l : alloc.vec.Vec groups.ristretto255.RistrettoScalar
-  cn_r : alloc.vec.Vec groups.ristretto255.RistrettoScalar
-  cn_o : alloc.vec.Vec groups.ristretto255.RistrettoScalar
-  cn_v : alloc.vec.Vec groups.ristretto255.RistrettoScalar
-  cl_v : alloc.vec.Vec groups.ristretto255.RistrettoScalar
-  lambda_al : groups.ristretto255.RistrettoScalar
-  mu_am : groups.ristretto255.RistrettoScalar
-  lambdas : alloc.vec.Vec groups.ristretto255.RistrettoScalar
 
 /-- [fastcrypto::error::FastCryptoError]
     Source: 'fastcrypto/src/error.rs', lines 18:0-78:1
@@ -96,6 +129,61 @@ structure bulletproofspp.laurent.Laurent (C : Type _) where
   low : Std.I32
   coeffs : alloc.vec.Vec C
 
+/-- [fastcrypto::bulletproofspp::constraints::Constraints]
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 52:0-73:1 -/
+structure bulletproofspp.constraints.Constraints where
+  norm_weights : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  cn_l : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  cn_r : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  cn_o : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  cn_v : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  cl_v : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  lambda_al : groups.ristretto255.RistrettoScalar
+  mu_am : groups.ristretto255.RistrettoScalar
+  lambdas : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+
+/-- [fastcrypto::bulletproofspp::norm_linear::Opening]
+    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 104:0-108:1 -/
+structure bulletproofspp.norm_linear.Opening where
+  sigma : groups.ristretto255.RistrettoScalar
+  l : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  n : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+
+/-- Trait declaration: [fastcrypto::traits::AllowedRng]
+    Source: 'fastcrypto/src/traits.rs', lines 396:0-396:44
+    Visibility: public -/
+structure traits.AllowedRng (Self : Type _) where
+  rand_coreCryptoRngInst : rand_core.CryptoRng Self
+  rand_coreRngCoreInst : rand_core.RngCore Self
+
+/-- [fastcrypto::bulletproofspp::circuit::Witness]
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 192:0-210:1 -/
+structure bulletproofspp.circuit.Witness where
+  values : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  blindings : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  off_plane : alloc.vec.Vec ((alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar) ×
+    groups.ristretto255.RistrettoScalar)
+  n_l : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  n_o : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  r_o : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  r_l : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  r_r : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  n_s : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+  l_s : groups.ristretto255.RistrettoScalar
+
+/-- [fastcrypto::pedersen::Blinding]
+    Source: 'fastcrypto/src/pedersen.rs', lines 32:0-32:41
+    Visibility: public -/
+@[reducible]
+def pedersen.Blinding := groups.ristretto255.RistrettoScalar
+
+/-- [fastcrypto::pedersen::PedersenCommitment]
+    Source: 'fastcrypto/src/pedersen.rs', lines 29:0-29:50
+    Visibility: public -/
+@[reducible]
+def pedersen.PedersenCommitment := groups.ristretto255.RistrettoPoint
+
 /-- [fastcrypto::bulletproofspp::crs::Generators]
     Source: 'fastcrypto/src/bulletproofspp/crs.rs', lines 39:0-45:1 -/
 structure bulletproofspp.crs.Generators where
@@ -104,20 +192,14 @@ structure bulletproofspp.crs.Generators where
   g_vec : alloc.vec.Vec groups.ristretto255.RistrettoPoint
   precomp : groups.ristretto255.RistrettoPrecomputation
 
-/-- [fastcrypto::bulletproofspp::norm_linear::NormLinearProof]
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 39:0-43:1 -/
-structure bulletproofspp.norm_linear.NormLinearProof where
-  rounds : alloc.vec.Vec (groups.ristretto255.RistrettoPoint ×
-    groups.ristretto255.RistrettoPoint)
-  l_final : groups.ristretto255.RistrettoScalar
-  n_final : alloc.vec.Vec groups.ristretto255.RistrettoScalar
-
-/-- [fastcrypto::bulletproofspp::norm_linear::Opening]
-    Source: 'fastcrypto/src/bulletproofspp/norm_linear.rs', lines 104:0-108:1 -/
-structure bulletproofspp.norm_linear.Opening where
-  sigma : groups.ristretto255.RistrettoScalar
-  l : alloc.vec.Vec groups.ristretto255.RistrettoScalar
-  n : alloc.vec.Vec groups.ristretto255.RistrettoScalar
+/-- [fastcrypto::bulletproofspp::circuit::CombinedOpening]
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 276:0-280:1 -/
+structure bulletproofspp.circuit.CombinedOpening where
+  sigma : bulletproofspp.laurent.Laurent groups.ristretto255.RistrettoScalar
+  l : bulletproofspp.laurent.Laurent (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar)
+  n : bulletproofspp.laurent.Laurent (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar)
 
 /-- [fastcrypto::bulletproofspp::transcript::Label]
     Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 14:0-39:1 -/
@@ -169,5 +251,18 @@ structure bulletproofspp.norm_linear.LazyBases where
   points : bulletproofspp.norm_linear.BasePoints
   w_h : bulletproofspp.norm_linear.Weights
   w_g : bulletproofspp.norm_linear.Weights
+
+/-- Trait declaration: [fastcrypto::bulletproofspp::circuit::ReciprocalsOf]
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 491:0-498:1 -/
+structure bulletproofspp.circuit.ReciprocalsOf (Self : Type _) where
+  reciprocals_of : Self → bulletproofspp.circuit.CircuitParams →
+    bulletproofspp.circuit.Witness → groups.ristretto255.RistrettoScalar →
+    Result (core.result.Result (alloc.vec.Vec
+    groups.ristretto255.RistrettoScalar) error.FastCryptoError)
+
+/-- [fastcrypto::bulletproofspp::circuit::HonestReciprocals]
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 501:0-501:25 -/
+@[reducible]
+def bulletproofspp.circuit.HonestReciprocals := Unit
 
 end fastcrypto
