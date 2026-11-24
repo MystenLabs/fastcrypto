@@ -441,4 +441,120 @@ lemma prove_witness_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
   refine ⟨_, _, rfl, ?_, rfl, hpr2⟩
   simp only [toCP, hpr3, List.nil_append]
 
+@[simp] lemma except_throw' {ε α : Type} (e : ε) : (throw e : Except ε α) = .error e := rfl
+
+/-- The model of a generated range. -/
+def toRange : pedersen.Range → Bppp.Range
+  | .Bits8 => .Bits8
+  | .Bits16 => .Bits16
+  | .Bits32 => .Bits32
+  | .Bits64 => .Bits64
+
+lemma is_in_range_eq (r : pedersen.Range) (v : U64) :
+    pedersen.Range.is_in_range r v = ok ((toRange r).is_in_range v.val) := by
+  cases r <;> simp [pedersen.Range.is_in_range, pedersen.Range.bits, toRange,
+    Bppp.Range.is_in_range, Bppp.Range.bits] <;> exact decide_eq_decide.mpr Iff.rfl
+
+lemma all_in_range_spec (range : pedersen.Range) (values : Slice U64) :
+    bulletproofspp.circuit.all_in_range range values ⦃ b =>
+      b = !((values.val.map (·.val)).any fun v => !(toRange range).is_in_range v) ⦄ := by
+  unfold bulletproofspp.circuit.all_in_range bulletproofspp.circuit.all_in_range_loop
+  have ev : values.len.val = values.val.length := rfl
+  apply loop.spec_decr_nat (fun x => values.val.length - x.2.val)
+    (fun x => x.2.val ≤ values.val.length ∧
+      x.1 = !(((values.val.take x.2.val).map (·.val)).any fun v => !(toRange range).is_in_range v))
+  · rintro ⟨b, i⟩ ⟨hi, hb⟩
+    simp only at hi hb
+    unfold bulletproofspp.circuit.all_in_range_loop.body
+    simp only [is_in_range_eq]
+    step*
+    · have hlt : i.val < values.val.length := by scalar_tac
+      have htk := List.take_succ_eq_append_getElem hlt
+      split <;> step* <;> refine ⟨by scalar_tac, ?_, by scalar_tac⟩ <;>
+        simp only [i3_post, htk, List.map_append, List.any_append, List.map_cons, List.map_nil,
+          List.any_cons, List.any_nil] <;> simp_all
+    · have : i.val = values.val.length := by scalar_tac
+      rw [hb, this, List.take_length]
+  · simp
+
+lemma circuit_prove_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
+    {τ : bulletproofspp.transcript.BpppTranscript → Bppp.BpppTranscript F E}
+    (ht : TranscriptModel φ ψ τ) {G H : E} (hped : PedersenModel φ ψ G H) (hr : RandOK)
+    {R : Type} (inst : traits.AllowedRng R)
+    (gens : bulletproofspp.crs.Generators) (hg : GensOK φ ψ gens)
+    (hcomp : bulletproofspp.crs.compatible_with_pedersen_commitments gens = ok true)
+    (pm : Bppp.CircuitParams) (p : bulletproofspp.circuit.CircuitParams) (hpo : ParamsOK pm p)
+    (hrange : pm.range = toRange p.range) (hd : p.d.val ≤ 16)
+    (hnd : p.n_d.val ≤ p.nm.val) (hgh : gens.h_vec.length = 8)
+    (hgB : 4 * (gens.h_vec.length + gens.g_vec.length) + 8 ≤ Usize.max)
+    (t : bulletproofspp.transcript.BpppTranscript) (rng : R) (values : Slice U64)
+    (blindings : Slice S) :
+    bulletproofspp.circuit.prove inst t gens p rng values blindings ⦃ r =>
+      ∃ rnd : Bppp.Circuit.Randomness F, CPMatches φ ψ τ (r.1, r.2.1)
+        ((Bppp.Circuit.prove G H (toGens ψ gens) pm rnd (values.val.map (·.val))
+          (blindings.val.map φ)).run (τ t)) ⦄ := by
+  have hpo' := hpo
+  obtain ⟨hm, hpd, hpnd, hpnm, hd0, hnde, hnm, hml, hnml⟩ := hpo'
+  have ev : values.len.val = values.val.length := rfl
+  have eb : blindings.len.val = blindings.val.length := rfl
+  have eg : gens.g_vec.len.val = gens.g_vec.val.length := rfl
+  have rnd0 : Bppp.Circuit.Randomness F := ⟨fun _ => 0, fun _ => 0, fun _ => 0, fun _ => 0, 0⟩
+  unfold bulletproofspp.circuit.prove
+  unfold Bppp.Circuit.prove
+  by_cases h1 : values.val.length = p.m.val
+  swap
+  · have : (values.len != p.m) = true := by
+      simp only [bne_iff_ne, ne_eq]; intro h; apply h1; rw [← ev, h]
+    rw [if_pos this, WP.spec_ok]
+    exact ⟨rnd0, by simp [CPMatches, hm, h1, except_throw']⟩
+  have : (values.len != p.m) = false := by
+    simp only [bne_eq_false_iff_eq]; apply UScalar.eq_of_val_eq; rw [ev, h1]
+  rw [if_neg (by simp [this])]
+  by_cases h2 : blindings.val.length = p.m.val
+  swap
+  · have : (blindings.len != p.m) = true := by
+      simp only [bne_iff_ne, ne_eq]; intro h; apply h2; rw [← eb, h]
+    rw [if_pos this, WP.spec_ok]
+    exact ⟨rnd0, by simp [CPMatches, hm, h2, except_throw']⟩
+  have : (blindings.len != p.m) = false := by
+    simp only [bne_eq_false_iff_eq]; apply UScalar.eq_of_val_eq; rw [eb, h2]
+  rw [if_neg (by simp [this])]
+  by_cases h3 : gens.g_vec.val.length = p.nm.val
+  swap
+  · have : (gens.g_vec.len != p.nm) = true := by
+      simp only [bne_iff_ne, ne_eq]; intro h; apply h3; rw [← eg, h]
+    rw [if_pos this, WP.spec_ok]
+    exact ⟨rnd0, by simp [CPMatches, hpnm, h3, toGens, except_throw']⟩
+  have : (gens.g_vec.len != p.nm) = false := by
+    simp only [bne_eq_false_iff_eq]; apply UScalar.eq_of_val_eq; rw [eg, h3]
+  rw [if_neg (by simp [this])]
+  apply WP.spec_bind (all_in_range_spec p.range values)
+  intro b hb
+  subst hb
+  split
+  swap
+  · rename_i hnall
+    rw [WP.spec_ok]
+    refine ⟨rnd0, ?_⟩
+    simp only [Bool.not_eq_true', Bool.not_eq_false'] at hnall
+    simp [CPMatches, hrange, hnall, except_throw']
+  rename_i hall
+  apply WP.spec_bind (witness_new_spec hs hr inst pm p hpo hd hnd rng values blindings
+    (by show values.val.length = _; exact h1))
+  rintro ⟨w, rng1⟩ ⟨rnd, hwit, hop, hnl, hno, hns, hro, hrl, hrr, hvl, hbl⟩
+  simp only [Std.uncurry_apply_pair]
+  apply WP.spec_bind (prove_witness_spec (G := G) (H := H) hs hp ht hped gens hg hcomp pm p hpo hnd
+    hgh h3 hgB w ⟨hvl, by rw [hbl]; exact h2, hop, hnl, hno, hns, hro, hrl, hrr⟩ t)
+  rintro ⟨r, t'⟩ hr'
+  simp only [Std.uncurry_apply_pair, WP.spec_ok]
+  refine ⟨rnd, ?_⟩
+  have hcond : ¬ ((values.val.map (·.val)).length ≠ pm.m ∨ (blindings.val.map φ).length ≠ pm.m ∨
+      (toGens ψ gens).g_vec.length ≠ pm.nm ∨
+      ((values.val.map (·.val)).any fun v => !pm.range.is_in_range v) = true) := by
+    simp only [Bool.not_eq_true'] at hall
+    simp [toGens, hm, hpnm, h1, h2, h3, hrange, hall]
+  simp only [hcond, if_false]
+  rw [← hwit]
+  exact hr'
+
 end BpppProofs
