@@ -19,6 +19,7 @@ This crate is not part of the main workspace because cargo-fuzz needs a nightly 
 | `secp256k1_group_ops` | Sequences of secp256k1 group operations and multi-scalar multiplications, on scalars and points decoded from arbitrary and changed bytes (arkworks, SEC1, x-only, BCS, JSON), compared with k256 |
 | `secp256k1_schnorr` | Decoding of BIP-340 public keys, signatures and private keys, signing and verification, on arbitrary and changed signatures, compared with libsecp256k1 |
 | `secp256r1_group_ops` | Sequences of secp256r1 scalar and point operations, including the windowed multipliers that ECDSA uses with several window sizes, compared with p256 |
+| `ristretto255_group_ops` | Sequences of ristretto255 scalar and point operations, hashing and multi-scalar multiplications with and without precomputed tables, on values decoded from arbitrary and changed bytes, compared with a reference written from RFC 9496 |
 
 Run a target with:
 

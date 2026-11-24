@@ -13,7 +13,8 @@ arbitrary = { version = "1", features = ["derive"] }
 # Independent BLS12-381 implementation, used as an oracle for decoding.
 ark-bls12-381 = "0.4.0"
 ark-ec = "0.4.1"
-# arkworks P-256 field elements, to compare p256 results with fastcrypto secp256r1 points.
+# arkworks P-256 field elements, to compare p256 results with fastcrypto secp256r1 points, and the
+# field arithmetic of the ristretto255 reference.
 ark-ff = "0.4.2"
 ark-secp256r1 = "0.4.0"
 ark-serialize = "0.4.1"
@@ -136,6 +137,13 @@ bench = false
 [[bin]]
 name = "secp256r1_group_ops"
 path = "fuzz_targets/secp256r1_group_ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ristretto255_group_ops"
+path = "fuzz_targets/ristretto255_group_ops.rs"
 test = false
 doc = false
 bench = false
