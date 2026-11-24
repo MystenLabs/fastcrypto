@@ -25,7 +25,7 @@ MODELS = {
         "  ok (Slice.from [x] (by scalar_tac))"),
     "core.num.Usize.next_power_of_two": (
         "def core.num.Usize.next_power_of_two (x : Std.Usize) : Result Std.Usize :=\n"
-        "  if x.val.nextPowerOfTwo ≤ Std.Usize.max then ok ⟨BitVec.ofNat _ x.val.nextPowerOfTwo⟩\n"
+        "  if 2 ^ Nat.clog 2 x.val ≤ Std.Usize.max then ok ⟨BitVec.ofNat _ (2 ^ Nat.clog 2 x.val)⟩\n"
         "  else fail .panic"),
     "pedersen.Range.bits": (
         "def pedersen.Range.bits (r : pedersen.Range) : Result Std.Usize :=\n"

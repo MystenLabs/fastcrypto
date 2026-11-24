@@ -44,7 +44,7 @@ def core.num.U64.ilog2 (x : Std.U64) : Result Std.U32 :=
     Visibility: public -/
 @[rust_fun "core::num::{usize}::next_power_of_two"]
 def core.num.Usize.next_power_of_two (x : Std.Usize) : Result Std.Usize :=
-  if x.val.nextPowerOfTwo ≤ Std.Usize.max then ok ⟨BitVec.ofNat _ x.val.nextPowerOfTwo⟩
+  if 2 ^ Nat.clog 2 x.val ≤ Std.Usize.max then ok ⟨BitVec.ofNat _ (2 ^ Nat.clog 2 x.val)⟩
   else fail .panic
 
 /-- [core::slice::raw::from_ref]:
