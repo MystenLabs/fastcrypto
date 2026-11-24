@@ -6,6 +6,7 @@
 //! byte-exact signing, agreement of the portable and assembly backends) is tested in
 //! mysten-mldsa-native-rs.
 
+use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeSet;
 use std::fmt::Debug;
@@ -44,6 +45,23 @@ const MSG: &[u8] = b"Hello, world!";
 const SK_LENGTH: usize = MLDSA65_PRIVATE_KEY_LENGTH;
 const PK_LENGTH: usize = MLDSA65_PUBLIC_KEY_LENGTH;
 const SIG_LENGTH: usize = MLDSA65_SIGNATURE_LENGTH;
+
+/// The start of the hints in a signature.
+const HINTS: usize = 3248;
+
+/// The start of each part of a public key, a 32-byte message and a signature, concatenated. The parts
+/// of a signature are the commitment hash, z, the hint positions and the hint counts.
+const PARTS: [usize; 7] = [
+    0,
+    MSG_OFFSET,
+    SIG_OFFSET,
+    SIG_OFFSET + 48,
+    SIG_OFFSET + HINTS,
+    SIG_OFFSET + 3303,
+    SIG_OFFSET + SIG_LENGTH,
+];
+const MSG_OFFSET: usize = PK_LENGTH;
+const SIG_OFFSET: usize = MSG_OFFSET + 32;
 
 /// A case of the cross-stack interop vectors, produced by the ts wallet stack
 /// (`@noble/post-quantum` 0.6.1).
@@ -207,6 +225,30 @@ fn decoding_accepts_exactly_one_length() {
 }
 
 #[test]
+fn generated_keys_and_signatures_round_trip() {
+    let keypair = keys().pop().unwrap();
+    let signature = keypair.sign(MSG);
+
+    verify_serialization(keypair.public(), keypair.public().as_ref());
+    verify_serialization(&signature, signature.as_ref());
+    verify_serialization(&keypair, keypair.as_ref());
+    verify_serialization(&keypair.copy().private(), keypair.as_ref());
+    for bytes in [
+        keypair.as_ref(),
+        keypair.public().as_ref(),
+        signature.as_ref(),
+    ] {
+        check_decoding_all(bytes);
+    }
+
+    // The signature and the public key still work after they are sent as bytes.
+    assert_eq!(
+        verify(keypair.public().as_ref(), MSG, signature.as_ref()),
+        Ok(())
+    );
+}
+
+#[test]
 fn base64_is_strict() {
     // The last two bytes are encoded as "+/s=", where the lowest two bits of "s" are unused.
     let encoded = Base64::encode([0xfb; PK_LENGTH]);
@@ -245,10 +287,13 @@ fn public_key_ordering_and_hashing_follow_the_bytes() {
     assert!(pk < next);
     assert_ne!(pk, next);
     assert_ne!(hash(&pk), hash(&next));
-    assert_eq!(
-        hash(&pk),
-        hash(&MLDSA65PublicKey::from_bytes(pk.as_ref()).unwrap())
-    );
+
+    for pk in [&pk, &next, keypairs[0].public()] {
+        let same = MLDSA65PublicKey::from_bytes(pk.as_ref()).unwrap();
+        assert_eq!(hash(pk), hash(&same));
+        assert_eq!(pk.cmp(&same), Ordering::Equal);
+        assert_eq!(pk.partial_cmp(&same), Some(Ordering::Equal));
+    }
 }
 
 #[test]
@@ -285,14 +330,15 @@ fn generate_is_random() {
 /// same recovery phrase must yield the same account everywhere.
 #[test]
 fn key_pairs_are_determined_by_the_seed() {
-    let seed = [7u8; SK_LENGTH];
-    let keypair = MLDSA65KeyPair::from_bytes(&seed).unwrap();
+    let keypair = keys().pop().unwrap();
+    let seed: [u8; SK_LENGTH] = keypair.as_ref().try_into().unwrap();
     let private = MLDSA65PrivateKey::from_bytes(&seed).unwrap();
     assert_eq!(private.as_ref(), &seed);
     assert_eq!(&MLDSA65PublicKey::from(&private), keypair.public());
 
     for other in [
         keypair.copy(),
+        MLDSA65KeyPair::from_bytes(&seed).unwrap(),
         MLDSA65KeyPair::from(private),
         MLDSA65KeyPair::from_str(&keypair.encode_base64()).unwrap(),
         bcs::from_bytes(&bcs::to_bytes(&keypair).unwrap()).unwrap(),
@@ -431,6 +477,35 @@ fn verify_rejects_wrong_message_and_wrong_key() {
         other.public().verify(MSG, &signature),
         Err(FastCryptoError::InvalidSignature)
     );
+}
+
+#[test]
+fn verify_rejects_tampered_signature() {
+    let keypair = keys().pop().unwrap();
+    let signature = keypair.sign(MSG);
+    let verify = |sig: &[u8]| verify(keypair.public().as_ref(), MSG, sig);
+
+    // The first and last byte of each part of the encoding, and one in the middle of z
+    let offsets = PARTS[2..]
+        .windows(2)
+        .flat_map(|part| [part[0] - SIG_OFFSET, part[1] - SIG_OFFSET - 1]);
+    for offset in offsets.chain([SIG_LENGTH / 2]) {
+        let mut bytes = signature.as_ref().to_vec();
+        bytes[offset] ^= 1;
+        assert_eq!(
+            verify(&bytes),
+            Err(FastCryptoError::InvalidSignature),
+            "tampering at offset {offset} was accepted"
+        );
+    }
+
+    // Signatures with the right length and z out of range
+    for byte in [0, 0xff] {
+        assert_eq!(
+            verify(&[byte; SIG_LENGTH]),
+            Err(FastCryptoError::InvalidSignature)
+        );
+    }
 }
 
 #[test]
@@ -580,23 +655,6 @@ static VALID: Lazy<&TsCase> = Lazy::new(|| {
     assert!(case.ctx.is_empty());
     case
 });
-
-/// The start of the hints in a signature.
-const HINTS: usize = 3248;
-
-/// The start of each part of a public key, a 32-byte message and a signature, concatenated. The parts
-/// of a signature are the commitment hash, z, the hint positions and the hint counts.
-const PARTS: [usize; 7] = [
-    0,
-    MSG_OFFSET,
-    SIG_OFFSET,
-    SIG_OFFSET + 48,
-    SIG_OFFSET + HINTS,
-    SIG_OFFSET + 3303,
-    SIG_OFFSET + SIG_LENGTH,
-];
-const MSG_OFFSET: usize = PK_LENGTH;
-const SIG_OFFSET: usize = MSG_OFFSET + 32;
 
 /// Arbitrary bytes, most of the time with a length that one of the types accepts or that is off by
 /// one.
