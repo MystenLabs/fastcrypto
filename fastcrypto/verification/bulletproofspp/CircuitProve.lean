@@ -144,4 +144,301 @@ lemma input_commitments_spec (hs : ScalarModel F φ) {G H : E} (hped : PedersenM
       rw [List.take_of_length_le (by simp <;> omega)]
   · exact ⟨by simp, by simp, by simp⟩
 
+lemma loop_lengths (params : Bppp.CircuitParams) (alpha mu mu_inv : F) (lambdas shape : List F)
+    (K : ℕ) :
+    let st := (List.range K).foldl (Bppp.Constraints.loop_step params alpha mu mu_inv lambdas shape)
+      ⟨[], [], [], [], 0, Bppp.one, Bppp.one, Bppp.one⟩
+    st.norm_weights.length = K ∧ st.cn_l.length = K ∧ st.cn_r.length = K ∧ st.cn_v.length = K := by
+  intro st
+  induction K with
+  | zero => simp [st]
+  | succ K ih =>
+    simp only [st, List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil] at ih ⊢
+    obtain ⟨h1, h2, h3, h4⟩ := ih
+    simp only [Bppp.Constraints.loop_step]
+    split_ifs <;> simp [h1, h2, h3, h4]
+
+lemma power_vector_length (x : F) (n : ℕ) : (Bppp.power_vector x n).length = n := by
+  have key : ∀ (k : ℕ) (acc : List F × F),
+      ((List.range k).foldl (fun (v, cur) _ => (v ++ [cur], cur * x)) acc).1.length =
+        acc.1.length + k := by
+    intro k
+    induction k with
+    | zero => intro acc; simp
+    | succ k ih => intro acc; simp only [List.range_succ, List.foldl_append, List.foldl_cons,
+        List.foldl_nil, List.length_append, ih]; simp; omega
+  simp [Bppp.power_vector, key]
+
+lemma except_bind_ok_inv {ε α β : Type} {x : Except ε α} {f : α → Except ε β} {c : β}
+    (h : (x >>= f) = .ok c) : ∃ a, x = .ok a ∧ f a = .ok c := by
+  cases x with
+  | error e => exact absurd h (by intro h'; cases h')
+  | ok a => exact ⟨a, rfl, h⟩
+
+lemma cons_new_len (params : Bppp.CircuitParams) (alpha mu lambda : F) (C : Bppp.Constraints F)
+    (h : Bppp.Constraints.new params alpha mu lambda = .ok C) (hb : 15 ≤ params.nm) :
+    C.norm_weights.length = params.nm ∧ C.cn_l.length = params.nm ∧
+      C.cn_r.length = params.nm ∧ C.cn_o.length = params.nm ∧ C.cn_v.length = params.nm ∧
+      C.cl_v.length = 8 ∧ C.lambdas.length = params.m + 1 := by
+  unfold Bppp.Constraints.new at h
+  obtain ⟨mi, -, h⟩ := except_bind_ok_inv h
+  obtain ⟨inv, -, h⟩ := except_bind_ok_inv h
+  obtain ⟨ai, -, h⟩ := except_bind_ok_inv h
+  simp only [pure, Except.pure, Except.ok.injEq] at h
+  subst h
+  obtain ⟨h1, h2, h3, h4⟩ := loop_lengths params alpha mu mi
+    (Bppp.power_vector lambda (params.m + 1))
+    (List.iterate (· * (Bppp.power_vector lambda (params.m + 1)).getD params.m 0)
+      (lambda * (Bppp.power_vector lambda (params.m + 1)).getD params.m 0)
+      (params.nm + Bppp.H_LEN - 1)) params.nm
+  refine ⟨h1, h2, h3, ?_, h4, ?_, power_vector_length _ _⟩
+  · simp [Bppp.pad_to, Bppp.BASE]; omega
+  · simp [Bppp.H_LEN]
+
+/-- The model of a generated circuit proof. -/
+def toCP (φ : S → F) (ψ : P → E) (cp : bulletproofspp.circuit.CircuitProof) :
+    Bppp.Circuit.CircuitProof F E :=
+  ⟨ψ cp.c_l, ψ cp.c_o, ψ cp.c_r, ψ cp.c_s, toProof φ ψ cp.nl_proof⟩
+
+/-- The result of a generated circuit prover matches the model's run: the same proof and
+commitments under the models, and the same transcript; or both fail. -/
+def CPMatches (φ : S → F) (ψ : P → E)
+    (τ : bulletproofspp.transcript.BpppTranscript → Bppp.BpppTranscript F E)
+    (r : core.result.Result (bulletproofspp.circuit.CircuitProof ×
+      alloc.vec.Vec pedersen.PedersenCommitment) error.FastCryptoError ×
+      bulletproofspp.transcript.BpppTranscript)
+    (m : Except Bppp.Error ((Bppp.Circuit.CircuitProof F E × List (Bppp.PedersenCommitment E)) ×
+      Bppp.BpppTranscript F E)) : Prop :=
+  match m with
+  | .ok ((cp, vs), T) => ∃ cp' vs', r.1 = .Ok (cp', vs') ∧ toCP φ ψ cp' = cp ∧
+      vs'.val.map (toPC ψ) = vs ∧ τ r.2 = T
+  | .error _ => ∃ e, r.1 = .Err e
+
+set_option maxHeartbeats 4000000 in
+lemma prove_witness_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
+    {τ : bulletproofspp.transcript.BpppTranscript → Bppp.BpppTranscript F E}
+    (ht : TranscriptModel φ ψ τ) {G H : E} (hped : PedersenModel φ ψ G H)
+    (gens : bulletproofspp.crs.Generators) (hg : GensOK φ ψ gens)
+    (hcomp : bulletproofspp.crs.compatible_with_pedersen_commitments gens = ok true)
+    (pm : Bppp.CircuitParams) (p : bulletproofspp.circuit.CircuitParams) (hpo : ParamsOK pm p)
+    (hnd : p.n_d.val ≤ p.nm.val) (hgh : gens.h_vec.length = 8) (hgg : gens.g_vec.length = p.nm.val)
+    (hgB : 4 * (gens.h_vec.length + gens.g_vec.length) + 8 ≤ Usize.max)
+    (w : bulletproofspp.circuit.Witness) (hw : WitLen p.m.val p.nm.val w)
+    (t : bulletproofspp.transcript.BpppTranscript) :
+    bulletproofspp.circuit.prove_witness
+      bulletproofspp.circuit.HonestReciprocals.Insts.FastcryptoBulletproofsppCircuitReciprocalsOf
+      t gens p w () ⦃ r =>
+      CPMatches φ ψ τ r ((Bppp.Circuit.prove_witness G H (toGens ψ gens) pm (toWit φ w)
+        (fun alpha => Bppp.Circuit.reciprocals pm (toWit φ w).n_l alpha)).run (τ t)) ⦄ := by
+  unfold bulletproofspp.circuit.prove_witness
+  apply WP.spec_bind (input_commitments_spec hs hped gens hcomp w hw.off_plane
+    (hw.values.trans hw.blindings.symm))
+  rintro r ⟨cs, rfl, hic, hcsl⟩
+  simp only [Bppp.Circuit.prove_witness, StateT.run_bind, hic, liftM_ok_run, except_ok_bind,
+    core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+  obtain ⟨t1, h1, m1⟩ := ht.domain_sep t .Circuit
+  obtain ⟨t2, h2, m2⟩ := ht.append_commits t1 .V (alloc.vec.Vec.deref cs)
+  simp only [labelStr] at m1 m2
+  simp only [h1, h2, bind_ok, m1, except_ok_bind, deref_val] at m2 ⊢
+  have m2' : StateT.run (Bppp.BpppTranscript.append_commits "V" (cs.val.map (toPC ψ))) (τ t1) =
+      .ok ((), τ t2) := m2
+  have hlen : 1 + gens.h_vec.length + gens.g_vec.length ≤ Usize.max := by omega
+  have hrl : (alloc.vec.Vec.deref w.r_l).length = 8 := by
+    simp only [Slice.length, deref_val]; exact hw.r_l
+  have hro : (alloc.vec.Vec.deref w.r_o).length = 8 := by
+    simp only [Slice.length, deref_val]; exact hw.r_o
+  have hrr : (alloc.vec.Vec.deref w.r_r).length = 8 := by
+    simp only [Slice.length, deref_val]; exact hw.r_r
+  simp only [m2', except_ok_bind, vec_clone_eq hs, bind_ok]
+  -- C_L
+  apply WP.spec_bind (message_opening_spec hs _ w.n_l (by rw [hrl]; norm_num))
+  rintro o ⟨ho, hol, hon⟩
+  simp only [deref_val] at ho
+  apply WP.spec_bind (commit_spec (ψ := ψ) hs gens hg o (by rw [hol, hrl, hgh])
+    (by rw [hon, hgg]; exact hw.n_l) hlen)
+  intro r1 hr1
+  rw [show Bppp.Circuit.message_opening (toWit φ w).r_l (toWit φ w).n_l = toO φ o from ho.symm]
+  rcases hc1 : (toGens ψ gens).commit (toO φ o) with e | e1
+  · rw [hc1] at hr1
+    simp only [MsmMatches] at hr1
+    subst hr1
+    simp [CPMatches, liftM_error_run, except_error_bind,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+  rw [hc1] at hr1
+  obtain ⟨c_l, rfl, hcl⟩ := hr1
+  simp only [liftM_ok_run, except_ok_bind, bind_ok]
+  -- C_O
+  apply WP.spec_bind (message_opening_spec hs _ w.n_o (by rw [hro]; norm_num))
+  rintro o1 ⟨ho1, hol1, hon1⟩
+  simp only [deref_val] at ho1
+  apply WP.spec_bind (commit_spec (ψ := ψ) hs gens hg o1 (by rw [hol1, hro, hgh])
+    (by rw [hon1, hgg]; exact hw.n_o) hlen)
+  intro r2 hr2
+  rw [show Bppp.Circuit.message_opening (toWit φ w).r_o (toWit φ w).n_o = toO φ o1 from ho1.symm]
+  rcases hc2 : (toGens ψ gens).commit (toO φ o1) with e | e2
+  · rw [hc2] at hr2
+    simp only [MsmMatches] at hr2
+    subst hr2
+    simp [CPMatches, liftM_error_run, except_error_bind,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+  rw [hc2] at hr2
+  obtain ⟨c_o, rfl, hco⟩ := hr2
+  simp only [liftM_ok_run, except_ok_bind, bind_ok]
+  obtain ⟨t3, h3, m3⟩ := ht.append_point t2 .CL c_l
+  obtain ⟨t4, h4, m4⟩ := ht.append_point t3 .CO c_o
+  obtain ⟨alpha, t5, h5, m5⟩ := ht.challenge_scalar t4 .Alpha
+  simp only [labelStr] at m3 m4 m5
+  rw [← hcl, ← hco]
+  simp only [h3, h4, h5, bind_ok, m3, m4, m5, except_ok_bind, Std.uncurry_apply_pair]
+  -- reciprocals
+  simp only [bulletproofspp.circuit.HonestReciprocals.Insts.FastcryptoBulletproofsppCircuitReciprocalsOf.reciprocals_of]
+  apply WP.spec_bind (reciprocals_spec hs pm p hpo hnd (alloc.vec.Vec.deref w.n_l)
+    (by simp only [Slice.length, deref_val]; exact hw.n_l) alpha)
+  intro r3 hr3
+  simp only [deref_val] at hr3
+  have htn : (toWit φ w).n_l = w.n_l.val.map φ := rfl
+  rw [htn]
+  split at hr3
+  rotate_left
+  · rename_i e he
+    subst hr3
+    simp [he, CPMatches, liftM_error_run, except_error_bind,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+  rename_i nr hnr
+  obtain ⟨n_r, rfl, hnrv, hnrl⟩ := hr3
+  simp only [hnr, liftM_ok_run, except_ok_bind, bind_ok, vec_clone_eq hs]
+  -- C_R
+  apply WP.spec_bind (message_opening_spec hs _ n_r (by rw [hrr]; norm_num))
+  rintro o2 ⟨ho2, hol2, hon2⟩
+  simp only [deref_val] at ho2
+  rw [← hnrv, show Bppp.Circuit.message_opening (toWit φ w).r_r (n_r.val.map φ) = toO φ o2
+    from ho2.symm]
+  apply WP.spec_bind (commit_spec (ψ := ψ) hs gens hg o2 (by rw [hol2, hrr, hgh])
+    (by rw [hon2, hgg]; exact hnrl) hlen)
+  intro r4 hr4
+  rcases hc4 : (toGens ψ gens).commit (toO φ o2) with e | e4
+  · rw [hc4] at hr4
+    simp only [MsmMatches] at hr4
+    subst hr4
+    simp [CPMatches, liftM_error_run, except_error_bind,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+  rw [hc4] at hr4
+  obtain ⟨c_r, rfl, hcr⟩ := hr4
+  simp only [liftM_ok_run, except_ok_bind, bind_ok]
+  rw [← hcr]
+  obtain ⟨t6, h6, m6⟩ := ht.append_point t5 .CR c_r
+  obtain ⟨rho, t7, h7, m7⟩ := ht.challenge_scalar t6 .Rho
+  obtain ⟨lambda, t8, h8, m8⟩ := ht.challenge_scalar t7 .Lambda
+  obtain ⟨beta, t9, h9, m9⟩ := ht.challenge_scalar t8 .Beta
+  obtain ⟨delta, t10, h10, m10⟩ := ht.challenge_scalar t9 .Delta
+  simp only [labelStr] at m6 m7 m8 m9 m10
+  simp only [h6, h7, h8, h9, h10, bind_ok, m6, m7, m8, m9, m10, except_ok_bind,
+    Std.uncurry_apply_pair, hs.mul_eq]
+  -- delta inverse
+  apply WP.spec_bind (inverse_spec' hs delta)
+  intro r5 hr5
+  split at hr5
+  rotate_left
+  · rename_i e he
+    subst hr5
+    simp [he, CPMatches, liftM_error_run, except_error_bind,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+  rename_i dinv hdinv
+  obtain ⟨dinv', rfl, hdinv'⟩ := hr5
+  simp only [hdinv, liftM_ok_run, except_ok_bind, bind_ok, core.result.Result.Insts.CoreOpsTry.branch]
+  -- constraints
+  apply WP.spec_bind (constraints_new_spec hs pm p hpo alpha (hs.mulF rho rho) lambda)
+  intro r6 hr6
+  simp only [ScalarModel.φ_mulF] at hr6
+  split at hr6
+  rotate_left
+  · rename_i e he
+    subst hr6
+    simp [he, CPMatches, liftM_error_run, except_error_bind,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+  rename_i C hC
+  obtain ⟨c', rfl, hc'⟩ := hr6
+  simp only [hC, liftM_ok_run, except_ok_bind, bind_ok]
+  obtain ⟨hm, hpd, hpnd, hpnm, hd0, hnde, hnm, hml, hnml⟩ := hpo
+  obtain ⟨l1, l2, l3, l4, l5, l6, l7⟩ := cons_new_len pm _ _ _ C hC (by omega)
+  rw [← hc'] at l1 l2 l3 l4 l5 l6 l7
+  simp only [toC, List.length_map] at l1 l2 l3 l4 l5 l6 l7
+  have hcons : ConsLen p.m.val p.nm.val c' :=
+    ⟨by show p.m.val ≤ c'.lambdas.val.length; omega, by rw [← hpnm]; exact l1,
+      by rw [← hpnm]; exact l2, by rw [← hpnm]; exact l3, by rw [← hpnm]; exact l4,
+      by rw [← hpnm]; exact l5, l6⟩
+  rw [← hc']
+  -- c
+  apply WP.spec_bind (c_spec hs c' l6 beta)
+  rintro cc ⟨hcw, hch, -, hce⟩
+  rw [← hce]
+  -- C_S
+  apply WP.spec_bind (commit_c_s_spec (ψ := ψ) hs gens hg pm p
+    ⟨hm, hpd, hpnd, hpnm, hd0, hnde, hnm, hml, hnml⟩ hgh hgg hlen c' hcons w hw n_r hnrl cc hcw hch
+    beta delta dinv')
+  intro r7 hr7
+  rw [← hdinv']
+  split at hr7
+  rotate_left
+  · rename_i e he
+    subst hr7
+    simp [he, CPMatches, liftM_error_run, except_error_bind,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+  rename_i csm com hcsm
+  obtain ⟨c_s, co, rfl, hcs, hcoe, hcok⟩ := hr7
+  simp only [hcsm, liftM_ok_run, except_ok_bind, bind_ok]
+  rw [← hcs, ← hcoe]
+  obtain ⟨t11, h11, m11⟩ := ht.append_point t10 .CS c_s
+  obtain ⟨tau, t12, h12, m12⟩ := ht.challenge_scalar t11 .Tau
+  simp only [labelStr] at m11 m12
+  simp only [h11, h12, bind_ok, m11, m12, except_ok_bind, Std.uncurry_apply_pair]
+  -- evaluations
+  apply WP.spec_bind (eval_spec hs (vec_coeff_model hs 8) cc hcw tau)
+  intro r8 hr8
+  split at hr8
+  rotate_left
+  · rename_i e he
+    subst hr8
+    simp [he, CPMatches, liftM_error_run, except_error_bind,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+  rename_i cv hcv
+  obtain ⟨cv', rfl, hcv'l, hcv'⟩ := hr8
+  simp only [hcv, liftM_ok_run, except_ok_bind, bind_ok]
+  apply WP.spec_bind (co_eval_spec hs p.nm.val co (-1) 7 hcok tau)
+  intro r9 hr9
+  split at hr9
+  rotate_left
+  · rename_i e he
+    subst hr9
+    simp [he, CPMatches, liftM_error_run, except_error_bind,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+  rename_i ov hov
+  obtain ⟨o', rfl, ho', ho'l, ho'n⟩ := hr9
+  simp only [hov, liftM_ok_run, except_ok_bind, bind_ok]
+  rw [← hcv', ← ho']
+  -- norm-linear argument
+  apply WP.spec_bind (prove_spec hs hp ht gens hg (by omega) hgB t12 (alloc.vec.Vec.deref cv') rho o'
+    (by rw [ho'l, hgh]) (by simp only [Slice.length, deref_val]; rw [hgh]; exact hcv'l)
+    (by rw [ho'n, hgg]) (by rw [hgh]; norm_num))
+  rintro ⟨r10, t13⟩ hr10
+  simp only [deref_val] at hr10
+  have hvc : vecψ φ cv' = cv'.val.map φ := rfl
+  rw [hvc]
+  rcases hpr : (Bppp.NormLinear.prove (toGens ψ gens) (cv'.val.map φ) (φ rho) (toO φ o')).run
+    (τ t12) with e | ⟨pf, T⟩
+  · rw [hpr] at hr10
+    simp only [ProveMatches] at hr10
+    subst hr10
+    simp [CPMatches, except_error_bind,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+  rw [hpr] at hr10
+  obtain ⟨pr, hpr1, hpr2, hpr3⟩ := hr10
+  simp only at hpr1 hpr2
+  subst hpr1
+  simp only [except_ok_bind, StateT.run_pure, core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
+    WP.spec_ok, CPMatches]
+  simp only [Std.uncurry_apply_pair, bind_ok, WP.spec_ok, Pure.pure, Except.pure]
+  refine ⟨_, _, rfl, ?_, rfl, hpr2⟩
+  simp only [toCP, hpr3, List.nil_append]
+
 end BpppProofs
