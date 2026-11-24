@@ -267,4 +267,126 @@ lemma setup_spec (hgn : GensNewModel φ ψ)
       core.convert.FromSame.from, bind_tc_ok, WP.spec_ok]
     exact ⟨_, rfl⟩
 
+/-- The model of a generated range proof. -/
+def toRP (φ : S → F) (ψ : P → E) (rp : bulletproofspp.range_proof.RangeProof) :
+    Bppp.RangeProof F E :=
+  ⟨toCP φ ψ rp.proof⟩
+
+lemma blindings_loop_spec (blindings : Slice pedersen.Blinding) :
+    bulletproofspp.range_proof.RangeProof.prove_batch_loop blindings
+      (alloc.vec.Vec.with_capacity S blindings.len) 0#usize ⦃ r => r.val = blindings.val ⦄ := by
+  unfold bulletproofspp.range_proof.RangeProof.prove_batch_loop
+  have eb : blindings.len.val = blindings.val.length := rfl
+  apply loop.spec_decr_nat (fun x => blindings.val.length - x.2.val)
+    (fun x => x.2.val ≤ blindings.val.length ∧ x.1.val = blindings.val.take x.2.val)
+  · rintro ⟨v, i⟩ ⟨hi, hv⟩
+    simp only at hi hv
+    unfold bulletproofspp.range_proof.RangeProof.prove_batch_loop.body
+    have hvl : v.length = i.val := by
+      show v.val.length = _; rw [hv]; simp; omega
+    step*
+    · refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+      rw [blinding_scalars1_post, i2_post, hv, b_post,
+        List.take_succ_eq_append_getElem (by scalar_tac)]
+    · have : i.val = blindings.val.length := by scalar_tac
+      rw [hv, this, List.take_length]
+  · simp
+
+lemma prove_batch_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
+    {τ : bulletproofspp.transcript.BpppTranscript → Bppp.BpppTranscript F E}
+    (ht : TranscriptModel φ ψ τ) {oracle : List (Bppp.Entry F E) → F}
+    (hti : TranscriptInit τ oracle) {G H : E} (hped : PedersenModel φ ψ G H) (hr : RandOK)
+    (hgn : GensNewModel φ ψ) {R : Type} (inst : traits.AllowedRng R) (values : Slice U64)
+    (blindings : Slice pedersen.Blinding) (range : pedersen.Range) (dst : Slice U8) (rng : R)
+    (hm : 256 * values.length + 256 ≤ Usize.max) :
+    bulletproofspp.range_proof.RangeProof.prove_batch inst values blindings range dst rng ⦃ r =>
+      ∃ rnd : Bppp.Circuit.Randomness F,
+        match Bppp.RangeProof.prove_batch oracle (genM ψ) G H (values.val.map (·.val))
+            (blindings.val.map φ) (toRange range) (dst.val.map (·.val)) rnd with
+        | .ok rp => ∃ rp', r.1 = .Ok rp' ∧ toRP φ ψ rp' = rp
+        | .error _ => ∃ e, r.1 = .Err e ⦄ := by
+  have rnd0 : Bppp.Circuit.Randomness F := ⟨fun _ => 0, fun _ => 0, fun _ => 0, fun _ => 0, 0⟩
+  have ev : values.len.val = values.val.length := rfl
+  have evl : values.length = values.val.length := rfl
+  have eb : blindings.len.val = blindings.val.length := rfl
+  unfold bulletproofspp.range_proof.RangeProof.prove_batch Bppp.RangeProof.prove_batch
+  simp only [core.slice.Slice.is_empty, bind_ok]
+  by_cases h0 : values.val = []
+  · have : decide (values.length = 0) = true := by simp [evl, h0]
+    rw [if_pos this, WP.spec_ok]
+    exact ⟨rnd0, by simp [h0, except_throw']⟩
+  rw [if_neg (by simpa [evl] using h0)]
+  by_cases h1 : values.val.length = blindings.val.length
+  swap
+  · have : (values.len != blindings.len) = true := by
+      simp only [bne_iff_ne, ne_eq]; intro h; apply h1; rw [← ev, ← eb, h]
+    rw [if_pos this, WP.spec_ok]
+    exact ⟨rnd0, by simp [h1, except_throw']⟩
+  have : (values.len != blindings.len) = false := by
+    simp only [bne_eq_false_iff_eq]; apply UScalar.eq_of_val_eq; rw [ev, eb, h1]
+  rw [if_neg (by simp [this])]
+  apply WP.spec_bind (all_in_range_spec range values)
+  intro b hb
+  subst hb
+  split
+  swap
+  · rename_i hnall
+    rw [WP.spec_ok]
+    refine ⟨rnd0, ?_⟩
+    simp only [Bool.not_eq_true', Bool.not_eq_false'] at hnall
+    simp [hnall, except_throw']
+  rename_i hall
+  have hcond : ¬ (values.val.map (·.val) = [] ∨
+      (values.val.map (·.val)).length ≠ (blindings.val.map φ).length ∨
+      ((values.val.map (·.val)).any fun v => !(toRange range).is_in_range v) = true) := by
+    simp only [Bool.not_eq_true'] at hall
+    simp [h0, h1, hall]
+  simp only [hcond, if_false]
+  apply WP.spec_bind (setup_spec hgn hti range values.len (by rw [ev]; rw [evl] at hm; omega) dst)
+  intro r hr
+  split at hr
+  rotate_left
+  · rename_i e he
+    obtain ⟨e', rfl⟩ := hr
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+      core.convert.FromSame.from, bind_tc_ok, WP.spec_ok]
+    refine ⟨rnd0, ?_⟩
+    rw [ev] at he
+    simp [he, except_error_bind]
+  rename_i x hx
+  obtain ⟨⟨p, a, t⟩, rfl, g, hdg, hgx, htx, hpo, hpr, hd, hnd, hk, hnm, hgok, hcomp, hh, hgl⟩ := hr
+  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, Std.uncurry_apply_pair]
+  have hx' : Bppp.RangeProof.setup oracle (genM ψ) (toRange range) (values.val.map (·.val)).length
+      (dst.val.map (·.val)) = .ok x := by rw [List.length_map, ← ev]; exact hx
+  apply WP.spec_bind (blindings_loop_spec blindings)
+  intro bs hbs
+  rw [hdg, bind_ok]
+  have hgB : 4 * (g.h_vec.length + g.g_vec.length) + 8 ≤ Usize.max := by
+    rw [hh, hgl]; rw [ev] at hnm; omega
+  apply WP.spec_bind (circuit_prove_spec (G := G) (H := H) hs hp ht hped hr inst g hgok hcomp x.1 p hpo
+    hpr hd hnd hh hgB t rng values (alloc.vec.Vec.deref bs))
+  rintro ⟨r1, t', rng1⟩ ⟨rnd, hcp⟩
+  rw [deref_val, hbs] at hcp
+  simp only at hcp
+  simp only [Std.uncurry_apply_pair]
+  rcases hm' : (Bppp.Circuit.prove G H (toGens ψ g) x.1 rnd (values.val.map (·.val))
+    (blindings.val.map φ)).run (τ t) with e | ⟨⟨cp, vs⟩, T⟩
+  · rw [hm'] at hcp
+    obtain ⟨e', he'⟩ := hcp
+    simp only at he'
+    subst he'
+    rw [WP.spec_ok]
+    refine ⟨rnd, ?_⟩
+    rw [hx', except_ok_bind, ← hgx, ← htx, StateT.run'_eq, hm']
+    simp [except_throw']
+  · rw [hm'] at hcp
+    obtain ⟨cp', vs', h1', h2', -, -⟩ := hcp
+    simp only at h1'
+    subst h1'
+    simp only [Std.uncurry_apply_pair, WP.spec_ok]
+    refine ⟨rnd, ?_⟩
+    rw [hx', except_ok_bind, ← hgx, ← htx, StateT.run'_eq, hm']
+    exact ⟨_, rfl, by simp [toRP, h2']⟩
+
 end BpppProofs
