@@ -891,6 +891,7 @@ dependencies = [
  "curve25519-dalek",
  "ecdsa 0.16.9",
  "fastcrypto",
+ "fastcrypto-pq",
  "hex-literal",
  "k256",
  "libfuzzer-sys",
@@ -901,6 +902,22 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "fastcrypto-pq"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "digest 0.10.7",
+ "fastcrypto",
+ "fastcrypto-derive",
+ "mysten-mldsa-native-rs",
+ "once_cell",
+ "rand 0.8.8",
+ "serde",
+ "sha2 0.10.9",
+ "zeroize",
 ]
 
 [[package]]
@@ -1239,6 +1256,17 @@ name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
+
+[[package]]
+name = "mysten-mldsa-native-rs"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5231855e373e808df1b5e3db04233163ece09bec5866fbd8035cc2a7cdfdd831"
+dependencies = [
+ "cc",
+ "cpufeatures",
+ "zeroize",
+]
 
 [[package]]
 name = "nom"

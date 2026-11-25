@@ -24,6 +24,7 @@ curve25519-dalek = "4.1.3"
 # Used with p256 as an oracle for secp256r1 public key recovery.
 ecdsa = { version = "0.16.9", features = ["verifying"] }
 fastcrypto = { path = "../fastcrypto", features = ["experimental"] }
+fastcrypto-pq = { path = "../fastcrypto-pq" }
 hex-literal = "0.4.1"
 # k256 is an independent secp256k1 implementation that the secp256k1 targets compare with. Same
 # version as the dev-dependency of fastcrypto: unlike later versions, its recovery accepts high-s
@@ -167,6 +168,13 @@ bench = false
 [[bin]]
 name = "ristretto255_group_ops"
 path = "fuzz_targets/ristretto255_group_ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mldsa65_verify"
+path = "fuzz_targets/mldsa65_verify.rs"
 test = false
 doc = false
 bench = false
