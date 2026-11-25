@@ -140,15 +140,16 @@ fn hash_to_g2_with_dst(msg: &[u8], dst: &[u8]) -> (G2Element, [u8; 2 * G2_ELEMEN
     )
 }
 
-/// Checks multiplication by 2^k and 2^k - 1 for k = 0, ..., 254, which are scalars of every bit
-/// length: G1 and G2 pass the bit length of the scalar to blst, and GT multiplication loops over the
-/// bits.
+/// Checks multiplication by 2^k, 2^k - 1 and 2^k + 1 for k = 0, ..., 254, which are scalars of every
+/// bit length: G1 and G2 pass the bit length of the scalar to blst and have a special case for the
+/// scalar 1, and GT multiplication loops over the bits.
 fn check_mul_by_every_bit_length<G: GroupElement<ScalarType = Scalar>>(p: G) {
     let mut two_to_the_k = Scalar::generator();
     let mut expected = p;
     for _ in 0..255 {
         assert_eq!(p * two_to_the_k, expected);
         assert_eq!(p * (two_to_the_k - Scalar::generator()), expected - p);
+        assert_eq!(p * (two_to_the_k + Scalar::generator()), expected + p);
         two_to_the_k = two_to_the_k + two_to_the_k;
         expected = expected + expected;
     }
