@@ -152,6 +152,10 @@ lemma max_reduced_weight_spec (tbl : Slice U32) (weight : U32)
 
 /-! ## `knapsack_min_original` -/
 
+/-- Relaxing with a reduced weight of `0` changes nothing. -/
+lemma relax_zero (old : List U32) (w u : ℕ) : relax old 0 w u = old[u]!.val := by
+  unfold relax; split <;> simp_all
+
 /-- Each reduced weight is at most the original one. -/
 def Dominated (weights reduced : Slice U16) : Prop :=
   ∀ j < weights.length, reduced.val[j]!.val ≤ weights.val[j]!.val
@@ -335,62 +339,86 @@ lemma knapsack_min_original_loop0_spec
       rw [total_succ] at hWi hRi
       rw [getElem!_of_lt _ _ (by scalar_tac)] at hWi
       rw [getElem!_of_lt _ _ (by scalar_tac)] at hRi
-      step*
-      subst iter2_post
-      step*
+      let* ⟨ i1, i1_post ⟩ ← Slice.index_usize_spec
+      let* ⟨ w, w_post ⟩ ← UScalar.cast_inBounds_spec
+      let* ⟨ i2, i2_post ⟩ ← Slice.index_usize_spec
+      let* ⟨ q, q_post ⟩ ← UScalar.cast_inBounds_spec
       have hw : w.val = weights.val[i.val]!.val := by
         rw [getElem!_of_lt _ _ hi', w_post, i1_post]
       have hq : q.val = reduced.val[i.val]!.val := by
         rw [getElem!_of_lt _ _ hir, q_post, i2_post]
       rw [← getElem!_of_lt _ _ hi', ← hw] at hWi
       rw [← getElem!_of_lt _ _ hir, ← hq] at hRi
-      refine ⟨by rw [hend1]; exact hn, by scalar_tac, by scalar_tac, ?_, ?_, ?_, ?_, by scalar_tac⟩
-      · -- Entry 0 stays 0.
-        have := min_original_weight1_post1 0 (by scalar_tac)
-        have := relax_le_old tbl.val q.val w.val 0
-        omega
-      · -- Every entry is still `u32::MAX` or at most the total original weight.
-        intro u hu
-        rw [min_original_weight1_post1 u (by scalar_tac), hstart1, total_succ, ← hw]
-        rcases relax_cases tbl.val q.val w.val u with h | ⟨hqu, hne, h⟩
-        · rw [h]
-          rcases hbound u (by scalar_tac) with h' | h'
-          · exact Or.inl h'
-          · exact Or.inr (by omega)
-        · rw [h]
-          rcases hbound (u - q.val) (by scalar_tac) with h' | h'
-          · exact absurd h' hne
-          · exact Or.inr (by omega)
-      · -- The table bounds every subset of the first `i + 1` parties.
-        intro s b
-        rw [hstart1, wsum_succ, wsum_succ, ← hw, ← hq]
-        have ha := wsum_le_total reduced.val s b i.val
-        have hc := wsum_le_total weights.val s b i.val
-        have hold := hsub s b
-        by_cases hsb : s i.val = b
-        · -- Party `i` is in the subset: its entry moves up by `q`.
-          simp only [hsb, ite_true]
-          rw [min_original_weight1_post1 _ (by scalar_tac)]
-          have hne : tbl.val[wsum reduced.val s b i.val + q.val - q.val]!.val ≠ U32.max := by
-            rw [Nat.add_sub_cancel]; scalar_tac
-          have := relax_le_shifted tbl.val q.val w.val _ (by omega) hne
-          rw [Nat.add_sub_cancel] at this
+      -- Whether or not the inner loop runs, the new table is the old one relaxed with party `i`.
+      have key : ∀ min_original_weight1 : alloc.vec.Vec U32,
+          min_original_weight1.length = tbl.length →
+          (∀ u < tbl.length, min_original_weight1.val[u]!.val = relax tbl.val q.val w.val u) →
+          it1.end.val = weights.length ∧ min_original_weight1.length = RT + 1 ∧
+          it1.start.val ≤ weights.length ∧ min_original_weight1.val[0]!.val = 0 ∧
+          (∀ u < min_original_weight1.length, min_original_weight1.val[u]!.val = U32.max ∨
+            min_original_weight1.val[u]!.val ≤ total weights.val it1.start.val) ∧
+          (∀ s b, min_original_weight1.val[wsum reduced.val s b it1.start.val]!.val ≤
+            wsum weights.val s b it1.start.val) ∧
+          (Dominated weights reduced → ∀ u < min_original_weight1.length,
+            min_original_weight1.val[u]!.val = U32.max ∨ u ≤ min_original_weight1.val[u]!.val) ∧
+          weights.length - it1.start.val < weights.length - i.val := by
+        intro min_original_weight1 min_original_weight1_post min_original_weight1_post1
+        refine ⟨by rw [hend1]; exact hn, by scalar_tac, by scalar_tac, ?_, ?_, ?_, ?_, by scalar_tac⟩
+        · -- Entry 0 stays 0.
+          have := min_original_weight1_post1 0 (by scalar_tac)
+          have := relax_le_old tbl.val q.val w.val 0
           omega
-        · -- Party `i` is not in the subset: its entry can only decrease.
-          simp only [hsb, ite_false, Nat.add_zero]
-          rw [min_original_weight1_post1 _ (by scalar_tac)]
-          have := relax_le_old tbl.val q.val w.val (wsum reduced.val s b i.val)
-          omega
-      · -- If each reduced weight is at most the original one, so is every finite entry.
-        intro hd u hu
-        rw [min_original_weight1_post1 u (by scalar_tac)]
-        rcases relax_cases tbl.val q.val w.val u with h | ⟨hqu, hne, h⟩
-        · rw [h]; exact hlow hd u (by scalar_tac)
-        · rw [h]
-          rcases hlow hd (u - q.val) (by scalar_tac) with h' | h'
-          · exact absurd h' hne
-          · have := hd i.val hi'
-            right; omega
+        · -- Every entry is still `u32::MAX` or at most the total original weight.
+          intro u hu
+          rw [min_original_weight1_post1 u (by scalar_tac), hstart1, total_succ, ← hw]
+          rcases relax_cases tbl.val q.val w.val u with h | ⟨hqu, hne, h⟩
+          · rw [h]
+            rcases hbound u (by scalar_tac) with h' | h'
+            · exact Or.inl h'
+            · exact Or.inr (by omega)
+          · rw [h]
+            rcases hbound (u - q.val) (by scalar_tac) with h' | h'
+            · exact absurd h' hne
+            · exact Or.inr (by omega)
+        · -- The table bounds every subset of the first `i + 1` parties.
+          intro s b
+          rw [hstart1, wsum_succ, wsum_succ, ← hw, ← hq]
+          have ha := wsum_le_total reduced.val s b i.val
+          have hc := wsum_le_total weights.val s b i.val
+          have hold := hsub s b
+          by_cases hsb : s i.val = b
+          · -- Party `i` is in the subset: its entry moves up by `q`.
+            simp only [hsb, ite_true]
+            rw [min_original_weight1_post1 _ (by scalar_tac)]
+            have hne : tbl.val[wsum reduced.val s b i.val + q.val - q.val]!.val ≠ U32.max := by
+              rw [Nat.add_sub_cancel]; scalar_tac
+            have := relax_le_shifted tbl.val q.val w.val _ (by omega) hne
+            rw [Nat.add_sub_cancel] at this
+            omega
+          · -- Party `i` is not in the subset: its entry can only decrease.
+            simp only [hsb, ite_false, Nat.add_zero]
+            rw [min_original_weight1_post1 _ (by scalar_tac)]
+            have := relax_le_old tbl.val q.val w.val (wsum reduced.val s b i.val)
+            omega
+        · -- If each reduced weight is at most the original one, so is every finite entry.
+          intro hd u hu
+          rw [min_original_weight1_post1 u (by scalar_tac)]
+          rcases relax_cases tbl.val q.val w.val u with h | ⟨hqu, hne, h⟩
+          · rw [h]; exact hlow hd u (by scalar_tac)
+          · rw [h]
+            rcases hlow hd (u - q.val) (by scalar_tac) with h' | h'
+            · exact absurd h' hne
+            · have := hd i.val hi'
+              right; omega
+      split
+      · -- `q = 0`: the inner loop is skipped, and relaxing with `q = 0` changes nothing.
+        rename_i hq0
+        simp only [WP.spec_ok]
+        exact key tbl rfl fun u _ => by rw [show q.val = 0 by scalar_tac, relax_zero]
+      · step*
+        subst iter2_post
+        step*
+        exact key _ min_original_weight1_post min_original_weight1_post1
     · obtain ⟨rfl, hstart1⟩ := ho
       simp only [WP.spec_ok]
       have : it.start.val = weights.length := by scalar_tac

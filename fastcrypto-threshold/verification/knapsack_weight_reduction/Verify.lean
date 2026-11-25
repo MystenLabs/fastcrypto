@@ -16,6 +16,9 @@ set_option maxHeartbeats 2000000
 -- As in `Knapsack.lean`, which also makes `UScalar.cast_inBounds_spec` a `step` lemma.
 attribute [-step] UScalar.cast.step_spec
 
+/-- `m` returns: it does not panic or loop forever. -/
+def Returns {α : Type _} (m : Result α) : Prop := ∃ r, m = ok r
+
 lemma spec_eq_ok {α : Type _} {m : Result α} {p : α → Prop} (h : m ⦃ x => p x ⦄) :
     ∃ x, m = ok x ∧ p x := by
   cases m with

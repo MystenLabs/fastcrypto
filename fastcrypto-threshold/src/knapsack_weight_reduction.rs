@@ -237,6 +237,9 @@ fn knapsack_min_original(weights: &[u16], reduced: &[u16], reduced_total: u32) -
     for i in 0..weights.len() {
         let w = weights[i] as u32;
         let q = reduced[i] as usize;
+        if q == 0 {
+            continue;
+        }
         for v in (q..min_original_weight.len()).rev() {
             if min_original_weight[v - q] != u32::MAX {
                 let candidate = min_original_weight[v - q] + w;

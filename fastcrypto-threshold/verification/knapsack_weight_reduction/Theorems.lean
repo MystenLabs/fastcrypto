@@ -30,24 +30,24 @@ open fastcrypto_threshold fastcrypto_threshold.knapsack_weight_reduction
 
 namespace WeightReductionProofs
 
-/-- Soundness of `verify_reduction`. If `verify_reduction(weights, t, f, delta, reduction)`
-returns `Ok(())`, then for every set `S` of parties, writing `w(S)` and `w'(S)` for the sums of
-the original and reduced weights of the parties in `S`:
+/-- Soundness of `verify_reduction`. If `verify_reduction(weights, t, f, delta, reduction)` with
+`reduction = (weights', t', f')` returns `Ok(())`, then for every set `S` of parties, writing
+`w(S)` and `w'(S)` for the sums of the original and reduced weights of the parties in `S`:
 * (P) `w(S) < t` implies `w'(S) < t'`,
 * (L1) `w(S) ≥ t + f + delta` implies `w'(S) ≥ t' + f'`,
 * (L2) `w(S) ≤ f` implies `w'(S) ≤ f'`,
 * (L3) `w(S) ≥ t + delta` implies `w'(S) ≥ t'`. -/
 theorem verify_reduction_sound (hts : ToStringReturns) (weights : Slice U16) (t f delta : U16)
-    (reduction : ReducedWeights)
-    (h : verify_reduction weights t f delta reduction = ok (.Ok ())) (S : Finset ℕ) :
+    (weights' : alloc.vec.Vec U16) (t' f' : U16)
+    (h : verify_reduction weights t f delta ⟨weights', t', f'⟩ = ok (.Ok ())) (S : Finset ℕ) :
     let n := weights.length
-    let w := ∑ i ∈ (Finset.range n).filter (· ∈ S), weights.val[i]!.val
-    let w' := ∑ i ∈ (Finset.range n).filter (· ∈ S), reduction.weights.val[i]!.val
-    (w < t.val → w' < reduction.t.val) ∧
-    (w ≥ t.val + f.val + delta.val → w' ≥ reduction.t.val + reduction.f.val) ∧
-    (w ≤ f.val → w' ≤ reduction.f.val) ∧
-    (w ≥ t.val + delta.val → w' ≥ reduction.t.val) := by
-  have := spec_of_eq_ok (verify_reduction_spec hts weights t f delta reduction) h rfl
+    let w : ℕ := ∑ i ∈ (Finset.range n).filter (· ∈ S), weights.val[i]!
+    let w' : ℕ := ∑ i ∈ (Finset.range n).filter (· ∈ S), weights'.val[i]!
+    (w < t → w' < t') ∧
+    (w ≥ t + f + delta → w' ≥ t' + f') ∧
+    (w ≤ f → w' ≤ f') ∧
+    (w ≥ t + delta → w' ≥ t') := by
+  have := spec_of_eq_ok (verify_reduction_spec hts weights t f delta ⟨weights', t', f'⟩) h rfl
     (fun i => decide (i ∈ S))
   simp only [ReductionPropertiesHold, wsum_eq_sum] at this
   exact this
@@ -56,7 +56,7 @@ theorem verify_reduction_sound (hts : ToStringReturns) (weights : Slice U16) (t 
 particular, the `panic!` in `max_reduced_weight` is unreachable. -/
 theorem verify_reduction_no_panic (hts : ToStringReturns) (weights : Slice U16)
     (t f delta : U16) (reduction : ReducedWeights) :
-    ∃ r, verify_reduction weights t f delta reduction = ok r :=
+    Returns (verify_reduction weights t f delta reduction) :=
   (spec_eq_ok (verify_reduction_spec hts weights t f delta reduction)).imp fun _ h => h.1
 
 /-- `reduce_weights` computes reductions that `verify_reduction` accepts. If
@@ -72,7 +72,7 @@ theorem reduce_weights_passes_verify (hts : ToStringReturns) (hsort : SortByPerm
 /-- `reduce_weights` does not panic: on every input, it returns a reduction or an error. -/
 theorem reduce_weights_no_panic (hts : ToStringReturns) (hsort : SortByPermutes)
     (weights : Slice U16) (t f delta total_weight_lower_bound : U16) :
-    ∃ r, reduce_weights weights t f delta total_weight_lower_bound = ok r :=
+    Returns (reduce_weights weights t f delta total_weight_lower_bound) :=
   (spec_eq_ok (reduce_weights_spec hts hsort weights t f delta total_weight_lower_bound)).imp
     fun _ h => h.1
 
