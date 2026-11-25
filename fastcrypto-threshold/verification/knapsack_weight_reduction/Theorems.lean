@@ -14,9 +14,14 @@ reduction:
 * `reduce_weights_passes_verify`: every reduction it returns passes `verify_reduction`.
 * `reduce_weights_no_panic`: it returns, without panicking, on every input.
 
-All four assume `ToStringReturns`: `to_string` returns on every `&str`. The last two also assume
-`SortByPermutes`: if the comparator of `sort_by` returns and is a total order on the slice, then
-`sort_by` returns a permutation of it.
+The assumptions:
+* `ToStringReturns`: for every `s` of type `&str`, `s.to_string()` returns a `String`.
+* `SortByPermutes`: for every mutable slice `s` and every `compare` that returns on all pairs of
+  elements of `s` and is a total order on them, `s.sort_by(compare)` returns, leaving a
+  permutation of `s`. Here, `compare` is a total order if `compare(b, a)` is the reverse of
+  `compare(a, b)`, and `compare(a, b) != Greater` and `compare(b, c) != Greater` imply
+  `compare(a, c) != Greater`. This is what the Rust documentation of `sort_by` states
+  (https://doc.rust-lang.org/std/primitive.slice.html#method.sort_by).
 -/
 
 open Aeneas Aeneas.Std Result
