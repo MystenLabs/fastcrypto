@@ -32,6 +32,17 @@ axiom Str.Insts.CoreFmtDisplay.fmt
   Str → core.fmt.Formatter → Result ((core.result.Result Unit
     core.fmt.Error) × core.fmt.Formatter)
 
+/-- [alloc::slice::{[T]}::sort_by]:
+    Source: '/rustc/library/alloc/src/slice.rs', lines 192:4-194:37
+    Name pattern: [alloc::slice::{[@T]}::sort_by]
+    Visibility: public -/
+@[rust_fun "alloc::slice::{[@T]}::sort_by"]
+axiom alloc.slice.Slice.sort_by
+  {T : Type _} {F : Type _}
+  (coreopsfunctionFnMutFPairShared0TSharedTOrderingInst :
+  core.ops.function.FnMut F (T × T) Ordering) :
+  Slice T → F → Result (Slice T)
+
 /-- [alloc::string::{impl alloc::string::ToString for T}::to_string]:
     Source: '/rustc/library/alloc/src/string.rs', lines 2965:4-2965:33
     Name pattern: [alloc::string::{alloc::string::ToString<@T>}::to_string]

@@ -17,6 +17,7 @@ trap 'rm -rf "$out"' EXIT
 cd "$root/fastcrypto-threshold"
 CARGO_TARGET_DIR="$root/target/charon" "$charon" cargo --preset aeneas \
   --start-from "crate::knapsack_weight_reduction::verify_reduction" \
+  --start-from "crate::knapsack_weight_reduction::reduce_weights" \
   --dest-file "$out/kwr.llbc"
 
 "$aeneas" -backend lean -split-files -dest "$out/lean" "$out/kwr.llbc"

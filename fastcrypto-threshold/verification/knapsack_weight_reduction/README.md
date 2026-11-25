@@ -1,17 +1,16 @@
 <!-- THIS FILE IS AI-ONLY -->
 # `fastcrypto_threshold::knapsack_weight_reduction`
 
-Proofs about the weight-reduction checker `verify_reduction` in
-`fastcrypto-threshold/src/knapsack_weight_reduction.rs`, against a Lean translation of the Rust
-code made by [Charon and Aeneas](https://github.com/AeneasVerif/aeneas). The Rust code carries no
-annotations. It is written in a style Aeneas can translate: index loops instead of iterator
-chains and closures.
+Proofs about the weight reduction in `fastcrypto-threshold/src/knapsack_weight_reduction.rs`,
+against a Lean translation of the Rust code made by
+[Charon and Aeneas](https://github.com/AeneasVerif/aeneas). The Rust code carries no annotations.
+It is written in a style Aeneas can translate: `for` loops instead of iterator chains, and small
+functions instead of closures.
 
-`verify_reduction(weights, t, f, delta, reduction)` checks a reduction of the weights `w` and
-thresholds `(t, f)` to `reduction = (w', t', f')`. `Nodes::knapsack_reduce` calls it on the output
-of `reduce_weights`, so the guarantees below hold for every reduction it returns. For a set `S` of
-parties, `w(S)` and `w'(S)` are the sums of the original and reduced weights of the parties in
-`S`.
+`reduce_weights(weights, t, f, delta, total_weight_lower_bound)` reduces the weights `w` and
+thresholds `(t, f)` to `(w', t', f')`, and `verify_reduction(weights, t, f, delta, reduction)`
+checks such a reduction. For a set `S` of parties, `w(S)` and `w'(S)` are the sums of the original
+and reduced weights of the parties in `S`.
 
 The theorems are in `Theorems.lean`. Everything else is a lemma.
 
@@ -28,7 +27,16 @@ The theorems are in `Theorems.lean`. Everything else is a lemma.
    returns `Ok(())` or an error, without overflowing or indexing out of bounds. In particular,
    the `panic!` in `max_reduced_weight` is unreachable.
 
-Both need `ToStringReturns`, listed [below](#what-is-assumed).
+3. **`reduce_weights_passes_verify`: `reduce_weights` computes reductions that pass the check.**
+   If `reduce_weights` returns `Ok(reduction)`, then `verify_reduction` with the same `weights`,
+   `t`, `f` and `delta` returns `Ok(())` on it. So by 1, every reduction it returns has the four
+   properties.
+
+4. **`reduce_weights_no_panic`: `reduce_weights` does not panic.** On every input, it returns a
+   reduction or an error, without overflowing or indexing out of bounds.
+
+All four need `ToStringReturns`, and 3 and 4 also need `SortByPermutes`, both listed
+[below](#what-is-assumed).
 
 ## Files
 
@@ -37,8 +45,9 @@ Both need `ToStringReturns`, listed [below](#what-is-assumed).
 | `Theorems.lean` | The theorems above. |
 | `Spec.lean` | The weight of a subset (`wsum`) and of all parties (`total`), the four guarantees (`ReductionPropertiesHold`), the relaxation step of the knapsack table (`relax`), and that the checks in `verify_reduction` imply the guarantees (`properties_of_checks`). |
 | `Knapsack.lean` | What `sum_u16`, `max_reduced_weight` and `knapsack_min_original` return (`sum_u16_spec`, `max_reduced_weight_spec`, `knapsack_min_original_spec`). |
-| `Verify.lean` | What `verify_reduction` returns (`verify_reduction_spec`), and the assumption `ToStringReturns`. |
-| `Generated/` | The translation of `verify_reduction` and the functions it calls, made by `extract.sh`. |
+| `Verify.lean` | What `verify_reduction` returns (`verify_reduction_spec`), when it accepts (`verify_reduction_accepts`), and the assumption `ToStringReturns`. |
+| `Reduce.lean` | What `check_candidate`, `sweep` and `reduce_weights` return (`check_candidate_spec`, `sweep_spec`, `reduce_weights_spec`), that the original weights pass `verify_reduction` (`identity_passes`), and the assumption `SortByPermutes`. |
+| `Generated/` | The translation of `verify_reduction`, `reduce_weights` and the functions they call, made by `extract.sh`. |
 | `extract.sh` | Regenerates `Generated/`. |
 
 To regenerate `Generated/` after changing `knapsack_weight_reduction.rs`, get `charon` and
@@ -51,11 +60,14 @@ To regenerate `Generated/` after changing `knapsack_weight_reduction.rs`, get `c
 * **Error messages** (`ToStringReturns`). `to_string` returns on every `&str`. It and
   `<str as Display>::fmt` stay axioms, with nothing else assumed: they are only called to build
   the message of a `GeneralError`.
+* **Sorting** (`SortByPermutes`). `sort_by` stays an axiom. `greedy_reject` sorts the indices of
+  the parties with a positive reduced weight by reduced weight per original weight, and the
+  proofs assume that `sort_by` returns a permutation of its input there. Rust documents this,
+  unless the comparator panics or is not a total order, and neither happens on these indices.
+  Nothing is assumed about the order, which only affects whether a candidate is skipped early.
 * **`usize`** has 32 or 64 bits. The theorems hold for both.
 
 ## What is not proved
 
-* Completeness: `verify_reduction` may reject a reduction that has the four properties. This
-  only affects whether `reduce_weights` finds a reduction, not the guarantees above.
-* Anything about `reduce_weights`, other than what follows from `Nodes::knapsack_reduce` checking
-  its output with `verify_reduction`.
+* Completeness of `verify_reduction`: it may reject a reduction that has the four properties.
+* Optimality of `reduce_weights`: the proofs say nothing about how small the reduced total is.

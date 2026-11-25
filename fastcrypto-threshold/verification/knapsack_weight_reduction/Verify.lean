@@ -92,9 +92,87 @@ lemma verify_reduction_spec (hts : ToStringReturns) (weights : Slice U16) (t f d
     i17.val i21.val i26.val i34.val ?_ ?_ ?_ ?_
     (by scalar_tac) (by scalar_tac) (by scalar_tac) (by scalar_tac) s
   -- Each `max_reduced_weight` result bounds the entries at most its argument.
-  · intro u hu hu'; exact i17_post1 u (by scalar_tac) (by scalar_tac)
-  · intro u hu hu'; exact i21_post1 u (by scalar_tac) (by scalar_tac)
-  · intro u hu hu'; exact i26_post1 u (by scalar_tac) (by scalar_tac)
-  · intro u hu hu'; exact i34_post1 u (by scalar_tac) (by scalar_tac)
+  · intro u hu hu'; exact i17_post2 u (by scalar_tac) (by scalar_tac)
+  · intro u hu hu'; exact i21_post2 u (by scalar_tac) (by scalar_tac)
+  · intro u hu hu'; exact i26_post2 u (by scalar_tac) (by scalar_tac)
+  · intro u hu hu'; exact i34_post2 u (by scalar_tac) (by scalar_tac)
+
+end WeightReductionProofs
+
+/-! ## When `verify_reduction` accepts -/
+
+namespace WeightReductionProofs
+open fastcrypto_threshold fastcrypto_threshold.knapsack_weight_reduction
+
+/-- `max { u ≤ len - 1 : tbl[u] ≤ b }`: what `max_reduced_weight` returns. -/
+def gmax (tbl : List U32) (b : ℕ) : ℕ :=
+  Nat.findGreatest (fun u => tbl[u]!.val ≤ b) (tbl.length - 1)
+
+lemma eq_gmax (tbl : Slice U32) (b : ℕ) (r : ℕ) (hr : r < tbl.length)
+    (hle : tbl.val[r]!.val ≤ b) (hmax : ∀ u, u < tbl.length → tbl.val[u]!.val ≤ b → u ≤ r) :
+    r = gmax tbl.val b := by
+  unfold gmax
+  symm
+  rw [Nat.findGreatest_eq_iff]
+  refine ⟨by simp only [Slice.length] at hr; omega, fun _ => hle, fun k hk hk' hP => ?_⟩
+  have := hmax k (by simp only [Slice.length] at hr ⊢; omega) hP
+  omega
+
+lemma gmax_mono (tbl : List U32) {a b : ℕ} (h : a ≤ b) : gmax tbl a ≤ gmax tbl b :=
+  Nat.findGreatest_mono (fun _ hu => le_trans hu h) le_rfl
+
+lemma gmax_le (tbl : List U32) (b : ℕ) : gmax tbl b ≤ tbl.length - 1 :=
+  Nat.findGreatest_le _
+
+/-- `max_reduced_weight` returns `gmax`. -/
+lemma max_reduced_weight_gmax (tbl : Slice U32) (weight : U32)
+    (hlen : 1 ≤ tbl.length) (hlen' : tbl.length ≤ 65536) (h0 : tbl.val[0]!.val = 0) :
+    max_reduced_weight tbl weight ⦃ r => r.val = gmax tbl.val weight.val ∧ r.val < tbl.length ⦄ :=
+  WP.spec_mono (max_reduced_weight_spec tbl weight hlen hlen' h0)
+    fun r ⟨hr, hle, hmax⟩ => ⟨eq_gmax tbl weight.val r.val hr hle hmax, hr⟩
+
+-- In the next lemma, `step*` uses the table given as a hypothesis.
+attribute [-step] knapsack_min_original_spec max_reduced_weight_spec
+
+set_option maxHeartbeats 4000000 in
+/-- `verify_reduction` accepts `reduction` if the checks on the inputs pass, and the four values
+of `max_reduced_weight` on its table `tbl` pass the checks (P), (L2), (L3) and (L1). -/
+lemma verify_reduction_accepts (hts : ToStringReturns) (weights : Slice U16) (t f delta : U16)
+    (reduction : ReducedWeights) (tbl : alloc.vec.Vec U32) (RT : U32)
+    (hlen : reduction.weights.length = weights.length) (hn : weights.length ≤ 1000)
+    (hW : total weights.val weights.length ≤ 65535)
+    (hRT : RT.val = total reduction.weights.val weights.length) (hRT' : RT.val ≤ 65535)
+    (htbl : knapsack_min_original weights (alloc.vec.Vec.deref reduction.weights) RT = ok tbl)
+    (hlenT : tbl.length = RT.val + 1) (h0 : tbl.val[0]!.val = 0)
+    (ht : 1 ≤ t.val) (hf : 1 ≤ f.val) (hft : f.val < t.val)
+    (htf : t.val + 2 * f.val ≤ total weights.val weights.length)
+    (htfd : t.val + f.val + delta.val ≤ total weights.val weights.length)
+    (ht' : 1 ≤ reduction.t.val) (hf' : 1 ≤ reduction.f.val)
+    (hft' : reduction.f.val < reduction.t.val)
+    (hP : gmax tbl.val (t.val - 1) ≤ reduction.t.val - 1)
+    (hL2 : gmax tbl.val f.val ≤ reduction.f.val)
+    (hL3 : reduction.t.val ≤
+      RT.val - gmax tbl.val (total weights.val weights.length - (t.val + delta.val)))
+    (hL1 : reduction.t.val + reduction.f.val ≤
+      RT.val - gmax tbl.val (total weights.val weights.length - (t.val + f.val + delta.val))) :
+    verify_reduction weights t f delta reduction = ok (.Ok ()) := by
+  have hk : ∀ rt : U32, rt.val = RT.val →
+      knapsack_min_original weights (alloc.vec.Vec.deref reduction.weights) rt ⦃ y => y = tbl ⦄ := by
+    intro rt h
+    have : rt = RT := UScalar.eq_of_val_eq h
+    rw [this, htbl]; simp
+  have hm : ∀ b : U32, max_reduced_weight (alloc.vec.Vec.deref tbl) b ⦃ r =>
+      r.val = gmax tbl.val b.val ⦄ := fun b => by
+    simpa using WP.spec_mono (max_reduced_weight_gmax (alloc.vec.Vec.deref tbl) b
+      (by simp [hlenT]) (by simp [hlenT]; omega) (by simpa using h0)) fun _ h => h.1
+  have := to_string_spec hts
+  suffices hs : verify_reduction weights t f delta reduction ⦃ r => r = .Ok () ⦄ by
+    obtain ⟨r, h, rfl⟩ := spec_eq_ok hs; exact h
+  unfold verify_reduction
+  step*
+  all_goals try vr_tac
+  subst min_original_weight_map_post
+  step*
+  all_goals vr_tac
 
 end WeightReductionProofs

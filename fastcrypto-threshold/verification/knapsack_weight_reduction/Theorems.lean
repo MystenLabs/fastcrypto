@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import knapsack_weight_reduction.Verify
+import knapsack_weight_reduction.Reduce
 
 /-!
 The theorems about `verify_reduction(weights, t, f, delta, reduction)` in
@@ -9,7 +9,14 @@ The theorems about `verify_reduction(weights, t, f, delta, reduction)` in
   set of parties.
 * `verify_reduction_no_panic`: it returns, without panicking, on every input.
 
-Both assume `ToStringReturns`: `to_string` returns on every `&str`.
+And about `reduce_weights(weights, t, f, delta, total_weight_lower_bound)`, which computes such a
+reduction:
+* `reduce_weights_passes_verify`: every reduction it returns passes `verify_reduction`.
+* `reduce_weights_no_panic`: it returns, without panicking, on every input.
+
+All four assume `ToStringReturns`: `to_string` returns on every `&str`. The last two also assume
+`SortByPermutes`: `sort_by`, with the comparator in `greedy_reject`, returns a permutation of its
+input.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -31,9 +38,9 @@ theorem verify_reduction_sound (hts : ToStringReturns) (weights : Slice U16) (t 
     let w := ∑ i ∈ (Finset.range n).filter (· ∈ S), weights.val[i]!.val
     let w' := ∑ i ∈ (Finset.range n).filter (· ∈ S), reduction.weights.val[i]!.val
     (w < t.val → w' < reduction.t.val) ∧
-    (t.val + f.val + delta.val ≤ w → reduction.t.val + reduction.f.val ≤ w') ∧
+    (w ≥ t.val + f.val + delta.val → w' ≥ reduction.t.val + reduction.f.val) ∧
     (w ≤ f.val → w' ≤ reduction.f.val) ∧
-    (t.val + delta.val ≤ w → reduction.t.val ≤ w') := by
+    (w ≥ t.val + delta.val → w' ≥ reduction.t.val) := by
   have := spec_of_eq_ok (verify_reduction_spec hts weights t f delta reduction) h rfl
     (fun i => decide (i ∈ S))
   simp only [ReductionPropertiesHold, wsum_eq_sum] at this
@@ -45,5 +52,22 @@ theorem verify_reduction_no_panic (hts : ToStringReturns) (weights : Slice U16)
     (t f delta : U16) (reduction : ReducedWeights) :
     ∃ r, verify_reduction weights t f delta reduction = ok r :=
   (spec_eq_ok (verify_reduction_spec hts weights t f delta reduction)).imp fun _ h => h.1
+
+/-- `reduce_weights` computes reductions that `verify_reduction` accepts. If
+`reduce_weights(weights, t, f, delta, total_weight_lower_bound)` returns `Ok(reduction)`, then
+`verify_reduction(weights, t, f, delta, reduction)` returns `Ok(())`. -/
+theorem reduce_weights_passes_verify (hts : ToStringReturns) (hsort : SortByPermutes)
+    (weights : Slice U16) (t f delta total_weight_lower_bound : U16) (reduction : ReducedWeights)
+    (h : reduce_weights weights t f delta total_weight_lower_bound = ok (.Ok reduction)) :
+    verify_reduction weights t f delta reduction = ok (.Ok ()) :=
+  spec_of_eq_ok (reduce_weights_spec hts hsort weights t f delta total_weight_lower_bound) h
+    reduction rfl
+
+/-- `reduce_weights` does not panic: on every input, it returns a reduction or an error. -/
+theorem reduce_weights_no_panic (hts : ToStringReturns) (hsort : SortByPermutes)
+    (weights : Slice U16) (t f delta total_weight_lower_bound : U16) :
+    ∃ r, reduce_weights weights t f delta total_weight_lower_bound = ok r :=
+  (spec_eq_ok (reduce_weights_spec hts hsort weights t f delta total_weight_lower_bound)).imp
+    fun _ h => h.1
 
 end WeightReductionProofs

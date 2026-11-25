@@ -51,4 +51,14 @@ structure knapsack_weight_reduction.ReducedWeights where
   t : Std.U16
   f : Std.U16
 
+/-- [fastcrypto_threshold::knapsack_weight_reduction::greedy_reject::{closure#1}]
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 293:18-293:92 -/
+def knapsack_weight_reduction.greedy_reject.closure_1 :=
+  Slice Std.U16 × Slice Std.U16 × alloc.vec.Vec Std.Usize
+
+/-- [fastcrypto_threshold::knapsack_weight_reduction::greedy_reject::{closure}]
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 284:23-287:5 -/
+def knapsack_weight_reduction.greedy_reject.closure :=
+  Slice Std.U16 × Slice Std.U16
+
 end fastcrypto_threshold
