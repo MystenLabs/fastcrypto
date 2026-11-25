@@ -16,6 +16,7 @@ use crate::{
         ToFromBytes, VerifyingKey,
     },
 };
+use itertools::iproduct;
 use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, RngCore, SeedableRng as _};
 use std::collections::hash_map::DefaultHasher;
@@ -398,6 +399,7 @@ fn test_bytes_representations() {
         BLS12381AggregateSignature::try_from(&aggregate_bytes).unwrap(),
         aggregate
     );
+    assert_eq!(pk_bytes.to_string(), Base64::encode(pk.as_bytes()));
 
     // Deserializing a bytes representation does not validate it: any bytes of the right length
     // are accepted, and only the conversion to the key or signature can fail.
@@ -412,13 +414,15 @@ fn test_bytes_representations() {
     assert!(BLS12381PublicKey::try_from(&pk_bytes).unwrap().validate().is_err());
 
     // Human-readable serde uses base64 of exactly the compressed length, so the uncompressed
-    // encoding is rejected.
+    // encoding and a shorter one are rejected.
     let pk_bytes = BLS12381PublicKeyAsBytes::from(&pk);
     let json = serde_json::to_string(&pk_bytes).unwrap();
     assert_eq!(json, format!("\"{}\"", Base64::encode(pk.as_bytes())));
     assert_eq!(serde_json::from_str::<BLS12381PublicKeyAsBytes>(&json).unwrap(), pk_bytes);
-    let json = format!("\"{}\"", Base64::encode(uncompressed_public_key(&pk)));
-    assert!(serde_json::from_str::<BLS12381PublicKeyAsBytes>(&json).is_err());
+    for bytes in [&uncompressed_public_key(&pk)[..], &pk.as_bytes()[1..]] {
+        let json = format!("\"{}\"", Base64::encode(bytes));
+        assert!(serde_json::from_str::<BLS12381PublicKeyAsBytes>(&json).is_err());
+    }
 }
 
 #[test]
@@ -1127,15 +1131,19 @@ fn test_batch_verify_edge_cases() {
         }
     }
 
-    // Length mismatches.
-    assert_eq!(
-        BLS12381AggregateSignature::batch_verify(&all[..2], groups(), &messages),
-        Err(FastCryptoError::InputLengthWrong(2))
-    );
-    assert_eq!(
-        BLS12381AggregateSignature::batch_verify(&all, groups(), &messages[..2]),
-        Err(FastCryptoError::InputLengthWrong(3))
-    );
+    // Length mismatches, whichever list is longer.
+    for (s, p, m) in iproduct!(2..=3, 2..=3, 2..=3) {
+        let mut pks = groups();
+        pks.truncate(p);
+        assert_eq!(
+            BLS12381AggregateSignature::batch_verify(&all[..s], pks, &messages[..m]),
+            if s == p && p == m {
+                Ok(())
+            } else {
+                Err(FastCryptoError::InputLengthWrong(s))
+            }
+        );
+    }
 
     // Public keys are not validated (callers must validate them and check proofs of possession),
     // so an infinity key in a group does not change the aggregated key and the entry still verifies.
@@ -1656,6 +1664,12 @@ pub mod min_sig {
         assert_eq!(sk.as_bytes(), secret);
         assert_eq!(pk.as_bytes(), public);
         assert_eq!(sig.as_bytes(), signature);
+    }
+
+    #[test]
+    fn test_default_aggregate_signature_bytes() {
+        let bytes = BLS12381AggregateSignatureAsBytes::default();
+        assert_eq!(bytes.0, BLS12381AggregateSignature::default().as_bytes());
     }
 
     #[test]

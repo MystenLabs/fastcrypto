@@ -22,6 +22,7 @@ use curve25519_dalek::edwards::{CompressedEdwardsY, EdwardsPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::IsIdentity;
 use hex_literal::hex;
+use itertools::iproduct;
 use proptest::prelude::*;
 use proptest::strategy::{Strategy, ValueTree};
 use proptest::test_runner::TestRunner;
@@ -1231,6 +1232,49 @@ fn verify_invalid_aggregate_signature_length_mismatch() {
 
     let res = aggregated_signature.verify(&pubkeys[..2], &digest);
     assert!(res.is_err(), "{:?}", res);
+}
+
+/// Every function that takes several lists accepts only lists of the same length. All the entries
+/// are valid, so ignoring the end of a longer list would accept it.
+#[test]
+fn verify_rejects_lists_of_different_lengths() {
+    let (digest, pubkeys, signatures) = signature_test_inputs();
+    let messages = [&digest[..]; 3];
+    let aggregate = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
+    for (s, p, m) in iproduct!(2..=3, 2..=3, 2..=3) {
+        let (sigs, pks, msgs) = (&signatures[..s], &pubkeys[..p], &messages[..m]);
+        let all_equal = s == p && p == m;
+
+        assert_eq!(
+            Ed25519PublicKey::verify_batch_empty_fail(&digest, pks, sigs).is_ok(),
+            s == p
+        );
+        assert_eq!(
+            Ed25519PublicKey::verify_batch_empty_fail_different_msg(msgs, pks, sigs).is_ok(),
+            all_equal
+        );
+
+        // One aggregate of s signatures.
+        let shorter = Ed25519AggregateSignature::aggregate(sigs).unwrap();
+        assert_eq!(shorter.verify(pks, &digest).is_ok(), s == p);
+        assert_eq!(shorter.verify_different_msg(pks, msgs).is_ok(), all_equal);
+        assert_eq!(
+            Ed25519AggregateSignature::batch_verify(&[&shorter], vec![pks.iter()], &messages[..1])
+                .is_ok(),
+            s == p
+        );
+
+        // A batch of s aggregates.
+        assert_eq!(
+            Ed25519AggregateSignature::batch_verify(
+                &vec![&aggregate; s],
+                vec![pubkeys.iter(); p],
+                msgs
+            )
+            .is_ok(),
+            all_equal
+        );
+    }
 }
 
 #[test]

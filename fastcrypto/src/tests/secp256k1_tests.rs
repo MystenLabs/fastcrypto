@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use itertools::iproduct;
 use k256::ecdsa::signature::hazmat::{PrehashSigner, PrehashVerifier};
 use proptest::strategy::ValueTree;
 use proptest::test_runner::TestRunner;
@@ -799,6 +800,14 @@ fn verify_batch_missing_public_keys() {
         &signatures,
     );
     assert!(res.is_err(), "{:?}", res);
+
+    // missing trailing signatures
+    let res = Secp256k1PublicKey::verify_batch_empty_fail(
+        &digest,
+        &pubkeys,
+        &signatures[..signatures.len() - 1],
+    );
+    assert!(res.is_err(), "{:?}", res);
 }
 
 #[test]
@@ -816,17 +825,21 @@ fn verify_valid_batch_different_msg() {
 fn verify_invalid_batch_different_msg() {
     let mut inputs = test_helpers::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
 
-    // Empty inputs and length mismatches.
+    // Empty inputs and length mismatches. All the entries are valid, so ignoring the end of a longer
+    // list would accept it.
     let (msgs, pks, sigs) = (&inputs.digests, &inputs.pubkeys, &inputs.signatures);
-    for (msgs, pks, sigs) in [
-        (&msgs[..0], &pks[..0], &sigs[..0]),
-        (&msgs[1..], &pks[..], &sigs[..]),
-        (&msgs[..], &pks[1..], &sigs[..]),
-        (&msgs[..], &pks[..], &sigs[1..]),
-    ] {
+    for (m, p, s) in iproduct!([0, 2, 3], [0, 2, 3], [0, 2, 3]) {
         assert_eq!(
-            Secp256k1PublicKey::verify_batch_empty_fail_different_msg(msgs, pks, sigs),
-            Err(FastCryptoError::InvalidInput)
+            Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
+                &msgs[..m],
+                &pks[..p],
+                &sigs[..s]
+            ),
+            if m == p && p == s && s > 0 {
+                Ok(())
+            } else {
+                Err(FastCryptoError::InvalidInput)
+            }
         );
     }
 
