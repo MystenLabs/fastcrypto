@@ -15,8 +15,8 @@ reduction:
 * `reduce_weights_no_panic`: it returns, without panicking, on every input.
 
 All four assume `ToStringReturns`: `to_string` returns on every `&str`. The last two also assume
-`SortByPermutes`: `sort_by`, with the comparator in `greedy_reject`, returns a permutation of its
-input.
+`SortByPermutes`: if the comparator of `sort_by` returns and is a total order on the slice, then
+`sort_by` returns a permutation of it.
 -/
 
 open Aeneas Aeneas.Std Result

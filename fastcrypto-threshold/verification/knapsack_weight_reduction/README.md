@@ -46,7 +46,7 @@ All four need `ToStringReturns`, and 3 and 4 also need `SortByPermutes`, both li
 | `Spec.lean` | The weight of a subset (`wsum`) and of all parties (`total`), the four guarantees (`ReductionPropertiesHold`), the relaxation step of the knapsack table (`relax`), and that the checks in `verify_reduction` imply the guarantees (`properties_of_checks`). |
 | `Knapsack.lean` | What `sum_u16`, `max_reduced_weight` and `knapsack_min_original` return (`sum_u16_spec`, `max_reduced_weight_spec`, `knapsack_min_original_spec`). |
 | `Verify.lean` | What `verify_reduction` returns (`verify_reduction_spec`), when it accepts (`verify_reduction_accepts`), and the assumption `ToStringReturns`. |
-| `Reduce.lean` | What `check_candidate`, `sweep` and `reduce_weights` return (`check_candidate_spec`, `sweep_spec`, `reduce_weights_spec`), that the original weights pass `verify_reduction` (`identity_passes`), and the assumption `SortByPermutes`. |
+| `Reduce.lean` | What `check_candidate`, `sweep` and `reduce_weights` return (`check_candidate_spec`, `sweep_spec`, `reduce_weights_spec`), that the original weights pass `verify_reduction` (`identity_passes`), the assumption `SortByPermutes`, and that the comparator in `greedy_reject` is a total order (`greedy_comparator_total`). |
 | `Generated/` | The translation of `verify_reduction`, `reduce_weights` and the functions they call, made by `extract.sh`. |
 | `extract.sh` | Regenerates `Generated/`. |
 
@@ -60,11 +60,11 @@ To regenerate `Generated/` after changing `knapsack_weight_reduction.rs`, get `c
 * **Error messages** (`ToStringReturns`). `to_string` returns on every `&str`. It and
   `<str as Display>::fmt` stay axioms, with nothing else assumed: they are only called to build
   the message of a `GeneralError`.
-* **Sorting** (`SortByPermutes`). `sort_by` stays an axiom. `greedy_reject` sorts the indices of
-  the parties with a positive reduced weight by reduced weight per original weight, and the
-  proofs assume that `sort_by` returns a permutation of its input there. Rust documents this,
-  unless the comparator panics or is not a total order, and neither happens on these indices.
-  Nothing is assumed about the order, which only affects whether a candidate is skipped early.
+* **Sorting** (`SortByPermutes`). `sort_by` stays an axiom. The proofs assume what Rust documents
+  about it: if the comparator returns on the elements of the slice and is a total order on them,
+  `sort_by` returns a permutation of the slice. Nothing is assumed about the order, which only
+  affects whether `greedy_reject` skips a candidate early. That the comparator in `greedy_reject`
+  returns and is a total order on the parties it sorts is proved (`greedy_comparator_total`).
 * **`usize`** has 32 or 64 bits. The theorems hold for both.
 
 ## What is not proved

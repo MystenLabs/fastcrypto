@@ -196,17 +196,93 @@ lemma greedy_reject_loop_spec (reduced : Slice U16)
       exact ⟨by omega, fun y hy => ⟨by have := hin y hy; scalar_tac, (hin y hy).2⟩⟩
   · exact ⟨hs, hi, hc, hlen, hin⟩
 
-/-- `sort_by` with the comparator of `greedy_reject` returns a permutation of its input, if every
-index in it is in bounds and has a positive reduced weight. Rust's `sort_by` only panics if the
-comparator panics or is not a total order: on such indices, the comparator does not panic, and it
-orders the parties by reduced weight per original weight, which is a total preorder. -/
+/-- `cmp` returns on every pair of elements of `xs`, without changing its state, and is a total
+order on them, which is what Rust requires of the comparator of `sort_by`: comparing `b` with `a`
+gives the reverse of comparing `a` with `b`, and "not greater" is transitive. -/
+def TotalOrderOn {T F : Type} (inst : core.ops.function.FnMut F (T × T) Ordering) (cmp : F)
+    (xs : List T) : Prop :=
+  ∃ ord : T → T → Ordering,
+    (∀ a ∈ xs, ∀ b ∈ xs, inst.call_mut cmp (a, b) = ok (ord a b, cmp)) ∧
+    (∀ a ∈ xs, ∀ b ∈ xs, ord b a = (ord a b).swap) ∧
+    (∀ a ∈ xs, ∀ b ∈ xs, ∀ c ∈ xs, ord a b ≠ .gt → ord b c ≠ .gt → ord a c ≠ .gt)
+
+/-- `sort_by`, as Rust documents it: if the comparator returns on the elements of the slice and is
+a total order on them, `sort_by` returns a permutation of the slice. -/
 def SortByPermutes : Prop :=
-  ∀ (reduced weights : Slice U16) (s : Slice Usize),
-    (∀ i ∈ s.val, i.val < reduced.length ∧ i.val < weights.length ∧
-      0 < reduced.val[i.val]!.val) →
-    ∃ s', alloc.slice.Slice.sort_by
+  ∀ {T F : Type} (inst : core.ops.function.FnMut F (T × T) Ordering) (s : Slice T) (cmp : F),
+    TotalOrderOn inst cmp s.val →
+    ∃ s', alloc.slice.Slice.sort_by inst s cmp = ok s' ∧ s'.val.Perm s.val
+
+/-- The comparator of `greedy_reject` on the parties `a` and `b`: `reduced[b] * weights[a]`
+compared with `reduced[a] * weights[b]`, which orders the parties by reduced weight per original
+weight, densest first. -/
+def densityCmp (reduced weights : Slice U16) (a b : Usize) : Ordering :=
+  compare (reduced.val[b.val]!.val * weights.val[a.val]!.val)
+    (reduced.val[a.val]!.val * weights.val[b.val]!.val)
+
+lemma compare_swap_nat (x y : ℕ) : compare y x = (compare x y).swap := by
+  rcases lt_trichotomy x y with h | h | h
+  · rw [compare_gt_iff_gt.mpr h, compare_lt_iff_lt.mpr h]; rfl
+  · subst h; rw [compare_eq_iff_eq.mpr rfl]; rfl
+  · rw [compare_lt_iff_lt.mpr h, compare_gt_iff_gt.mpr h]; rfl
+
+lemma compare_ne_gt_iff (x y : ℕ) : compare x y ≠ .gt ↔ x ≤ y := by
+  rw [Ne, compare_gt_iff_gt]; omega
+
+/-- The comparator of `greedy_reject` returns `densityCmp` on parties that are in bounds. -/
+lemma greedy_comparator_call (reduced weights : Slice U16) (a b : Usize)
+    (ha : a.val < reduced.length ∧ a.val < weights.length)
+    (hb : b.val < reduced.length ∧ b.val < weights.length) :
+    greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering.call_mut
+      (reduced, weights) (a, b) = ok (densityCmp reduced weights a b, (reduced, weights)) := by
+  have h : greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering.call_mut
+      (reduced, weights) (a, b) ⦃ r => r = (densityCmp reduced weights a b, (reduced, weights)) ⦄ := by
+    unfold greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering.call_mut
+    have h1 : reduced.val[b.val]!.val * weights.val[a.val]!.val ≤ 65535 * 65535 :=
+      Nat.mul_le_mul (by scalar_tac) (by scalar_tac)
+    have h2 : reduced.val[a.val]!.val * weights.val[b.val]!.val ≤ 65535 * 65535 :=
+      Nat.mul_le_mul (by scalar_tac) (by scalar_tac)
+    step*
+    simp only [lift, bind_ok, WP.spec_ok, densityCmp]
+    rw [getElem!_of_lt reduced.val b.val (by scalar_tac),
+      getElem!_of_lt weights.val a.val (by scalar_tac),
+      getElem!_of_lt reduced.val a.val (by scalar_tac),
+      getElem!_of_lt weights.val b.val (by scalar_tac)]
+    simp [core.cmp.impls.OrdU32.cmp, i4_post, i9_post, i1_post, i3_post, i6_post, i8_post,
+      i_post, i2_post, i5_post, i7_post]
+    rfl
+  obtain ⟨r, hr, rfl⟩ := spec_eq_ok h
+  exact hr
+
+/-- The comparator of `greedy_reject` is a total order on parties that are in bounds and have a
+positive reduced weight. -/
+lemma greedy_comparator_total (reduced weights : Slice U16) (xs : List Usize)
+    (h : ∀ i ∈ xs, i.val < reduced.length ∧ i.val < weights.length ∧
+      0 < reduced.val[i.val]!.val) :
+    TotalOrderOn
       greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering
-      s (reduced, weights) = ok s' ∧ s'.val.Perm s.val
+      (reduced, weights) xs := by
+  refine ⟨densityCmp reduced weights, fun a ha b hb => ?_, fun a _ b _ => ?_,
+    fun a _ b hb c _ hab hbc => ?_⟩
+  · exact greedy_comparator_call reduced weights a b ⟨(h a ha).1, (h a ha).2.1⟩
+      ⟨(h b hb).1, (h b hb).2.1⟩
+  · exact compare_swap_nat _ _
+  · simp only [densityCmp, compare_ne_gt_iff] at hab hbc ⊢
+    -- With `ra = reduced[a]`, `wa = weights[a]` and so on: from `rb wa ≤ ra wb` and
+    -- `rc wb ≤ rb wc`, `rb (rc wa) ≤ rb (ra wc)`, and `rb > 0`.
+    have hrb := (h b hb).2.2
+    refine Nat.le_of_mul_le_mul_left ?_ hrb
+    calc reduced.val[b.val]!.val * (reduced.val[c.val]!.val * weights.val[a.val]!.val)
+        = reduced.val[c.val]!.val * (reduced.val[b.val]!.val * weights.val[a.val]!.val) := by
+          ring
+      _ ≤ reduced.val[c.val]!.val * (reduced.val[a.val]!.val * weights.val[b.val]!.val) :=
+          Nat.mul_le_mul_left _ hab
+      _ = reduced.val[a.val]!.val * (reduced.val[c.val]!.val * weights.val[b.val]!.val) := by
+          ring
+      _ ≤ reduced.val[a.val]!.val * (reduced.val[b.val]!.val * weights.val[c.val]!.val) :=
+          Nat.mul_le_mul_left _ hbc
+      _ = reduced.val[b.val]!.val * (reduced.val[a.val]!.val * weights.val[c.val]!.val) := by
+          ring
 
 @[step]
 lemma greedy_reject_closure_1_spec (weights reduced : Slice U16) (v : alloc.vec.Vec Usize)
@@ -231,7 +307,9 @@ lemma greedy_reject_spec (hsort : SortByPermutes) (weights reduced : Slice U16)
         greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering
         s (reduced, weights) ⦃ s' => s'.val.Perm s.val ⦄ := by
     intro s h
-    obtain ⟨s', h1, h2⟩ := hsort reduced weights s h
+    obtain ⟨s', h1, h2⟩ := hsort
+      greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering s
+      ((reduced, weights) : greedy_reject.closure) (greedy_comparator_total reduced weights s.val h)
     rw [h1]; simpa using h2
   simp only [core.slice.Slice.iter, core.iter.traits.iterator.Iterator.enumerate.trait_default,
     core.iter.traits.iterator.Iterator.enumerate.default, bind_ok]
