@@ -1,5 +1,6 @@
 -- THIS FILE IS AI-ONLY
 import knapsack_weight_reduction.Knapsack
+import knapsack_weight_reduction.Spec
 
 /-!
 What `verify_reduction` returns (`verify_reduction_spec`), under the assumption
@@ -36,11 +37,6 @@ macro "vr_tac" : tactic => `(tactic| first
   | (simp only [deref_val, deref_length] at *; agrind)
   | (simp [U16.rMax, U32.rMax] at *; scalar_tac)
   | (simp only [deref_val, deref_length] at *; simp_all))
-
-/-- `to_string` returns on every `&str`. It is only called to build the message of a
-`GeneralError`, and nothing is assumed about the string it returns. -/
-def ToStringReturns : Prop :=
-  ∀ s : Str, ∃ r, alloc.string.ToString.Blanket.to_string Str.Insts.CoreFmtDisplay s = ok r
 
 lemma to_string_spec (hts : ToStringReturns) (s : Str) :
     alloc.string.ToString.Blanket.to_string Str.Insts.CoreFmtDisplay s ⦃ _ => True ⦄ := by

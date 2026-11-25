@@ -196,23 +196,6 @@ lemma greedy_reject_loop_spec (reduced : Slice U16)
       exact ⟨by omega, fun y hy => ⟨by have := hin y hy; scalar_tac, (hin y hy).2⟩⟩
   · exact ⟨hs, hi, hc, hlen, hin⟩
 
-/-- `cmp` returns on every pair of elements of `xs`, without changing its state, and is a total
-order on them, which is what Rust requires of the comparator of `sort_by`: comparing `b` with `a`
-gives the reverse of comparing `a` with `b`, and "not greater" is transitive. -/
-def TotalOrderOn {T F : Type} (inst : core.ops.function.FnMut F (T × T) Ordering) (cmp : F)
-    (xs : List T) : Prop :=
-  ∃ ord : T → T → Ordering,
-    (∀ a ∈ xs, ∀ b ∈ xs, inst.call_mut cmp (a, b) = ok (ord a b, cmp)) ∧
-    (∀ a ∈ xs, ∀ b ∈ xs, ord b a = (ord a b).swap) ∧
-    (∀ a ∈ xs, ∀ b ∈ xs, ∀ c ∈ xs, ord a b ≠ .gt → ord b c ≠ .gt → ord a c ≠ .gt)
-
-/-- `sort_by`, as Rust documents it: if the comparator returns on the elements of the slice and is
-a total order on them, `sort_by` returns a permutation of the slice. -/
-def SortByPermutes : Prop :=
-  ∀ {T F : Type} (inst : core.ops.function.FnMut F (T × T) Ordering) (s : Slice T) (cmp : F),
-    TotalOrderOn inst cmp s.val →
-    ∃ s', alloc.slice.Slice.sort_by inst s cmp = ok s' ∧ s'.val.Perm s.val
-
 /-- The comparator of `greedy_reject` on the parties `a` and `b`: `reduced[b] * weights[a]`
 compared with `reduced[a] * weights[b]`, which orders the parties by reduced weight per original
 weight, densest first. -/

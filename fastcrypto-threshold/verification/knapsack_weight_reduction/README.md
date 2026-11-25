@@ -12,7 +12,9 @@ thresholds `(t, f)` to `(w', t', f')`, and `verify_reduction(weights, t, f, delt
 checks such a reduction. For a set `S` of parties, `w(S)` and `w'(S)` are the sums of the original
 and reduced weights of the parties in `S`.
 
-The theorems are in `Theorems.lean`. Everything else is a lemma.
+The statements of the theorems and their assumptions are in `Spec.lean`, the claim of the
+proofs, which a reviewer reads in full. `Theorems.lean` proves them, and everything else is a
+lemma. Lean checks all proofs, so they need no review.
 
 ## Theorems
 
@@ -38,16 +40,21 @@ Both need `ToStringReturns`, and 2 also needs `SortByPermutes`, both listed
 
 | File | Contents |
 |---|---|
-| `Theorems.lean` | The theorems above. |
-| `Spec.lean` | The weight of a subset (`wsum`) and of all parties (`total`), the four guarantees (`ReductionPropertiesHold`), the relaxation step of the knapsack table (`relax`), and that the checks in `verify_reduction` imply the guarantees (`properties_of_checks`). |
+| `Spec.lean` | The statements of the theorems above (`VerifyReductionSound`, `ReduceWeightsPassesVerify`) and the assumptions (`ToStringReturns`, `SortByPermutes`). |
+| `Theorems.lean` | The proofs of the statements, and their axiom reports. |
+| `Subsets.lean` | The weight of a subset (`wsum`) and of all parties (`total`), the four guarantees (`ReductionPropertiesHold`), the relaxation step of the knapsack table (`relax`), and that the checks in `verify_reduction` imply the guarantees (`properties_of_checks`). |
 | `Knapsack.lean` | What `sum_u16`, `max_reduced_weight` and `knapsack_min_original` return (`sum_u16_spec`, `max_reduced_weight_spec`, `knapsack_min_original_spec`). |
-| `Verify.lean` | What `verify_reduction` returns (`verify_reduction_spec`), when it accepts (`verify_reduction_accepts`), and the assumption `ToStringReturns`. |
-| `Reduce.lean` | What `check_candidate`, `sweep` and `reduce_weights` return (`check_candidate_spec`, `sweep_spec`, `reduce_weights_spec`), that the original weights pass `verify_reduction` (`identity_passes`), the assumption `SortByPermutes`, and that the comparator in `greedy_reject` is a total order (`greedy_comparator_total`). |
+| `Verify.lean` | What `verify_reduction` returns (`verify_reduction_spec`), and when it accepts (`verify_reduction_accepts`). |
+| `Reduce.lean` | What `check_candidate`, `sweep` and `reduce_weights` return (`check_candidate_spec`, `sweep_spec`, `reduce_weights_spec`), that the original weights pass `verify_reduction` (`identity_passes`), and that the comparator in `greedy_reject` is a total order (`greedy_comparator_total`). |
 | `Generated/` | The translation of `verify_reduction`, `reduce_weights` and the functions they call, made by `extract.sh`. |
 | `extract.sh` | Regenerates `Generated/`. |
 
 To regenerate `Generated/` after changing `knapsack_weight_reduction.rs`, get `charon` and
 `aeneas` from the Aeneas release named in `extract.sh` and run `CHARON=... AENEAS=... ./extract.sh`.
+
+The workflow `Weight Reduction Lean Proof` checks this on each change to `fastcrypto-threshold`:
+it runs `extract.sh`, fails if `Generated/` is not what `extract.sh` makes from the current Rust
+code, builds the proofs, and fails if a proof uses `sorry` or an axiom report is absent.
 
 ## What is assumed
 

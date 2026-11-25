@@ -1,174 +1,89 @@
 -- THIS FILE IS AI-ONLY
-import Aeneas
+import knapsack_weight_reduction.Generated.Funs
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 
-open Aeneas Std
+/-!
+The statements of the theorems about `fastcrypto_threshold::knapsack_weight_reduction`, and their
+assumptions. `Theorems.lean` proves the statements. This file is the claim of the proofs, so a
+reviewer reads it in full. The rest is checked by Lean.
+
+The statements are about the Lean translation of the Rust code in `Generated/`. There, a `U16` is
+a Rust `u16`, which Lean converts to its value as a natural number where needed, so sums do not
+overflow.
+
+The assumptions are about functions of the Rust standard library that the Aeneas library does not
+model, so the translation leaves them undefined:
+* `ToStringReturns`: for every `s` of type `&str`, `s.to_string()` returns a `String`.
+* `SortByPermutes`: for every mutable slice `s` and every `compare` that returns on all pairs of
+  elements of `s` and is a total order on them, `s.sort_by(compare)` returns, leaving a
+  permutation of `s`. Here, `compare` is a total order if `compare(b, a)` is the reverse of
+  `compare(a, b)`, and `compare(a, b) != Greater` and `compare(b, c) != Greater` imply
+  `compare(a, c) != Greater`. This is what the Rust documentation of `sort_by` states
+  (https://doc.rust-lang.org/std/primitive.slice.html#method.sort_by).
+-/
+
+open Aeneas Aeneas.Std Result
+open fastcrypto_threshold fastcrypto_threshold.knapsack_weight_reduction
 
 namespace WeightReductionProofs
 
-/-!
-Weights of subsets of the parties, the four guarantees, and the pure lemmas about them. Nothing
-here depends on the translated code.
+/-! ## Assumptions -/
 
-A subset `S` of the parties is a predicate `s : ℕ → Bool`: party `i` is in `S` iff `s i`.
-`wsum_eq_sum` relates this to `Finset`s, in which the theorems are stated.
--/
+/-- `to_string` returns on every `&str`. It is only called to build the message of a
+`GeneralError`, and nothing is assumed about the string it returns. -/
+def ToStringReturns : Prop :=
+  ∀ s : Str, ∃ r, alloc.string.ToString.Blanket.to_string Str.Insts.CoreFmtDisplay s = ok r
 
-/-- `∑ { ws[i] : i < k, s i = b }`: the weight of the subset `s` (if `b`) or of its complement
-(if `!b`), restricted to the first `k` parties. -/
-def wsum (ws : List U16) (s : ℕ → Bool) (b : Bool) : ℕ → ℕ
-  | 0 => 0
-  | k + 1 => wsum ws s b k + if s k = b then ws[k]!.val else 0
+/-- `cmp` returns on every pair of elements of `xs`, without changing its state, and is a total
+order on them, which is what Rust requires of the comparator of `sort_by`: comparing `b` with `a`
+gives the reverse of comparing `a` with `b`, and "not greater" is transitive. -/
+def TotalOrderOn {T F : Type} (inst : core.ops.function.FnMut F (T × T) Ordering) (cmp : F)
+    (xs : List T) : Prop :=
+  ∃ ord : T → T → Ordering,
+    (∀ a ∈ xs, ∀ b ∈ xs, inst.call_mut cmp (a, b) = ok (ord a b, cmp)) ∧
+    (∀ a ∈ xs, ∀ b ∈ xs, ord b a = (ord a b).swap) ∧
+    (∀ a ∈ xs, ∀ b ∈ xs, ∀ c ∈ xs, ord a b ≠ .gt → ord b c ≠ .gt → ord a c ≠ .gt)
 
-/-- `∑ { ws[i] : i < k }`. -/
-def total (ws : List U16) : ℕ → ℕ
-  | 0 => 0
-  | k + 1 => total ws k + ws[k]!.val
+/-- `sort_by`, as Rust documents it: if the comparator returns on the elements of the slice and is
+a total order on them, `sort_by` returns a permutation of the slice. -/
+def SortByPermutes : Prop :=
+  ∀ {T F : Type} (inst : core.ops.function.FnMut F (T × T) Ordering) (s : Slice T) (cmp : F),
+    TotalOrderOn inst cmp s.val →
+    ∃ s', alloc.slice.Slice.sort_by inst s cmp = ok s' ∧ s'.val.Perm s.val
 
-/-- The four guarantees for the subset `s`, where `w(S)` is the original and `w'(S)` the reduced
-weight of `S`, and `(t', f')` are the reduced thresholds. -/
-def ReductionPropertiesHold (weights : List U16) (t f delta : ℕ) (reduced : List U16)
-    (t' f' : ℕ) (s : ℕ → Bool) : Prop :=
-  let w := wsum weights s true weights.length
-  let w' := wsum reduced s true weights.length
-  (w < t → w' < t') ∧                       -- (P) privacy
-  (t + f + delta ≤ w → t' + f' ≤ w') ∧      -- (L1) liveness
-  (w ≤ f → w' ≤ f') ∧                       -- (L2) Byzantine bound
-  (t + delta ≤ w → t' ≤ w')                 -- (L3) liveness
+/-! ## Statements -/
 
-/-! ## Lemmas about `wsum` and `total` -/
+/-- `verify_reduction` does not panic, and is sound. `verify_reduction(weights, t, f, delta,
+reduction)` with `reduction = (weights', t', f')` returns on every input: the `panic!` in
+`max_reduced_weight` is unreachable. And if it returns `Ok(())`, then for every set `S` of
+parties, writing `w(S)` and `w'(S)` for the sums of the original and reduced weights of the
+parties in `S`:
+* (P) `w(S) < t` implies `w'(S) < t'`,
+* (L1) `w(S) ≥ t + f + delta` implies `w'(S) ≥ t' + f'`,
+* (L2) `w(S) ≤ f` implies `w'(S) ≤ f'`,
+* (L3) `w(S) ≥ t + delta` implies `w'(S) ≥ t'`. -/
+def VerifyReductionSound : Prop :=
+  ToStringReturns →
+  ∀ (weights : Slice U16) (t f delta : U16) (weights' : alloc.vec.Vec U16) (t' f' : U16),
+    verify_reduction weights t f delta ⟨weights', t', f'⟩ ⦃ res =>
+      res = .Ok () → ∀ S : Finset ℕ,
+        let n := weights.length
+        let w : ℕ := ∑ i ∈ (Finset.range n).filter (· ∈ S), weights.val[i]!
+        let w' : ℕ := ∑ i ∈ (Finset.range n).filter (· ∈ S), weights'.val[i]!
+        (w < t → w' < t') ∧
+        (w ≥ t + f + delta → w' ≥ t' + f') ∧
+        (w ≤ f → w' ≤ f') ∧
+        (w ≥ t + delta → w' ≥ t') ⦄
 
-@[simp] lemma wsum_zero (ws : List U16) (s : ℕ → Bool) (b : Bool) : wsum ws s b 0 = 0 := rfl
-
-lemma wsum_succ (ws : List U16) (s : ℕ → Bool) (b : Bool) (k : ℕ) :
-    wsum ws s b (k + 1) = wsum ws s b k + if s k = b then ws[k]!.val else 0 := rfl
-
-@[simp] lemma total_zero (ws : List U16) : total ws 0 = 0 := rfl
-
-lemma total_succ (ws : List U16) (k : ℕ) : total ws (k + 1) = total ws k + ws[k]!.val := rfl
-
-/-- A subset and its complement partition the parties. -/
-lemma wsum_complement (ws : List U16) (s : ℕ → Bool) (k : ℕ) :
-    wsum ws s true k + wsum ws s false k = total ws k := by
-  induction k with
-  | zero => rfl
-  | succ k ih =>
-    rw [wsum_succ, wsum_succ, total_succ]
-    cases s k <;> simp <;> omega
-
-/-- A subset weighs at most the total. -/
-lemma wsum_le_total (ws : List U16) (s : ℕ → Bool) (b : Bool) (k : ℕ) :
-    wsum ws s b k ≤ total ws k := by
-  induction k with
-  | zero => rfl
-  | succ k ih =>
-    rw [wsum_succ, total_succ]
-    split <;> omega
-
-/-- `total` is non-decreasing. -/
-lemma total_mono (ws : List U16) {j k : ℕ} (h : j ≤ k) : total ws j ≤ total ws k := by
-  induction k with
-  | zero => simp_all
-  | succ k ih =>
-    rcases Nat.lt_or_eq_of_le h with h | h
-    · rw [total_succ]; have := ih (by omega); omega
-    · rw [h]
-
-/-- Each weight is at most `65535`, so `k` of them sum to at most `65535 * k`. -/
-lemma total_le (ws : List U16) (k : ℕ) : total ws k ≤ 65535 * k := by
-  induction k with
-  | zero => rfl
-  | succ k ih =>
-    rw [total_succ]
-    have : ws[k]!.val ≤ 65535 := by scalar_tac
-    omega
-
-/-! ## The relaxation step of the knapsack table
-
-`relax old q w u` is entry `u` of the table after the inner loop of `knapsack_min_original`
-processes a party with original weight `w` and reduced weight `q`, starting from `old`. -/
-
-def relax (old : List U32) (q w u : ℕ) : ℕ :=
-  if q ≤ u ∧ old[u - q]!.val ≠ U32.max ∧ old[u - q]!.val + w < old[u]!.val then
-    old[u - q]!.val + w
-  else
-    old[u]!.val
-
-lemma relax_le_old (old : List U32) (q w u : ℕ) : relax old q w u ≤ old[u]!.val := by
-  unfold relax; split <;> omega
-
-lemma relax_le_shifted (old : List U32) (q w u : ℕ) (hq : q ≤ u)
-    (h : old[u - q]!.val ≠ U32.max) : relax old q w u ≤ old[u - q]!.val + w := by
-  unfold relax; split <;> simp_all
-
-/-- A relaxed entry is either the old one or the shifted candidate. -/
-lemma relax_cases (old : List U32) (q w u : ℕ) :
-    relax old q w u = old[u]!.val ∨
-      (q ≤ u ∧ old[u - q]!.val ≠ U32.max ∧ relax old q w u = old[u - q]!.val + w) := by
-  unfold relax; split <;> simp_all
-
-/-! ## From the checks to the guarantees
-
-`verify_reduction` computes the table and four values of `max_reduced_weight`, and compares them
-with the reduced thresholds. This lemma derives (P), (L1), (L2) and (L3) from the facts the proof
-of `verify_reduction` establishes about those values. -/
-
-lemma properties_of_checks
-    (ws red : List U16)
-    (t f delta t' f' : ℕ) (ht' : 1 ≤ t') (htfd : t + f + delta ≤ total ws ws.length)
-    (tbl : ℕ → ℕ)
-    -- The knapsack table bounds the original weight of every subset and of its complement.
-    (htbl : ∀ s b, tbl (wsum red s b ws.length) ≤ wsum ws s b ws.length)
-    -- `gP`, `g2`, `g3` and `g1` are the largest reduced weights whose table entry is at most
-    -- `t - 1`, `f`, `W - (t + delta)` and `W - (t + f + delta)`.
-    (gP g2 g3 g1 : ℕ)
-    (hgP : ∀ u, u ≤ total red ws.length → tbl u ≤ t - 1 → u ≤ gP)
-    (hg2 : ∀ u, u ≤ total red ws.length → tbl u ≤ f → u ≤ g2)
-    (hg3 : ∀ u, u ≤ total red ws.length → tbl u ≤ total ws ws.length - (t + delta) → u ≤ g3)
-    (hg1 : ∀ u, u ≤ total red ws.length → tbl u ≤ total ws ws.length - (t + f + delta) →
-      u ≤ g1)
-    -- The four checks in `verify_reduction` passed.
-    (hP : gP ≤ t' - 1) (hL2 : g2 ≤ f')
-    (hL3 : t' ≤ total red ws.length - g3) (hL1 : t' + f' ≤ total red ws.length - g1)
-    (s : ℕ → Bool) :
-    ReductionPropertiesHold ws t f delta red t' f' s := by
-  have hc := wsum_complement ws s ws.length
-  have hc' := wsum_complement red s ws.length
-  have hin_le := wsum_le_total red s true ws.length
-  have hout_le := wsum_le_total red s false ws.length
-  have hin := htbl s true
-  have hout := htbl s false
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · -- (P)
-    intro h
-    have := hgP _ hin_le (by omega)
-    omega
-  · -- (L1)
-    intro h
-    have := hg1 _ hout_le (by omega)
-    omega
-  · -- (L2)
-    intro h
-    have := hg2 _ hin_le (by omega)
-    omega
-  · -- (L3)
-    intro h
-    have := hg3 _ hout_le (by omega)
-    omega
-
-/-! ## Subsets as `Finset`s -/
-
-/-- `wsum` of the subset `S` is the `Finset` sum of the weights of its members. -/
-lemma wsum_eq_sum (ws : List U16) (S : Finset ℕ) (k : ℕ) :
-    wsum ws (fun i => decide (i ∈ S)) true k =
-      ∑ i ∈ (Finset.range k).filter (· ∈ S), ws[i]!.val := by
-  induction k with
-  | zero => simp
-  | succ k ih =>
-    rw [wsum_succ, ih, Finset.range_add_one, Finset.filter_insert]
-    by_cases hk : k ∈ S
-    · simp [hk, Finset.sum_insert (by simp : k ∉ (Finset.range k).filter (· ∈ S))]
-      omega
-    · simp [hk]
+/-- `reduce_weights` does not panic, and computes reductions that `verify_reduction` accepts:
+`reduce_weights(weights, t, f, delta, total_weight_lower_bound)` returns on every input, and when
+it returns `Ok(reduction)`, `verify_reduction(weights, t, f, delta, reduction)` returns
+`Ok(())`. -/
+def ReduceWeightsPassesVerify : Prop :=
+  ToStringReturns → SortByPermutes →
+  ∀ (weights : Slice U16) (t f delta total_weight_lower_bound : U16),
+    reduce_weights weights t f delta total_weight_lower_bound ⦃ res =>
+      ∀ reduction, res = .Ok reduction →
+        verify_reduction weights t f delta reduction = ok (.Ok ()) ⦄
 
 end WeightReductionProofs
