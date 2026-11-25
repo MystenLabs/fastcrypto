@@ -1,10 +1,10 @@
 -- THIS FILE IS AI-ONLY
 import knapsack_weight_reduction.Knapsack
-import knapsack_weight_reduction.Spec
 
 /-!
-What `verify_reduction` returns (`verify_reduction_spec`), under the assumption
-`ToStringReturns`, and the lemmas to read a Hoare triple as an equation.
+What `verify_reduction` returns (`verify_reduction_spec`), and when it accepts
+(`verify_reduction_accepts`), given that `to_string` returns (`ToStringSpec`). Also the lemmas to
+read a Hoare triple as an equation.
 -/
 
 open Aeneas Aeneas.Std Result ControlFlow
@@ -38,9 +38,10 @@ macro "vr_tac" : tactic => `(tactic| first
   | (simp [U16.rMax, U32.rMax] at *; scalar_tac)
   | (simp only [deref_val, deref_length] at *; simp_all))
 
-lemma to_string_spec (hts : ToStringReturns) (s : Str) :
-    alloc.string.ToString.Blanket.to_string Str.Insts.CoreFmtDisplay s ⦃ _ => True ⦄ := by
-  obtain ⟨r, h⟩ := hts s; rw [h]; simp
+/-- `to_string` returns on every `&str`, as a Hoare triple. The proofs take this as a hypothesis;
+`Spec.lean` derives it from the assumption `ToStringReturns`. -/
+abbrev ToStringSpec : Prop :=
+  ∀ s : Str, alloc.string.ToString.Blanket.to_string Str.Insts.CoreFmtDisplay s ⦃ _ => True ⦄
 
 @[simp, scalar_tac_simps]
 lemma MAX_PARTIES_val : MAX_PARTIES.val = 1000 := by
@@ -58,13 +59,13 @@ lemma deref_length {α : Type _} (v : alloc.vec.Vec α) :
 /-- For every input, `verify_reduction` returns without panicking, overflowing or indexing out of
 bounds, and if it returns `Ok(())`, then (P), (L1), (L2) and (L3) hold for every subset of the
 parties. -/
-lemma verify_reduction_spec (hts : ToStringReturns) (weights : Slice U16) (t f delta : U16)
+lemma verify_reduction_spec (hts : ToStringSpec) (weights : Slice U16) (t f delta : U16)
     (reduction : ReducedWeights) :
     verify_reduction weights t f delta reduction ⦃ r =>
       r = .Ok () → ∀ s, ReductionPropertiesHold weights.val t.val f.val delta.val
         reduction.weights.val reduction.t.val reduction.f.val s ⦄ := by
   unfold verify_reduction
-  have := to_string_spec hts
+  unfold ToStringSpec at hts
   -- `step*` goes through every branch. The early returns are discharged automatically, and
   -- `vr_tac` discharges the preconditions of the calls (bounds, and facts about the table).
   step*
@@ -133,7 +134,7 @@ attribute [-step] knapsack_min_original_spec max_reduced_weight_spec
 set_option maxHeartbeats 4000000 in
 /-- `verify_reduction` accepts `reduction` if the checks on the inputs pass, and the four values
 of `max_reduced_weight` on its table `tbl` pass the checks (P), (L2), (L3) and (L1). -/
-lemma verify_reduction_accepts (hts : ToStringReturns) (weights : Slice U16) (t f delta : U16)
+lemma verify_reduction_accepts (hts : ToStringSpec) (weights : Slice U16) (t f delta : U16)
     (reduction : ReducedWeights) (tbl : alloc.vec.Vec U32) (RT : U32)
     (hlen : reduction.weights.length = weights.length) (hn : weights.length ≤ 1000)
     (hW : total weights.val weights.length ≤ 65535)
@@ -161,7 +162,7 @@ lemma verify_reduction_accepts (hts : ToStringReturns) (weights : Slice U16) (t 
       r.val = gmax tbl.val b.val ⦄ := fun b => by
     simpa using WP.spec_mono (max_reduced_weight_gmax (alloc.vec.Vec.deref tbl) b
       (by simp [hlenT]) (by simp [hlenT]; omega) (by simpa using h0)) fun _ h => h.1
-  have := to_string_spec hts
+  unfold ToStringSpec at hts
   suffices hs : verify_reduction weights t f delta reduction ⦃ r => r = .Ok () ⦄ by
     obtain ⟨r, h, rfl⟩ := spec_eq_ok hs; exact h
   unfold verify_reduction

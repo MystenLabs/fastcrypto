@@ -119,7 +119,7 @@ jobs:
           lake build 2>&1 | tee "$RUNNER_TEMP/lake-build.log"
 
       - name: Check the axiom reports
-        # Each `#print axioms` line in `Theorems.lean` gives one report.
+        # Each `#print axioms` line in `Spec.lean` gives one report.
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/lake-build.log"

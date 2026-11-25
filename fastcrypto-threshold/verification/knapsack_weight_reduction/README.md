@@ -12,9 +12,8 @@ thresholds `(t, f)` to `(w', t', f')`, and `verify_reduction(weights, t, f, delt
 checks such a reduction. For a set `S` of parties, `w(S)` and `w'(S)` are the sums of the original
 and reduced weights of the parties in `S`.
 
-The statements of the theorems and their assumptions are in `Spec.lean`, the claim of the
-proofs, which a reviewer reads in full. `Theorems.lean` proves them, and everything else is a
-lemma. Lean checks all proofs, so they need no review.
+The theorems and their assumptions are in `Spec.lean`, the one file a reviewer reads in full.
+Everything else is a lemma, which Lean checks.
 
 ## Theorems
 
@@ -40,8 +39,7 @@ Both need `ToStringReturns`, and 2 also needs `SortByPermutes`, both listed
 
 | File | Contents |
 |---|---|
-| `Spec.lean` | The statements of the theorems above (`VerifyReductionSound`, `ReduceWeightsPassesVerify`) and the assumptions (`ToStringReturns`, `SortByPermutes`). |
-| `Theorems.lean` | The proofs of the statements, and their axiom reports. |
+| `Spec.lean` | The theorems above, their assumptions (`ToStringReturns`, `SortByPermutes`), and their axiom reports. |
 | `Subsets.lean` | The weight of a subset (`wsum`) and of all parties (`total`), the four guarantees (`ReductionPropertiesHold`), the relaxation step of the knapsack table (`relax`), and that the checks in `verify_reduction` imply the guarantees (`properties_of_checks`). |
 | `Knapsack.lean` | What `sum_u16`, `max_reduced_weight` and `knapsack_min_original` return (`sum_u16_spec`, `max_reduced_weight_spec`, `knapsack_min_original_spec`). |
 | `Verify.lean` | What `verify_reduction` returns (`verify_reduction_spec`), and when it accepts (`verify_reduction_accepts`). |

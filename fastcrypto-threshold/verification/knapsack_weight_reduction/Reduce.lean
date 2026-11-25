@@ -2,8 +2,8 @@
 import knapsack_weight_reduction.Verify
 
 /-!
-What `reduce_weights` returns (`reduce_weights_spec`): under `ToStringReturns` and
-`SortByPermutes`, it returns, and every reduction it returns passes `verify_reduction`. It
+What `reduce_weights` returns (`reduce_weights_spec`): given that `to_string` returns
+(`ToStringSpec`) and that `sort_by` permutes in `greedy_reject` (`GreedySortSpec`), it returns, and every reduction it returns passes `verify_reduction`. It
 returns either the original weights, which pass by `identity_passes`, or a candidate that
 `check_candidate` accepted, which passes by `check_candidate_spec`.
 -/
@@ -242,11 +242,13 @@ positive reduced weight. -/
 lemma greedy_comparator_total (reduced weights : Slice U16) (xs : List Usize)
     (h : ∀ i ∈ xs, i.val < reduced.length ∧ i.val < weights.length ∧
       0 < reduced.val[i.val]!.val) :
-    TotalOrderOn
-      greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering
-      (reduced, weights) xs := by
-  refine ⟨densityCmp reduced weights, fun a ha b hb => ?_, fun a _ b _ => ?_,
-    fun a _ b hb c _ hab hbc => ?_⟩
+    (∀ a ∈ xs, ∀ b ∈ xs,
+      greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering.call_mut
+        (reduced, weights) (a, b) = ok (densityCmp reduced weights a b, (reduced, weights))) ∧
+    (∀ a ∈ xs, ∀ b ∈ xs, densityCmp reduced weights b a = (densityCmp reduced weights a b).swap) ∧
+    (∀ a ∈ xs, ∀ b ∈ xs, ∀ c ∈ xs, densityCmp reduced weights a b ≠ .gt →
+      densityCmp reduced weights b c ≠ .gt → densityCmp reduced weights a c ≠ .gt) := by
+  refine ⟨fun a ha b hb => ?_, fun a _ b _ => ?_, fun a _ b hb c _ hab hbc => ?_⟩
   · exact greedy_comparator_call reduced weights a b ⟨(h a ha).1, (h a ha).2.1⟩
       ⟨(h b hb).1, (h b hb).2.1⟩
   · exact compare_swap_nat _ _
@@ -267,6 +269,17 @@ lemma greedy_comparator_total (reduced weights : Slice U16) (xs : List Usize)
       _ = reduced.val[b.val]!.val * (reduced.val[a.val]!.val * weights.val[c.val]!.val) := by
           ring
 
+/-- `sort_by`, with the comparator of `greedy_reject`, returns a permutation of its input if every
+index in it is in bounds and has a positive reduced weight. The proofs take this as a hypothesis;
+`Spec.lean` derives it from the assumption `SortByPermutes` and `greedy_comparator_total`. -/
+abbrev GreedySortSpec : Prop :=
+  ∀ (reduced weights : Slice U16) (s : Slice Usize),
+    (∀ i ∈ s.val, i.val < reduced.length ∧ i.val < weights.length ∧
+      0 < reduced.val[i.val]!.val) →
+    alloc.slice.Slice.sort_by
+      greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering
+      s (reduced, weights) ⦃ s' => s'.val.Perm s.val ⦄
+
 @[step]
 lemma greedy_reject_closure_1_spec (weights reduced : Slice U16) (v : alloc.vec.Vec Usize)
     (b : U32) (hlen : v.length ≤ 1000)
@@ -278,22 +291,13 @@ lemma greedy_reject_closure_1_spec (weights reduced : Slice U16) (v : alloc.vec.
   simpa using hin
 
 @[step]
-lemma greedy_reject_spec (hsort : SortByPermutes) (weights reduced : Slice U16)
+lemma greedy_reject_spec (hsort : GreedySortSpec) (weights reduced : Slice U16)
     (w_total t f delta : U16) (reduced_total : U32)
     (hn : weights.length ≤ 1000) (hlenr : reduced.length = weights.length)
     (ht : 1 ≤ t.val) (htfd : t.val + f.val + delta.val ≤ w_total.val) :
     greedy_reject weights reduced w_total t f delta reduced_total ⦃ _ => True ⦄ := by
   unfold greedy_reject
-  have hs : ∀ s : Slice Usize, (∀ i ∈ s.val, i.val < reduced.length ∧ i.val < weights.length ∧
-      0 < reduced.val[i.val]!.val) →
-      alloc.slice.Slice.sort_by
-        greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering
-        s (reduced, weights) ⦃ s' => s'.val.Perm s.val ⦄ := by
-    intro s h
-    obtain ⟨s', h1, h2⟩ := hsort
-      greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering s
-      ((reduced, weights) : greedy_reject.closure) (greedy_comparator_total reduced weights s.val h)
-    rw [h1]; simpa using h2
+  have hs := hsort reduced weights
   simp only [core.slice.Slice.iter, core.iter.traits.iterator.Iterator.enumerate.trait_default,
     core.iter.traits.iterator.Iterator.enumerate.default, bind_ok]
   let* ⟨ bd, hbd_len, hbd_in ⟩ ← greedy_reject_loop_spec reduced
@@ -342,7 +346,7 @@ attribute [local step] max_reduced_weight_gmax
 /-- If `check_candidate` accepts the reduced weights `rv`, with thresholds `(t', f')`, then
 `verify_reduction` accepts `(rv, t', f')`. -/
 @[step]
-lemma check_candidate_spec (hts : ToStringReturns) (weights : Slice U16) (w_total t f delta : U16)
+lemma check_candidate_spec (hts : ToStringSpec) (weights : Slice U16) (w_total t f delta : U16)
     (rv : alloc.vec.Vec U16) (hlen : rv.length = weights.length) (hn : weights.length ≤ 1000)
     (hW : w_total.val = total weights.val weights.length)
     (hRT : total rv.val weights.length ≤ 65535)
@@ -351,7 +355,7 @@ lemma check_candidate_spec (hts : ToStringReturns) (weights : Slice U16) (w_tota
     check_candidate weights w_total t f delta (alloc.vec.Vec.deref rv) ⦃ r =>
       ∀ tp fp, r = .Ok (tp, fp) → Passes weights t f delta ⟨rv, tp, fp⟩ ⦄ := by
   unfold check_candidate
-  have := to_string_spec hts
+  unfold ToStringSpec at hts
   step*
   all_goals try vr_tac
   -- The success case: every check passed.
@@ -507,7 +511,7 @@ def SweepResult (weights : Slice U16) (t f delta : U16) (best_total : U32)
     total c.weights.val weights.length ≤ best_total.val
 
 @[step]
-lemma sweep_loop1_spec (hts : ToStringReturns) (hsort : SortByPermutes) (weights : Slice U16)
+lemma sweep_loop1_spec (hts : ToStringSpec) (hsort : GreedySortSpec) (weights : Slice U16)
     (w_total t f delta lower_bound : U16) (offset : U64) (best_total d : U32)
     (hn : weights.length ≤ 1000) (hW : w_total.val = total weights.val weights.length)
     (hbt : best_total.val ≤ 65535) (ho : offset.val < 100)
@@ -538,7 +542,7 @@ lemma sweep_loop1_spec (hts : ToStringReturns) (hsort : SortByPermutes) (weights
   · trivial
 
 @[step]
-lemma sweep_spec (hts : ToStringReturns) (hsort : SortByPermutes) (weights : Slice U16)
+lemma sweep_spec (hts : ToStringSpec) (hsort : GreedySortSpec) (weights : Slice U16)
     (w_total t f delta lower_bound : U16) (offset : U64) (best_total : U32)
     (hn : weights.length ≤ 1000) (hW : w_total.val = total weights.val weights.length)
     (hbt : best_total.val ≤ 65535) (ho : offset.val < 100)
@@ -587,7 +591,7 @@ lemma gmax_le_of_low (tbl : alloc.vec.Vec U32) (b : ℕ) (hb : b < U32.max)
     · omega
 
 /-- The original weights pass `verify_reduction`. -/
-lemma identity_passes (hts : ToStringReturns) (weights : Slice U16) (t f delta : U16)
+lemma identity_passes (hts : ToStringSpec) (weights : Slice U16) (t f delta : U16)
     (v : alloc.vec.Vec U16) (W : U32) (hv : v.val = weights.val) (hn : weights.length ≤ 1000)
     (hW : W.val = total weights.val weights.length) (hW' : W.val ≤ 65535)
     (ht : 1 ≤ t.val) (hf : 1 ≤ f.val) (hft : f.val < t.val)
@@ -617,7 +621,7 @@ def BestInv (weights : Slice U16) (t f delta : U16) (W : ℕ) (best : ReducedWei
     total best.weights.val weights.length ≤ W
 
 @[step]
-lemma reduce_weights_loop_spec (hts : ToStringReturns) (hsort : SortByPermutes)
+lemma reduce_weights_loop_spec (hts : ToStringSpec) (hsort : GreedySortSpec)
     (weights : Slice U16) (t f delta lb w_total : U16)
     (iter : core.iter.adapters.step_by.StepBy (core.ops.range.Range U64))
     (best : ReducedWeights) (hn : weights.length ≤ 1000)
@@ -661,7 +665,7 @@ lemma reduce_weights_loop_spec (hts : ToStringReturns) (hsort : SortByPermutes)
 
 /-- For every input, `reduce_weights` returns, and every reduction it returns passes
 `verify_reduction`. -/
-lemma reduce_weights_spec (hts : ToStringReturns) (hsort : SortByPermutes) (weights : Slice U16)
+lemma reduce_weights_spec (hts : ToStringSpec) (hsort : GreedySortSpec) (weights : Slice U16)
     (t f delta lb : U16) :
     reduce_weights weights t f delta lb ⦃ r =>
       ∀ b, r = .Ok b → Passes weights t f delta b ⦄ := by
