@@ -1,0 +1,13 @@
+name = "dkg_merge"
+defaultTargets = ["DkgMerge"]
+
+# The Lean library of the Aeneas commit that generated the translation. The Aeneas binary and
+# this library must come from the same commit (see README.md).
+[[require]]
+name = "aeneas"
+git = "https://github.com/AeneasVerif/aeneas"
+rev = "0d21a9ec7bbbb110110cacc14464a47fd71c8705"
+subDir = "backends/lean"
+
+[[lean_lib]]
+name = "DkgMerge"

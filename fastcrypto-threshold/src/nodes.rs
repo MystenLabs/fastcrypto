@@ -137,11 +137,14 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         }
     }
 
+    // BEGIN AENEAS-VERIFIED: node_id_to_node
+    // Formally verified with Aeneas and Lean, see the comment on `Party::merge` in dkg_v1.rs.
     pub fn node_id_to_node(&self, party_id: PartyId) -> FastCryptoResult<&Node<G>> {
         self.nodes
             .get(party_id as usize)
             .ok_or(FastCryptoError::InvalidInput)
     }
+    // END AENEAS-VERIFIED: node_id_to_node
 
     /// Returns true iff `party_id` corresponds to a node in this set.
     pub fn is_valid_id(&self, party_id: PartyId) -> bool {
