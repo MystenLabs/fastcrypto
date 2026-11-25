@@ -45,7 +45,7 @@ def knapsack_weight_reduction.MAX_PARTIES : Std.Usize := 1000#usize
 def knapsack_weight_reduction.MAX_WEIGHT : Std.U16 := 10000#u16
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sum_u16]: loop body 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 224:4-226:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 225:4-227:5 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.sum_u16_loop.body
   (iter : core.slice.iter.Iter Std.U16) (sum : Std.U32) :
@@ -60,7 +60,7 @@ def knapsack_weight_reduction.sum_u16_loop.body
     ok (cont (iter1, sum1))
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sum_u16]: loop 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 224:4-226:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 225:4-227:5 -/
 @[rust_loop]
 def knapsack_weight_reduction.sum_u16_loop
   (iter : core.slice.iter.Iter Std.U16) (sum : Std.U32) : Result Std.U32 := do
@@ -70,7 +70,7 @@ def knapsack_weight_reduction.sum_u16_loop
     (iter, sum)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sum_u16]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 222:0-228:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 223:0-229:1 -/
 def knapsack_weight_reduction.sum_u16
   (values : Slice Std.U16) : Result Std.U32 := do
   let iter ←
@@ -79,7 +79,7 @@ def knapsack_weight_reduction.sum_u16
   knapsack_weight_reduction.sum_u16_loop iter 0#u32
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::any_above]: loop body 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 213:4-219:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 214:4-220:1 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.any_above_loop.body
   (bound : Std.U16) (iter : core.slice.iter.Iter Std.U16) :
@@ -93,7 +93,7 @@ def knapsack_weight_reduction.any_above_loop.body
                   else ok (cont iter1)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::any_above]: loop 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 213:4-219:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 214:4-220:1 -/
 @[rust_loop]
 def knapsack_weight_reduction.any_above_loop
   (iter : core.slice.iter.Iter Std.U16) (bound : Std.U16) : Result Bool := do
@@ -102,7 +102,7 @@ def knapsack_weight_reduction.any_above_loop
     iter
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::any_above]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 212:0-219:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 213:0-220:1 -/
 def knapsack_weight_reduction.any_above
   (values : Slice Std.U16) (bound : Std.U16) : Result Bool := do
   let iter ←
@@ -111,7 +111,7 @@ def knapsack_weight_reduction.any_above
   knapsack_weight_reduction.any_above_loop iter bound
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::max_reduced_weight]: loop body 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 255:4-261:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 256:4-262:1 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.max_reduced_weight_loop.body
   (min_original_weight : Slice Std.U32) (weight : Std.U32)
@@ -133,7 +133,7 @@ def knapsack_weight_reduction.max_reduced_weight_loop.body
     else ok (cont iter1)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::max_reduced_weight]: loop 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 255:4-261:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 256:4-262:1 -/
 @[rust_loop]
 def knapsack_weight_reduction.max_reduced_weight_loop
   (iter : core.iter.adapters.rev.Rev (core.ops.range.Range Std.Usize))
@@ -146,7 +146,7 @@ def knapsack_weight_reduction.max_reduced_weight_loop
     iter
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::max_reduced_weight]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 254:0-261:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 255:0-262:1 -/
 def knapsack_weight_reduction.max_reduced_weight
   (min_original_weight : Slice Std.U32) (weight : Std.U32) :
   Result Std.U32
@@ -161,7 +161,7 @@ def knapsack_weight_reduction.max_reduced_weight
     weight
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::knapsack_min_original]: loop body 1:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 239:8-246:9 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 240:8-247:9 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.knapsack_min_original_loop0_loop0.body
   (w : Std.U32) (q : Std.Usize)
@@ -201,7 +201,7 @@ def knapsack_weight_reduction.knapsack_min_original_loop0_loop0.body
     else ok (cont (iter1, min_original_weight))
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::knapsack_min_original]: loop 1:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 239:8-246:9 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 240:8-247:9 -/
 @[rust_loop]
 def knapsack_weight_reduction.knapsack_min_original_loop0_loop0
   (iter : core.iter.adapters.rev.Rev (core.ops.range.Range Std.Usize))
@@ -215,7 +215,7 @@ def knapsack_weight_reduction.knapsack_min_original_loop0_loop0
     (iter, min_original_weight)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::knapsack_min_original]: loop body 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 236:4-247:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 237:4-248:5 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.knapsack_min_original_loop0.body
   (weights : Slice Std.U16) (reduced : Slice Std.U16)
@@ -245,7 +245,7 @@ def knapsack_weight_reduction.knapsack_min_original_loop0.body
     ok (cont (iter1, min_original_weight1))
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::knapsack_min_original]: loop 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 236:4-247:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 237:4-248:5 -/
 @[rust_loop]
 def knapsack_weight_reduction.knapsack_min_original_loop0
   (iter : core.ops.range.Range Std.Usize) (weights : Slice Std.U16)
@@ -259,7 +259,7 @@ def knapsack_weight_reduction.knapsack_min_original_loop0
     (iter, min_original_weight)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::knapsack_min_original]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 232:0-249:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 233:0-250:1 -/
 def knapsack_weight_reduction.knapsack_min_original
   (weights : Slice Std.U16) (reduced : Slice Std.U16) (reduced_total : Std.U32)
   :
@@ -281,7 +281,7 @@ def knapsack_weight_reduction.knapsack_min_original
     { start := 0#usize, «end» := i4 } weights reduced min_original_weight1
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::check_candidate]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 334:0-373:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 335:0-374:1 -/
 def knapsack_weight_reduction.check_candidate
   (weights : Slice Std.U16) (w_total : Std.U16) (t : Std.U16) (f : Std.U16)
   (delta : Std.U16) (reduced : Slice Std.U16) :
@@ -348,7 +348,7 @@ def knapsack_weight_reduction.check_candidate
         ok (core.result.Result.Ok (i19, i20))
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::greedy_reduced_weight]: loop body 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 322:4-328:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 323:4-329:5 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.greedy_reduced_weight_loop.body
   (weights : Slice Std.U16) (reduced : Slice Std.U16)
@@ -373,7 +373,7 @@ def knapsack_weight_reduction.greedy_reduced_weight_loop.body
     else ok (cont (iter1, remaining_weight, reduced_weight))
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::greedy_reduced_weight]: loop 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 322:4-328:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 323:4-329:5 -/
 @[rust_loop]
 def knapsack_weight_reduction.greedy_reduced_weight_loop
   (iter : core.slice.iter.Iter Std.Usize) (weights : Slice Std.U16)
@@ -388,7 +388,7 @@ def knapsack_weight_reduction.greedy_reduced_weight_loop
     (iter, remaining_weight, reduced_weight)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::greedy_reduced_weight]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 320:0-330:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 321:0-331:1 -/
 def knapsack_weight_reduction.greedy_reduced_weight
   (weights : Slice Std.U16) (reduced : Slice Std.U16) (order : Slice Std.Usize)
   (weight : Std.U32) :
@@ -401,7 +401,7 @@ def knapsack_weight_reduction.greedy_reduced_weight
     weight 0#u32
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::greedy_reject::{impl core::ops::function::Fn<(u32,), u32> for fastcrypto_threshold::knapsack_weight_reduction::greedy_reject::{closure#1}<'_0, '_1, '_2>}::call]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 293:18-293:92 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 294:18-294:92 -/
 def
   knapsack_weight_reduction.greedy_reject.closure_1.Insts.CoreOpsFunctionFnTupleU32U32.call
   (c : knapsack_weight_reduction.greedy_reject.closure_1)
@@ -413,7 +413,7 @@ def
   knapsack_weight_reduction.greedy_reduced_weight s s1 s2 tupled_args
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::greedy_reject::{impl core::ops::function::FnMut<(&'_2 usize, &'_3 usize), core::cmp::Ordering> for fastcrypto_threshold::knapsack_weight_reduction::greedy_reject::{closure}<'_0, '_1>}::call_mut]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 284:23-287:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 285:23-288:5 -/
 def
   knapsack_weight_reduction.greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering.call_mut
   (c : knapsack_weight_reduction.greedy_reject.closure)
@@ -436,7 +436,7 @@ def
   ok (o, c)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::greedy_reject::{impl core::ops::function::FnOnce<(&'_2 usize, &'_3 usize), core::cmp::Ordering> for fastcrypto_threshold::knapsack_weight_reduction::greedy_reject::{closure}<'_0, '_1>}::call_once]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 284:23-287:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 285:23-288:5 -/
 def
   knapsack_weight_reduction.greedy_reject.closure.Insts.CoreOpsFunctionFnOncePairShared2UsizeShared3UsizeOrdering.call_once
   (c : knapsack_weight_reduction.greedy_reject.closure)
@@ -449,7 +449,7 @@ def
   ok o
 
 /-- Trait implementation: [fastcrypto_threshold::knapsack_weight_reduction::greedy_reject::{impl core::ops::function::FnOnce<(&'_2 usize, &'_3 usize), core::cmp::Ordering> for fastcrypto_threshold::knapsack_weight_reduction::greedy_reject::{closure}<'_0, '_1>}]
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 284:23-287:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 285:23-288:5 -/
 @[reducible]
 def
   knapsack_weight_reduction.greedy_reject.closure.Insts.CoreOpsFunctionFnOncePairShared2UsizeShared3UsizeOrdering
@@ -460,7 +460,7 @@ def
 }
 
 /-- Trait implementation: [fastcrypto_threshold::knapsack_weight_reduction::greedy_reject::{impl core::ops::function::FnMut<(&'_2 usize, &'_3 usize), core::cmp::Ordering> for fastcrypto_threshold::knapsack_weight_reduction::greedy_reject::{closure}<'_0, '_1>}]
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 284:23-287:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 285:23-288:5 -/
 @[reducible]
 def
   knapsack_weight_reduction.greedy_reject.closure.Insts.CoreOpsFunctionFnMutPairShared2UsizeShared3UsizeOrdering
@@ -473,7 +473,7 @@ def
 }
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::greedy_reject]: loop body 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 279:4-283:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 280:4-284:5 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.greedy_reject_loop.body
   (iter : core.iter.adapters.enumerate.Enumerate (core.slice.iter.Iter
@@ -496,7 +496,7 @@ def knapsack_weight_reduction.greedy_reject_loop.body
     else ok (cont (iter1, by_density))
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::greedy_reject]: loop 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 279:4-283:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 280:4-284:5 -/
 @[rust_loop]
 def knapsack_weight_reduction.greedy_reject_loop
   (iter : core.iter.adapters.enumerate.Enumerate (core.slice.iter.Iter
@@ -509,7 +509,7 @@ def knapsack_weight_reduction.greedy_reject_loop
     (iter, by_density)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::greedy_reject]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 265:0-316:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 266:0-317:1 -/
 def knapsack_weight_reduction.greedy_reject
   (weights : Slice Std.U16) (reduced : Slice Std.U16) (w_total : Std.U16)
   (t : Std.U16) (f : Std.U16) (delta : Std.U16) (reduced_total : Std.U32) :
@@ -568,7 +568,7 @@ def knapsack_weight_reduction.greedy_reject
     ok (i24 >= reduced_total)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::reduce_weight]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 207:0-209:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 208:0-210:1 -/
 def knapsack_weight_reduction.reduce_weight
   (w : Std.U16) (d : Std.U32) (offset : Std.U64) : Result Std.U16 := do
   let i ← lift (UScalar.cast .U64 w)
@@ -582,7 +582,7 @@ def knapsack_weight_reduction.reduce_weight
   ok (UScalar.cast .U16 i7)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]: loop body 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 158:4-160:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 159:4-161:5 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.sweep_loop0.body
   (iter : core.slice.iter.Iter Std.U16) (max_weight : Std.U64) :
@@ -597,7 +597,7 @@ def knapsack_weight_reduction.sweep_loop0.body
     ok (cont (iter1, max_weight1))
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]: loop 0:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 158:4-160:5 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 159:4-161:5 -/
 @[rust_loop]
 def knapsack_weight_reduction.sweep_loop0
   (iter : core.slice.iter.Iter Std.U16) (max_weight : Std.U64) :
@@ -609,7 +609,7 @@ def knapsack_weight_reduction.sweep_loop0
     (iter, max_weight)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]: loop body 2:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 171:8-173:9 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 172:8-174:9 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.sweep_loop1_loop0.body
   (offset : Std.U64) (d_candidate : Std.U32)
@@ -626,7 +626,7 @@ def knapsack_weight_reduction.sweep_loop1_loop0.body
     ok (cont (iter1, reduced1))
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]: loop 2:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 171:8-173:9 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 172:8-174:9 -/
 @[rust_loop]
 def knapsack_weight_reduction.sweep_loop1_loop0
   (iter : core.slice.iter.Iter Std.U16) (offset : Std.U64)
@@ -639,7 +639,7 @@ def knapsack_weight_reduction.sweep_loop1_loop0
     (iter, reduced)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]: loop body 3:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 197:8-200:9 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 198:8-201:9 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.sweep_loop1_loop1.body
   (weights : Slice Std.U16) (offset : Std.U64)
@@ -668,7 +668,7 @@ def knapsack_weight_reduction.sweep_loop1_loop1.body
     ok (cont (iter1, next1))
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]: loop 3:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 197:8-200:9 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 198:8-201:9 -/
 @[rust_loop]
 def knapsack_weight_reduction.sweep_loop1_loop1
   (iter : core.ops.range.Range Std.Usize) (weights : Slice Std.U16)
@@ -681,7 +681,7 @@ def knapsack_weight_reduction.sweep_loop1_loop1
     (iter, next)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]: loop body 4:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 197:8-200:9 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 198:8-201:9 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.sweep_loop1_loop2.body
   (weights : Slice Std.U16) (offset : Std.U64)
@@ -710,7 +710,7 @@ def knapsack_weight_reduction.sweep_loop1_loop2.body
     ok (cont (iter1, next1))
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]: loop 4:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 197:8-200:9 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 198:8-201:9 -/
 @[rust_loop]
 def knapsack_weight_reduction.sweep_loop1_loop2
   (iter : core.ops.range.Range Std.Usize) (weights : Slice Std.U16)
@@ -723,7 +723,7 @@ def knapsack_weight_reduction.sweep_loop1_loop2
     (iter, next)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]: loop body 5:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 197:8-200:9 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 198:8-201:9 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.sweep_loop1_loop3.body
   (weights : Slice Std.U16) (offset : Std.U64)
@@ -752,7 +752,7 @@ def knapsack_weight_reduction.sweep_loop1_loop3.body
     ok (cont (iter1, next1))
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]: loop 5:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 197:8-200:9 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 198:8-201:9 -/
 @[rust_loop]
 def knapsack_weight_reduction.sweep_loop1_loop3
   (iter : core.ops.range.Range Std.Usize) (weights : Slice Std.U16)
@@ -765,7 +765,7 @@ def knapsack_weight_reduction.sweep_loop1_loop3
     (iter, next)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]: loop body 1:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 169:4-204:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 170:4-205:1 -/
 @[rust_loop_body]
 def knapsack_weight_reduction.sweep_loop1.body
   (weights : Slice Std.U16) (w_total : Std.U16) (t : Std.U16) (f : Std.U16)
@@ -834,7 +834,7 @@ def knapsack_weight_reduction.sweep_loop1.body
   else ok (done none)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]: loop 1:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 169:4-204:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 170:4-205:1 -/
 @[rust_loop]
 def knapsack_weight_reduction.sweep_loop1
   (weights : Slice Std.U16) (w_total : Std.U16) (t : Std.U16) (f : Std.U16)
@@ -848,13 +848,15 @@ def knapsack_weight_reduction.sweep_loop1
     d_candidate
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::sweep]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 147:0-204:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 147:0-205:1 -/
 def knapsack_weight_reduction.sweep
   (weights : Slice Std.U16) (w_total : Std.U16) (t : Std.U16) (f : Std.U16)
   (delta : Std.U16) (lower_bound : Std.U16) (offset : Std.U64)
   (best_total : Std.U32) :
   Result (Option knapsack_weight_reduction.ReducedWeights)
   := do
+  let b ← core.slice.Slice.is_empty weights
+  massert (¬ b)
   let iter ←
     SharedSlice.Insts.CoreIterTraitsCollectIntoIteratorSharedIter.into_iter
       weights
@@ -1042,7 +1044,7 @@ def knapsack_weight_reduction.reduce_weights
                             ok (core.result.Result.Ok best)
 
 /-- [fastcrypto_threshold::knapsack_weight_reduction::verify_reduction]:
-    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 379:0-436:1 -/
+    Source: 'fastcrypto-threshold/src/knapsack_weight_reduction.rs', lines 380:0-437:1 -/
 def knapsack_weight_reduction.verify_reduction
   (weights : Slice Std.U16) (t : Std.U16) (f : Std.U16) (delta : Std.U16)
   (reduction : knapsack_weight_reduction.ReducedWeights) :

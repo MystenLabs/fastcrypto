@@ -482,7 +482,8 @@ lemma sweep_spec (hts : ToStringReturns) (hsort : SortByPermutes) (weights : Sli
     (hn : weights.length ≤ 1000) (hW : w_total.val = total weights.val weights.length)
     (hbt : best_total.val ≤ 65535) (ho : offset.val < 100)
     (ht : 1 ≤ t.val) (hf : 1 ≤ f.val) (hft : f.val < t.val)
-    (htf : t.val + 2 * f.val ≤ w_total.val) (htfd : t.val + f.val + delta.val ≤ w_total.val) :
+    (htf : t.val + 2 * f.val ≤ w_total.val) (htfd : t.val + f.val + delta.val ≤ w_total.val)
+    (hne : 0 < weights.length) :
     sweep weights w_total t f delta lower_bound offset best_total ⦃ o =>
       SweepResult weights t f delta best_total o ⦄ := by
   unfold sweep
@@ -563,7 +564,8 @@ lemma reduce_weights_loop_spec (hts : ToStringReturns) (hsort : SortByPermutes)
     (ht : 1 ≤ t.val) (hf : 1 ≤ f.val) (hft : f.val < t.val)
     (htf : t.val + 2 * f.val ≤ w_total.val) (htfd : t.val + f.val + delta.val ≤ w_total.val)
     (hend : iter.iter.end.val = 100) (hstep : iter.step_by.val = 10)
-    (hstart : iter.iter.start.val ≤ 100) (hbest : BestInv weights t f delta w_total.val best) :
+    (hstart : iter.iter.start.val ≤ 100) (hbest : BestInv weights t f delta w_total.val best)
+    (hne : 0 < weights.length) :
     reduce_weights_loop iter weights t f delta lb w_total best ⦃ r =>
       BestInv weights t f delta w_total.val r ⦄ := by
   unfold reduce_weights_loop

@@ -154,6 +154,7 @@ fn sweep(
     offset: u64,
     best_total: u32,
 ) -> Option<ReducedWeights> {
+    assert!(!weights.is_empty());
     let mut max_weight = 0u64;
     for &w in weights {
         max_weight = max_weight.max(w as u64);
