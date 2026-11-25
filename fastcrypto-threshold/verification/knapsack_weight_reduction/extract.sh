@@ -27,6 +27,3 @@ rm -rf "$gen" && mkdir "$gen"
 cp "$out/lean/Types.lean" "$out/lean/Funs.lean" "$gen/"
 cp "$out/lean/FunsExternal_Template.lean" "$gen/FunsExternal.lean"
 sed -i.bak 's/import Kwr\./import knapsack_weight_reduction.Generated./g' "$gen"/*.lean && rm "$gen"/*.bak
-for f in "$gen"/*.lean; do
-  { echo "-- THIS FILE IS AI-ONLY"; cat "$f"; } > "$f.tmp" && mv "$f.tmp" "$f"
-done

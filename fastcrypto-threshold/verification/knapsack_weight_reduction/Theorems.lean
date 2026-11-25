@@ -5,14 +5,18 @@ import knapsack_weight_reduction.Reduce
 The theorems about `verify_reduction(weights, t, f, delta, reduction)` in
 `fastcrypto_threshold::knapsack_weight_reduction`, which checks a reduction of the weights
 `weights` and thresholds `(t, f)` to `reduction = (weights', t', f')`:
-* `verify_reduction_sound`: if it returns `Ok(())`, then (P), (L1), (L2) and (L3) hold for every
-  set of parties.
-* `verify_reduction_no_panic`: it returns, without panicking, on every input.
+* `verify_reduction_sound`: it returns, without panicking, on every input, and if it returns
+  `Ok(())`, then (P), (L1), (L2) and (L3) hold for every set of parties.
 
 And about `reduce_weights(weights, t, f, delta, total_weight_lower_bound)`, which computes such a
 reduction:
-* `reduce_weights_passes_verify`: every reduction it returns passes `verify_reduction`.
-* `reduce_weights_no_panic`: it returns, without panicking, on every input.
+* `reduce_weights_passes_verify`: it returns, without panicking, on every input, and every
+  reduction it returns passes `verify_reduction`.
+
+Both are stated as Hoare triples `f(x) ⦃ res => P res ⦄`. Such a triple says that `f(x)` returns,
+without panicking or looping forever, and that the value `res` it returns satisfies `P`. Here
+`res` is the Rust return value, a `Result`, so `res = .Ok r` is Rust's `Ok(r)`, not the absence
+of a panic.
 
 The theorems take two assumptions about functions of the Rust standard library that the Aeneas
 library does not model, so the translation leaves them undefined:
@@ -30,50 +34,41 @@ open fastcrypto_threshold fastcrypto_threshold.knapsack_weight_reduction
 
 namespace WeightReductionProofs
 
-/-- Soundness of `verify_reduction`. If `verify_reduction(weights, t, f, delta, reduction)` with
-`reduction = (weights', t', f')` returns `Ok(())`, then for every set `S` of parties, writing
-`w(S)` and `w'(S)` for the sums of the original and reduced weights of the parties in `S`:
+/-- `verify_reduction` does not panic, and is sound. `verify_reduction(weights, t, f, delta,
+reduction)` with `reduction = (weights', t', f')` returns on every input: the `panic!` in
+`max_reduced_weight` is unreachable. And if it returns `Ok(())`, then for every set `S` of
+parties, writing `w(S)` and `w'(S)` for the sums of the original and reduced weights of the
+parties in `S`:
 * (P) `w(S) < t` implies `w'(S) < t'`,
 * (L1) `w(S) ≥ t + f + delta` implies `w'(S) ≥ t' + f'`,
 * (L2) `w(S) ≤ f` implies `w'(S) ≤ f'`,
 * (L3) `w(S) ≥ t + delta` implies `w'(S) ≥ t'`. -/
 theorem verify_reduction_sound (hts : ToStringReturns) (weights : Slice U16) (t f delta : U16)
-    (weights' : alloc.vec.Vec U16) (t' f' : U16)
-    (h : verify_reduction weights t f delta ⟨weights', t', f'⟩ = ok (.Ok ())) (S : Finset ℕ) :
-    let n := weights.length
-    let w : ℕ := ∑ i ∈ (Finset.range n).filter (· ∈ S), weights.val[i]!
-    let w' : ℕ := ∑ i ∈ (Finset.range n).filter (· ∈ S), weights'.val[i]!
-    (w < t → w' < t') ∧
-    (w ≥ t + f + delta → w' ≥ t' + f') ∧
-    (w ≤ f → w' ≤ f') ∧
-    (w ≥ t + delta → w' ≥ t') := by
-  have := spec_of_eq_ok (verify_reduction_spec hts weights t f delta ⟨weights', t', f'⟩) h rfl
-    (fun i => decide (i ∈ S))
+    (weights' : alloc.vec.Vec U16) (t' f' : U16) :
+    verify_reduction weights t f delta ⟨weights', t', f'⟩ ⦃ res =>
+      res = .Ok () → ∀ S : Finset ℕ,
+        let n := weights.length
+        let w : ℕ := ∑ i ∈ (Finset.range n).filter (· ∈ S), weights.val[i]!
+        let w' : ℕ := ∑ i ∈ (Finset.range n).filter (· ∈ S), weights'.val[i]!
+        (w < t → w' < t') ∧
+        (w ≥ t + f + delta → w' ≥ t' + f') ∧
+        (w ≤ f → w' ≤ f') ∧
+        (w ≥ t + delta → w' ≥ t') ⦄ := by
+  apply WP.spec_mono (verify_reduction_spec hts weights t f delta ⟨weights', t', f'⟩)
+  intro res h hok S
+  have := h hok (fun i => decide (i ∈ S))
   simp only [ReductionPropertiesHold, wsum_eq_sum] at this
   exact this
 
-/-- `verify_reduction` does not panic: on every input, it returns `Ok(())` or an error. In
-particular, the `panic!` in `max_reduced_weight` is unreachable. -/
-theorem verify_reduction_no_panic (hts : ToStringReturns) (weights : Slice U16)
-    (t f delta : U16) (reduction : ReducedWeights) :
-    Returns (verify_reduction weights t f delta reduction) :=
-  (spec_eq_ok (verify_reduction_spec hts weights t f delta reduction)).imp fun _ h => h.1
-
-/-- `reduce_weights` computes reductions that `verify_reduction` accepts. If
-`reduce_weights(weights, t, f, delta, total_weight_lower_bound)` returns `Ok(reduction)`, then
-`verify_reduction(weights, t, f, delta, reduction)` returns `Ok(())`. -/
+/-- `reduce_weights` does not panic, and computes reductions that `verify_reduction` accepts:
+`reduce_weights(weights, t, f, delta, total_weight_lower_bound)` returns on every input, and when
+it returns `Ok(reduction)`, `verify_reduction(weights, t, f, delta, reduction)` returns
+`Ok(())`. -/
 theorem reduce_weights_passes_verify (hts : ToStringReturns) (hsort : SortByPermutes)
-    (weights : Slice U16) (t f delta total_weight_lower_bound : U16) (reduction : ReducedWeights)
-    (h : reduce_weights weights t f delta total_weight_lower_bound = ok (.Ok reduction)) :
-    verify_reduction weights t f delta reduction = ok (.Ok ()) :=
-  spec_of_eq_ok (reduce_weights_spec hts hsort weights t f delta total_weight_lower_bound) h
-    reduction rfl
-
-/-- `reduce_weights` does not panic: on every input, it returns a reduction or an error. -/
-theorem reduce_weights_no_panic (hts : ToStringReturns) (hsort : SortByPermutes)
     (weights : Slice U16) (t f delta total_weight_lower_bound : U16) :
-    Returns (reduce_weights weights t f delta total_weight_lower_bound) :=
-  (spec_eq_ok (reduce_weights_spec hts hsort weights t f delta total_weight_lower_bound)).imp
-    fun _ h => h.1
+    reduce_weights weights t f delta total_weight_lower_bound ⦃ res =>
+      ∀ reduction, res = .Ok reduction →
+        verify_reduction weights t f delta reduction = ok (.Ok ()) ⦄ :=
+  reduce_weights_spec hts hsort weights t f delta total_weight_lower_bound
 
 end WeightReductionProofs

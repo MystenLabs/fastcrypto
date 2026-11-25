@@ -16,26 +16,22 @@ The theorems are in `Theorems.lean`. Everything else is a lemma.
 
 ## Theorems
 
-1. **`verify_reduction_sound`: an accepted reduction preserves the thresholds.** If
-   `verify_reduction` returns `Ok(())`, then for every set `S` of parties:
+1. **`verify_reduction_sound`: `verify_reduction` does not panic, and an accepted reduction
+   preserves the thresholds.** On every input, it returns `Ok(())` or an error, without
+   overflowing or indexing out of bounds; in particular, the `panic!` in `max_reduced_weight` is
+   unreachable. If it returns `Ok(())`, then for every set `S` of parties:
    * (P) `w(S) < t` implies `w'(S) < t'`,
    * (L1) `w(S) ≥ t + f + delta` implies `w'(S) ≥ t' + f'`,
    * (L2) `w(S) ≤ f` implies `w'(S) ≤ f'`,
    * (L3) `w(S) ≥ t + delta` implies `w'(S) ≥ t'`.
 
-2. **`verify_reduction_no_panic`: `verify_reduction` does not panic.** On every input, it
-   returns `Ok(())` or an error, without overflowing or indexing out of bounds. In particular,
-   the `panic!` in `max_reduced_weight` is unreachable.
+2. **`reduce_weights_passes_verify`: `reduce_weights` does not panic, and computes reductions
+   that pass the check.** On every input, it returns a reduction or an error, without
+   overflowing or indexing out of bounds. If it returns `Ok(reduction)`, then `verify_reduction`
+   with the same `weights`, `t`, `f` and `delta` returns `Ok(())` on it. So by 1, every
+   reduction it returns has the four properties.
 
-3. **`reduce_weights_passes_verify`: `reduce_weights` computes reductions that pass the check.**
-   If `reduce_weights` returns `Ok(reduction)`, then `verify_reduction` with the same `weights`,
-   `t`, `f` and `delta` returns `Ok(())` on it. So by 1, every reduction it returns has the four
-   properties.
-
-4. **`reduce_weights_no_panic`: `reduce_weights` does not panic.** On every input, it returns a
-   reduction or an error, without overflowing or indexing out of bounds.
-
-All four need `ToStringReturns`, and 3 and 4 also need `SortByPermutes`, both listed
+Both need `ToStringReturns`, and 2 also needs `SortByPermutes`, both listed
 [below](#what-is-assumed).
 
 ## Files
