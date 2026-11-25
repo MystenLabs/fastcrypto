@@ -250,6 +250,11 @@ fn test_arithmetic() {
         -five
     );
 
+    assert_eq!(
+        RistrettoScalar::from(1u128 << 67) / RistrettoScalar::from(8u64),
+        Ok(RistrettoScalar::from(1u128 << 64))
+    );
+
     // Division by zero.
     let zero_scalar = RistrettoScalar::zero();
     let err = FastCryptoError::InvalidInput;
@@ -355,8 +360,13 @@ fn test_multiscalar_mul() {
             );
         }
     }
-    // The identity, repeated and negated points, and the scalars 0, 1, l - 1 and 2^252.
     let g = RistrettoPoint::generator();
+    assert_eq!(
+        RistrettoPoint::multi_scalar_mul(&[1u64, 2, 3].map(RistrettoScalar::from), &[g; 3])
+            .unwrap(),
+        g * RistrettoScalar::from(6u64)
+    );
+    // The identity, repeated and negated points, and the scalars 0, 1, l - 1 and 2^252.
     let one = RistrettoScalar::generator();
     let two_to_252 = RistrettoScalar::from_byte_array(&power_of_two(252)).unwrap();
     let (scalars, points): (Vec<_>, Vec<_>) = [RistrettoScalar::zero(), one, -one, two_to_252]
@@ -389,7 +399,16 @@ fn test_precomputed_multiscalar_mul() {
         (default, 5, 3),
         // The default bound, and one point more, so that the tables are not built.
         (default, default.max_weighted_points, 0),
+        (default, default.max_weighted_points + 1, 0),
         (default, default.max_weighted_points + 1, 3),
+        // Over the default bound because of the dynamic points: the tables are built, but not used.
+        (
+            default,
+            5,
+            default.max_weighted_points / default.dynamic_point_weight,
+        ),
+        // Tables for more points than the default bound.
+        (strategy(usize::MAX, 0), default.max_weighted_points + 1, 3),
         // Never use tables.
         (strategy(0, 0), 5, 3),
         // The tables are built, but not used with this many dynamic points.
@@ -399,8 +418,13 @@ fn test_precomputed_multiscalar_mul() {
         (strategy(usize::MAX, usize::MAX), 5, 2),
     ] {
         let (static_points, rest) = points.split_at(num_static);
-        let precomputation =
-            RistrettoPoint::precompute_with_strategy(static_points, strategy).unwrap();
+        // `precompute` uses the default strategy.
+        let precomputation = if strategy == default {
+            RistrettoPoint::precompute(static_points)
+        } else {
+            RistrettoPoint::precompute_with_strategy(static_points, strategy)
+        }
+        .unwrap();
         assert_eq!(precomputation.strategy(), strategy);
         assert_eq!(precomputation.num_static_points(), num_static);
 
@@ -435,10 +459,6 @@ fn test_precomputed_multiscalar_mul() {
             }
         }
     }
-
-    let precomputation = RistrettoPoint::precompute(&points[..5]).unwrap();
-    assert_eq!(precomputation.strategy(), default);
-    assert_eq!(precomputation.num_static_points(), 5);
 }
 
 //
