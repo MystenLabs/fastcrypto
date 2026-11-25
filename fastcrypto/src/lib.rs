@@ -53,6 +53,10 @@ pub mod slip10_tests;
 pub mod encoding_tests;
 
 #[cfg(test)]
+#[path = "tests/ristretto255_reference.rs"]
+pub mod ristretto255_reference;
+
+#[cfg(test)]
 #[path = "tests/ristretto255_tests.rs"]
 pub mod ristretto255_tests;
 
