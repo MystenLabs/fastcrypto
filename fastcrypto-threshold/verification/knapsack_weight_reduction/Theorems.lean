@@ -2,21 +2,7 @@
 import knapsack_weight_reduction.Reduce
 
 /-!
-The theorems about `verify_reduction(weights, t, f, delta, reduction)` in
-`fastcrypto_threshold::knapsack_weight_reduction`, which checks a reduction of the weights
-`weights` and thresholds `(t, f)` to `reduction = (weights', t', f')`:
-* `verify_reduction_sound`: it returns, without panicking, on every input, and if it returns
-  `Ok(())`, then (P), (L1), (L2) and (L3) hold for every set of parties.
-
-And about `reduce_weights(weights, t, f, delta, total_weight_lower_bound)`, which computes such a
-reduction:
-* `reduce_weights_passes_verify`: it returns, without panicking, on every input, and every
-  reduction it returns passes `verify_reduction`.
-
-Both are stated as Hoare triples `f(x) ⦃ res => P res ⦄`. Such a triple says that `f(x)` returns,
-without panicking or looping forever, and that the value `res` it returns satisfies `P`. Here
-`res` is the Rust return value, a `Result`, so `res = .Ok r` is Rust's `Ok(r)`, not the absence
-of a panic.
+The main theorems about `fastcrypto_threshold::knapsack_weight_reduction`.
 
 The theorems take two assumptions about functions of the Rust standard library that the Aeneas
 library does not model, so the translation leaves them undefined:
