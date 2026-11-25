@@ -377,9 +377,9 @@ fn test_msm() {
         assert!(ProjectivePoint::multi_scalar_mul(&scalars, &points[1..]).is_err());
     }
 
-    // Every length below 50, with random scalars and points.
+    // Every length below 50 and one long MSM, with random scalars and points.
     let mut rng = StdRng::seed_from_u64(0);
-    let (scalars, points): (Vec<Scalar>, Vec<ProjectivePoint>) = (1..50)
+    let (scalars, points): (Vec<Scalar>, Vec<ProjectivePoint>) = (0..200)
         .map(|_| {
             (
                 Scalar::rand(&mut rng),
@@ -388,8 +388,11 @@ fn test_msm() {
         })
         .unzip();
     let mut expected = ProjectivePoint::zero();
-    for length in 1..50 {
+    for length in 1..=200 {
         expected += points[length - 1] * scalars[length - 1];
+        if (50..200).contains(&length) {
+            continue;
+        }
         let (scalars, points) = (&scalars[..length], &points[..length]);
         assert_eq!(
             ProjectivePoint::multi_scalar_mul(scalars, points).unwrap(),
