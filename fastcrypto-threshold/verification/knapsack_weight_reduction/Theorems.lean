@@ -14,7 +14,8 @@ reduction:
 * `reduce_weights_passes_verify`: every reduction it returns passes `verify_reduction`.
 * `reduce_weights_no_panic`: it returns, without panicking, on every input.
 
-The assumptions:
+The theorems take two assumptions about functions of the Rust standard library that the Aeneas
+library does not model, so the translation leaves them undefined:
 * `ToStringReturns`: for every `s` of type `&str`, `s.to_string()` returns a `String`.
 * `SortByPermutes`: for every mutable slice `s` and every `compare` that returns on all pairs of
   elements of `s` and is a total order on them, `s.sort_by(compare)` returns, leaving a
