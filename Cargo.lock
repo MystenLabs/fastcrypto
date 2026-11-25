@@ -1517,6 +1517,7 @@ dependencies = [
  "fastcrypto-derive",
  "mysten-mldsa-native-rs",
  "once_cell",
+ "proptest",
  "rand 0.8.8",
  "serde",
  "serde_json",
