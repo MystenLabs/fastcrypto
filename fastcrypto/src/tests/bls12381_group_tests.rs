@@ -614,8 +614,8 @@ macro_rules! test_msm {
                 assert_eq!(<$type>::inner_product(points, scalars), expected);
             }
 
-            // Every length below 50, with random scalars and points.
-            let (scalars, points): (Vec<Scalar>, Vec<$type>) = (1..50)
+            // Every length below 50 and one long MSM, with random scalars and points.
+            let (scalars, points): (Vec<Scalar>, Vec<$type>) = (0..200)
                 .map(|_| {
                     (
                         Scalar::rand(&mut rng),
@@ -624,8 +624,11 @@ macro_rules! test_msm {
                 })
                 .unzip();
             let mut expected = zero;
-            for n in 1..50 {
+            for n in 1..=200 {
                 expected += points[n - 1] * scalars[n - 1];
+                if (50..200).contains(&n) {
+                    continue;
+                }
                 let (scalars, points) = (&scalars[..n], &points[..n]);
                 assert_eq!(
                     <$type>::multi_scalar_mul(scalars, points).unwrap(),
