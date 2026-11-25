@@ -2095,10 +2095,9 @@ def bulletproofspp.circuit.solve_r_s
       error.FastCryptoError) residual
 
 /-- [fastcrypto::bulletproofspp::constraints::{fastcrypto::bulletproofspp::constraints::Constraints}::p_n]:
-    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 169:4-179:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/constraints.rs', lines 170:4-180:5 -/
 def bulletproofspp.constraints.Constraints.p_n
-  (self : bulletproofspp.constraints.Constraints)
-  (delta_inv : groups.ristretto255.RistrettoScalar) :
+  (self : bulletproofspp.constraints.Constraints) :
   Result (bulletproofspp.laurent.Laurent (alloc.vec.Vec
     groups.ristretto255.RistrettoScalar))
   := do
@@ -2111,8 +2110,9 @@ def bulletproofspp.constraints.Constraints.p_n
   let v2 ←
     alloc.vec.CloneVec.clone
       groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone self.cn_l
-  let s := alloc.vec.Vec.deref self.cn_o
-  let v3 ← bulletproofspp.util.vec_scalar_mul delta_inv s
+  let v3 ←
+    alloc.vec.CloneVec.clone
+      groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone self.cn_o
   let y ←
     lift (Std.Array.to_slice (Array.make 4#usize [ v, v1, v2, v3 ] : Array
       (alloc.vec.Vec groups.ristretto255.RistrettoScalar) 4#usize))
@@ -2122,7 +2122,7 @@ def bulletproofspp.constraints.Constraints.p_n
     0#i32 ret
 
 /-- [fastcrypto::bulletproofspp::circuit::opening_without_r_s]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 382:4-385:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 380:4-383:5 -/
 @[rust_loop_body]
 def bulletproofspp.circuit.opening_without_r_s_loop0.body
   (i : Std.Usize) (constraints : bulletproofspp.constraints.Constraints)
@@ -2147,7 +2147,7 @@ def bulletproofspp.circuit.opening_without_r_s_loop0.body
   else ok (done (constraints, weights))
 
 /-- [fastcrypto::bulletproofspp::circuit::opening_without_r_s]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 382:4-385:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 380:4-383:5 -/
 @[rust_loop]
 def bulletproofspp.circuit.opening_without_r_s_loop0
   (i : Std.Usize) (constraints : bulletproofspp.constraints.Constraints)
@@ -2164,7 +2164,7 @@ def bulletproofspp.circuit.opening_without_r_s_loop0
     (weights, i1)
 
 /-- [fastcrypto::bulletproofspp::circuit::opening_without_r_s]: loop body 1:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 393:4-400:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 391:4-398:5 -/
 @[rust_loop_body]
 def bulletproofspp.circuit.opening_without_r_s_loop1.body
   (v : alloc.vec.Vec ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
@@ -2212,7 +2212,7 @@ def bulletproofspp.circuit.opening_without_r_s_loop1.body
   else ok (done (v1, v2))
 
 /-- [fastcrypto::bulletproofspp::circuit::opening_without_r_s]: loop 1:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 393:4-400:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 391:4-398:5 -/
 @[rust_loop]
 def bulletproofspp.circuit.opening_without_r_s_loop1
   (v : alloc.vec.Vec ((alloc.vec.Vec groups.ristretto255.RistrettoScalar) ×
@@ -2229,14 +2229,12 @@ def bulletproofspp.circuit.opening_without_r_s_loop1
     (v1, v2, i)
 
 /-- [fastcrypto::bulletproofspp::circuit::opening_without_r_s]:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 366:0-427:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 366:0-421:1 -/
 def bulletproofspp.circuit.opening_without_r_s
   (params : bulletproofspp.circuit.CircuitParams)
   (constraints : bulletproofspp.constraints.Constraints)
   (witness : bulletproofspp.circuit.Witness)
-  (n_r : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
-  (delta : groups.ristretto255.RistrettoScalar)
-  (delta_inv : groups.ristretto255.RistrettoScalar) :
+  (n_r : alloc.vec.Vec groups.ristretto255.RistrettoScalar) :
   Result bulletproofspp.circuit.CombinedOpening
   := do
   let two ←
@@ -2274,46 +2272,38 @@ def bulletproofspp.circuit.opening_without_r_s
     alloc.vec.CloneVec.clone
       groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone witness.n_o
   let o ← bulletproofspp.circuit.message_opening s4 v5
-  let rs3 ←
-    groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
-      delta o.sigma
-  let s5 := alloc.vec.Vec.deref o.l
-  let v6 ← bulletproofspp.util.vec_scalar_mul delta s5
-  let s6 := alloc.vec.Vec.deref o.n
-  let v7 ← bulletproofspp.util.vec_scalar_mul delta s6
-  let s7 := alloc.vec.Vec.deref witness.r_l
-  let v8 ←
+  let s5 := alloc.vec.Vec.deref witness.r_l
+  let v6 ←
     alloc.vec.CloneVec.clone
       groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone witness.n_l
-  let o1 ← bulletproofspp.circuit.message_opening s7 v8
-  let s8 := alloc.vec.Vec.deref witness.r_r
-  let o2 ← bulletproofspp.circuit.message_opening s8 n_r
-  let s9 ←
+  let o1 ← bulletproofspp.circuit.message_opening s5 v6
+  let s6 := alloc.vec.Vec.deref witness.r_r
+  let o2 ← bulletproofspp.circuit.message_opening s6 n_r
+  let s7 ←
     lift (Array.to_slice
       (Array.make 4#usize [
-        (bulletproofspp.circuit.C_O_POWER, ({ sigma := rs3, l := v6, n := v7 }
-        : bulletproofspp.norm_linear.Opening)),
+        (bulletproofspp.circuit.C_O_POWER, o),
         (bulletproofspp.circuit.C_L_POWER, o1),
         (bulletproofspp.circuit.C_R_POWER, o2),
         (bulletproofspp.circuit.V_HAT_POWER, ({ sigma := rs, l := v3, n := v4 }
         : bulletproofspp.norm_linear.Opening))
         ]))
-  let co ← bulletproofspp.circuit.CombinedOpening.from_terms s9
-  let p_n ← bulletproofspp.constraints.Constraints.p_n constraints1 delta_inv
-  let s10 := alloc.vec.Vec.deref constraints1.norm_weights
+  let co ← bulletproofspp.circuit.CombinedOpening.from_terms s7
+  let p_n ← bulletproofspp.constraints.Constraints.p_n constraints1
+  let s8 := alloc.vec.Vec.deref constraints1.norm_weights
   let l ←
     bulletproofspp.laurent.LaurentVecRistrettoScalar.weighted_inner_product p_n
-      p_n s10
-  let rs4 ←
+      p_n s8
+  let rs3 ←
     groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddRistrettoScalarRistrettoScalar.add
       constraints1.lambda_al constraints1.mu_am
-  let rs5 ←
+  let rs4 ←
     groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
-      two rs4
+      two rs3
   let l1 ←
     bulletproofspp.laurent.Laurent.monomial
       groups.ristretto255.RistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
-      3#i32 rs5
+      3#i32 rs4
   let p_s ←
     bulletproofspp.laurent.Laurent.Insts.CoreOpsArithAddLaurentLaurent.add
       groups.ristretto255.RistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
@@ -2322,13 +2312,13 @@ def bulletproofspp.circuit.opening_without_r_s
     bulletproofspp.laurent.Laurent.Insts.CoreOpsArithAddLaurentLaurent.add
       groups.ristretto255.RistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
       co.sigma p_s
-  let v9 ←
+  let v7 ←
     alloc.vec.CloneVec.clone
       groups.ristretto255.RistrettoScalar.Insts.CoreCloneClone witness.n_s
   let l3 ←
     bulletproofspp.laurent.Laurent.monomial
       alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
-      bulletproofspp.circuit.C_S_POWER v9
+      bulletproofspp.circuit.C_S_POWER v7
   let l4 ←
     bulletproofspp.laurent.Laurent.Insts.CoreOpsArithAddLaurentLaurent.add
       alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
@@ -2391,7 +2381,7 @@ def bulletproofspp.norm_linear.Generators.commit
   bulletproofspp.crs.Generators.msm self opening.sigma s s1 s2 s3
 
 /-- [fastcrypto::bulletproofspp::circuit::commit_c_s]:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 433:0-453:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 426:0-444:1 -/
 def bulletproofspp.circuit.commit_c_s
   (gens : bulletproofspp.crs.Generators)
   (params : bulletproofspp.circuit.CircuitParams)
@@ -2400,15 +2390,12 @@ def bulletproofspp.circuit.commit_c_s
   (n_r : alloc.vec.Vec groups.ristretto255.RistrettoScalar)
   (c : bulletproofspp.laurent.Laurent (alloc.vec.Vec
   groups.ristretto255.RistrettoScalar))
-  (beta : groups.ristretto255.RistrettoScalar)
-  (delta : groups.ristretto255.RistrettoScalar)
-  (delta_inv : groups.ristretto255.RistrettoScalar) :
+  (beta : groups.ristretto255.RistrettoScalar) :
   Result (core.result.Result (groups.ristretto255.RistrettoPoint ×
     bulletproofspp.circuit.CombinedOpening) error.FastCryptoError)
   := do
   let opening ←
     bulletproofspp.circuit.opening_without_r_s params constraints witness n_r
-      delta delta_inv
   let s := alloc.vec.Vec.deref constraints.norm_weights
   let f_bar ← bulletproofspp.circuit.f opening c s
   let r ← bulletproofspp.circuit.solve_r_s constraints f_bar witness.l_s beta
@@ -3902,7 +3889,7 @@ def bulletproofspp.constraints.Constraints.new
       error.FastCryptoError) residual
 
 /-- [fastcrypto::bulletproofspp::circuit::prove_witness]:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 525:0-591:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 516:0-572:1 -/
 def bulletproofspp.circuit.prove_witness
   {R : Type _} (ReciprocalsOfInst : bulletproofspp.circuit.ReciprocalsOf R)
   (transcript : bulletproofspp.transcript.BpppTranscript)
@@ -3977,74 +3964,55 @@ def bulletproofspp.circuit.prove_witness
             let (beta, transcript9) ←
               bulletproofspp.transcript.BpppTranscript.challenge_scalar
                 transcript8 bulletproofspp.transcript.Label.Beta
-            let (delta, transcript10) ←
-              bulletproofspp.transcript.BpppTranscript.challenge_scalar
-                transcript9 bulletproofspp.transcript.Label.Delta
             let mu ←
               groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
                 rho rho
             let r5 ←
-              groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsScalar.inverse
-                delta
+              bulletproofspp.constraints.Constraints.new params alpha mu lambda
             let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r5
             match cf5 with
             | core.ops.control_flow.ControlFlow.Continue val5 =>
+              let c ← bulletproofspp.circuit.c val5 beta
               let r6 ←
-                bulletproofspp.constraints.Constraints.new params alpha mu
-                  lambda
+                bulletproofspp.circuit.commit_c_s gens params val5 witness val3
+                  c beta
               let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r6
               match cf6 with
               | core.ops.control_flow.ControlFlow.Continue val6 =>
-                let c ← bulletproofspp.circuit.c val6 beta
+                let (c_s, opening) := val6
+                let transcript10 ←
+                  bulletproofspp.transcript.BpppTranscript.append_point
+                    transcript9 bulletproofspp.transcript.Label.CS c_s
+                let (tau, transcript11) ←
+                  bulletproofspp.transcript.BpppTranscript.challenge_scalar
+                    transcript10 bulletproofspp.transcript.Label.Tau
                 let r7 ←
-                  bulletproofspp.circuit.commit_c_s gens params val6 witness
-                    val3 c beta delta val5
+                  bulletproofspp.laurent.Laurent.eval
+                    alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
+                    c tau
                 let cf7 ← core.result.Result.Insts.CoreOpsTry.branch r7
                 match cf7 with
                 | core.ops.control_flow.ControlFlow.Continue val7 =>
-                  let (c_s, opening) := val7
-                  let transcript11 ←
-                    bulletproofspp.transcript.BpppTranscript.append_point
-                      transcript10 bulletproofspp.transcript.Label.CS c_s
-                  let (tau, transcript12) ←
-                    bulletproofspp.transcript.BpppTranscript.challenge_scalar
-                      transcript11 bulletproofspp.transcript.Label.Tau
+                  let s4 := alloc.vec.Vec.deref val7
                   let r8 ←
-                    bulletproofspp.laurent.Laurent.eval
-                      alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
-                      c tau
+                    bulletproofspp.circuit.CombinedOpening.eval opening tau
                   let cf8 ← core.result.Result.Insts.CoreOpsTry.branch r8
                   match cf8 with
                   | core.ops.control_flow.ControlFlow.Continue val8 =>
-                    let s4 := alloc.vec.Vec.deref val8
-                    let r9 ←
-                      bulletproofspp.circuit.CombinedOpening.eval opening tau
+                    let (r9, transcript12) ←
+                      bulletproofspp.norm_linear.prove transcript11 gens s4 rho
+                        val8
                     let cf9 ← core.result.Result.Insts.CoreOpsTry.branch r9
                     match cf9 with
                     | core.ops.control_flow.ControlFlow.Continue val9 =>
-                      let (r10, transcript13) ←
-                        bulletproofspp.norm_linear.prove transcript12 gens s4
-                          rho val9
-                      let cf10 ←
-                        core.result.Result.Insts.CoreOpsTry.branch r10
-                      match cf10 with
-                      | core.ops.control_flow.ControlFlow.Continue val10 =>
-                        ok (core.result.Result.Ok
-                          ({
-                             c_l := val1,
-                             c_o := val2,
-                             c_r := val4,
-                             c_s,
-                             nl_proof := val10
-                           }, val), transcript13)
-                      | core.ops.control_flow.ControlFlow.Break residual =>
-                        let r11 ←
-                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                            (bulletproofspp.circuit.CircuitProof ×
-                            (alloc.vec.Vec pedersen.PedersenCommitment))
-                            (core.convert.FromSame error.FastCryptoError)
-                            residual
-                        ok (r11, transcript13)
+                      ok (core.result.Result.Ok
+                        ({
+                           c_l := val1,
+                           c_o := val2,
+                           c_r := val4,
+                           c_s,
+                           nl_proof := val9
+                         }, val), transcript12)
                     | core.ops.control_flow.ControlFlow.Break residual =>
                       let r10 ←
                         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
@@ -4059,28 +4027,28 @@ def bulletproofspp.circuit.prove_witness
                         (bulletproofspp.circuit.CircuitProof × (alloc.vec.Vec
                         pedersen.PedersenCommitment)) (core.convert.FromSame
                         error.FastCryptoError) residual
-                    ok (r9, transcript12)
+                    ok (r9, transcript11)
                 | core.ops.control_flow.ControlFlow.Break residual =>
                   let r8 ←
                     core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
                       (bulletproofspp.circuit.CircuitProof × (alloc.vec.Vec
                       pedersen.PedersenCommitment)) (core.convert.FromSame
                       error.FastCryptoError) residual
-                  ok (r8, transcript10)
+                  ok (r8, transcript11)
               | core.ops.control_flow.ControlFlow.Break residual =>
                 let r7 ←
                   core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
                     (bulletproofspp.circuit.CircuitProof × (alloc.vec.Vec
                     pedersen.PedersenCommitment)) (core.convert.FromSame
                     error.FastCryptoError) residual
-                ok (r7, transcript10)
+                ok (r7, transcript9)
             | core.ops.control_flow.ControlFlow.Break residual =>
               let r6 ←
                 core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
                   (bulletproofspp.circuit.CircuitProof × (alloc.vec.Vec
                   pedersen.PedersenCommitment)) (core.convert.FromSame
                   error.FastCryptoError) residual
-              ok (r6, transcript10)
+              ok (r6, transcript9)
           | core.ops.control_flow.ControlFlow.Break residual =>
             let r5 ←
               core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
@@ -4118,7 +4086,7 @@ def bulletproofspp.circuit.prove_witness
     ok (r1, transcript)
 
 /-- [fastcrypto::bulletproofspp::circuit::{impl fastcrypto::bulletproofspp::circuit::ReciprocalsOf for fastcrypto::bulletproofspp::circuit::HonestReciprocals}::reciprocals_of]:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 504:4-511:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 495:4-502:5 -/
 def
   bulletproofspp.circuit.HonestReciprocals.Insts.FastcryptoBulletproofsppCircuitReciprocalsOf.reciprocals_of
   (self : bulletproofspp.circuit.HonestReciprocals)
@@ -4132,7 +4100,7 @@ def
   bulletproofspp.circuit.reciprocals params s alpha
 
 /-- Trait implementation: [fastcrypto::bulletproofspp::circuit::{impl fastcrypto::bulletproofspp::circuit::ReciprocalsOf for fastcrypto::bulletproofspp::circuit::HonestReciprocals}]
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 503:0-512:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 494:0-503:1 -/
 @[reducible]
 def
   bulletproofspp.circuit.HonestReciprocals.Insts.FastcryptoBulletproofsppCircuitReciprocalsOf
@@ -4143,7 +4111,7 @@ def
 }
 
 /-- [fastcrypto::bulletproofspp::circuit::all_in_range]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 481:4-486:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 472:4-477:5 -/
 @[rust_loop_body]
 def bulletproofspp.circuit.all_in_range_loop.body
   (range : pedersen.Range) (values : Slice Std.U64) (ok1 : Bool)
@@ -4163,7 +4131,7 @@ def bulletproofspp.circuit.all_in_range_loop.body
   else ok (done ok1)
 
 /-- [fastcrypto::bulletproofspp::circuit::all_in_range]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 481:4-486:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 472:4-477:5 -/
 @[rust_loop]
 def bulletproofspp.circuit.all_in_range_loop
   (range : pedersen.Range) (values : Slice Std.U64) (ok1 : Bool)
@@ -4176,14 +4144,14 @@ def bulletproofspp.circuit.all_in_range_loop
     (ok1, i)
 
 /-- [fastcrypto::bulletproofspp::circuit::all_in_range]:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 478:0-488:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 469:0-479:1 -/
 @[reducible]
 def bulletproofspp.circuit.all_in_range
   (range : pedersen.Range) (values : Slice Std.U64) : Result Bool := do
   bulletproofspp.circuit.all_in_range_loop range values true 0#usize
 
 /-- [fastcrypto::bulletproofspp::circuit::prove]:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 458:0-475:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 449:0-466:1 -/
 def bulletproofspp.circuit.prove
   {T0 : Type _} (traitsAllowedRngInst : traits.AllowedRng T0)
   (transcript : bulletproofspp.transcript.BpppTranscript)
@@ -4229,7 +4197,7 @@ def bulletproofspp.circuit.prove
             transcript, rng)
 
 /-- [fastcrypto::bulletproofspp::circuit::tau_pow]:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 594:0-596:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 575:0-577:1 -/
 def bulletproofspp.circuit.tau_pow
   (tau : groups.ristretto255.RistrettoScalar) (power : Std.I32) :
   Result (core.result.Result groups.ristretto255.RistrettoScalar
@@ -4694,7 +4662,7 @@ def bulletproofspp.norm_linear.verify
             ok (r1, transcript4)
 
 /-- [fastcrypto::bulletproofspp::circuit::verify]: loop body 0:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 644:4-647:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 623:4-626:5 -/
 @[rust_loop_body]
 def bulletproofspp.circuit.verify_loop.body
   (v_commitments : Slice pedersen.PedersenCommitment)
@@ -4723,7 +4691,7 @@ def bulletproofspp.circuit.verify_loop.body
   else ok (done extra)
 
 /-- [fastcrypto::bulletproofspp::circuit::verify]: loop 0:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 644:4-647:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 623:4-626:5 -/
 @[rust_loop]
 def bulletproofspp.circuit.verify_loop
   (v_commitments : Slice pedersen.PedersenCommitment)
@@ -4740,7 +4708,7 @@ def bulletproofspp.circuit.verify_loop
     (extra, i)
 
 /-- [fastcrypto::bulletproofspp::circuit::verify]:
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 599:0-659:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 580:0-638:1 -/
 def bulletproofspp.circuit.verify
   (transcript : bulletproofspp.transcript.BpppTranscript)
   (gens : bulletproofspp.crs.Generators)
@@ -4788,178 +4756,158 @@ def bulletproofspp.circuit.verify
       let (beta, transcript9) ←
         bulletproofspp.transcript.BpppTranscript.challenge_scalar transcript8
           bulletproofspp.transcript.Label.Beta
-      let (delta, transcript10) ←
-        bulletproofspp.transcript.BpppTranscript.challenge_scalar transcript9
-          bulletproofspp.transcript.Label.Delta
       let mu ←
         groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
           rho rho
+      let transcript10 ←
+        bulletproofspp.transcript.BpppTranscript.append_point transcript9
+          bulletproofspp.transcript.Label.CS proof.c_s
+      let (tau, transcript11) ←
+        bulletproofspp.transcript.BpppTranscript.challenge_scalar transcript10
+          bulletproofspp.transcript.Label.Tau
       let r ←
-        groups.ristretto255.RistrettoScalar.Insts.FastcryptoGroupsScalar.inverse
-          delta
+        bulletproofspp.constraints.Constraints.new params alpha mu lambda
       let cf ← core.result.Result.Insts.CoreOpsTry.branch r
       match cf with
       | core.ops.control_flow.ControlFlow.Continue val =>
-        let transcript11 ←
-          bulletproofspp.transcript.BpppTranscript.append_point transcript10
-            bulletproofspp.transcript.Label.CS proof.c_s
-        let (tau, transcript12) ←
-          bulletproofspp.transcript.BpppTranscript.challenge_scalar
-            transcript11 bulletproofspp.transcript.Label.Tau
+        let l ← bulletproofspp.constraints.Constraints.p_n val
         let r1 ←
-          bulletproofspp.constraints.Constraints.new params alpha mu lambda
+          bulletproofspp.laurent.Laurent.eval
+            alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
+            l tau
         let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
         match cf1 with
         | core.ops.control_flow.ControlFlow.Continue val1 =>
-          let l ← bulletproofspp.constraints.Constraints.p_n val1 val
-          let r2 ←
-            bulletproofspp.laurent.Laurent.eval
-              alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
-              l tau
+          let s := alloc.vec.Vec.deref val1
+          let rs ← bulletproofspp.util.weighted_norm s mu
+          let rs1 ←
+            groups.ristretto255.RistrettoScalar.Insts.CoreConvertFrom.from
+              curve25519_dalek.scalar.Scalar.Insts.CoreConvertFromU64 2#u64
+          let rs2 ←
+            groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddRistrettoScalarRistrettoScalar.add
+              val.lambda_al val.mu_am
+          let rs3 ←
+            groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+              rs1 rs2
+          let r2 ← bulletproofspp.circuit.tau_pow tau 3#i32
           let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
           match cf2 with
           | core.ops.control_flow.ControlFlow.Continue val2 =>
-            let s := alloc.vec.Vec.deref val2
-            let rs ← bulletproofspp.util.weighted_norm s mu
-            let rs1 ←
-              groups.ristretto255.RistrettoScalar.Insts.CoreConvertFrom.from
-                curve25519_dalek.scalar.Scalar.Insts.CoreConvertFromU64 2#u64
-            let rs2 ←
-              groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddRistrettoScalarRistrettoScalar.add
-                val1.lambda_al val1.mu_am
-            let rs3 ←
+            let rs4 ←
               groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
-                rs1 rs2
-            let r3 ← bulletproofspp.circuit.tau_pow tau 3#i32
+                rs3 val2
+            let p_s_tau ←
+              groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddRistrettoScalarRistrettoScalar.add
+                rs rs4
+            let l1 ← bulletproofspp.circuit.c val beta
+            let r3 ←
+              bulletproofspp.laurent.Laurent.eval
+                alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
+                l1 tau
             let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
             match cf3 with
             | core.ops.control_flow.ControlFlow.Continue val3 =>
-              let rs4 ←
-                groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
-                  rs3 val3
-              let p_s_tau ←
-                groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithAddRistrettoScalarRistrettoScalar.add
-                  rs rs4
-              let l1 ← bulletproofspp.circuit.c val1 beta
+              let i2 := Slice.len v_commitments
+              let i3 ← 4#usize + i2
+              let extra :=
+                alloc.vec.Vec.with_capacity
+                  (groups.ristretto255.RistrettoScalar ×
+                  groups.ristretto255.RistrettoPoint) i3
               let r4 ←
-                bulletproofspp.laurent.Laurent.eval
-                  alloc.vec.VecRistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
-                  l1 tau
+                bulletproofspp.circuit.tau_pow tau
+                  bulletproofspp.circuit.C_S_POWER
               let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
               match cf4 with
               | core.ops.control_flow.ControlFlow.Continue val4 =>
-                let i2 := Slice.len v_commitments
-                let i3 ← 4#usize + i2
-                let extra :=
-                  alloc.vec.Vec.with_capacity
-                    (groups.ristretto255.RistrettoScalar ×
-                    groups.ristretto255.RistrettoPoint) i3
+                let extra1 ← alloc.vec.Vec.push extra (val4, proof.c_s)
                 let r5 ←
                   bulletproofspp.circuit.tau_pow tau
-                    bulletproofspp.circuit.C_S_POWER
+                    bulletproofspp.circuit.C_O_POWER
                 let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r5
                 match cf5 with
                 | core.ops.control_flow.ControlFlow.Continue val5 =>
-                  let extra1 ← alloc.vec.Vec.push extra (val5, proof.c_s)
+                  let extra2 ← alloc.vec.Vec.push extra1 (val5, proof.c_o)
                   let r6 ←
                     bulletproofspp.circuit.tau_pow tau
-                      bulletproofspp.circuit.C_O_POWER
+                      bulletproofspp.circuit.C_L_POWER
                   let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r6
                   match cf6 with
                   | core.ops.control_flow.ControlFlow.Continue val6 =>
-                    let rs5 ←
-                      groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
-                        delta val6
-                    let extra2 ← alloc.vec.Vec.push extra1 (rs5, proof.c_o)
+                    let extra3 ← alloc.vec.Vec.push extra2 (val6, proof.c_l)
                     let r7 ←
                       bulletproofspp.circuit.tau_pow tau
-                        bulletproofspp.circuit.C_L_POWER
+                        bulletproofspp.circuit.C_R_POWER
                     let cf7 ← core.result.Result.Insts.CoreOpsTry.branch r7
                     match cf7 with
                     | core.ops.control_flow.ControlFlow.Continue val7 =>
-                      let extra3 ←
-                        alloc.vec.Vec.push extra2 (val7, proof.c_l)
+                      let extra4 ←
+                        alloc.vec.Vec.push extra3 (val7, proof.c_r)
                       let r8 ←
                         bulletproofspp.circuit.tau_pow tau
-                          bulletproofspp.circuit.C_R_POWER
+                          bulletproofspp.circuit.V_HAT_POWER
                       let cf8 ← core.result.Result.Insts.CoreOpsTry.branch r8
                       match cf8 with
                       | core.ops.control_flow.ControlFlow.Continue val8 =>
-                        let extra4 ←
-                          alloc.vec.Vec.push extra3 (val8, proof.c_r)
-                        let r9 ←
-                          bulletproofspp.circuit.tau_pow tau
-                            bulletproofspp.circuit.V_HAT_POWER
-                        let cf9 ←
-                          core.result.Result.Insts.CoreOpsTry.branch r9
-                        match cf9 with
-                        | core.ops.control_flow.ControlFlow.Continue val9 =>
-                          let v_hat_weight ←
-                            groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
-                              rs1 val9
-                          let extra5 ←
-                            bulletproofspp.circuit.verify_loop v_commitments
-                              val1.lambdas extra4 v_hat_weight 0#usize
-                          let s1 := alloc.vec.Vec.deref val4
-                          let s2 := alloc.vec.Vec.deref val2
-                          let s3 := alloc.vec.Vec.deref extra5
-                          bulletproofspp.norm_linear.verify transcript12 gens
-                            s1 p_s_tau s2 s3 rho proof.nl_proof
-                        | core.ops.control_flow.ControlFlow.Break residual =>
-                          let r10 ←
-                            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                              Unit (core.convert.FromSame
-                              error.FastCryptoError) residual
-                          ok (r10, transcript12)
+                        let v_hat_weight ←
+                          groups.ristretto255.RistrettoScalar.Insts.CoreOpsArithMulRistrettoScalarRistrettoScalar.mul
+                            rs1 val8
+                        let extra5 ←
+                          bulletproofspp.circuit.verify_loop v_commitments
+                            val.lambdas extra4 v_hat_weight 0#usize
+                        let s1 := alloc.vec.Vec.deref val3
+                        let s2 := alloc.vec.Vec.deref val1
+                        let s3 := alloc.vec.Vec.deref extra5
+                        bulletproofspp.norm_linear.verify transcript11 gens s1
+                          p_s_tau s2 s3 rho proof.nl_proof
                       | core.ops.control_flow.ControlFlow.Break residual =>
                         let r9 ←
                           core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
                             Unit (core.convert.FromSame error.FastCryptoError)
                             residual
-                        ok (r9, transcript12)
+                        ok (r9, transcript11)
                     | core.ops.control_flow.ControlFlow.Break residual =>
                       let r8 ←
                         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
                           Unit (core.convert.FromSame error.FastCryptoError)
                           residual
-                      ok (r8, transcript12)
+                      ok (r8, transcript11)
                   | core.ops.control_flow.ControlFlow.Break residual =>
                     let r7 ←
                       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
                         Unit (core.convert.FromSame error.FastCryptoError)
                         residual
-                    ok (r7, transcript12)
+                    ok (r7, transcript11)
                 | core.ops.control_flow.ControlFlow.Break residual =>
                   let r6 ←
                     core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
                       Unit (core.convert.FromSame error.FastCryptoError)
                       residual
-                  ok (r6, transcript12)
+                  ok (r6, transcript11)
               | core.ops.control_flow.ControlFlow.Break residual =>
                 let r5 ←
                   core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
                     Unit (core.convert.FromSame error.FastCryptoError) residual
-                ok (r5, transcript12)
+                ok (r5, transcript11)
             | core.ops.control_flow.ControlFlow.Break residual =>
               let r4 ←
                 core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
                   Unit (core.convert.FromSame error.FastCryptoError) residual
-              ok (r4, transcript12)
+              ok (r4, transcript11)
           | core.ops.control_flow.ControlFlow.Break residual =>
             let r3 ←
               core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
                 Unit (core.convert.FromSame error.FastCryptoError) residual
-            ok (r3, transcript12)
+            ok (r3, transcript11)
         | core.ops.control_flow.ControlFlow.Break residual =>
           let r2 ←
             core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
               Unit (core.convert.FromSame error.FastCryptoError) residual
-          ok (r2, transcript12)
+          ok (r2, transcript11)
       | core.ops.control_flow.ControlFlow.Break residual =>
         let r1 ←
           core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
             Unit (core.convert.FromSame error.FastCryptoError) residual
-        ok (r1, transcript10)
+        ok (r1, transcript11)
 
 /-- [fastcrypto::bulletproofspp::crs::{fastcrypto::bulletproofspp::crs::Generators}::new]:
     Source: 'fastcrypto/src/bulletproofspp/crs.rs', lines 61:4-63:5 -/

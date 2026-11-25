@@ -502,18 +502,11 @@ lemma constraints_new_spec (hs : ScalarModel F φ) (pm : Bppp.CircuitParams)
 
 lemma p_n_spec (hs : ScalarModel F φ) (c : bulletproofspp.constraints.Constraints) (n : ℕ)
     (hv : c.cn_v.length = n) (hr : c.cn_r.length = n) (hl : c.cn_l.length = n)
-    (ho : c.cn_o.length = n) (delta_inv : S) :
-    bulletproofspp.constraints.Constraints.p_n c delta_inv ⦃ r =>
-      WF (VecLen n) r ∧ Half r ∧ toL (vecψ φ) r = (toC φ c).p_n (φ delta_inv) ⦄ := by
+    (ho : c.cn_o.length = n) :
+    bulletproofspp.constraints.Constraints.p_n c ⦃ r =>
+      WF (VecLen n) r ∧ Half r ∧ toL (vecψ φ) r = (toC φ c).p_n ⦄ := by
   unfold bulletproofspp.constraints.Constraints.p_n
   simp only [vec_clone_eq hs, bind_ok]
-  apply WP.spec_bind (vec_scalar_mul_spec hs delta_inv (alloc.vec.Vec.deref c.cn_o))
-  intro o ho'
-  have hol : o.length = n := by
-    have := congrArg List.length ho'
-    simp [Bppp.vec_scalar_mul, alloc.vec.Vec.deref] at this
-    show o.val.length = n
-    rw [this]; exact ho
   step*
   apply WP.spec_mono (new_spec _ 0#i32 _ (by simp [y_post]))
   intro r hr
@@ -525,6 +518,6 @@ lemma p_n_spec (hs : ScalarModel F φ) (c : bulletproofspp.constraints.Constrain
   · simp [y_post, alloc.vec.Vec.length, powBound]
   · simp [y_post, alloc.vec.Vec.length, powBound]
   · simp only [toL, y_post, Bppp.Constraints.p_n, Bppp.Laurent.new, toC]
-    simp [vecψ, ho', alloc.vec.Vec.deref]
+    simp [vecψ, alloc.vec.Vec.deref]
 
 end BpppProofs

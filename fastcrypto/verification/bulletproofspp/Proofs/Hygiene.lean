@@ -178,7 +178,7 @@ def nlLogs (L : List (Entry F E)) (rounds : List (E × E)) : List (List (Entry F
 def challengeLogs (t : BpppTranscript F E) (vcs : List (PedersenCommitment E))
     (proof : CircuitProof F E) : List (List (Entry F E)) :=
   [alphaLog t vcs proof, rhoLog t vcs proof, lamLog t vcs proof, betaLog t vcs proof,
-    deltaLog t vcs proof, tauLog t vcs proof] ++ nlLogs (tauLog t vcs proof) proof.nl_proof.rounds
+    tauLog t vcs proof] ++ nlLogs (tauLog t vcs proof) proof.nl_proof.rounds
 
 /-- `circuit::verify` reads the oracle only at `challengeLogs`. -/
 lemma readsOnly_verify (gens : Generators E) (params : CircuitParams) (proof : CircuitProof F E)
@@ -212,15 +212,10 @@ lemma readsOnly_verify (gens : Generators E) (params : CircuitParams) (proof : C
   refine ReadsOnly.bind (ReadsOnly.challenge _ _ ?_) fun beta t9 h => ?_
   · simp [challengeLogs, betaLog, lamLog, rhoLog, alphaLog, preAlpha]
   rw [run_challenge_scalar] at h; cases h
-  refine ReadsOnly.bind (ReadsOnly.challenge _ _ ?_) fun delta t10 h => ?_
-  · simp [challengeLogs, deltaLog, betaLog, lamLog, rhoLog, alphaLog, preAlpha]
-  rw [run_challenge_scalar] at h; cases h
-  refine ReadsOnly.bind (ReadsOnly.liftM _ _) fun delta_inv t11 h => ?_
-  obtain rfl := liftM_run_eq _ _ h
   refine ReadsOnly.bind (ReadsOnly.absorb _ _) fun _ t12 h => ?_
   rw [run_append_point] at h; cases h
   refine ReadsOnly.bind (ReadsOnly.challenge _ _ ?_) fun tau t13 h => ?_
-  · simp [challengeLogs, tauLog, deltaLog, betaLog, lamLog, rhoLog, alphaLog, preAlpha]
+  · simp [challengeLogs, tauLog, betaLog, lamLog, rhoLog, alphaLog, preAlpha]
   rw [run_challenge_scalar] at h; cases h
   refine ReadsOnly.bind (ReadsOnly.liftM _ _) fun _ t14 h => ?_
   obtain rfl := liftM_run_eq _ _ h
@@ -244,7 +239,7 @@ lemma readsOnly_verify (gens : Generators E) (params : CircuitParams) (proof : C
   simp only [challengeLogs, nlLogs, List.mem_append, List.mem_map, List.mem_range]
   right
   refine ⟨i, hi, ?_⟩
-  simp [tauLog, deltaLog, betaLog, lamLog, rhoLog, alphaLog, preAlpha]
+  simp [tauLog, betaLog, lamLog, rhoLog, alphaLog, preAlpha]
 
 end Circuit
 
@@ -372,10 +367,10 @@ lemma challengeLogs_shape (o : List (Entry F E) → F) (dst : List ℕ) (bits : 
     · simp [Entry.Labeled, pointLabels]
     · simp [Entry.Labeled, pointLabels]
     · exact hes e he
-  rcases hq with (rfl | rfl | rfl | rfl | rfl | rfl) | ⟨i, -, rfl⟩
+  rcases hq with (rfl | rfl | rfl | rfl | rfl) | ⟨i, -, rfl⟩
   all_goals
     simp only [Circuit.alphaLog, Circuit.rhoLog, Circuit.lamLog, Circuit.betaLog,
-      Circuit.deltaLog, Circuit.tauLog, hlog, List.append_assoc]
+      Circuit.tauLog, hlog, List.append_assoc]
     refine ⟨⟨_, rfl⟩, ?_⟩
     rw [← List.append_assoc]
     refine hlab _ ?_
@@ -448,7 +443,7 @@ theorem challengeLogs_nodup (t : BpppTranscript F E) (vcs : List (PedersenCommit
   simp only [challengeLogs, nlLogs, List.pairwise_append, List.pairwise_cons, List.pairwise_map,
     List.mem_cons, List.mem_map, List.mem_range, List.not_mem_nil, List.Pairwise.nil, or_false,
     forall_eq_or_imp, forall_eq, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂]
-  simp only [alphaLog, rhoLog, lamLog, betaLog, deltaLog, tauLog, List.length_append,
+  simp only [alphaLog, rhoLog, lamLog, betaLog, tauLog, List.length_append,
     List.length_cons, List.length_nil, length_roundEntries, List.length_take]
   and_intros
   all_goals first

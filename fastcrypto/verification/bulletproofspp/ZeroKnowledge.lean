@@ -13,7 +13,7 @@ Against an honest verifier, `RangeProof::prove_batch` under uniform randomness h
 distribution of a simulator that sees only the commitments, `range`, `dst`, the generators and the
 challenges. It is stated with VCVio's `ChallengeVerifyProtocol.HVZK`: the honest verifier draws
 every challenge uniformly, and the real and simulated transcripts are within total variation
-distance `22 / |F|`, the probability that a challenge hits one of the inversions or condition (32).
+distance `21 / |F|`, the probability that a challenge hits one of the inversions or condition (32).
 -/
 
 open Finset
@@ -38,17 +38,17 @@ def batchOf (r : Except Error ((CircuitProof F E × List (PedersenCommitment E))
 /-- **The simulator** of `prove_batch`: `Spec.simView` on the commitments, then `finish`. -/
 noncomputable def simBatch (o' : List String → F) (gens : Generators E) (params : CircuitParams)
     (hv : params.Valid) (commitments : List (PedersenCommitment E)) (range : Range)
-    (dst : List ℕ) (alpha rho lambda beta delta : F) (τ : Fˣ)
+    (dst : List ℕ) (alpha rho lambda beta : F) (τ : Fˣ)
     (y : ((Fin params.nm → F) × F) × (Fin 10 → F)) : Result (RangeProof F E) :=
-  batchOf (finish gens (params.toSpec hv) (specCh alpha rho lambda beta delta) rho τ
+  batchOf (finish gens (params.toSpec hv) (specCh alpha rho lambda beta) rho τ
     (transcript (fun l => o' (chalLabels l)) dst range.bits commitments.length) commitments
-    (Spec.simView (params.toSpec hv) (specCh alpha rho lambda beta delta) τ gens.g
+    (Spec.simView (params.toSpec hv) (specCh alpha rho lambda beta) τ gens.g
       (fun k => gens.h_vec.getD k 0) (fun k => gens.g_vec.getD k 0)
       (fun i => (commitments.getD i ⟨0⟩).point) y))
 
 /-- `prove_batch` for fixed challenges. Take a transcript hash whose challenges
 depend only on which challenges came before (an honest verifier's), with challenges `α` not in
-`{0, -1, ..., -15}` and `ρ, β, δ, τ ≠ 0`. Take values in `range`, generators of the right shape
+`{0, -1, ..., -15}` and `ρ, β, τ ≠ 0`. Take values in `range`, generators of the right shape
 with `g = pedersen::H` and `h_vec[0] = pedersen::G`, all in the span of `g`, with
 `h_vec[j] = h_j g`, `h_0 ≠ 0` and `β² ≠ h_0 (h_1 + λ^{g_1})`. Then `prove_batch`, with its masks
 and blindings uniform, has the distribution of `simBatch`, which sees only the commitments, `range`,
@@ -62,19 +62,18 @@ lemma zero_knowledge_at [Fintype F] [SampleableType F] (o' : List String → F)
     (hhG : gens.h_vec.getD 0 0 = G) (hvals : values ≠ []) (hb : blindings.length = values.length)
     (hrange : ∀ v ∈ values, range.is_in_range v) (h gg : ℕ → F)
     (hH : ∀ j, gens.h_vec.getD j 0 = h j • gens.g) (hG : ∀ k, gens.g_vec.getD k 0 = gg k • gens.g)
-    (alpha rho lambda beta delta : F) (τ : Fˣ)
+    (alpha rho lambda beta : F) (τ : Fˣ)
     (hα : o' ["alpha"] = alpha) (hρ : o' ["alpha", "rho"] = rho)
     (hlam : o' ["alpha", "rho", "lambda"] = lambda)
     (hβ : o' ["alpha", "rho", "lambda", "beta"] = beta)
-    (hδ : o' ["alpha", "rho", "lambda", "beta", "delta"] = delta)
-    (hτ : o' ["alpha", "rho", "lambda", "beta", "delta", "tau"] = τ)
+    (hτ : o' ["alpha", "rho", "lambda", "beta", "tau"] = τ)
     (halpha : ∀ j : ℕ, j < 16 → alpha + j ≠ 0) (hrho0 : rho ≠ 0) (hbeta0 : beta ≠ 0)
-    (hdelta0 : delta ≠ 0) (hh0 : h 0 ≠ 0)
+    (hh0 : h 0 ≠ 0)
     (hD : beta ^ 2 - h 0 * (h 1 + lambda ^ (params.toSpec hv).g 1) ≠ 0) :
     (fun x => prove_batch (fun l => o' (chalLabels l)) generators G H values blindings range dst
         (rngOf params hv x)) <$> ($ᵗ (Spec.Masks F (params.toSpec hv) × (Fin 15 → F))) =ᵈ
       simBatch o' gens params hv (commitments G H values blindings) range dst alpha rho lambda
-        beta delta τ <$> ($ᵗ (((Fin params.nm → F) × F) × (Fin 10 → F))) := by
+        beta τ <$> ($ᵗ (((Fin params.nm → F) × F) × (Fin 10 → F))) := by
   have hm : values.length ≠ 0 := by simpa using hvals
   obtain ⟨params', hpn, -, hpr, hpm, h16⟩ := params_new range values.length hm
   obtain rfl : params = params' := by rw [hparams] at hpn; exact Except.ok.inj hpn
@@ -83,7 +82,7 @@ lemma zero_knowledge_at [Fintype F] [SampleableType F] (o' : List String → F)
     simp only [Range.is_in_range, decide_eq_true_eq] at this
     rw [h16]; have := Nat.one_le_two_pow (n := range.bits); omega
   set P := params.toSpec hv
-  set ch := specCh alpha rho lambda beta delta
+  set ch := specCh alpha rho lambda beta
   set t := transcript (fun l => o' (chalLabels l)) dst range.bits values.length (F := F) (E := E)
   set Hf : ℕ → E := fun k => gens.h_vec.getD k 0
   set Gf : ℕ → E := fun k => gens.g_vec.getD k 0
@@ -102,7 +101,7 @@ lemma zero_knowledge_at [Fintype F] [SampleableType F] (o' : List String → F)
       simp [hvals, hb]; intro v hv'; simpa using hrange v hv'
     have hp := prove_view params hv (rngOf params hv x) values blindings G H gens t o'
       (fun _ => rfl) ht hh hg hpm.symm (by rw [hb, hpm]) (by rw [hpr]; exact hrange) hd
-      alpha rho lambda beta delta τ hα hρ hlam hβ hδ hτ halpha hrho0 hbeta0 hdelta0
+      alpha rho lambda beta τ hα hρ hlam hβ hτ halpha hrho0 hbeta0
     rw [specHonest_rngOf params hv values blindings x] at hp
     simp only [prove_batch, hc, if_false, setup, hparams, hgens, bind, Except.bind, pure, Except.pure, StateT.run']
     have hp' : (Circuit.prove G H gens params (rngOf params hv x) values blindings).run t =
@@ -133,7 +132,7 @@ lemma zero_knowledge_at [Fintype F] [SampleableType F] (o' : List String → F)
       rfl
     simp only [Spec.simView, hvh]
   have hzk := Spec.zero_knowledge P ch d sb τ h gg gens.g Hf Gf hH hG halpha
-    (mul_ne_zero hrho0 hrho0) hbeta0 hdelta0 hh0 hD
+    (mul_ne_zero hrho0 hrho0) hbeta0 one_ne_zero hh0 hD
     (fun i _ t _ => Nat.mod_lt _ (by norm_num))
   rw [show (fun x => prove_batch (fun l => o' (chalLabels l)) generators G H values blindings
       range dst (rngOf params hv x)) = (fun v => batchOf (finish gens P ch rho τ t (commitments G H values blindings) v)) ∘
@@ -152,9 +151,9 @@ lemma zero_knowledge_at [Fintype F] [SampleableType F] (o' : List String → F)
 
 open OracleComp ChallengeVerifyProtocol
 
-/-- The challenges `(α, ρ, λ, β, δ, τ, γ_1, ..., γ_r)` of a run, drawn up front by the honest
+/-- The challenges `(α, ρ, λ, β, τ, γ_1, ..., γ_r)` of a run, drawn up front by the honest
 verifier: they do not depend on the prover's messages. -/
-abbrev Chal (F : Type) (r : ℕ) := F × F × F × F × F × F × (Fin r → F)
+abbrev Chal (F : Type) (r : ℕ) := F × F × F × F × F × (Fin r → F)
 
 /-- The number of norm-linear rounds for `params`. -/
 def rounds (params : CircuitParams) : ℕ := (NormLinear.proof_shape H_LEN params.nm).1
@@ -168,8 +167,7 @@ def chalOracle {r : ℕ} (c : Chal F r) (labels : List String) : F :=
   | 3 => c.2.2.1
   | 4 => c.2.2.2.1
   | 5 => c.2.2.2.2.1
-  | 6 => c.2.2.2.2.2.1
-  | n + 7 => if h : n < r then c.2.2.2.2.2.2 ⟨n, h⟩ else 0
+  | n + 6 => if h : n < r then c.2.2.2.2.2 ⟨n, h⟩ else 0
   | _ => 0
 
 /-- `τ` as a unit, `1` if it is zero. -/
@@ -205,14 +203,13 @@ noncomputable def simTranscript (gens : Generators E) (range : Range) (dst : Lis
   let c ← $ᵗ (Chal F (rounds params))
   let y ← $ᵗ (((Fin params.nm → F) × F) × (Fin 10 → F))
   return ((), c, simBatch (chalOracle c) gens params hv V range dst c.1 c.2.1 c.2.2.1 c.2.2.2.1
-    c.2.2.2.2.1 (unitOr c.2.2.2.2.2.1) y)
+    (unitOr c.2.2.2.2.1) y)
 
 /-- The challenges for which the simulation can differ: an inversion of `prove_batch` fails, or
 condition (32) of the paper fails. -/
 def Bad (h : ℕ → F) (g1 : ℕ) {r : ℕ} (c : Chal F r) : Prop :=
   (∃ j : Fin 16, c.1 + (j : ℕ) = 0) ∨ c.2.1 = 0 ∨
-    (c.2.2.2.1 = 0 ∨ c.2.2.2.1 ^ 2 = h 0 * (h 1 + c.2.2.1 ^ g1)) ∨
-    c.2.2.2.2.1 = 0 ∨ c.2.2.2.2.2.1 = 0
+    (c.2.2.2.1 = 0 ∨ c.2.2.2.1 ^ 2 = h 0 * (h 1 + c.2.2.1 ^ g1)) ∨ c.2.2.2.2.1 = 0
 
 omit [DecidableEq F] in
 lemma pr_eq_le (a : F) :
@@ -256,9 +253,9 @@ lemma pr_snd_le {A B : Type} [SampleableType A] [SampleableType B] (p : B → Pr
   SampleableType.prEvent_uniformSample_prod_le_of_forall_fst (fun z => p z.2) fun _ => h
 
 omit [DecidableEq F] in
-/-- **The bad challenges are rare**: at most `22 / |F|`. -/
+/-- **The bad challenges are rare**: at most `21 / |F|`. -/
 lemma pr_bad_le (h : ℕ → F) (g1 r : ℕ) :
-    Pr{let c ← $ᵗ (Chal F r)}[Bad h g1 c] ≤ 22 / Fintype.card F := by
+    Pr{let c ← $ᵗ (Chal F r)}[Bad h g1 c] ≤ 21 / Fintype.card F := by
   set q : ENNReal := (Fintype.card F : ENNReal)
   -- `α + j = 0` for one of 16 values of `j`.
   have hA : Pr{let c ← $ᵗ (Chal F r)}[∃ j : Fin 16, c.1 + (j : ℕ) = 0] ≤ 16 / q := by
@@ -271,49 +268,40 @@ lemma pr_bad_le (h : ℕ → F) (g1 r : ℕ) :
     · simp [q, div_eq_mul_inv]
   -- `ρ = 0`.
   have hB : Pr{let c ← $ᵗ (Chal F r)}[c.2.1 = 0] ≤ 1 / q :=
-    pr_snd_le (fun b : F × F × F × F × F × (Fin r → F) => b.1 = 0)
+    pr_snd_le (fun b : F × F × F × F × (Fin r → F) => b.1 = 0)
       (pr_fst_le (fun a : F => a = 0) (pr_eq_le 0))
   -- `β = 0` or condition (32) fails, for each `λ`.
   have hC : Pr{let c ← $ᵗ (Chal F r)}[c.2.2.2.1 = 0 ∨
       c.2.2.2.1 ^ 2 = h 0 * (h 1 + c.2.2.1 ^ g1)] ≤ 3 / q :=
-    pr_snd_le (fun b : F × F × F × F × F × (Fin r → F) =>
+    pr_snd_le (fun b : F × F × F × F × (Fin r → F) =>
         b.2.2.1 = 0 ∨ b.2.2.1 ^ 2 = h 0 * (h 1 + b.2.1 ^ g1))
-      (pr_snd_le (fun b : F × F × F × F × (Fin r → F) =>
+      (pr_snd_le (fun b : F × F × F × (Fin r → F) =>
           b.2.1 = 0 ∨ b.2.1 ^ 2 = h 0 * (h 1 + b.1 ^ g1))
         (SampleableType.prEvent_uniformSample_prod_le_of_forall_fst
-          (fun b : F × F × F × F × (Fin r → F) =>
+          (fun b : F × F × F × (Fin r → F) =>
             b.2.1 = 0 ∨ b.2.1 ^ 2 = h 0 * (h 1 + b.1 ^ g1))
           fun l => pr_fst_le (fun a : F => a = 0 ∨ a ^ 2 = h 0 * (h 1 + l ^ g1))
             (pr_sq_le _)))
-  -- `δ = 0`.
-  have hD : Pr{let c ← $ᵗ (Chal F r)}[c.2.2.2.2.1 = 0] ≤ 1 / q :=
-    pr_snd_le (fun b : F × F × F × F × F × (Fin r → F) => b.2.2.2.1 = 0)
-      (pr_snd_le (fun b : F × F × F × F × (Fin r → F) => b.2.2.1 = 0)
-        (pr_snd_le (fun b : F × F × F × (Fin r → F) => b.2.1 = 0)
-          (pr_snd_le (fun b : F × F × (Fin r → F) => b.1 = 0)
-            (pr_fst_le (fun a : F => a = 0) (pr_eq_le 0)))))
   -- `τ = 0`.
-  have hE : Pr{let c ← $ᵗ (Chal F r)}[c.2.2.2.2.2.1 = 0] ≤ 1 / q :=
-    pr_snd_le (fun b : F × F × F × F × F × (Fin r → F) => b.2.2.2.2.1 = 0)
-      (pr_snd_le (fun b : F × F × F × F × (Fin r → F) => b.2.2.2.1 = 0)
-        (pr_snd_le (fun b : F × F × F × (Fin r → F) => b.2.2.1 = 0)
-          (pr_snd_le (fun b : F × F × (Fin r → F) => b.2.1 = 0)
-            (pr_snd_le (fun b : F × (Fin r → F) => b.1 = 0)
-              (pr_fst_le (fun a : F => a = 0) (pr_eq_le 0))))))
+  have hE : Pr{let c ← $ᵗ (Chal F r)}[c.2.2.2.2.1 = 0] ≤ 1 / q :=
+    pr_snd_le (fun b : F × F × F × F × (Fin r → F) => b.2.2.2.1 = 0)
+      (pr_snd_le (fun b : F × F × F × (Fin r → F) => b.2.2.1 = 0)
+        (pr_snd_le (fun b : F × F × (Fin r → F) => b.2.1 = 0)
+          (pr_snd_le (fun b : F × (Fin r → F) => b.1 = 0)
+            (pr_fst_le (fun a : F => a = 0) (pr_eq_le 0)))))
   calc Pr{let c ← $ᵗ (Chal F r)}[Bad h g1 c]
-      ≤ 16 / q + (1 / q + (3 / q + (1 / q + 1 / q))) := by
+      ≤ 16 / q + (1 / q + (3 / q + 1 / q)) := by
         refine (prEvent_or_le _ _ _).trans (add_le_add hA ?_)
         refine (prEvent_or_le _ _ _).trans (add_le_add hB ?_)
-        refine (prEvent_or_le _ _ _).trans (add_le_add hC ?_)
-        exact (prEvent_or_le _ _ _).trans (add_le_add hD hE)
-    _ = 22 / q := by
+        exact (prEvent_or_le _ _ _).trans (add_le_add hC hE)
+    _ = 21 / q := by
         simp only [← ENNReal.add_div]; norm_num
 
 /-- **Honest-verifier zero-knowledge of `range_proof`** (Theorem 1 of the paper), as VCVio's
 `ChallengeVerifyProtocol.HVZK`. For batches of `m ≥ 1` values, with generators of the right shape
 (`g = pedersen::H`, `h_vec[0] = pedersen::G`) in the span of `g` with `h_vec[j] = h_j g` and
 `h_0 ≠ 0`, the transcripts of `prove_batch` against an honest verifier, whose challenges are
-uniform, are within total variation distance `22 / |F|` of `simTranscript`, which sees only the
+uniform, are within total variation distance `21 / |F|` of `simTranscript`, which sees only the
 commitments, `range`, `dst` and the generators. -/
 theorem zero_knowledge (generators : ℕ → Result (Generators E)) (G H : E) (range : Range)
     (dst : List ℕ) (gens : Generators E) (params : CircuitParams) (hv : params.Valid) (m : ℕ)
@@ -324,7 +312,7 @@ theorem zero_knowledge (generators : ℕ → Result (Generators E)) (G H : E) (r
     (hG : ∀ k, gens.g_vec.getD k 0 = gg k • gens.g) (hh0 : h 0 ≠ 0) :
     ChallengeVerifyProtocol.HVZK (Chal := Chal F (rounds params))
       (protocol generators G H range dst params hv m)
-      (simTranscript gens range dst params hv) (22 / Fintype.card F) := by
+      (simTranscript gens range dst params hv) (21 / Fintype.card F) := by
   classical
   intro V w hw
   letI : MeasurableSpace (Unit × Chal F (rounds params) × Result (RangeProof F E)) := ⊤
@@ -337,11 +325,11 @@ theorem zero_knowledge (generators : ℕ → Result (Generators E)) (G H : E) (r
   refine (OracleComp.measureETVDist_bind_left_le_prEvent_of_evalDistEq _ _ _
     (Bad h ((params.toSpec hv).g 1)) fun c hc => ?_).trans (pr_bad_le h _ _)
   simp only [Bad, not_or, not_exists] at hc
-  obtain ⟨hα, hρ, ⟨hβ0, hD⟩, hδ, hτ⟩ := hc
+  obtain ⟨hα, hρ, ⟨hβ0, hD⟩, hτ⟩ := hc
   have key := zero_knowledge_at (chalOracle c) generators G H values blindings range dst gens
     params hgens hparams hv hh hg hgH hhG hvals hb hrange h gg hH hG c.1 c.2.1 c.2.2.1 c.2.2.2.1
-    c.2.2.2.2.1 (unitOr c.2.2.2.2.2.1) rfl rfl rfl rfl rfl (by simp [unitOr, hτ]; rfl)
-    (fun j hj => hα ⟨j, hj⟩) hρ hβ0 hδ hh0 (sub_ne_zero.2 hD)
+    (unitOr c.2.2.2.2.1) rfl rfl rfl rfl (by simp [unitOr, hτ]; rfl)
+    (fun j hj => hα ⟨j, hj⟩) hρ hβ0 hh0 (sub_ne_zero.2 hD)
   simpa only [bind_pure_comp, Functor.map_map] using key.map (fun π => ((), c, π))
 
 end RangeProof

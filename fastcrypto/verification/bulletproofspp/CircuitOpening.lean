@@ -386,11 +386,10 @@ lemma opening_without_r_s_spec (hs : ScalarModel F φ) (pm : Bppp.CircuitParams)
     (p : bulletproofspp.circuit.CircuitParams) (hp : ParamsOK pm p)
     (cons : bulletproofspp.constraints.Constraints) (hc : ConsLen p.m.val p.nm.val cons)
     (w : bulletproofspp.circuit.Witness) (hw : WitLen p.m.val p.nm.val w)
-    (n_r : alloc.vec.Vec S) (hnr : n_r.length = p.nm.val) (delta delta_inv : S) :
-    bulletproofspp.circuit.opening_without_r_s p cons w n_r delta delta_inv ⦃ r =>
+    (n_r : alloc.vec.Vec S) (hnr : n_r.length = p.nm.val) :
+    bulletproofspp.circuit.opening_without_r_s p cons w n_r ⦃ r =>
       COK (φ := φ) p.nm.val (-1) 7 r ∧
-      toCO φ r = Bppp.Circuit.opening_without_r_s pm (toC φ cons) (toWit φ w) (n_r.val.map φ)
-        (φ delta) (φ delta_inv) ⦄ := by
+      toCO φ r = Bppp.Circuit.opening_without_r_s pm (toC φ cons) (toWit φ w) (n_r.val.map φ) ⦄ := by
   obtain ⟨hm, hpd, hpnd, hpnm, hd0, hnde, hnm, hml, hnml⟩ := hp
   unfold bulletproofspp.circuit.opening_without_r_s
   simp only [hs.from_u64_eq, bind_ok]
@@ -426,10 +425,6 @@ lemma opening_without_r_s_spec (hs : ScalarModel F φ) (pm : Bppp.CircuitParams)
   apply WP.spec_bind (message_opening_spec hs _ w.n_o (by simp [Slice.length, deref_val, hw.r_o]))
   rintro o ⟨ho, hol, hon⟩
   simp only [hs.mul_eq, bind_ok]
-  apply WP.spec_bind (vec_scalar_mul_spec hs delta (alloc.vec.Vec.deref o.l))
-  intro v6 hv6
-  apply WP.spec_bind (vec_scalar_mul_spec hs delta (alloc.vec.Vec.deref o.n))
-  intro v7 hv7
   apply WP.spec_bind (message_opening_spec hs _ w.n_l (by simp [Slice.length, deref_val, hw.r_l]))
   rintro o1 ⟨ho1, hol1, hon1⟩
   apply WP.spec_bind (message_opening_spec hs _ n_r (by simp [Slice.length, deref_val, hw.r_r]))
@@ -443,36 +438,26 @@ lemma opening_without_r_s_spec (hs : ScalarModel F φ) (pm : Bppp.CircuitParams)
     unfold bulletproofspp.circuit.C_R_POWER; rfl
   have hcv : (bulletproofspp.circuit.V_HAT_POWER).val = 3 := by
     unfold bulletproofspp.circuit.V_HAT_POWER; rfl
-  have hs9 : s9.val = [(bulletproofspp.circuit.C_O_POWER, ⟨hs.mulF delta o.sigma, v6, v7⟩),
+  have hs9 : s7.val = [(bulletproofspp.circuit.C_O_POWER, o),
       (bulletproofspp.circuit.C_L_POWER, o1), (bulletproofspp.circuit.C_R_POWER, o2),
       (bulletproofspp.circuit.V_HAT_POWER, ⟨rs, index_mut_back rs2, v1⟩)] := by
-    rw [s9_post]; rfl
+    rw [s7_post]; rfl
   have hderef : ∀ v : alloc.vec.Vec S, (alloc.vec.Vec.deref v).length = v.length := fun v => by
     simp [Slice.length, deref_val, alloc.vec.Vec.length]
-  have hv6l : v6.length = 8 := by
-    have := congrArg List.length hv6
-    simp only [List.length_map, Bppp.vec_scalar_mul, deref_val] at this
-    show v6.val.length = 8
-    rw [this]; have h' := hol; rw [hderef] at h'; exact h'.trans hw.r_o
-  have hv7l : v7.length = p.nm.val := by
-    have := congrArg List.length hv7
-    simp only [List.length_map, Bppp.vec_scalar_mul, deref_val, hon] at this
-    show v7.val.length = _
-    rw [this]; exact hw.n_o
   have himl : (index_mut_back rs2).length = 8 := by
     rw [index_mut_back_post]; simp [v_post1]
-  apply WP.spec_bind (co_from_terms_spec hs p.nm.val s9 0 4 (by simp [hs9]) (by
+  apply WP.spec_bind (co_from_terms_spec hs p.nm.val s7 0 4 (by simp [hs9]) (by
       intro t ht
       rw [hs9] at ht
       simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
       rcases ht with rfl | rfl | rfl | rfl
-      · exact ⟨by simp [hco], by simp [hco], hv6l, hv7l⟩
+      · exact ⟨by simp [hco], by simp [hco], by rw [hol, hderef]; exact hw.r_o, by rw [hon]; exact hw.n_o⟩
       · exact ⟨by simp [hcl], by simp [hcl], by rw [hol1, hderef]; exact hw.r_l, by rw [hon1]; exact hw.n_l⟩
       · exact ⟨by simp [hcr], by simp [hcr], by rw [hol2, hderef]; exact hw.r_r, by rw [hon2]; exact hnr⟩
       · exact ⟨by simp [hcv], by simp [hcv], himl, v1_post1⟩)
     (by norm_num [powBound]) (by norm_num [powBound]))
   rintro co ⟨hcok, hcoe⟩
-  apply WP.spec_bind (p_n_spec hs c1 p.nm.val hc.cn_v hc.cn_r hc.cn_l hc.cn_o delta_inv)
+  apply WP.spec_bind (p_n_spec hs c1 p.nm.val hc.cn_v hc.cn_r hc.cn_l hc.cn_o)
   rintro pn ⟨hpw, hph, hpe⟩
   apply WP.spec_bind (weighted_inner_product_spec' hs p.nm.val pn pn hpw hpw hph hph _ (by
     simp only [Slice.length, deref_val]; exact hc.norm_weights))
@@ -507,19 +492,14 @@ lemma opening_without_r_s_spec (hs : ScalarModel F φ) (pm : Bppp.CircuitParams)
   · rw [hl5e, hl4e, hm2e]
     exact spans_mono (spans_add (spans_add hcok.n_spans (spans_monomial (-1) _)) hpsp)
       (by norm_num) (by norm_num)
-  · simp only [deref_val] at ho ho1 ho2 hrs hrs2 hv6 hv7 hle
+  · simp only [deref_val] at ho ho1 ho2 hrs hrs2 hle
     have h2 : φ (hs.fromF 2#u64) = 2 := by simp
     have hwts' : weights.val.map φ = ((toC φ c1).lambdas.take pm.m).map (fun x => 2 * x) := by
       rw [hwts, h2, hm]; rfl
     have hset : ((List.replicate Bppp.H_LEN (0 : F)).set 0 (φ rs2)).set (Bppp.H_LEN - 1) 0 =
         (List.replicate 8 (0 : F)).set 0 (φ rs2) := rfl
     have hcoe' : toCO φ co = Bppp.Circuit.CombinedOpening.from_terms
-        [(Bppp.Circuit.C_O_POWER,
-          ⟨φ delta * (Bppp.Circuit.message_opening (w.r_o.val.map φ) (w.n_o.val.map φ)).sigma,
-            Bppp.vec_scalar_mul (φ delta)
-              (Bppp.Circuit.message_opening (w.r_o.val.map φ) (w.n_o.val.map φ)).l,
-            Bppp.vec_scalar_mul (φ delta)
-              (Bppp.Circuit.message_opening (w.r_o.val.map φ) (w.n_o.val.map φ)).n⟩),
+        [(Bppp.Circuit.C_O_POWER, Bppp.Circuit.message_opening (w.r_o.val.map φ) (w.n_o.val.map φ)),
          (Bppp.Circuit.C_L_POWER, Bppp.Circuit.message_opening (w.r_l.val.map φ) (w.n_l.val.map φ)),
          (Bppp.Circuit.C_R_POWER, Bppp.Circuit.message_opening (w.r_r.val.map φ) (n_r.val.map φ)),
          (Bppp.Circuit.V_HAT_POWER,
@@ -530,7 +510,7 @@ lemma opening_without_r_s_spec (hs : ScalarModel F φ) (pm : Bppp.CircuitParams)
                 (w.blindings.val.map φ))).set (Bppp.H_LEN - 1) 0,
             List.replicate pm.nm 0⟩)] := by
       rw [hcoe, hs9, ← ho, ← ho1, ← ho2, ← hwts', ← hrs, ← hrs2, hset]
-      simp only [List.map_cons, List.map_nil, hco, hcl, hcr, hcv, toO, hv6, hv7, ← hpnm,
+      simp only [List.map_cons, List.map_nil, hco, hcl, hcr, hcv, toO, ← hpnm,
         index_mut_back_post, v_post, v1_post, ScalarModel.φ_mulF, ScalarModel.φ_z, List.map_replicate,
         Bppp.Circuit.C_O_POWER, Bppp.Circuit.C_L_POWER, Bppp.Circuit.C_R_POWER,
         Bppp.Circuit.V_HAT_POWER, List.map_set, alloc.vec.Vec.set_val_eq]
@@ -552,15 +532,15 @@ lemma commit_c_s_spec (hs : ScalarModel F φ) (gens : bulletproofspp.crs.Generat
     (w : bulletproofspp.circuit.Witness) (hw : WitLen p.m.val p.nm.val w)
     (n_r : alloc.vec.Vec S) (hnr : n_r.length = p.nm.val)
     (c : bulletproofspp.laurent.Laurent (alloc.vec.Vec S)) (hcw : WF (VecLen 8) c) (hch : Half c)
-    (beta delta delta_inv : S) :
-    bulletproofspp.circuit.commit_c_s gens p cons w n_r c beta delta delta_inv ⦃ r =>
+    (beta : S) :
+    bulletproofspp.circuit.commit_c_s gens p cons w n_r c beta ⦃ r =>
       match Bppp.Circuit.commit_c_s (toGens ψ gens) pm (toC φ cons) (toWit φ w) (n_r.val.map φ)
-          (toL (vecψ φ) c) (φ beta) (φ delta) (φ delta_inv) with
+          (toL (vecψ φ) c) (φ beta) with
       | .ok (cs, co) => ∃ cs' co', r = .Ok (cs', co') ∧ ψ cs' = cs ∧ toCO φ co' = co ∧
           COK (φ := φ) p.nm.val (-1) 7 co'
       | .error _ => r = .Err .InvalidInput ⦄ := by
   unfold bulletproofspp.circuit.commit_c_s
-  apply WP.spec_bind (opening_without_r_s_spec hs pm p hp cons hc w hw n_r hnr delta delta_inv)
+  apply WP.spec_bind (opening_without_r_s_spec hs pm p hp cons hc w hw n_r hnr)
   rintro op ⟨hok, hope⟩
   apply WP.spec_bind (f_spec hs p.nm.val op (-1) 7 hok (by norm_num [powBound])
     (by norm_num [powBound]) c hcw hch _ (by

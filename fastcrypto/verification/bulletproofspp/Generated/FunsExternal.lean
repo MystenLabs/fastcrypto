@@ -244,7 +244,7 @@ axiom
     groups.ristretto255.RistrettoPoint error.FastCryptoError)
 
 /-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::challenge_scalar]:
-    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 130:4-134:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 128:4-132:5 -/
 axiom bulletproofspp.transcript.BpppTranscript.challenge_scalar
   :
   bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
@@ -252,7 +252,7 @@ axiom bulletproofspp.transcript.BpppTranscript.challenge_scalar
     bulletproofspp.transcript.BpppTranscript)
 
 /-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::append_commits]:
-    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 103:4-107:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 101:4-105:5 -/
 axiom bulletproofspp.transcript.BpppTranscript.append_commits
   :
   bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
@@ -260,7 +260,7 @@ axiom bulletproofspp.transcript.BpppTranscript.append_commits
     bulletproofspp.transcript.BpppTranscript
 
 /-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::append_point]:
-    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 97:4-100:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 95:4-98:5 -/
 axiom bulletproofspp.transcript.BpppTranscript.append_point
   :
   bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
@@ -268,14 +268,14 @@ axiom bulletproofspp.transcript.BpppTranscript.append_point
     bulletproofspp.transcript.BpppTranscript
 
 /-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::domain_sep]:
-    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 87:4-89:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 85:4-87:5 -/
 axiom bulletproofspp.transcript.BpppTranscript.domain_sep
   :
   bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
     → Result bulletproofspp.transcript.BpppTranscript
 
 /-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::append_scalars]:
-    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 116:4-120:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 114:4-118:5 -/
 axiom bulletproofspp.transcript.BpppTranscript.append_scalars
   :
   bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
@@ -322,21 +322,21 @@ axiom bulletproofspp.crs.cached_generators
     bulletproofspp.crs.Generators) error.FastCryptoError)
 
 /-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::append_u64]:
-    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 123:4-126:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 121:4-124:5 -/
 axiom bulletproofspp.transcript.BpppTranscript.append_u64
   :
   bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
     → Std.U64 → Result bulletproofspp.transcript.BpppTranscript
 
 /-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::append_message]:
-    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 92:4-94:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 90:4-92:5 -/
 axiom bulletproofspp.transcript.BpppTranscript.append_message
   :
   bulletproofspp.transcript.BpppTranscript → bulletproofspp.transcript.Label
     → Slice Std.U8 → Result bulletproofspp.transcript.BpppTranscript
 
 /-- [fastcrypto::bulletproofspp::transcript::{fastcrypto::bulletproofspp::transcript::BpppTranscript}::new]:
-    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 78:4-82:5 -/
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 76:4-80:5 -/
 axiom bulletproofspp.transcript.BpppTranscript.new
   :
   bulletproofspp.transcript.Label → Result

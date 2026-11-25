@@ -121,8 +121,8 @@ lemma liftM_run' {σ ε α : Type} (x : Except ε α) (s : σ) :
 
 section ModelRun
 
-variable {T0 T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 : Bppp.BpppTranscript F E}
-  {alpha rho lambda beta delta tau : F}
+variable {T0 T1 T2 T3 T4 T5 T6 T7 T8 T9 T11 T12 : Bppp.BpppTranscript F E}
+  {alpha rho lambda beta tau : F}
 
 /-- The run of the model's circuit verifier, given the run of its transcript operations: the
 checks that do not touch the transcript, then the norm-linear verifier. -/
@@ -138,14 +138,12 @@ lemma model_verify_run (gens : Bppp.Generators E) (pm : Bppp.CircuitParams)
     (m7 : (Bppp.BpppTranscript.challenge_scalar "rho").run T6 = .ok (rho, T7))
     (m8 : (Bppp.BpppTranscript.challenge_scalar "lambda").run T7 = .ok (lambda, T8))
     (m9 : (Bppp.BpppTranscript.challenge_scalar "beta").run T8 = .ok (beta, T9))
-    (m10 : (Bppp.BpppTranscript.challenge_scalar "delta").run T9 = .ok (delta, T10))
-    (m11 : (Bppp.BpppTranscript.append_point "C_S" proof.c_s).run T10 = .ok ((), T11))
+    (m11 : (Bppp.BpppTranscript.append_point "C_S" proof.c_s).run T9 = .ok ((), T11))
     (m12 : (Bppp.BpppTranscript.challenge_scalar "tau").run T11 = .ok (tau, T12)) :
     (Bppp.Circuit.verify gens pm proof vcs).run T0 =
       (do
-        let dinv ← Bppp.inverse delta
         let constraints ← Bppp.Constraints.new pm alpha (rho * rho) lambda
-        let p_n_tau ← (constraints.p_n dinv).eval tau
+        let p_n_tau ← constraints.p_n.eval tau
         let t3 ← (Bppp.Laurent.monomial 3 Bppp.one).eval tau
         let c_tau ← (Bppp.Circuit.c constraints beta).eval tau
         let x1 ← (Bppp.Laurent.monomial Bppp.Circuit.C_S_POWER Bppp.one).eval tau
@@ -156,7 +154,7 @@ lemma model_verify_run (gens : Bppp.Generators E) (pm : Bppp.CircuitParams)
         (Bppp.NormLinear.verify gens c_tau
           (Bppp.weighted_norm p_n_tau (rho * rho) +
             2 * (constraints.lambda_al + constraints.mu_am) * t3) p_n_tau
-          ([(x1, proof.c_s), (delta * x2, proof.c_o), (x3, proof.c_l), (x4, proof.c_r)] ++
+          ([(x1, proof.c_s), (x2, proof.c_o), (x3, proof.c_l), (x4, proof.c_r)] ++
             vcs.zipIdx.map fun (v_i, i) => (2 * x5 * constraints.lambdas.getD i 0, v_i.point))
           rho proof.nl_proof).run T12 : Except Bppp.Error (Unit × Bppp.BpppTranscript F E)) := by
   unfold Bppp.Circuit.verify
@@ -171,14 +169,8 @@ lemma model_verify_run (gens : Bppp.Generators E) (pm : Bppp.CircuitParams)
   rw [StateT.run_bind, m7, except_ok_bind]
   rw [StateT.run_bind, m8, except_ok_bind]
   rw [StateT.run_bind, m9, except_ok_bind]
-  rw [StateT.run_bind, m10, except_ok_bind]
-  rw [StateT.run_bind, liftM_run']
-  rcases hinv : Bppp.inverse delta with e | dinv
-  · rfl
-  rw [except_ok_bind, except_ok_bind, StateT.run_bind, m11, except_ok_bind,
-    StateT.run_bind, m12, except_ok_bind]
+  rw [StateT.run_bind, m11, except_ok_bind, StateT.run_bind, m12, except_ok_bind]
   dsimp only
-  rw [except_ok_bind]
   refine lift_step _ _ _ _ (fun C => ?_)
   refine lift_step _ _ _ _ (fun pnt => ?_)
   refine lift_step _ _ _ _ (fun t3 => ?_)
@@ -244,34 +236,17 @@ lemma circuit_verify_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
   obtain ⟨rho, t7, e7, m7⟩ := ht.challenge_scalar t6 .Rho
   obtain ⟨lambda, t8, e8, m8⟩ := ht.challenge_scalar t7 .Lambda
   obtain ⟨beta, t9, e9, m9⟩ := ht.challenge_scalar t8 .Beta
-  obtain ⟨delta, t10, e10, m10⟩ := ht.challenge_scalar t9 .Delta
-  obtain ⟨t11, e11, m11⟩ := ht.append_point t10 .CS proof.c_s
+  obtain ⟨t11, e11, m11⟩ := ht.append_point t9 .CS proof.c_s
   obtain ⟨tau, t12, e12, m12⟩ := ht.challenge_scalar t11 .Tau
   have m2' : StateT.run (Bppp.BpppTranscript.append_commits "V" (vcs.val.map (toPC ψ))) (τ t1) =
       .ok ((), τ t2) := m2
-  simp only [labelStr] at m1 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12
-  rw [model_verify_run (toGens ψ gens) pm (toCP φ ψ proof) _ hcond m1 m2' m3 m4 m5 m6 m7 m8 m9 m10
+  simp only [labelStr] at m1 m3 m4 m5 m6 m7 m8 m9 m11 m12
+  rw [model_verify_run (toGens ψ gens) pm (toCP φ ψ proof) _ hcond m1 m2' m3 m4 m5 m6 m7 m8 m9
     m11 m12]
-  simp only [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, bind_ok, Std.uncurry_apply_pair, hs.mul_eq]
+  simp only [e1, e2, e3, e4, e5, e6, e7, e8, e9, e11, e12, bind_ok, Std.uncurry_apply_pair, hs.mul_eq]
   have hres : ∀ (x : core.result.Result Unit error.FastCryptoError)
       (tt : bulletproofspp.transcript.BpppTranscript) (e : Bppp.Error),
       (∃ e', x = .Err e') → VMatches τ (x, tt) (.error e) := fun _ _ _ h => h
-  -- delta inverse
-  apply WP.spec_bind (inverse_spec' hs delta)
-  intro r0 hr0
-  split at hr0
-  rotate_left
-  · rename_i e he
-    subst hr0
-    rw [he, except_error_bind]
-    simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
-      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
-      core.convert.FromSame.from, bind_tc_ok, WP.spec_ok]
-    exact hres _ _ _ ⟨_, rfl⟩
-  rename_i dinv hdinv
-  obtain ⟨dinv', rfl, hdinv'⟩ := hr0
-  rw [hdinv, except_ok_bind]
-  simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, e11, e12, Std.uncurry_apply_pair]
   -- constraints
   apply WP.spec_bind (constraints_new_spec hs pm p hpo alpha (hs.mulF rho rho) lambda)
   intro r1 hr1
@@ -292,10 +267,10 @@ lemma circuit_verify_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
   obtain ⟨l1, l2, l3, l4, l5, l6, l7⟩ := cons_new_len pm _ _ _ C hC (by omega)
   rw [← hc'] at l1 l2 l3 l4 l5 l6 l7
   simp only [toC, List.length_map] at l1 l2 l3 l4 l5 l6 l7
-  rw [← hc', ← hdinv']
+  rw [← hc']
   -- p_n(tau)
   apply WP.spec_bind (p_n_spec hs c' p.nm.val (by rw [← hpnm]; exact l5) (by rw [← hpnm]; exact l3)
-    (by rw [← hpnm]; exact l2) (by rw [← hpnm]; exact l4) dinv')
+    (by rw [← hpnm]; exact l2) (by rw [← hpnm]; exact l4))
   rintro pn ⟨hpw, hph, hpe⟩
   rw [← hpe]
   apply WP.spec_bind (eval_spec hs (vec_coeff_model hs p.nm.val) pn hpw tau)

@@ -330,22 +330,9 @@ lemma prove_witness_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
   obtain ⟨rho, t7, h7, m7⟩ := ht.challenge_scalar t6 .Rho
   obtain ⟨lambda, t8, h8, m8⟩ := ht.challenge_scalar t7 .Lambda
   obtain ⟨beta, t9, h9, m9⟩ := ht.challenge_scalar t8 .Beta
-  obtain ⟨delta, t10, h10, m10⟩ := ht.challenge_scalar t9 .Delta
-  simp only [labelStr] at m6 m7 m8 m9 m10
-  simp only [h6, h7, h8, h9, h10, bind_ok, m6, m7, m8, m9, m10, except_ok_bind,
+  simp only [labelStr] at m6 m7 m8 m9
+  simp only [h6, h7, h8, h9, bind_ok, m6, m7, m8, m9, except_ok_bind,
     Std.uncurry_apply_pair, hs.mul_eq]
-  -- delta inverse
-  apply WP.spec_bind (inverse_spec' hs delta)
-  intro r5 hr5
-  split at hr5
-  rotate_left
-  · rename_i e he
-    subst hr5
-    simp [he, CPMatches, liftM_error_run, except_error_bind,
-      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
-  rename_i dinv hdinv
-  obtain ⟨dinv', rfl, hdinv'⟩ := hr5
-  simp only [hdinv, liftM_ok_run, except_ok_bind, bind_ok, core.result.Result.Insts.CoreOpsTry.branch]
   -- constraints
   apply WP.spec_bind (constraints_new_spec hs pm p hpo alpha (hs.mulF rho rho) lambda)
   intro r6 hr6
@@ -375,9 +362,8 @@ lemma prove_witness_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
   -- C_S
   apply WP.spec_bind (commit_c_s_spec (ψ := ψ) hs gens hg pm p
     ⟨hm, hpd, hpnd, hpnm, hd0, hnde, hnm, hml, hnml⟩ hgh hgg hlen c' hcons w hw n_r hnrl cc hcw hch
-    beta delta dinv')
+    beta)
   intro r7 hr7
-  rw [← hdinv']
   split at hr7
   rotate_left
   · rename_i e he
@@ -388,7 +374,7 @@ lemma prove_witness_spec (hs : ScalarModel F φ) (hp : PointModel φ ψ)
   obtain ⟨c_s, co, rfl, hcs, hcoe, hcok⟩ := hr7
   simp only [hcsm, liftM_ok_run, except_ok_bind, bind_ok]
   rw [← hcs, ← hcoe]
-  obtain ⟨t11, h11, m11⟩ := ht.append_point t10 .CS c_s
+  obtain ⟨t11, h11, m11⟩ := ht.append_point t9 .CS c_s
   obtain ⟨tau, t12, h12, m12⟩ := ht.challenge_scalar t11 .Tau
   simp only [labelStr] at m11 m12
   simp only [h11, h12, bind_ok, m11, m12, except_ok_bind, Std.uncurry_apply_pair]

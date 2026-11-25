@@ -64,10 +64,10 @@ lemma dig_lt (k : ℕ) : (specHonest rng values blindings).dig (params.toSpec hv
 
 /-- `reciprocals` inverts `α + d_k`. -/
 lemma reciprocals_eq (hlen : values.length = params.m) (alpha : F)
-    (halpha : ∀ j : ℕ, j < 16 → alpha + j ≠ 0) (rho lambda beta delta : F) (r : ℕ → F) :
+    (halpha : ∀ j : ℕ, j < 16 → alpha + j ≠ 0) (rho lambda beta : F) (r : ℕ → F) :
     ∃ n_r, reciprocals params (Witness.new params rng values blindings : Witness F).n_l alpha =
       .ok n_r ∧ n_r.length = params.nm ∧ ∀ k, n_r.getD k 0 =
-        (specOpening params hv rng values blindings alpha rho lambda beta delta r).nR k := by
+        (specOpening params hv rng values blindings alpha rho lambda beta r).nR k := by
   set W : Witness F := Witness.new params rng values blindings
   have hnl : W.n_l.length = params.nm := by simp [W, Witness.new, length_pad_to]
   have hden : ∀ x ∈ (W.n_l.take params.n_d).map (alpha + ·), x ≠ 0 := by
@@ -121,24 +121,24 @@ lemma sum_zipIdx_map {α : Type} (L : List α) (d : α) (f : ℕ → F) (q : α 
     exact sum_congr rfl fun i _ => by rw [show k + 1 + i = k + (i + 1) by ring]
 
 /-- The verifier's `p_s(τ)`, from `p_n(τ)`, is `p_s` of `Spec` at `τ`. -/
-lemma ps_eq (alpha rho lambda beta delta : F) (C : Constraints F)
+lemma ps_eq (alpha rho lambda beta : F) (C : Constraints F)
     (hC : Constraints.Correct params alpha (rho * rho) lambda C hv) (τ : Fˣ) :
-    weighted_norm ((List.range params.nm).map fun k => evalAt τ ((C.p_n delta⁻¹).toPolys k))
+    weighted_norm ((List.range params.nm).map fun k => evalAt τ ((C.p_n).toPolys k))
         (rho * rho) + 2 * (C.lambda_al + C.mu_am) * ((τ : F) * τ * τ) =
-      evalAt τ (Spec.ps (params.toSpec hv) (specCh alpha rho lambda beta delta)) := by
+      evalAt τ (Spec.ps (params.toSpec hv) (specCh alpha rho lambda beta)) := by
   rw [weighted_norm_eq, List.length_map, List.length_range]
   simp only [Spec.ps, Spec.normμ, map_add, map_sum, map_mul, evalAt_mono,
     hC.lambda_al, hC.mu_am, CircuitParams.nm_toSpec, zpow_ofNat]
   have h : ∀ k ∈ range params.nm, ((List.range params.nm).map fun k =>
-      evalAt τ ((C.p_n delta⁻¹).toPolys k)).getD k 0 =
-      evalAt τ (Spec.pn (params.toSpec hv) (specCh alpha rho lambda beta delta) k) := fun k hk => by
+      evalAt τ ((C.p_n).toPolys k)).getD k 0 =
+      evalAt τ (Spec.pn (params.toSpec hv) (specCh alpha rho lambda beta) k) := fun k hk => by
     rw [getD_map_range _ (mem_range.1 hk),
-      toPolys_p_n params hv alpha rho lambda beta delta C hC k (mem_range.1 hk)]
+      toPolys_p_n params hv alpha rho lambda beta C hC k (mem_range.1 hk)]
   rw [sum_congr rfl fun k hk => by rw [h k hk]]
   have hlam : Spec.lamAl (params.toSpec hv) (Constraints.challenges alpha (rho * rho) lambda 0 0) =
-      Spec.lamAl (params.toSpec hv) (specCh alpha rho lambda beta delta) := rfl
+      Spec.lamAl (params.toSpec hv) (specCh alpha rho lambda beta) := rfl
   have hmu : Spec.muAm (params.toSpec hv) (Constraints.challenges alpha (rho * rho) lambda 0 0) =
-      Spec.muAm (params.toSpec hv) (specCh alpha rho lambda beta delta) := rfl
+      Spec.muAm (params.toSpec hv) (specCh alpha rho lambda beta) := rfl
   rw [hlam, hmu]
   simp only [specCh, pow_zero, mul_one]
   congr 1
@@ -147,18 +147,18 @@ lemma ps_eq (alpha rho lambda beta delta : F) (C : Constraints F)
 
 /-- `<p_n(τ), G_vec>`. -/
 lemma pn_msm_eq (gens : Generators E) (hg : gens.g_vec.length = params.nm)
-    (alpha rho lambda beta delta : F) (C : Constraints F)
+    (alpha rho lambda beta : F) (C : Constraints F)
     (hC : Constraints.Correct params alpha (rho * rho) lambda C hv) (τ : Fˣ) :
-    (List.zipWith (· • ·) ((List.range params.nm).map fun k => evalAt τ ((C.p_n delta⁻¹).toPolys k))
+    (List.zipWith (· • ·) ((List.range params.nm).map fun k => evalAt τ ((C.p_n).toPolys k))
         gens.g_vec).sum =
       Spec.NormLinear.msm params.nm
-        (fun k => evalAt τ (Spec.pn (params.toSpec hv) (specCh alpha rho lambda beta delta) k))
+        (fun k => evalAt τ (Spec.pn (params.toSpec hv) (specCh alpha rho lambda beta) k))
         (fun k => gens.g_vec.getD k 0) := by
   rw [sum_zipWith_msm _ gens.g_vec (by simp) hg]
   exact sum_congr rfl fun k hk => by
     simp only []
     rw [getD_map_range _ (mem_range.1 hk),
-      toPolys_p_n params hv alpha rho lambda beta delta C hC k (mem_range.1 hk)]
+      toPolys_p_n params hv alpha rho lambda beta C hC k (mem_range.1 hk)]
 
 /-- The verifier's decomposed `C(τ)` (25). -/
 lemma combined_assembly (P : Spec.Params) (g : E) (G : ℕ → E) (ch : Spec.Challenges F) (τ : Fˣ)
@@ -224,7 +224,7 @@ lemma completeness (Gp Hp : E) (gens : Generators E) (t : BpppTranscript F E)
     [Entry.point "C_O" c_o] ++ [Entry.challenge "alpha"]) = alpha
   have halpha : ∀ j : ℕ, j < 16 → alpha + j ≠ 0 := fun j hj => hα ▸ horacle _ j hj
   obtain ⟨n_r, hnr_eq, hnr_len, hnr⟩ := reciprocals_eq params hv rng values blindings hlen alpha
-    halpha 0 0 0 0 0
+    halpha 0 0 0 0
   rw [← hW] at hnr_eq
   obtain ⟨c_r, hcr⟩ : ∃ c_r, gens.commit (message_opening W.r_r n_r) = .ok c_r :=
     ⟨_, gens_commit_eq gens _ (by rw [message_opening_l, length_h_coordinates hrr, hh]) (by rw [message_opening_n, hnr_len, hg])⟩
@@ -237,38 +237,33 @@ lemma completeness (Gp Hp : E) (gens : Generators E) (t : BpppTranscript F E)
     [Entry.challenge "lambda"]) = lambda
   generalize hbeta : t.oracle (t.log ++ L1 ++ [Entry.point "C_R" c_r] ++ [Entry.challenge "rho"] ++
     [Entry.challenge "lambda"] ++ [Entry.challenge "beta"]) = beta
-  generalize hdelta : t.oracle (t.log ++ L1 ++ [Entry.point "C_R" c_r] ++ [Entry.challenge "rho"] ++
-    [Entry.challenge "lambda"] ++ [Entry.challenge "beta"] ++ [Entry.challenge "delta"]) = delta
   have hne : ∀ (l : List (Entry F E)) (x : F), t.oracle l = x → x ≠ 0 := fun l x h => by
     have := horacle l 0 (by norm_num); rw [h] at this; simpa using this
   have hrho0 : rho ≠ 0 := hne _ _ hrho
   have hbeta0 : beta ≠ 0 := hne _ _ hbeta
-  have hdelta0 : delta ≠ 0 := hne _ _ hdelta
-  have hdinv : inverse delta = .ok delta⁻¹ := by simp [inverse, hdelta0]
   obtain ⟨C, hCnew, hC⟩ := Constraints.new_correct params alpha (rho * rho) lambda hv
     (mul_ne_zero hrho0 hrho0) halpha
-  simp only [hdinv, hCnew, run_liftM_ok, ok_bind]
-  have hrest := rest_eq params hv rng values blindings alpha rho lambda beta delta C hC n_r hlen hb hd
+  simp only [hCnew, run_liftM_ok, ok_bind]
+  have hrest := rest_eq params hv rng values blindings alpha rho lambda beta C hC n_r hlen hb hd
     hnr_len (fun k => hnr k)
   obtain ⟨g_s, h_s, hsolve, hhs_len, hhs7, hrS⟩ := solve_r_s_eq params hv rng values blindings alpha
-    rho lambda beta delta C hC _ hbeta0 hrest
+    rho lambda beta C hC _ hbeta0 hrest
   obtain ⟨hOs, ⟨hOlu, hOl⟩, ⟨hOnu, hOn⟩⟩ := opening_without_r_s_spec params hv rng values blindings
-    alpha rho lambda delta C hC n_r hnr_len
-  have hfbar := f_eq_f3 params (w := C.norm_weights) (c_spec params hv alpha rho lambda beta delta C hC).1
-    (l_base params hv rng values blindings alpha rho lambda beta delta C hC 0 n_r hb).1
-    (n_spec params hv rng values blindings alpha rho lambda beta delta C hC 0 n_r hlen hnr_len
+    alpha rho lambda C hC n_r hnr_len
+  have hfbar := f_eq_f3 params (w := C.norm_weights) (c_spec params hv alpha rho lambda beta C hC).1
+    (l_base params hv rng values blindings alpha rho lambda beta C hC 0 n_r hb).1
+    (n_spec params hv rng values blindings alpha rho lambda beta C hC 0 n_r hlen hnr_len
       (fun k => hnr k)).1 (by simp [hC.norm_weights]) hOs hOlu hOl hOnu hOn
   rw [← solve_r_s_congr C hfbar] at hsolve
   rw [← hW] at hsolve hOs hOlu hOl hOnu hOn
   obtain ⟨c_s, hcs⟩ : ∃ c_s, gens.commit ⟨g_s, h_s, W.n_s⟩ = .ok c_s :=
     ⟨_, gens_commit_eq gens _ (by rw [hhs_len, hh]) (by rw [hns, hg])⟩
-  have hcommit : commit_c_s gens params C W n_r (Circuit.c C beta) beta delta delta⁻¹ =
-      .ok (c_s, (opening_without_r_s params C W n_r delta delta⁻¹).with_r_s g_s h_s) := by
+  have hcommit : commit_c_s gens params C W n_r (Circuit.c C beta) beta =
+      .ok (c_s, (opening_without_r_s params C W n_r).with_r_s g_s h_s) := by
     simp only [commit_c_s, show W.l_s = rng.l_s from rfl, hsolve, ok_bind, hcs]; rfl
   simp only [hcommit, run_liftM_ok, ok_bind, extend_oracle, extend_log]
   set L2 : List (Entry F E) := [Entry.point "C_R" c_r] ++ ([Entry.challenge "rho"] ++
-    ([Entry.challenge "lambda"] ++ ([Entry.challenge "beta"] ++ [Entry.challenge "delta"])))
-    with hL2
+    ([Entry.challenge "lambda"] ++ [Entry.challenge "beta"])) with hL2
   generalize htau : t.oracle (t.log ++ L1 ++ L2 ++ [Entry.point "C_S" c_s] ++
     [Entry.challenge "tau"]) = tau
   have htau0 : tau ≠ 0 := hne _ _ htau
@@ -276,13 +271,13 @@ lemma completeness (Gp Hp : E) (gens : Generators E) (t : BpppTranscript F E)
   set T : BpppTranscript F E := ((t.extend L1).extend L2).extend
     ([Entry.point "C_S" c_s] ++ [Entry.challenge "tau"]) with hT
   -- The evaluations.
-  obtain ⟨hcu, hcp⟩ := c_spec params hv alpha rho lambda beta delta C hC
-  obtain ⟨hlu, hlp⟩ := l_base params hv rng values blindings alpha rho lambda beta delta C hC
+  obtain ⟨hcu, hcp⟩ := c_spec params hv alpha rho lambda beta C hC
+  obtain ⟨hlu, hlp⟩ := l_base params hv rng values blindings alpha rho lambda beta C hC
     (rSOf g_s h_s) n_r hb
-  obtain ⟨hnu, hnp⟩ := n_spec params hv rng values blindings alpha rho lambda beta delta C hC
+  obtain ⟨hnu, hnp⟩ := n_spec params hv rng values blindings alpha rho lambda beta C hC
     (rSOf g_s h_s) n_r hlen hnr_len (fun k => hnr k)
   rw [← hW] at hlu hlp hnu hnp
-  set O := opening_without_r_s params C W n_r delta delta⁻¹ with hO
+  set O := opening_without_r_s params C W n_r with hO
   have hlu' := Laurent.uniform_add hOlu (Laurent.uniform_monomial C_S_POWER hhs_len)
   have hev : ∀ {L : ℕ} {P : Laurent (List F)}, Laurent.Uniform L P →
       P.eval tau = .ok ((List.range L).map fun k => evalAt τu (P.toPolys k)) :=
@@ -291,20 +286,20 @@ lemma completeness (Gp Hp : E) (gens : Generators E) (t : BpppTranscript F E)
     simpa [τu] using Laurent.eval_ok (O.sigma + Laurent.monomial C_S_POWER g_s) τu
   simp only [CombinedOpening.eval, CombinedOpening.with_r_s, hev hcu, hsig, hev hlu', hev hOnu,
     run_liftM_ok, ok_bind, bind, Except.bind, pure, Except.pure]
-  have hpnu := uniform_p_n params hv alpha rho lambda delta C hC
+  have hpnu := uniform_p_n params hv alpha rho lambda C hC
   set c_tau := (List.range H_LEN).map fun k => evalAt τu ((Circuit.c C beta).toPolys k)
   set l_tau := (List.range H_LEN).map fun k =>
     evalAt τu ((O.l + Laurent.monomial C_S_POWER h_s).toPolys k)
   set n_tau := (List.range params.nm).map fun k => evalAt τu (O.n.toPolys k)
-  set pn_tau := (List.range params.nm).map fun k => evalAt τu ((C.p_n delta⁻¹).toPolys k)
+  set pn_tau := (List.range params.nm).map fun k => evalAt τu (C.p_n.toPolys k)
   set ps_tau := weighted_norm pn_tau (rho * rho) + 2 * (C.lambda_al + C.mu_am) * (tau * tau * tau)
-  set extra := [(tau⁻¹, c_s), (delta, c_o), (tau, c_l), (tau * tau, c_r)] ++
+  set extra := [(tau⁻¹, c_s), (1, c_o), (tau, c_l), (tau * tau, c_r)] ++
     vcs.zipIdx.map fun (v_i, i) => (2 * (tau * tau * tau) * C.lambdas.getD i 0, v_i.point)
   have hident : ps_tau • gens.g + (List.zipWith (· • ·) pn_tau gens.g_vec).sum +
       (extra.map fun (s, p) => s • p).sum =
       (inner_product c_tau l_tau + weighted_norm n_tau (rho * rho)) • gens.g +
         (List.zipWith (· • ·) l_tau gens.h_vec).sum + (List.zipWith (· • ·) n_tau gens.g_vec).sum := by
-    set w := specOpening params hv rng values blindings alpha rho lambda beta delta (rSOf g_s h_s)
+    set w := specOpening params hv rng values blindings alpha rho lambda beta (rSOf g_s h_s)
       with hw
     set Hf : ℕ → E := fun k => gens.h_vec.getD k 0 with hHf
     set Gf : ℕ → E := fun k => gens.g_vec.getD k 0 with hGf
@@ -356,7 +351,7 @@ lemma completeness (Gp Hp : E) (gens : Generators E) (t : BpppTranscript F E)
       rfl
     have hiw : ∀ i < params.m, C.lambdas.getD i 0 = lambda ^ i :=
       getD_lambdas params hv alpha rho lambda C hC
-    have hextra : (extra.map fun (s, p) => s • p).sum = tau⁻¹ • c_s + delta • c_o + tau • c_l +
+    have hextra : (extra.map fun (s, p) => s • p).sum = tau⁻¹ • c_s + (1 : F) • c_o + tau • c_l +
         (tau * tau) • c_r + ∑ i ∈ range params.m, (2 * (tau * tau * tau) * lambda ^ i) •
           Spec.Honest.inputs (P := params.toSpec hv) gens.g Hf (specHonest rng values blindings) i := by
       simp only [extra, List.map_append, List.sum_append, List.map_cons, List.map_nil,
@@ -369,25 +364,25 @@ lemma completeness (Gp Hp : E) (gens : Generators E) (t : BpppTranscript F E)
       abel
     have hLHS : ps_tau • gens.g + (List.zipWith (· • ·) pn_tau gens.g_vec).sum +
         (extra.map fun (s, p) => s • p).sum = Spec.combined (params.toSpec hv) gens.g Gf
-          (specCh alpha rho lambda beta delta) τu (Spec.cS (params.toSpec hv) gens.g Hf Gf w)
+          (specCh alpha rho lambda beta) τu (Spec.cS (params.toSpec hv) gens.g Hf Gf w)
           (Spec.cO (params.toSpec hv) gens.g Hf Gf w) (Spec.cL (params.toSpec hv) gens.g Hf Gf w)
           (Spec.cR (params.toSpec hv) gens.g Hf Gf w) (Spec.vHat (params.toSpec hv)
-            (specCh alpha rho lambda beta delta)
+            (specCh alpha rho lambda beta)
             (Spec.Honest.inputs (P := params.toSpec hv) gens.g Hf (specHonest rng values blindings))) := by
-      have hA := combined_assembly (params.toSpec hv) gens.g Gf (specCh alpha rho lambda beta delta) τu
+      have hA := combined_assembly (params.toSpec hv) gens.g Gf (specCh alpha rho lambda beta) τu
         c_s c_o c_l c_r
         (Spec.Honest.inputs (P := params.toSpec hv) gens.g Hf (specHonest rng values blindings))
-      have e1 : ps_tau = evalAt τu (Spec.ps (params.toSpec hv) (specCh alpha rho lambda beta delta)) :=
-        ps_eq params hv alpha rho lambda beta delta C hC τu
+      have e1 : ps_tau = evalAt τu (Spec.ps (params.toSpec hv) (specCh alpha rho lambda beta)) :=
+        ps_eq params hv alpha rho lambda beta C hC τu
       have e2 : (List.zipWith (· • ·) pn_tau gens.g_vec).sum = Spec.NormLinear.msm
           (params.toSpec hv).nm
-          (fun k => evalAt τu (Spec.pn (params.toSpec hv) (specCh alpha rho lambda beta delta) k)) Gf :=
-        pn_msm_eq params hv gens hg alpha rho lambda beta delta C hC τu
+          (fun k => evalAt τu (Spec.pn (params.toSpec hv) (specCh alpha rho lambda beta) k)) Gf :=
+        pn_msm_eq params hv gens hg alpha rho lambda beta C hC τu
       rw [← ecs, ← eco, ← ecl, ← ecr, ← hA, hextra, e1, e2]
       rfl
     -- The evaluated opening.
     have hl_getD : ∀ s < H_LEN, l_tau.getD s 0 =
-        evalAt τu (Spec.ℓ (specCh alpha rho lambda beta delta) w s) := fun s hs => by
+        evalAt τu (Spec.ℓ (specCh alpha rho lambda beta) w s) := fun s hs => by
       rw [getD_map_range _ hs, Laurent.toPolys_add hOlu (Laurent.uniform_monomial _ hhs_len),
         Laurent.toPolys_monomial, hOl s, hlp s hs, show C_S_POWER = -1 from rfl]
       have key : (if s < 7 then rSOf g_s h_s (s + 1) else rng.l_s) = h_s.getD s 0 := by
@@ -397,35 +392,35 @@ lemma completeness (Gp Hp : E) (gens : Generators E) (t : BpppTranscript F E)
         · rw [if_neg (by omega), hhs7]
       rw [key, sub_add_cancel]
     have hn_getD : ∀ k < params.nm, n_tau.getD k 0 =
-        evalAt τu (Spec.n (params.toSpec hv) (specCh alpha rho lambda beta delta) w k) :=
+        evalAt τu (Spec.n (params.toSpec hv) (specCh alpha rho lambda beta) w k) :=
       fun k hk => by rw [getD_map_range _ hk, hOn k, hnp k hk]
     have hc_getD : ∀ s < H_LEN, c_tau.getD s 0 =
-        evalAt τu (Spec.c (params.toSpec hv) (specCh alpha rho lambda beta delta) s) :=
+        evalAt τu (Spec.c (params.toSpec hv) (specCh alpha rho lambda beta) s) :=
       fun s hs => by rw [getD_map_range _ hs, hcp s hs]
-    have hrel := relation_of_f_zero (params.toSpec hv) (specCh alpha rho lambda beta delta) w
-      (f_zero params hv rng values blindings alpha rho lambda beta delta halpha hbeta0 hdelta0 hrho0
+    have hrel := relation_of_f_zero (params.toSpec hv) (specCh alpha rho lambda beta) w
+      (f_zero params hv rng values blindings alpha rho lambda beta halpha hbeta0 hrho0
         g_s h_s hrS) τu
     have hσ : inner_product c_tau l_tau + weighted_norm n_tau (rho * rho) =
-        evalAt τu (Spec.σ (params.toSpec hv) (specCh alpha rho lambda beta delta) w) := by
+        evalAt τu (Spec.σ (params.toSpec hv) (specCh alpha rho lambda beta) w) := by
       rw [hrel, inner_product_eq, weighted_norm_eq]
       have hcl8 : c_tau.length = 8 := by simp [c_tau, H_LEN]
       have hll8 : l_tau.length = 8 := by simp [l_tau, H_LEN]
       have hnl : n_tau.length = params.nm := by simp [n_tau]
       rw [hcl8, hll8, hnl, min_self, CircuitParams.nm_toSpec]
       have s1 : ∑ s ∈ range 8, c_tau.getD s 0 * l_tau.getD s 0 = ∑ s ∈ range 8,
-          evalAt τu (Spec.c (params.toSpec hv) (specCh alpha rho lambda beta delta) s) *
-            evalAt τu (Spec.ℓ (specCh alpha rho lambda beta delta) w s) :=
+          evalAt τu (Spec.c (params.toSpec hv) (specCh alpha rho lambda beta) s) *
+            evalAt τu (Spec.ℓ (specCh alpha rho lambda beta) w s) :=
         sum_congr rfl fun s hs => by
           rw [hc_getD s (by simpa [H_LEN] using hs), hl_getD s (by simpa [H_LEN] using hs)]
       have s2 : ∑ k ∈ range params.nm, n_tau.getD k 0 * n_tau.getD k 0 * (rho * rho) ^ (k + 1) =
-          ∑ k ∈ range params.nm, (specCh alpha rho lambda beta delta).μ ^ (k + 1) *
-            (evalAt τu (Spec.n (params.toSpec hv) (specCh alpha rho lambda beta delta) w k) *
-              evalAt τu (Spec.n (params.toSpec hv) (specCh alpha rho lambda beta delta) w k)) :=
+          ∑ k ∈ range params.nm, (specCh alpha rho lambda beta).μ ^ (k + 1) *
+            (evalAt τu (Spec.n (params.toSpec hv) (specCh alpha rho lambda beta) w k) *
+              evalAt τu (Spec.n (params.toSpec hv) (specCh alpha rho lambda beta) w k)) :=
         sum_congr rfl fun k hk => by rw [hn_getD k (mem_range.1 hk)]; simp only [specCh]; ring
       rw [s1, s2]
-    rw [hLHS, Spec.vHat_honest (params.toSpec hv) gens.g Hf Gf (specCh alpha rho lambda beta delta)
+    rw [hLHS, Spec.vHat_honest (params.toSpec hv) gens.g Hf Gf (specCh alpha rho lambda beta)
       (specHonest rng values blindings) (rSOf g_s h_s)]
-    rw [show Spec.Honest.opening (params.toSpec hv) (specCh alpha rho lambda beta delta)
+    rw [show Spec.Honest.opening (params.toSpec hv) (specCh alpha rho lambda beta)
       (specHonest rng values blindings) (rSOf g_s h_s) = w from rfl, Spec.combined_eq,
       commit_spec params hv gens hh hg _ _ _ (by simp [l_tau]) (by simp [n_tau]), hσ]
     exact spec_commit_congr _ _ _ _ _ (fun s hs => (hl_getD s (by simpa [H_LEN] using hs)).symm)
@@ -446,12 +441,10 @@ lemma completeness (Gp Hp : E) (gens : Generators E) (t : BpppTranscript F E)
       ok_bind, run_append_commits, run_append_point, run_challenge_scalar, extend_extend,
       extend_oracle, extend_log]
     rw [hL2, hL1] at htau hT
-    rw [hL1] at hrho hlam hbeta hdelta
+    rw [hL1] at hrho hlam hbeta
     simp only [List.append_assoc, List.cons_append, List.nil_append,
-      extend_extend] at hα hrho hlam hbeta hdelta htau hT ⊢
-    rw [hα, hrho, hlam, hbeta, hdelta, hdinv]
-    simp only [run_liftM_ok, ok_bind, extend_extend, extend_oracle, extend_log,
-      List.append_assoc, List.cons_append, List.nil_append]
+      extend_extend] at hα hrho hlam hbeta htau hT ⊢
+    rw [hα, hrho, hlam, hbeta]
     rw [htau, hCnew]
     simp only [run_liftM_ok, ok_bind, hev hpnu, hev hcu, htp, C_S_POWER, C_O_POWER, C_L_POWER,
       C_R_POWER, V_HAT_POWER, zpow_neg_one, zpow_zero, zpow_one, zpow_two, e3, mul_one]

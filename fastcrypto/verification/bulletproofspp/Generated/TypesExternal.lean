@@ -64,6 +64,6 @@ axiom groups.ristretto255.RistrettoScalar : Type
 axiom groups.ristretto255.RistrettoPrecomputation : Type
 
 /-- [fastcrypto::bulletproofspp::transcript::BpppTranscript]
-    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 73:0-75:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 71:0-73:1 -/
 axiom bulletproofspp.transcript.BpppTranscript : Type
 

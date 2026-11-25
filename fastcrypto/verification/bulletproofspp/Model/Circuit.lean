@@ -151,7 +151,7 @@ def solve_r_s (constraints : Constraints F) (f_bar : Laurent F) (l_s beta : F) :
 
 /-- `opening_without_r_s`. -/
 def opening_without_r_s (params : CircuitParams) (constraints : Constraints F)
-    (witness : Witness F) (n_r : List F) (delta delta_inv : F) : CombinedOpening F :=
+    (witness : Witness F) (n_r : List F) : CombinedOpening F :=
   let two : F := 2
   let weights := (constraints.lambdas.take params.m).map (two * ·)
   let (n_v_hat, l_v_hat) := (List.zip witness.off_plane weights).foldl
@@ -161,21 +161,20 @@ def opening_without_r_s (params : CircuitParams) (constraints : Constraints F)
   let v_hat : Opening F := ⟨inner_product weights witness.values,
     ((List.replicate H_LEN 0).set 0 (inner_product weights witness.blindings)).set (H_LEN - 1)
       l_v_hat, n_v_hat⟩
-  let o := message_opening witness.r_o witness.n_o
-  let delta_o : Opening F := ⟨delta * o.sigma, vec_scalar_mul delta o.l, vec_scalar_mul delta o.n⟩
-  let ⟨sigma, l, n⟩ := CombinedOpening.from_terms [(C_O_POWER, delta_o),
+  let ⟨sigma, l, n⟩ := CombinedOpening.from_terms [
+    (C_O_POWER, message_opening witness.r_o witness.n_o),
     (C_L_POWER, message_opening witness.r_l witness.n_l),
     (C_R_POWER, message_opening witness.r_r n_r), (V_HAT_POWER, v_hat)]
-  let p_n := constraints.p_n delta_inv
+  let p_n := constraints.p_n
   let p_s := p_n.weighted_inner_product p_n constraints.norm_weights +
     Laurent.monomial 3 (two * (constraints.lambda_al + constraints.mu_am))
   ⟨sigma + p_s, l, n + Laurent.monomial C_S_POWER witness.n_s + p_n⟩
 
 /-- `commit_c_s`. -/
 def commit_c_s (gens : Generators E) (params : CircuitParams) (constraints : Constraints F)
-    (witness : Witness F) (n_r : List F) (c : Laurent (List F)) (beta delta delta_inv : F) :
+    (witness : Witness F) (n_r : List F) (c : Laurent (List F)) (beta : F) :
     Result (E × CombinedOpening F) := do
-  let opening := opening_without_r_s params constraints witness n_r delta delta_inv
+  let opening := opening_without_r_s params constraints witness n_r
   let f_bar := f opening c constraints.norm_weights
   let (r_s0, h) ← solve_r_s constraints f_bar witness.l_s beta
   let c_s ← gens.commit ⟨r_s0, h, witness.n_s⟩
@@ -205,13 +204,11 @@ def prove_witness (G H : E) (gens : Generators E) (params : CircuitParams)
   let rho ← challenge_scalar "rho"
   let lambda ← challenge_scalar "lambda"
   let beta ← challenge_scalar "beta"
-  let delta ← challenge_scalar "delta"
   let mu := rho * rho
-  let delta_inv ← inverse delta
   let constraints ← Constraints.new params alpha mu lambda
   -- Step 5
   let c := c constraints beta
-  let (c_s, opening) ← commit_c_s gens params constraints witness n_r c beta delta delta_inv
+  let (c_s, opening) ← commit_c_s gens params constraints witness n_r c beta
   append_point "C_S" c_s
   -- Step 6
   let tau ← challenge_scalar "tau"
@@ -243,18 +240,16 @@ def verify (gens : Generators E) (params : CircuitParams) (proof : CircuitProof 
   let rho ← challenge_scalar "rho"
   let lambda ← challenge_scalar "lambda"
   let beta ← challenge_scalar "beta"
-  let delta ← challenge_scalar "delta"
   let mu := rho * rho
-  let delta_inv ← inverse delta
   append_point "C_S" proof.c_s
   let tau ← challenge_scalar "tau"
   let tau_pow := fun (power : ℤ) => (Laurent.monomial power (one : F)).eval tau
   let constraints ← Constraints.new params alpha mu lambda
-  let p_n_tau ← (constraints.p_n delta_inv).eval tau
+  let p_n_tau ← constraints.p_n.eval tau
   let p_s_tau := weighted_norm p_n_tau mu +
     2 * (constraints.lambda_al + constraints.mu_am) * (← tau_pow 3)
   let c_tau ← (c constraints beta).eval tau
-  let extra := [(← tau_pow C_S_POWER, proof.c_s), (delta * (← tau_pow C_O_POWER), proof.c_o),
+  let extra := [(← tau_pow C_S_POWER, proof.c_s), (← tau_pow C_O_POWER, proof.c_o),
     (← tau_pow C_L_POWER, proof.c_l), (← tau_pow C_R_POWER, proof.c_r)]
   let v_hat_weight := 2 * (← tau_pow V_HAT_POWER)
   let extra := extra ++ v_commitments.zipIdx.map fun (v_i, i) =>

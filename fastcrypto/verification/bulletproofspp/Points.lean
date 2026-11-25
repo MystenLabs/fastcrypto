@@ -67,7 +67,6 @@ def labelStr : bulletproofspp.transcript.Label → String
   | .Rho => "rho"
   | .Lambda => "lambda"
   | .Beta => "beta"
-  | .Delta => "delta"
   | .Tau => "tau"
   | .NormLinear => "norm_linear"
   | .X => "X"

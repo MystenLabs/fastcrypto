@@ -61,18 +61,18 @@ it returns `H_LEN` and `nm` generators, with `g = pedersen::H` and `h_vec[0] = p
    `verify_batch` on fixed commitments, `range` and `dst`, each with its own transcript hash, with
    distinct challenges at every fork. Then every commitment is `PedersenCommitment::new` of a value
    in `range`, or the generators satisfy a nontrivial linear relation. This needs generators of the
-   right shape with `2^rounds` dividing `nm`, `α ∉ {0, -1, ..., -15}`, `ρ, δ, τ ≠ 0`, and
+   right shape with `2^rounds` dividing `nm`, `α ∉ {0, -1, ..., -15}`, `ρ, τ ≠ 0`, and
    `2, 1, ..., N_d ≠ 0` in `F`. The tree has, from the root, `N_d + 16` branches at `α`, `nm + 1`
    with distinct `ρ²` at `ρ`, 2 at `β`, `M(nm + 8) + 1` at `λ`, 13 at `τ` and 4 per round at `γ`.
 
 3. **`RangeProof.zero_knowledge`: honest-verifier zero-knowledge.** The transcripts of
-   `prove_batch` are within statistical distance `22 / |F|` of those of a simulator that sees only
+   `prove_batch` are within statistical distance `21 / |F|` of those of a simulator that sees only
    the commitments, `range`, `dst` and the generators (VCVio's `ChallengeVerifyProtocol.HVZK`).
    This needs a finite field with a uniform sampler, at least one value, and generators of the
    right shape that are multiples `h_j g` of `g` with `h_0 ≠ 0`, as in a prime-order group.
 
 4. **`RangeProof.verify_batch_local`: each challenge depends only on its log.** Two transcript
-   hashes that agree on the verifier's log at each challenge (`α`, `ρ`, `λ`, `β`, `δ`, `τ` and
+   hashes that agree on the verifier's log at each challenge (`α`, `ρ`, `λ`, `β`, `τ` and
    each round's `γ`) give the same result. Each log starts with the statement (`dst`, `n_bits`,
    `m`, every `V_i`) and contains every prover message before the challenge.
 
@@ -111,7 +111,7 @@ the same transcript:
 | `Correctness.lean`, `Soundness.lean`, `ZeroKnowledge.lean`, `Proofs/Hygiene.lean` | The theorems above. |
 | `Model/` | The model of the Rust code, one file per module, with the same names. |
 | `Proofs/` | Lemmas about each module of the model, and completeness and special soundness of `norm_linear` and `circuit`. |
-| `Spec/` | The protocol of the paper, used inside the proofs. |
+| `Spec/` | The protocol of the paper, used inside the proofs. It keeps the paper's challenge `δ`, which scales `C_O`; the Rust code omits it, and the proofs set `δ = 1`. |
 | `Scalar.lean` | `ScalarModel`: what is assumed about `RistrettoScalar`. |
 | `Points.lean` | `PointModel`, `GensOK`, `TranscriptModel` and `PedersenModel`: what is assumed about `RistrettoPoint`, the MSM tables of `Generators`, the Merlin transcript and `PedersenCommitment::new`. |
 | `Util.lean`, `Laurent.lean`, `Constraints.lean` | The translations of `util.rs`, `laurent.rs` and `constraints.rs` compute the model. |

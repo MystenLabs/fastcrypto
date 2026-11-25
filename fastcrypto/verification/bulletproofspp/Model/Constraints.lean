@@ -95,8 +95,8 @@ def new (params : CircuitParams) (alpha mu lambda : F) : Result (Constraints F) 
 variable (self : Constraints F)
 
 /-- `Constraints::p_n`. -/
-def p_n (delta_inv : F) : Laurent (List F) :=
-  .new 0 [self.cn_v, self.cn_r, self.cn_l, vec_scalar_mul delta_inv self.cn_o]
+def p_n : Laurent (List F) :=
+  .new 0 [self.cn_v, self.cn_r, self.cn_l, self.cn_o]
 
 end Constraints
 

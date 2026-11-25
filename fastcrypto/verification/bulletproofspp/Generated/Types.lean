@@ -202,7 +202,7 @@ structure bulletproofspp.circuit.CombinedOpening where
     groups.ristretto255.RistrettoScalar)
 
 /-- [fastcrypto::bulletproofspp::transcript::Label]
-    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 14:0-39:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/transcript.rs', lines 14:0-38:1 -/
 @[discriminant isize]
 inductive bulletproofspp.transcript.Label where
 | RangeProof : bulletproofspp.transcript.Label
@@ -219,7 +219,6 @@ inductive bulletproofspp.transcript.Label where
 | Rho : bulletproofspp.transcript.Label
 | Lambda : bulletproofspp.transcript.Label
 | Beta : bulletproofspp.transcript.Label
-| Delta : bulletproofspp.transcript.Label
 | Tau : bulletproofspp.transcript.Label
 | NormLinear : bulletproofspp.transcript.Label
 | X : bulletproofspp.transcript.Label
@@ -253,7 +252,7 @@ structure bulletproofspp.norm_linear.LazyBases where
   w_g : bulletproofspp.norm_linear.Weights
 
 /-- Trait declaration: [fastcrypto::bulletproofspp::circuit::ReciprocalsOf]
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 491:0-498:1 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 482:0-489:1 -/
 structure bulletproofspp.circuit.ReciprocalsOf (Self : Type _) where
   reciprocals_of : Self → bulletproofspp.circuit.CircuitParams →
     bulletproofspp.circuit.Witness → groups.ristretto255.RistrettoScalar →
@@ -261,7 +260,7 @@ structure bulletproofspp.circuit.ReciprocalsOf (Self : Type _) where
     groups.ristretto255.RistrettoScalar) error.FastCryptoError)
 
 /-- [fastcrypto::bulletproofspp::circuit::HonestReciprocals]
-    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 501:0-501:25 -/
+    Source: 'fastcrypto/src/bulletproofspp/circuit.rs', lines 492:0-492:25 -/
 @[reducible]
 def bulletproofspp.circuit.HonestReciprocals := Unit
 
