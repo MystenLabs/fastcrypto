@@ -198,21 +198,39 @@ fn reduce_weight(w: u16, d: u32, offset: u64) -> u16 {
     ((10_000 * (w as u64) + offset * (d as u64)) / (100 * (d as u64))) as u16
 }
 
+/// The sum of `values`. Doesn't overflow as long as `values.len() <= 65537`.
+fn sum_u16(values: &[u16]) -> u32 {
+    let mut sum = 0u32;
+    let mut i = 0;
+    while i < values.len() {
+        sum += values[i] as u32;
+        i += 1;
+    }
+    sum
+}
+
 /// The value-space knapsack table `min_original_weight[v] = min { w(S) : w'(S) = v }` for
 /// `v in [0, W']`, computed in `O(n * W')`.
 fn knapsack_min_original(weights: &[u16], reduced: &[u16], reduced_total: u32) -> Vec<u32> {
     let mut min_original_weight = vec![u32::MAX; reduced_total as usize + 1];
     min_original_weight[0] = 0;
-    for (&w, &q) in weights.iter().zip(reduced.iter()) {
-        let (w, q) = (w as u32, q as usize);
-        if q == 0 {
-            continue;
-        }
-        for v in (q..min_original_weight.len()).rev() {
+    let n = weights.len().min(reduced.len());
+    let mut i = 0;
+    while i < n {
+        let w = weights[i] as u32;
+        let q = reduced[i] as usize;
+        // Iterate downward so that each party is used at most once.
+        let mut v = min_original_weight.len();
+        while v > q {
+            v -= 1;
             if min_original_weight[v - q] != u32::MAX {
-                min_original_weight[v] = min_original_weight[v].min(min_original_weight[v - q] + w);
+                let candidate = min_original_weight[v - q] + w;
+                if candidate < min_original_weight[v] {
+                    min_original_weight[v] = candidate;
+                }
             }
         }
+        i += 1;
     }
     min_original_weight
 }
@@ -221,10 +239,14 @@ fn knapsack_min_original(weights: &[u16], reduced: &[u16], reduced_total: u32) -
 /// In other words, the largest reduced weight a subset can have while its
 /// original weight <= `weight`: w(S) <= weight => w'(S) <= g(weight).
 fn max_reduced_weight(min_original_weight: &[u32], weight: u32) -> u32 {
-    min_original_weight
-        .iter()
-        .rposition(|&x| x <= weight)
-        .expect("min_original_weight[0] = 0 always qualifies") as u32
+    let mut v = min_original_weight.len();
+    while v > 0 {
+        v -= 1;
+        if min_original_weight[v] <= weight {
+            return v as u32;
+        }
+    }
+    panic!("min_original_weight[0] = 0 always qualifies")
 }
 
 /// A cheap rejection test that costs `O(n log n)`. It never errs when claiming
@@ -343,11 +365,13 @@ pub(crate) fn verify_reduction(
     delta: u16,
     reduction: &ReducedWeights,
 ) -> FastCryptoResult<()> {
-    let w_total = weights.iter().map(|&w| w as u32).sum::<u32>();
-    let reduced_total = reduction.weights.iter().map(|&w| w as u32).sum::<u32>();
-    if weights.len() != reduction.weights.len()
-        || weights.len() > MAX_PARTIES
-        || t == 0
+    // Check the lengths first so that the sums below cannot overflow.
+    if weights.len() != reduction.weights.len() || weights.len() > MAX_PARTIES {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    let w_total = sum_u16(weights);
+    let reduced_total = sum_u16(&reduction.weights);
+    if t == 0
         || f == 0
         || (t as u32) > w_total
         || w_total > u16::MAX as u32
