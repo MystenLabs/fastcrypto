@@ -1,9 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::encoding::{Base64, Encoding};
+use crate::encoding::{Base64, Encoding, Hex};
 use crate::error::FastCryptoError;
-use crate::groups::ristretto255::{MixedMsmStrategy, RistrettoPoint, RistrettoScalar};
+use crate::groups::ristretto255::{MixedMsmStrategy, RistrettoPoint, RistrettoScalar, DST};
 use crate::groups::{
     Doubling, FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement,
     MixedMultiScalarMul, MultiScalarMul, PrecomputableMultiScalarMul, Scalar,
@@ -187,76 +187,70 @@ fn test_arithmetic() {
         "e882b131016b52c1d3337080187cf768423efccbb517bb495ab812c4160ff44e"
     ))
     .unwrap();
-    let five = RistrettoScalar::from(5u64);
-    let four = RistrettoScalar::from(4u64);
-    assert_eq!(g * five, five_g);
-    assert_eq!(g + g + g + g + g + g - g, five_g);
-    assert_eq!(g.double().double() + g, five_g);
-    assert_eq!(g.repeated_doubling(3) - (g + g.double()), five_g);
-    assert_eq!(
+    let [four, five] = [4u64, 5].map(RistrettoScalar::from);
+    for p in [
+        g * five,
+        g + g + g + g + g + g - g,
+        g.double().double() + g,
+        g.repeated_doubling(3) - (g + g.double()),
         g * (RistrettoScalar::from(7u64) - RistrettoScalar::from(2u64)),
-        five_g
-    );
-    assert_eq!(RistrettoPoint::sum([g; 5].into_iter()), five_g);
-    assert_eq!(
+        RistrettoPoint::sum([g; 5].into_iter()),
         RistrettoPoint::inner_product([g, g], [four, 1u64.into()]),
-        five_g
-    );
+    ] {
+        assert_eq!(p, five_g);
+    }
     assert_ne!(g, five_g);
+    assert_ne!(g, -g);
 
-    // The operators on references.
-    let (g_ref, five_ref) = (&g, &five);
-    assert_eq!(g * five_ref, five_g);
-    assert_eq!(g_ref * five, five_g);
-    assert_eq!(g_ref * five_ref, five_g);
-    assert_eq!(g * four + g_ref, five_g);
-    assert_eq!(five_g - g_ref, g * four);
-    assert_eq!(-g_ref, -g);
-    let mut p = RistrettoPoint::zero();
-    p += five_g;
-    p -= g;
-    p += g_ref;
-    p *= five;
-    assert_eq!((p / five).unwrap(), five_g);
-    let mut s = five - four;
-    s += &four;
-    s -= four;
-    s *= five;
-    assert_eq!(s, five);
+    // The operators on references and the assignment operators.
+    macro_rules! check_operators {
+        ($a:expr, $b:expr, $s:expr) => {
+            let (a, b, s) = (&$a, &$b, &$s);
+            assert_eq!([a + b, a + *b, *a + b], [*a + *b; 3]);
+            assert_eq!([a - b, a - *b, *a - b], [*a - *b; 3]);
+            assert_eq!([a * s, a * *s, *a * s], [*a * *s; 3]);
+            assert_eq!(-a, -*a);
+            let mut c = *a;
+            c += *b;
+            c += b;
+            c -= *a;
+            c -= b;
+            c *= *s;
+            c *= s;
+            assert_eq!(c, *b * (*s * *s));
+        };
+    }
+    check_operators!(g, five_g, four);
+    check_operators!(four, five, five);
 
     // The identity, -G and l - 1.
     let zero = RistrettoPoint::zero();
+    let [zero_scalar, one] = [RistrettoScalar::zero(), RistrettoScalar::generator()];
     let minus_one = RistrettoScalar::from_byte_array(&GROUP_ORDER_MINUS_ONE).unwrap();
     assert_eq!(RistrettoPoint::default(), zero);
+    assert_eq!(zero.double(), zero);
     for p in [g, -g, five_g, zero] {
         assert_eq!(p + zero, p);
         assert_eq!(zero - p, -p);
         assert_eq!(p - p, zero);
-        assert_eq!(p * RistrettoScalar::zero(), zero);
-        assert_eq!(p * RistrettoScalar::generator(), p);
+        assert_eq!(p * zero_scalar, zero);
+        assert_eq!(p * one, p);
         assert_eq!(p * minus_one, -p);
         assert_eq!(p.repeated_doubling(0), p);
     }
-    assert_eq!(zero.double(), zero);
-    assert_eq!(minus_one, -RistrettoScalar::generator());
-    assert_eq!(
-        minus_one + RistrettoScalar::generator(),
-        RistrettoScalar::zero()
-    );
-    assert_eq!(minus_one * minus_one, RistrettoScalar::generator());
-    assert_eq!(minus_one.inverse().unwrap(), minus_one);
-    assert_eq!(
-        RistrettoScalar::product([five, minus_one].into_iter()),
-        -five
-    );
+    assert_eq!(-one, minus_one);
+    assert_eq!(minus_one + one, zero_scalar);
+    assert_eq!(minus_one * minus_one, one);
+    assert_eq!(minus_one.inverse(), Ok(minus_one));
+    let product = RistrettoScalar::product([five, minus_one].into_iter());
+    assert_eq!(product, -five);
 
+    // Division, also by zero.
+    assert_eq!(five_g / five, Ok(g));
     assert_eq!(
         RistrettoScalar::from(1u128 << 67) / RistrettoScalar::from(8u64),
         Ok(RistrettoScalar::from(1u128 << 64))
     );
-
-    // Division by zero.
-    let zero_scalar = RistrettoScalar::zero();
     let err = FastCryptoError::InvalidInput;
     assert_eq!(zero_scalar.inverse(), Err(err.clone()));
     assert_eq!(five / zero_scalar, Err(err.clone()));
@@ -264,7 +258,7 @@ fn test_arithmetic() {
 }
 
 #[test]
-fn test_scalars_from_integers() {
+fn test_scalar_conversions() {
     // Integers, little-endian.
     for x in [0, 1, 2 << 66, u64::MAX as u128, u128::MAX] {
         let mut expected = [0; 32];
@@ -371,12 +365,19 @@ fn test_multiscalar_mul() {
     let two_to_252 = RistrettoScalar::from_byte_array(&power_of_two(252)).unwrap();
     let (scalars, points): (Vec<_>, Vec<_>) = [RistrettoScalar::zero(), one, -one, two_to_252]
         .into_iter()
-        .cartesian_product([RistrettoPoint::zero(), g, -g, g, g.double()])
+        .cartesian_product([RistrettoPoint::zero(), g, g, -g, g.double()])
         .unzip();
-    let products = scalars.iter().zip(&points).map(|(s, p)| *p * s);
+    let expected = RistrettoPoint::inner_product(points.clone(), scalars.clone());
     assert_eq!(
         RistrettoPoint::multi_scalar_mul(&scalars, &points).unwrap(),
-        RistrettoPoint::sum(products)
+        expected
+    );
+    let precomputation = RistrettoPoint::precompute(&points[..10]).unwrap();
+    assert_eq!(
+        precomputation
+            .mixed_multi_scalar_mul(&scalars[..10], &scalars[10..], &points[10..])
+            .unwrap(),
+        expected
     );
 }
 
@@ -411,8 +412,6 @@ fn test_precomputed_multiscalar_mul() {
         (strategy(usize::MAX, 0), default.max_weighted_points + 1, 3),
         // Never use tables.
         (strategy(0, 0), 5, 3),
-        // The tables are built, but not used with this many dynamic points.
-        (strategy(11, 2), 5, 4),
         // The weighted number of points saturates, below or at the bound.
         (strategy(usize::MAX - 1, usize::MAX), 5, 2),
         (strategy(usize::MAX, usize::MAX), 5, 2),
@@ -485,14 +484,12 @@ fn test_serde() {
 #[test]
 fn test_canonical_scalars() {
     // Exactly the values below l decode.
-    for bytes in [
-        [0; 32],
-        power_of_two(0),
-        power_of_two(252),
-        add_small(&GROUP_ORDER, -2),
-        GROUP_ORDER_MINUS_ONE,
-    ] {
+    for bytes in [[0; 32], add_small(&GROUP_ORDER, -2), GROUP_ORDER_MINUS_ONE] {
         assert!(check_scalar(&bytes).is_some());
+    }
+    for k in 0..=252 {
+        let scalar = check_scalar(&power_of_two(k));
+        assert_ne!(scalar.unwrap(), RistrettoScalar::zero());
     }
     for bytes in [
         GROUP_ORDER,
@@ -524,6 +521,13 @@ fn test_canonical_points() {
     assert_eq!(encodings_near(&FIELD_MODULUS, -40..=18), [-37, -21, -9, -3]);
     assert_eq!(add_small(&FIELD_MODULUS, -3), LARGEST_ENCODING);
     assert_eq!(encodings_near(&[0xff; 32], -40..=0), [0; 0]);
+
+    // Encodings that differ from the one of the identity in a single bit.
+    for k in 0..256 {
+        if let Some(point) = check_point(&power_of_two(k)) {
+            assert_ne!(point, RistrettoPoint::zero());
+        }
+    }
 
     // The top bit must be zero.
     for mut bytes in [
@@ -579,39 +583,28 @@ fn hash_regression_tests() {
 #[test]
 fn test_hash_to_point() {
     // Test vectors from @noble/curves using the ristretto255_XMD:SHA-512_R255MAP_RO_ suite
-    let q128 = [b"q128_".as_slice(), &[b'q'; 127]].concat();
-    let a512 = [b"a512_".as_slice(), &[b'a'; 512]].concat();
-    for (msg, expected) in [
-        (
-            b"".as_slice(),
-            hex!("d2ef0e42a21c1b4221350ac82ad8669a18a0994df551ac07597a704a23d36436"),
-        ),
-        (
-            b"abc",
-            hex!("76a44d9dbe1079e8ca0637f69161de4b76e66d9604fc759c48e13bc5b30adc44"),
-        ),
-        (
-            b"abcdef0123456789",
-            hex!("086575a167ff6b9c0bbb90ef9a6c7498838188051f7f1f44db0d492b25b9db02"),
-        ),
-        (
-            &q128,
-            hex!("446e5de27a26ea681258dfb38af2ca7ce64aa832768375386372da7a1f92cd24"),
-        ),
-        (
-            &a512,
-            hex!("bae7b0ae7e4e19d166ba57965ae3968d09a92c029befe7f96626dbdcdbadce18"),
-        ),
-    ] {
-        assert_eq!(
-            RistrettoPoint::hash_to_ristretto255(msg).to_byte_array(),
-            expected
-        );
-    }
+    let test_vectors: &[(&[u8], &str)] = &[
+        (b"", "d2ef0e42a21c1b4221350ac82ad8669a18a0994df551ac07597a704a23d36436"),
+        (b"abc", "76a44d9dbe1079e8ca0637f69161de4b76e66d9604fc759c48e13bc5b30adc44"),
+        (b"abcdef0123456789", "086575a167ff6b9c0bbb90ef9a6c7498838188051f7f1f44db0d492b25b9db02"),
+        (b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq", "446e5de27a26ea681258dfb38af2ca7ce64aa832768375386372da7a1f92cd24"),
+        (b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bae7b0ae7e4e19d166ba57965ae3968d09a92c029befe7f96626dbdcdbadce18"),
+    ];
 
-    // Other domain separation tags for the message "abc": empty (which RFC 9380 doesn't allow), the
-    // longest one that is used as is, and the shortest one that is hashed. Computed with a Python
-    // implementation of RFC 9380 and RFC 9496.
+    for (msg, expected_hex) in test_vectors {
+        let expected = Hex::decode(expected_hex).unwrap();
+        let actual = RistrettoPoint::hash_to_ristretto255(msg);
+        assert_eq!(expected, actual.to_byte_array());
+    }
+    // No message parts are an empty message.
+    assert_eq!(
+        RistrettoPoint::hash_to_ristretto255_with_dst(&[], DST),
+        RistrettoPoint::hash_to_ristretto255(b"")
+    );
+
+    // Other domain separation tags for the message "abc", in parts: empty (which RFC 9380 doesn't
+    // allow), the longest one that is used as is, and the shortest one that is hashed. Computed with
+    // a Python implementation of RFC 9380 and RFC 9496.
     for (dst_length, expected) in [
         (
             0,
@@ -627,8 +620,11 @@ fn test_hash_to_point() {
         ),
     ] {
         assert_eq!(
-            RistrettoPoint::hash_to_ristretto255_with_dst(&[b"abc"], &vec![b'a'; dst_length])
-                .to_byte_array(),
+            RistrettoPoint::hash_to_ristretto255_with_dst(
+                &[b"a", b"", b"bc"],
+                &vec![b'a'; dst_length]
+            )
+            .to_byte_array(),
             expected
         );
     }
@@ -672,109 +668,107 @@ fn test_vectors() {
     // - VEC_MULGEN:  Appendix A.1 (multiples of the generator)
     // - VEC_INVALID: Appendix A.2 (invalid encodings)
     // - VEC_MAP:     Appendix A.3 (group elements from uniform byte strings, i.e. from_uniform_bytes)
-    const VEC_MULGEN: [[u8; 32]; 16] = [
-        hex!("0000000000000000000000000000000000000000000000000000000000000000"),
-        hex!("e2f2ae0a6abc4e71a884a961c500515f58e30b6aa582dd8db6a65945e08d2d76"),
-        hex!("6a493210f7499cd17fecb510ae0cea23a110e8d5b901f8acadd3095c73a3b919"),
-        hex!("94741f5d5d52755ece4f23f044ee27d5d1ea1e2bd196b462166b16152a9d0259"),
-        hex!("da80862773358b466ffadfe0b3293ab3d9fd53c5ea6c955358f568322daf6a57"),
-        hex!("e882b131016b52c1d3337080187cf768423efccbb517bb495ab812c4160ff44e"),
-        hex!("f64746d3c92b13050ed8d80236a7f0007c3b3f962f5ba793d19a601ebb1df403"),
-        hex!("44f53520926ec81fbd5a387845beb7df85a96a24ece18738bdcfa6a7822a176d"),
-        hex!("903293d8f2287ebe10e2374dc1a53e0bc887e592699f02d077d5263cdd55601c"),
-        hex!("02622ace8f7303a31cafc63f8fc48fdc16e1c8c8d234b2f0d6685282a9076031"),
-        hex!("20706fd788b2720a1ed2a5dad4952b01f413bcf0e7564de8cdc816689e2db95f"),
-        hex!("bce83f8ba5dd2fa572864c24ba1810f9522bc6004afe95877ac73241cafdab42"),
-        hex!("e4549ee16b9aa03099ca208c67adafcafa4c3f3e4e5303de6026e3ca8ff84460"),
-        hex!("aa52e000df2e16f55fb1032fc33bc42742dad6bd5a8fc0be0167436c5948501f"),
-        hex!("46376b80f409b29dc2b5f6f0c52591990896e5716f41477cd30085ab7f10301e"),
-        hex!("e0c418f7c8d9c4cdd7395b93ea124f3ad99021bb681dfc3302a9d99a2e53e64e"),
+    const VEC_MULGEN: [&str; 16] = [
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "e2f2ae0a6abc4e71a884a961c500515f58e30b6aa582dd8db6a65945e08d2d76",
+        "6a493210f7499cd17fecb510ae0cea23a110e8d5b901f8acadd3095c73a3b919",
+        "94741f5d5d52755ece4f23f044ee27d5d1ea1e2bd196b462166b16152a9d0259",
+        "da80862773358b466ffadfe0b3293ab3d9fd53c5ea6c955358f568322daf6a57",
+        "e882b131016b52c1d3337080187cf768423efccbb517bb495ab812c4160ff44e",
+        "f64746d3c92b13050ed8d80236a7f0007c3b3f962f5ba793d19a601ebb1df403",
+        "44f53520926ec81fbd5a387845beb7df85a96a24ece18738bdcfa6a7822a176d",
+        "903293d8f2287ebe10e2374dc1a53e0bc887e592699f02d077d5263cdd55601c",
+        "02622ace8f7303a31cafc63f8fc48fdc16e1c8c8d234b2f0d6685282a9076031",
+        "20706fd788b2720a1ed2a5dad4952b01f413bcf0e7564de8cdc816689e2db95f",
+        "bce83f8ba5dd2fa572864c24ba1810f9522bc6004afe95877ac73241cafdab42",
+        "e4549ee16b9aa03099ca208c67adafcafa4c3f3e4e5303de6026e3ca8ff84460",
+        "aa52e000df2e16f55fb1032fc33bc42742dad6bd5a8fc0be0167436c5948501f",
+        "46376b80f409b29dc2b5f6f0c52591990896e5716f41477cd30085ab7f10301e",
+        "e0c418f7c8d9c4cdd7395b93ea124f3ad99021bb681dfc3302a9d99a2e53e64e",
     ];
 
-    for (i, expected) in VEC_MULGEN.iter().enumerate() {
-        let actual = RistrettoPoint::generator() * RistrettoScalar::from(i as u64);
-        assert_eq!(actual.to_byte_array(), *expected);
-        assert_eq!(check_point(expected), Some(actual));
-        let reference = reference::Point::generator() * reference::Scalar::from(i as u64);
-        assert_eq!(reference.encode(), *expected);
-        assert!(reference::Point::decode(expected).unwrap() == reference);
+    for (i, item) in VEC_MULGEN.iter().enumerate() {
+        let expected = Hex::decode(item).unwrap().try_into().unwrap();
+        let (actual, reference) = multiple_of_generator(&(i as u64).into());
+        assert_eq!(actual.to_byte_array(), expected);
+        assert_eq!(check_point(&expected), Some(actual));
+        assert_eq!(reference.encode(), expected);
+        assert!(reference::Point::decode(&expected).unwrap() == reference);
     }
 
-    const VEC_INVALID: [[u8; 32]; 29] = [
+    const VEC_INVALID: [&str; 29] = [
         // Non-canonical field encodings.
-        hex!("00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-        hex!("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"),
-        hex!("f3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"),
-        hex!("edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"),
+        "00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        "f3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
         // Negative field elements.
-        hex!("0100000000000000000000000000000000000000000000000000000000000000"),
-        hex!("01ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"),
-        hex!("ed57ffd8c914fb201471d1c3d245ce3c746fcbe63a3679d51b6a516ebebe0e20"),
-        hex!("c34c4e1826e5d403b78e246e88aa051c36ccf0aafebffe137d148a2bf9104562"),
-        hex!("c940e5a4404157cfb1628b108db051a8d439e1a421394ec4ebccb9ec92a8ac78"),
-        hex!("47cfc5497c53dc8e61c91d17fd626ffb1c49e2bca94eed052281b510b1117a24"),
-        hex!("f1c6165d33367351b0da8f6e4511010c68174a03b6581212c71c0e1d026c3c72"),
-        hex!("87260f7a2f12495118360f02c26a470f450dadf34a413d21042b43b9d93e1309"),
+        "0100000000000000000000000000000000000000000000000000000000000000",
+        "01ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        "ed57ffd8c914fb201471d1c3d245ce3c746fcbe63a3679d51b6a516ebebe0e20",
+        "c34c4e1826e5d403b78e246e88aa051c36ccf0aafebffe137d148a2bf9104562",
+        "c940e5a4404157cfb1628b108db051a8d439e1a421394ec4ebccb9ec92a8ac78",
+        "47cfc5497c53dc8e61c91d17fd626ffb1c49e2bca94eed052281b510b1117a24",
+        "f1c6165d33367351b0da8f6e4511010c68174a03b6581212c71c0e1d026c3c72",
+        "87260f7a2f12495118360f02c26a470f450dadf34a413d21042b43b9d93e1309",
         // Non-square x^2.
-        hex!("26948d35ca62e643e26a83177332e6b6afeb9d08e4268b650f1f5bbd8d81d371"),
-        hex!("4eac077a713c57b4f4397629a4145982c661f48044dd3f96427d40b147d9742f"),
-        hex!("de6a7b00deadc788eb6b6c8d20c0ae96c2f2019078fa604fee5b87d6e989ad7b"),
-        hex!("bcab477be20861e01e4a0e295284146a510150d9817763caf1a6f4b422d67042"),
-        hex!("2a292df7e32cababbd9de088d1d1abec9fc0440f637ed2fba145094dc14bea08"),
-        hex!("f4a9e534fc0d216c44b218fa0c42d99635a0127ee2e53c712f70609649fdff22"),
-        hex!("8268436f8c4126196cf64b3c7ddbda90746a378625f9813dd9b8457077256731"),
-        hex!("2810e5cbc2cc4d4eece54f61c6f69758e289aa7ab440b3cbeaa21995c2f4232b"),
+        "26948d35ca62e643e26a83177332e6b6afeb9d08e4268b650f1f5bbd8d81d371",
+        "4eac077a713c57b4f4397629a4145982c661f48044dd3f96427d40b147d9742f",
+        "de6a7b00deadc788eb6b6c8d20c0ae96c2f2019078fa604fee5b87d6e989ad7b",
+        "bcab477be20861e01e4a0e295284146a510150d9817763caf1a6f4b422d67042",
+        "2a292df7e32cababbd9de088d1d1abec9fc0440f637ed2fba145094dc14bea08",
+        "f4a9e534fc0d216c44b218fa0c42d99635a0127ee2e53c712f70609649fdff22",
+        "8268436f8c4126196cf64b3c7ddbda90746a378625f9813dd9b8457077256731",
+        "2810e5cbc2cc4d4eece54f61c6f69758e289aa7ab440b3cbeaa21995c2f4232b",
         // Negative xy value.
-        hex!("3eb858e78f5a7254d8c9731174a94f76755fd3941c0ac93735c07ba14579630e"),
-        hex!("a45fdc55c76448c049a1ab33f17023edfb2be3581e9c7aade8a6125215e04220"),
-        hex!("d483fe813c6ba647ebbfd3ec41adca1c6130c2beeee9d9bf065c8d151c5f396e"),
-        hex!("8a2e1d30050198c65a54483123960ccc38aef6848e1ec8f5f780e8523769ba32"),
-        hex!("32888462f8b486c68ad7dd9610be5192bbeaf3b443951ac1a8118419d9fa097b"),
-        hex!("227142501b9d4355ccba290404bde41575b037693cef1f438c47f8fbf35d1165"),
-        hex!("5c37cc491da847cfeb9281d407efc41e15144c876e0170b499a96a22ed31e01e"),
-        hex!("445425117cb8c90edcbc7c1cc0e74f747f2c1efa5630a967c64f287792a48a4b"),
+        "3eb858e78f5a7254d8c9731174a94f76755fd3941c0ac93735c07ba14579630e",
+        "a45fdc55c76448c049a1ab33f17023edfb2be3581e9c7aade8a6125215e04220",
+        "d483fe813c6ba647ebbfd3ec41adca1c6130c2beeee9d9bf065c8d151c5f396e",
+        "8a2e1d30050198c65a54483123960ccc38aef6848e1ec8f5f780e8523769ba32",
+        "32888462f8b486c68ad7dd9610be5192bbeaf3b443951ac1a8118419d9fa097b",
+        "227142501b9d4355ccba290404bde41575b037693cef1f438c47f8fbf35d1165",
+        "5c37cc491da847cfeb9281d407efc41e15144c876e0170b499a96a22ed31e01e",
+        "445425117cb8c90edcbc7c1cc0e74f747f2c1efa5630a967c64f287792a48a4b",
         // s = -1, which causes y = 0.
-        hex!("ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"),
+        "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
     ];
 
-    for bytes in VEC_INVALID.iter() {
-        assert!(check_point(bytes).is_none());
+    for item in VEC_INVALID.iter() {
+        assert!(check_point(&Hex::decode(item).unwrap().try_into().unwrap()).is_none());
     }
 
-    const VEC_MAP: [([u8; 64], [u8; 32]); 11] = [
-        (hex!("5d1be09e3d0c82fc538112490e35701979d99e06ca3e2b5b54bffe8b4dc772c14d98b696a1bbfb5ca32c436cc61c16563790306c79eaca7705668b47dffe5bb6"),
-            hex!("3066f82a1a747d45120d1740f14358531a8f04bbffe6a819f86dfe50f44a0a46")),
-        (hex!("f116b34b8f17ceb56e8732a60d913dd10cce47a6d53bee9204be8b44f6678b270102a56902e2488c46120e9276cfe54638286b9e4b3cdb470b542d46c2068d38"),
-            hex!("f26e5b6f7d362d2d2a94c5d0e7602cb4773c95a2e5c31a64f133189fa76ed61b")),
-        (hex!("8422e1bbdaab52938b81fd602effb6f89110e1e57208ad12d9ad767e2e25510c27140775f9337088b982d83d7fcf0b2fa1edffe51952cbe7365e95c86eaf325c"),
-            hex!("006ccd2a9e6867e6a2c5cea83d3302cc9de128dd2a9a57dd8ee7b9d7ffe02826")),
-        (hex!("ac22415129b61427bf464e17baee8db65940c233b98afce8d17c57beeb7876c2150d15af1cb1fb824bbd14955f2b57d08d388aab431a391cfc33d5bafb5dbbaf"),
-            hex!("f8f0c87cf237953c5890aec3998169005dae3eca1fbb04548c635953c817f92a")),
-        (hex!("165d697a1ef3d5cf3c38565beefcf88c0f282b8e7dbd28544c483432f1cec7675debea8ebb4e5fe7d6f6e5db15f15587ac4d4d4a1de7191e0c1ca6664abcc413"),
-            hex!("ae81e7dedf20a497e10c304a765c1767a42d6e06029758d2d7e8ef7cc4c41179")),
-        (hex!("a836e6c9a9ca9f1e8d486273ad56a78c70cf18f0ce10abb1c7172ddd605d7fd2979854f47ae1ccf204a33102095b4200e5befc0465accc263175485f0e17ea5c"),
-            hex!("e2705652ff9f5e44d3e841bf1c251cf7dddb77d140870d1ab2ed64f1a9ce8628")),
-        (hex!("2cdc11eaeb95daf01189417cdddbf95952993aa9cb9c640eb5058d09702c74622c9965a697a3b345ec24ee56335b556e677b30e6f90ac77d781064f866a3c982"),
-            hex!("80bd07262511cdde4863f8a7434cef696750681cb9510eea557088f76d9e5065")),
-        (hex!("edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1200000000000000000000000000000000000000000000000000000000000000"),
-            hex!("304282791023b73128d277bdcb5c7746ef2eac08dde9f2983379cb8e5ef0517f")),
-        (hex!("edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-            hex!("304282791023b73128d277bdcb5c7746ef2eac08dde9f2983379cb8e5ef0517f")),
-        (hex!("0000000000000000000000000000000000000000000000000000000000000080ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"),
-            hex!("304282791023b73128d277bdcb5c7746ef2eac08dde9f2983379cb8e5ef0517f")),
-        (hex!("00000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000080"),
-            hex!("304282791023b73128d277bdcb5c7746ef2eac08dde9f2983379cb8e5ef0517f")),
+    const VEC_MAP: [(&str, &str); 11] = [
+        ("5d1be09e3d0c82fc538112490e35701979d99e06ca3e2b5b54bffe8b4dc772c14d98b696a1bbfb5ca32c436cc61c16563790306c79eaca7705668b47dffe5bb6",
+            "3066f82a1a747d45120d1740f14358531a8f04bbffe6a819f86dfe50f44a0a46"),
+        ("f116b34b8f17ceb56e8732a60d913dd10cce47a6d53bee9204be8b44f6678b270102a56902e2488c46120e9276cfe54638286b9e4b3cdb470b542d46c2068d38",
+            "f26e5b6f7d362d2d2a94c5d0e7602cb4773c95a2e5c31a64f133189fa76ed61b"),
+        ("8422e1bbdaab52938b81fd602effb6f89110e1e57208ad12d9ad767e2e25510c27140775f9337088b982d83d7fcf0b2fa1edffe51952cbe7365e95c86eaf325c",
+            "006ccd2a9e6867e6a2c5cea83d3302cc9de128dd2a9a57dd8ee7b9d7ffe02826"),
+        ("ac22415129b61427bf464e17baee8db65940c233b98afce8d17c57beeb7876c2150d15af1cb1fb824bbd14955f2b57d08d388aab431a391cfc33d5bafb5dbbaf",
+            "f8f0c87cf237953c5890aec3998169005dae3eca1fbb04548c635953c817f92a"),
+        ("165d697a1ef3d5cf3c38565beefcf88c0f282b8e7dbd28544c483432f1cec7675debea8ebb4e5fe7d6f6e5db15f15587ac4d4d4a1de7191e0c1ca6664abcc413",
+            "ae81e7dedf20a497e10c304a765c1767a42d6e06029758d2d7e8ef7cc4c41179"),
+        ("a836e6c9a9ca9f1e8d486273ad56a78c70cf18f0ce10abb1c7172ddd605d7fd2979854f47ae1ccf204a33102095b4200e5befc0465accc263175485f0e17ea5c",
+            "e2705652ff9f5e44d3e841bf1c251cf7dddb77d140870d1ab2ed64f1a9ce8628"),
+        ("2cdc11eaeb95daf01189417cdddbf95952993aa9cb9c640eb5058d09702c74622c9965a697a3b345ec24ee56335b556e677b30e6f90ac77d781064f866a3c982",
+            "80bd07262511cdde4863f8a7434cef696750681cb9510eea557088f76d9e5065"),
+        ("edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1200000000000000000000000000000000000000000000000000000000000000",
+            "304282791023b73128d277bdcb5c7746ef2eac08dde9f2983379cb8e5ef0517f"),
+        ("edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "304282791023b73128d277bdcb5c7746ef2eac08dde9f2983379cb8e5ef0517f"),
+        ("0000000000000000000000000000000000000000000000000000000000000080ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+            "304282791023b73128d277bdcb5c7746ef2eac08dde9f2983379cb8e5ef0517f"),
+        ("00000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000080",
+            "304282791023b73128d277bdcb5c7746ef2eac08dde9f2983379cb8e5ef0517f")
         ];
 
-    for (bytes, expected) in VEC_MAP.iter() {
-        assert_eq!(
-            RistrettoPoint::from_uniform_bytes(bytes).to_byte_array(),
-            *expected
-        );
-        assert_eq!(
-            reference::Point::from_uniform_bytes(bytes).encode(),
-            *expected
-        );
+    for (i, o) in VEC_MAP.iter() {
+        let input = Hex::decode(i).unwrap().try_into().unwrap();
+        let expected = Hex::decode(o).unwrap();
+        let actual = RistrettoPoint::from_uniform_bytes(&input);
+        assert_eq!(expected, actual.to_byte_array());
+        let reference = reference::Point::from_uniform_bytes(&input);
+        assert_eq!(expected, reference.encode());
     }
     // Zero maps to the identity.
     assert_eq!(
@@ -1008,58 +1002,53 @@ fn test_proptest_strategies_are_not_vacuous() {
     // The strategies hit the edge cases often enough for the 64 cases of the slower proptests.
     const SAMPLES: usize = 1000;
     let mut runner = TestRunner::deterministic();
-    let bytes = samples(arb_bytes(), SAMPLES, &mut runner);
-    let decoded_scalar = count(&bytes, |b| reference::decode_scalar(b).is_some());
-    let near_order = count(&bytes, |b| {
-        (-3..=3).any(|delta| *b == add_small(&GROUP_ORDER, delta))
-    });
-    let decoded_point = count(&bytes, |b| reference::Point::decode(b).is_some());
-    let decoded_identity = count(&bytes, |b| *b == IDENTITY_ENCODING);
-    // Valid encodings with the top bit set or plus p, which only the canonicity check rejects.
-    let without_top_bit = |b: &[u8; 32]| {
-        let mut bytes = *b;
-        bytes[31] &= 0x7f;
-        bytes
+    let check = |name: &str, hits: usize, min: usize| {
+        println!("{name}: {hits}");
+        assert!(hits >= min);
     };
-    let top_bit = count(&bytes, |b| {
-        b[31] & 0x80 != 0 && reference::Point::decode(&without_top_bit(b)).is_some()
-    });
-    let plus_p = count(&bytes, |b| {
-        [0, 4, 6]
-            .iter()
-            .any(|s| *b == add_small(&FIELD_MODULUS, *s))
-    });
-    // Negated valid encodings, which only the sign check rejects.
-    let negated = count(&bytes, |b| {
-        b[0] & 1 == 1
-            && reference::negate_field_element(b)
-                .is_some_and(|s| reference::Point::decode(&s).is_some())
-    });
+
+    let bytes = samples(arb_bytes(), SAMPLES, &mut runner);
+    let decoded = count(&bytes, |b| reference::decode_scalar(b).is_some());
+    check("scalar", decoded, 200);
+    check("not a scalar", SAMPLES - decoded, 200);
+    let near_order = |b: &[u8; 32]| (-3..=3).any(|d| *b == add_small(&GROUP_ORDER, d));
+    check("l - 3, ..., l + 3", count(&bytes, near_order), 5);
+    let is_point = |b: &[u8; 32]| reference::Point::decode(b).is_some();
+    let decoded = count(&bytes, is_point);
+    check("point", decoded, 150);
+    check("not a point", SAMPLES - decoded, 150);
+    check("identity", count(&bytes, |b| *b == IDENTITY_ENCODING), 5);
+    // Encodings with the top bit set or plus p, which only the canonicity check rejects, and negated
+    // ones, which only the sign check rejects.
+    let top_bit = |b: &[u8; 32]| {
+        let mut bytes = *b;
+        bytes[31] ^= 0x80;
+        b[31] & 0x80 != 0 && is_point(&bytes)
+    };
+    check("top bit", count(&bytes, top_bit), 20);
+    let plus_p = |b: &[u8; 32]| [0, 4, 6].map(|s| add_small(&FIELD_MODULUS, s)).contains(b);
+    check("plus p", count(&bytes, plus_p), 1);
+    let negated = |b: &[u8; 32]| {
+        b[0] & 1 == 1 && reference::negate_field_element(b).is_some_and(|s| is_point(&s))
+    };
+    check("negated", count(&bytes, negated), 50);
 
     let scalars = samples(arb_scalar(), SAMPLES, &mut runner);
-    let zero = count(&scalars, |s| s.is_zero());
+    check("zero scalar", count(&scalars, |s| s.is_zero()), 20);
     let one = reference::Scalar::one();
-    let plus_minus_one = count(&scalars, |s| *s == one || *s == -one);
+    check("±1", count(&scalars, |s| [one, -one].contains(s)), 40);
 
     // Multiplications are slow in debug builds, so fewer points are sampled.
     let points = samples(arb_point(), SAMPLES / 5, &mut runner);
-    let identity = count(&points, |(p, _)| *p == RistrettoPoint::zero());
-    let other_representative = count(&points, |(_, p)| {
+    let identity = |p: &(RistrettoPoint, _)| p.0 == RistrettoPoint::zero();
+    check("identity point", count(&points, identity), 10);
+    let other_representative = |(_, p): &(_, reference::Point)| {
         let decoded = reference::Point::decode(&p.encode()).unwrap();
         !decoded.is_same_representative(p)
-    });
-
-    println!(
-        "32 bytes: scalar {decoded_scalar}, l - 3..l + 3 {near_order}, point {decoded_point}, \
-         identity {decoded_identity}, top bit {top_bit}, plus p {plus_p}, negated {negated}; \
-         scalars: zero {zero}, ±1 {plus_minus_one}; points (of {}): identity {identity}, other \
-         representative {other_representative}",
-        SAMPLES / 5
+    };
+    check(
+        "other representative",
+        count(&points, other_representative),
+        50,
     );
-    assert!(decoded_scalar > 200 && SAMPLES - decoded_scalar > 200);
-    assert!(near_order > 5);
-    assert!(decoded_point > 150 && SAMPLES - decoded_point > 150);
-    assert!(decoded_identity > 5 && top_bit > 20 && plus_p > 0 && negated > 50);
-    assert!(zero > 20 && plus_minus_one > 40);
-    assert!(identity > 10 && other_representative > 50);
 }

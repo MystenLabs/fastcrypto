@@ -20,8 +20,8 @@ use std::ops::{Add, Mul, Neg, Sub};
 #[derive(MontConfig)]
 #[modulus = "57896044618658097711785492504343953926634992332820282019728792003956564819949"]
 #[generator = "2"]
-pub struct FieldConfig;
-pub type FieldElement = Fp256<MontBackend<FieldConfig, 4>>;
+struct FieldConfig;
+type FieldElement = Fp256<MontBackend<FieldConfig, 4>>;
 
 /// The field with l = 2^252 + 27742317777372353535851937790883648493 elements, the group order.
 #[derive(MontConfig)]

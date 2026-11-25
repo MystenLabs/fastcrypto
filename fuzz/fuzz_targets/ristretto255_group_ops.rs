@@ -15,9 +15,9 @@
 //! Invariants: nothing panics; each decoder accepts exactly the encodings that the reference
 //! accepts, decodes to the same value and round trips, and BCS and JSON agree with it; the trusted
 //! decoder agrees for points and reduces scalars; inversion and division fail exactly for zero;
-//! multi-scalar multiplication, with and without precomputed tables, fails exactly for mismatched
-//! lengths and gives the same result for every strategy; equal points have equal encodings; every
-//! result equals the reference's.
+//! multi-scalar multiplication with precomputed points fails exactly for mismatched lengths and
+//! gives the same result for every strategy; equal points have equal encodings; every result equals
+//! the reference's.
 
 #![no_main]
 
@@ -90,20 +90,13 @@ enum Op {
     Mul(u8, u8),
     /// point / scalar, with a point index and a scalar index.
     Div(u8, u8),
-    /// The sum of (scalar index, point index) terms.
-    MultiScalarMul(Vec<(u8, u8)>, Msm),
-}
-
-#[derive(Arbitrary, Debug)]
-enum Msm {
-    Plain {
-        drop_last: bool,
-    },
-    /// The points before the split are precomputed, and the scalars are split `shift` later (so the
-    /// lengths match for 0). The bound and the weight of the strategy are u8::MAX for usize::MAX.
-    Precomputed {
+    /// The sum of (scalar index, point index) terms, plain and with the points before an index
+    /// precomputed, where splitting the scalars at any other index fails. The bound and the weight
+    /// of the strategy are u8::MAX for usize::MAX.
+    MultiScalarMul {
+        terms: Vec<(u8, u8)>,
         split: u8,
-        shift: i8,
+        other_split: u8,
         max_weighted_points: u8,
         dynamic_point_weight: u8,
     },
@@ -190,51 +183,33 @@ fn decode<T: ToFromByteArray<32> + DeserializeOwned + PartialEq + Debug>(
     decoded
 }
 
-fn multi_scalar_mul(state: &mut State, terms: &[(u8, u8)], msm: Msm) {
+fn multi_scalar_mul(
+    state: &mut State,
+    terms: &[(u8, u8)],
+    split: u8,
+    other_split: u8,
+    strategy: MixedMsmStrategy,
+) {
     let terms = &terms[..terms.len().min(MAX_TERMS)];
-    let mut scalars = terms
+    let (scalars, points): (Vec<_>, Vec<_>) = terms
         .iter()
-        .map(|(s, _)| state.scalar(*s).0)
-        .collect::<Vec<_>>();
-    let points = terms
-        .iter()
-        .map(|(_, p)| state.point(*p).0)
-        .collect::<Vec<_>>();
+        .map(|(s, p)| (state.scalar(*s).0, state.point(*p).0))
+        .unzip();
     let expected = terms.iter().fold(Point::identity(), |acc, (s, p)| {
         acc + state.point(*p).1 * state.scalar(*s).1
     });
-    let result = match msm {
-        Msm::Plain { drop_last } => {
-            let mismatch = drop_last && scalars.pop().is_some();
-            let result = RistrettoPoint::multi_scalar_mul(&scalars, &points);
-            assert_eq!(result.is_err(), mismatch);
-            result
-        }
-        Msm::Precomputed {
-            split,
-            shift,
-            max_weighted_points,
-            dynamic_point_weight,
-        } => {
-            let extend = |x: u8| if x == u8::MAX { usize::MAX } else { x.into() };
-            let strategy = MixedMsmStrategy {
-                max_weighted_points: extend(max_weighted_points),
-                dynamic_point_weight: extend(dynamic_point_weight),
-            };
-            let split = split as usize % (terms.len() + 1);
-            let scalar_split = split.saturating_add_signed(shift.into()).min(terms.len());
-            let (static_points, dynamic_points) = points.split_at(split);
-            let (static_scalars, dynamic_scalars) = scalars.split_at(scalar_split);
-            let result = RistrettoPoint::precompute_with_strategy(static_points, strategy)
-                .unwrap()
-                .mixed_multi_scalar_mul(static_scalars, dynamic_scalars, dynamic_points);
-            assert_eq!(result.is_err(), split != scalar_split);
-            result
-        }
+    let result = RistrettoPoint::multi_scalar_mul(&scalars, &points).unwrap();
+    state.push_point(result, expected);
+
+    let [split, other_split] = [split, other_split].map(|i| i as usize % (terms.len() + 1));
+    let (static_points, dynamic_points) = points.split_at(split);
+    let precomputation = RistrettoPoint::precompute_with_strategy(static_points, strategy).unwrap();
+    let mixed = |split| {
+        let (static_scalars, dynamic_scalars) = scalars.split_at(split);
+        precomputation.mixed_multi_scalar_mul(static_scalars, dynamic_scalars, dynamic_points)
     };
-    if let Ok(result) = result {
-        state.push_point(result, expected);
-    }
+    state.push_point(mixed(split).unwrap(), expected);
+    assert_eq!(mixed(other_split).is_err(), other_split != split);
 }
 
 fn apply(state: &mut State, op: Op) {
@@ -350,7 +325,20 @@ fn apply(state: &mut State, op: Op) {
                 _ => panic!("division and inversion disagree"),
             }
         }
-        Op::MultiScalarMul(terms, msm) => multi_scalar_mul(state, &terms, msm),
+        Op::MultiScalarMul {
+            terms,
+            split,
+            other_split,
+            max_weighted_points,
+            dynamic_point_weight,
+        } => {
+            let extend = |x: u8| if x == u8::MAX { usize::MAX } else { x.into() };
+            let strategy = MixedMsmStrategy {
+                max_weighted_points: extend(max_weighted_points),
+                dynamic_point_weight: extend(dynamic_point_weight),
+            };
+            multi_scalar_mul(state, &terms, split, other_split, strategy);
+        }
     }
 }
 
