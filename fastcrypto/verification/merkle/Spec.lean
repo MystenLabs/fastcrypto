@@ -1,4 +1,3 @@
--- THIS FILE IS AI-ONLY
 import merkle.GetProof
 import merkle.Verify
 import merkle.NonInclusion
@@ -7,31 +6,9 @@ import merkle.Result
 
 /-!
 The theorems about `fastcrypto::merkle`, for any `HashFunction` that satisfies `HashModel` with
-some `H`.
-
-`MerkleProof::verify(root, leaf, i, n)`, for a tree with `n` leaves whose root is not trusted:
-* `verify_complete`: a tree built from `n` leaf hashes gives, for every leaf, a proof that
-  `verify` accepts against the tree's root.
-* `verify_binding`: if `verify` accepts two proofs for the same `root`, index and `n`, they are
-  for the same leaf, or `H` has a collision.
-* `verify_no_panic`: `verify` returns, without panicking, on every input.
-
-`MerkleProof::verify_for_trusted_tree(root, leaf, i)`, for a root built by `MerkleTree`:
-* `verify_for_trusted_tree_complete`: as `verify_complete`, and the proof has `depth n`
-  siblings.
-* `verify_for_trusted_tree_sound`: against the root of a tree built by `MerkleTree`, it accepts
-  a proof for index `i` only for the `i`th leaf, or `H` has a collision or a zero output.
-* `verify_for_trusted_tree_no_panic`: as `verify_no_panic`.
-* `verify_for_trusted_tree_with_unserialized_leaf_sound`: as `verify_for_trusted_tree_sound`, for
-  leaves serialized with BCS.
-
-`MerkleNonInclusionProof::verify_for_trusted_tree(root, target)`, for a root built by
-`MerkleTree` over sorted leaves:
-* `non_inclusion_sound`: if it accepts, `target` is not a leaf, or `H` has a collision or a zero
-  output.
-* `non_inclusion_complete`: for a `target` that is not a leaf, `compute_non_inclusion_proof`
-  returns a proof that it accepts.
-* `non_inclusion_no_panic`: it returns on every input.
+some `H`. This file and `Definitions.lean`, which defines what the theorems are stated with, are the
+claim of the proofs, so a reviewer reads both in full. The other files are lemmas, which Lean
+checks.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -258,3 +235,14 @@ theorem verify_for_trusted_tree_with_unserialized_leaf_sound (hm : HashModel ins
   · exact Or.inl ⟨hi, hl⟩
 
 end MerkleProofs
+
+#print axioms MerkleProofs.verify_binding
+#print axioms MerkleProofs.verify_complete
+#print axioms MerkleProofs.verify_no_panic
+#print axioms MerkleProofs.verify_for_trusted_tree_sound
+#print axioms MerkleProofs.verify_for_trusted_tree_complete
+#print axioms MerkleProofs.verify_for_trusted_tree_no_panic
+#print axioms MerkleProofs.verify_for_trusted_tree_with_unserialized_leaf_sound
+#print axioms MerkleProofs.non_inclusion_sound
+#print axioms MerkleProofs.non_inclusion_complete
+#print axioms MerkleProofs.non_inclusion_no_panic

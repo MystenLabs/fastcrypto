@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import merkle.Generated.Funs
+import merkle.Definitions
 
 /-!
 The hash function. The generated code takes the `HashFunction` impl as a parameter `inst`, a
@@ -15,20 +15,6 @@ open Aeneas Aeneas.Std Result
 open fastcrypto
 
 namespace MerkleProofs
-
-/-- `inst` hashes the concatenation of its inputs with `H`. -/
-structure HashModel {T : Type} (inst : hash.HashFunction T 32#usize)
-    (H : List U8 → Array U8 32#usize) where
-  absorbed : T → List U8
-  default_ok : ∃ s, inst.coredefaultDefaultInst.default = ok s ∧ absorbed s = []
-  update_ok : ∀ {D : Type} (r : core.convert.AsRef D (Slice U8)) (s : T) (d : D) (bs : Slice U8),
-    r.as_ref d = ok bs → ∃ s', inst.update r s d = ok s' ∧ absorbed s' = absorbed s ++ bs.val
-  finalize_ok : ∀ s, inst.finalize s = ok ⟨H (absorbed s)⟩
-
-/-- The 32 bytes that represent a node in a hash: zeros for `Empty`. -/
-def bytesOf : merkle.Node → List U8
-  | .Empty => List.replicate 32 0#u8
-  | .Digest v => v.val
 
 lemma bytes_eq (n : merkle.Node) : ∃ a, merkle.Node.bytes n = ok a ∧ a.val = bytesOf n := by
   cases n with

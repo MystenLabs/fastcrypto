@@ -17,25 +17,6 @@ variable {T : Type} {inst : hash.HashFunction T 32#usize} {H : List U8 → Array
 
 /-! ## Assumptions -/
 
-/-- `<[A]>::partition_point(f)`, for a predicate `f` that is true exactly at the indices below
-`p` and does not change its state, returns `p`. -/
-def PartitionPointSpec : Prop :=
-  ∀ {A P : Type} (f : core.ops.function.FnMut P A Bool) (s : Slice A) (c : P) (p : Nat),
-    p ≤ s.length → (∀ k (hk : k < s.length), f.call_mut c (s.val[k]'hk) = ok (decide (k < p), c)) →
-    ∃ r : Usize, core.slice.Slice.partition_point f s c = ok r ∧ r.val = p
-
-/-- `L`'s `<=` returns, and is transitive and antisymmetric. -/
-structure LinearOrd {L : Type} (o : core.cmp.PartialOrd L L) : Prop where
-  le_ok : ∀ a b, o.le a b = ok true ∨ o.le a b = ok false
-  trans : ∀ a b c, o.le a b = ok true → o.le b c = ok true → o.le a c = ok true
-  antisymm : ∀ a b, o.le a b = ok true → o.le b a = ok true → a = b
-
-/-- `L`'s `==` is false for different values. -/
-def EqModel {L : Type} (e : core.cmp.PartialEq L L) : Prop := ∀ a b, a ≠ b → e.eq a b = ok false
-
-/-- `L`'s `clone` returns its argument. -/
-def CloneIsId {L : Type} (c : core.clone.Clone L) : Prop := ∀ a, c.clone a = ok a
-
 /-! ## Lemmas -/
 
 lemma sortedLe_tail {L : Type} {o : core.cmp.PartialOrd L L} {x : L} {ls : List L}

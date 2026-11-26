@@ -186,10 +186,8 @@ where
         }
         let mut current_hash = leaf_hash::<T>(leaf);
         let mut level_index = leaf_index;
-        let mut level = 0;
-        while level < self.path.len() {
+        for sibling in self.path.iter() {
             // The sibling hash of the current node
-            let sibling = &self.path[level];
             if level_index.is_multiple_of(2) {
                 // The current node is a left child
                 current_hash = inner_hash::<T>(&current_hash, sibling);
@@ -199,7 +197,6 @@ where
             };
             // Update to the level index one level up in the tree
             level_index /= 2;
-            level += 1;
         }
         Some(current_hash)
     }
@@ -207,18 +204,16 @@ where
     // Check if the proof is for the rightmost leaf in the tree
     pub fn is_right_most(&self, leaf_index: usize) -> bool {
         let mut level_index = leaf_index;
-        let mut level = 0;
-        while level < self.path.len() {
+        for sibling in self.path.iter() {
             // The sibling hash of the current node
             if level_index.is_multiple_of(2) {
                 // The current node is a left child
-                if self.path[level].bytes() != EMPTY_NODE {
+                if sibling.bytes() != EMPTY_NODE {
                     return false;
                 }
             }
             // Update to the level index one level up in the tree
             level_index /= 2;
-            level += 1;
         }
         true
     }
@@ -442,11 +437,9 @@ where
 
             let new_level_index = prev_level_index + level_nodes;
 
-            let mut index = prev_level_index;
-            while index < new_level_index {
+            for index in (prev_level_index..new_level_index).step_by(2) {
                 let parent = inner_hash::<T>(&nodes[index], &nodes[index + 1]);
                 nodes.push(parent);
-                index += 2;
             }
 
             prev_level_index = new_level_index;

@@ -44,23 +44,26 @@ lemma bytes_ne_empty (n : Node) :
   rw [ne_eq, ne_eq, Aeneas.Std.Array.eq_iff, hv]
   simp [bytesOf, merkle.EMPTY_NODE]
 
-lemma is_right_most_loop_spec (p : merkle.MerkleProof T) (li lvl : Usize)
-    (hl : lvl.val ≤ p.path.length) :
-    merkle.MerkleProof.is_right_most_loop p li lvl ⦃ b =>
-      (b = true ↔ RightMost (p.path.val.drop lvl.val) li.val) ⦄ := by
+lemma is_right_most_loop_spec (ps : Slice Node) (it : core.slice.iter.Iter Node) (li : Usize)
+    (hs : it.slice = ps) (hl : it.i ≤ ps.length) :
+    merkle.MerkleProof.is_right_most_loop it li ⦃ b =>
+      (b = true ↔ RightMost (ps.val.drop it.i) li.val) ⦄ := by
   unfold merkle.MerkleProof.is_right_most_loop
-  apply loop.spec_decr_nat (fun q => p.path.length - q.2.val)
-    (fun q => q.2.val ≤ p.path.length ∧
-      (RightMost (p.path.val.drop q.2.val) q.1.val ↔ RightMost (p.path.val.drop lvl.val) li.val))
-  · rintro ⟨li', lvl'⟩ ⟨hl', heq⟩
-    dsimp only at hl' heq ⊢
+  apply loop.spec_decr_nat (fun q : core.slice.iter.Iter Node × Usize => ps.length - q.1.i)
+    (fun q => q.1.slice = ps ∧ q.1.i ≤ ps.length ∧
+      (RightMost (ps.val.drop q.1.i) q.2.val ↔ RightMost (ps.val.drop it.i) li.val))
+  · rintro ⟨it', li'⟩ ⟨hs', hl', heq⟩
+    dsimp only at hs' hl' heq ⊢
     unfold merkle.MerkleProof.is_right_most_loop.body
-    by_cases hlt : lvl' < alloc.vec.Vec.len p.path
-    · have hlt' : lvl'.val < p.path.length := by scalar_tac
-      rw [List.drop_eq_getElem_cons hlt'] at heq
-      simp only [hlt, ite_true]
+    let* ⟨ o, it1, ho, hs1 ⟩ ← slice_iter_next_spec
+    split_ifs at ho with hlt
+    · obtain ⟨rfl, hi1⟩ := ho
+      subst hs'
+      have hlt' : it'.i < it'.slice.val.length := by scalar_tac
+      rw [List.drop_eq_getElem_cons hlt', ← getElem!_pos] at heq
+      simp only
       step*
-      · obtain ⟨a, ha, hne⟩ := bytes_ne_empty n
+      · obtain ⟨a, ha, hne⟩ := bytes_ne_empty it'.slice.val[it'.i]!
         simp only [ha, arr_ne, bind_ok]
         split
         · rename_i hb
@@ -68,33 +71,35 @@ lemma is_right_most_loop_spec (p : merkle.MerkleProof T) (li lvl : Usize)
           intro hr
           rw [← heq] at hr
           simp only [decide_eq_true_eq, hne] at hb
-          apply hb
-          rw [n_post] at *
-          exact hr.1 (by scalar_tac)
+          exact hb (hr.1 (by scalar_tac))
         · rename_i hb
           step*
-          refine ⟨by scalar_tac, ?_, by scalar_tac⟩
-          rw [← heq, level1_post, level_index1_post]
+          refine ⟨hs1, by scalar_tac, ?_, by scalar_tac⟩
+          rw [← heq, hi1, level_index1_post]
           simp only [decide_eq_true_eq, hne, not_not] at hb
           constructor
-          · intro h; exact ⟨fun _ => by rw [← n_post]; exact hb, by simpa using h⟩
+          · intro h; exact ⟨fun _ => hb, by simpa using h⟩
           · intro h; simpa using h.2
-      · refine ⟨by scalar_tac, ?_, by scalar_tac⟩
-        rw [← heq, level1_post, level_index1_post]
+      · refine ⟨hs1, by scalar_tac, ?_, by scalar_tac⟩
+        rw [← heq, hi1, level_index1_post]
         constructor
         · intro h; exact ⟨fun he => by scalar_tac, by simpa using h⟩
         · intro h; simpa using h.2
-    · simp only [hlt, ite_false, WP.spec_ok, true_iff]
-      rw [← heq, List.drop_of_length_le (by scalar_tac)]
+    · obtain ⟨rfl, hi1⟩ := ho
+      simp only [WP.spec_ok, true_iff]
+      rw [← heq, List.drop_of_length_le (by subst hs'; scalar_tac)]
       trivial
-  · exact ⟨hl, Iff.rfl⟩
+  · exact ⟨hs, hl, Iff.rfl⟩
 
 /-- `is_right_most(i)` returns whether every left child on the path from `i` has an `Empty`
 sibling. -/
 lemma is_right_most_spec (p : merkle.MerkleProof T) (i : Usize) :
     merkle.MerkleProof.is_right_most inst p i ⦃ b => (b = true ↔ RightMost p.path.val i.val) ⦄ := by
   unfold merkle.MerkleProof.is_right_most
-  exact is_right_most_loop_spec p i 0#usize (by simp)
+  simp only [core.slice.Slice.iter, bind_ok]
+  have := is_right_most_loop_spec (alloc.vec.Vec.deref p.path) ⟨alloc.vec.Vec.deref p.path, 0⟩ i
+    rfl (by simp)
+  simpa [alloc.vec.Vec.deref] using this
 
 /-! ## Leaves serialized with BCS -/
 
@@ -205,25 +210,11 @@ lemma ni_accepts {L : Type} (ord : core.cmp.Ord L) (ser : serde_core.ser.Seriali
 
 /-! ## Soundness of non-inclusion proofs -/
 
-/-- `bcs::to_bytes` is injective on the values it serializes. -/
-def BcsInjective {L : Type} (ser : serde_core.ser.Serialize L) : Prop :=
-  ∀ a b v w, bcs.ser.to_bytes ser a = ok (.Ok v) → bcs.ser.to_bytes ser b = ok (.Ok w) →
-    v.val = w.val → a = b
-
-/-- Two laws of Rust's `PartialOrd`: `a >= b` is `b <= a`, and `a <= a`. -/
-structure OrdModel {L : Type} (o : core.cmp.PartialOrd L L) : Prop where
-  ge_eq_le : ∀ a b, o.ge a b = o.le b a
-  le_refl : ∀ a, o.le a a = ok true
-
 /-- `bcs::to_bytes` serializes the `j`th element of `ls` to `ys[j]`. -/
 def Serializes {L : Type} (ser : serde_core.ser.Serialize L) (ls : List L) (ys : List (List U8)) :
     Prop :=
   ys.length = ls.length ∧ ∀ j (hj : j < ls.length), ∃ v, bcs.ser.to_bytes ser ls[j] = ok (.Ok v) ∧
     v.val = ys.getD j []
-
-/-- `ls` is sorted by `<=`. -/
-def SortedLe {L : Type} (o : core.cmp.PartialOrd L L) (ls : List L) : Prop :=
-  ∀ j k (hjk : j < k) (hk : k < ls.length), o.le (ls[j]'(by omega)) ls[k] = ok true
 
 lemma le_of_le {L : Type} {o : core.cmp.PartialOrd L L} (ho : OrdModel o) {ls : List L}
     (hs : SortedLe o ls) (j k : Nat) (hjk : j ≤ k) (hk : k < ls.length) :
@@ -393,10 +384,6 @@ lemma isDigest_fold : ∀ (c : Node) (ps : List Node) (i : Nat), IsDigest c → 
   | c, s :: ps, i, _ => isDigest_fold (step H c s i) ps (i / 2) (isDigest_step H c s i)
 
 /-! ## No panics -/
-
-/-- `bcs::to_bytes` returns, `Ok` or `Err`, on every value. -/
-def BcsReturns {L : Type} (ser : serde_core.ser.Serialize L) : Prop :=
-  ∀ a, ∃ r, bcs.ser.to_bytes ser a = ok r
 
 lemma ret_bind {α β : Type _} {m : Result α} {f : α → Result β} (hm : ∃ x, m = ok x)
     (hf : ∀ x, ∃ y, f x = ok y) : ∃ y, (m >>= f) = ok y := by

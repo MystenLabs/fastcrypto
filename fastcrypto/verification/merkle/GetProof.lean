@@ -72,7 +72,7 @@ lemma get_proof_loop_spec (P : List Node) (v : alloc.vec.Vec Node)
         · rename_i hb
           have he : li'.val % 2 ≠ 0 := by simpa [hb] using b_post
           step*
-          all_goals (simp [he]; scalar_tac)
+          simp [he]; scalar_tac
       apply WP.spec_bind hsib
       intro sib hsib'
       have hsl : (if li'.val % 2 = 0 then li'.val + 1 else li'.val - 1) < (pad l').length := by

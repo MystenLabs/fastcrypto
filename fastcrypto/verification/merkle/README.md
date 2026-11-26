@@ -3,10 +3,12 @@
 
 Proofs about fastcrypto's Merkle tree (`fastcrypto/src/merkle.rs`), against a Lean translation of
 the Rust code made by [Charon and Aeneas](https://github.com/AeneasVerif/aeneas). The Rust code
-carries no annotations. It is written in a style Aeneas can translate: index loops instead of
+carries no annotations. It is written in a style Aeneas can translate: `for` loops instead of
 iterator chains and closures.
 
-The theorems are in `Theorems.lean`. Everything else is a lemma.
+The theorems are in `Spec.lean`, and the definitions they are stated with, including their
+assumptions, are in `Definitions.lean`. A reviewer reads these two files in full. Everything else
+is a lemma, which Lean checks.
 
 ## Theorems
 
@@ -73,15 +75,16 @@ treats as `Node::Empty`.
 
 | File | Contents |
 |---|---|
-| `Theorems.lean` | The theorems above. |
-| `Hash.lean` | `HashModel`, and what `leaf_hash` and `inner_hash` return under it. |
+| `Spec.lean` | The theorems above, and their axiom reports. |
+| `Definitions.lean` | What the theorems are stated with: the assumptions (`HashModel`, `OrdModel`, `LinearOrd`, `EqModel`, `CloneIsId`, `SortedLe`, `BcsInjective`, `BcsReturns`, `PartitionPointSpec`), the conclusions `Collision` and `ZeroHash`, and `depth`. |
+| `Hash.lean` | What `leaf_hash` and `inner_hash` return under `HashModel`. |
 | `Model.lean` | A model of the tree as lists (`levels`, `rootOf`, `pathOf`, `fold`, `depth`): hashing a leaf up its path gives the root (`fold_pathOf`), and paths of the same length from different leaves to the same root give a collision (`fold_binding`). |
 | `Opening.lean` | What a path of any length can open to in a tree built by `MerkleTree` (`trusted_opening`), and that the honest path of any leaf but the last has a left child whose sibling is a hash (`right_most`). |
 | `Build.lean` | `build_from_leaf_hashes` returns the concatenated `levels` of the leaf hashes, and `root` returns `rootOf` (`build_spec`, `root_spec`). |
 | `GetProof.lean` | `get_proof(i)` returns `pathOf(i)` (`get_proof_spec`). |
 | `Verify.lean` | What `hash_along_path`, `expected_proof_length`, `compute_root`, `verify` and `verify_for_trusted_tree` return (`verify_spec`, `verify_for_trusted_tree_spec`, `expected_proof_length_spec`, ...). |
-| `NonInclusion.lean` | What `is_right_most`, `verify_for_trusted_tree_with_unserialized_leaf` and `MerkleNonInclusionProof::verify_for_trusted_tree` check (`is_right_most_spec`, `ni_accepts`), the assumptions `OrdModel`, `BcsInjective` and `BcsReturns`, soundness against the model root (`ni_sound`), and that the verifier returns (`ni_returns`). |
-| `NonInclusionComplete.lean` | What `compute_non_inclusion_proof` returns (`compute_spec`), that `verify_for_trusted_tree` accepts it (`ni_complete`), and the assumptions `PartitionPointSpec`, `LinearOrd`, `EqModel` and `CloneIsId`. |
+| `NonInclusion.lean` | What `is_right_most`, `verify_for_trusted_tree_with_unserialized_leaf` and `MerkleNonInclusionProof::verify_for_trusted_tree` check (`is_right_most_spec`, `ni_accepts`), soundness against the model root (`ni_sound`), and that the verifier returns (`ni_returns`). |
+| `NonInclusionComplete.lean` | What `compute_non_inclusion_proof` returns (`compute_spec`), and that `verify_for_trusted_tree` accepts it (`ni_complete`). |
 | `Result.lean` | From a Hoare triple about a generated function to what it returns, and the `ok_inv` tactic. |
 | `Generated/` | The translation of `merkle.rs`, made by `extract.sh`. The `hash` module is opaque except for `Digest`, and so are `bcs` and serde. |
 | `extract.sh` | Regenerates `Generated/`. |
@@ -89,6 +92,10 @@ treats as `Node::Empty`.
 
 To regenerate `Generated/` after changing `merkle.rs`, get `charon` and `aeneas` from the Aeneas
 release named in `extract.sh` and run `CHARON=... AENEAS=... ./extract.sh`.
+
+The workflow `Merkle Lean Proof` checks this on each change to the Merkle tree: it runs
+`extract.sh`, fails if `Generated/` is not what `extract.sh` makes from the current Rust code,
+builds the proofs, and fails if a proof uses `sorry` or an axiom report is absent.
 
 ## What is assumed
 

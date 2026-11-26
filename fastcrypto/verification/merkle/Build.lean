@@ -21,28 +21,39 @@ lemma length_le_flatten_levels (l : List Node) : l.length ≤ (levels H l).flatt
   · simp
   · simp [length_pad]; omega
 
-/-- The inner loop appends the parents of the padded level `pl` that starts at `pre.length`. -/
+/-- The inner loop appends the parents of the padded level `pl` that starts at `pre.length`, iterating
+`(pre.length..pre.length + pl.length).step_by(2)`. -/
 lemma build_inner_spec (hm : HashModel inst H) (pre pl : List Node) (hpl : pl.length % 2 = 0)
     (hb : pre.length + pl.length + pl.length / 2 ≤ Usize.max)
     (nodes : alloc.vec.Vec Node) (hn : nodes.val = pre ++ pl)
-    (new_level_index index : Usize) (hnew : new_level_index.val = pre.length + pl.length)
-    (hidx : index.val = pre.length) :
-    merkle.MerkleTree.build_from_leaf_hashes_loop0_loop0 inst nodes new_level_index index ⦃ r =>
+    (it : core.iter.adapters.step_by.StepBy (core.ops.range.Range Usize))
+    (hend : it.iter.end.val = pre.length + pl.length) (hstep : it.step_by.val = 2)
+    (hstart : it.iter.start.val = pre.length) :
+    merkle.MerkleTree.build_from_leaf_hashes_loop0_loop0 inst it nodes ⦃ r =>
       r.val = pre ++ pl ++ parents H pl ⦄ := by
   unfold merkle.MerkleTree.build_from_leaf_hashes_loop0_loop0
-  apply loop.spec_decr_nat (fun p => new_level_index.val - p.2.val)
-    (fun p => ∃ k, k ≤ pl.length / 2 ∧ p.2.val = pre.length + 2 * k ∧
-      p.1.val = pre ++ pl ++ (parents H pl).take k)
-  · rintro ⟨nodes', index'⟩ ⟨k, hk, hi, hv⟩
-    dsimp only at hk hi hv ⊢
+  apply loop.spec_decr_nat
+    (fun p : core.iter.adapters.step_by.StepBy (core.ops.range.Range Usize) × alloc.vec.Vec Node =>
+      pre.length + pl.length - p.1.iter.start.val)
+    (fun p => p.1.iter.end.val = pre.length + pl.length ∧ p.1.step_by.val = 2 ∧
+      ∃ k, k ≤ pl.length / 2 ∧ p.1.iter.start.val = pre.length + 2 * k ∧
+        p.2.val = pre ++ pl ++ (parents H pl).take k)
+  · rintro ⟨it', nodes'⟩ ⟨hend', hstep', k, hk, hi, hv⟩
+    dsimp only at hend' hstep' hk hi hv ⊢
     unfold merkle.MerkleTree.build_from_leaf_hashes_loop0_loop0.body
     simp only [inner_hash_eq hm]
     have hlen : nodes'.length = pre.length + pl.length + k := by
       simp [hv, length_parents]; omega
-    step*
-    · rename_i hlt
-      have hk' : k < pl.length / 2 := by scalar_tac
-      refine ⟨⟨k + 1, by omega, by scalar_tac, ?_⟩, by scalar_tac⟩
+    let* ⟨ o, it1, ho, hend1, hstep1 ⟩ ←
+      core.iter.adapters.step_by.IteratorStepBy.next_Range_Usize_spec
+    split_ifs at ho with hlt
+    · obtain ⟨rfl, hstart1⟩ := ho
+      have hk' : k < pl.length / 2 := by omega
+      simp only
+      step*
+      rw [hi, hstep', hend'] at hstart1
+      refine ⟨by rw [hend1]; exact hend', by rw [hstep1]; exact hstep',
+        ⟨k + 1, by omega, by omega, ?_⟩, by omega⟩
       have hget : ∀ j (hj : pre.length + j < nodes'.length), j < pl.length →
           nodes'.val[pre.length + j]'(by simpa using hj) = pl[j]! := by
         intro j hj hj'
@@ -60,10 +71,11 @@ lemma build_inner_spec (hm : HashModel inst H) (pre pl : List Node) (hpl : pl.le
         e1, e2]
       simp only [List.append_assoc]
       simp [show 2 * k < pl.length by omega, show 2 * k + 1 < pl.length by omega]
-    · rename_i hge
-      have : k = pl.length / 2 := by scalar_tac
+    · obtain ⟨rfl, hstart1⟩ := ho
+      simp only [WP.spec_ok]
+      have : k = pl.length / 2 := by omega
       rw [hv, this, List.take_of_length_le (by rw [length_parents])]
-  · exact ⟨0, by omega, by simp [hidx], by simp [hn]⟩
+  · exact ⟨hend, hstep, 0, by omega, by simp [hstart], by simp [hn]⟩
 
 /-- The padding step of the outer loop. -/
 lemma pad_step_spec (pre l : List Node) (nodes : alloc.vec.Vec Node) (hn : nodes.val = pre ++ l)
@@ -119,7 +131,8 @@ lemma build_outer_spec (hm : HashModel inst H) (F : List Node) (hF : F.length �
       dsimp only at hn1 hln1 ⊢
       step*
       apply WP.spec_bind (build_inner_spec hm pre' (pad l') (length_pad_even l') (by omega) nodes1
-        hn1 new_level_index prev' (by scalar_tac) hprev')
+        hn1 iter (by rw [iter_post]; scalar_tac) (by rw [iter_post1]; rfl)
+        (by rw [iter_post]; scalar_tac))
       intro nodes2 hn2
       step*
       refine ⟨⟨pre' ++ pad l', up H l', ?_, ?_, ?_, ?_⟩, ?_⟩

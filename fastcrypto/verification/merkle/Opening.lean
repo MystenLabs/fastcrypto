@@ -20,9 +20,6 @@ namespace MerkleProofs
 
 variable (H : List U8 → Array U8 32#usize)
 
-/-- `H` maps some input to 32 zero bytes, the bytes of `Node::Empty`. -/
-def ZeroHash : Prop := ∃ x, (H x).val = bytesOf .Empty
-
 /-- A node that is the hash of something. -/
 def IsHash (a : Node) : Prop := ∃ x, a = .Digest (H x)
 

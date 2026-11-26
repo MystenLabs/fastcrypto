@@ -25,9 +25,6 @@ instance : Inhabited Node := ⟨.Empty⟩
 
 variable (H : List U8 → Array U8 32#usize)
 
-/-- `H` has a collision. -/
-def Collision : Prop := ∃ x y, x ≠ y ∧ H x = H y
-
 /-- A level padded to even length. -/
 def pad (l : List Node) : List Node := if l.length % 2 = 1 then l ++ [.Empty] else l
 
@@ -88,11 +85,6 @@ def pathOf (l : List Node) (i : Nat) : List Node :=
 termination_by l.length
 decreasing_by exact length_up_lt H l h
 
-/-- The number of levels above the leaves of a tree with `n` leaves. -/
-def depth (n : Nat) : Nat := if n ≤ 1 then 0 else depth ((n + n % 2) / 2) + 1
-termination_by n
-decreasing_by omega
-
 /-- One step up: `c` with its sibling `s`, where `i` is the index of `c` on its level. -/
 def step (c s : Node) (i : Nat) : Node := if i % 2 = 0 then innerN H c s else innerN H s c
 
@@ -138,7 +130,7 @@ lemma fold_pathOf (l : List Node) (i : Nat) (hi : i < l.length) :
     rw [hstep]
     exact fold_pathOf (up H l) (i / 2) hu
 termination_by l.length
-decreasing_by all_goals (apply length_up_lt; assumption)
+decreasing_by apply length_up_lt; assumption
 
 lemma length_pathOf (l : List Node) (i : Nat) : (pathOf H l i).length = depth l.length := by
   rw [pathOf, depth]
@@ -147,7 +139,7 @@ lemma length_pathOf (l : List Node) (i : Nat) : (pathOf H l i).length = depth l.
   · rename_i h
     rw [List.length_cons, length_pathOf (up H l) (i / 2), length_up]
 termination_by l.length
-decreasing_by all_goals (apply length_up_lt; assumption)
+decreasing_by apply length_up_lt; assumption
 
 lemma lt_two_pow_depth (n : Nat) : n ≤ 2 ^ depth n := by
   rw [depth]
@@ -182,7 +174,7 @@ lemma length_flatten_levels (l : List Node) :
     rw [length_up] at this
     omega
 termination_by l.length
-decreasing_by all_goals (apply length_up_lt; assumption)
+decreasing_by apply length_up_lt; assumption
 
 lemma getLast_flatten_levels (l : List Node) (hl : l ≠ []) :
     ∃ h, (levels H l).flatten.getLast h = rootOf H l := by
@@ -202,7 +194,7 @@ lemma getLast_flatten_levels (l : List Node) (hl : l ≠ []) :
     simp only [List.flatten_cons]
     rw [List.getLast_append_of_ne_nil _ h', e]
 termination_by l.length
-decreasing_by all_goals (apply length_up_lt; assumption)
+decreasing_by apply length_up_lt; assumption
 
 /-! ## Binding -/
 
@@ -263,5 +255,24 @@ lemma leafN_inj (l l' : List U8) (h : leafN H l = leafN H l') : l = l' ∨ Colli
   by_cases hx : (0#u8 :: l) = (0#u8 :: l')
   · exact Or.inl (by simpa using hx)
   · exact Or.inr ⟨_, _, hx, h⟩
+
+/-! ## Slice iterators -/
+
+/-- `next` on a slice iterator yields the element at its index and advances, while the index is
+in bounds. -/
+@[step]
+lemma slice_iter_next_spec {α : Type _} [Inhabited α] (it : core.slice.iter.Iter α) :
+    core.slice.iter.IteratorSliceIter.next it ⦃ o it' =>
+      (if it.i < it.slice.length then o = some it.slice.val[it.i]! ∧ it'.i = it.i + 1
+       else o = none ∧ it'.i = it.i) ∧ it'.slice = it.slice ⦄ := by
+  unfold core.slice.iter.IteratorSliceIter.next
+  split
+  · rename_i h
+    have h' : it.i < it.slice.length := by scalar_tac
+    simp [h']
+    rfl
+  · rename_i h
+    have h' : ¬ it.i < it.slice.length := by scalar_tac
+    simp [h']
 
 end MerkleProofs

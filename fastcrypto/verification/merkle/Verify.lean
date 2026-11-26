@@ -13,29 +13,34 @@ namespace MerkleProofs
 
 variable {T : Type} {inst : hash.HashFunction T 32#usize} {H : List U8 → Array U8 32#usize}
 
-lemma hash_along_path_loop_spec (hm : HashModel inst H) (v : alloc.vec.Vec Node) (c : Node)
-    (li lvl : Usize) (hl : lvl.val ≤ v.length) :
-    merkle.MerkleProof.hash_along_path_loop inst v c li lvl ⦃ r =>
-      r = fold H c (v.val.drop lvl.val) li.val ⦄ := by
+lemma hash_along_path_loop_spec (hm : HashModel inst H) (s : Slice Node)
+    (it : core.slice.iter.Iter Node) (c : Node) (li : Usize) (hs : it.slice = s)
+    (hi : it.i ≤ s.length) :
+    merkle.MerkleProof.hash_along_path_loop inst it c li ⦃ r =>
+      r = fold H c (s.val.drop it.i) li.val ⦄ := by
   unfold merkle.MerkleProof.hash_along_path_loop
-  apply loop.spec_decr_nat (fun p => v.length - p.2.2.val)
-    (fun p => p.2.2.val ≤ v.length ∧
-      fold H p.1 (v.val.drop p.2.2.val) p.2.1.val = fold H c (v.val.drop lvl.val) li.val)
-  · rintro ⟨c', li', lvl'⟩ ⟨hl', heq⟩
-    dsimp only at hl' heq ⊢
+  apply loop.spec_decr_nat (fun p : core.slice.iter.Iter Node × Node × Usize => s.length - p.1.i)
+    (fun p => p.1.slice = s ∧ p.1.i ≤ s.length ∧
+      fold H p.2.1 (s.val.drop p.1.i) p.2.2.val = fold H c (s.val.drop it.i) li.val)
+  · rintro ⟨it', c', li'⟩ ⟨hs', hl', heq⟩
+    dsimp only at hs' hl' heq ⊢
     unfold merkle.MerkleProof.hash_along_path_loop.body
     simp only [inner_hash_eq hm]
-    step*
-    · split <;> step* <;>
-      · have hlt : lvl'.val < v.length := by scalar_tac
-        rw [List.drop_eq_getElem_cons hlt] at heq
-        simp only [fold, step] at heq
-        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
-        rw [← heq, level1_post, level_index1_post, sibling_post]
-        simp_all
-    · rw [← heq, List.drop_of_length_le (by scalar_tac)]
+    let* ⟨ o, it1, ho, hs1 ⟩ ← slice_iter_next_spec
+    split_ifs at ho with hlt
+    · obtain ⟨rfl, hi1⟩ := ho
+      subst hs'
+      have hlt' : it'.i < it'.slice.val.length := by scalar_tac
+      rw [List.drop_eq_getElem_cons hlt', ← getElem!_pos] at heq
+      simp only [fold, step] at heq
+      simp only
+      step*
+      split <;> step*
+    · obtain ⟨rfl, hi1⟩ := ho
+      simp only [WP.spec_ok]
+      rw [← heq, List.drop_of_length_le (by subst hs'; scalar_tac)]
       rfl
-  · exact ⟨hl, rfl⟩
+  · exact ⟨hs, hi, rfl⟩
 
 /-- `hash_along_path` returns `none` for proofs of `usize::BITS` or more levels and for indices not
 below `2 ^ path.len()`, and otherwise the hash of the leaf up the path. -/
@@ -56,9 +61,11 @@ lemma hash_along_path_spec (hm : HashModel inst H) (p : merkle.MerkleProof T) (l
       simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hne; scalar_tac
     rw [i3_post, alloc.vec.Vec.len_val, hshr] at h3
     rw [ite_eq_left ⟨by scalar_tac, h3⟩]
-    apply WP.spec_bind (hash_along_path_loop_spec hm _ _ _ _ (by simp))
+    simp only [core.slice.Slice.iter, bind_ok]
+    apply WP.spec_bind (hash_along_path_loop_spec hm (alloc.vec.Vec.deref p.path) _ _ _ rfl
+      (by simp))
     intro r hr
-    simp [hr]
+    simp [hr, alloc.vec.Vec.deref]
 
 lemma allM_eq : ∀ l l' : List U8, l.length = l'.length →
     List.allM (fun p : U8 × U8 => (ok (decide (p.1.val = p.2.val)) : Result Bool)) (l.zip l') =

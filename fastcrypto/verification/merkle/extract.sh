@@ -2,7 +2,7 @@
 # THIS FILE IS AI-ONLY
 # Regenerate `Generated/` from fastcrypto's `merkle` module with Charon and Aeneas.
 #
-# Uses the `charon` and `aeneas` binaries of the Aeneas nightly release `nightly-2026.11.18-1dc8ad3`
+# Uses the `charon` and `aeneas` binaries of the Aeneas nightly release `nightly-2026.11.21-2e3d448`
 # (https://github.com/AeneasVerif/aeneas/releases), which matches the Aeneas commit in
 # `lakefile.lean`. Set CHARON and AENEAS to their paths, or put them on PATH.
 #
@@ -41,6 +41,3 @@ cp "$out/lean/TypesExternal_Template.lean" "$gen/TypesExternal.lean"
 cp "$out/lean/FunsExternal_Template.lean" "$gen/FunsExternal.lean"
 sed -i.bak 's/import Merkle\./import merkle.Generated./g' "$gen"/*.lean && rm "$gen"/*.bak
 python3 -I "$here/fix_aeneas_output.py" "$gen"
-for f in "$gen"/*.lean; do
-  { echo "-- THIS FILE IS AI-ONLY"; cat "$f"; } > "$f.tmp" && mv "$f.tmp" "$f"
-done
