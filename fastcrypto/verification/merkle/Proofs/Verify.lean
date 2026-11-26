@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import merkle.Model
+import merkle.Proofs.Model
 
 /-!
 What the generated `MerkleProof::verify` and `MerkleProof::verify_for_trusted_tree` compute, and

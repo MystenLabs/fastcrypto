@@ -124,7 +124,7 @@ jobs:
           lake build 2>&1 | tee "$RUNNER_TEMP/lake-build.log"
 
       - name: Check the axiom reports
-        # Each `#print axioms` line in `Spec.lean` gives one report.
+        # Each `#print axioms` line in `Theorems.lean` gives one report.
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/lake-build.log"
@@ -132,9 +132,8 @@ jobs:
             echo "::error::A proof uses sorry."
             exit 1
           fi
-          for theorem in verify_binding verify_complete verify_no_panic \
-              verify_for_trusted_tree_sound verify_for_trusted_tree_complete \
-              verify_for_trusted_tree_no_panic verify_for_trusted_tree_with_unserialized_leaf_sound \
+          for theorem in get_proof_complete verify_binding verify_for_trusted_tree_sound \
+              verify_for_trusted_tree_with_unserialized_leaf_sound \
               non_inclusion_sound non_inclusion_complete non_inclusion_no_panic; do
             if ! grep -q "'MerkleProofs.$theorem' depends on axioms" "$log"; then
               echo "::error::The axiom report of $theorem is absent."

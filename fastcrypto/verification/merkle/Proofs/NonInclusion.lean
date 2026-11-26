@@ -1,8 +1,8 @@
 -- THIS FILE IS AI-ONLY
-import merkle.Opening
-import merkle.Verify
-import merkle.Build
-import merkle.Result
+import merkle.Proofs.Opening
+import merkle.Proofs.Verify
+import merkle.Proofs.Build
+import merkle.Proofs.Result
 
 /-!
 What the generated `MerkleProof::is_right_most`,

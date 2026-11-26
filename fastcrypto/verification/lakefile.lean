@@ -11,6 +11,6 @@ package «fastcrypto-verification» where
   leanOptions := #[⟨`autoImplicit, false⟩, ⟨`relaxedAutoImplicit, false⟩]
 
 /-- `fastcrypto::merkle`: its translation (`merkle.Generated`), lemmas about it, and the theorems
-(`merkle.Spec`). -/
+(`merkle.Theorems`). -/
 @[default_target]
 lean_lib merkle { globs := #[.submodules `merkle] }

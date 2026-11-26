@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import merkle.Model
+import merkle.Proofs.Model
 
 /-!
 What the generated `MerkleTree::build_from_leaf_hashes` and `MerkleTree::root` compute: the

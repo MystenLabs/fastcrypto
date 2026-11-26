@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import merkle.Build
+import merkle.Proofs.Build
 
 /-!
 What the generated `MerkleTree::get_proof` returns: the path `pathOf` of the leaf.

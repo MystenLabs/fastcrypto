@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import merkle.Model
+import merkle.Proofs.Model
 
 /-!
 What a path of any length can open to in a tree built by `MerkleTree`, the fact that

@@ -1,6 +1,6 @@
 -- THIS FILE IS AI-ONLY
-import merkle.NonInclusion
-import merkle.GetProof
+import merkle.Proofs.NonInclusion
+import merkle.Proofs.GetProof
 
 /-!
 Completeness of non-inclusion proofs: `MerkleTree::compute_non_inclusion_proof` returns a proof that

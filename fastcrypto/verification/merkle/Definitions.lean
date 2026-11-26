@@ -1,9 +1,9 @@
 import merkle.Generated.Funs
 
 /-!
-The definitions that the theorems in `Spec.lean` are stated with: the assumptions they take, and
-what they conclude. A reviewer reads this file and `Spec.lean`; the other files are lemmas, which
-Lean checks.
+The definitions that the theorems in `Theorems.lean` are stated with: the assumptions they take,
+and what they conclude. A reviewer reads this file and `Theorems.lean`; the files in `Proofs/` are
+lemmas, which Lean checks.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -43,6 +43,21 @@ def ZeroHash : Prop := ∃ x, (H x).val = bytesOf .Empty
 end
 
 /-! ## The tree -/
+
+/-- `root` is the root of the tree over the leaf hashes `hs`: `build_from_leaf_hashes(hs)` returns
+a tree, and its `root()` returns `root`. -/
+def IsTreeRoot {T : Type} (inst : hash.HashFunction T 32#usize) (hs : alloc.vec.Vec merkle.Node)
+    (root : merkle.Node) : Prop :=
+  ∃ t, merkle.MerkleTree.build_from_leaf_hashes inst hs = ok t ∧
+    merkle.MerkleTree.root inst t = ok root
+
+/-- `hs` are the leaf hashes of the BCS serializations of `ls`, as `build_from_unserialized(ls)`
+computes them. -/
+def SerializedLeafHashes {T L : Type} (inst : hash.HashFunction T 32#usize)
+    (ser : serde_core.ser.Serialize L) (ls : List L) (hs : alloc.vec.Vec merkle.Node) : Prop :=
+  ∃ hlen : hs.val.length = ls.length, ∀ j (hj : j < ls.length), ∃ v,
+    bcs.ser.to_bytes ser ls[j] = ok (.Ok v) ∧
+    merkle.leaf_hash inst (alloc.vec.Vec.deref v) = ok (hs.val[j]'(by omega))
 
 /-- The number of levels above the leaves of a tree with `n` leaves. -/
 def depth (n : Nat) : Nat := if n ≤ 1 then 0 else depth ((n + n % 2) / 2) + 1

@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import merkle.Hash
+import merkle.Proofs.Hash
 
 /-!
 A model of `MerkleTree` as lists, and the two facts about it that the theorems on the generated
