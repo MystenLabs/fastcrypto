@@ -24,9 +24,8 @@ reduced weights.
 
 ## What is assumed
 
-In `Assumptions.lean`, besides the translation:
+In `Assumptions.lean`:
 
-* **Translation.** Charon and Aeneas translate `knapsack_weight_reduction.rs` faithfully.
 * **`ToStringReturns`**: `to_string` returns on every `&str`. It is only used for error messages.
 * **`SortByPermutes`**, for 2: `sort_by` with a total order (`TotalOrderOn`) returns a permutation,
   as Rust documents. That `greedy_reject`'s comparator is one is proved.
