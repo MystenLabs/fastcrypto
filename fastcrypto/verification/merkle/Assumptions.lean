@@ -61,7 +61,7 @@ structure OrdModel {L : Type} (o : core.cmp.PartialOrd L L) : Prop where
   le_returns : ∀ a b, o.le a b ⦃ _ => True ⦄
   ge_eq_le : ∀ a b, o.ge a b = o.le b a
 
-/-- `L`'s `==` is false for different values. -/
+/-- For different values `a` and `b` of `L`, `a == b` returns `false`. -/
 def EqModel {L : Type} (e : core.cmp.PartialEq L L) : Prop := ∀ a b, a ≠ b → e.eq a b = ok false
 
 /-- `L`'s `clone` returns its argument. -/
