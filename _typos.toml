@@ -25,3 +25,7 @@ hashi = "hashi"
 # Short variable names.
 nd = "nd"
 ot = "ot"
+# Lean names: serde's `ser` module (`serde_core.ser.Serialize`) in the Aeneas translations and
+# the proofs, and hypothesis names.
+ser = "ser"
+hge = "hge"
