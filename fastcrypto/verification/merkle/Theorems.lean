@@ -6,8 +6,9 @@ import merkle.Proofs.Result
 
 /-!
 The theorems about `fastcrypto::merkle`, for any `HashFunction` that satisfies `HashModel` with
-some `H`. This file and `Assumptions.lean`, which states the assumptions the theorems take and the
-definitions they are stated with, are the claim of the proofs, so a reviewer reads both in full. The files in `Proofs/` are lemmas, which
+some `H`. This file, `Definitions.lean`, with the definitions the theorems are stated with, and
+`Assumptions.lean`, with the assumptions they take, are the claim of the proofs, so a reviewer
+reads them in full. The files in `Proofs/` are lemmas, which
 Lean checks.
 -/
 
@@ -62,13 +63,15 @@ theorem get_proof_complete (hm : HashModel inst H) (hs : alloc.vec.Vec Node)
 /-- Binding of `verify`. For every proof `p`, root, leaf, index `i` and `n`,
 `p.verify(root, leaf, i, n)` returns, without panicking. If it returns `Ok(())`, and another proof
 `p'` verifies for a leaf `leaf'` with the same `root`, `i` and `n`, then `leaf = leaf'` or `H` has
-a collision. This holds for any `root` and any proofs. -/
+a collision between two of the inputs that verifying the two proofs hashes. This holds for any
+`root` and any proofs. -/
 theorem verify_binding (hm : HashModel inst H) (p : MerkleProof T) (root : Node) (leaf : Slice U8)
     (i n : Usize) :
     MerkleProof.verify inst p root leaf i n ⦃ res => res = .Ok () →
       ∀ (p' : MerkleProof T) (leaf' : Slice U8),
         MerkleProof.verify inst p' root leaf' i n = ok (.Ok ()) →
-        leaf.val = leaf'.val ∨ ¬ Function.Injective H ⦄ := by
+        leaf.val = leaf'.val ∨ CollisionIn H (verifyInputs H leaf.val p.path.val i.val ++
+          verifyInputs H leaf'.val p'.path.val i.val) ⦄ := by
   obtain ⟨r, h, -⟩ := spec_eq_ok (verify_spec hm p root leaf i n)
   rw [h, WP.spec_ok]
   rintro rfl p' leaf' h'
@@ -76,36 +79,53 @@ theorem verify_binding (hm : HashModel inst H) (p : MerkleProof T) (root : Node)
   obtain ⟨-, hl', -, -, e'⟩ := (spec_of_eq_ok (verify_spec hm p' root leaf' i n) h').mp rfl
   rcases fold_binding H p.path.val p'.path.val (leafN H leaf.val) (leafN H leaf'.val) i.val
       (hl.trans hl'.symm) trivial trivial (e.trans e'.symm) with hc | hc
-  · exact (leafN_inj H _ _ hc).imp_right not_injective_of_collision
-  · exact Or.inr (not_injective_of_collision hc)
+  · exact (leafN_inj H _ _ hc).imp_right (CollisionIn.mono (by
+      intro x hx; simp only [List.mem_cons, List.mem_nil_iff, or_false] at hx
+      simp only [verifyInputs, List.mem_append, List.mem_cons]; tauto))
+  · exact Or.inr (hc.mono (by
+      intro x hx; simp only [List.mem_append] at hx
+      simp only [verifyInputs, List.mem_append, List.mem_cons]; exact Or.imp Or.inr Or.inr hx))
 
 /-- Soundness of `verify_for_trusted_tree`, which does not check the length of the proof. For every
 proof `p`, root, leaf and index `i`, `p.verify_for_trusted_tree(root, leaf, i)` returns, without
-panicking. If it returns `Ok(())` and `root` is the root of the tree over leaf hashes `hs`, with
-`4 · hs.len() ≤ usize::MAX`, then `i < hs.len()` and `leaf_hash(leaf) = hs[i]`, or `H` has a
-collision or maps some input to 32 zero bytes. -/
+panicking. If it returns `Ok(())` and `root` is the root of the tree over the leaf hashes `hs` of
+`ys`, with `4 · hs.len() ≤ usize::MAX`, then `i < hs.len()` and `leaf_hash(leaf) = hs[i]`, or `H`
+has a collision or maps one to 32 zero bytes among the inputs that verifying the proof and building
+the tree hash. -/
 theorem verify_for_trusted_tree_sound (hm : HashModel inst H) (p : MerkleProof T) (root : Node)
     (leaf : Slice U8) (i : Usize) :
     MerkleProof.verify_for_trusted_tree inst p root leaf i ⦃ res => res = .Ok () →
-      ∀ hs : alloc.vec.Vec Node, 4 * hs.length ≤ Usize.max →
-        (∀ a ∈ hs.val, ∃ y : Slice U8, leaf_hash inst y = ok a) → IsTreeRoot inst hs root →
+      ∀ (ys : List (Slice U8)) (hs : alloc.vec.Vec Node), 4 * hs.length ≤ Usize.max →
+        LeafHashes inst ys hs → IsTreeRoot inst hs root →
         (∃ hi : i.val < hs.length, leaf_hash inst leaf = ok (hs.val[i.val]'hi)) ∨
-          ¬ Function.Injective H ∨ ZeroHash H ⦄ := by
+          CollisionIn H (verifyInputs H leaf.val p.path.val i.val ++
+            ys.map (fun y => leafInput y.val) ++ treeInputs H hs.val) ∨
+          ZeroHashIn H (verifyInputs H leaf.val p.path.val i.val ++
+            ys.map (fun y => leafInput y.val) ++ treeInputs H hs.val) ⦄ := by
   obtain ⟨r, h, -⟩ := spec_eq_ok (verify_for_trusted_tree_spec hm p root leaf i)
   rw [h, WP.spec_ok]
-  rintro rfl hs hn hleaves ⟨t, ht, hr⟩
+  rintro rfl ys0 hs hn ⟨hlen0, hleaf0⟩ ⟨t, ht, hr⟩
   have hroot := tree_root hm hs hn t ht root hr
-  obtain ⟨ys, hys⟩ := exists_leaves hm hs.val hleaves
+  set ys := ys0.map (·.val) with hysd
+  have hys : hs.val = ys.map (leafN H) := by
+    apply List.ext_getElem (by simp [hysd, hlen0])
+    intro j hj _
+    have := hleaf0 j (by omega)
+    rw [leaf_hash_eq hm] at this
+    simp only [hysd, List.getElem_map]; exact (Result.ok_injective this).symm
+  have hS : ys.map leafInput ++ treeInputs H (ys.map (leafN H)) =
+      ys0.map (fun y => leafInput y.val) ++ treeInputs H hs.val := by
+    rw [hys, hysd, List.map_map]; rfl
   obtain ⟨-, hi, hfold⟩ := (spec_of_eq_ok (verify_for_trusted_tree_spec hm p root leaf i) h).mp rfl
   rw [hroot, hys] at hfold
   by_cases hy : ys = []
-  · subst hy
+  · rw [hy] at hfold
     have := isDigest_fold (H := H) (leafN H leaf.val) p.path.val i.val trivial
     rw [hfold] at this
     simp [rootOf, IsDigest] at this
   rcases trusted_opening H ys hy _ _ _ hi (congrArg bytesOf hfold) with hc | hz | ⟨-, hi', hx, -⟩
-  · exact Or.inr (Or.inl (not_injective_of_collision hc))
-  · exact Or.inr (Or.inr hz)
+  · rw [List.append_assoc, hS, ← List.append_assoc] at hc; exact Or.inr (Or.inl hc)
+  · rw [List.append_assoc, hS, ← List.append_assoc] at hz; exact Or.inr (Or.inr hz)
   · left
     have hil : i.val < hs.length := by
       simp only [alloc.vec.Vec.length, hys, List.length_map]; exact hi'
@@ -117,7 +137,8 @@ theorem verify_for_trusted_tree_sound (hm : HashModel inst H) (p : MerkleProof T
 /-- Soundness of `verify_for_trusted_tree_with_unserialized_leaf`. Let `hs` be the leaf hashes of the
 BCS serializations of `ls`, with `4 · hs.len() ≤ usize::MAX`, and `root` the root of the tree over
 them. If `verify_for_trusted_tree_with_unserialized_leaf(root, l, i)` accepts a proof, of any
-length, then `i < ls.len()` and `l = ls[i]`, or `H` has a collision or a zero output. -/
+length, then `i < ls.len()` and `l = ls[i]`, or `H` has a collision or a zero output among the
+inputs that verifying the proof and building the tree hash. -/
 theorem verify_for_trusted_tree_with_unserialized_leaf_sound (hm : HashModel inst H) {L : Type}
     (ser : serde_core.ser.Serialize L) (hbcs : BcsModel ser) (ls : List L)
     (hs : alloc.vec.Vec Node) (hhs : SerializedLeafHashes inst ser ls hs)
@@ -125,7 +146,11 @@ theorem verify_for_trusted_tree_with_unserialized_leaf_sound (hm : HashModel ins
     (p : MerkleProof T) (l : L) (i : Usize)
     (h : MerkleProof.verify_for_trusted_tree_with_unserialized_leaf inst ser p root l i =
       ok (.Ok ())) :
-    (∃ hi : i.val < ls.length, l = ls[i.val]) ∨ ¬ Function.Injective H ∨ ZeroHash H := by
+    (∃ hi : i.val < ls.length, l = ls[i.val]) ∨
+      CollisionIn H (verifyInputs H (bcsBytes ser l) p.path.val i.val ++
+        ls.map (fun a => leafInput (bcsBytes ser a)) ++ treeInputs H hs.val) ∨
+      ZeroHashIn H (verifyInputs H (bcsBytes ser l) p.path.val i.val ++
+        ls.map (fun a => leafInput (bcsBytes ser a)) ++ treeInputs H hs.val) := by
   obtain ⟨hlen, hleaves⟩ := hhs
   obtain ⟨t, ht, hr⟩ := hroot
   have hroot := tree_root hm hs hn t ht root hr
@@ -139,9 +164,11 @@ theorem verify_for_trusted_tree_with_unserialized_leaf_sound (hm : HashModel ins
     have := isDigest_fold (H := H) (leafN H (alloc.vec.Vec.deref v).val) p.path.val i.val trivial
     rw [hfold] at this
     simp [rootOf, IsDigest] at this
+  have hS : treeS H ys = ls.map (fun a => leafInput (bcsBytes ser a)) ++ treeInputs H hs.val := by
+    rw [treeS, hys, serializes_eq hser', List.map_map]; rfl
   rcases neighbor_sound hm ser hbcs.bcsInjective ls ys hser' hy p l i h with hc | hz | ⟨hi, hl, -⟩
-  · exact Or.inr (Or.inl (not_injective_of_collision hc))
-  · exact Or.inr (Or.inr hz)
+  · rw [hS, ← List.append_assoc] at hc; exact Or.inr (Or.inl hc)
+  · rw [hS, ← List.append_assoc] at hz; exact Or.inr (Or.inr hz)
   · exact Or.inl ⟨hi, hl⟩
 
 /-! ## `MerkleNonInclusionProof::verify_for_trusted_tree` -/
@@ -149,7 +176,8 @@ theorem verify_for_trusted_tree_with_unserialized_leaf_sound (hm : HashModel ins
 /-- Soundness. Let `ls` be sorted by `L`'s `<=`, `hs` the leaf hashes of their BCS
 serializations, with `4 · hs.len() ≤ usize::MAX`, and `root` the root of the tree over them. If
 `verify_for_trusted_tree(root, target)` accepts a non-inclusion proof, then `target` is not in
-`ls`, or `H` has a collision or maps some input to 32 zero bytes. -/
+`ls`, or `H` has a collision or maps one to 32 zero bytes among the inputs that verifying the
+neighbors in the proof and building the tree hash. -/
 theorem non_inclusion_sound (hm : HashModel inst H) {L : Type} [PartialOrder L]
     (ord : core.cmp.Ord L) (ser : serde_core.ser.Serialize L) (cl : core.clone.Clone L)
     (hL : LeafModel ord cl) (hbcs : BcsModel ser) (ls : List L)
@@ -159,18 +187,24 @@ theorem non_inclusion_sound (hm : HashModel inst H) {L : Type} [PartialOrder L]
     (pr : MerkleNonInclusionProof L T) (target : L)
     (h : MerkleNonInclusionProof.verify_for_trusted_tree inst ord ser pr root target =
       ok (.Ok ())) :
-    target ∉ ls ∨ ¬ Function.Injective H ∨ ZeroHash H := by
+    target ∉ ls ∨
+      CollisionIn H (nonInclusionInputs H ser pr ++
+        ls.map (fun a => leafInput (bcsBytes ser a)) ++ treeInputs H hs.val) ∨
+      ZeroHashIn H (nonInclusionInputs H ser pr ++
+        ls.map (fun a => leafInput (bcsBytes ser a)) ++ treeInputs H hs.val) := by
   obtain ⟨hlen, hleaves⟩ := hhs
   obtain ⟨t, ht, hr⟩ := hroot
   have hroot := tree_root hm hs hn t ht root hr
   obtain ⟨ys, hser', hys⟩ := exists_serialized hm ser ls hs.val hlen hleaves
   rw [hroot, hys] at h
+  have hS : treeS H ys = ls.map (fun a => leafInput (bcsBytes ser a)) ++ treeInputs H hs.val := by
+    rw [treeS, hys, serializes_eq hser', List.map_map]; rfl
   rcases ni_sound hm ord ser hL.ordModel hL.isPartialOrder hbcs.bcsInjective ls ys hser'
       (sortedLe_of_pairwise (hL.pairwise hsort)) pr target h with
     hn | hc | hz
   · exact Or.inl hn
-  · exact Or.inr (Or.inl (not_injective_of_collision hc))
-  · exact Or.inr (Or.inr hz)
+  · rw [hS, ← List.append_assoc] at hc; exact Or.inr (Or.inl hc)
+  · rw [hS, ← List.append_assoc] at hz; exact Or.inr (Or.inr hz)
 
 /-- Completeness. Let `leaves` be sorted by `L`'s `<=`, `hs` the leaf hashes of their BCS
 serializations, with `4 · hs.len() ≤ usize::MAX`, and `target` not in `leaves`. Then

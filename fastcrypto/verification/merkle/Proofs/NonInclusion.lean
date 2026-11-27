@@ -324,43 +324,82 @@ lemma map_getD_eq {f : Node → List U8} {ps qs : List Node} (h : ps.map f = qs.
   rw [List.getD_eq_getElem _ _ hk, List.getD_eq_getElem _ _ (by omega)]
   exact this
 
+/-- The inputs hashed for the tree over the leaf hashes of `ys`: the leaves', then the tree's. -/
+def treeS (H : List U8 → Array U8 32#usize) (ys : List (List U8)) : List (List U8) :=
+  ys.map leafInput ++ treeInputs H (ys.map (leafN H))
+
+lemma hashIn_leaves (H : List U8 → Array U8 32#usize) (ys : List (List U8)) {xs : List (List U8)} (hs : ∀ x ∈ treeS H ys, x ∈ xs) :
+    ∀ a ∈ ys.map (leafN H), IsHashIn H xs a := by
+  intro a ha
+  obtain ⟨y, hy, rfl⟩ := List.mem_map.mp ha
+  exact ⟨leafInput y, hs _ (List.mem_append_left _ (List.mem_map_of_mem hy)), rfl⟩
+
+lemma treeInputs_sub (H : List U8 → Array U8 32#usize) (ys : List (List U8)) {xs : List (List U8)} (hs : ∀ x ∈ treeS H ys, x ∈ xs) :
+    ∀ x ∈ treeInputs H (ys.map (leafN H)), x ∈ xs :=
+  fun x hx => hs x (List.mem_append_right _ hx)
+
 /-- A path with the bytes of the honest path of leaf `i` passes `is_right_most` only if `i` is the
-last leaf, or `H` has a zero output. -/
+last leaf, or `H` has a zero output among the inputs of the tree. -/
 lemma right_most_sound (ys : List (List U8)) (ps : List Node) (i : Nat) (hi : i < ys.length)
     (hr : RightMost ps i) (hp : ps.map bytesOf = (pathOf H (ys.map (leafN H)) i).map bytesOf) :
-    i + 1 = ys.length ∨ ZeroHash H := by
+    i + 1 = ys.length ∨ ZeroHashIn H (treeS H ys) := by
   by_cases he : i + 1 = ys.length
   · exact Or.inl he
   right
-  have hhash : ∀ a ∈ ys.map (leafN H), IsHash H a := by
-    intro a ha; obtain ⟨y, -, rfl⟩ := List.mem_map.mp ha; exact isHash_leafN H y
-  obtain ⟨k, hk, hev, hh⟩ := right_most H _ hhash i (by simp; omega)
+  obtain ⟨k, hk, hev, hh⟩ := right_most H _ (hashIn_leaves H ys (fun x hx => hx))
+    (treeInputs_sub H ys (fun x hx => hx)) i (by simp; omega)
   have hl : ps.length = (pathOf H (ys.map (leafN H)) i).length := by
     simpa using congrArg List.length hp
   have h1 := rightMost_getD ps i k hr (by omega) hev
   rw [map_getD_eq hp k (by omega)] at h1
-  exact zeroHash_of_isHash H _ hh h1
+  exact zeroHashIn_of_hashIn H hh h1
+
+lemma bcsBytes_eq {L : Type} {ser : serde_core.ser.Serialize L} {a : L}
+    {v : alloc.vec.Vec U8} (h : bcs.ser.to_bytes ser a = ok (.Ok v)) : bcsBytes ser a = v.val := by
+  have hex : ∃ v, bcs.ser.to_bytes ser a = ok (.Ok v) := ⟨v, h⟩
+  have key : ∀ w, bcs.ser.to_bytes ser a = ok (.Ok w) → w = v := fun w hw => by
+    rw [h] at hw; simp only [Result.ok_injective.eq_iff, core.result.Result.Ok.injEq] at hw
+    exact hw.symm
+  unfold bcsBytes
+  rw [dif_pos hex, key _ hex.choose_spec]
 
 /-- A neighbor that `verify_for_trusted_tree_with_unserialized_leaf` accepts against the root of
 the tree over `ys`, the serializations of `ls`, at index `i`: it is `ls[i]` and the proof has the
-bytes of its honest path, or `H` has a collision or a zero output. -/
+bytes of its honest path, or `H` has a collision or a zero output among the inputs of verifying it
+and of the tree. -/
 lemma neighbor_sound (hm : HashModel inst H) {L : Type} (ser : serde_core.ser.Serialize L)
     (hser : BcsInjective ser) (ls : List L) (ys : List (List U8)) (hs : Serializes ser ls ys)
     (hy : ys ≠ []) (p : merkle.MerkleProof T) (l : L) (i : Usize)
     (h : merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf inst ser p
       (rootOf H (ys.map (leafN H))) l i = ok (.Ok ())) :
-    Collision H ∨ ZeroHash H ∨ ∃ hi : i.val < ls.length, l = ls[i.val] ∧
-      p.path.val.map bytesOf = (pathOf H (ys.map (leafN H)) i.val).map bytesOf := by
+    CollisionIn H (verifyInputs H (bcsBytes ser l) p.path.val i.val ++ treeS H ys) ∨
+      ZeroHashIn H (verifyInputs H (bcsBytes ser l) p.path.val i.val ++ treeS H ys) ∨
+      ∃ hi : i.val < ls.length, l = ls[i.val] ∧
+        p.path.val.map bytesOf = (pathOf H (ys.map (leafN H)) i.val).map bytesOf := by
   obtain ⟨v, hv, hver⟩ := unserialized_ok ser p _ l i h
   obtain ⟨-, hi, hfold⟩ := (spec_of_eq_ok (verify_for_trusted_tree_spec hm p _ _ i) hver).mp rfl
+  have hb : (alloc.vec.Vec.deref v).val = bcsBytes ser l := by
+    rw [bcsBytes_eq hv]; simp [alloc.vec.Vec.deref]
+  rw [hb] at hfold
+  have hsub : ∀ x ∈ verifyInputs H (bcsBytes ser l) p.path.val i.val ++ ys.map leafInput ++
+      treeInputs H (ys.map (leafN H)),
+      x ∈ verifyInputs H (bcsBytes ser l) p.path.val i.val ++ treeS H ys := by
+    intro x hx; simp only [treeS, List.mem_append] at hx ⊢; tauto
   rcases trusted_opening H ys hy _ _ _ hi (congrArg bytesOf hfold) with hc | hz | ⟨-, hi', hx, hp⟩
-  · exact Or.inl hc
-  · exact Or.inr (Or.inl hz)
+  · exact Or.inl (hc.mono hsub)
+  · exact Or.inr (Or.inl (hz.mono hsub))
   · right; right
     have hil : i.val < ls.length := by rw [← hs.1]; exact hi'
     obtain ⟨w, hw, hwv⟩ := hs.2 i.val hil
     refine ⟨hil, hser l _ v w hv hw ?_, hp⟩
-    rw [hwv, ← hx]; simp [alloc.vec.Vec.deref]
+    rw [hwv, ← hx, bcsBytes_eq hv]
+
+lemma serializes_eq {L : Type} {ser : serde_core.ser.Serialize L} {ls : List L}
+    {ys : List (List U8)} (h : Serializes ser ls ys) : ys = ls.map (bcsBytes ser) := by
+  apply List.ext_getElem (by rw [h.1, List.length_map])
+  intro j hj _
+  obtain ⟨v, hv, hvy⟩ := h.2 j (by rw [← h.1]; exact hj)
+  rw [List.getElem_map, bcsBytes_eq hv, hvy, List.getD_eq_getElem _ _ hj]
 
 /-- Soundness of `MerkleNonInclusionProof::verify_for_trusted_tree` against the root of the tree
 over the leaf hashes of `ys`, the serializations of the sorted `ls`. -/
@@ -370,41 +409,67 @@ lemma ni_sound (hm : HashModel inst H) {L : Type} (ord : core.cmp.Ord L)
     (hsort : SortedLe ord.partialOrdInst ls) (pr : merkle.MerkleNonInclusionProof L T) (t : L)
     (h : merkle.MerkleNonInclusionProof.verify_for_trusted_tree inst ord ser pr
       (rootOf H (ys.map (leafN H))) t = ok (.Ok ())) :
-    t ∉ ls ∨ Collision H ∨ ZeroHash H := by
+    t ∉ ls ∨ CollisionIn H (nonInclusionInputs H ser pr ++ treeS H ys) ∨
+      ZeroHashIn H (nonInclusionInputs H ser pr ++ treeS H ys) := by
   by_cases hy : ys = []
   · left
     have : ls = [] := List.eq_nil_of_length_eq_zero (by rw [← hs.1, hy]; rfl)
     simp [this]
   have hne : ys.map (leafN H) ≠ [] := by simpa using hy
-  have hhash : ∀ a ∈ ys.map (leafN H), IsHash H a := by
-    intro a ha; obtain ⟨y, -, rfl⟩ := List.mem_map.mp ha; exact isHash_leafN H y
+  have htree : ∀ x ∈ treeS H ys, x ∈ nonInclusionInputs H ser pr ++ treeS H ys :=
+    fun x hx => List.mem_append_right _ hx
   have hn := hs.1
-  rcases ni_accepts ord ser pr _ t h with hr | ⟨l, lp, j, -, hj, hvl, hge, hright⟩ |
-      ⟨h0, r, rp, -, hvr, hle⟩
-  · exact Or.inr (Or.inr (zeroHash_of_isHash H _ (rootOf_isHash H _ hne hhash) hr))
-  · rcases neighbor_sound hm ser hser ls ys hs hy lp l j hvl with hc | hz | ⟨hjl, rfl, hp⟩
-    · exact Or.inr (Or.inl hc)
-    · exact Or.inr (Or.inr hz)
-    rcases hright with ⟨-, hrm⟩ | ⟨r, rp, -, hvr, hle⟩
+  rcases ni_accepts ord ser pr _ t h with hr | ⟨l, lp, j, hlp, hj, hvl, hge, hright⟩ |
+      ⟨h0, r, rp, hrp, hvr, hle⟩
+  · exact Or.inr (Or.inr (zeroHashIn_of_hashIn H
+      (rootOf_hashIn H _ hne (hashIn_leaves H ys htree) (treeInputs_sub H ys htree)) hr))
+  · have hleft : ∀ x ∈ verifyInputs H (bcsBytes ser l) lp.path.val j.val ++ treeS H ys,
+        x ∈ nonInclusionInputs H ser pr ++ treeS H ys := by
+      intro x hx
+      rw [List.mem_append] at hx
+      rcases hx with hx | hx
+      · refine List.mem_append_left _ (List.mem_append_left _ ?_)
+        rw [hlp]; simpa [show pr.index.val - 1 = j.val by omega] using hx
+      · exact List.mem_append_right _ hx
+    rcases neighbor_sound hm ser hser ls ys hs hy lp l j hvl with hc | hz | ⟨hjl, rfl, hp⟩
+    · exact Or.inr (Or.inl (hc.mono hleft))
+    · exact Or.inr (Or.inr (hz.mono hleft))
+    rcases hright with ⟨-, hrm⟩ | ⟨r, rp, hrp, hvr, hle⟩
     · have hrm' := (spec_of_eq_ok (is_right_most_spec (inst := inst) lp j) hrm).mp rfl
       rcases right_most_sound ys lp.path.val j.val (by omega) hrm' hp with hlast | hz
       · left
         intro hmem
         obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hmem
         exact ne_below ho hpo hsort _ j.val hjl hge k (by omega) rfl
-      · exact Or.inr (Or.inr hz)
-    · rcases neighbor_sound hm ser hser ls ys hs hy rp r pr.index hvr with hc | hz | ⟨hil, rfl, -⟩
-      · exact Or.inr (Or.inl hc)
-      · exact Or.inr (Or.inr hz)
+      · exact Or.inr (Or.inr (hz.mono htree))
+    · have hright : ∀ x ∈ verifyInputs H (bcsBytes ser r) rp.path.val pr.index.val ++ treeS H ys,
+          x ∈ nonInclusionInputs H ser pr ++ treeS H ys := by
+        intro x hx
+        rw [List.mem_append] at hx
+        rcases hx with hx | hx
+        · refine List.mem_append_left _ (List.mem_append_right _ ?_)
+          rw [hrp]; simpa using hx
+        · exact List.mem_append_right _ hx
+      rcases neighbor_sound hm ser hser ls ys hs hy rp r pr.index hvr with hc | hz | ⟨hil, rfl, -⟩
+      · exact Or.inr (Or.inl (hc.mono hright))
+      · exact Or.inr (Or.inr (hz.mono hright))
       left
       intro hmem
       obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hmem
       by_cases hkj : k ≤ j.val
       · exact ne_below ho hpo hsort _ j.val hjl hge k hkj rfl
       · exact ne_above hpo hsort _ pr.index.val hil hle k (by omega) hk rfl
-  · rcases neighbor_sound hm ser hser ls ys hs hy rp r pr.index hvr with hc | hz | ⟨hil, rfl, -⟩
-    · exact Or.inr (Or.inl hc)
-    · exact Or.inr (Or.inr hz)
+  · have hright : ∀ x ∈ verifyInputs H (bcsBytes ser r) rp.path.val pr.index.val ++ treeS H ys,
+        x ∈ nonInclusionInputs H ser pr ++ treeS H ys := by
+      intro x hx
+      rw [List.mem_append] at hx
+      rcases hx with hx | hx
+      · refine List.mem_append_left _ (List.mem_append_right _ ?_)
+        rw [hrp]; simpa using hx
+      · exact List.mem_append_right _ hx
+    rcases neighbor_sound hm ser hser ls ys hs hy rp r pr.index hvr with hc | hz | ⟨hil, rfl, -⟩
+    · exact Or.inr (Or.inl (hc.mono hright))
+    · exact Or.inr (Or.inr (hz.mono hright))
     left
     intro hmem
     obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hmem
@@ -420,16 +485,6 @@ lemma tree_root (hm : HashModel inst H) (hs : alloc.vec.Vec Node) (hn : 4 * hs.l
   rw [ht] at ht'
   obtain rfl := Result.ok_injective ht'
   exact spec_of_eq_ok (p := fun r => r = rootOf H hs.val) (root_spec (inst := inst) hs.val t hnodes) hr
-
-lemma exists_leaves (hm : HashModel inst H) : ∀ l : List Node,
-    (∀ a ∈ l, ∃ y : Slice U8, merkle.leaf_hash inst y = ok a) →
-    ∃ ys : List (List U8), l = ys.map (leafN H)
-  | [], _ => ⟨[], rfl⟩
-  | a :: l, h => by
-    obtain ⟨y, hy⟩ := h a (by simp)
-    rw [leaf_hash_eq hm] at hy
-    obtain ⟨ys, hys⟩ := exists_leaves hm l (fun b hb => h b (by simp [hb]))
-    exact ⟨y.val :: ys, by rw [← Result.ok_injective hy, hys]; rfl⟩
 
 lemma exists_serialized (hm : HashModel inst H) {L : Type} (ser : serde_core.ser.Serialize L) :
     ∀ (ls : List L) (hl : List Node) (hlen : hl.length = ls.length),

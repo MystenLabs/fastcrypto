@@ -226,45 +226,124 @@ lemma eq_of_bytesOf (c c' : Node) (hc : IsDigest c) (hc' : IsDigest c')
     | Digest v' => simp only [bytesOf] at h; exact congrArg merkle.Node.Digest ((Aeneas.Std.Array.eq_iff _ _).mpr h)
 
 lemma innerN_inj (a b a' b' : Node) (h : innerN H a b = innerN H a' b') :
-    (bytesOf a = bytesOf a' ∧ bytesOf b = bytesOf b') ∨ Collision H := by
+    (bytesOf a = bytesOf a' ∧ bytesOf b = bytesOf b') ∨
+      CollisionIn H [innerInput a b, innerInput a' b'] := by
   simp only [innerN, merkle.Node.Digest.injEq] at h
-  by_cases hx : (1#u8 :: (bytesOf a ++ bytesOf b)) = (1#u8 :: (bytesOf a' ++ bytesOf b'))
+  by_cases hx : innerInput a b = innerInput a' b'
   · left
-    simp only [List.cons.injEq, true_and] at hx
+    simp only [innerInput, List.cons.injEq, true_and] at hx
     exact List.append_inj hx (by rw [bytesOf_length, bytesOf_length])
-  · exact Or.inr ⟨_, _, hx, h⟩
+  · exact Or.inr (collisionIn_pair (by simp) (by simp) hx h)
+
+lemma step_eq (c s : Node) (i : Nat) : step H c s i = .Digest (H (stepInput c s i)) := by
+  unfold step stepInput innerN; split <;> rfl
 
 lemma step_inj (c s c' s' : Node) (i : Nat) (hc : IsDigest c) (hc' : IsDigest c')
-    (h : step H c s i = step H c' s' i) : c = c' ∨ Collision H := by
+    (h : step H c s i = step H c' s' i) :
+    c = c' ∨ CollisionIn H [stepInput c s i, stepInput c' s' i] := by
   unfold step at h
+  unfold stepInput
   split at h
-  · rcases innerN_inj H _ _ _ _ h with ⟨h1, _⟩ | h
+  · rename_i he
+    simp only [he, if_true]
+    rcases innerN_inj H _ _ _ _ h with ⟨h1, _⟩ | h
     · exact Or.inl (eq_of_bytesOf c c' hc hc' h1)
     · exact Or.inr h
-  · rcases innerN_inj H _ _ _ _ h with ⟨_, h1⟩ | h
+  · rename_i he
+    simp only [he, if_false]
+    rcases innerN_inj H _ _ _ _ h with ⟨_, h1⟩ | h
     · exact Or.inl (eq_of_bytesOf c c' hc hc' h1)
     · exact Or.inr h
 
+lemma pathInputs_cons (c s : Node) (ps : List Node) (i : Nat) :
+    pathInputs H c (s :: ps) i = stepInput c s i :: pathInputs H (step H c s i) ps (i / 2) := by
+  rw [step_eq]; rfl
+
 /-- Hashing two nodes up paths of the same length to the same root: the nodes are equal or `H`
-has a collision. -/
+has a collision among the inputs hashed on the way. -/
 lemma fold_binding : ∀ (ps ps' : List Node) (c c' : Node) (i : Nat),
     ps.length = ps'.length → IsDigest c → IsDigest c' →
-    fold H c ps i = fold H c' ps' i → c = c' ∨ Collision H
+    fold H c ps i = fold H c' ps' i → c = c' ∨ CollisionIn H (pathInputs H c ps i ++ pathInputs H c' ps' i)
   | [], [], c, c', i, _, _, _, h => Or.inl h
   | s :: ps, s' :: ps', c, c', i, hl, hc, hc', h => by
     simp only [fold] at h
+    rw [pathInputs_cons, pathInputs_cons]
     rcases fold_binding ps ps' _ _ (i / 2) (by simpa using hl) (isDigest_step H _ _ _)
       (isDigest_step H _ _ _) h with h | h
-    · exact step_inj H c s c' s' i hc hc' h
-    · exact Or.inr h
+    · exact (step_inj H c s c' s' i hc hc' h).imp_right
+        (CollisionIn.mono (by intro x hx; simp at hx ⊢; tauto))
+    · exact Or.inr (CollisionIn.mono (by intro x hx; simp at hx ⊢; tauto) h)
   | [], _ :: _, _, _, _, hl, _, _, _ => by simp at hl
   | _ :: _, [], _, _, _, hl, _, _, _ => by simp at hl
 
-lemma leafN_inj (l l' : List U8) (h : leafN H l = leafN H l') : l = l' ∨ Collision H := by
+lemma leafN_inj (l l' : List U8) (h : leafN H l = leafN H l') :
+    l = l' ∨ CollisionIn H [leafInput l, leafInput l'] := by
   simp only [leafN, merkle.Node.Digest.injEq] at h
-  by_cases hx : (0#u8 :: l) = (0#u8 :: l')
-  · exact Or.inl (by simpa using hx)
-  · exact Or.inr ⟨_, _, hx, h⟩
+  by_cases hx : leafInput l = leafInput l'
+  · exact Or.inl (by simpa [leafInput] using hx)
+  · exact Or.inr (collisionIn_pair (by simp) (by simp) hx h)
+
+/-! ## The inputs of the tree -/
+
+lemma parents_pad_eq : ∀ l : List Node,
+    parents H (pad l) = (levelInputs l).map fun x => .Digest (H x)
+  | [] => by simp [pad, parents, levelInputs]
+  | [a] => by simp [pad, parents, levelInputs, innerN]
+  | a :: b :: r => by
+    have := parents_pad_eq r
+    have hp : pad (a :: b :: r) = a :: b :: pad r := by
+      unfold pad; simp only [List.length_cons]; split <;> split <;> simp_all <;> omega
+    rw [hp]; simp only [parents, levelInputs, List.map_cons, this, innerN]
+
+lemma up_eq (l : List Node) : up H l = (levelInputs l).map fun x => .Digest (H x) :=
+  parents_pad_eq H l
+
+lemma length_levelInputs (l : List Node) : (levelInputs l).length = (up H l).length := by
+  rw [up_eq, List.length_map]
+
+lemma treeInputsN_stable : ∀ (n m : Nat) (l : List Node), l.length ≤ n → l.length ≤ m →
+    treeInputsN H n l = treeInputsN H m l
+  | 0, 0, _, _, _ => rfl
+  | 0, m + 1, l, h, _ => by
+    have : l.length = 0 := by omega
+    simp [treeInputsN, this]
+  | n + 1, 0, l, _, h => by
+    have : l.length = 0 := by omega
+    simp [treeInputsN, this]
+  | n + 1, m + 1, l, hn, hm => by
+    simp only [treeInputsN]
+    split
+    · rfl
+    · rename_i h1
+      have hu := length_up_lt H l h1
+      rw [← up_eq] at *
+      rw [treeInputsN_stable n m (up H l) (by omega) (by omega)]
+
+lemma treeInputs_up (l : List Node) (h : ¬ l.length ≤ 1) :
+    treeInputs H l = levelInputs l ++ treeInputs H (up H l) := by
+  unfold treeInputs
+  obtain ⟨n, hn⟩ : ∃ n, l.length = n + 1 := ⟨l.length - 1, by omega⟩
+  rw [hn]
+  simp only [treeInputsN, ← up_eq]
+  rw [if_neg h, treeInputsN_stable H n (up H l).length (up H l) (by have := length_up_lt H l h; omega) le_rfl]
+
+lemma innerInput_mem_levelInputs (l : List Node) (j : Nat) (hj : j < (up H l).length) :
+    innerInput (l.getD (2 * j) .Empty) (l.getD (2 * j + 1) .Empty) ∈ levelInputs l := by
+  induction l using levelInputs.induct generalizing j with
+  | case1 a b r ih =>
+    cases j with
+    | zero => simp [levelInputs]
+    | succ j =>
+      simp only [levelInputs, List.mem_cons]
+      right
+      have hj' : j < (up H r).length := by
+        rw [length_up] at hj ⊢; simp at hj; omega
+      have := ih j hj'
+      simpa [show 2 * (j + 1) = 2 * j + 2 by ring, show 2 * (j + 1) + 1 = 2 * j + 1 + 2 by ring]
+        using this
+  | case2 a =>
+    rw [length_up] at hj; simp at hj; subst hj; simp [levelInputs]
+  | case3 => rw [length_up] at hj; simp at hj
 
 /-! ## Slice iterators -/
 

@@ -29,23 +29,27 @@ lemma bytesOf_length (n : merkle.Node) : (bytesOf n).length = 32 := by
   | Empty => simp [bytesOf]
   | Digest v => simp [bytesOf]
 
-/-- `H` has a collision. The theorems state this as `¬ Function.Injective H`. -/
-def Collision (H : List U8 → Array U8 32#usize) : Prop := ∃ x y, x ≠ y ∧ H x = H y
+lemma CollisionIn.mono {H : List U8 → Array U8 32#usize} {xs ys : List (List U8)}
+    (hs : ∀ x ∈ xs, x ∈ ys) : CollisionIn H xs → CollisionIn H ys := by
+  rintro ⟨x, hx, y, hy, hne, heq⟩; exact ⟨x, hs x hx, y, hs y hy, hne, heq⟩
 
-lemma not_injective_of_collision {H : List U8 → Array U8 32#usize} (h : Collision H) :
-    ¬ Function.Injective H := by
-  obtain ⟨x, y, hne, heq⟩ := h
-  exact fun hi => hne (hi heq)
+lemma ZeroHashIn.mono {H : List U8 → Array U8 32#usize} {xs ys : List (List U8)}
+    (hs : ∀ x ∈ xs, x ∈ ys) : ZeroHashIn H xs → ZeroHashIn H ys := by
+  rintro ⟨x, hx, h⟩; exact ⟨x, hs x hx, h⟩
+
+lemma collisionIn_pair {H : List U8 → Array U8 32#usize} {xs : List (List U8)} {x y : List U8}
+    (hx : x ∈ xs) (hy : y ∈ xs) (hne : x ≠ y) (h : H x = H y) : CollisionIn H xs :=
+  ⟨x, hx, y, hy, hne, h⟩
 
 variable {T : Type} {inst : hash.HashFunction T 32#usize} {H : List U8 → Array U8 32#usize}
 
 /-- The leaf hash of `leaf`. -/
 def leafN (H : List U8 → Array U8 32#usize) (leaf : List U8) : merkle.Node :=
-  .Digest (H (0#u8 :: leaf))
+  .Digest (H (leafInput leaf))
 
 /-- The hash of the inner node with children `l` and `r`. -/
 def innerN (H : List U8 → Array U8 32#usize) (l r : merkle.Node) : merkle.Node :=
-  .Digest (H (1#u8 :: (bytesOf l ++ bytesOf r)))
+  .Digest (H (innerInput l r))
 
 lemma leaf_hash_eq (hm : HashModel inst H) (leaf : Slice U8) :
     merkle.leaf_hash inst leaf = ok (leafN H leaf.val) := by
@@ -56,7 +60,7 @@ lemma leaf_hash_eq (hm : HashModel inst H) (leaf : Slice U8) :
     (Slice.Insts.CoreConvertAsRefSlice U8)) s1 leaf leaf rfl)
   simp only [merkle.leaf_hash, h0, h1, h2, hm.finalize_ok, bind_ok, core.convert.IntoFrom.into,
     merkle.Node.Insts.CoreConvertFromDigest32.from, leafN, a2, a1, a0]
-  simp [merkle.LEAF_PREFIX]
+  simp [merkle.LEAF_PREFIX, leafInput]
 
 lemma inner_hash_eq (hm : HashModel inst H) (l r : merkle.Node) :
     merkle.inner_hash inst l r = ok (innerN H l r) := by
@@ -72,6 +76,6 @@ lemma inner_hash_eq (hm : HashModel inst H) (l r : merkle.Node) :
   simp only [merkle.inner_hash, h0, h1, h2, h3, hbl, hbr, hm.finalize_ok, bind_ok,
     core.convert.IntoFrom.into, merkle.Node.Insts.CoreConvertFromDigest32.from, innerN,
     a3, a2, a1, a0, Slice.from_val, vbl, vbr]
-  simp [merkle.INNER_PREFIX]
+  simp [merkle.INNER_PREFIX, innerInput]
 
 end MerkleProofs
