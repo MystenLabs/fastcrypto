@@ -1,0 +1,53 @@
+# THIS FILE IS AI-ONLY
+name: Merkle Lean Proof
+
+# Checks the Lean proofs in `fastcrypto/verification/merkle` against the current Rust code, with
+# `lean-proof.yml`.
+
+on:
+  pull_request:
+    paths:
+      - fastcrypto/src/merkle.rs
+      - fastcrypto/src/hash.rs
+      - fastcrypto/src/error.rs
+      - fastcrypto/verification/**
+      - fastcrypto/Cargo.toml
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/merkle-proof.yml
+      - .github/workflows/lean-proof.yml
+  push:
+    branches: [main]
+    paths:
+      - fastcrypto/src/merkle.rs
+      - fastcrypto/src/hash.rs
+      - fastcrypto/src/error.rs
+      - fastcrypto/verification/**
+      - fastcrypto/Cargo.toml
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/merkle-proof.yml
+      - .github/workflows/lean-proof.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    uses: ./.github/workflows/lean-proof.yml
+    with:
+      proof_dir: fastcrypto/verification
+      module: merkle
+      theorems: >-
+        MerkleProofs.get_proof_complete
+        MerkleProofs.verify_binding
+        MerkleProofs.verify_for_trusted_tree_sound
+        MerkleProofs.verify_for_trusted_tree_with_unserialized_leaf_sound
+        MerkleProofs.non_inclusion_sound
+        MerkleProofs.non_inclusion_complete
+        MerkleProofs.non_inclusion_no_panic

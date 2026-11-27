@@ -8,6 +8,8 @@ publish = ["crates-io"]
 readme = "../README.md"
 description = "Common cryptographic library used at Mysten Labs"
 repository = "https://github.com/MystenLabs/fastcrypto"
+# Lean proofs, see verification/README.md.
+exclude = ["verification"]
 
 [dependencies]
 base64ct = { version = "1.5.3", features = ["alloc"] }
