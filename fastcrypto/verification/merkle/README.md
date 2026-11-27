@@ -34,10 +34,10 @@ In `Theorems.lean`. `H` is the hash function, and a *zero output* is an `x` with
 
 ## What is assumed
 
-In `Assumptions.lean`, besides the translation; each theorem takes the ones it needs:
+In `Assumptions.lean`; each theorem takes the ones it needs:
 
-* **Translation.** Charon and Aeneas translate `merkle.rs` faithfully, and the two changes of
-  `fix_aeneas_output.py` (two `AsRef` impls defined, serde's traits emptied) are sound.
+* **`fix_aeneas_output.py`**: its two changes to the translation (two `AsRef` impls defined,
+  serde's traits emptied) are sound.
 * **`HashModel`**: `HashFunction` hashes the concatenation of its inputs with some `H`. Collision
   resistance is not assumed: the theorems conclude a collision or a zero output instead.
 * **Leaf type**, for non-inclusion: `OrdModel` (`<=` returns, `>=` is its flip), `<=` is a
