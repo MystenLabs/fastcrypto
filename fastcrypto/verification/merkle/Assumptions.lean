@@ -53,29 +53,24 @@ def SerializedLeafHashes {T L : Type} (inst : hash.HashFunction T 32#usize)
 
 /-! ## The leaf type and BCS, for the non-inclusion proofs -/
 
-/-- `L`'s `<=` as a relation: `LeRel o a b` when `a <= b` returns `true`. -/
-def LeRel {L : Type} (o : core.cmp.PartialOrd L L) (a b : L) : Prop := o.le a b = ok true
+open Classical in
+/-- `L`'s Rust methods agree with a partial order `≤` on `L`, a Mathlib `PartialOrder`, with
+equality and with the identity: `a <= b` (`PartialOrd::le`) returns whether `a ≤ b`, `a >= b`
+returns whether `b ≤ a`, `a == b` returns `false` for different values, and `clone` returns its
+argument. -/
+structure LeafModel {L : Type} [PartialOrder L] (ord : core.cmp.Ord L) (cl : core.clone.Clone L) :
+    Prop where
+  le : ∀ a b, ord.partialOrdInst.le a b = ok (decide (a ≤ b))
+  ge : ∀ a b, ord.partialOrdInst.ge a b = ok (decide (b ≤ a))
+  eq_ne : ∀ a b, a ≠ b → ord.eqInst.partialEqInst.eq a b = ok false
+  clone : ∀ a, cl.clone a = ok a
 
-/-- `L`'s `<=` returns, and its `>=` is the converse of `<=` (`a >= b` is `b <= a`), as Rust's
-`PartialOrd` requires. -/
-structure OrdModel {L : Type} (o : core.cmp.PartialOrd L L) : Prop where
-  le_returns : ∀ a b, o.le a b ⦃ _ => True ⦄
-  ge_eq_le : ∀ a b, o.ge a b = o.le b a
-
-/-- For different values `a` and `b` of `L`, `a == b` returns `false`. -/
-def EqModel {L : Type} (e : core.cmp.PartialEq L L) : Prop := ∀ a b, a ≠ b → e.eq a b = ok false
-
-/-- `L`'s `clone` returns its argument. -/
-def CloneIsId {L : Type} (c : core.clone.Clone L) : Prop := ∀ a, c.clone a = ok a
-
-/-- `bcs::to_bytes` is injective on the values it serializes. -/
-def BcsInjective {L : Type} (ser : serde_core.ser.Serialize L) : Prop :=
-  ∀ a b v w, bcs.ser.to_bytes ser a = ok (.Ok v) → bcs.ser.to_bytes ser b = ok (.Ok w) →
-    v.val = w.val → a = b
-
-/-- `bcs::to_bytes` returns, `Ok` or `Err`, on every value. -/
-def BcsReturns {L : Type} (ser : serde_core.ser.Serialize L) : Prop :=
-  ∀ a, bcs.ser.to_bytes ser a ⦃ _ => True ⦄
+/-- `bcs::to_bytes` returns, `Ok` or `Err`, on every value, and is injective on the values it
+serializes. -/
+structure BcsModel {L : Type} (ser : serde_core.ser.Serialize L) : Prop where
+  returns : ∀ a, bcs.ser.to_bytes ser a ⦃ _ => True ⦄
+  injective : ∀ a b v w, bcs.ser.to_bytes ser a = ok (.Ok v) →
+    bcs.ser.to_bytes ser b = ok (.Ok w) → v.val = w.val → a = b
 
 /-! ## The standard library -/
 

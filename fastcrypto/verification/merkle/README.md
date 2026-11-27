@@ -39,9 +39,9 @@ In `Assumptions.lean`; each theorem takes the ones it needs:
 * **`fix_aeneas_output.py`**: its two changes to the translation (two `AsRef` impls defined,
   serde's traits emptied) are sound.
 * **`HashModel`**: `HashFunction` hashes the concatenation of its inputs with some `H`.
-* **Leaf type**, for non-inclusion: `OrdModel` (`<=` returns, `>=` is its converse), `<=` is a
-  partial order, `EqModel`, `CloneIsId`.
-* **BCS**: `bcs::to_bytes` returns (`BcsReturns`) and is injective (`BcsInjective`).
+* **`LeafModel`**, for non-inclusion: the leaf type's `<=`, `>=`, `==` and `clone` agree with a
+  partial order, equality and the identity.
+* **`BcsModel`**: `bcs::to_bytes` returns and is injective.
 * **`PartitionPointSpec`**, for 6: `partition_point` behaves as Rust documents.
 * **Caller**: the leaves are sorted, and `hs` are their leaf hashes.
 * **`usize`** has 32 or 64 bits. The theorems hold for both.
@@ -56,7 +56,7 @@ In `Assumptions.lean`; each theorem takes the ones it needs:
 | File | Contents |
 |---|---|
 | `Theorems.lean` | The theorems, and their axiom reports. |
-| `Assumptions.lean` | The assumptions, and the definitions the theorems are stated with (`ZeroHash`, `IsTreeRoot`, `SerializedLeafHashes`, `LeRel`). |
+| `Assumptions.lean` | The assumptions, and the definitions the theorems are stated with (`ZeroHash`, `IsTreeRoot`, `SerializedLeafHashes`). |
 | `Proofs/` | The lemmas: the hash (`Hash.lean`), a list model of the tree (`Model.lean`), what paths can open to (`Opening.lean`), and what `build_from_leaf_hashes`, `get_proof`, `verify` and the non-inclusion functions return (`Build.lean`, `GetProof.lean`, `Verify.lean`, `NonInclusion.lean`, `NonInclusionComplete.lean`). |
 | `Generated/` | The translation of `merkle.rs`. `hash` (except `Digest`), `bcs` and serde are opaque. |
 | `extract.sh` | Regenerates `Generated/`: get `charon` and `aeneas` from the Aeneas release it names and run `CHARON=... AENEAS=... ./extract.sh`. |

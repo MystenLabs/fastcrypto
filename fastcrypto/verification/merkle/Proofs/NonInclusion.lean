@@ -17,6 +17,67 @@ namespace MerkleProofs
 
 variable {T : Type} {inst : hash.HashFunction T 32#usize} {H : List U8 → Array U8 32#usize}
 
+/-! ## The leaf type
+
+The proofs use these consequences of `LeafModel` and `BcsModel`, which the theorems assume. -/
+
+/-- `L`'s `<=` as a relation: `LeRel o a b` when `a <= b` returns `true`. -/
+def LeRel {L : Type} (o : core.cmp.PartialOrd L L) (a b : L) : Prop := o.le a b = ok true
+
+/-- `L`'s `<=` returns, and its `>=` is the converse of `<=` (`a >= b` is `b <= a`), as Rust's
+`PartialOrd` requires. -/
+structure OrdModel {L : Type} (o : core.cmp.PartialOrd L L) : Prop where
+  le_returns : ∀ a b, o.le a b ⦃ _ => True ⦄
+  ge_eq_le : ∀ a b, o.ge a b = o.le b a
+
+/-- For different values `a` and `b` of `L`, `a == b` returns `false`. -/
+def EqModel {L : Type} (e : core.cmp.PartialEq L L) : Prop := ∀ a b, a ≠ b → e.eq a b = ok false
+
+/-- `L`'s `clone` returns its argument. -/
+def CloneIsId {L : Type} (c : core.clone.Clone L) : Prop := ∀ a, c.clone a = ok a
+
+
+/-- `bcs::to_bytes` is injective on the values it serializes. -/
+def BcsInjective {L : Type} (ser : serde_core.ser.Serialize L) : Prop :=
+  ∀ a b v w, bcs.ser.to_bytes ser a = ok (.Ok v) → bcs.ser.to_bytes ser b = ok (.Ok w) →
+    v.val = w.val → a = b
+
+/-- `bcs::to_bytes` returns, `Ok` or `Err`, on every value. -/
+def BcsReturns {L : Type} (ser : serde_core.ser.Serialize L) : Prop :=
+  ∀ a, bcs.ser.to_bytes ser a ⦃ _ => True ⦄
+
+lemma BcsModel.bcsInjective {L : Type} {ser : serde_core.ser.Serialize L} (h : BcsModel ser) :
+    BcsInjective ser := h.injective
+
+lemma BcsModel.bcsReturns {L : Type} {ser : serde_core.ser.Serialize L} (h : BcsModel ser) :
+    BcsReturns ser := h.returns
+
+section LeafModel
+
+variable {L : Type} [PartialOrder L] {ord : core.cmp.Ord L} {cl : core.clone.Clone L}
+
+lemma LeafModel.leRel_iff (h : LeafModel ord cl) (a b : L) :
+    LeRel ord.partialOrdInst a b ↔ a ≤ b := by
+  unfold LeRel; rw [h.le]; simp
+
+lemma LeafModel.ordModel (h : LeafModel ord cl) : OrdModel ord.partialOrdInst :=
+  ⟨fun a b => by rw [h.le, WP.spec_ok]; trivial, fun a b => by rw [h.ge, h.le]⟩
+
+lemma LeafModel.isPartialOrder (h : LeafModel ord cl) : IsPartialOrder L (LeRel ord.partialOrdInst) := by
+  have he : LeRel ord.partialOrdInst = (· ≤ ·) := by
+    funext a b; exact propext (h.leRel_iff a b)
+  rw [he]; infer_instance
+
+lemma LeafModel.eqModel (h : LeafModel ord cl) : EqModel ord.eqInst.partialEqInst := h.eq_ne
+
+lemma LeafModel.cloneIsId (h : LeafModel ord cl) : CloneIsId cl := h.clone
+
+lemma LeafModel.pairwise (h : LeafModel ord cl) {ls : List L} (hs : List.Pairwise (· ≤ ·) ls) :
+    List.Pairwise (LeRel ord.partialOrdInst) ls :=
+  hs.imp fun h' => (h.leRel_iff _ _).mpr h'
+
+end LeafModel
+
 /-! ## `is_right_most` -/
 
 /-- Every left child on the path from index `i` has a sibling with the bytes of `Node::Empty`. -/
@@ -216,7 +277,7 @@ def Serializes {L : Type} (ser : serde_core.ser.Serialize L) (ls : List L) (ys :
   ys.length = ls.length ∧ ∀ j (hj : j < ls.length), ∃ v, bcs.ser.to_bytes ser ls[j] = ok (.Ok v) ∧
     v.val = ys.getD j []
 
-/-- `ls` is sorted by `<=`. The theorems state this as `List.Pairwise (LeRel o) ls`. -/
+/-- `ls` is sorted by `<=`. -/
 def SortedLe {L : Type} (o : core.cmp.PartialOrd L L) (ls : List L) : Prop :=
   ∀ j k (hjk : j < k) (hk : k < ls.length), o.le (ls[j]'(by omega)) ls[k] = ok true
 

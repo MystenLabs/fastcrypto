@@ -119,7 +119,7 @@ BCS serializations of `ls`, with `4 · hs.len() ≤ usize::MAX`, and `root` the 
 them. If `verify_for_trusted_tree_with_unserialized_leaf(root, l, i)` accepts a proof, of any
 length, then `i < ls.len()` and `l = ls[i]`, or `H` has a collision or a zero output. -/
 theorem verify_for_trusted_tree_with_unserialized_leaf_sound (hm : HashModel inst H) {L : Type}
-    (ser : serde_core.ser.Serialize L) (hser : BcsInjective ser) (ls : List L)
+    (ser : serde_core.ser.Serialize L) (hbcs : BcsModel ser) (ls : List L)
     (hs : alloc.vec.Vec Node) (hhs : SerializedLeafHashes inst ser ls hs)
     (hn : 4 * hs.length ≤ Usize.max) (root : Node) (hroot : IsTreeRoot inst hs root)
     (p : MerkleProof T) (l : L) (i : Usize)
@@ -139,7 +139,7 @@ theorem verify_for_trusted_tree_with_unserialized_leaf_sound (hm : HashModel ins
     have := isDigest_fold (H := H) (leafN H (alloc.vec.Vec.deref v).val) p.path.val i.val trivial
     rw [hfold] at this
     simp [rootOf, IsDigest] at this
-  rcases neighbor_sound hm ser hser ls ys hser' hy p l i h with hc | hz | ⟨hi, hl, -⟩
+  rcases neighbor_sound hm ser hbcs.bcsInjective ls ys hser' hy p l i h with hc | hz | ⟨hi, hl, -⟩
   · exact Or.inr (Or.inl (not_injective_of_collision hc))
   · exact Or.inr (Or.inr hz)
   · exact Or.inl ⟨hi, hl⟩
@@ -150,10 +150,10 @@ theorem verify_for_trusted_tree_with_unserialized_leaf_sound (hm : HashModel ins
 serializations, with `4 · hs.len() ≤ usize::MAX`, and `root` the root of the tree over them. If
 `verify_for_trusted_tree(root, target)` accepts a non-inclusion proof, then `target` is not in
 `ls`, or `H` has a collision or maps some input to 32 zero bytes. -/
-theorem non_inclusion_sound (hm : HashModel inst H) {L : Type} (ord : core.cmp.Ord L)
-    (ser : serde_core.ser.Serialize L) (ho : OrdModel ord.partialOrdInst)
-    (hpo : IsPartialOrder L (LeRel ord.partialOrdInst)) (hser : BcsInjective ser) (ls : List L)
-    (hsort : List.Pairwise (LeRel ord.partialOrdInst) ls)
+theorem non_inclusion_sound (hm : HashModel inst H) {L : Type} [PartialOrder L]
+    (ord : core.cmp.Ord L) (ser : serde_core.ser.Serialize L) (cl : core.clone.Clone L)
+    (hL : LeafModel ord cl) (hbcs : BcsModel ser) (ls : List L)
+    (hsort : List.Pairwise (· ≤ ·) ls)
     (hs : alloc.vec.Vec Node) (hhs : SerializedLeafHashes inst ser ls hs)
     (hn : 4 * hs.length ≤ Usize.max) (root : Node) (hroot : IsTreeRoot inst hs root)
     (pr : MerkleNonInclusionProof L T) (target : L)
@@ -165,7 +165,8 @@ theorem non_inclusion_sound (hm : HashModel inst H) {L : Type} (ord : core.cmp.O
   have hroot := tree_root hm hs hn t ht root hr
   obtain ⟨ys, hser', hys⟩ := exists_serialized hm ser ls hs.val hlen hleaves
   rw [hroot, hys] at h
-  rcases ni_sound hm ord ser ho hpo hser ls ys hser' (sortedLe_of_pairwise hsort) pr target h with
+  rcases ni_sound hm ord ser hL.ordModel hL.isPartialOrder hbcs.bcsInjective ls ys hser'
+      (sortedLe_of_pairwise (hL.pairwise hsort)) pr target h with
     hn | hc | hz
   · exact Or.inl hn
   · exact Or.inr (Or.inl (not_injective_of_collision hc))
@@ -177,10 +178,9 @@ serializations, with `4 · hs.len() ≤ usize::MAX`, and `target` not in `leaves
 `t.compute_non_inclusion_proof(leaves, target)` returns a proof that
 `verify_for_trusted_tree(root, target)` accepts. -/
 theorem non_inclusion_complete (hm : HashModel inst H) (hpp : PartitionPointSpec) {L : Type}
-    (ord : core.cmp.Ord L) (ser : serde_core.ser.Serialize L) (cl : core.clone.Clone L)
-    (ho : OrdModel ord.partialOrdInst) (hpo : IsPartialOrder L (LeRel ord.partialOrdInst))
-    (heqm : EqModel ord.eqInst.partialEqInst) (hcl : CloneIsId cl) (leaves : Slice L)
-    (hsort : List.Pairwise (LeRel ord.partialOrdInst) leaves.val) (hs : alloc.vec.Vec Node)
+    [PartialOrder L] (ord : core.cmp.Ord L) (ser : serde_core.ser.Serialize L)
+    (cl : core.clone.Clone L) (hL : LeafModel ord cl) (leaves : Slice L)
+    (hsort : List.Pairwise (· ≤ ·) leaves.val) (hs : alloc.vec.Vec Node)
     (hhs : SerializedLeafHashes inst ser leaves.val hs) (hn : 4 * hs.length ≤ Usize.max)
     (target : L) (hnot : target ∉ leaves.val) :
     ∃ t, MerkleTree.build_from_leaf_hashes inst hs = ok t ∧
@@ -197,15 +197,19 @@ theorem non_inclusion_complete (hm : HashModel inst H) (hpp : PartitionPointSpec
     simp only [alloc.vec.Vec.length, hys, List.length_map]
   rw [hroot, hys]
   rw [hys] at hnodes
-  exact ni_complete hm hpp ord ser cl ho hpo heqm hcl leaves (sortedLe_of_pairwise hsort) ys hser (by omega) t hnodes
+  exact ni_complete hm hpp ord ser cl hL.ordModel hL.isPartialOrder hL.eqModel hL.cloneIsId leaves
+    (sortedLe_of_pairwise (hL.pairwise hsort)) ys hser (by omega) t hnodes
     (by rw [hnl, hyl]) target hnot
 
 /-- `verify_for_trusted_tree` does not panic: for every proof, root and target, it returns
 `Ok(())` or an error. -/
-theorem non_inclusion_no_panic (hm : HashModel inst H) {L : Type} (ord : core.cmp.Ord L)
-    (ser : serde_core.ser.Serialize L) (hb : BcsReturns ser) (ho : OrdModel ord.partialOrdInst)
+theorem non_inclusion_no_panic (hm : HashModel inst H) {L : Type} [PartialOrder L]
+    (ord : core.cmp.Ord L) (ser : serde_core.ser.Serialize L) (cl : core.clone.Clone L)
+    (hL : LeafModel ord cl) (hbcs : BcsModel ser)
     (pr : MerkleNonInclusionProof L T) (root : Node) (target : L) :
     MerkleNonInclusionProof.verify_for_trusted_tree inst ord ser pr root target ⦃ _ => True ⦄ := by
+  have ho := hL.ordModel
+  have hb := hbcs.bcsReturns
   have hle : ∀ a b, ∃ r, ord.partialOrdInst.le a b = ok r := fun a b => by
     obtain ⟨r, h, -⟩ := spec_eq_ok (ho.le_returns a b); exact ⟨r, h⟩
   obtain ⟨r, h⟩ :=
