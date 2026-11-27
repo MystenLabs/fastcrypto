@@ -17,8 +17,8 @@ In `Theorems.lean`. `H` is the hash function, and a *zero output* is an `x` with
 1. **`get_proof_complete`.** For a tree built from `n` leaf hashes (`4n ≤ usize::MAX`),
    `get_proof` gives every leaf a proof with `⌈log₂ n⌉` siblings that `verify` and
    `verify_for_trusted_tree` accept against `root()`.
-2. **`verify_binding`.** `verify` never panics, and two accepted proofs for the same root, index
-   and `n` are for the same leaf, or `H` has a collision. Nothing is assumed about the root.
+2. **`verify_binding`.** `verify` never panics, and for any root, index and `n`, two proofs it
+   accepts are for the same leaf, or `H` has a collision.
 3. **`verify_for_trusted_tree_sound`.** `verify_for_trusted_tree` never panics, and against the
    root of a tree built by `MerkleTree` it accepts a proof of any length for index `i` only for
    the `i`th leaf, or `H` has a collision or a zero output. The root must be trusted, which is why
@@ -38,8 +38,7 @@ In `Assumptions.lean`; each theorem takes the ones it needs:
 
 * **`fix_aeneas_output.py`**: its two changes to the translation (two `AsRef` impls defined,
   serde's traits emptied) are sound.
-* **`HashModel`**: `HashFunction` hashes the concatenation of its inputs with some `H`. Collision
-  resistance is not assumed: the theorems conclude a collision or a zero output instead.
+* **`HashModel`**: `HashFunction` hashes the concatenation of its inputs with some `H`.
 * **Leaf type**, for non-inclusion: `OrdModel` (`<=` returns, `>=` is its converse), `<=` is a
   partial order, `EqModel`, `CloneIsId`.
 * **BCS**: `bcs::to_bytes` returns (`BcsReturns`) and is injective (`BcsInjective`).

@@ -62,7 +62,7 @@ theorem get_proof_complete (hm : HashModel inst H) (hs : alloc.vec.Vec Node)
 /-- Binding of `verify`. For every proof `p`, root, leaf, index `i` and `n`,
 `p.verify(root, leaf, i, n)` returns, without panicking. If it returns `Ok(())`, and another proof
 `p'` verifies for a leaf `leaf'` with the same `root`, `i` and `n`, then `leaf = leaf'` or `H` has
-a collision. Nothing is assumed about how `root` or the proofs were made. -/
+a collision. This holds for any `root` and any proofs. -/
 theorem verify_binding (hm : HashModel inst H) (p : MerkleProof T) (root : Node) (leaf : Slice U8)
     (i n : Usize) :
     MerkleProof.verify inst p root leaf i n ⦃ res => res = .Ok () →
