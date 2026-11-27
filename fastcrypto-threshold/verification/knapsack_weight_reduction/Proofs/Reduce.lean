@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import knapsack_weight_reduction.Verify
+import knapsack_weight_reduction.Proofs.Verify
 
 /-!
 What `reduce_weights` returns (`reduce_weights_spec`): given that `to_string` returns
@@ -271,7 +271,7 @@ lemma greedy_comparator_total (reduced weights : Slice U16) (xs : List Usize)
 
 /-- `sort_by`, with the comparator of `greedy_reject`, returns a permutation of its input if every
 index in it is in bounds and has a positive reduced weight. The proofs take this as a hypothesis;
-`Spec.lean` derives it from the assumption `SortByPermutes` and `greedy_comparator_total`. -/
+`Theorems.lean` derives it from the assumption `SortByPermutes` and `greedy_comparator_total`. -/
 abbrev GreedySortSpec : Prop :=
   ∀ (reduced weights : Slice U16) (s : Slice Usize),
     (∀ i ∈ s.val, i.val < reduced.length ∧ i.val < weights.length ∧

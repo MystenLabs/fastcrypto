@@ -1,6 +1,6 @@
 -- THIS FILE IS AI-ONLY
 import knapsack_weight_reduction.Generated.Funs
-import knapsack_weight_reduction.Subsets
+import knapsack_weight_reduction.Proofs.Subsets
 
 /-!
 What `sum_u16`, `max_reduced_weight` and `knapsack_min_original` return (`sum_u16_spec`,

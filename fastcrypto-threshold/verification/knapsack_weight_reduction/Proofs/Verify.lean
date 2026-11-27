@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import knapsack_weight_reduction.Knapsack
+import knapsack_weight_reduction.Proofs.Knapsack
 
 /-!
 What `verify_reduction` returns (`verify_reduction_spec`), and when it accepts
@@ -39,7 +39,7 @@ macro "vr_tac" : tactic => `(tactic| first
   | (simp only [deref_val, deref_length] at *; simp_all))
 
 /-- `to_string` returns on every `&str`, as a Hoare triple. The proofs take this as a hypothesis;
-`Spec.lean` derives it from the assumption `ToStringReturns`. -/
+`Theorems.lean` derives it from the assumption `ToStringReturns`. -/
 abbrev ToStringSpec : Prop :=
   ∀ s : Str, alloc.string.ToString.Blanket.to_string Str.Insts.CoreFmtDisplay s ⦃ _ => True ⦄
 
