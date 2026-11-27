@@ -3,14 +3,11 @@
 
 Proofs about fastcrypto's Merkle tree (`fastcrypto/src/merkle.rs`), against a Lean translation of
 the Rust code made by [Charon and Aeneas](https://github.com/AeneasVerif/aeneas). The Rust code
-carries no annotations. It is written in a style Aeneas can translate: `for` loops instead of
-iterator chains and closures.
+carries no annotations.
 
-A reviewer reads the files at the top of this folder in full: the theorems in `Theorems.lean`, the
-assumptions they take and the definitions they are stated with in `Assumptions.lean`, and the two
-scripts that make the translation, `extract.sh` and `fix_aeneas_output.py`. The Lean docs there
-are the precise statements. The files in `Proofs/` are lemmas, which Lean checks, and
-`Generated/` is the translation, which CI checks is up to date.
+The theorems are in `Theorems.lean`, and their assumptions and the definitions they are stated with
+in `Assumptions.lean`, whose Lean docs are the precise statements. `Proofs/` has the lemmas and
+`Generated/` the translation.
 
 ## Theorems
 
