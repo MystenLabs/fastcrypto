@@ -11,14 +11,8 @@ protocol of [ePrint 2026/2648](https://eprint.iacr.org/2026/2648) §5, in two la
   the translated functions compute the model's, up to `RangeProof::prove_batch` and
   `RangeProof::verify_batch`, which links the protocol theorems to the Rust code.
 
-The Rust code carries no annotations. It is written in a style Aeneas can translate: index loops
-instead of iterator chains and closures.
-
-A reviewer reads the files at the top of this folder in full: the theorems in `Theorems.lean`, the
-assumptions they take in `Assumptions.lean`, the model in `Model/`, and the two scripts that make
-the translation, `extract.sh` and `fix_aeneas_output.py`. The Lean docs there are the precise
-statements. The files in `Proofs/` are lemmas, which Lean checks, and `Generated/` is the
-translation, which CI checks is up to date.
+The Rust code carries no annotations. The theorems are in `Theorems.lean`, their assumptions in
+`Assumptions.lean` and the model in `Model/`, whose Lean docs are the precise statements.
 
 ## Theorems
 
