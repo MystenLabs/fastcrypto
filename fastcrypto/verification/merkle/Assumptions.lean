@@ -1,8 +1,8 @@
 import merkle.Generated.Funs
 
 /-!
-The definitions that the theorems in `Theorems.lean` are stated with: the assumptions they take,
-and what they conclude. A reviewer reads this file and `Theorems.lean`; the files in `Proofs/` are
+The assumptions that the theorems in `Theorems.lean` take, and the definitions they are stated
+with. A reviewer reads this file and `Theorems.lean`; the files in `Proofs/` are
 lemmas, which Lean checks.
 -/
 

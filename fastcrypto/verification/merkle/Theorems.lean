@@ -6,8 +6,8 @@ import merkle.Proofs.Result
 
 /-!
 The theorems about `fastcrypto::merkle`, for any `HashFunction` that satisfies `HashModel` with
-some `H`. This file and `Definitions.lean`, which defines what the theorems are stated with, are the
-claim of the proofs, so a reviewer reads both in full. The files in `Proofs/` are lemmas, which
+some `H`. This file and `Assumptions.lean`, which states the assumptions the theorems take and the
+definitions they are stated with, are the claim of the proofs, so a reviewer reads both in full. The files in `Proofs/` are lemmas, which
 Lean checks.
 -/
 

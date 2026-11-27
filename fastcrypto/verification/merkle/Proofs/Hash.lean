@@ -1,5 +1,5 @@
 -- THIS FILE IS AI-ONLY
-import merkle.Definitions
+import merkle.Assumptions
 import merkle.Proofs.Result
 
 /-!
