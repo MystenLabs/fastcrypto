@@ -53,24 +53,24 @@ treats as `Node::Empty`.
    builds: `build_from_leaf_hashes` of the leaf hashes of `bcs::to_bytes(ls[j])`, with
    `4n ≤ usize::MAX`. If `verify_for_trusted_tree(root, target)` accepts a non-inclusion proof,
    then `target` is not in `ls`, or `H` has a collision or a zero output. This needs
-   `OrdModel` and `BcsInjective`, listed [below](#what-is-assumed).
+   `OrdModel`, that `<=` is a partial order, and `BcsInjective`, listed [below](#what-is-assumed).
 
 6. **`non_inclusion_complete`: honest non-inclusion proofs are accepted.** For `ls`, the tree and
    `4n ≤ usize::MAX` as in 5, and a `target` that is not in `ls`: building the tree and taking its
    `root()` do not panic, and `compute_non_inclusion_proof(ls, target)` returns a proof that
-   `verify_for_trusted_tree(root, target)` accepts. This needs `OrdModel`, `LinearOrd`, `EqModel`,
-   `CloneIsId` and `PartitionPointSpec`, listed [below](#what-is-assumed).
+   `verify_for_trusted_tree(root, target)` accepts. This needs `OrdModel`, that `<=` is a partial
+   order, `EqModel`, `CloneIsId` and `PartitionPointSpec`, listed [below](#what-is-assumed).
 
 7. **`non_inclusion_no_panic`: the verifier does not panic.** For every proof, root and target,
-   `verify_for_trusted_tree` returns `Ok(())` or an error. This needs `BcsReturns`, `OrdModel` and
-   `LinearOrd`, listed [below](#what-is-assumed).
+   `verify_for_trusted_tree` returns `Ok(())` or an error. This needs `BcsReturns` and `OrdModel`,
+   listed [below](#what-is-assumed).
 
 ## Files
 
 | File | Contents |
 |---|---|
 | `Theorems.lean` | The theorems above, and their axiom reports. |
-| `Definitions.lean` | What the theorems are stated with: the assumptions (`HashModel`, `OrdModel`, `LinearOrd`, `EqModel`, `CloneIsId`, `SortedLe`, `BcsInjective`, `BcsReturns`, `PartitionPointSpec`), the conclusions `Collision` and `ZeroHash`, the trees (`IsTreeRoot`, `SerializedLeafHashes`), and `depth`. |
+| `Definitions.lean` | What the theorems are stated with: the assumptions (`HashModel`, `OrdModel`, `EqModel`, `CloneIsId`, `BcsInjective`, `BcsReturns`, `PartitionPointSpec`), `<=` as a relation (`LeRel`), the conclusion `ZeroHash`, and the trees (`IsTreeRoot`, `SerializedLeafHashes`). The theorems also use Mathlib's `Function.Injective`, `IsPartialOrder`, `List.Pairwise` and `Nat.clog`. |
 | `Proofs/Hash.lean` | What `leaf_hash` and `inner_hash` return under `HashModel`. |
 | `Proofs/Model.lean` | A model of the tree as lists (`levels`, `rootOf`, `pathOf`, `fold`, `depth`): hashing a leaf up its path gives the root (`fold_pathOf`), and paths of the same length from different leaves to the same root give a collision (`fold_binding`). |
 | `Proofs/Opening.lean` | What a path of any length can open to in a tree built by `MerkleTree` (`trusted_opening`), and that the honest path of any leaf but the last has a left child whose sibling is a hash (`right_most`). |
@@ -109,15 +109,16 @@ it needs as hypotheses.
 * **Hash function** (`HashModel`). `HashFunction` hashes the concatenation of its `update` inputs
   with some function `H`, and does not panic. Nothing else, in particular not collision resistance:
   the theorems conclude that `H` has a collision or a zero output.
-* **Leaf type `L`**, for non-inclusion. `>=` is the flipped `<=`, and `<=` returns and is
-  reflexive, transitive and antisymmetric (`OrdModel`, `LinearOrd`). Rust requires all of these of
-  an `Ord` impl. `==` is false for different values (`EqModel`), and `clone` returns its argument
+* **Leaf type `L`**, for non-inclusion. `<=` returns and `>=` is the flipped `<=` (`OrdModel`),
+  and `<=` is a partial order (`IsPartialOrder L (LeRel o)`). Rust requires all of these of an
+  `Ord` impl. `==` is false for different values (`EqModel`), and `clone` returns its argument
   (`CloneIsId`).
 * **BCS.** `bcs::to_bytes` returns on every value (`BcsReturns`) and is injective
   (`BcsInjective`).
 * **`partition_point`**, for `non_inclusion_complete`. It returns the partition index of a
   partitioned slice, as Rust documents (`PartitionPointSpec`).
-* **Caller.** The leaves are sorted by `<=` (`SortedLe`), and `hs` are their leaf hashes.
+* **Caller.** The leaves are sorted by `<=` (`List.Pairwise (LeRel o)`), and `hs` are their leaf
+  hashes.
 * **Error branches.** `format`, `must_use`, `<str as Display>::fmt` and `to_string` stay axioms,
   with nothing assumed. They are only called when `get_proof` or `compute_non_inclusion_proof`
   returns an error.

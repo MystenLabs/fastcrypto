@@ -216,27 +216,43 @@ def Serializes {L : Type} (ser : serde_core.ser.Serialize L) (ls : List L) (ys :
   ys.length = ls.length ∧ ∀ j (hj : j < ls.length), ∃ v, bcs.ser.to_bytes ser ls[j] = ok (.Ok v) ∧
     v.val = ys.getD j []
 
-lemma le_of_le {L : Type} {o : core.cmp.PartialOrd L L} (ho : OrdModel o) {ls : List L}
-    (hs : SortedLe o ls) (j k : Nat) (hjk : j ≤ k) (hk : k < ls.length) :
+/-- `ls` is sorted by `<=`. The theorems state this as `List.Pairwise (LeRel o) ls`. -/
+def SortedLe {L : Type} (o : core.cmp.PartialOrd L L) (ls : List L) : Prop :=
+  ∀ j k (hjk : j < k) (hk : k < ls.length), o.le (ls[j]'(by omega)) ls[k] = ok true
+
+lemma sortedLe_of_pairwise {L : Type} {o : core.cmp.PartialOrd L L} {ls : List L}
+    (h : List.Pairwise (LeRel o) ls) : SortedLe o ls :=
+  fun j k hjk hk => List.pairwise_iff_getElem.mp h j k (by omega) hk hjk
+
+/-- `<=` returns `true` or `false`. -/
+lemma le_cases {L : Type} {o : core.cmp.PartialOrd L L} (ho : OrdModel o) (a b : L) :
+    o.le a b = ok true ∨ o.le a b = ok false := by
+  obtain ⟨r, h, -⟩ := spec_eq_ok (ho.le_returns a b)
+  cases r <;> simp [h]
+
+lemma le_of_le {L : Type} {o : core.cmp.PartialOrd L L} (hpo : IsPartialOrder L (LeRel o))
+    {ls : List L} (hs : SortedLe o ls) (j k : Nat) (hjk : j ≤ k) (hk : k < ls.length) :
     o.le (ls[j]'(by omega)) ls[k] = ok true := by
   rcases Nat.lt_or_eq_of_le hjk with h | rfl
   · exact hs j k h hk
-  · exact ho.le_refl _
+  · exact hpo.refl _
 
 /-- If `ls[j] >= t` is false, no element up to `j` is `t`. -/
-lemma ne_below {L : Type} {o : core.cmp.PartialOrd L L} (ho : OrdModel o) {ls : List L}
+lemma ne_below {L : Type} {o : core.cmp.PartialOrd L L} (ho : OrdModel o)
+    (hpo : IsPartialOrder L (LeRel o)) {ls : List L}
     (hs : SortedLe o ls) (t : L) (j : Nat) (hj : j < ls.length) (hge : o.ge ls[j] t = ok false)
     (k : Nat) (hk : k ≤ j) : ls[k]'(by omega) ≠ t := by
   intro e
-  rw [← e, ho.ge_eq_le, le_of_le ho hs k j hk hj] at hge
+  rw [← e, ho.ge_eq_le, le_of_le hpo hs k j hk hj] at hge
   simp at hge
 
 /-- If `ls[j] <= t` is false, no element from `j` on is `t`. -/
-lemma ne_above {L : Type} {o : core.cmp.PartialOrd L L} (ho : OrdModel o) {ls : List L}
+lemma ne_above {L : Type} {o : core.cmp.PartialOrd L L} (hpo : IsPartialOrder L (LeRel o))
+    {ls : List L}
     (hs : SortedLe o ls) (t : L) (j : Nat) (hj : j < ls.length) (hle : o.le ls[j] t = ok false)
     (k : Nat) (hjk : j ≤ k) (hk : k < ls.length) : ls[k] ≠ t := by
   intro e
-  rw [← e, le_of_le ho hs j k hjk hk] at hle
+  rw [← e, le_of_le hpo hs j k hjk hk] at hle
   simp at hle
 
 lemma map_getD_eq {f : Node → List U8} {ps qs : List Node} (h : ps.map f = qs.map f) (k : Nat)
@@ -288,8 +304,8 @@ lemma neighbor_sound (hm : HashModel inst H) {L : Type} (ser : serde_core.ser.Se
 /-- Soundness of `MerkleNonInclusionProof::verify_for_trusted_tree` against the root of the tree
 over the leaf hashes of `ys`, the serializations of the sorted `ls`. -/
 lemma ni_sound (hm : HashModel inst H) {L : Type} (ord : core.cmp.Ord L)
-    (ser : serde_core.ser.Serialize L) (ho : OrdModel ord.partialOrdInst) (hser : BcsInjective ser)
-    (ls : List L) (ys : List (List U8)) (hs : Serializes ser ls ys)
+    (ser : serde_core.ser.Serialize L) (ho : OrdModel ord.partialOrdInst)
+    (hpo : IsPartialOrder L (LeRel ord.partialOrdInst)) (hser : BcsInjective ser) (ls : List L) (ys : List (List U8)) (hs : Serializes ser ls ys)
     (hsort : SortedLe ord.partialOrdInst ls) (pr : merkle.MerkleNonInclusionProof L T) (t : L)
     (h : merkle.MerkleNonInclusionProof.verify_for_trusted_tree inst ord ser pr
       (rootOf H (ys.map (leafN H))) t = ok (.Ok ())) :
@@ -314,7 +330,7 @@ lemma ni_sound (hm : HashModel inst H) {L : Type} (ord : core.cmp.Ord L)
       · left
         intro hmem
         obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hmem
-        exact ne_below ho hsort _ j.val hjl hge k (by omega) rfl
+        exact ne_below ho hpo hsort _ j.val hjl hge k (by omega) rfl
       · exact Or.inr (Or.inr hz)
     · rcases neighbor_sound hm ser hser ls ys hs hy rp r pr.index hvr with hc | hz | ⟨hil, rfl, -⟩
       · exact Or.inr (Or.inl hc)
@@ -323,15 +339,15 @@ lemma ni_sound (hm : HashModel inst H) {L : Type} (ord : core.cmp.Ord L)
       intro hmem
       obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hmem
       by_cases hkj : k ≤ j.val
-      · exact ne_below ho hsort _ j.val hjl hge k hkj rfl
-      · exact ne_above ho hsort _ pr.index.val hil hle k (by omega) hk rfl
+      · exact ne_below ho hpo hsort _ j.val hjl hge k hkj rfl
+      · exact ne_above hpo hsort _ pr.index.val hil hle k (by omega) hk rfl
   · rcases neighbor_sound hm ser hser ls ys hs hy rp r pr.index hvr with hc | hz | ⟨hil, rfl, -⟩
     · exact Or.inr (Or.inl hc)
     · exact Or.inr (Or.inr hz)
     left
     intro hmem
     obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hmem
-    exact ne_above ho hsort _ pr.index.val hil hle k (by omega) hk rfl
+    exact ne_above hpo hsort _ pr.index.val hil hle k (by omega) hk rfl
 
 /-! ## Trees built by `MerkleTree` -/
 
@@ -395,7 +411,7 @@ lemma unserialized_returns (hm : HashModel inst H) {L : Type} (ser : serde_core.
     ∃ r, merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf inst ser p root l i =
       ok r := by
   unfold merkle.MerkleProof.verify_for_trusted_tree_with_unserialized_leaf
-  obtain ⟨r, hr⟩ := hb l
+  obtain ⟨r, hr, -⟩ := spec_eq_ok (hb l)
   rw [hr, bind_ok]
   cases r with
   | Ok v =>

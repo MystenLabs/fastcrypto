@@ -24,7 +24,7 @@ variable {T : Type} {inst : hash.HashFunction T 32#usize} {H : List U8 → Array
 /-- Completeness. For leaf hashes `hs` with `4 · hs.len() ≤ usize::MAX`,
 `build_from_leaf_hashes(hs)` returns a tree `t`, and `t.root()` returns a node `root`. For every
 `i < hs.len()` and every `leaf` whose `leaf_hash` is `hs[i]`, `t.get_proof(i)` then returns a
-proof with `depth(hs.len())` siblings, which both `verify(root, leaf, i, hs.len())` and
+proof with `⌈log₂ hs.len()⌉` siblings, which both `verify(root, leaf, i, hs.len())` and
 `verify_for_trusted_tree(root, leaf, i)` accept. -/
 theorem get_proof_complete (hm : HashModel inst H) (hs : alloc.vec.Vec Node)
     (hn : 4 * hs.length ≤ Usize.max) :
@@ -32,7 +32,7 @@ theorem get_proof_complete (hm : HashModel inst H) (hs : alloc.vec.Vec Node)
     ∃ root, MerkleTree.root inst t = ok root ∧
     ∀ (i : Usize) (leaf : Slice U8) (hi : i.val < hs.length),
       leaf_hash inst leaf = ok (hs.val[i.val]'hi) →
-      ∃ p, MerkleTree.get_proof inst t i = ok (.Ok p) ∧ p.path.length = depth hs.length ∧
+      ∃ p, MerkleTree.get_proof inst t i = ok (.Ok p) ∧ p.path.length = Nat.clog 2 hs.length ∧
         MerkleProof.verify inst p root leaf i (alloc.vec.Vec.len hs) = ok (.Ok ()) ∧
         MerkleProof.verify_for_trusted_tree inst p root leaf i = ok (.Ok ()) := by
   obtain ⟨t, ht, hnodes, hleaves⟩ := spec_eq_ok (build_spec hm hs hn)
@@ -52,7 +52,7 @@ theorem get_proof_complete (hm : HashModel inst H) (hs : alloc.vec.Vec Node)
     · rw [hlen]
       exact lt_of_lt_of_le hi (lt_two_pow_depth _)
     · rw [hp, hl, fold_pathOf H hs.val i.val hi, hroot]
-  refine ⟨p, hget, hlen, ?_, htr⟩
+  refine ⟨p, hget, hlen.trans (depth_eq_clog _), ?_, htr⟩
   have htrusted := (spec_of_eq_ok (verify_for_trusted_tree_spec hm p root leaf i) htr).mp rfl
   obtain ⟨v, hv', hvi⟩ := spec_eq_ok (verify_spec hm p root leaf i (alloc.vec.Vec.len hs))
   rw [hv', hvi.mpr]
@@ -68,7 +68,7 @@ theorem verify_binding (hm : HashModel inst H) (p : MerkleProof T) (root : Node)
     MerkleProof.verify inst p root leaf i n ⦃ res => res = .Ok () →
       ∀ (p' : MerkleProof T) (leaf' : Slice U8),
         MerkleProof.verify inst p' root leaf' i n = ok (.Ok ()) →
-        leaf.val = leaf'.val ∨ Collision H ⦄ := by
+        leaf.val = leaf'.val ∨ ¬ Function.Injective H ⦄ := by
   obtain ⟨r, h, -⟩ := spec_eq_ok (verify_spec hm p root leaf i n)
   rw [h, WP.spec_ok]
   rintro rfl p' leaf' h'
@@ -76,8 +76,8 @@ theorem verify_binding (hm : HashModel inst H) (p : MerkleProof T) (root : Node)
   obtain ⟨-, hl', -, -, e'⟩ := (spec_of_eq_ok (verify_spec hm p' root leaf' i n) h').mp rfl
   rcases fold_binding H p.path.val p'.path.val (leafN H leaf.val) (leafN H leaf'.val) i.val
       (hl.trans hl'.symm) trivial trivial (e.trans e'.symm) with hc | hc
-  · exact leafN_inj H _ _ hc
-  · exact Or.inr hc
+  · exact (leafN_inj H _ _ hc).imp_right not_injective_of_collision
+  · exact Or.inr (not_injective_of_collision hc)
 
 /-- Soundness of `verify_for_trusted_tree`, which does not check the length of the proof. For every
 proof `p`, root, leaf and index `i`, `p.verify_for_trusted_tree(root, leaf, i)` returns, without
@@ -90,7 +90,7 @@ theorem verify_for_trusted_tree_sound (hm : HashModel inst H) (p : MerkleProof T
       ∀ hs : alloc.vec.Vec Node, 4 * hs.length ≤ Usize.max →
         (∀ a ∈ hs.val, ∃ y : Slice U8, leaf_hash inst y = ok a) → IsTreeRoot inst hs root →
         (∃ hi : i.val < hs.length, leaf_hash inst leaf = ok (hs.val[i.val]'hi)) ∨
-          Collision H ∨ ZeroHash H ⦄ := by
+          ¬ Function.Injective H ∨ ZeroHash H ⦄ := by
   obtain ⟨r, h, -⟩ := spec_eq_ok (verify_for_trusted_tree_spec hm p root leaf i)
   rw [h, WP.spec_ok]
   rintro rfl hs hn hleaves ⟨t, ht, hr⟩
@@ -104,7 +104,7 @@ theorem verify_for_trusted_tree_sound (hm : HashModel inst H) (p : MerkleProof T
     rw [hfold] at this
     simp [rootOf, IsDigest] at this
   rcases trusted_opening H ys hy _ _ _ hi (congrArg bytesOf hfold) with hc | hz | ⟨-, hi', hx, -⟩
-  · exact Or.inr (Or.inl hc)
+  · exact Or.inr (Or.inl (not_injective_of_collision hc))
   · exact Or.inr (Or.inr hz)
   · left
     have hil : i.val < hs.length := by
@@ -125,7 +125,7 @@ theorem verify_for_trusted_tree_with_unserialized_leaf_sound (hm : HashModel ins
     (p : MerkleProof T) (l : L) (i : Usize)
     (h : MerkleProof.verify_for_trusted_tree_with_unserialized_leaf inst ser p root l i =
       ok (.Ok ())) :
-    (∃ hi : i.val < ls.length, l = ls[i.val]) ∨ Collision H ∨ ZeroHash H := by
+    (∃ hi : i.val < ls.length, l = ls[i.val]) ∨ ¬ Function.Injective H ∨ ZeroHash H := by
   obtain ⟨hlen, hleaves⟩ := hhs
   obtain ⟨t, ht, hr⟩ := hroot
   have hroot := tree_root hm hs hn t ht root hr
@@ -140,7 +140,7 @@ theorem verify_for_trusted_tree_with_unserialized_leaf_sound (hm : HashModel ins
     rw [hfold] at this
     simp [rootOf, IsDigest] at this
   rcases neighbor_sound hm ser hser ls ys hser' hy p l i h with hc | hz | ⟨hi, hl, -⟩
-  · exact Or.inr (Or.inl hc)
+  · exact Or.inr (Or.inl (not_injective_of_collision hc))
   · exact Or.inr (Or.inr hz)
   · exact Or.inl ⟨hi, hl⟩
 
@@ -152,19 +152,24 @@ serializations, with `4 · hs.len() ≤ usize::MAX`, and `root` the root of the 
 `ls`, or `H` has a collision or maps some input to 32 zero bytes. -/
 theorem non_inclusion_sound (hm : HashModel inst H) {L : Type} (ord : core.cmp.Ord L)
     (ser : serde_core.ser.Serialize L) (ho : OrdModel ord.partialOrdInst)
-    (hser : BcsInjective ser) (ls : List L) (hsort : SortedLe ord.partialOrdInst ls)
+    (hpo : IsPartialOrder L (LeRel ord.partialOrdInst)) (hser : BcsInjective ser) (ls : List L)
+    (hsort : List.Pairwise (LeRel ord.partialOrdInst) ls)
     (hs : alloc.vec.Vec Node) (hhs : SerializedLeafHashes inst ser ls hs)
     (hn : 4 * hs.length ≤ Usize.max) (root : Node) (hroot : IsTreeRoot inst hs root)
     (pr : MerkleNonInclusionProof L T) (target : L)
     (h : MerkleNonInclusionProof.verify_for_trusted_tree inst ord ser pr root target =
       ok (.Ok ())) :
-    target ∉ ls ∨ Collision H ∨ ZeroHash H := by
+    target ∉ ls ∨ ¬ Function.Injective H ∨ ZeroHash H := by
   obtain ⟨hlen, hleaves⟩ := hhs
   obtain ⟨t, ht, hr⟩ := hroot
   have hroot := tree_root hm hs hn t ht root hr
   obtain ⟨ys, hser', hys⟩ := exists_serialized hm ser ls hs.val hlen hleaves
   rw [hroot, hys] at h
-  exact ni_sound hm ord ser ho hser ls ys hser' hsort pr target h
+  rcases ni_sound hm ord ser ho hpo hser ls ys hser' (sortedLe_of_pairwise hsort) pr target h with
+    hn | hc | hz
+  · exact Or.inl hn
+  · exact Or.inr (Or.inl (not_injective_of_collision hc))
+  · exact Or.inr (Or.inr hz)
 
 /-- Completeness. Let `leaves` be sorted by `L`'s `<=`, `hs` the leaf hashes of their BCS
 serializations, with `4 · hs.len() ≤ usize::MAX`, and `target` not in `leaves`. Then
@@ -173,9 +178,9 @@ serializations, with `4 · hs.len() ≤ usize::MAX`, and `target` not in `leaves
 `verify_for_trusted_tree(root, target)` accepts. -/
 theorem non_inclusion_complete (hm : HashModel inst H) (hpp : PartitionPointSpec) {L : Type}
     (ord : core.cmp.Ord L) (ser : serde_core.ser.Serialize L) (cl : core.clone.Clone L)
-    (ho : OrdModel ord.partialOrdInst) (hlin : LinearOrd ord.partialOrdInst)
+    (ho : OrdModel ord.partialOrdInst) (hpo : IsPartialOrder L (LeRel ord.partialOrdInst))
     (heqm : EqModel ord.eqInst.partialEqInst) (hcl : CloneIsId cl) (leaves : Slice L)
-    (hsort : SortedLe ord.partialOrdInst leaves.val) (hs : alloc.vec.Vec Node)
+    (hsort : List.Pairwise (LeRel ord.partialOrdInst) leaves.val) (hs : alloc.vec.Vec Node)
     (hhs : SerializedLeafHashes inst ser leaves.val hs) (hn : 4 * hs.length ≤ Usize.max)
     (target : L) (hnot : target ∉ leaves.val) :
     ∃ t, MerkleTree.build_from_leaf_hashes inst hs = ok t ∧
@@ -192,19 +197,20 @@ theorem non_inclusion_complete (hm : HashModel inst H) (hpp : PartitionPointSpec
     simp only [alloc.vec.Vec.length, hys, List.length_map]
   rw [hroot, hys]
   rw [hys] at hnodes
-  exact ni_complete hm hpp ord ser cl ho hlin heqm hcl leaves hsort ys hser (by omega) t hnodes
+  exact ni_complete hm hpp ord ser cl ho hpo heqm hcl leaves (sortedLe_of_pairwise hsort) ys hser (by omega) t hnodes
     (by rw [hnl, hyl]) target hnot
 
 /-- `verify_for_trusted_tree` does not panic: for every proof, root and target, it returns
 `Ok(())` or an error. -/
 theorem non_inclusion_no_panic (hm : HashModel inst H) {L : Type} (ord : core.cmp.Ord L)
     (ser : serde_core.ser.Serialize L) (hb : BcsReturns ser) (ho : OrdModel ord.partialOrdInst)
-    (hlin : LinearOrd ord.partialOrdInst) (pr : MerkleNonInclusionProof L T) (root : Node)
-    (target : L) :
-    ∃ r, MerkleNonInclusionProof.verify_for_trusted_tree inst ord ser pr root target = ok r := by
+    (pr : MerkleNonInclusionProof L T) (root : Node) (target : L) :
+    MerkleNonInclusionProof.verify_for_trusted_tree inst ord ser pr root target ⦃ _ => True ⦄ := by
   have hle : ∀ a b, ∃ r, ord.partialOrdInst.le a b = ok r := fun a b => by
-    rcases hlin.le_ok a b with h | h <;> exact ⟨_, h⟩
-  exact ni_returns hm ord ser hb hle (fun a b => by rw [ho.ge_eq_le]; exact hle b a) pr root target
+    obtain ⟨r, h, -⟩ := spec_eq_ok (ho.le_returns a b); exact ⟨r, h⟩
+  obtain ⟨r, h⟩ :=
+    ni_returns hm ord ser hb hle (fun a b => by rw [ho.ge_eq_le]; exact hle b a) pr root target
+  rw [h, WP.spec_ok]; trivial
 
 end MerkleProofs
 

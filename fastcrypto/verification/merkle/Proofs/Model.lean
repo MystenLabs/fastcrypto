@@ -21,6 +21,12 @@ namespace MerkleProofs
 
 abbrev Node := merkle.Node
 
+/-- The number of levels above the leaves of a tree with `n` leaves. The theorems state this as
+`Nat.clog 2 n` (`depth_eq_clog`). -/
+def depth (n : Nat) : Nat := if n ≤ 1 then 0 else depth ((n + n % 2) / 2) + 1
+termination_by n
+decreasing_by omega
+
 instance : Inhabited Node := ⟨.Empty⟩
 
 variable (H : List U8 → Array U8 32#usize)
@@ -161,6 +167,10 @@ lemma depth_le (n k : Nat) (h : n ≤ 2 ^ k) : depth n ≤ k := by
       omega
 termination_by n
 decreasing_by omega
+
+lemma depth_eq_clog (n : Nat) : depth n = Nat.clog 2 n :=
+  le_antisymm (depth_le n _ (Nat.le_pow_clog (by norm_num) n))
+    (Nat.clog_le_of_le_pow (lt_two_pow_depth n))
 
 /-- The nodes of `MerkleTree` hold at most `4 n` nodes for `n` leaves. -/
 lemma length_flatten_levels (l : List Node) :

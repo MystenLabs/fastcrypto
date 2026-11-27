@@ -5,7 +5,7 @@ import merkle.Proofs.GetProof
 /-!
 Completeness of non-inclusion proofs: `MerkleTree::compute_non_inclusion_proof` returns a proof that
 `MerkleNonInclusionProof::verify_for_trusted_tree` accepts. The assumptions it needs about code
-that Lean sees as opaque: `PartitionPointSpec`, `LinearOrd`, `EqModel` and `CloneIsId`.
+that Lean sees as opaque: `PartitionPointSpec`, `OrdModel`, `EqModel` and `CloneIsId`.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -26,13 +26,14 @@ lemma sortedLe_tail {L : Type} {o : core.cmp.PartialOrd L L} {x : L} {ls : List 
   exact this
 
 /-- In a list sorted by `<=`, the elements `<= t` are a prefix. -/
-lemma partition_index {L : Type} {o : core.cmp.PartialOrd L L} (hl : LinearOrd o) (t : L) :
+lemma partition_index {L : Type} {o : core.cmp.PartialOrd L L} (ho : OrdModel o)
+    (hpo : IsPartialOrder L (LeRel o)) (t : L) :
     ∀ ls : List L, SortedLe o ls →
     ∃ p ≤ ls.length, ∀ k (hk : k < ls.length), o.le ls[k] t = ok (decide (k < p))
   | [], _ => ⟨0, le_rfl, fun k hk => by simp at hk⟩
   | x :: ls, hs => by
-    rcases hl.le_ok x t with hx | hx
-    · obtain ⟨p, hp, hk⟩ := partition_index hl t ls (sortedLe_tail hs)
+    rcases le_cases ho x t with hx | hx
+    · obtain ⟨p, hp, hk⟩ := partition_index ho hpo t ls (sortedLe_tail hs)
       refine ⟨p + 1, by simp; omega, fun k hk' => ?_⟩
       cases k with
       | zero => simpa using hx
@@ -43,8 +44,9 @@ lemma partition_index {L : Type} {o : core.cmp.PartialOrd L L} (hl : LinearOrd o
       | succ k =>
         have hk : k < ls.length := by simpa using hk'
         simp only [List.getElem_cons_succ, Nat.not_lt_zero, decide_false]
-        rcases hl.le_ok ls[k] t with h | h
-        · have := hl.trans _ _ _ (by simpa using hs 0 (k + 1) (by omega) hk') h
+        rcases le_cases ho ls[k] t with h | h
+        · have hx0 : o.le x ls[k] = ok true := by simpa using hs 0 (k + 1) (by omega) hk'
+          have : o.le x t = ok true := hpo.trans _ _ _ hx0 h
           rw [hx] at this; simp at this
         · exact h
 
@@ -165,7 +167,7 @@ lemma compute_spec (hpp : PartitionPointSpec) {L : Type} (ord : core.cmp.Ord L)
     (p = leaves.val.length → pr.right_leaf = none) := by
   unfold CloneIsId at hcl
   unfold merkle.MerkleTree.compute_non_inclusion_proof
-  obtain ⟨pos, hpos, hposv⟩ := hpp
+  obtain ⟨pos, hpos, hposv⟩ := spec_eq_ok <| hpp
     (merkle.MerkleTree.compute_non_inclusion_proof.closure.Insts.CoreOpsFunctionFnMutTupleShared1LBool
       inst ord ser cl) leaves target p hp (fun k hk => by
         simp [merkle.MerkleTree.compute_non_inclusion_proof.closure.Insts.CoreOpsFunctionFnMutTupleShared1LBool.call_mut,
@@ -222,7 +224,7 @@ lemma ni_of_empty {L : Type} (ord : core.cmp.Ord L) (ser : serde_core.ser.Serial
 `verify_for_trusted_tree` accepts against the root of the tree over the leaf hashes of `ys`. -/
 lemma ni_complete (hm : HashModel inst H) (hpp : PartitionPointSpec) {L : Type}
     (ord : core.cmp.Ord L) (ser : serde_core.ser.Serialize L) (cl : core.clone.Clone L)
-    (ho : OrdModel ord.partialOrdInst) (hlin : LinearOrd ord.partialOrdInst)
+    (ho : OrdModel ord.partialOrdInst) (hpo : IsPartialOrder L (LeRel ord.partialOrdInst))
     (heqm : EqModel ord.eqInst.partialEqInst) (hcl : CloneIsId cl) (leaves : Slice L)
     (hsort : SortedLe ord.partialOrdInst leaves.val) (ys : List (List U8))
     (hser : Serializes ser leaves.val ys) (hn : 4 * ys.length ≤ Usize.max)
@@ -234,7 +236,7 @@ lemma ni_complete (hm : HashModel inst H) (hpp : PartitionPointSpec) {L : Type}
       (rootOf H (ys.map (leafN H))) target = ok (.Ok ()) := by
   set hsl := ys.map (leafN H) with hhsl
   have hlen : hsl.length = leaves.val.length := by simp [hhsl, hser.1]
-  obtain ⟨p, hp, hpk⟩ := partition_index hlin target leaves.val hsort
+  obtain ⟨p, hp, hpk⟩ := partition_index ho hpo target leaves.val hsort
   obtain ⟨pr, hc, hidx, hleft, hleft0, hright, hrightn⟩ :=
     compute_spec (inst := inst) hpp ord ser cl hcl heqm hsl t ht (by simp [hnl, hhsl]) leaves
       hlen target hnot p hp hpk
@@ -268,8 +270,8 @@ lemma ni_complete (hm : HashModel inst H) (hpp : PartitionPointSpec) {L : Type}
       rw [hpk j.val hjl]; simp; omega
     have hge : ord.partialOrdInst.ge leaves.val[j.val] target = ok false := by
       rw [ho.ge_eq_le]
-      rcases hlin.le_ok target leaves.val[j.val] with h | h
-      · exact absurd (hlin.antisymm _ _ hle1 h ▸ List.getElem_mem hjl) hnot
+      rcases le_cases ho target leaves.val[j.val] with h | h
+      · exact absurd (hpo.antisymm _ _ hle1 h ▸ List.getElem_mem hjl) hnot
       · exact h
     apply ni_of_left ord ser pr _ target _ P j hPl hj (hnb j hjl P (by rw [hPp, hjp])) hge
     by_cases hr : p < leaves.val.length

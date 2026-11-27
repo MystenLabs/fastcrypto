@@ -1,5 +1,6 @@
 -- THIS FILE IS AI-ONLY
 import merkle.Definitions
+import merkle.Proofs.Result
 
 /-!
 The hash function. The generated code takes the `HashFunction` impl as a parameter `inst`, a
@@ -28,6 +29,14 @@ lemma bytesOf_length (n : merkle.Node) : (bytesOf n).length = 32 := by
   | Empty => simp [bytesOf]
   | Digest v => simp [bytesOf]
 
+/-- `H` has a collision. The theorems state this as `¬ Function.Injective H`. -/
+def Collision (H : List U8 → Array U8 32#usize) : Prop := ∃ x y, x ≠ y ∧ H x = H y
+
+lemma not_injective_of_collision {H : List U8 → Array U8 32#usize} (h : Collision H) :
+    ¬ Function.Injective H := by
+  obtain ⟨x, y, hne, heq⟩ := h
+  exact fun hi => hne (hi heq)
+
 variable {T : Type} {inst : hash.HashFunction T 32#usize} {H : List U8 → Array U8 32#usize}
 
 /-- The leaf hash of `leaf`. -/
@@ -40,26 +49,26 @@ def innerN (H : List U8 → Array U8 32#usize) (l r : merkle.Node) : merkle.Node
 
 lemma leaf_hash_eq (hm : HashModel inst H) (leaf : Slice U8) :
     merkle.leaf_hash inst leaf = ok (leafN H leaf.val) := by
-  obtain ⟨s0, h0, a0⟩ := hm.default_ok
-  obtain ⟨s1, h1, a1⟩ := hm.update_ok (Array.Insts.CoreConvertAsRefSlice U8 1#usize) s0
-    merkle.LEAF_PREFIX _ rfl
-  obtain ⟨s2, h2, a2⟩ := hm.update_ok (Shared0T.Insts.CoreConvertAsRef
-    (Slice.Insts.CoreConvertAsRefSlice U8)) s1 leaf leaf rfl
+  obtain ⟨s0, h0, a0⟩ := spec_eq_ok hm.default_ok
+  obtain ⟨s1, h1, a1⟩ := spec_eq_ok (hm.update_ok (Array.Insts.CoreConvertAsRefSlice U8 1#usize) s0
+    merkle.LEAF_PREFIX _ rfl)
+  obtain ⟨s2, h2, a2⟩ := spec_eq_ok (hm.update_ok (Shared0T.Insts.CoreConvertAsRef
+    (Slice.Insts.CoreConvertAsRefSlice U8)) s1 leaf leaf rfl)
   simp only [merkle.leaf_hash, h0, h1, h2, hm.finalize_ok, bind_ok, core.convert.IntoFrom.into,
     merkle.Node.Insts.CoreConvertFromDigest32.from, leafN, a2, a1, a0]
   simp [merkle.LEAF_PREFIX]
 
 lemma inner_hash_eq (hm : HashModel inst H) (l r : merkle.Node) :
     merkle.inner_hash inst l r = ok (innerN H l r) := by
-  obtain ⟨s0, h0, a0⟩ := hm.default_ok
-  obtain ⟨s1, h1, a1⟩ := hm.update_ok (Array.Insts.CoreConvertAsRefSlice U8 1#usize) s0
-    merkle.INNER_PREFIX _ rfl
+  obtain ⟨s0, h0, a0⟩ := spec_eq_ok hm.default_ok
+  obtain ⟨s1, h1, a1⟩ := spec_eq_ok (hm.update_ok (Array.Insts.CoreConvertAsRefSlice U8 1#usize) s0
+    merkle.INNER_PREFIX _ rfl)
   obtain ⟨bl, hbl, vbl⟩ := bytes_eq l
   obtain ⟨br, hbr, vbr⟩ := bytes_eq r
-  obtain ⟨s2, h2, a2⟩ := hm.update_ok (Array.Insts.CoreConvertAsRefSlice U8 32#usize) s1
-    bl _ rfl
-  obtain ⟨s3, h3, a3⟩ := hm.update_ok (Array.Insts.CoreConvertAsRefSlice U8 32#usize) s2
-    br _ rfl
+  obtain ⟨s2, h2, a2⟩ := spec_eq_ok (hm.update_ok (Array.Insts.CoreConvertAsRefSlice U8 32#usize) s1
+    bl _ rfl)
+  obtain ⟨s3, h3, a3⟩ := spec_eq_ok (hm.update_ok (Array.Insts.CoreConvertAsRefSlice U8 32#usize) s2
+    br _ rfl)
   simp only [merkle.inner_hash, h0, h1, h2, h3, hbl, hbr, hm.finalize_ok, bind_ok,
     core.convert.IntoFrom.into, merkle.Node.Insts.CoreConvertFromDigest32.from, innerN,
     a3, a2, a1, a0, Slice.from_val, vbl, vbr]
