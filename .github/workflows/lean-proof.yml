@@ -1,0 +1,133 @@
+# THIS FILE IS AI-ONLY
+name: Lean Proof
+
+# Checks the Lean proofs of one module against the current Rust code. Called by the workflow of
+# each module, e.g. `weight-reduction-proof.yml`, which says when it runs.
+#
+# The proofs are about a Lean translation of the module, made by Charon and Aeneas and committed in
+# `<proof_dir>/<module>/Generated/`. A Rust change can make that translation stale, or make a
+# proof fail. This job shows both:
+# 1. Download the Aeneas release, which has `charon`, `charon-driver` and `aeneas`, and install the
+#    Rust toolchain it needs and the Lean toolchain.
+# 2. Run the module's `extract.sh`, and fail if `Generated/` changes: the committed translation
+#    must be what the current Rust code gives.
+# 3. Build the Lean project in `proof_dir`, and fail if a proof uses `sorry` or a theorem's axiom
+#    report is absent.
+#
+# When the job fails:
+# - `Generated/` changed: run `extract.sh` locally and commit the result, then fix the proofs if
+#   `lake build` fails. See the README in the module's folder.
+# - The Lean build failed: a proof needs an update, or a statement is false for the new code.
+#
+# Keep `AENEAS_RELEASE` equal to the release in each `extract.sh`, which is the Aeneas commit in
+# each `lakefile.lean`.
+
+on:
+  workflow_call:
+    inputs:
+      proof_dir:
+        description: The Lean project, e.g. `fastcrypto-threshold/verification`.
+        required: true
+        type: string
+      module:
+        description: The module's folder in the Lean project, which has `extract.sh` and `Generated/`.
+        required: true
+        type: string
+      theorems:
+        description: The full names of the theorems whose `#print axioms` reports must be present.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  AENEAS_RELEASE: nightly-2026.11.21-2e3d448
+  # SHA-256 of `aeneas-linux-x86_64.tar.gz` in that release.
+  AENEAS_SHA256: 7bb314c2a58f64178a2849bfcd3339d5a4a34e9f47f2530ae064548c614c25e0
+  PROOF_DIR: ${{ inputs.proof_dir }}
+  MODULE: ${{ inputs.module }}
+
+jobs:
+  proof:
+    runs-on: ubuntu-ghcloud
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # pin@v4.1.1
+
+      - name: Download Aeneas and Charon
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aeneas"
+          curl -sSfL -o "$RUNNER_TEMP/aeneas.tar.gz" \
+            "https://github.com/AeneasVerif/aeneas/releases/download/${AENEAS_RELEASE}/aeneas-linux-x86_64.tar.gz"
+          echo "${AENEAS_SHA256}  $RUNNER_TEMP/aeneas.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/aeneas.tar.gz" -C "$RUNNER_TEMP/aeneas"
+          echo "CHARON=$RUNNER_TEMP/aeneas/charon" >> "$GITHUB_ENV"
+          echo "AENEAS=$RUNNER_TEMP/aeneas/aeneas" >> "$GITHUB_ENV"
+
+      - name: Install the Rust toolchain for Charon
+        # Charon uses the compiler version in the `rust-toolchain` file of the release.
+        run: |
+          set -euo pipefail
+          channel="$(sed -n 's/^channel = "\(.*\)"$/\1/p' "$RUNNER_TEMP/aeneas/rust-toolchain")"
+          test -n "$channel"
+          rustup toolchain install "$channel" --profile minimal \
+            --component rustc-dev --component llvm-tools --component rust-src
+
+      - name: Install the Lean toolchain
+        # `elan` reads the Lean version from `lean-toolchain`.
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Translate the Rust code to Lean
+        run: ./$PROOF_DIR/$MODULE/extract.sh
+
+      - name: Check that the committed translation is up to date
+        run: |
+          set -euo pipefail
+          gen="$PROOF_DIR/$MODULE/Generated"
+          if [ -n "$(git status --porcelain -- "$gen")" ]; then
+            git diff -- "$gen"
+            echo "::error::Generated/ is out of date: run extract.sh and commit the result."
+            exit 1
+          fi
+
+      - name: Download the Lean libraries
+        # `lake exe cache get` downloads the compiled Mathlib files.
+        working-directory: ${{ env.PROOF_DIR }}
+        run: lake exe cache get
+
+      - name: Cache the compiled Aeneas Lean library
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # pin@v4.2.3
+        with:
+          path: ${{ env.PROOF_DIR }}/.lake/packages/aeneas/backends/lean/.lake/build
+          key: aeneas-lean-${{ runner.os }}-${{ hashFiles(format('{0}/lake-manifest.json', inputs.proof_dir), format('{0}/lean-toolchain', inputs.proof_dir)) }}
+
+      - name: Build the proofs
+        working-directory: ${{ env.PROOF_DIR }}
+        run: |
+          set -euo pipefail
+          lake build 2>&1 | tee "$RUNNER_TEMP/lake-build.log"
+
+      - name: Check the axiom reports
+        # Each theorem in `inputs.theorems` must have a `#print axioms` report in the build log.
+        env:
+          THEOREMS: ${{ inputs.theorems }}
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/lake-build.log"
+          if grep -q -e "sorryAx" -e "declaration uses 'sorry'" "$log"; then
+            echo "::error::A proof uses sorry."
+            exit 1
+          fi
+          for theorem in $THEOREMS; do
+            if ! grep -q "'$theorem' depends on axioms" "$log"; then
+              echo "::error::The axiom report of $theorem is absent."
+              exit 1
+            fi
+          done
