@@ -54,10 +54,8 @@ def SerializedLeafHashes {T L : Type} (inst : hash.HashFunction T 32#usize)
 /-! ## The leaf type and BCS, for the non-inclusion proofs -/
 
 open Classical in
-/-- `L`'s Rust methods agree with a partial order `≤` on `L`, a Mathlib `PartialOrder`, with
-equality and with the identity: `a <= b` (`PartialOrd::le`) returns whether `a ≤ b`, `a >= b`
-returns whether `b ≤ a`, `a == b` returns `false` for different values, and `clone` returns its
-argument. -/
+/-- `L`'s `<=` is a partial order `≤`, `>=` is its converse, `==` is `false` for different values,
+and `clone` returns its argument. -/
 structure LeafModel {L : Type} [PartialOrder L] (ord : core.cmp.Ord L) (cl : core.clone.Clone L) :
     Prop where
   le : ∀ a b, ord.partialOrdInst.le a b = ok (decide (a ≤ b))
