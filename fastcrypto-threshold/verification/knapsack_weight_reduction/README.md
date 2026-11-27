@@ -14,9 +14,11 @@ In `Theorems.lean`. For a set `S` of parties, `w(S)` and `w'(S)` are the sums of
 reduced weights.
 
 1. **`verify_reduction_sound`.** `verify_reduction` never panics, and if it accepts
-   `(w', t', f')`, then for every `S`: `w(S) < t ⇒ w'(S) < t'`,
-   `w(S) ≥ t + f + delta ⇒ w'(S) ≥ t' + f'`, `w(S) ≤ f ⇒ w'(S) ≤ f'` and
-   `w(S) ≥ t + delta ⇒ w'(S) ≥ t'`.
+   `(w', t', f')`, then for every `S`:
+   * `w(S) < t ⇒ w'(S) < t'`,
+   * `w(S) ≥ t + f + delta ⇒ w'(S) ≥ t' + f'`,
+   * `w(S) ≤ f ⇒ w'(S) ≤ f'`,
+   * `w(S) ≥ t + delta ⇒ w'(S) ≥ t'`.
 2. **`reduce_weights_passes_verify`.** `reduce_weights` never panics, and `verify_reduction`
    accepts every reduction it returns, which therefore has the properties of 1.
 
