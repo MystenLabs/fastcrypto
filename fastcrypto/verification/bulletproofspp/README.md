@@ -51,12 +51,10 @@ the Pedersen bases); see each theorem's doc for its hypotheses.
 
 ## What is assumed
 
-In `Assumptions.lean` and `Model/`, besides the translation; each theorem takes the ones it
-needs:
+In `Assumptions.lean` and `Model/`; each theorem takes the ones it needs:
 
-* **Translation.** Charon and Aeneas translate the Rust code faithfully, and the definitions that
-  `fix_aeneas_output.py` adds are right. Aeneas clones `(i32, C)` in `Laurent::from_terms` by
-  copying.
+* **`fix_aeneas_output.py`**: the standard-library functions it defines are right. Aeneas clones
+  `(i32, C)` in `Laurent::from_terms` by copying.
 * **The model.** Scalars are a field and points a module over it, the Merlin transcript is a log
   with an arbitrary function from logs to challenges, and the prover's random draws are an input.
 * **Opaque code**, mapped to the model:
