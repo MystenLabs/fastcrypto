@@ -40,7 +40,7 @@ In `Assumptions.lean`; each theorem takes the ones it needs:
   serde's traits emptied) are sound.
 * **`HashModel`**: `HashFunction` hashes the concatenation of its inputs with some `H`. Collision
   resistance is not assumed: the theorems conclude a collision or a zero output instead.
-* **Leaf type**, for non-inclusion: `OrdModel` (`<=` returns, `>=` is its flip), `<=` is a
+* **Leaf type**, for non-inclusion: `OrdModel` (`<=` returns, `>=` is its converse), `<=` is a
   partial order, `EqModel`, `CloneIsId`.
 * **BCS**: `bcs::to_bytes` returns (`BcsReturns`) and is injective (`BcsInjective`).
 * **`PartitionPointSpec`**, for 6: `partition_point` behaves as Rust documents.

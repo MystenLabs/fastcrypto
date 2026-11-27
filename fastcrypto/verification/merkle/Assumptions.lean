@@ -56,7 +56,8 @@ def SerializedLeafHashes {T L : Type} (inst : hash.HashFunction T 32#usize)
 /-- `L`'s `<=` as a relation: `LeRel o a b` when `a <= b` returns `true`. -/
 def LeRel {L : Type} (o : core.cmp.PartialOrd L L) (a b : L) : Prop := o.le a b = ok true
 
-/-- `L`'s `<=` returns, and `a >= b` is `b <= a`. -/
+/-- `L`'s `<=` returns, and its `>=` is the converse of `<=` (`a >= b` is `b <= a`), as Rust's
+`PartialOrd` requires. -/
 structure OrdModel {L : Type} (o : core.cmp.PartialOrd L L) : Prop where
   le_returns : ∀ a b, o.le a b ⦃ _ => True ⦄
   ge_eq_le : ∀ a b, o.ge a b = o.le b a
