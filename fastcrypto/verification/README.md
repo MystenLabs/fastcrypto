@@ -8,6 +8,7 @@ Rust code made by [Charon and Aeneas](https://github.com/AeneasVerif/aeneas). Ea
 | Folder | Module |
 |---|---|
 | `merkle/` | `fastcrypto::merkle` |
+| `bulletproofspp/` | `fastcrypto::bulletproofspp` |
 
 To check the proofs, install Lean with `elan` and run, here:
 
@@ -15,3 +16,6 @@ To check the proofs, install Lean with `elan` and run, here:
 lake exe cache get
 lake build
 ```
+
+The first build also compiles the Aeneas library and VCVio, which `bulletproofspp` uses for
+zero-knowledge.

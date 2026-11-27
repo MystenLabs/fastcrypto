@@ -64,6 +64,3 @@ cp "$out/lean/TypesExternal_Template.lean" "$gen/TypesExternal.lean"
 cp "$out/lean/FunsExternal_Template.lean" "$gen/FunsExternal.lean"
 sed -i.bak 's/import Bppp\./import bulletproofspp.Generated./g' "$gen"/*.lean && rm "$gen"/*.bak
 python3 -I "$here/fix_aeneas_output.py" "$gen"
-for f in "$gen"/*.lean; do
-  { echo "-- THIS FILE IS AI-ONLY"; cat "$f"; } > "$f.tmp" && mv "$f.tmp" "$f"
-done

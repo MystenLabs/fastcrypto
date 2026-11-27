@@ -1,456 +1,366 @@
 -- THIS FILE IS AI-ONLY
-import bulletproofspp.Proofs.CircuitPoly
 import bulletproofspp.Proofs.NormLinear
-import bulletproofspp.Spec.Commitment
+import bulletproofspp.Model.Circuit
 
 /-!
-# Completeness of `circuit.rs`
+The helpers of `circuit.rs` compute the functions of `Model/Circuit.lean`.
 -/
 
-open Finset
+open Aeneas Aeneas.Std Result
+open fastcrypto
 
-namespace Bppp
-
-variable {F E : Type} [Field F] [DecidableEq F] [AddCommGroup E] [Module F E] [DecidableEq E]
+namespace BpppProofs
 
 set_option linter.unusedSectionVars false
 
-namespace Circuit
+variable {F : Type} [Field F] [DecidableEq F] {φ : groups.ristretto255.RistrettoScalar → F}
 
-/-- `Generators::commit`, for vectors of the generators' lengths. -/
-lemma gens_commit_eq (gens : Generators E) (o : Opening F)
-    (hl : o.l.length = gens.h_vec.length) (hn : o.n.length = gens.g_vec.length) :
-    gens.commit o = .ok (o.sigma • gens.g + (List.zipWith (· • ·) o.l gens.h_vec).sum +
-      (List.zipWith (· • ·) o.n gens.g_vec).sum) := by
-  obtain ⟨sigma, l, n⟩ := o
-  simp only at hl hn ⊢
-  simp only [Generators.commit, Generators.msm, mixed_multi_scalar_mul]
-  rw [if_neg (by simp [hl, hn])]
-  simp only [List.cons_append, List.zipWith_cons_cons, List.zipWith_append hl, List.sum_cons,
-    List.sum_append, List.zipWith_nil_left, List.sum_nil, add_zero, add_assoc]
+local notation "S" => groups.ristretto255.RistrettoScalar
+local notation "P" => groups.ristretto255.RistrettoPoint
 
-/-- An MSM over a list, as `Spec.NormLinear.msm` over its entries. -/
-lemma sum_zipWith_msm (a : List F) (P : List E) {L : ℕ} (ha : a.length = L) (hP : P.length = L) :
-    (List.zipWith (· • ·) a P).sum =
-      Spec.NormLinear.msm L (fun k => a.getD k 0) (fun k => P.getD k 0) := by
-  rw [sum_zipWith _ _ _ 0 0, ha, hP, min_self]; rfl
+variable {E : Type} [AddCommGroup E] [Module F E] [DecidableEq E] {ψ : P → E}
 
-lemma input_commitments_eq (params : CircuitParams) (rng : Randomness F) (values : List ℕ)
-    (blindings : List F) (G H : E) (gens : Generators E) :
-    (Witness.new params rng values blindings : Witness F).input_commitments G H gens =
-      .ok ((List.zip (to_scalars values : List F) blindings).map fun (v, s) =>
-        PedersenCommitment.new G H v s) := by
-  simp only [Witness.input_commitments, Witness.new]
-  generalize List.zip (to_scalars values : List F) blindings = L
-  suffices ∀ k, (L.zipIdx k).mapM (fun x => (match ([] : List (List F × F))[x.2]? with
-      | some (n, l) => do
-        let p ← multi_scalar_mul (n ++ [l]) (gens.g_vec ++ [gens.h_vec.getD (H_LEN - 1) 0])
-        pure (⟨(PedersenCommitment.new G H x.1.1 x.1.2).point + p⟩ : PedersenCommitment E)
-      | none => pure (PedersenCommitment.new G H x.1.1 x.1.2) : Result (PedersenCommitment E))) =
-      .ok (L.map fun (v, s) => PedersenCommitment.new G H v s) from this 0
-  intro k
-  induction L generalizing k with
-  | nil => rfl
-  | cons x L ih =>
-    rw [List.zipIdx_cons, List.mapM_cons, ih]
-    simp [pure, Except.pure, bind, Except.bind]
+/-- A loop that pushes, for `i` from `i₀` to `n - 1`, a value that `ψ` maps to `g i`, onto a
+vector whose length is `i` up to the offsets `a`, `b`. -/
+lemma push_loop_off {α β : Type} {body : alloc.vec.Vec α × Usize →
+      Result (ControlFlow (alloc.vec.Vec α × Usize) (alloc.vec.Vec α))}
+    (a b n : ℕ) (ψ : α → β) (g : ℕ → β)
+    (hbody : ∀ v i, v.length + a = i.val + b → i.val < n →
+      body (v, i) ⦃ r => ∃ v' i', r = .cont (v', i') ∧ (∃ x, v'.val = v.val ++ [x] ∧ ψ x = g i.val) ∧
+        i'.val = i.val + 1 ⦄)
+    (hdone : ∀ v i, v.length + a = i.val + b → n ≤ i.val → body (v, i) ⦃ r => r = .done v ⦄)
+    (v : alloc.vec.Vec α) (i : Usize) (hv : v.length + a = i.val + b) (hi : i.val ≤ n) :
+    loop body (v, i) ⦃ r =>
+      r.val.map ψ = v.val.map ψ ++ (List.range' i.val (n - i.val)).map g ⦄ := by
+  apply loop.spec_decr_nat (fun p => n - p.2.val)
+    (fun p => p.1.length + a = p.2.val + b ∧ p.2.val ≤ n ∧
+      p.1.val.map ψ ++ (List.range' p.2.val (n - p.2.val)).map g =
+        v.val.map ψ ++ (List.range' i.val (n - i.val)).map g)
+  · rintro ⟨v', i'⟩ ⟨hv', hi', heq⟩
+    simp only at hv' hi' heq
+    by_cases hlt : i'.val < n
+    · apply WP.spec_mono (hbody v' i' hv' hlt)
+      rintro r ⟨v'', i'', rfl, ⟨x, hv'', hx⟩, hi''⟩
+      dsimp only
+      have hl : v''.length = v'.length + 1 := by
+        simp only [alloc.vec.Vec.length, hv'', List.length_append, List.length_singleton]
+      refine ⟨⟨by omega, by omega, ?_⟩, by omega⟩
+      rw [← heq, hv'', hi'', show n - i'.val = (n - (i'.val + 1)) + 1 by omega,
+        List.range'_succ]
+      simp [hx]
+    · apply WP.spec_mono (hdone v' i' hv' (by omega))
+      intro r hr
+      subst hr
+      rw [← heq, show n - i'.val = 0 by omega]
+      simp
+  · exact ⟨hv, hi, rfl⟩
 
-variable (params : CircuitParams) (hv : params.Valid) (rng : Randomness F) (values : List ℕ)
-  (blindings : List F)
+section Shape
 
-lemma dig_lt (k : ℕ) : (specHonest rng values blindings).dig (params.toSpec hv) k < 16 :=
-  Spec.dig_lt (P := params.toSpec hv) (h := specHonest rng values blindings)
-    (digits_lt params rng values blindings) k
+variable {C Cm : Type} [Inhabited Cm] [Bppp.Coefficient F Cm]
 
-/-- `reciprocals` inverts `α + d_k`. -/
-lemma reciprocals_eq (hlen : values.length = params.m) (alpha : F)
-    (halpha : ∀ j : ℕ, j < 16 → alpha + j ≠ 0) (rho lambda beta : F) (r : ℕ → F) :
-    ∃ n_r, reciprocals params (Witness.new params rng values blindings : Witness F).n_l alpha =
-      .ok n_r ∧ n_r.length = params.nm ∧ ∀ k, n_r.getD k 0 =
-        (specOpening params hv rng values blindings alpha rho lambda beta r).nR k := by
-  set W : Witness F := Witness.new params rng values blindings
-  have hnl : W.n_l.length = params.nm := by simp [W, Witness.new, length_pad_to]
-  have hden : ∀ x ∈ (W.n_l.take params.n_d).map (alpha + ·), x ≠ 0 := by
-    intro x hx
-    simp only [List.mem_map] at hx
-    obtain ⟨d, hd, rfl⟩ := hx
-    obtain ⟨k, hk, rfl⟩ := List.getElem_of_mem hd
-    rw [List.getElem_take, getElem_eq_getD' _ _ 0, getD_n_l params hv rng values blindings hlen]
-    exact halpha _ (dig_lt params hv rng values blindings k)
-  refine ⟨pad_to (((W.n_l.take params.n_d).map (alpha + ·)).map (·⁻¹)) params.nm,
-    by simp only [reciprocals, batch_invert_eq _ hden, bind, Except.bind, pure, Except.pure],
-    length_pad_to _ _, fun k => ?_⟩
-  rw [getD_pad_to]
-  simp only [specOpening, Spec.Honest.opening, specCh, CircuitParams.Nd_toSpec]
-  have hnd := hv.le
-  split_ifs with h1 h2 h2
-  · rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_map, List.getElem?_take,
-      if_pos h2, List.getElem?_eq_getElem (by omega)]
-    simp only [Option.map_some, Option.getD_some]
-    rw [getElem_eq_getD' _ _ 0, getD_n_l params hv rng values blindings hlen k]
-  · rw [getD_eq_zero_of_le (by simp; omega)]
-  · omega
-  · rfl
+/-- The powers of a model polynomial lie in `[lo, hi)`, and it has a coefficient. -/
+def Spans (l : Bppp.Laurent Cm) (lo hi : ℤ) : Prop :=
+  l.coeffs ≠ [] ∧ lo ≤ l.low ∧ l.low + l.coeffs.length ≤ hi
 
-open BpppTranscript NormLinear
+lemma spans_mono {l : Bppp.Laurent Cm} {lo hi lo' hi' : ℤ} (h : Spans l lo hi) (h1 : lo' ≤ lo)
+    (h2 : hi ≤ hi') : Spans l lo' hi' :=
+  ⟨h.1, by have := h.2.1; omega, by have := h.2.2; omega⟩
 
-lemma spec_commit_congr (P : Spec.Params) (g : E) (H G : ℕ → E) (σ : F) {ℓ ℓ' n n' : ℕ → F}
-    (hℓ : ∀ s < 8, ℓ s = ℓ' s) (hn : ∀ k < P.nm, n k = n' k) :
-    Spec.commit P g H G σ ℓ n = Spec.commit P g H G σ ℓ' n' := by
-  simp only [Spec.commit, Spec.NormLinear.msm]
-  have h1 : ∑ s ∈ range 8, ℓ s • H s = ∑ s ∈ range 8, ℓ' s • H s :=
-    sum_congr rfl fun s hs => by rw [hℓ s (mem_range.1 hs)]
-  have h2 : ∑ k ∈ range P.nm, n k • G k = ∑ k ∈ range P.nm, n' k • G k :=
-    sum_congr rfl fun k hk => by rw [hn k (mem_range.1 hk)]
-  rw [h1, h2]
+lemma spans_monomial (p : ℤ) (c : Cm) : Spans (Bppp.Laurent.monomial p c) p (p + 1) := by
+  simp [Spans, Bppp.Laurent.monomial, Bppp.Laurent.new]
 
-lemma sum_zipIdx_map {α : Type} (L : List α) (d : α) (f : ℕ → F) (q : α → E) :
-    ((L.zipIdx.map fun (v, i) => (f i, q v)).map fun (s, p) => s • p).sum =
-      ∑ i ∈ range L.length, f i • q (L.getD i d) := by
-  suffices h : ∀ k, (((L.zipIdx k).map fun (v, i) => (f i, q v)).map fun (s, p) => s • p).sum =
-      ∑ i ∈ range L.length, f (k + i) • q (L.getD i d) by simpa using h 0
-  induction L with
-  | nil => simp
-  | cons x L ih =>
-    intro k
-    rw [List.zipIdx_cons, List.map_cons, List.map_cons, List.sum_cons, ih, List.length_cons,
-      sum_range_succ']
-    simp only [add_zero, List.getD_cons_zero, List.getD_cons_succ]
-    rw [add_comm]
+lemma spans_add {A B : Bppp.Laurent Cm} {lo1 hi1 lo2 hi2 : ℤ} (hA : Spans A lo1 hi1)
+    (hB : Spans B lo2 hi2) : Spans (A + B) (min lo1 lo2) (max hi1 hi2) := by
+  obtain ⟨hA0, hA1, hA2⟩ := hA
+  obtain ⟨hB0, hB1, hB2⟩ := hB
+  have a := List.length_pos_of_ne_nil hA0
+  have b := List.length_pos_of_ne_nil hB0
+  show Spans (Bppp.Laurent.add A B) _ _
+  simp only [Spans, Bppp.Laurent.add, Bppp.Laurent.new, Bppp.Laurent.degree, List.length_map,
+    List.length_range, ne_eq, List.map_eq_nil_iff, List.range_eq_nil]
+  omega
+
+lemma spans_scale {A : Bppp.Laurent Cm} {lo hi : ℤ} (hA : Spans A lo hi) (s : F) :
+    Spans (A.scale s) lo hi := by
+  obtain ⟨h0, h1, h2⟩ := hA
+  simp only [Spans, Bppp.Laurent.scale, Bppp.Laurent.new, List.length_map, ne_eq,
+    List.map_eq_nil_iff]
+  exact ⟨h0, h1, h2⟩
+
+lemma spans_sub {A B : Bppp.Laurent Cm} {lo1 hi1 lo2 hi2 : ℤ} (hA : Spans A lo1 hi1)
+    (hB : Spans B lo2 hi2) : Spans (A - B) (min lo1 lo2) (max hi1 hi2) :=
+  spans_add hA (spans_scale hB _)
+
+lemma spans_from_terms (t : ℤ × Cm) (ts : List (ℤ × Cm)) (lo hi : ℤ)
+    (h : ∀ x ∈ t :: ts, lo ≤ x.1 ∧ x.1 + 1 ≤ hi) :
+    Spans (Bppp.Laurent.from_terms (t :: ts)) lo hi := by
+  have key : ∀ (ts : List (ℤ × Cm)) (acc : Bppp.Laurent Cm), Spans acc lo hi →
+      (∀ x ∈ ts, lo ≤ x.1 ∧ x.1 + 1 ≤ hi) →
+      Spans (ts.foldl (fun acc (p, c) => acc + Bppp.Laurent.monomial p c) acc) lo hi := by
+    intro ts
+    induction ts with
+    | nil => intro acc hacc _; exact hacc
+    | cons x ts ih =>
+      intro acc hacc hts
+      have hx := hts x (by simp)
+      have hm := spans_mono (spans_monomial x.1 x.2) hx.1 hx.2
+      have := spans_add hacc hm
+      rw [min_self, max_self] at this
+      exact ih _ this fun y hy => hts y (by simp [hy])
+  obtain ⟨p, c⟩ := t
+  have ht := h (p, c) (by simp)
+  exact key ts _ (spans_mono (spans_monomial p c) ht.1 ht.2) fun y hy => h y (by simp [hy])
+
+lemma foldl_modify_length (_f : F → F) : ∀ (xs : List (List F × ℕ)) (ys : List (List F × ℕ))
+    (g : List F → List F → F) (L : List F),
+    (xs.foldl (fun coeffs (a, i) => ys.foldl (fun coeffs (b, j) =>
+      coeffs.modify (i + j) (· + g a b)) coeffs) L).length = L.length := by
+  intro xs ys g
+  have inner : ∀ (ys : List (List F × ℕ)) (a : List F) (i : ℕ) (L : List F),
+      (ys.foldl (fun coeffs (b, j) => coeffs.modify (i + j) (· + g a b)) L).length = L.length := by
+    intro ys
+    induction ys with
+    | nil => intro _ _ _; rfl
+    | cons y ys ih => intro a i L; rw [List.foldl_cons, ih, List.length_modify]
+  induction xs with
+  | nil => intro _; rfl
+  | cons x xs ih => intro L; rw [List.foldl_cons, ih, inner]
+
+lemma spans_inner_product {A B : Bppp.Laurent (List F)} {lo1 hi1 lo2 hi2 : ℤ}
+    (hA : Spans A lo1 hi1) (hB : Spans B lo2 hi2) :
+    Spans (A.inner_product B) (lo1 + lo2) (hi1 + hi2 - 1) := by
+  obtain ⟨hA0, hA1, hA2⟩ := hA
+  obtain ⟨hB0, hB1, hB2⟩ := hB
+  have a := List.length_pos_of_ne_nil hA0
+  have b := List.length_pos_of_ne_nil hB0
+  have hlen := foldl_modify_length id A.coeffs.zipIdx B.coeffs.zipIdx Bppp.inner_product
+    (List.replicate (A.coeffs.length + B.coeffs.length - 1) 0)
+  simp only [List.length_replicate] at hlen
+  refine ⟨List.ne_nil_of_length_pos ?_, ?_, ?_⟩
+  · simp only [Bppp.Laurent.inner_product, Bppp.Laurent.new]; rw [hlen]; omega
+  · simp only [Bppp.Laurent.inner_product, Bppp.Laurent.new]; omega
+  · simp only [Bppp.Laurent.inner_product, Bppp.Laurent.new]; rw [hlen]; omega
+
+lemma spans_weighted_inner_product {A B : Bppp.Laurent (List F)} {lo1 hi1 lo2 hi2 : ℤ}
+    (hA : Spans A lo1 hi1) (hB : Spans B lo2 hi2) (w : List F) :
+    Spans (A.weighted_inner_product B w) (lo1 + lo2) (hi1 + hi2 - 1) := by
+  apply spans_inner_product _ hB
+  obtain ⟨h0, h1, h2⟩ := hA
+  simp only [Spans, Bppp.Laurent.new, List.length_map, ne_eq, List.map_eq_nil_iff]
+  exact ⟨h0, h1, h2⟩
+
+/-- A generated polynomial whose model spans powers within half of `powBound` is `Half`. -/
+lemma half_of_spans {ψ : C → Cm} {r : bulletproofspp.laurent.Laurent C} {M : Bppp.Laurent Cm}
+    {lo hi : ℤ} (hr : toL ψ r = M) (hM : Spans M lo hi) (hlo : -(powBound / 2) ≤ lo)
+    (hhi : hi ≤ powBound / 2) : Half r := by
+  subst hr
+  obtain ⟨_, h1, h2⟩ := hM
+  simp only [toL, List.length_map] at h1 h2
+  exact ⟨by omega, by simp only [alloc.vec.Vec.length]; omega⟩
+
+lemma spans_of_toL {ψ : C → Cm} {Pr : C → Prop} {r : bulletproofspp.laurent.Laurent C}
+    (hr : WF Pr r) : Spans (toL ψ r) r.low.val (r.low.val + r.coeffs.length) := by
+  obtain ⟨h0, _, _, _⟩ := hr
+  simp only [Spans, toL, ne_eq, List.map_eq_nil_iff, List.length_map, le_refl, and_true]
+  exact h0
+
+end Shape
+
+lemma cr_val : bulletproofspp.circuit.CR_POWERS.val.map (·.val) = Bppp.Circuit.CR_POWERS := by
+  unfold bulletproofspp.circuit.CR_POWERS
+  simp [Array.make, Bppp.Circuit.CR_POWERS]
+
+lemma cr_len : bulletproofspp.circuit.CR_POWERS.val.length = 7 := by
+  unfold bulletproofspp.circuit.CR_POWERS
+  simp [Array.make]
+
+lemma cr_get (j : ℕ) (h : j < 7) :
+    Bppp.Circuit.CR_POWERS[j]'(by simp [Bppp.Circuit.CR_POWERS]; omega) =
+      (bulletproofspp.circuit.CR_POWERS.val[j]'(by rw [cr_len]; exact h)).val := by
+  simp only [← cr_val, List.getElem_map]
+
+lemma is_cr_power_spec (power : I32) :
+    bulletproofspp.circuit.is_cr_power power ⦃ b =>
+      b = decide (power.val ∈ Bppp.Circuit.CR_POWERS) ⦄ := by
+  unfold bulletproofspp.circuit.is_cr_power bulletproofspp.circuit.is_cr_power_loop
+  apply loop.spec_decr_nat (fun p => 7 - p.2.val)
+    (fun p => p.2.val ≤ 7 ∧ p.1 = decide (power.val ∈ Bppp.Circuit.CR_POWERS.take p.2.val))
+  · rintro ⟨found, j⟩ ⟨hj, hf⟩
+    simp only at hj hf
+    unfold bulletproofspp.circuit.is_cr_power_loop.body
+    step*
+    · have hj7 : j.val < 7 := by scalar_tac
+      have hc : Bppp.Circuit.CR_POWERS.take (j.val + 1) =
+          Bppp.Circuit.CR_POWERS.take j.val ++ [i1.val] := by
+        rw [List.take_succ_eq_append_getElem (by simp [Bppp.Circuit.CR_POWERS]; omega),
+          cr_get _ hj7, i1_post]
+      by_cases h : i1 = power
+      · simp only [h, if_true, bind_ok]
+        step*
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        rw [j1_post, hc]
+        simp [h]
+      · simp only [h, if_false, bind_ok]
+        step*
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        have hne : power.val ≠ i1.val := fun h' => h (IScalar.eq_of_val_eq h'.symm)
+        rw [j1_post, hc, hf]
+        simp [hne]
+    · have hj7 : j.val = 7 := by scalar_tac
+      rw [hf, hj7]
+      simp [Bppp.Circuit.CR_POWERS]
+  · simp
+
+/-- The generated `Coefficient` instance of `RistrettoScalar` computes the model's. -/
+lemma scalar_coeff_model (hs : ScalarModel F φ) :
+    CoeffModel φ groups.ristretto255.RistrettoScalar.Insts.FastcryptoBulletproofsppLaurentCoefficient
+      φ (fun _ => True) where
+  clone a := hs.clone a
+  add a b _ _ := ⟨hs.addRF a b, hs.add_ref_eq a b, trivial, by simp [Bppp.Coefficient.add]⟩
+  scale a s _ := ⟨hs.mulF a s, hs.mul_eq a s, trivial, by simp [Bppp.Coefficient.scale]⟩
+
+lemma message_opening_spec (hs : ScalarModel F φ) (r : Slice S) (n : alloc.vec.Vec S)
+    (hr : 0 < r.length) :
+    bulletproofspp.circuit.message_opening r n ⦃ o =>
+      toO φ o = Bppp.Circuit.message_opening (r.val.map φ) (n.val.map φ) ∧
+        o.l.length = r.length ∧ o.n = n ⦄ := by
+  unfold bulletproofspp.circuit.message_opening bulletproofspp.circuit.message_opening_loop
+  have er : r.len.val = r.val.length := rfl
+  have erl : r.length = r.val.length := rfl
+  apply WP.spec_bind (push_loop_off 1 0 r.length φ (fun i => φ (r.val.getD i hs.z))
+    (fun v i hv hi => by
+      unfold bulletproofspp.circuit.message_opening_loop.body
+      step*
+      refine ⟨l1, i2, rfl, ⟨rs, l1_post, ?_⟩, by scalar_tac⟩
+      rw [rs_post]
+      simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by scalar_tac : i.val < r.val.length)])
+    (fun v i hv hi => by
+      unfold bulletproofspp.circuit.message_opening_loop.body
+      step*)
+    _ 1#usize (by simp) (by simp; omega))
+  intro l hl
+  have h1 : ((1#usize : Usize).val) = 1 := rfl
+  simp only [with_capacity_val, List.map_nil, List.nil_append, h1] at hl
+  have hll : l.val.length = r.length - 1 := by
+    have := congrArg List.length hl
+    simpa using this
+  have hl' : l.length = l.val.length := rfl
+  simp only [hs.zero_eq, bind_ok]
+  step*
+  have hr' : 0 < r.val.length := by omega
+  obtain ⟨x, xs, hx⟩ : ∃ x xs, r.val = x :: xs := by
+    cases h : r.val with
+    | nil => simp [h] at hr'
+    | cons x xs => exact ⟨x, xs, rfl⟩
+  refine ⟨?_, ?_⟩
+  · simp only [toO, Bppp.Circuit.message_opening, l2_post, List.map_append, hl, rs1_post, hx,
+      List.headD_cons, List.getElem_cons_zero, List.drop_one, List.tail_cons, List.map_cons,
+      ScalarModel.φ_z, List.map_nil, Bppp.Opening.mk.injEq, true_and, and_true]
+    rw [show r.length - 1 = xs.length by rw [erl, hx]; simp]
     congr 1
-    exact sum_congr rfl fun i _ => by rw [show k + 1 + i = k + (i + 1) by ring]
+    refine List.ext_getElem (by simp) (fun k h1 h2 => ?_)
+    have hk : k < xs.length := by simpa using h2
+    simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hk]
+  · simp only [alloc.vec.Vec.length, l2_post, List.length_append, List.length_singleton]
+    omega
 
-/-- The verifier's `p_s(τ)`, from `p_n(τ)`, is `p_s` of `Spec` at `τ`. -/
-lemma ps_eq (alpha rho lambda beta : F) (C : Constraints F)
-    (hC : Constraints.Correct params alpha (rho * rho) lambda C hv) (τ : Fˣ) :
-    weighted_norm ((List.range params.nm).map fun k => evalAt τ ((C.p_n).toPolys k))
-        (rho * rho) + 2 * (C.lambda_al + C.mu_am) * ((τ : F) * τ * τ) =
-      evalAt τ (Spec.ps (params.toSpec hv) (specCh alpha rho lambda beta)) := by
-  rw [weighted_norm_eq, List.length_map, List.length_range]
-  simp only [Spec.ps, Spec.normμ, map_add, map_sum, map_mul, evalAt_mono,
-    hC.lambda_al, hC.mu_am, CircuitParams.nm_toSpec, zpow_ofNat]
-  have h : ∀ k ∈ range params.nm, ((List.range params.nm).map fun k =>
-      evalAt τ ((C.p_n).toPolys k)).getD k 0 =
-      evalAt τ (Spec.pn (params.toSpec hv) (specCh alpha rho lambda beta) k) := fun k hk => by
-    rw [getD_map_range _ (mem_range.1 hk),
-      toPolys_p_n params hv alpha rho lambda beta C hC k (mem_range.1 hk)]
-  rw [sum_congr rfl fun k hk => by rw [h k hk]]
-  have hlam : Spec.lamAl (params.toSpec hv) (Constraints.challenges alpha (rho * rho) lambda 0 0) =
-      Spec.lamAl (params.toSpec hv) (specCh alpha rho lambda beta) := rfl
-  have hmu : Spec.muAm (params.toSpec hv) (Constraints.challenges alpha (rho * rho) lambda 0 0) =
-      Spec.muAm (params.toSpec hv) (specCh alpha rho lambda beta) := rfl
-  rw [hlam, hmu]
-  simp only [specCh, pow_zero, mul_one]
-  congr 1
-  · exact sum_congr rfl fun k _ => by ring
-  · ring
+lemma cr_getD_bounds (j : ℕ) :
+    -1 ≤ Bppp.Circuit.CR_POWERS.getD j 0 ∧ Bppp.Circuit.CR_POWERS.getD j 0 ≤ 7 := by
+  rcases j with _ | _ | _ | _ | _ | _ | _ | j <;> simp [Bppp.Circuit.CR_POWERS]
 
-/-- `<p_n(τ), G_vec>`. -/
-lemma pn_msm_eq (gens : Generators E) (hg : gens.g_vec.length = params.nm)
-    (alpha rho lambda beta : F) (C : Constraints F)
-    (hC : Constraints.Correct params alpha (rho * rho) lambda C hv) (τ : Fˣ) :
-    (List.zipWith (· • ·) ((List.range params.nm).map fun k => evalAt τ ((C.p_n).toPolys k))
-        gens.g_vec).sum =
-      Spec.NormLinear.msm params.nm
-        (fun k => evalAt τ (Spec.pn (params.toSpec hv) (specCh alpha rho lambda beta) k))
-        (fun k => gens.g_vec.getD k 0) := by
-  rw [sum_zipWith_msm _ gens.g_vec (by simp) hg]
-  exact sum_congr rfl fun k hk => by
-    simp only []
-    rw [getD_map_range _ (mem_range.1 hk),
-      toPolys_p_n params hv alpha rho lambda beta C hC k (mem_range.1 hk)]
+lemma c_terms_eq (beta : F) :
+    (List.range' 0 7).map (fun j => (Bppp.Circuit.CR_POWERS.getD j 0,
+      (List.replicate 8 (0 : F)).set j beta)) =
+    Bppp.Circuit.CR_POWERS.zipIdx.map fun (a, j) =>
+      (a, (List.replicate Bppp.H_LEN (0 : F)).set j beta) := by
+  simp [Bppp.Circuit.CR_POWERS, List.zipIdx, List.range', Bppp.H_LEN]
 
-/-- The verifier's decomposed `C(τ)` (25). -/
-lemma combined_assembly (P : Spec.Params) (g : E) (G : ℕ → E) (ch : Spec.Challenges F) (τ : Fˣ)
-    (cS cO cL cR : E) (V : ℕ → E) :
-    evalAt τ (Spec.ps P ch) • g + Spec.NormLinear.msm P.nm (fun k => evalAt τ (Spec.pn P ch k)) G +
-      ((τ : F)⁻¹ • cS + ch.δ • cO + (τ : F) • cL + ((τ : F) * τ) • cR +
-        ∑ i ∈ range P.M, (2 * ((τ : F) * τ * τ) * ch.lam ^ i) • V i) =
-    Spec.combined P g G ch τ cS cO cL cR (Spec.vHat P ch V) := by
-  simp only [Spec.combined, Spec.vHat, smul_sum, smul_smul, zpow_neg_one]
-  rw [sum_congr rfl fun i _ => by
-    rw [show 2 * ((τ : F) * τ * τ) * ch.lam ^ i = (τ : F) ^ 3 * (2 * ch.lam ^ i) by ring], sq]
-  abel
+lemma c_spec (hs : ScalarModel F φ) (cons : bulletproofspp.constraints.Constraints)
+    (hcl : cons.cl_v.length = 8) (beta : S) :
+    bulletproofspp.circuit.c cons beta ⦃ r =>
+      WF (VecLen 8) r ∧ Half r ∧ Spans (toL (vecψ φ) r) (-1) 8 ∧
+        toL (vecψ φ) r = Bppp.Circuit.c (toC φ cons) (φ beta) ⦄ := by
+  unfold bulletproofspp.circuit.c bulletproofspp.circuit.c_loop
+  simp only [vec_clone_eq hs, bind_ok]
+  have h0 : (alloc.vec.Vec.with_capacity (I32 × alloc.vec.Vec S)
+    bulletproofspp.crs.H_LEN).val.length = 0 := rfl
+  step*
+  apply WP.spec_bind (push_loop_off (body := fun x => bulletproofspp.circuit.c_loop.body beta x.1 x.2)
+    0 1 7 (fun t : I32 × alloc.vec.Vec S => (t.1.val, vecψ φ t.2))
+    (fun j => (Bppp.Circuit.CR_POWERS.getD j 0, (List.replicate 8 (0 : F)).set j (φ beta)))
+    (fun v j hv hj => by
+      dsimp only
+      unfold bulletproofspp.circuit.c_loop.body
+      have hl : (Array.to_slice bulletproofspp.circuit.CR_POWERS).len.val = 7 := by
+        simp [cr_len]
+      simp only [hs.zero_eq, bulletproofspp.crs.H_LEN]
+      step*
+      all_goals try exact hs.clone _
+      refine ⟨terms1, j1, rfl, ⟨(i1, index_mut_back beta), terms1_post, ?_, ?_⟩, j1_post⟩
+      · rw [List.getD_eq_getElem _ _ (by simp [Bppp.Circuit.CR_POWERS]; omega), cr_get _ hj,
+          i1_post]
+      · simp [vecψ, index_mut_back_post, beta_e_j_post, List.map_set])
+    (fun v j hv hj => by
+      dsimp only
+      unfold bulletproofspp.circuit.c_loop.body
+      have hl : (Array.to_slice bulletproofspp.circuit.CR_POWERS).len.val = 7 := by
+        simp [cr_len]
+      step*)
+    terms1 0#usize (by simp [alloc.vec.Vec.length, terms1_post]) (by simp))
+  intro terms2 ht2
+  have h00 : ((0#usize : Usize).val) = 0 := rfl
+  simp only [terms1_post, with_capacity_val, List.nil_append, List.map_cons, List.map_nil,
+    List.singleton_append, h00, Nat.sub_zero] at ht2
+  have hmem : ∀ x ∈ ((0 : ℤ), vecψ φ cons.cl_v) :: (List.range' 0 7).map (fun j =>
+      (Bppp.Circuit.CR_POWERS.getD j 0, (List.replicate 8 (0 : F)).set j (φ beta))),
+      -1 ≤ x.1 ∧ x.1 ≤ 7 ∧ x.2.length = 8 := by
+    intro x hx
+    simp only [List.mem_cons, List.mem_map, List.mem_range'] at hx
+    rcases hx with rfl | ⟨j, ⟨-, hj⟩, rfl⟩
+    · refine ⟨by norm_num, by norm_num, ?_⟩
+      simp only [vecψ, List.length_map]
+      exact hcl
+    · have := cr_getD_bounds j
+      exact ⟨this.1, this.2, by simp⟩
+  have hne : terms2.val ≠ [] := by
+    intro h
+    simp [h] at ht2
+  have hterms : ∀ t ∈ terms2.val, TermOK (VecLen 8) t := by
+    intro t ht
+    have hm : (t.1.val, vecψ φ t.2) ∈ terms2.val.map (fun t => (t.1.val, vecψ φ t.2)) :=
+      List.mem_map_of_mem ht
+    rw [ht2] at hm
+    obtain ⟨h1, h2, h3⟩ := hmem _ hm
+    refine ⟨?_, by simp only [powBound]; omega, by simp only [powBound]; omega⟩
+    simp only [vecψ, List.length_map] at h3
+    exact h3
+  apply WP.spec_mono (from_terms_spec hs (vec_coeff_model hs 8) terms2 hne hterms)
+  rintro r ⟨hwf, hr⟩
+  rw [ht2] at hr
+  have hsp : Spans (toL (vecψ φ) r) (-1) 8 := by
+    rw [hr]
+    apply spans_from_terms
+    intro x hx
+    have := hmem x hx
+    omega
+  refine ⟨hwf, half_of_spans rfl hsp (by norm_num [powBound]) (by norm_num [powBound]), hsp, ?_⟩
+  rw [hr, Bppp.Circuit.c, ← c_terms_eq]
+  rfl
 
-/-- A circuit commitment as `Spec.commit`. -/
-lemma commit_spec (gens : Generators E) (hh : gens.h_vec.length = H_LEN)
-    (hg : gens.g_vec.length = params.nm) (sigma : F) (l n : List F) (hl : l.length = H_LEN)
-    (hn : n.length = params.nm) :
-    sigma • gens.g + (List.zipWith (· • ·) l gens.h_vec).sum + (List.zipWith (· • ·) n gens.g_vec).sum =
-      Spec.commit (params.toSpec hv) gens.g (fun k => gens.h_vec.getD k 0)
-        (fun k => gens.g_vec.getD k 0) sigma (fun k => l.getD k 0) (fun k => n.getD k 0) := by
-  rw [sum_zipWith_msm l gens.h_vec hl hh, sum_zipWith_msm n gens.g_vec hn hg]; rfl
 
-include hv in
-set_option maxHeartbeats 1000000 in
-/-- **Completeness of the range circuit.** For honest inputs in range, generators of the right
-shape whose `G` and `H_0` are the Pedersen bases, and a transcript whose challenges are never
-`-j` for `j < 16`, `verify` accepts what `prove` outputs. -/
-lemma completeness (Gp Hp : E) (gens : Generators E) (t : BpppTranscript F E)
-    (hh : gens.h_vec.length = H_LEN) (hg : gens.g_vec.length = params.nm)
-    (hgH : gens.g = Hp) (hhG : gens.h_vec.getD 0 0 = Gp)
-    (hlen : values.length = params.m) (hb : blindings.length = params.m)
-    (hrange : ∀ v ∈ values, params.range.is_in_range v) (hd : ∀ v ∈ values, v < 16 ^ params.d)
-    (horacle : ∀ log, ∀ j : ℕ, j < 16 → t.oracle log + j ≠ 0) :
-    ∃ proof t', (prove Gp Hp gens params rng values blindings).run t =
-        .ok ((proof, (List.zip (to_scalars values : List F) blindings).map fun (v, s) =>
-          PedersenCommitment.new Gp Hp v s), t') ∧
-      (verify gens params proof ((List.zip (to_scalars values : List F) blindings).map fun (v, s) =>
-          PedersenCommitment.new Gp Hp v s)).run t = .ok ((), t') := by
-  have hprove : ¬(values.length ≠ params.m ∨ blindings.length ≠ params.m ∨
-      gens.g_vec.length ≠ params.nm ∨ values.any (fun v => !params.range.is_in_range v)) := by
-    simp [hlen, hb, hg]
-    intro v hv; simpa using hrange v hv
-  simp only [prove, hprove, if_false, prove_witness, StateT.run_bind]
-  rw [input_commitments_eq]
-  set vcs := (List.zip (to_scalars values : List F) blindings).map fun (v, s) =>
-    PedersenCommitment.new Gp Hp v s with hvcs
-  set W : Witness F := Witness.new params rng values blindings with hW
-  have hrl : W.r_l.length = H_LEN := length_blinding_vector _ _
-  have hro : W.r_o.length = H_LEN := length_blinding_vector _ _
-  have hrr : W.r_r.length = H_LEN := length_blinding_vector _ _
-  have hnl : W.n_l.length = params.nm := length_pad_to _ _
-  have hno : W.n_o.length = params.nm := length_pad_to _ _
-  have hns : W.n_s.length = params.nm := by simp [W, Witness.new]
-  obtain ⟨c_l, hcl⟩ : ∃ c_l, gens.commit (message_opening W.r_l W.n_l) = .ok c_l :=
-    ⟨_, gens_commit_eq gens _ (by rw [message_opening_l, length_h_coordinates hrl, hh]) (by rw [message_opening_n, hnl, hg])⟩
-  obtain ⟨c_o, hco⟩ : ∃ c_o, gens.commit (message_opening W.r_o W.n_o) = .ok c_o :=
-    ⟨_, gens_commit_eq gens _ (by rw [message_opening_l, length_h_coordinates hro, hh]) (by rw [message_opening_n, hno, hg])⟩
-  simp only [StateT.run_pure, pure_bind, run_liftM_ok, ok_bind,
-    run_domain_sep, run_append_commits, hcl, hco, run_append_point, run_challenge_scalar,
-    extend_extend, extend_oracle, extend_log]
-  generalize hα : t.oracle (t.log ++ [Entry.message "dom-sep" (List.map Char.toNat "bppp_circuit".toList)] ++
-    List.map (fun c => Entry.point "V" c.point) vcs ++ [Entry.point "C_L" c_l] ++
-    [Entry.point "C_O" c_o] ++ [Entry.challenge "alpha"]) = alpha
-  have halpha : ∀ j : ℕ, j < 16 → alpha + j ≠ 0 := fun j hj => hα ▸ horacle _ j hj
-  obtain ⟨n_r, hnr_eq, hnr_len, hnr⟩ := reciprocals_eq params hv rng values blindings hlen alpha
-    halpha 0 0 0 0
-  rw [← hW] at hnr_eq
-  obtain ⟨c_r, hcr⟩ : ∃ c_r, gens.commit (message_opening W.r_r n_r) = .ok c_r :=
-    ⟨_, gens_commit_eq gens _ (by rw [message_opening_l, length_h_coordinates hrr, hh]) (by rw [message_opening_n, hnr_len, hg])⟩
-  simp only [hnr_eq, hcr, run_liftM_ok, ok_bind, extend_oracle, extend_log]
-  set L1 : List (Entry F E) := [Entry.message "dom-sep" (List.map Char.toNat "bppp_circuit".toList)] ++
-    (List.map (fun c => Entry.point "V" c.point) vcs ++
-      ([Entry.point "C_L" c_l] ++ ([Entry.point "C_O" c_o] ++ [Entry.challenge "alpha"]))) with hL1
-  generalize hrho : t.oracle (t.log ++ L1 ++ [Entry.point "C_R" c_r] ++ [Entry.challenge "rho"]) = rho
-  generalize hlam : t.oracle (t.log ++ L1 ++ [Entry.point "C_R" c_r] ++ [Entry.challenge "rho"] ++
-    [Entry.challenge "lambda"]) = lambda
-  generalize hbeta : t.oracle (t.log ++ L1 ++ [Entry.point "C_R" c_r] ++ [Entry.challenge "rho"] ++
-    [Entry.challenge "lambda"] ++ [Entry.challenge "beta"]) = beta
-  have hne : ∀ (l : List (Entry F E)) (x : F), t.oracle l = x → x ≠ 0 := fun l x h => by
-    have := horacle l 0 (by norm_num); rw [h] at this; simpa using this
-  have hrho0 : rho ≠ 0 := hne _ _ hrho
-  have hbeta0 : beta ≠ 0 := hne _ _ hbeta
-  obtain ⟨C, hCnew, hC⟩ := Constraints.new_correct params alpha (rho * rho) lambda hv
-    (mul_ne_zero hrho0 hrho0) halpha
-  simp only [hCnew, run_liftM_ok, ok_bind]
-  have hrest := rest_eq params hv rng values blindings alpha rho lambda beta C hC n_r hlen hb hd
-    hnr_len (fun k => hnr k)
-  obtain ⟨g_s, h_s, hsolve, hhs_len, hhs7, hrS⟩ := solve_r_s_eq params hv rng values blindings alpha
-    rho lambda beta C hC _ hbeta0 hrest
-  obtain ⟨hOs, ⟨hOlu, hOl⟩, ⟨hOnu, hOn⟩⟩ := opening_without_r_s_spec params hv rng values blindings
-    alpha rho lambda C hC n_r hnr_len
-  have hfbar := f_eq_f3 params (w := C.norm_weights) (c_spec params hv alpha rho lambda beta C hC).1
-    (l_base params hv rng values blindings alpha rho lambda beta C hC 0 n_r hb).1
-    (n_spec params hv rng values blindings alpha rho lambda beta C hC 0 n_r hlen hnr_len
-      (fun k => hnr k)).1 (by simp [hC.norm_weights]) hOs hOlu hOl hOnu hOn
-  rw [← solve_r_s_congr C hfbar] at hsolve
-  rw [← hW] at hsolve hOs hOlu hOl hOnu hOn
-  obtain ⟨c_s, hcs⟩ : ∃ c_s, gens.commit ⟨g_s, h_s, W.n_s⟩ = .ok c_s :=
-    ⟨_, gens_commit_eq gens _ (by rw [hhs_len, hh]) (by rw [hns, hg])⟩
-  have hcommit : commit_c_s gens params C W n_r (Circuit.c C beta) beta =
-      .ok (c_s, (opening_without_r_s params C W n_r).with_r_s g_s h_s) := by
-    simp only [commit_c_s, show W.l_s = rng.l_s from rfl, hsolve, ok_bind, hcs]; rfl
-  simp only [hcommit, run_liftM_ok, ok_bind, extend_oracle, extend_log]
-  set L2 : List (Entry F E) := [Entry.point "C_R" c_r] ++ ([Entry.challenge "rho"] ++
-    ([Entry.challenge "lambda"] ++ [Entry.challenge "beta"])) with hL2
-  generalize htau : t.oracle (t.log ++ L1 ++ L2 ++ [Entry.point "C_S" c_s] ++
-    [Entry.challenge "tau"]) = tau
-  have htau0 : tau ≠ 0 := hne _ _ htau
-  set τu : Fˣ := Units.mk0 tau htau0
-  set T : BpppTranscript F E := ((t.extend L1).extend L2).extend
-    ([Entry.point "C_S" c_s] ++ [Entry.challenge "tau"]) with hT
-  -- The evaluations.
-  obtain ⟨hcu, hcp⟩ := c_spec params hv alpha rho lambda beta C hC
-  obtain ⟨hlu, hlp⟩ := l_base params hv rng values blindings alpha rho lambda beta C hC
-    (rSOf g_s h_s) n_r hb
-  obtain ⟨hnu, hnp⟩ := n_spec params hv rng values blindings alpha rho lambda beta C hC
-    (rSOf g_s h_s) n_r hlen hnr_len (fun k => hnr k)
-  rw [← hW] at hlu hlp hnu hnp
-  set O := opening_without_r_s params C W n_r with hO
-  have hlu' := Laurent.uniform_add hOlu (Laurent.uniform_monomial C_S_POWER hhs_len)
-  have hev : ∀ {L : ℕ} {P : Laurent (List F)}, Laurent.Uniform L P →
-      P.eval tau = .ok ((List.range L).map fun k => evalAt τu (P.toPolys k)) :=
-    fun hP => Laurent.eval_eq hP τu
-  obtain ⟨sig_tau, hsig⟩ : ∃ x, (O.sigma + Laurent.monomial C_S_POWER g_s).eval tau = .ok x := by
-    simpa [τu] using Laurent.eval_ok (O.sigma + Laurent.monomial C_S_POWER g_s) τu
-  simp only [CombinedOpening.eval, CombinedOpening.with_r_s, hev hcu, hsig, hev hlu', hev hOnu,
-    run_liftM_ok, ok_bind, bind, Except.bind, pure, Except.pure]
-  have hpnu := uniform_p_n params hv alpha rho lambda C hC
-  set c_tau := (List.range H_LEN).map fun k => evalAt τu ((Circuit.c C beta).toPolys k)
-  set l_tau := (List.range H_LEN).map fun k =>
-    evalAt τu ((O.l + Laurent.monomial C_S_POWER h_s).toPolys k)
-  set n_tau := (List.range params.nm).map fun k => evalAt τu (O.n.toPolys k)
-  set pn_tau := (List.range params.nm).map fun k => evalAt τu (C.p_n.toPolys k)
-  set ps_tau := weighted_norm pn_tau (rho * rho) + 2 * (C.lambda_al + C.mu_am) * (tau * tau * tau)
-  set extra := [(tau⁻¹, c_s), (1, c_o), (tau, c_l), (tau * tau, c_r)] ++
-    vcs.zipIdx.map fun (v_i, i) => (2 * (tau * tau * tau) * C.lambdas.getD i 0, v_i.point)
-  have hident : ps_tau • gens.g + (List.zipWith (· • ·) pn_tau gens.g_vec).sum +
-      (extra.map fun (s, p) => s • p).sum =
-      (inner_product c_tau l_tau + weighted_norm n_tau (rho * rho)) • gens.g +
-        (List.zipWith (· • ·) l_tau gens.h_vec).sum + (List.zipWith (· • ·) n_tau gens.g_vec).sum := by
-    set w := specOpening params hv rng values blindings alpha rho lambda beta (rSOf g_s h_s)
-      with hw
-    set Hf : ℕ → E := fun k => gens.h_vec.getD k 0 with hHf
-    set Gf : ℕ → E := fun k => gens.g_vec.getD k 0 with hGf
-    -- The four messages are the commitments of `Spec`.
-    have ecl : c_l = Spec.cL (params.toSpec hv) gens.g Hf Gf w := by
-      have e := Except.ok.inj ((gens_commit_eq gens _ (by rw [message_opening_l, length_h_coordinates hrl, hh])
-        (by rw [message_opening_n, hnl, hg])).symm.trans hcl)
-      rw [message_opening_sigma, message_opening_l, message_opening_n] at e
-      rw [← e, commit_spec params hv gens hh hg _ _ _ (length_h_coordinates hrl) hnl, headD_eq_getD]
-      exact spec_commit_congr _ _ _ _ _ (fun s _ => getD_h_coordinates hrl s)
-        (fun k _ => getD_n_l params hv rng values blindings hlen k)
-    have eco : c_o = Spec.cO (params.toSpec hv) gens.g Hf Gf w := by
-      have e := Except.ok.inj ((gens_commit_eq gens _ (by rw [message_opening_l, length_h_coordinates hro, hh])
-        (by rw [message_opening_n, hno, hg])).symm.trans hco)
-      rw [message_opening_sigma, message_opening_l, message_opening_n] at e
-      rw [← e, commit_spec params hv gens hh hg _ _ _ (length_h_coordinates hro) hno, headD_eq_getD]
-      exact spec_commit_congr _ _ _ _ _ (fun s _ => getD_h_coordinates hro s)
-        (fun k _ => getD_n_o params hv rng values blindings hlen k)
-    have ecr : c_r = Spec.cR (params.toSpec hv) gens.g Hf Gf w := by
-      have e := Except.ok.inj ((gens_commit_eq gens _ (by rw [message_opening_l, length_h_coordinates hrr, hh])
-        (by rw [message_opening_n, hnr_len, hg])).symm.trans hcr)
-      rw [message_opening_sigma, message_opening_l, message_opening_n] at e
-      rw [← e, commit_spec params hv gens hh hg _ _ _ (length_h_coordinates hrr) hnr_len,
-        headD_eq_getD]
-      exact spec_commit_congr _ _ _ _ _ (fun s _ => getD_h_coordinates hrr s) (fun k _ => hnr k)
-    have ecs : c_s = Spec.cS (params.toSpec hv) gens.g Hf Gf w := by
-      have e := Except.ok.inj ((gens_commit_eq gens ⟨g_s, h_s, W.n_s⟩ (by rw [hhs_len, hh])
-        (by rw [hns, hg])).symm.trans hcs)
-      rw [← e, commit_spec params hv gens hh hg _ _ _ hhs_len hns]
-      refine spec_commit_congr _ _ _ _ _ (fun s hs => ?_) (fun k hk => ?_)
-      · simp only [w, Spec.Honest.opening, Spec.lin, rSOf, specHonest]
-        rcases (show s < 7 ∨ s = 7 by omega) with h7 | rfl
-        · rw [if_pos h7, if_neg (by omega), Nat.add_sub_cancel]
-        · rw [if_neg (by omega), hhs7]
-      · simp only [w, Spec.Honest.opening, specHonest, W, Witness.new]
-        exact getD_map_range _ (by simpa using hk)
-    -- The inputs.
-    have hvcs_len : vcs.length = params.m := by simp [vcs, length_to_scalars, hlen, hb]
-    have evcs : ∀ i < params.m, (vcs.getD i ⟨0⟩).point =
-        Spec.Honest.inputs (P := params.toSpec hv) gens.g Hf (specHonest rng values blindings) i := by
-      intro i hi
-      have hi1 : i < (List.zip (to_scalars values : List F) blindings).length := by
-        simp [length_to_scalars, hlen, hb, hi]
-      rw [← getElem_eq_getD' vcs (by rw [hvcs_len]; exact hi), List.getElem_map, List.getElem_zip]
-      simp only [PedersenCommitment.new, Spec.Honest.inputs, hHf, hgH, hhG]
-      rw [getElem_eq_getD' _ _ 0, getD_to_scalars,
-        value_eq params hv rng values blindings hd i (by rw [hlen]; exact hi),
-        getElem_eq_getD' _ _ 0]
-      rfl
-    have hiw : ∀ i < params.m, C.lambdas.getD i 0 = lambda ^ i :=
-      getD_lambdas params hv alpha rho lambda C hC
-    have hextra : (extra.map fun (s, p) => s • p).sum = tau⁻¹ • c_s + (1 : F) • c_o + tau • c_l +
-        (tau * tau) • c_r + ∑ i ∈ range params.m, (2 * (tau * tau * tau) * lambda ^ i) •
-          Spec.Honest.inputs (P := params.toSpec hv) gens.g Hf (specHonest rng values blindings) i := by
-      simp only [extra, List.map_append, List.sum_append, List.map_cons, List.map_nil,
-        List.sum_cons, List.sum_nil, add_zero]
-      have hz := sum_zipIdx_map vcs ⟨0⟩ (fun i => 2 * (tau * tau * tau) * C.lambdas.getD i 0)
-        (fun v => v.point)
-      simp only at hz
-      rw [hz, hvcs_len]
-      rw [sum_congr rfl fun i hi => by rw [hiw i (mem_range.1 hi), evcs i (mem_range.1 hi)]]
-      abel
-    have hLHS : ps_tau • gens.g + (List.zipWith (· • ·) pn_tau gens.g_vec).sum +
-        (extra.map fun (s, p) => s • p).sum = Spec.combined (params.toSpec hv) gens.g Gf
-          (specCh alpha rho lambda beta) τu (Spec.cS (params.toSpec hv) gens.g Hf Gf w)
-          (Spec.cO (params.toSpec hv) gens.g Hf Gf w) (Spec.cL (params.toSpec hv) gens.g Hf Gf w)
-          (Spec.cR (params.toSpec hv) gens.g Hf Gf w) (Spec.vHat (params.toSpec hv)
-            (specCh alpha rho lambda beta)
-            (Spec.Honest.inputs (P := params.toSpec hv) gens.g Hf (specHonest rng values blindings))) := by
-      have hA := combined_assembly (params.toSpec hv) gens.g Gf (specCh alpha rho lambda beta) τu
-        c_s c_o c_l c_r
-        (Spec.Honest.inputs (P := params.toSpec hv) gens.g Hf (specHonest rng values blindings))
-      have e1 : ps_tau = evalAt τu (Spec.ps (params.toSpec hv) (specCh alpha rho lambda beta)) :=
-        ps_eq params hv alpha rho lambda beta C hC τu
-      have e2 : (List.zipWith (· • ·) pn_tau gens.g_vec).sum = Spec.NormLinear.msm
-          (params.toSpec hv).nm
-          (fun k => evalAt τu (Spec.pn (params.toSpec hv) (specCh alpha rho lambda beta) k)) Gf :=
-        pn_msm_eq params hv gens hg alpha rho lambda beta C hC τu
-      rw [← ecs, ← eco, ← ecl, ← ecr, ← hA, hextra, e1, e2]
-      rfl
-    -- The evaluated opening.
-    have hl_getD : ∀ s < H_LEN, l_tau.getD s 0 =
-        evalAt τu (Spec.ℓ (specCh alpha rho lambda beta) w s) := fun s hs => by
-      rw [getD_map_range _ hs, Laurent.toPolys_add hOlu (Laurent.uniform_monomial _ hhs_len),
-        Laurent.toPolys_monomial, hOl s, hlp s hs, show C_S_POWER = -1 from rfl]
-      have key : (if s < 7 then rSOf g_s h_s (s + 1) else rng.l_s) = h_s.getD s 0 := by
-        simp only [H_LEN] at hs
-        rcases (show s < 7 ∨ s = 7 by omega) with h7 | rfl
-        · rw [if_pos h7]; simp only [rSOf, if_neg (by omega : s + 1 ≠ 0), Nat.add_sub_cancel]
-        · rw [if_neg (by omega), hhs7]
-      rw [key, sub_add_cancel]
-    have hn_getD : ∀ k < params.nm, n_tau.getD k 0 =
-        evalAt τu (Spec.n (params.toSpec hv) (specCh alpha rho lambda beta) w k) :=
-      fun k hk => by rw [getD_map_range _ hk, hOn k, hnp k hk]
-    have hc_getD : ∀ s < H_LEN, c_tau.getD s 0 =
-        evalAt τu (Spec.c (params.toSpec hv) (specCh alpha rho lambda beta) s) :=
-      fun s hs => by rw [getD_map_range _ hs, hcp s hs]
-    have hrel := relation_of_f_zero (params.toSpec hv) (specCh alpha rho lambda beta) w
-      (f_zero params hv rng values blindings alpha rho lambda beta halpha hbeta0 hrho0
-        g_s h_s hrS) τu
-    have hσ : inner_product c_tau l_tau + weighted_norm n_tau (rho * rho) =
-        evalAt τu (Spec.σ (params.toSpec hv) (specCh alpha rho lambda beta) w) := by
-      rw [hrel, inner_product_eq, weighted_norm_eq]
-      have hcl8 : c_tau.length = 8 := by simp [c_tau, H_LEN]
-      have hll8 : l_tau.length = 8 := by simp [l_tau, H_LEN]
-      have hnl : n_tau.length = params.nm := by simp [n_tau]
-      rw [hcl8, hll8, hnl, min_self, CircuitParams.nm_toSpec]
-      have s1 : ∑ s ∈ range 8, c_tau.getD s 0 * l_tau.getD s 0 = ∑ s ∈ range 8,
-          evalAt τu (Spec.c (params.toSpec hv) (specCh alpha rho lambda beta) s) *
-            evalAt τu (Spec.ℓ (specCh alpha rho lambda beta) w s) :=
-        sum_congr rfl fun s hs => by
-          rw [hc_getD s (by simpa [H_LEN] using hs), hl_getD s (by simpa [H_LEN] using hs)]
-      have s2 : ∑ k ∈ range params.nm, n_tau.getD k 0 * n_tau.getD k 0 * (rho * rho) ^ (k + 1) =
-          ∑ k ∈ range params.nm, (specCh alpha rho lambda beta).μ ^ (k + 1) *
-            (evalAt τu (Spec.n (params.toSpec hv) (specCh alpha rho lambda beta) w k) *
-              evalAt τu (Spec.n (params.toSpec hv) (specCh alpha rho lambda beta) w k)) :=
-        sum_congr rfl fun k hk => by rw [hn_getD k (mem_range.1 hk)]; simp only [specCh]; ring
-      rw [s1, s2]
-    rw [hLHS, Spec.vHat_honest (params.toSpec hv) gens.g Hf Gf (specCh alpha rho lambda beta)
-      (specHonest rng values blindings) (rSOf g_s h_s)]
-    rw [show Spec.Honest.opening (params.toSpec hv) (specCh alpha rho lambda beta)
-      (specHonest rng values blindings) (rSOf g_s h_s) = w from rfl, Spec.combined_eq,
-      commit_spec params hv gens hh hg _ _ _ (by simp [l_tau]) (by simp [n_tau]), hσ]
-    exact spec_commit_congr _ _ _ _ _ (fun s hs => (hl_getD s (by simpa [H_LEN] using hs)).symm)
-      (fun k hk => (hn_getD k hk).symm)
-  obtain ⟨nl, t', hnlp, hnlv⟩ := NormLinear.completeness gens T c_tau rho sig_tau l_tau n_tau ps_tau
-    pn_tau
-    extra (by simp [c_tau, hh]) (by simp [l_tau, hh]) (by simp [n_tau, hg]) (by simp [pn_tau, hg])
-    (by rw [hh]; decide) hrho0 hident
-  refine ⟨⟨c_l, c_o, c_r, c_s, nl⟩, t', ?_, ?_⟩
-  · rw [hnlp]
-  · have hvcs_len : vcs.length = params.m := by simp [vcs, length_to_scalars, hlen, hb]
-    have hver : ¬(vcs.length ≠ params.m ∨ gens.g_vec.length ≠ params.nm) := by simp [hvcs_len, hg]
-    have htp : ∀ p : ℤ, (Laurent.monomial p (one : F)).eval tau = .ok (tau ^ p) := fun p => by
-      simpa [τu] using Laurent.eval_monomial_one p τu
-    have e3 : tau ^ (3 : ℤ) = tau * tau * tau := by
-      rw [show (3 : ℤ) = ((3 : ℕ) : ℤ) by norm_num, zpow_natCast]; ring
-    simp only [verify, hver, if_false, StateT.run_bind, pure_bind, run_domain_sep,
-      ok_bind, run_append_commits, run_append_point, run_challenge_scalar, extend_extend,
-      extend_oracle, extend_log]
-    rw [hL2, hL1] at htau hT
-    rw [hL1] at hrho hlam hbeta
-    simp only [List.append_assoc, List.cons_append, List.nil_append,
-      extend_extend] at hα hrho hlam hbeta htau hT ⊢
-    rw [hα, hrho, hlam, hbeta]
-    rw [htau, hCnew]
-    simp only [run_liftM_ok, ok_bind, hev hpnu, hev hcu, htp, C_S_POWER, C_O_POWER, C_L_POWER,
-      C_R_POWER, V_HAT_POWER, zpow_neg_one, zpow_zero, zpow_one, zpow_two, e3, mul_one]
-    rw [← hT]
-    exact hnlv
 
-end Circuit
+/-- Whether `blinding_vector` draws slot `q + 1` for the commitment power `e`. -/
+def bvCond (e : ℤ) (q : ℕ) : Prop :=
+  e + Bppp.Circuit.CR_POWERS.getD q 0 = -1 ∨ e + Bppp.Circuit.CR_POWERS.getD q 0 + 1 ∈ Bppp.Circuit.CR_POWERS
 
-end Bppp
+lemma cr_getD_eq (j : Usize) (hj : j.val < 7) :
+    Bppp.Circuit.CR_POWERS.getD j.val 0 =
+      (bulletproofspp.circuit.CR_POWERS.val[j.val]'(by rw [cr_len]; exact hj)).val := by
+  rw [List.getD_eq_getElem _ _ (by simp [Bppp.Circuit.CR_POWERS]; omega), cr_get _ hj]
+
+lemma is_cr_power_eq (power : I32) :
+    bulletproofspp.circuit.is_cr_power power = ok (decide (power.val ∈ Bppp.Circuit.CR_POWERS)) :=
+  eq_ok_of_spec (is_cr_power_spec power)
+
+end BpppProofs
