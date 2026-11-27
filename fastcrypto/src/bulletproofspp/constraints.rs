@@ -45,7 +45,6 @@ use crate::bulletproofspp::util::*;
 use crate::error::FastCryptoResult;
 use crate::groups::ristretto255::RistrettoScalar;
 use crate::groups::{GroupElement, Scalar};
-use itertools::iterate;
 
 type S = RistrettoScalar;
 
@@ -86,9 +85,15 @@ impl Constraints {
         // shape-row powers `shape[j-1] = lambda^{M*j+1}`, `j = 1..=nm+7`.
         let lambdas = power_vector(lambda, m + 1);
         let lam_m = lambdas[m];
-        let shape: Vec<S> = iterate(lambda * lam_m, |x| x * lam_m)
-            .take(nm + H_LEN - 1)
-            .collect();
+        let shape_len = nm + H_LEN - 1;
+        let mut shape: Vec<S> = Vec::with_capacity(shape_len);
+        let mut x = lambda * lam_m;
+        let mut i = 0;
+        while i < shape_len {
+            shape.push(x);
+            x *= lam_m;
+            i += 1;
+        }
         let base = S::from(BASE);
 
         let mut norm_weights = Vec::with_capacity(nm);
@@ -99,7 +104,8 @@ impl Constraints {
         let mut mu_pow = one(); // mu^{k+1}, built incrementally
         let mut mu_inv_pow = one(); // mu^{-(k+1)}
         let mut base_pow = one(); // 16^t, reset per value block
-        for k in 0..nm {
+        let mut k = 0;
+        while k < nm {
             mu_pow *= mu;
             mu_inv_pow *= mu_inv;
             norm_weights.push(mu_pow);
@@ -116,23 +122,35 @@ impl Constraints {
                 cn_r.push(S::zero());
             }
             cn_v.push(shape[k] * mu_inv_pow);
+            k += 1;
         }
 
         // cn_o via one batch inversion of the denominators alpha*(alpha+j)*mu^j.
         let bm1 = (BASE - 1) as usize;
-        let denominators: Vec<S> = (0..bm1)
-            .map(|k| alpha * (alpha + S::from(k as u64 + 1)) * norm_weights[k])
-            .collect();
+        let mut denominators: Vec<S> = Vec::with_capacity(bm1);
+        let mut k = 0;
+        while k < bm1 {
+            denominators.push(alpha * (alpha + S::from(k as u64 + 1)) * norm_weights[k]);
+            k += 1;
+        }
         let inverses = batch_invert(&denominators)?;
-        let mut cn_o: Vec<S> = (0..bm1)
-            .map(|k| S::from(k as u64 + 1) * lam_m * inverses[k])
-            .collect();
+        let mut cn_o: Vec<S> = Vec::with_capacity(nm);
+        let mut k = 0;
+        while k < bm1 {
+            cn_o.push(S::from(k as u64 + 1) * lam_m * inverses[k]);
+            k += 1;
+        }
         cn_o.resize(nm, S::zero());
 
         let lambda_al = S::from(n_d as u64) * lam_m * alpha.inverse()?;
 
-        let mut cl_v = vec![S::zero()];
-        cl_v.extend((1..H_LEN).map(|p| shape[nm + p - 1]));
+        let mut cl_v = Vec::with_capacity(H_LEN);
+        cl_v.push(S::zero());
+        let mut p = 1;
+        while p < H_LEN {
+            cl_v.push(shape[nm + p - 1]);
+            p += 1;
+        }
 
         Ok(Self {
             norm_weights,
