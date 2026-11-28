@@ -1,0 +1,69 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+//! Vectors of group elements with element-wise addition.
+
+use crate::groups::{HashToGroupElement, RejectionSample};
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+use std::ops::{AddAssign, SubAssign};
+
+/// A vector of `N` elements of `T` with element-wise addition and subtraction.
+#[serde_as]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(bound(serialize = "T: Serialize", deserialize = "T: Deserialize<'de>"))]
+pub struct VectorGroup<T, const N: usize> {
+    #[serde_as(as = "[_; N]")]
+    elements: [T; N],
+}
+
+impl<T: Default, const N: usize> Default for VectorGroup<T, N> {
+    fn default() -> Self {
+        Self {
+            elements: std::array::from_fn(|_| T::default()),
+        }
+    }
+}
+
+impl<T: AddAssign, const N: usize> AddAssign for VectorGroup<T, N> {
+    fn add_assign(&mut self, other: Self) {
+        self.elements
+            .iter_mut()
+            .zip(other.elements)
+            .for_each(|(a, b)| *a += b);
+    }
+}
+
+impl<T: SubAssign, const N: usize> SubAssign for VectorGroup<T, N> {
+    fn sub_assign(&mut self, other: Self) {
+        self.elements
+            .iter_mut()
+            .zip(other.elements)
+            .for_each(|(a, b)| *a -= b);
+    }
+}
+
+/// Domain separation tag for [VectorGroup::hash_to_group_element].
+const DST: &[u8] = b"FASTCRYPTO_VECTOR_GROUP_SHAKE256";
+
+impl<T: RejectionSample, const N: usize> HashToGroupElement for VectorGroup<T, N> {
+    /// Elements are sampled one at a time from SHAKE256 of the domain separation tag, the length
+    /// `N`, the length of the element tag, the element tag and the message. Lengths are
+    /// little-endian u64s.
+    fn hash_to_group_element(msg: &[u8]) -> Self {
+        use sha3::digest::{ExtendableOutput, Update};
+
+        let mut xof = sha3::Shake256::default();
+        xof.update(DST);
+        xof.update(&(N as u64).to_le_bytes());
+        xof.update(&(T::DST.len() as u64).to_le_bytes());
+        xof.update(T::DST);
+        xof.update(msg);
+        let mut reader = xof.finalize_xof();
+        Self {
+            elements: std::array::from_fn(|_| {
+                T::sample(&mut reader).expect("SHAKE256 output is unbounded")
+            }),
+        }
+    }
+}

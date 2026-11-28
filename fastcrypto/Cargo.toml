@@ -101,6 +101,10 @@ name = "merkle"
 harness = false
 
 [[bench]]
+name = "multiset_hash"
+harness = false
+
+[[bench]]
 name = "bulletproofs"
 harness = false
 
