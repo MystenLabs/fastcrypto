@@ -175,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bits_form_bytes() {
+    fn test_bits_from_bytes() {
         let bytes = [0b00000001, 0b00000011, 0b10000001];
         assert_eq!(0, get_bits_from_bytes(&bytes, 0, 0));
         assert_eq!(1, get_bits_from_bytes(&bytes, 0, 1));
@@ -186,21 +186,35 @@ mod tests {
     }
 
     #[test]
-    fn test_bits_form_bytes_panics() {
-        for (start, end) in [(1, 0), (8, 8), (9, 100)] {
-            assert!(std::panic::catch_unwind(|| get_bits_from_bytes(&[0xff], start, end)).is_err());
-        }
+    #[should_panic(expected = "start <= end && start < 8 * bytes.len()")]
+    fn test_bits_from_bytes_panics_if_start_is_after_end() {
+        get_bits_from_bytes(&[0xff], 1, 0);
     }
 
     #[test]
-    fn test_base_2w_expansion_panics() {
-        // The number of bits per digit must be in 1, ..., 64.
-        for bits_per_digit in [0, 65] {
-            assert!(
-                std::panic::catch_unwind(|| compute_base_2w_expansion(&[1], bits_per_digit))
-                    .is_err()
-            );
-        }
+    #[should_panic(expected = "start <= end && start < 8 * bytes.len()")]
+    fn test_bits_from_bytes_panics_if_start_is_the_end_of_the_bytes() {
+        get_bits_from_bytes(&[0xff], 8, 8);
+    }
+
+    #[test]
+    #[should_panic(expected = "start <= end && start < 8 * bytes.len()")]
+    fn test_bits_from_bytes_panics_if_start_is_after_the_end_of_the_bytes() {
+        get_bits_from_bytes(&[0xff], 9, 100);
+    }
+
+    // The number of bits per digit must be in 1, ..., usize::BITS. One assertion checks both bounds.
+
+    #[test]
+    #[should_panic(expected = "0 < bits_per_digit && bits_per_digit <= usize::BITS as usize")]
+    fn test_base_2w_expansion_zero_bits_per_digit() {
+        compute_base_2w_expansion(&[1], 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "0 < bits_per_digit && bits_per_digit <= usize::BITS as usize")]
+    fn test_base_2w_expansion_too_many_bits_per_digit() {
+        compute_base_2w_expansion(&[1], usize::BITS as usize + 1);
     }
 
     #[test]

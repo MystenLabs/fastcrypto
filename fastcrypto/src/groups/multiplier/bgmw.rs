@@ -187,14 +187,16 @@ mod tests {
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
         }
+    }
 
-        // Assert a panic due to setting the HEIGHT too small
-        assert!(std::panic::catch_unwind(|| {
-            BGMWScalarMultiplier::<ProjectivePoint, Scalar, 16, 63, 32>::new(
-                ProjectivePoint::generator(),
-                ProjectivePoint::zero(),
-            )
-        })
-        .is_err());
+    #[test]
+    #[should_panic(
+        expected = "Invalid parameters. HEIGHT needs to be at least 64 with the given WIDTH and SCALAR_SIZE."
+    )]
+    fn test_height_too_small() {
+        BGMWScalarMultiplier::<ProjectivePoint, Scalar, 16, 63, 32>::new(
+            ProjectivePoint::generator(),
+            ProjectivePoint::zero(),
+        );
     }
 }

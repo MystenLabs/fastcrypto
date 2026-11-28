@@ -337,7 +337,7 @@ fn test_from_bytes_mod_order() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "uniform_buffer.len() >= 48")]
 fn test_fiat_shamir_panics_on_short_input() {
     // At least 48 bytes are required to make the bias of the reduction negligible. Every caller
     // passes a hash output of fixed length.
