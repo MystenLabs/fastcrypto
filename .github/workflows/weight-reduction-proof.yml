@@ -1,0 +1,42 @@
+# THIS FILE IS AI-ONLY
+name: Weight Reduction Lean Proof
+
+# Checks the Lean proofs in `fastcrypto-threshold/verification/knapsack_weight_reduction` against
+# the current Rust code, with `lean-proof.yml`.
+
+on:
+  pull_request:
+    paths:
+      - fastcrypto-threshold/**
+      - fastcrypto/src/error.rs
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/weight-reduction-proof.yml
+      - .github/workflows/lean-proof.yml
+  push:
+    branches: [main]
+    paths:
+      - fastcrypto-threshold/**
+      - fastcrypto/src/error.rs
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/weight-reduction-proof.yml
+      - .github/workflows/lean-proof.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    uses: ./.github/workflows/lean-proof.yml
+    with:
+      proof_dir: fastcrypto-threshold/verification
+      module: knapsack_weight_reduction
+      theorems: >-
+        WeightReductionProofs.verify_reduction_sound
+        WeightReductionProofs.reduce_weights_passes_verify
