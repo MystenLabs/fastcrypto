@@ -494,6 +494,15 @@ fn compact_encoding() {
         assert_eq!(hash(&compact), hash(same));
         seen[(compact == pk) as usize] = true;
 
+        // The compact encoding is detected from the input bytes and from the parsed key.
+        let uncompressed_bytes = pk.pubkey.to_encoded_point(false);
+        assert!(Secp256r1PublicKey::is_compact_encoding(&compact_bytes));
+        assert!(Secp256r1PublicKey::is_compact_encoding(compact.as_ref()));
+        assert!(!Secp256r1PublicKey::is_compact_encoding(pk.as_bytes()));
+        assert!(!Secp256r1PublicKey::is_compact_encoding(
+            uncompressed_bytes.as_bytes()
+        ));
+
         // The strict parser rejects the compact encoding but accepts the other encodings.
         assert!(Secp256r1PublicKey::from_bytes_strict(&compact_bytes).is_err());
         assert_eq!(
@@ -501,12 +510,12 @@ fn compact_encoding() {
             pk
         );
         assert_eq!(
-            Secp256r1PublicKey::from_bytes_strict(pk.pubkey.to_encoded_point(false).as_bytes())
-                .unwrap(),
+            Secp256r1PublicKey::from_bytes_strict(uncompressed_bytes.as_bytes()).unwrap(),
             pk
         );
     }
     assert_eq!(seen, [true, true]);
+    assert!(!Secp256r1PublicKey::is_compact_encoding(&[]));
 }
 
 #[test]
