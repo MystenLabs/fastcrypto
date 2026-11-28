@@ -133,6 +133,22 @@ mod tests {
     }
 
     #[test]
+    fn test_two_scalar_mul() {
+        let g = ProjectivePoint::generator();
+        let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 16, 64, 32>::new(
+            g * Scalar::from(3),
+            ProjectivePoint::zero(),
+        );
+        for (a, b) in [(0, 0), (1, 0), (0, 1), (5, 7), (1234, u128::MAX)] {
+            let (a, b) = (Scalar::from(a), Scalar::from(b));
+            assert_eq!(
+                multiplier.two_scalar_mul(&a, &(g * Scalar::from(11)), &b),
+                g * (Scalar::from(3) * a + Scalar::from(11) * b)
+            );
+        }
+    }
+
+    #[test]
     fn test_scalar_multiplication_secp256r1() {
         let mut modulus_minus_one = Fr::MODULUS_MINUS_ONE_DIV_TWO;
         modulus_minus_one.mul2();
@@ -171,14 +187,16 @@ mod tests {
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
         }
+    }
 
-        // Assert a panic due to setting the HEIGHT too small
-        assert!(std::panic::catch_unwind(|| {
-            BGMWScalarMultiplier::<ProjectivePoint, Scalar, 16, 63, 32>::new(
-                ProjectivePoint::generator(),
-                ProjectivePoint::zero(),
-            )
-        })
-        .is_err());
+    #[test]
+    #[should_panic(
+        expected = "Invalid parameters. HEIGHT needs to be at least 64 with the given WIDTH and SCALAR_SIZE."
+    )]
+    fn test_height_too_small() {
+        BGMWScalarMultiplier::<ProjectivePoint, Scalar, 16, 63, 32>::new(
+            ProjectivePoint::generator(),
+            ProjectivePoint::zero(),
+        );
     }
 }

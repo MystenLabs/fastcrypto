@@ -237,6 +237,7 @@ fn compute_multiples<G: Doubling + for<'a> Add<&'a G, Output = G> + Clone + Debu
 
 #[cfg(test)]
 mod tests {
+    use num_bigint::BigUint;
     use rand::thread_rng;
 
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
@@ -292,6 +293,102 @@ mod tests {
         let expected = RistrettoPoint::generator() * a + other_point * b;
         let actual = multiplier.two_scalar_mul(&a, &other_point, &b);
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_scalars_of_different_lengths() {
+        // Big integers have as many bytes as they need, so the scalars can have different lengths, as
+        // in fastcrypto-vdf.
+        let g = RistrettoPoint::generator();
+        let other_point = g * RistrettoScalar::from(3u64);
+        let multiplier = WindowedScalarMultiplier::<RistrettoPoint, BigUint, 16, 5>::new(
+            g,
+            RistrettoPoint::zero(),
+        );
+        let scalars = [0, 1, 2, 255, 256, 0x10000, u64::MAX as u128, u128::MAX];
+        for a in scalars {
+            for b in scalars {
+                assert_eq!(
+                    multiplier.two_scalar_mul(&BigUint::from(a), &other_point, &BigUint::from(b)),
+                    g * RistrettoScalar::from(a) + other_point * RistrettoScalar::from(b)
+                );
+            }
+            assert_eq!(
+                multiplier.mul(&BigUint::from(a)),
+                g * RistrettoScalar::from(a)
+            );
+        }
+    }
+
+    // The cache size must be a power of two greater than one, a precomputed table must have a power
+    // of two elements, and the window width must be positive.
+
+    fn new_multiplier<const CACHE_SIZE: usize>(
+    ) -> WindowedScalarMultiplier<RistrettoPoint, RistrettoScalar, CACHE_SIZE, 4> {
+        WindowedScalarMultiplier::new(RistrettoPoint::generator(), RistrettoPoint::zero())
+    }
+
+    /// Compute 5 times the generator with the given precomputed table and default window width.
+    fn five_times_generator(
+        table: HashMap<usize, Vec<RistrettoPoint>>,
+        width: usize,
+    ) -> RistrettoPoint {
+        multi_scalar_mul(
+            &[RistrettoScalar::from(5u64)],
+            &[RistrettoPoint::generator()],
+            &table,
+            width,
+            RistrettoPoint::zero(),
+        )
+    }
+
+    #[test]
+    fn test_valid_parameters() {
+        new_multiplier::<2>();
+        new_multiplier::<16>();
+        assert_eq!(
+            five_times_generator(HashMap::new(), 2),
+            RistrettoPoint::generator() * RistrettoScalar::from(5u64)
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "CACHE_SIZE must be a power of two greater than 1")]
+    fn test_cache_size_one() {
+        new_multiplier::<1>();
+    }
+
+    #[test]
+    #[should_panic(expected = "CACHE_SIZE must be a power of two greater than 1")]
+    fn test_cache_size_three() {
+        new_multiplier::<3>();
+    }
+
+    #[test]
+    #[should_panic(expected = "CACHE_SIZE must be a power of two greater than 1")]
+    fn test_cache_size_fifteen() {
+        new_multiplier::<15>();
+    }
+
+    #[test]
+    #[should_panic(expected = "Window size must be strictly positive.")]
+    fn test_window_width_zero() {
+        five_times_generator(HashMap::new(), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "The size of a precomputed table must be a power of two.")]
+    fn test_empty_precomputed_table() {
+        five_times_generator(HashMap::from([(0, vec![])]), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "The size of a precomputed table must be a power of two.")]
+    fn test_precomputed_table_of_three_elements() {
+        five_times_generator(
+            HashMap::from([(0, vec![RistrettoPoint::generator(); 3])]),
+            2,
+        );
     }
 
     #[test]

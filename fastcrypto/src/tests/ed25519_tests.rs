@@ -22,6 +22,7 @@ use curve25519_dalek::edwards::{CompressedEdwardsY, EdwardsPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::IsIdentity;
 use hex_literal::hex;
+use itertools::iproduct;
 use proptest::prelude::*;
 use proptest::strategy::{Strategy, ValueTree};
 use proptest::test_runner::TestRunner;
@@ -499,7 +500,33 @@ fn test_serialize_deserialize_aggregate_signatures() {
     assert_eq!(deserialized.sigs, sig.sigs);
 
     // Note that we do not check if the serialized variant equals as_ref() since the serialized
-    // variant begins with a length prefix (of the vector of signatures).
+    // variant has a length prefix (of the vector of signatures, and of each signature).
+    let mut expected = 3u64.to_le_bytes().to_vec();
+    for signature in &signatures {
+        expected.extend_from_slice(&(SIG_LENGTH as u64).to_le_bytes());
+        expected.extend_from_slice(signature.as_ref());
+    }
+    assert_eq!(serialized, expected);
+
+    // Human-readable serde is a list of signatures in base64.
+    let json = serde_json::to_string(&sig).unwrap();
+    let base64: Vec<String> = signatures.iter().map(|s| s.to_string()).collect();
+    assert_eq!(
+        json,
+        format!("{{\"sigs\":{}}}", serde_json::to_string(&base64).unwrap())
+    );
+    let deserialized: Ed25519AggregateSignature = serde_json::from_str(&json).unwrap();
+    assert_eq!(deserialized, sig);
+    for invalid in ["not base64!", "", &Base64::encode([0; SIG_LENGTH - 1])] {
+        let json = format!("{{\"sigs\":[\"{invalid}\"]}}");
+        assert!(serde_json::from_str::<Ed25519AggregateSignature>(&json).is_err());
+    }
+
+    // Aggregates are equal iff they hold the same signatures in the same order.
+    let mut swapped = sig.clone();
+    swapped.sigs.swap(0, 1);
+    assert_ne!(swapped, sig);
+    assert_ne!(Ed25519AggregateSignature::default(), sig);
 }
 
 #[test]
@@ -884,6 +911,9 @@ fn test_default_values() {
     let valid_agg_sig =
         Ed25519AggregateSignature::aggregate(std::slice::from_ref(&valid_sig)).unwrap();
     let default_agg_sig = Ed25519AggregateSignature::default();
+    assert_eq!(default_sig.as_bytes(), [1; SIG_LENGTH]);
+    assert_eq!(default_pk.as_bytes(), [0; PK_LENGTH]);
+    assert!(default_agg_sig.as_bytes().is_empty());
 
     // Default sig should fail (for both types of keys)
     assert!(valid_pk.verify(b"message", &default_sig).is_err());
@@ -1204,6 +1234,49 @@ fn verify_invalid_aggregate_signature_length_mismatch() {
     assert!(res.is_err(), "{:?}", res);
 }
 
+/// Every function that takes several lists accepts only lists of the same length. All the entries
+/// are valid, so ignoring the end of a longer list would accept it.
+#[test]
+fn verify_rejects_lists_of_different_lengths() {
+    let (digest, pubkeys, signatures) = signature_test_inputs();
+    let messages = [&digest[..]; 3];
+    let aggregate = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
+    for (s, p, m) in iproduct!(2..=3, 2..=3, 2..=3) {
+        let (sigs, pks, msgs) = (&signatures[..s], &pubkeys[..p], &messages[..m]);
+        let all_equal = s == p && p == m;
+
+        assert_eq!(
+            Ed25519PublicKey::verify_batch_empty_fail(&digest, pks, sigs).is_ok(),
+            s == p
+        );
+        assert_eq!(
+            Ed25519PublicKey::verify_batch_empty_fail_different_msg(msgs, pks, sigs).is_ok(),
+            all_equal
+        );
+
+        // One aggregate of s signatures.
+        let shorter = Ed25519AggregateSignature::aggregate(sigs).unwrap();
+        assert_eq!(shorter.verify(pks, &digest).is_ok(), s == p);
+        assert_eq!(shorter.verify_different_msg(pks, msgs).is_ok(), all_equal);
+        assert_eq!(
+            Ed25519AggregateSignature::batch_verify(&[&shorter], vec![pks.iter()], &messages[..1])
+                .is_ok(),
+            s == p
+        );
+
+        // A batch of s aggregates.
+        assert_eq!(
+            Ed25519AggregateSignature::batch_verify(
+                &vec![&aggregate; s],
+                vec![pubkeys.iter(); p],
+                msgs
+            )
+            .is_ok(),
+            all_equal
+        );
+    }
+}
+
 #[test]
 fn verify_empty_aggregate_signature_is_rejected() {
     // An empty Ed25519 aggregate signature must NOT verify trivially against any message; previously
@@ -1215,6 +1288,7 @@ fn verify_empty_aggregate_signature_is_rejected() {
     assert!(empty_agg
         .verify_different_msg(&[], &[b"attacker-chosen message"])
         .is_err());
+    assert!(empty_agg.verify_different_msg(&[], &[]).is_err());
 
     // batch_verify on an empty outer slice, or a batch that contains an empty aggregate, must
     // also be rejected.
@@ -1378,7 +1452,10 @@ fn test_add_signatures_to_aggregate() {
     )
     .unwrap();
 
+    // Verify that the binary representation is updated
+    assert_eq!(sig2.as_bytes(), keys()[0].sign(message).as_bytes());
     sig2.add_aggregate(aggregated_signature).unwrap();
+    assert_eq!(sig2.as_bytes(), sig1.as_bytes());
 
     assert!(sig2.verify(&pks, message).is_ok());
 }
@@ -1573,6 +1650,20 @@ fn test_batch_verification_rejects_any_invalid_item() {
         for position in 0..=honest.len() {
             let mut items = honest.clone();
             items.insert(position, item.clone());
+            assert!(!check_batch_agrees_with_individual(&items));
+        }
+    }
+
+    // Errors that cancel in the sum of the signatures: s + 1 in one and s - 1 in another one.
+    let add_to_s = |item: &mut VerificationInput, delta: Scalar| {
+        let s = Scalar::from_canonical_bytes(item.1[32..].try_into().unwrap()).unwrap();
+        item.1[32..].copy_from_slice((s + delta).as_bytes());
+    };
+    for i in 0..honest.len() {
+        for j in 0..i {
+            let mut items = honest.clone();
+            add_to_s(&mut items[i], Scalar::ONE);
+            add_to_s(&mut items[j], -Scalar::ONE);
             assert!(!check_batch_agrees_with_individual(&items));
         }
     }

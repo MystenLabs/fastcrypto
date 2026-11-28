@@ -16,6 +16,7 @@ use crate::{
         ToFromBytes, VerifyingKey,
     },
 };
+use itertools::iproduct;
 use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, RngCore, SeedableRng as _};
 use std::collections::hash_map::DefaultHasher;
@@ -81,6 +82,13 @@ const NON_SUBGROUP_G1: [u8; BLS_G1_LENGTH] = hex_literal(
 /// prime order subgroup.
 const NON_SUBGROUP_G2: [u8; BLS_G2_LENGTH] = hex_literal(
     "800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002",
+);
+
+/// `NON_SUBGROUP_G1` multiplied by r. Its order divides the cofactor of G1, so its pairing with any
+/// point of G2 is one, and adding it to a signature or a public key in G1 does not change the result
+/// of the pairings in verification: only a subgroup check can tell the difference.
+const COFACTOR_ORDER_G1: [u8; BLS_G1_LENGTH] = hex_literal(
+    "accd40884cb1834492efbd0149a414535890f30477f9535103082ff438ca13d7f7e36e2f1d15dd8ca30397f12170831a",
 );
 
 /// `NON_SUBGROUP_G1` with x = p + 4 instead of 4, that is, the same field element not reduced
@@ -391,6 +399,7 @@ fn test_bytes_representations() {
         BLS12381AggregateSignature::try_from(&aggregate_bytes).unwrap(),
         aggregate
     );
+    assert_eq!(pk_bytes.to_string(), Base64::encode(pk.as_bytes()));
 
     // Deserializing a bytes representation does not validate it: any bytes of the right length
     // are accepted, and only the conversion to the key or signature can fail.
@@ -405,13 +414,15 @@ fn test_bytes_representations() {
     assert!(BLS12381PublicKey::try_from(&pk_bytes).unwrap().validate().is_err());
 
     // Human-readable serde uses base64 of exactly the compressed length, so the uncompressed
-    // encoding is rejected.
+    // encoding and a shorter one are rejected.
     let pk_bytes = BLS12381PublicKeyAsBytes::from(&pk);
     let json = serde_json::to_string(&pk_bytes).unwrap();
     assert_eq!(json, format!("\"{}\"", Base64::encode(pk.as_bytes())));
     assert_eq!(serde_json::from_str::<BLS12381PublicKeyAsBytes>(&json).unwrap(), pk_bytes);
-    let json = format!("\"{}\"", Base64::encode(uncompressed_public_key(&pk)));
-    assert!(serde_json::from_str::<BLS12381PublicKeyAsBytes>(&json).is_err());
+    for bytes in [&uncompressed_public_key(&pk)[..], &pk.as_bytes()[1..]] {
+        let json = format!("\"{}\"", Base64::encode(bytes));
+        assert!(serde_json::from_str::<BLS12381PublicKeyAsBytes>(&json).is_err());
+    }
 }
 
 #[test]
@@ -677,6 +688,26 @@ fn verify_batch_missing_public_keys() {
         &signatures,
     );
     assert!(res.is_err(), "{:?}", res);
+
+    // Empty inputs and length mismatches are invalid inputs, also for different messages.
+    for (pks, sigs) in [
+        (&pubkeys[..0], &signatures[..0]),
+        (&pubkeys[1..], &signatures[..]),
+        (&pubkeys[..], &signatures[1..]),
+    ] {
+        assert_eq!(
+            BLS12381PublicKey::verify_batch_empty_fail(&digest, pks, sigs),
+            Err(FastCryptoError::InvalidInput)
+        );
+        assert_eq!(
+            BLS12381PublicKey::verify_batch_empty_fail_different_msg(
+                &vec![&digest[..]; sigs.len()],
+                pks,
+                sigs
+            ),
+            Err(FastCryptoError::InvalidInput)
+        );
+    }
 }
 
 #[test]
@@ -963,6 +994,7 @@ fn test_aggregate_does_not_validate_but_verify_does() {
     sigs.push(<BLS12381Signature as ToFromBytes>::from_bytes(NON_SUBGROUP_SIGNATURE).unwrap());
     let aggregate = BLS12381AggregateSignature::aggregate(&sigs).unwrap();
     assert_eq!(aggregate_from_default(&sigs), aggregate);
+    assert_eq!(aggregate_treewise(&sigs), aggregate);
     // ... but no verification function accepts the result.
     assert!(aggregate.verify(&pks, &message).is_err());
     let messages: Vec<&[u8]> = vec![&message; pks.len()];
@@ -987,6 +1019,47 @@ fn test_add_aggregate_to_non_default_aggregate() {
         aggregate
     );
     assert!(aggregate.verify(&pks, &message).is_ok());
+}
+
+/// Errors that cancel in the sum of all signatures are rejected, because batch verification multiplies
+/// the entries by random scalars.
+#[test]
+fn test_batch_verification_rejects_errors_that_cancel() {
+    let keys = keys();
+    let pks: Vec<BLS12381PublicKey> = keys.iter().map(|kp| kp.public().clone()).collect();
+    let messages: [&[u8]; 4] = [b"first", b"second", b"third", b"fourth"];
+    let sigs: Vec<BLS12381Signature> =
+        keys.iter().zip(messages).map(|(kp, m)| kp.sign(m)).collect();
+    let batch_verify = |sigs: &[BLS12381Signature]| {
+        let aggregates: Vec<BLS12381AggregateSignature> =
+            sigs.iter().cloned().map(Into::into).collect();
+        BLS12381AggregateSignature::batch_verify(
+            &aggregates.iter().collect::<Vec<_>>(),
+            pks.iter().map(std::iter::once).collect(),
+            &messages,
+        )
+    };
+    let batch_verify_different_msg = |sigs: &[BLS12381Signature]| {
+        BLS12381PublicKey::verify_batch_empty_fail_different_msg(&messages, &pks, sigs)
+    };
+    assert!(batch_verify(&sigs).is_ok());
+    assert!(batch_verify_different_msg(&sigs).is_ok());
+
+    for i in 0..sigs.len() {
+        for j in 0..i {
+            let mut swapped = sigs.clone();
+            swapped.swap(i, j);
+            assert_eq!(
+                BLS12381AggregateSignature::aggregate(&swapped).unwrap(),
+                BLS12381AggregateSignature::aggregate(&sigs).unwrap()
+            );
+            assert_eq!(batch_verify(&swapped), Err(FastCryptoError::GeneralOpaqueError));
+            assert_eq!(
+                batch_verify_different_msg(&swapped),
+                Err(FastCryptoError::InvalidSignature)
+            );
+        }
+    }
 }
 
 #[test]
@@ -1058,15 +1131,19 @@ fn test_batch_verify_edge_cases() {
         }
     }
 
-    // Length mismatches.
-    assert_eq!(
-        BLS12381AggregateSignature::batch_verify(&all[..2], groups(), &messages),
-        Err(FastCryptoError::InputLengthWrong(2))
-    );
-    assert_eq!(
-        BLS12381AggregateSignature::batch_verify(&all, groups(), &messages[..2]),
-        Err(FastCryptoError::InputLengthWrong(3))
-    );
+    // Length mismatches, whichever list is longer.
+    for (s, p, m) in iproduct!(2..=3, 2..=3, 2..=3) {
+        let mut pks = groups();
+        pks.truncate(p);
+        assert_eq!(
+            BLS12381AggregateSignature::batch_verify(&all[..s], pks, &messages[..m]),
+            if s == p && p == m {
+                Ok(())
+            } else {
+                Err(FastCryptoError::InputLengthWrong(s))
+            }
+        );
+    }
 
     // Public keys are not validated (callers must validate them and check proofs of possession),
     // so an infinity key in a group does not change the aggregated key and the entry still verifies.
@@ -1174,13 +1251,36 @@ fn test_verify_with_default_values() {
 
 #[test]
  fn public_key_ordering() {
-     let pk1 = keys().pop().unwrap().public().clone();
-     let pk2 = keys().pop().unwrap().public().clone();
-     assert_eq!(pk1.as_bytes().cmp(pk2.as_bytes()), pk1.cmp(&pk2));
-     assert_eq!(
-         pk1.as_bytes().cmp(pk2.as_bytes()),
-         pk1.partial_cmp(&pk2).unwrap()
-     );
+     // Public keys are ordered by their bytes, and Eq and Hash agree with the bytes.
+     let pks1: Vec<_> = keys().iter().map(|kp| kp.public().clone()).collect();
+     let pks2: Vec<_> = keys().iter().map(|kp| kp.public().clone()).collect();
+     for pk1 in &pks1 {
+         assert_eq!(hash_of(pk1), hash_of(&pk1.as_bytes()));
+         for pk2 in &pks2 {
+             assert_eq!(pk1.as_bytes().cmp(pk2.as_bytes()), pk1.cmp(pk2));
+             assert_eq!(
+                 pk1.as_bytes().cmp(pk2.as_bytes()),
+                 pk1.partial_cmp(pk2).unwrap()
+             );
+             assert_eq!(pk1 == pk2, pk1.as_bytes() == pk2.as_bytes());
+         }
+     }
+ }
+
+#[test]
+ fn test_equality() {
+     // Signatures, aggregate signatures, private keys and key pairs are equal iff their bytes are.
+     let keys = keys();
+     let (kp1, kp2) = (&keys[0], &keys[1]);
+     let (sig1, sig2) = (kp1.sign(b"message"), kp2.sign(b"message"));
+     assert_eq!(sig1, kp1.sign(b"message"));
+     assert_ne!(sig1, sig2);
+     assert_ne!(sig1, kp1.sign(b"other message"));
+     assert_ne!(BLS12381AggregateSignature::from(sig1), BLS12381AggregateSignature::from(sig2));
+     assert_ne!(kp1, kp2);
+     let private_key = |kp: &BLS12381KeyPair| BLS12381PrivateKey::from_bytes(kp.as_bytes()).unwrap();
+     assert_eq!(private_key(kp1), private_key(kp1));
+     assert_ne!(private_key(kp1), private_key(kp2));
  }
 
 #[test]
@@ -1448,7 +1548,12 @@ proptest! {
     }
 
     #[test]
-    fn test_deser_private_key_arbitrary_bytes(bytes in collection::vec(any::<u8>(), 0..=64)) {
+    fn test_deser_private_key_arbitrary_bytes(
+        bytes in prop_oneof![
+            collection::vec(any::<u8>(), BLS_PRIVATE_KEY_LENGTH),
+            collection::vec(any::<u8>(), 0..=64),
+        ]
+    ) {
         if let Ok(sk) = BLS12381PrivateKey::from_bytes(&bytes) {
             prop_assert_eq!(sk.as_bytes(), &bytes[..]);
             prop_assert!(bytes.len() == BLS_PRIVATE_KEY_LENGTH);
@@ -1538,7 +1643,7 @@ pub mod min_sig {
     use super::*;
     use crate::bls12381::min_sig::{
         BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
-        BLS12381PrivateKey, BLS12381PublicKey, BLS12381PublicKeyAsBytes, BLS12381Signature,
+        BLS12381PrivateKey, BLS12381PublicKey, BLS12381PublicKeyAsBytes, BLS12381Signature, DST_G1,
     };
     define_tests!();
 
@@ -1562,9 +1667,70 @@ pub mod min_sig {
     }
 
     #[test]
+    fn test_default_aggregate_signature_bytes() {
+        let bytes = BLS12381AggregateSignatureAsBytes::default();
+        assert_eq!(bytes.0, BLS12381AggregateSignature::default().as_bytes());
+    }
+
+    #[test]
     fn aggregate_regression_test() {
         let expected = "aedb61ea3ca1451dd6b726985d54c294af9fb4c5b9f4ddf4bbcf6757ff54ce6608062883565ae63700f3bdbbbface083";
         check_aggregate_regression(expected);
+    }
+
+    #[test]
+    fn test_verify_rejects_signature_plus_point_of_cofactor_order() {
+        // Without the subgroup check, a valid signature plus this point verifies as well.
+        let keys = keys();
+        let pks: Vec<BLS12381PublicKey> = keys.iter().map(|kp| kp.public().clone()).collect();
+        let message: &[u8] = b"message";
+        let sig = keys[0].sign(message);
+        let point = <BLS12381Signature as ToFromBytes>::from_bytes(&COFACTOR_ORDER_G1).unwrap();
+        let aggregate = BLS12381AggregateSignature::aggregate(&[sig.clone(), point]).unwrap();
+        let invalid = <BLS12381Signature as ToFromBytes>::from_bytes(aggregate.as_bytes()).unwrap();
+        assert_ne!(invalid, sig);
+        assert_eq!(
+            invalid
+                .sig
+                .verify(false, message, DST_G1, &[], &pks[0].pubkey, false),
+            blst::BLST_ERROR::BLST_SUCCESS
+        );
+
+        let invalid_signature = Err(FastCryptoError::InvalidSignature);
+        assert_eq!(pks[0].verify(message, &invalid), invalid_signature);
+        assert_eq!(aggregate.verify(&pks[..1], message), invalid_signature);
+        assert_eq!(
+            aggregate.verify_different_msg(&pks[..1], &[message]),
+            invalid_signature
+        );
+        let other = keys[1].sign(b"other message");
+        for sigs in [[&invalid, &other], [&sig, &other]] {
+            let is_valid = sigs[0] == &sig;
+            assert_eq!(
+                BLS12381AggregateSignature::batch_verify(
+                    &sigs
+                        .map(|sig| BLS12381AggregateSignature::from(sig.clone()))
+                        .each_ref(),
+                    pks[..2].iter().map(std::iter::once).collect(),
+                    &[message, b"other message"],
+                )
+                .is_ok(),
+                is_valid
+            );
+            assert_eq!(
+                BLS12381PublicKey::verify_batch_empty_fail_different_msg(
+                    &[message, b"other message"],
+                    &pks[..2],
+                    &sigs.map(Clone::clone),
+                )
+                .is_ok(),
+                is_valid
+            );
+        }
+        assert_eq!(
+            BLS12381PublicKey::verify_batch_empty_fail(message, &pks[..1], &[invalid]),
+            invalid_signature
+        );
     }
 
     #[test]
@@ -1703,6 +1869,39 @@ pub mod min_pk {
     fn aggregate_regression_test() {
         let expected = "aba1be4b22c0352b2060d96fd316a7110c68ad31d037086adb9dacff99460253f2f78e372f4a2574665268f7d48f212218fa678270aaa810674280b21948cf9df339400be2c2ca4b265f949b566c1d488e3651118cb8915db9f39ee55c8ff6af";
         check_aggregate_regression(expected);
+    }
+
+    #[test]
+    fn test_verify_does_not_validate_public_keys() {
+        // A public key plus this point is not in the subgroup, but verifies the same signatures. So
+        // verification relies on the caller to validate the public keys.
+        let kp = keys().pop().unwrap();
+        let message: &[u8] = b"message";
+        let sig = kp.sign(message);
+        let point = blst::min_pk::PublicKey::from_bytes(&COFACTOR_ORDER_G1).unwrap();
+        let sum =
+            blst::min_pk::AggregatePublicKey::aggregate(&[&kp.public().pubkey, &point], false)
+                .unwrap()
+                .to_public_key();
+        let pk = BLS12381PublicKey::from_bytes(&sum.to_bytes()).unwrap();
+        assert_ne!(&pk, kp.public());
+        assert!(pk.validate().is_err());
+
+        assert!(pk.verify(message, &sig).is_ok());
+        let pks = std::slice::from_ref(&pk);
+        let aggregate = BLS12381AggregateSignature::from(sig.clone());
+        assert!(aggregate.verify(pks, message).is_ok());
+        assert!(aggregate.verify_different_msg(pks, &[message]).is_ok());
+        assert!(BLS12381AggregateSignature::batch_verify(
+            &[&aggregate],
+            vec![pks.iter()],
+            &[message]
+        )
+        .is_ok());
+        assert!(
+            BLS12381PublicKey::verify_batch_empty_fail_different_msg(&[message], pks, &[sig])
+                .is_ok()
+        );
     }
 
     #[test]

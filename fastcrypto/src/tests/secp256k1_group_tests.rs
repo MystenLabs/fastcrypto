@@ -337,7 +337,7 @@ fn test_from_bytes_mod_order() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "uniform_buffer.len() >= 48")]
 fn test_fiat_shamir_panics_on_short_input() {
     // At least 48 bytes are required to make the bias of the reduction negligible. Every caller
     // passes a hash output of fixed length.
@@ -375,6 +375,30 @@ fn test_msm() {
         assert_eq!(to_k256_point(&actual), expected);
         assert!(ProjectivePoint::multi_scalar_mul(&scalars[1..], &points).is_err());
         assert!(ProjectivePoint::multi_scalar_mul(&scalars, &points[1..]).is_err());
+    }
+
+    // Every length below 50 and one long MSM, with random scalars and points.
+    let mut rng = StdRng::seed_from_u64(0);
+    let (scalars, points): (Vec<Scalar>, Vec<ProjectivePoint>) = (0..200)
+        .map(|_| {
+            (
+                Scalar::rand(&mut rng),
+                ProjectivePoint::generator() * Scalar::rand(&mut rng),
+            )
+        })
+        .unzip();
+    let mut expected = ProjectivePoint::zero();
+    for length in 1..=200 {
+        expected += points[length - 1] * scalars[length - 1];
+        if (50..200).contains(&length) {
+            continue;
+        }
+        let (scalars, points) = (&scalars[..length], &points[..length]);
+        assert_eq!(
+            ProjectivePoint::multi_scalar_mul(scalars, points).unwrap(),
+            expected
+        );
+        assert!(ProjectivePoint::multi_scalar_mul(&scalars[1..], points).is_err());
     }
 }
 

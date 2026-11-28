@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use base64ct::Encoding as _;
+use itertools::iproduct;
 use once_cell::sync::Lazy;
 use p256::ecdsa::signature::hazmat::{PrehashSigner, PrehashVerifier};
 use p256::ecdsa::Signature;
@@ -223,9 +224,10 @@ fn sui_address(flag: u8, pk: &Secp256r1PublicKey) -> [u8; 32] {
 }
 
 /// Runs a Wycheproof ECDSA suite for P-256 and checks that `verify(pk, msg, signature)` accepts
-/// exactly the valid signatures, except those with a high s unless `accepts_high_s`. The signature
-/// is r || s, converted from DER unless `p1363`. Returns the number of accepted signatures and the
-/// number of valid signatures with a high s.
+/// exactly the valid signatures, except those with a high s unless `accepts_high_s`. If a high s is
+/// rejected, it must accept exactly the valid signatures once s is normalized. The signature is r || s,
+/// converted from DER unless `p1363`. Returns the number of accepted signatures and the number of
+/// valid signatures with a high s.
 pub(crate) fn check_wycheproof(
     name: TestName,
     p1363: bool,
@@ -251,6 +253,19 @@ pub(crate) fn check_wycheproof(
                 test.tc_id,
                 test.comment
             );
+            // Otherwise the invalid signatures with a high s would only be rejected for their s.
+            let normalized = Signature::from_slice(&signature)
+                .ok()
+                .and_then(|s| s.normalize_s());
+            if let (false, Some(normalized)) = (accepts_high_s, normalized) {
+                assert_eq!(
+                    verify(&pk, &test.msg, &normalized.to_bytes()),
+                    valid,
+                    "tc {} with a normalized s: {}",
+                    test.tc_id,
+                    test.comment
+                );
+            }
             accepted += ok as usize;
             valid_high_s += high_s as usize;
         }
@@ -621,10 +636,17 @@ fn to_from_bytes_signature() {
     for len in [0, 1, 32, 63, 65, 72] {
         let mut bytes = signature.as_ref().to_vec();
         bytes.resize(len, 0);
-        assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&bytes).is_err());
+        assert_eq!(
+            <Secp256r1Signature as ToFromBytes>::from_bytes(&bytes),
+            Err(FastCryptoError::InputLengthWrong(SIG_LENGTH))
+        );
     }
     let der = signature.sig.to_der();
     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(der.as_bytes()).is_err());
+    // So are the 65 bytes of a recoverable signature.
+    for byte in [0, 4] {
+        assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[byte; SIG_LENGTH + 1]).is_err());
+    }
 
     // r and s must be in [1, n - 1], as in p256, and accepted values are encoded as given. Zero must
     // be rejected here since verification (split_scalars) panics if r or s is zero.
@@ -942,6 +964,14 @@ fn verify_batch_missing_public_keys() {
         &signatures,
     );
     assert!(res.is_err(), "{:?}", res);
+
+    // missing trailing signatures
+    let res = Secp256r1PublicKey::verify_batch_empty_fail(
+        &digest,
+        &pubkeys,
+        &signatures[..signatures.len() - 1],
+    );
+    assert!(res.is_err(), "{:?}", res);
 }
 
 #[test]
@@ -958,6 +988,25 @@ fn verify_valid_batch_different_msg() {
 #[test]
 fn verify_invalid_batch_different_msg() {
     let mut inputs = test_helpers::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
+
+    // Empty inputs and length mismatches. All the entries are valid, so ignoring the end of a longer
+    // list would accept it.
+    let (msgs, pks, sigs) = (&inputs.digests, &inputs.pubkeys, &inputs.signatures);
+    for (m, p, s) in iproduct!([0, 2, 3], [0, 2, 3], [0, 2, 3]) {
+        assert_eq!(
+            Secp256r1PublicKey::verify_batch_empty_fail_different_msg(
+                &msgs[..m],
+                &pks[..p],
+                &sigs[..s]
+            ),
+            if m == p && p == s && s > 0 {
+                Ok(())
+            } else {
+                Err(FastCryptoError::InvalidInput)
+            }
+        );
+    }
+
     inputs.signatures.swap(0, 1);
     let res = Secp256r1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,

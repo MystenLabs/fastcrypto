@@ -439,6 +439,15 @@ fn recovery_rejects_x_at_or_above_p() {
         FastCryptoError::InvalidSignature
     );
     assert!(sig.recover_with_hash_legacy::<Sha256>(msg).is_err());
+
+    // r = p - n, so that r + n = p.
+    bytes[..32].copy_from_slice(&FIELD_MODULUS_MINUS_ORDER);
+    let sig = <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&bytes).unwrap();
+    assert_eq!(
+        sig.recover(msg).unwrap_err(),
+        FastCryptoError::InvalidSignature
+    );
+    assert!(sig.recover_with_hash_legacy::<Sha256>(msg).is_err());
 }
 
 #[test]

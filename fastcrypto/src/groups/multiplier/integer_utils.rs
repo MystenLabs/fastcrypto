@@ -175,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bits_form_bytes() {
+    fn test_bits_from_bytes() {
         let bytes = [0b00000001, 0b00000011, 0b10000001];
         assert_eq!(0, get_bits_from_bytes(&bytes, 0, 0));
         assert_eq!(1, get_bits_from_bytes(&bytes, 0, 1));
@@ -183,6 +183,70 @@ mod tests {
         assert_eq!(1, get_bits_from_bytes(&bytes, 16, 17));
         assert_eq!(0, get_bits_from_bytes(&bytes, 17, 23));
         assert_eq!(1, get_bits_from_bytes(&bytes, 23, 100));
+    }
+
+    #[test]
+    #[should_panic(expected = "start <= end && start < 8 * bytes.len()")]
+    fn test_bits_from_bytes_panics_if_start_is_after_end() {
+        get_bits_from_bytes(&[0xff], 1, 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "start <= end && start < 8 * bytes.len()")]
+    fn test_bits_from_bytes_panics_if_start_is_the_end_of_the_bytes() {
+        get_bits_from_bytes(&[0xff], 8, 8);
+    }
+
+    #[test]
+    #[should_panic(expected = "start <= end && start < 8 * bytes.len()")]
+    fn test_bits_from_bytes_panics_if_start_is_after_the_end_of_the_bytes() {
+        get_bits_from_bytes(&[0xff], 9, 100);
+    }
+
+    // The number of bits per digit must be in 1, ..., usize::BITS. One assertion checks both bounds.
+
+    #[test]
+    #[should_panic(expected = "0 < bits_per_digit && bits_per_digit <= usize::BITS as usize")]
+    fn test_base_2w_expansion_zero_bits_per_digit() {
+        compute_base_2w_expansion(&[1], 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "0 < bits_per_digit && bits_per_digit <= usize::BITS as usize")]
+    fn test_base_2w_expansion_too_many_bits_per_digit() {
+        compute_base_2w_expansion(&[1], usize::BITS as usize + 1);
+    }
+
+    #[test]
+    fn test_test_bit() {
+        let bytes = [0b00000001, 0b10000010];
+        let set_bits = [0, 9, 15];
+        // Bits after the end of the bytes are zero.
+        for index in 0..100 {
+            assert_eq!(test_bit(&bytes, index), set_bits.contains(&index));
+        }
+        assert!(!test_bit(&[0xff], 8));
+        assert!(!test_bit(&[], 0));
+    }
+
+    #[test]
+    fn test_div_ceil() {
+        for (numerator, denominator, expected) in [
+            (0, 1, 0),
+            (0, 5, 0),
+            (1, 5, 1),
+            (5, 5, 1),
+            (6, 5, 2),
+            (10, 5, 2),
+        ] {
+            assert_eq!(div_ceil(numerator, denominator), expected);
+        }
+    }
+
+    #[test]
+    fn test_biguint_to_le_bytes() {
+        assert_eq!(BigUint::from(0u8).to_le_bytes(), [0]);
+        assert_eq!(BigUint::from(0x010203u32).to_le_bytes(), [3, 2, 1]);
     }
 
     #[test]
